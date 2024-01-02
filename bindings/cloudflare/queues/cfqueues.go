@@ -19,18 +19,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 
-	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Link to the documentation for the component
-const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-bindings/cfqueues/"
+const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-bindings/cloudflare-queues/"
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {
@@ -48,9 +50,9 @@ func NewCFQueues(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init the component.
-func (q *CFQueues) Init(metadata bindings.Metadata) error {
+func (q *CFQueues) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Decode the metadata
-	err := mapstructure.Decode(metadata.Properties, &q.metadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &q.metadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
@@ -132,4 +134,11 @@ func (q *CFQueues) Close() error {
 		return err
 	}
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (q *CFQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+	metadataStruct := componentMetadata{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return
 }

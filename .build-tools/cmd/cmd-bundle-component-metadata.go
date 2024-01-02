@@ -58,7 +58,7 @@ var bundleComponentMetadataCmd = &cobra.Command{
 		for _, component := range list {
 			componentMetadata, err := parser.LoadForComponent(component)
 			if err != nil {
-				panic(fmt.Errorf("Failed to load metadata for component %s: %w", component, err))
+				panic(fmt.Errorf("failed to load metadata for component %s: %w", component, err))
 			}
 			if componentMetadata == nil {
 				fmt.Fprintln(os.Stderr, "Info: metadata file not found in component "+component)
@@ -73,7 +73,7 @@ var bundleComponentMetadataCmd = &cobra.Command{
 		enc.SetIndent("", "  ")
 		err = enc.Encode(bundle)
 		if err != nil {
-			panic(fmt.Errorf("Failed to encode bundle to JSON: %w", err))
+			panic(fmt.Errorf("failed to encode bundle to JSON: %w", err))
 		}
 	},
 }

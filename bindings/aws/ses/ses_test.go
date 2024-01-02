@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -40,7 +41,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 		r := AWSSES{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "myRegionForSES", smtpMeta.Region)
 		assert.Equal(t, "myAccessKeyForSES", smtpMeta.AccessKey)
 		assert.Equal(t, "mySecretKeyForSES", smtpMeta.SecretKey)
@@ -50,54 +51,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "cc@dapr.io", smtpMeta.EmailCc)
 		assert.Equal(t, "bcc@dapr.io", smtpMeta.EmailBcc)
 		assert.Equal(t, "Test email", smtpMeta.Subject)
-	})
-
-	t.Run("region is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"accessKey": "myAccessKeyForSES",
-			"secretKey": "mySecretKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
-	})
-
-	t.Run("accessKey is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"region":    "myRegionForSES",
-			"secretKey": "mySecretKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
-	})
-
-	t.Run("secretKey is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"region":    "myRegionForSES",
-			"accessKey": "myAccessKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
 	})
 }
 

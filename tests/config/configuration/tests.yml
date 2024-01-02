@@ -1,7 +1,11 @@
-# Supported operation: get, subscribe, unsubscribe
+# Supported additional operation: (none)
 componentType: configuration
 components:
   - component: redis.v6
-    allOperations: true
+    operations: []
   - component: redis.v7
-    allOperations: true
+    operations: []
+  - component: postgresql.azure
+    operations: []
+  - component: postgresql.docker
+    operations: []

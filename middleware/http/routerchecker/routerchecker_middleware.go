@@ -14,19 +14,22 @@ limitations under the License.
 package routerchecker
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Metadata is the routerchecker middleware config.
 type Metadata struct {
-	Rule string `json:"rule"`
+	Rule string `json:"rule" mapstructure:"rule"`
 }
 
 // NewRouterCheckerMiddleware returns a new routerchecker middleware.
@@ -40,7 +43,7 @@ type Middleware struct {
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -65,9 +68,15 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*Metadata, error) {
 	var middlewareMetadata Metadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}
 	return &middlewareMetadata, nil
+}
+
+func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := Metadata{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

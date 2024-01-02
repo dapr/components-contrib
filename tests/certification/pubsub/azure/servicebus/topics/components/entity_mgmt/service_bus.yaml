@@ -41,7 +41,7 @@ spec:
       value: 10
     - name: publishMaxRetries
       value: 5
-    - name: publishInitialRetryInternalInMs
+    - name: publishInitialRetryIntervalInMs
       value: 500
 auth:
   secretstore: envvar-secret-store

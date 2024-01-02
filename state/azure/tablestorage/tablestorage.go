@@ -39,6 +39,7 @@ package tablestorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -48,12 +49,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pkg/errors"
 
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -65,7 +67,8 @@ const (
 )
 
 type StateStore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client       *aztables.Client
 	json         jsoniter.API
 	cosmosDBMode bool
@@ -84,7 +87,7 @@ type tablesMetadata struct {
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getTablesMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -124,13 +127,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	} else {
 		// fallback to azure AD authentication
-		var settings azauth.EnvironmentSettings
-		var innerErr error
-		if r.cosmosDBMode {
-			settings, innerErr = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
-		} else {
-			settings, innerErr = azauth.NewEnvironmentSettings("storage", metadata.Properties)
-		}
+		settings, innerErr := azauth.NewEnvironmentSettings(metadata.Properties)
 		if innerErr != nil {
 			return innerErr
 		}
@@ -146,7 +143,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	if !meta.SkipCreateTable {
-		createContext, cancel := context.WithTimeout(context.Background(), timeout)
+		createContext, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		_, innerErr := client.CreateTable(createContext, meta.TableName, nil)
 		if innerErr != nil {
@@ -171,11 +168,9 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	r.logger.Debugf("delete %s", req.Key)
-
 	err := r.deleteRow(ctx, req)
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		} else if isNotFoundError(err) {
 			// deleting an item that doesn't exist without specifying an ETAG is a noop
@@ -187,7 +182,6 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 }
 
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -208,18 +202,13 @@ func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	r.logger.Debugf("saving %s", req.Key)
-
-	err := r.writeRow(ctx, req)
-
-	return err
+	return r.writeRow(ctx, req)
 }
 
-func (r *StateStore) GetComponentMetadata() map[string]string {
+func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := tablesMetadata{}
-	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
+	return
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {
@@ -228,28 +217,27 @@ func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
 func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	m := tablesMetadata{}
-	err := mdutils.DecodeMetadata(meta, &m)
+	err := kitmd.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
 	}
 
 	// Can be empty (such as when using Azure AD for auth)
-	m.AccountKey, _ = mdutils.GetMetadataProperty(meta, azauth.StorageAccountKeyKeys...)
+	m.AccountKey, _ = mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountKey"]...)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageTableNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageTableName"]...); ok && val != "" {
 		m.TableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageTableName"][0])
 	}
 
 	return &m, err
@@ -275,18 +263,16 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
 			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
-			if req.ETag != nil && *req.ETag != "" {
-				etag := azcore.ETag(*req.ETag)
-
-				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
-					IfMatch:    &etag,
+			if req.HasETag() {
+				_, err = r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
+					IfMatch:    ptr.Of(azcore.ETag(*req.ETag)),
 					UpdateMode: aztables.UpdateModeReplace,
 				})
-				if uerr != nil {
-					if isNotFoundError(uerr) {
-						return state.NewETagError(state.ETagMismatch, uerr)
+				if err != nil {
+					if isPreconditionFailedError(err) {
+						return state.NewETagError(state.ETagMismatch, err)
 					}
-					return uerr
+					return err
 				}
 			} else if req.Options.Concurrency == state.FirstWrite {
 				// Otherwise, if FirstWrite was set, but no etag was provided for an Update operation
@@ -296,12 +282,12 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
 			} else {
 				// Finally, last write semantics without ETag should always perform a force update.
-				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
+				_, err = r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    nil, // this is the same as "*" matching all ETags
 					UpdateMode: aztables.UpdateModeReplace,
 				})
-				if uerr != nil {
-					return uerr
+				if err != nil {
+					return err
 				}
 			}
 		} else {
@@ -317,6 +303,14 @@ func isNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
 		return (respErr.ErrorCode == string(aztables.ResourceNotFound)) || (respErr.ErrorCode == string(aztables.EntityNotFound))
+	}
+	return false
+}
+
+func isPreconditionFailedError(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.ErrorCode == string(aztables.UpdateConditionNotSatisfied)
 	}
 	return false
 }
@@ -342,10 +336,17 @@ func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) er
 
 	deleteContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if req.ETag != nil {
-		azcoreETag := azcore.ETag(*req.ETag)
-		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
-		return err
+	if req.HasETag() {
+		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{
+			IfMatch: ptr.Of(azcore.ETag(*req.ETag)),
+		})
+		if err != nil {
+			if isPreconditionFailedError(err) {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+			return err
+		}
+		return nil
 	}
 	all := azcore.ETagAny
 	_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
@@ -386,7 +387,7 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		},
 	}
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		entity.ETag = *req.ETag
 	}
 
@@ -411,7 +412,7 @@ func (r *StateStore) unmarshal(row *aztables.GetEntityResponse) ([]byte, *string
 	// must be a string
 	sv, ok := raw.(string)
 	if !ok {
-		return nil, nil, errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
+		return nil, nil, fmt.Errorf("expected string in column '%s'", valueEntityProperty)
 	}
 
 	// use native ETag

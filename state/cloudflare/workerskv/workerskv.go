@@ -28,7 +28,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -41,22 +41,23 @@ const componentDocsURL = "https://docs.dapr.io/reference/components-reference/su
 // CFWorkersKV is a state store backed by Cloudflare Workers KV.
 type CFWorkersKV struct {
 	*workers.Base
-	state.DefaultBulkStore
+	state.BulkStore
+
 	metadata componentMetadata
 }
 
 // NewCFWorkersKV returns a new CFWorkersKV.
 func NewCFWorkersKV(logger logger.Logger) state.Store {
-	q := &CFWorkersKV{
+	s := &CFWorkersKV{
 		Base: &workers.Base{},
 	}
-	q.DefaultBulkStore = state.NewDefaultBulkStore(q)
-	q.SetLogger(logger)
-	return q
+	s.SetLogger(logger)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init the component.
-func (q *CFWorkersKV) Init(metadata state.Metadata) error {
+func (q *CFWorkersKV) Init(_ context.Context, metadata state.Metadata) error {
 	// Decode the metadata
 	err := mapstructure.Decode(metadata.Properties, &q.metadata)
 	if err != nil {
@@ -81,16 +82,17 @@ func (q *CFWorkersKV) Init(metadata state.Metadata) error {
 	return q.Base.Init(workerBindings, componentDocsURL, infoResponseValidate)
 }
 
-func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
+func (q *CFWorkersKV) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := componentMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }
 
 // Features returns the features supported by this state store.
 func (q CFWorkersKV) Features() []state.Feature {
-	return []state.Feature{}
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {

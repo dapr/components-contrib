@@ -15,13 +15,17 @@ package routeralias
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
+	"reflect"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v3"
+
+	mdutils "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 type contextKey int
@@ -40,10 +44,10 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (
 	func(next http.Handler) http.Handler, error,
 ) {
-	if err := m.getNativeMetadata(metadata); err != nil {
+	if err := m.createRouterFromMetadata(metadata); err != nil {
 		return nil, err
 	}
 	return func(next http.Handler) http.Handler {
@@ -59,10 +63,33 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	}, nil
 }
 
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) error {
+func (m *Middleware) createRouterFromMetadata(metadata middleware.Metadata) error {
 	m.router = mux.NewRouter()
-	for key, value := range metadata.Properties {
-		m.router.Handle(key, m.routerConvert(value))
+
+	if len(metadata.Properties) == 0 {
+		return nil
+	}
+
+	// Check if using legacy metadata
+	routesVal, _ := mdutils.GetMetadataProperty(metadata.Properties, "routes")
+	if len(metadata.Properties) > 1 || routesVal == "" {
+		m.logger.Warn("Listing routes as key-value pairs is deprecated. Please use the 'routes' property instead. See: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-routeralias/")
+
+		for key, value := range metadata.Properties {
+			if key == "" || value == "" {
+				return errors.New("invalid key/value pair in metadata: must not be empty")
+			}
+			m.router.Handle(key, m.routerConvert(value))
+		}
+	} else {
+		routes := map[string]string{}
+		err := yaml.Unmarshal([]byte(routesVal), &routes)
+		if err != nil {
+			return fmt.Errorf("failed to decode 'routes' property as JSON or YAML: %w", err)
+		}
+		for key, value := range routes {
+			m.router.Handle(key, m.routerConvert(value))
+		}
 	}
 
 	return nil
@@ -70,14 +97,17 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) error {
 
 func (m *Middleware) routerConvert(daprRouter string) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		params := vars(req)
-		vals := req.URL.Query()
-		for key, val := range params {
-			vals.Add(key, val)
-		}
-		req.URL.RawQuery = vals.Encode()
 		req.URL.Path = daprRouter
-		req.RequestURI = fmt.Sprintf("%s?%s", daprRouter, req.URL.RawQuery)
+
+		params := vars(req)
+		if len(params) > 0 {
+			vals := req.URL.Query()
+			for key, val := range params {
+				vals.Add(key, val)
+			}
+			req.URL.RawQuery = vals.Encode()
+			req.RequestURI = daprRouter + "?" + req.URL.RawQuery
+		}
 	})
 }
 
@@ -87,4 +117,12 @@ func vars(r *http.Request) map[string]string {
 		return rv.(map[string]string)
 	}
 	return nil
+}
+
+func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := struct {
+		Routes string `mapstructure:"routes"`
+	}{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

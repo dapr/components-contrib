@@ -18,25 +18,31 @@ import (
 	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-	"github.com/dapr/components-contrib/internal/utils"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -45,7 +51,8 @@ const (
 	metadataFilePath     = "filePath"
 	metadataPresignTTL   = "presignTTL"
 
-	metadataKey = "key"
+	metatadataContentType = "Content-Type"
+	metadataKey           = "key"
 
 	defaultMaxResults = 1000
 	presignOperation  = "presign"
@@ -61,19 +68,21 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region         string `json:"region"`
-	Endpoint       string `json:"endpoint"`
-	AccessKey      string `json:"accessKey"`
-	SecretKey      string `json:"secretKey"`
-	SessionToken   string `json:"sessionToken"`
-	Bucket         string `json:"bucket"`
-	DecodeBase64   bool   `json:"decodeBase64,string"`
-	EncodeBase64   bool   `json:"encodeBase64,string"`
-	ForcePathStyle bool   `json:"forcePathStyle,string"`
-	DisableSSL     bool   `json:"disableSSL,string"`
-	InsecureSSL    bool   `json:"insecureSSL,string"`
-	FilePath       string
-	PresignTTL     string
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+
+	Region         string `json:"region" mapstructure:"region"`
+	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
+	Bucket         string `json:"bucket" mapstructure:"bucket"`
+	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
+	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
+	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
+	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
+	FilePath       string `json:"filePath" mapstructure:"filePath"   mdignore:"true"`
+	PresignTTL     string `json:"presignTTL" mapstructure:"presignTTL"  mdignore:"true"`
 }
 
 type createResponse struct {
@@ -99,7 +108,7 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (s *AWSS3) Init(metadata bindings.Metadata) error {
+func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -124,6 +133,8 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 			Transport: customTransport,
 		}
 		cfg = cfg.WithHTTPClient(client)
+
+		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
 	}
 
 	s.metadata = m
@@ -165,6 +176,11 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		s.logger.Debugf("s3 binding error: key not found. generating key %s", key)
 	}
 
+	var contentType *string
+	contentTypeStr := strings.TrimSpace(req.Metadata[metatadataContentType])
+	if contentTypeStr != "" {
+		contentType = &contentTypeStr
+	}
 	var r io.Reader
 	if metadata.FilePath != "" {
 		r, err = os.Open(metadata.FilePath)
@@ -172,7 +188,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
 	} else {
-		r = strings.NewReader(utils.Unquote(req.Data))
+		r = strings.NewReader(commonutils.Unquote(req.Data))
 	}
 
 	if metadata.DecodeBase64 {
@@ -180,9 +196,10 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: ptr.Of(metadata.Bucket),
-		Key:    ptr.Of(key),
-		Body:   r,
+		Bucket:      ptr.Of(metadata.Bucket),
+		Key:         ptr.Of(key),
+		Body:        r,
+		ContentType: contentType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
@@ -209,6 +226,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKey: key,
+		},
 	}, nil
 }
 
@@ -283,6 +303,10 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		},
 	)
 	if err != nil {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+			return nil, fmt.Errorf("object not found")
+		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
 
@@ -314,6 +338,10 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	)
 	if err != nil {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+			return nil, fmt.Errorf("object not found")
+		}
 		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
 	}
 
@@ -321,10 +349,11 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var payload listPayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, err
+	payload := listPayload{}
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("s3 binding (List Operation) - unable to parse Data property - %v", err)
+		}
 	}
 
 	if payload.MaxResults < 1 {
@@ -371,7 +400,7 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 	var m s3Metadata
-	err := metadata.DecodeMetadata(md.Properties, &m)
+	err := kitmd.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -408,4 +437,11 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 	}
 
 	return merged, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := s3Metadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

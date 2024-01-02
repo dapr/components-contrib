@@ -20,17 +20,18 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.
 type Consul struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client        *api.Client
 	keyPrefixPath string
 	logger        logger.Logger
@@ -46,15 +47,16 @@ type consulConfig struct {
 
 // NewConsulStateStore returns a new consul state store.
 func NewConsulStateStore(logger logger.Logger) state.Store {
-	s := &Consul{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Consul{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
 // Init does metadata and config parsing and initializes the
 // Consul client.
-func (c *Consul) Init(metadata state.Metadata) error {
+func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)
@@ -74,7 +76,7 @@ func (c *Consul) Init(metadata state.Metadata) error {
 
 	client, err := api.NewClient(config)
 	if err != nil {
-		return errors.Wrap(err, "initializing consul client")
+		return fmt.Errorf("initializing consul client: %w", err)
 	}
 
 	c.client = client
@@ -91,7 +93,7 @@ func (c *Consul) Features() []state.Feature {
 
 func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 	m := &consulConfig{}
-	err := metadata.DecodeMetadata(connInfo, m)
+	err := kitmd.DecodeMetadata(connInfo, m)
 	return m, err
 }
 
@@ -156,9 +158,8 @@ func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }
 
-func (c *Consul) GetComponentMetadata() map[string]string {
+func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := consulConfig{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }

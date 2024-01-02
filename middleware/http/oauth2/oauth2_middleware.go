@@ -14,36 +14,41 @@ limitations under the License.
 package oauth2
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/fasthttp-contrib/sessions"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
-	"github.com/dapr/components-contrib/internal/httputils"
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/common/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 // Metadata is the oAuth middleware config.
 type oAuth2MiddlewareMetadata struct {
-	ClientID       string `json:"clientID"`
-	ClientSecret   string `json:"clientSecret"`
-	Scopes         string `json:"scopes"`
-	AuthURL        string `json:"authURL"`
-	TokenURL       string `json:"tokenURL"`
-	AuthHeaderName string `json:"authHeaderName"`
-	RedirectURL    string `json:"redirectURL"`
-	ForceHTTPS     string `json:"forceHTTPS"`
+	ClientID       string `json:"clientID" mapstructure:"clientID"`
+	ClientSecret   string `json:"clientSecret" mapstructure:"clientSecret"`
+	Scopes         string `json:"scopes" mapstructure:"scopes"`
+	AuthURL        string `json:"authURL" mapstructure:"authURL"`
+	TokenURL       string `json:"tokenURL" mapstructure:"tokenURL"`
+	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
+	RedirectURL    string `json:"redirectURL" mapstructure:"redirectURL"`
+	ForceHTTPS     string `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
-	return &Middleware{logger: log}
+	m := &Middleware{logger: log}
+
+	return m
 }
 
 // Middleware is an oAuth2 authentication middleware.
@@ -59,7 +64,7 @@ const (
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -82,11 +87,12 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
-				w.Header().Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				r.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				next.ServeHTTP(w, r)
 				return
 			}
 
+			// Redirect to the auth server
 			state := r.URL.Query().Get(stateParam)
 			if state == "" {
 				id, err := uuid.NewRandom()
@@ -135,7 +141,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				w.Header().Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})
@@ -144,9 +149,15 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2MiddlewareMetadata, error) {
 	var middlewareMetadata oAuth2MiddlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}
 	return &middlewareMetadata, nil
+}
+
+func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := oAuth2MiddlewareMetadata{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

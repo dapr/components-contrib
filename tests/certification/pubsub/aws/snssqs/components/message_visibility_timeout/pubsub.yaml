@@ -1,0 +1,28 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: snssqs-cert-tests
+spec:
+  type: pubsub.snssqs
+  version: v1
+  metadata:
+    - name: accessKey
+      secretKeyRef:
+        name: AWS_ACCESS_KEY_ID
+        key: AWS_ACCESS_KEY_ID
+    - name: secretKey
+      secretKeyRef:
+        name: AWS_SECRET_ACCESS_KEY
+        key: AWS_SECRET_ACCESS_KEY
+    - name: region
+      secretKeyRef:
+        name: AWS_REGION
+        key: AWS_REGION
+    - name: consumerID
+      secretKeyRef:
+        name: PUBSUB_AWS_SNSSQS_QUEUE_MVT
+        key: PUBSUB_AWS_SNSSQS_QUEUE_MVT
+    - name: messageVisibilityTimeout
+      value: 60
+auth:
+  secretstore: envvar-secret-store

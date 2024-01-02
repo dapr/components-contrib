@@ -22,13 +22,14 @@ import (
 	"strconv"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	"github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v6"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -45,7 +46,8 @@ var (
 
 // Aerospike is a state store.
 type Aerospike struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -62,14 +64,13 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 	var m aerospikeMetadata
-	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
+	decodeErr := kitmd.DecodeMetadata(meta.Properties, &m)
 	if decodeErr != nil {
 		return nil, decodeErr
 	}
@@ -91,7 +92,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (aspike *Aerospike) Init(metadata state.Metadata) error {
+func (aspike *Aerospike) Init(_ context.Context, metadata state.Metadata) error {
 	m, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
@@ -129,7 +130,7 @@ func (aspike *Aerospike) Set(ctx context.Context, req *state.SetRequest) error {
 	writePolicy := &as.WritePolicy{}
 
 	// not a new record
-	if req.ETag != nil {
+	if req.HasETag() {
 		var gen uint32
 		gen, err = convertETag(*req.ETag)
 		if err != nil {
@@ -158,7 +159,7 @@ func (aspike *Aerospike) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	err = aspike.client.Put(writePolicy, asKey, as.BinMap(data))
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -185,15 +186,15 @@ func (aspike *Aerospike) Get(ctx context.Context, req *state.GetRequest) (*state
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
-		if err == types.ErrKeyNotFound {
+		if err.Matches(types.KEY_NOT_FOUND_ERROR) {
 			return &state.GetResponse{}, nil
 		}
 
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
-	value, err := aspike.json.Marshal(record.Bins)
+	value, jsonErr := aspike.json.Marshal(record.Bins)
 	if err != nil {
-		return nil, err
+		return nil, jsonErr
 	}
 
 	return &state.GetResponse{
@@ -210,7 +211,7 @@ func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) e
 	}
 	writePolicy := &as.WritePolicy{}
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		var gen uint32
 		gen, err = convertETag(*req.ETag)
 		if err != nil {
@@ -235,7 +236,7 @@ func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) e
 
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -271,9 +272,8 @@ func convertETag(eTag string) (uint32, error) {
 	return uint32(i), nil
 }
 
-func (aspike *Aerospike) GetComponentMetadata() map[string]string {
+func (aspike *Aerospike) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := aerospikeMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }

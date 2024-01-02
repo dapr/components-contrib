@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Constant literals.
@@ -61,7 +62,7 @@ type oosSecretStore struct {
 }
 
 // Init creates a Alicloud parameter store client.
-func (o *oosSecretStore) Init(metadata secretstores.Metadata) error {
+func (o *oosSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := o.getParameterStoreMetadata(metadata)
 	if err != nil {
 		return err
@@ -87,7 +88,7 @@ func (o *oosSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 
 	runtime := &util.RuntimeOptions{}
 	if deadline, ok := ctx.Deadline(); ok {
-		timeout := deadline.Sub(time.Now()).Milliseconds()
+		timeout := time.Until(deadline).Milliseconds()
 		runtime.SetReadTimeout(int(timeout))
 	}
 	output, err := o.client.GetSecretParameterWithOptions(&oos.GetSecretParameterRequest{
@@ -125,7 +126,7 @@ func (o *oosSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	for {
 		runtime := &util.RuntimeOptions{}
 		if deadline, ok := ctx.Deadline(); ok {
-			timeout := deadline.Sub(time.Now()).Milliseconds()
+			timeout := time.Until(deadline).Milliseconds()
 			runtime.SetReadTimeout(int(timeout))
 		}
 		output, err := o.client.GetSecretParametersByPathWithOptions(&oos.GetSecretParametersByPathRequest{
@@ -164,8 +165,8 @@ func (o *oosSecretStore) getClient(metadata *ParameterStoreMetaData) (*oos.Clien
 
 func (o *oosSecretStore) getParameterStoreMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
 	meta := ParameterStoreMetaData{}
-	metadata.DecodeMetadata(spec.Properties, &meta)
-	return &meta, nil
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
+	return &meta, err
 }
 
 // getVersionFromMetadata returns the parameter version from the metadata. If not set means latest version.
@@ -197,9 +198,8 @@ func (o *oosSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (o *oosSecretStore) GetComponentMetadata() map[string]string {
+func (o *oosSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := ParameterStoreMetaData{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -73,7 +74,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 
 		meta, err := obs.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "dummy-bucket", meta.Bucket)
 		assert.Equal(t, "dummy-endpoint", meta.Endpoint)
 		assert.Equal(t, "dummy-ak", meta.AccessKey)
@@ -92,8 +93,8 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
-		assert.Nil(t, err)
+		err := obs.Init(context.Background(), m)
+		require.NoError(t, err)
 	})
 	t.Run("Init with missing bucket name", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -102,8 +103,8 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
-		assert.NotNil(t, err)
+		err := obs.Init(context.Background(), m)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing obs bucket name"))
 	})
 	t.Run("Init with missing access key", func(t *testing.T) {
@@ -113,8 +114,8 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
-		assert.NotNil(t, err)
+		err := obs.Init(context.Background(), m)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing the huawei access key"))
 	})
 	t.Run("Init with missing secret key", func(t *testing.T) {
@@ -124,8 +125,8 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"accessKey": "dummy-ak",
 		}
-		err := obs.Init(m)
-		assert.NotNil(t, err)
+		err := obs.Init(context.Background(), m)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing the huawei secret key"))
 	})
 	t.Run("Init with missing endpoint", func(t *testing.T) {
@@ -135,8 +136,8 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
-		assert.NotNil(t, err)
+		err := obs.Init(context.Background(), m)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing obs endpoint"))
 	})
 }
@@ -146,7 +147,7 @@ func TestOperations(t *testing.T) {
 
 	t.Run("Count supported operations", func(t *testing.T) {
 		ops := obs.Operations()
-		assert.Equal(t, 5, len(ops))
+		assert.Len(t, ops, 5)
 	})
 }
 
@@ -177,11 +178,11 @@ func TestCreateOperation(t *testing.T) {
 		}
 
 		out, err := mo.create(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		var data createResponse
 		err = json.Unmarshal(out.Data, &data)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, data.StatusCode)
 	})
 
@@ -208,11 +209,11 @@ func TestCreateOperation(t *testing.T) {
 		}
 
 		out, err := mo.create(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		var data createResponse
 		err = json.Unmarshal(out.Data, &data)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, data.StatusCode)
 	})
 
@@ -241,7 +242,7 @@ func TestCreateOperation(t *testing.T) {
 		}
 
 		_, err := mo.create(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Fail create object with obs internal error", func(t *testing.T) {
@@ -266,7 +267,7 @@ func TestCreateOperation(t *testing.T) {
 		}
 
 		_, err := mo.create(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -297,11 +298,11 @@ func TestUploadOperation(t *testing.T) {
 		}
 
 		out, err := mo.upload(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		var data createResponse
 		err = json.Unmarshal(out.Data, &data)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, data.StatusCode)
 	})
 
@@ -328,11 +329,11 @@ func TestUploadOperation(t *testing.T) {
 		}
 
 		out, err := mo.upload(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		var data createResponse
 		err = json.Unmarshal(out.Data, &data)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, data.StatusCode)
 	})
 
@@ -358,7 +359,7 @@ func TestUploadOperation(t *testing.T) {
 		}
 
 		_, err := mo.upload(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -392,7 +393,7 @@ func TestGetOperation(t *testing.T) {
 		}
 
 		_, err := mo.get(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Fail get object with no key metadata", func(t *testing.T) {
@@ -409,7 +410,7 @@ func TestGetOperation(t *testing.T) {
 		}
 
 		_, err := mo.get(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Fail get object with obs internal error", func(t *testing.T) {
@@ -433,7 +434,7 @@ func TestGetOperation(t *testing.T) {
 		}
 
 		_, err := mo.get(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Fail get object with no response data", func(t *testing.T) {
@@ -465,7 +466,7 @@ func TestGetOperation(t *testing.T) {
 		}
 
 		_, err := mo.get(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -495,11 +496,11 @@ func TestDeleteOperation(t *testing.T) {
 		}
 
 		out, err := mo.delete(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		var data createResponse
 		err = json.Unmarshal(out.Data, &data)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, data.StatusCode)
 	})
 
@@ -517,7 +518,7 @@ func TestDeleteOperation(t *testing.T) {
 		}
 
 		_, err := mo.delete(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Fail delete object with obs internal error", func(t *testing.T) {
@@ -541,7 +542,7 @@ func TestDeleteOperation(t *testing.T) {
 		}
 
 		_, err := mo.delete(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -572,7 +573,7 @@ func TestListOperation(t *testing.T) {
 		}
 
 		_, err := mo.list(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Fail list objects with obs internal error", func(t *testing.T) {
@@ -597,7 +598,7 @@ func TestListOperation(t *testing.T) {
 		}
 
 		_, err := mo.list(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Successfully list objects with default maxResults", func(t *testing.T) {
@@ -626,7 +627,7 @@ func TestListOperation(t *testing.T) {
 		}
 
 		_, err := mo.list(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -653,7 +654,7 @@ func TestInvoke(t *testing.T) {
 		}
 
 		_, err := mo.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Successfully invoke get", func(t *testing.T) {
@@ -685,7 +686,7 @@ func TestInvoke(t *testing.T) {
 		}
 
 		_, err := mo.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Successfully invoke delete", func(t *testing.T) {
@@ -713,7 +714,7 @@ func TestInvoke(t *testing.T) {
 		}
 
 		_, err := mo.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Successfully invoke list", func(t *testing.T) {
@@ -742,7 +743,7 @@ func TestInvoke(t *testing.T) {
 		}
 
 		_, err := mo.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Error invoke unknown operation type", func(t *testing.T) {
@@ -759,6 +760,6 @@ func TestInvoke(t *testing.T) {
 		}
 
 		_, err := mo.Invoke(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }

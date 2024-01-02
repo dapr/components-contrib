@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.sqlite
+  metadata:
+    # Prefix "file:" should be added automatically to the value
+    # If that doesn't happen, tests will fail
+    - name: connectionString
+      value: "artifacts/readonly.db?mode=ro"
+    # Do not use a key prefix for this test
+    - name: keyPrefix
+      value: none

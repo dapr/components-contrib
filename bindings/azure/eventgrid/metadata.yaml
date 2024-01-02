@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.eventgrid
+version: v1
+status: beta
+title: "Azure Event Grid"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/eventgrid/
+binding:
+  input: true
+  output: true
+  operations:
+    - name: create
+      description: "Create an event subscription"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
+metadata:
+  # Required Input Binding Metadata
+  - name: subscriberEndpoint
+    type: string
+    required: true
+    binding:
+      input: true
+      output: false
+    description: |
+      The HTTPS endpoint of the webhook Event Grid sends events (formatted as
+      Cloud Events) to. If you're not re-writing URLs on ingress, it should be
+      in the form of: `"https://[YOUR HOSTNAME]/<path>"` If testing on your
+      local machine, you can use something like `ngrok` to create a public
+      endpoint.
+    example: '"https://[YOUR HOSTNAME]/<path>"'
+  - name: handshakePort
+    type: number
+    required: true # code actually defaults to 8080 if missing
+    binding:
+      input: true
+      output: false
+    description: |
+      The container port that the input binding listens on when receiving
+      events on the webhook
+    example: '"9000"'
+  - name: scope
+    type: string
+    required: true
+    binding:
+      input: true
+      output: false
+    description: |
+      The identifier of the resource to which the event subscription needs
+      to be created or updated.
+    example: '"/subscriptions/{subscriptionId}/"'
+  # Optional Input Binding Metadata
+  - name: eventSubscriptionName
+    type: string
+    required: false
+    binding:
+      input: true
+      output: false
+    description: |
+      The name of the event subscription. Event subscription names must be
+      between 3 and 64 characters long and should use alphanumeric letters
+      only.
+    example: '"name"'
+  # Required Output Binding Metadata
+  - name: accessKey
+    type: string
+    required: true
+    binding:
+      input: false
+      output: true
+    description: |
+      The Access Key to be used for publishing an Event Grid Event to a custom topic
+    example: '"accessKey"'
+  - name: topicEndpoint
+    type: string
+    required: true
+    binding:
+      input: false
+      output: true
+    description: |
+      The topic endpoint in which this output binding should publish events
+    example: '"topic-endpoint"'
+

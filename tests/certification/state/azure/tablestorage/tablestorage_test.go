@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	table "github.com/dapr/components-contrib/state/azure/tablestorage"
@@ -30,9 +31,9 @@ import (
 
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -42,7 +43,7 @@ const (
 
 func TestAzureTableStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -57,16 +58,16 @@ func TestAzureTableStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, savestore, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, getstore, certificationTestPrefix+"key1", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "certificationdata", string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, savestore, certificationTestPrefix+"key1", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -81,11 +82,12 @@ func TestAzureTableStorage(t *testing.T) {
 	flow.New(t, "Test basic operations, save/get/delete using existing table").
 		// Run the Dapr sidecar with azure table storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
 		)).
 		Step("Run basic test with existing table", basicTest("statestore-basic", "statestore-basic")).
 		Run()
@@ -93,11 +95,12 @@ func TestAzureTableStorage(t *testing.T) {
 	flow.New(t, "Test basic operations, save/get/delete with new table").
 		// Run the Dapr sidecar with azure table storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/nonexistingtabletest"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/nonexistingtabletest"),
+			)...,
 		)).
 		Step("Run basic test with new table", basicTest("statestore-newtable", "statestore-newtable")).
 		Step("Delete the New Table", deleteTable).
@@ -106,17 +109,18 @@ func TestAzureTableStorage(t *testing.T) {
 	flow.New(t, "Test for authentication using Azure Auth layer").
 		// Run the Dapr sidecar with azure table storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/aadtest"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/aadtest"),
+			)...,
 		)).
 		Step("Run AAD test", basicTest("statestore-key", "statestore-aad")).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -127,8 +131,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

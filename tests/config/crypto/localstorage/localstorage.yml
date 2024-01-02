@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mycrypto
+  namespace: default
+spec:
+  type: crypto.localstorage
+  metadata:
+    - name: path
+      value: fixtures/crypto/localstorage/

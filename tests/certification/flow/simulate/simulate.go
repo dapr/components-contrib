@@ -14,9 +14,8 @@ limitations under the License.
 package simulate
 
 import (
+	"errors"
 	"sync/atomic"
-
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/tests/certification/flow"
 )
@@ -34,7 +33,7 @@ func PeriodicError(ctx flow.Context, frequency uint64) func() error {
 			ec := atomic.AddUint64(&errorCount, 1)
 			ctx.Logf("Simulating error %d", ec)
 
-			return errors.Errorf("simulated error")
+			return errors.New("simulated error")
 		}
 
 		return nil

@@ -14,10 +14,15 @@ limitations under the License.
 package apns
 
 import (
+	"crypto"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/kit/logger"
 )
@@ -35,7 +40,26 @@ type authorizationBuilder struct {
 	tokenExpiresAt      time.Time
 	keyID               string
 	teamID              string
-	privateKey          interface{}
+	privateKey          crypto.PrivateKey
+	pk                  jwk.Key
+}
+
+func (a *authorizationBuilder) setPK() error {
+	if a.privateKey == nil {
+		return errors.New("privateKey property is nil")
+	}
+	if a.keyID == "" {
+		return errors.New("keyID property is nil")
+	}
+
+	pk, err := jwk.FromRaw(a.privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to parse private key: %w", err)
+	}
+	pk.Set("kid", a.keyID)
+
+	a.pk = pk
+	return nil
 }
 
 func (a *authorizationBuilder) getAuthorizationHeader() (string, error) {
@@ -64,20 +88,28 @@ func (a *authorizationBuilder) generateAuthorizationHeader() (string, error) {
 
 	a.logger.Debug("Authorization token expired; generating new token")
 
-	now := time.Now()
-	// TODO: Use jwt.RegisteredClaims instead of jwt.StandardClaims.
-	claims := jwt.StandardClaims{ //nolint:staticcheck
-		IssuedAt: time.Now().Unix(),
-		Issuer:   a.teamID,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	token.Header["kid"] = a.keyID
-	signedToken, err := token.SignedString(a.privateKey)
-	if err != nil {
-		return "", err
+	var err error
+	if a.pk == nil {
+		err = a.setPK()
+		if err != nil {
+			return "", err
+		}
 	}
 
-	a.authorizationHeader = "bearer " + signedToken
+	now := time.Now()
+	token, err := jwt.NewBuilder().
+		Issuer(a.teamID).
+		IssuedAt(now).
+		Build()
+	if err != nil {
+		return "", fmt.Errorf("failed to build token: %w", err)
+	}
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.ES256, a.pk))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	a.authorizationHeader = "bearer " + string(signed)
 	a.tokenExpiresAt = now.Add(expirationMinutes)
 
 	return a.authorizationHeader, nil

@@ -1,0 +1,25 @@
+{
+    "private": true,
+    "name": "dapr-cfworkers-client",
+    "description": "Client code for Dapr to interact with Cloudflare Workers",
+    "version": "20230517",
+    "main": "worker.ts",
+    "scripts": {
+        "build": "esbuild --bundle --minify --outfile=../workers/code/worker.js --format=esm --platform=browser --sourcemap worker.ts",
+        "start": "wrangler dev",
+        "format": "prettier --write ."
+    },
+    "author": "Dapr authors",
+    "license": "Apache2",
+    "devDependencies": {
+        "@cloudflare/workers-types": "^4.20230511.0",
+        "esbuild": "^0.17.19",
+        "prettier": "^2.8.8",
+        "typescript": "^5.0.4",
+        "wrangler": "^3.0.0"
+    },
+    "dependencies": {
+        "itty-router": "3.0.12",
+        "jose": "4.14.4"
+    }
+}

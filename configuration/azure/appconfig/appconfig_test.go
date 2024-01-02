@@ -16,30 +16,33 @@ package appconfig
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/configuration"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
-type MockConfigurationStore struct {
-	azAppConfigClient
-}
+type MockConfigurationStore struct{}
+
+const (
+	testMaxRetryDelay                      = "120s"
+	testSubscribePollIntervalAndReqTimeout = "30s"
+)
 
 func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
-		settings.Key = to.StringPtr("testKey")
-		settings.Value = to.StringPtr("testValue")
+		settings.Key = ptr.Of("testKey")
+		settings.Value = ptr.Of("testValue")
 
 		resp := azappconfig.GetSettingResponse{}
 		resp.Setting = settings
@@ -49,25 +52,25 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	return resp, nil
 }
 
-func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
+func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPageResponse] {
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
-	setting1.Key = to.StringPtr("testKey-1")
-	setting1.Value = to.StringPtr("testValue-1")
+	setting1.Key = ptr.Of("testKey-1")
+	setting1.Value = ptr.Of("testValue-1")
 
 	setting2 := azappconfig.Setting{}
-	setting2.Key = to.StringPtr("testKey-2")
-	setting2.Value = to.StringPtr("testValue-2")
+	setting2.Key = ptr.Of("testKey-2")
+	setting2.Value = ptr.Of("testValue-2")
 	settings[0] = setting1
 	settings[1] = setting2
 
-	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPage]{
-		More: func(azappconfig.ListSettingsPage) bool {
+	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPageResponse]{
+		More: func(azappconfig.ListSettingsPageResponse) bool {
 			return false
 		},
-		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPage) (azappconfig.ListSettingsPage, error) {
-			listSettingPage := azappconfig.ListSettingsPage{}
+		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPageResponse) (azappconfig.ListSettingsPageResponse, error) {
+			listSettingPage := azappconfig.ListSettingsPageResponse{}
 			listSettingPage.Settings = settings
 			return listSettingPage, nil
 		},
@@ -108,8 +111,8 @@ func Test_getConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		res, err := s.Get(context.Background(), &req)
-		assert.Nil(t, err)
-		assert.True(t, len(res.Items) == 1)
+		require.NoError(t, err)
+		assert.Len(t, res.Items, 1)
 	})
 }
 
@@ -127,8 +130,8 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: metadata,
 		}
 		subID, err := s.Subscribe(context.Background(), &req, updateEventHandler)
-		assert.True(t, len(subID) > 0)
-		assert.Nil(t, err)
+		assert.NotEmpty(t, subID)
+		require.NoError(t, err)
 		unReq := &configuration.UnsubscribeRequest{
 			ID: subID,
 		}
@@ -141,7 +144,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: make(map[string]string),
 		}
 		_, err := s.Subscribe(context.Background(), &req, updateEventHandler)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -157,7 +160,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 			ID: "id_not_exist",
 		}
 		err := s.Unsubscribe(cancelContext, &req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.True(t, ok)
 	})
@@ -167,7 +170,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 			ID: "id1",
 		}
 		err := s.Unsubscribe(cancelContext, &req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.False(t, ok)
 	})
@@ -184,8 +187,8 @@ func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		res, err := s.Get(context.Background(), &req)
-		assert.Nil(t, err)
-		assert.True(t, len(res.Items) == 2)
+		require.NoError(t, err)
+		assert.Len(t, res.Items, 2)
 	})
 }
 
@@ -195,110 +198,118 @@ func TestInit(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
-		assert.Equal(t, testProperties[host], cs.metadata.host)
-		assert.Equal(t, 3, cs.metadata.maxRetries)
-		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
-		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
-		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
-		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
+		assert.Equal(t, testProperties[host], cs.metadata.Host)
+		assert.Equal(t, 3, cs.metadata.MaxRetries)
+		assert.Equal(t, time.Second*4, cs.metadata.RetryDelay)
+		assert.Equal(t, time.Second*120, cs.metadata.MaxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.SubscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.RequestTimeout)
 	})
 
 	t.Run("Init with valid appConfigConnectionString metadata", func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "Endpoint=https://foo.azconfig.io;Id=osOX-l9-s0:sig;Secret=00000000000000000000000000000000000000000000"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
-		assert.Equal(t, testProperties[connectionString], cs.metadata.connectionString)
-		assert.Equal(t, 3, cs.metadata.maxRetries)
-		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
-		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
-		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
-		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
+		assert.Equal(t, testProperties[connectionString], cs.metadata.ConnectionString)
+		assert.Equal(t, 3, cs.metadata.MaxRetries)
+		assert.Equal(t, time.Second*4, cs.metadata.RetryDelay)
+		assert.Equal(t, time.Second*120, cs.metadata.MaxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.SubscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.RequestTimeout)
 	})
 }
 
-func Test_parseMetadata(t *testing.T) {
+func TestParseMetadata(t *testing.T) {
 	t.Run(fmt.Sprintf("parse metadata with %s", host), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
 		want := metadata{
-			host:                  "testHost",
-			maxRetries:            3,
-			retryDelay:            time.Second * 4,
-			maxRetryDelay:         time.Second * 120,
-			subscribePollInterval: time.Second * 30,
-			requestTimeout:        time.Second * 30,
+			Host:                  "testHost",
+			MaxRetries:            3,
+			RetryDelay:            time.Second * 4,
+			MaxRetryDelay:         time.Second * 120,
+			SubscribePollInterval: time.Second * 30,
+			RequestTimeout:        time.Second * 30,
 		}
 
-		m, _ := parseMetadata(meta)
-		assert.NotNil(t, m)
-		if !reflect.DeepEqual(m, want) {
-			t.Errorf("parseMetadata() got = %v, want %v", m, want)
-		}
+		m := metadata{}
+		err := m.Parse(logger.NewLogger("test"), meta)
+		require.NoError(t, err)
+		assert.Equal(t, want.Host, m.Host)
+		assert.Equal(t, want.MaxRetries, m.MaxRetries)
+		assert.Equal(t, want.RetryDelay, m.RetryDelay)
+		assert.Equal(t, want.MaxRetryDelay, m.MaxRetryDelay)
+		assert.Equal(t, want.SubscribePollInterval, m.SubscribePollInterval)
+		assert.Equal(t, want.RequestTimeout, m.RequestTimeout)
 	})
 
 	t.Run(fmt.Sprintf("parse metadata with %s", connectionString), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
 		want := metadata{
-			connectionString:      "testConnectionString",
-			maxRetries:            3,
-			retryDelay:            time.Second * 4,
-			maxRetryDelay:         time.Second * 120,
-			subscribePollInterval: time.Second * 30,
-			requestTimeout:        time.Second * 30,
+			ConnectionString:      "testConnectionString",
+			MaxRetries:            3,
+			RetryDelay:            time.Second * 4,
+			MaxRetryDelay:         time.Second * 120,
+			SubscribePollInterval: time.Second * 30,
+			RequestTimeout:        time.Second * 30,
 		}
 
-		m, _ := parseMetadata(meta)
-		assert.NotNil(t, m)
-		if !reflect.DeepEqual(m, want) {
-			t.Errorf("parseMetadata() got = %v, want %v", m, want)
-		}
+		m := metadata{}
+		err := m.Parse(logger.NewLogger("test"), meta)
+		require.NoError(t, err)
+		assert.Equal(t, want.ConnectionString, m.ConnectionString)
+		assert.Equal(t, want.MaxRetries, m.MaxRetries)
+		assert.Equal(t, want.RetryDelay, m.RetryDelay)
+		assert.Equal(t, want.MaxRetryDelay, m.MaxRetryDelay)
+		assert.Equal(t, want.SubscribePollInterval, m.SubscribePollInterval)
+		assert.Equal(t, want.RequestTimeout, m.RequestTimeout)
 	})
 
 	t.Run(fmt.Sprintf("both %s and %s fields set in metadata", host, connectionString), func(t *testing.T) {
@@ -306,17 +317,18 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[host] = "testHost"
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
-		_, err := parseMetadata(meta)
-		assert.Error(t, err)
+		m := metadata{}
+		err := m.Parse(logger.NewLogger("test"), meta)
+		require.Error(t, err)
 	})
 
 	t.Run(fmt.Sprintf("both %s and %s fields not set in metadata", host, connectionString), func(t *testing.T) {
@@ -324,17 +336,18 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[host] = ""
 		testProperties[connectionString] = ""
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
-		_, err := parseMetadata(meta)
-		assert.Error(t, err)
+		m := metadata{}
+		err := m.Parse(logger.NewLogger("test"), meta)
+		require.Error(t, err)
 	})
 }
 

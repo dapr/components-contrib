@@ -16,13 +16,18 @@ package pubsub
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	format "github.com/cloudevents/sdk-go/binding/format/protobuf/v2"
+	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	contribContenttype "github.com/dapr/components-contrib/contenttype"
 )
 
 func TestCreateCloudEventsEnvelope(t *testing.T) {
@@ -216,7 +221,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
 			"mypubsub", "", []byte(str), "", "")
 		ApplyMetadata(envelope, nil, map[string]string{
-			"ttlInSeconds": fmt.Sprintf("%v", math.MaxInt64),
+			"ttlInSeconds": strconv.Itoa(math.MaxInt64),
 		})
 		assert.NotEqual(t, "", envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
@@ -253,7 +258,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -267,7 +272,7 @@ func TestNewFromExisting(t *testing.T) {
 
 	t.Run("invalid cloudevent", func(t *testing.T) {
 		_, err := FromCloudEvent([]byte("a"), "1", "", "", "")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("valid cloudevent with text data", func(t *testing.T) {
@@ -280,7 +285,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -301,7 +306,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -312,6 +317,39 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x1}), n[DataBase64Field])
 	})
+
+	t.Run("populate traceid, traceparent and tracestate when provided via metadata", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "1.0",
+			"customfield": "a",
+			"time":        "2021-08-02T09:00:00Z",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "1", "2")
+		require.NoError(t, err)
+		assert.Equal(t, "1", n[TraceIDField])
+		assert.Equal(t, "1", n[TraceParentField])
+		assert.Equal(t, "2", n[TraceStateField])
+	})
+
+	t.Run("populate traceid, traceparent and tracestate from existing cloudevent", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion":    "1.0",
+			"customfield":    "a",
+			"time":           "2021-08-02T09:00:00Z",
+			TraceIDField:     "e",
+			TraceStateField:  "f",
+			TraceParentField: "g",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "e", n[TraceIDField])
+		assert.Equal(t, "f", n[TraceStateField])
+		assert.Equal(t, "g", n[TraceParentField])
+	})
 }
 
 func TestCreateFromBinaryPayload(t *testing.T) {
@@ -321,6 +359,42 @@ func TestCreateFromBinaryPayload(t *testing.T) {
 	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
 	assert.NotNil(t, envelope[TimeField])
 	assert.Nil(t, envelope[DataField])
+}
+
+func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
+	jsondata := make(map[string]interface{})
+	jsondata["string"] = "hello world"
+	jsondata["number"] = 3.1415
+	jsonbytes, _ := json.Marshal(jsondata)
+
+	myevent := event.New()
+	myevent.SetData("application/json", jsonbytes)
+	myevent.SetID("1234")
+
+	ceProtoBytes, _ := format.Protobuf.Marshal(&myevent)
+	ceProtoBytesBase64Encoding := base64.StdEncoding.EncodeToString(ceProtoBytes)
+
+	contenttypes := []string{contribContenttype.CloudEventProtobufContentType, contribContenttype.ProtobufContentType}
+
+	for i := 0; i < len(contenttypes); i++ {
+		envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
+			contenttypes[i], ceProtoBytes, "trace", "")
+
+		assert.Equal(t, ceProtoBytesBase64Encoding, envelope[DataBase64Field])
+		assert.Nil(t, envelope[DataField])
+		assert.NotNil(t, envelope[TimeField])
+
+		receivedProtoBytes, _ := base64.StdEncoding.DecodeString(envelope[DataBase64Field].(string))
+
+		var e event.Event
+		format.Protobuf.Unmarshal(receivedProtoBytes, &e)
+
+		assert.Equal(t, "1234", e.Context.GetID())
+		var receivedjsondata map[string]interface{}
+		_ = json.Unmarshal(e.Data(), &receivedjsondata)
+		assert.Equal(t, "hello world", receivedjsondata["string"])
+		assert.Equal(t, 3.1415, receivedjsondata["number"])
+	}
 }
 
 func TestNewFromRawPayload(t *testing.T) {

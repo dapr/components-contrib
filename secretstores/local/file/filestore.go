@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type localSecretStoreMetaData struct {
@@ -56,7 +57,7 @@ func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
+func (j *localSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := j.getLocalSecretStoreMetadata(metadata)
 	if err != nil {
 		return err
@@ -237,7 +238,7 @@ func (j *localSecretStore) combine(values []string) string {
 
 func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadata) (*localSecretStoreMetaData, error) {
 	var meta localSecretStoreMetaData
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -277,9 +278,8 @@ func (j *localSecretStore) Features() []secretstores.Feature {
 	return j.features
 }
 
-func (j *localSecretStore) GetComponentMetadata() map[string]string {
+func (j *localSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := localSecretStoreMetaData{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

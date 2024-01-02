@@ -15,11 +15,14 @@ package sidecar
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
 
+	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 
 	rtembedded "github.com/dapr/components-contrib/tests/certification/embedded"
@@ -30,13 +33,16 @@ import (
 type (
 	Client struct {
 		dapr.Client
-		runtime.ComponentRegistry
-		rt *runtime.DaprRuntime
+		registry.ComponentRegistry
+		rt     *runtime.DaprRuntime
+		errCh  chan error
+		closed atomic.Bool
 	}
 
 	Sidecar struct {
-		appID   string
-		options []interface{}
+		appID                    string
+		options                  []embedded.Option
+		gracefulShutdownDuration time.Duration
 	}
 
 	ClientCallback func(client *Client)
@@ -60,11 +66,11 @@ func GetClient(ctx flow.Context, sidecarName string) *Client {
 	return client
 }
 
-func Run(appID string, options ...interface{}) (string, flow.Runnable, flow.Runnable) {
+func Run(appID string, options ...embedded.Option) (string, flow.Runnable, flow.Runnable) {
 	return New(appID, options...).ToStep()
 }
 
-func New(appID string, options ...interface{}) Sidecar {
+func New(appID string, options ...embedded.Option) Sidecar {
 	return Sidecar{
 		appID:   appID,
 		options: options,
@@ -79,50 +85,42 @@ func (s Sidecar) ToStep() (string, flow.Runnable, flow.Runnable) {
 	return s.appID, s.Start, s.Stop
 }
 
-func Start(appID string, options ...interface{}) flow.Runnable {
-	return Sidecar{appID, options}.Start
+func Start(appID string, options ...embedded.Option) flow.Runnable {
+	return Sidecar{appID, options, 0}.Start
 }
 
 func (s Sidecar) Start(ctx flow.Context) error {
 	logContrib := logger.NewLogger("dapr.contrib")
 
 	var options options
-	rtoptions := make([]rtembedded.Option, 0, 20)
-	opts := []runtime.Option{}
-	opts = append(opts, rtembedded.CommonComponents(logContrib)...)
+	opts := append(rtembedded.CommonComponents(logContrib), s.options...)
 
-	for _, o := range s.options {
-		if rteo, ok := o.(rtembedded.Option); ok {
-			rtoptions = append(rtoptions, rteo)
-		} else if rto, ok := o.(runtime.Option); ok {
-			opts = append(opts, rto)
-		} else if rtos, ok := o.([]runtime.Option); ok {
-			opts = append(opts, rtos...)
-		} else if op, ok := o.(Option); ok {
-			op(&options)
-		}
-	}
+	var client Client
+	opts = append(opts, func(cfg *runtime.Config) {
+		cfg.Registry = cfg.Registry.WithComponentsCallback(func(reg registry.ComponentRegistry) error {
+			client.ComponentRegistry = reg
+			return nil
+		})
+	})
 
-	rt, rtConf, err := rtembedded.NewRuntime(s.appID, rtoptions...)
+	rt, rtConf, err := rtembedded.NewRuntime(ctx, s.appID, opts...)
 	if err != nil {
 		return err
 	}
+	s.gracefulShutdownDuration = time.Duration(rtConf.DaprGracefulShutdownSeconds) * time.Second
 
-	client := Client{
-		rt: rt,
-	}
+	client.rt = rt
+	client.errCh = make(chan error)
 
-	opts = append(opts, runtime.WithComponentsCallback(func(reg runtime.ComponentRegistry) error {
-		client.ComponentRegistry = reg
+	go func() {
+		client.errCh <- rt.Run(ctx)
+	}()
 
-		return nil
-	}))
+	ctx.Cleanup(func() {
+		s.Stop(ctx)
+	})
 
-	if err = rt.Run(opts...); err != nil {
-		return err
-	}
-
-	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%d", rtConf.APIGRPCPort))
+	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%s", rtConf.DaprAPIGRPCPort))
 	if err != nil {
 		return err
 	}
@@ -145,10 +143,14 @@ func Stop(appID string) flow.Runnable {
 func (s Sidecar) Stop(ctx flow.Context) error {
 	var client *Client
 	if ctx.Get(s.appID, &client) {
-		client.rt.SetRunning(true)
-		client.rt.Shutdown(2 * time.Second)
-
-		return client.rt.WaitUntilShutdown()
+		client.rt.ShutdownWithWait()
+		if client.closed.CompareAndSwap(false, true) {
+			if err := <-client.errCh; err != nil {
+				logger.NewLogger("dapr.contrib").Errorf("error on shutdown: %s", err)
+				return err
+			}
+		}
+		return nil
 	}
 
 	return nil

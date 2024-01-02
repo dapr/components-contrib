@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.sqlite
+  metadata:
+    # For these tests, use an in-memory database
+    - name: connectionString
+      value: ":memory:"

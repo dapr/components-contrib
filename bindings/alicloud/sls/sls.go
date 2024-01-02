@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	sls "github.com/aliyun/aliyun-log-go-sdk"
@@ -12,6 +13,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type AliCloudSlsLogstorage struct {
@@ -21,9 +23,9 @@ type AliCloudSlsLogstorage struct {
 }
 
 type SlsLogstorageMetadata struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"accessKeyID"`
-	AccessKeySecret string `json:"accessKeySecret"`
+	Endpoint        string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKeyID     string `json:"accessKeyID" mapstructure:"accessKeyID"`
+	AccessKeySecret string `json:"accessKeySecret" mapstructure:"accessKeySecret"`
 }
 
 type Callback struct {
@@ -31,7 +33,7 @@ type Callback struct {
 }
 
 // parse metadata field
-func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
+func (s *AliCloudSlsLogstorage) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMeta(metadata)
 	if err != nil {
 		return err
@@ -99,7 +101,7 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 
 func (s *AliCloudSlsLogstorage) parseMeta(meta bindings.Metadata) (*SlsLogstorageMetadata, error) {
 	var m SlsLogstorageMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -124,4 +126,11 @@ func (callback *Callback) Fail(result *producer.Result) {
 	}
 
 	callback.s.logger.Info("Log storage failed:", msg)
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudSlsLogstorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := SlsLogstorageMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

@@ -15,9 +15,11 @@ limitations under the License.
 package keyvault
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -33,12 +35,12 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
-		assert.Equal(t, kv.vaultName, "foo")
-		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.net")
+		assert.Equal(t, "foo", kv.vaultName)
+		assert.Equal(t, "vault.azure.net", kv.vaultDNSSuffix)
 		assert.NotNil(t, kv.vaultClient)
 	})
 	t.Run("Init with valid metadata and Azure environment", func(t *testing.T) {
@@ -49,12 +51,12 @@ func TestInit(t *testing.T) {
 			"azureClientSecret": "passw0rd",
 			"azureEnvironment":  "AZURECHINACLOUD",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
-		assert.Equal(t, kv.vaultName, "foo")
-		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.cn")
+		assert.Equal(t, "foo", kv.vaultName)
+		assert.Equal(t, "vault.azure.cn", kv.vaultDNSSuffix)
 		assert.NotNil(t, kv.vaultClient)
 	})
 	t.Run("Init with Azure environment as part of vaultName FQDN (1) - legacy", func(t *testing.T) {
@@ -64,12 +66,12 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
-		assert.Equal(t, kv.vaultName, "foo")
-		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.cn")
+		assert.Equal(t, "foo", kv.vaultName)
+		assert.Equal(t, "vault.azure.cn", kv.vaultDNSSuffix)
 		assert.NotNil(t, kv.vaultClient)
 	})
 	t.Run("Init with Azure environment as part of vaultName FQDN (2) - legacy", func(t *testing.T) {
@@ -79,12 +81,12 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
-		assert.Equal(t, kv.vaultName, "foo")
-		assert.Equal(t, kv.vaultDNSSuffix, "vault.usgovcloudapi.net")
+		assert.Equal(t, "foo", kv.vaultName)
+		assert.Equal(t, "vault.usgovcloudapi.net", kv.vaultDNSSuffix)
 		assert.NotNil(t, kv.vaultClient)
 	})
 }

@@ -109,14 +109,13 @@ verify-linter-version:
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) --timeout=15m
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) -tags metadata --timeout=15m
 
 ################################################################################
 # Target: lint                                                                 #
 ################################################################################
 .PHONY: lint
 lint: verify-linter-installed verify-linter-version
-	# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
@@ -128,7 +127,7 @@ define modtidy-target
 .PHONY: modtidy-$(1)
 modtidy-$(1):
 	@echo $(shell dirname $(1))
-	@cd $(shell dirname $(1)); go mod tidy -compat=1.19 || { echo "There was an error in running go mod tidy for this file,"; exit 1;}; cd -
+	@cd $(shell dirname $(1)); CGO_ENABLED=$(CGO) go mod tidy -compat=1.20 || { echo "There was an error in running go mod tidy for this file,"; exit 1;}; cd -
 endef
 
 define replaceruntime-dapr
@@ -217,13 +216,37 @@ bundle-component-metadata:
 	$(RUN_BUILD_TOOLS) bundle-component-metadata > ../component-metadata-bundle.json
 
 ################################################################################
+# Component metadata check                                                     #
+################################################################################
+.PHONE: check-component-metadata
+check-component-metadata:
+	mkdir -p metadataanalyzer
+	$(RUN_BUILD_TOOLS) generate-metadata-analyzer-app --outputfile ./metadataanalyzer/main.go
+	cd metadataanalyzer && \
+	go mod init metadataanalyzer && \
+	go get "github.com/dapr/components-contrib@main" && \
+	go mod edit -replace "github.com/dapr/components-contrib"="../" && \
+	go mod tidy && \
+	go build -tags metadata . && \
+	rm ./go.mod && rm ./go.sum && rm ./main.go && \
+        ./metadataanalyzer ../
+
+################################################################################
+# Prettier                                                                     #
+################################################################################
+.PHONY: prettier-install prettier-check prettier-format
+prettier-install:
+	npm install --global prettier
+
+prettier-check:
+	npx prettier --check "*/**/*.{ts,js,mjs,json}"
+
+prettier-format:
+	npx prettier --write "*/**/*.{ts,js,mjs,json}"
+
+################################################################################
 # Target: conf-tests                                                           #
 ################################################################################
 .PHONY: conf-tests
 conf-tests:
 	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
-
-################################################################################
-# Target: e2e                                                                #
-################################################################################
-include tests/e2e/e2e_tests.mk

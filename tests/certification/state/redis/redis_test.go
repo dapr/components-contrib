@@ -20,6 +20,10 @@ import (
 	"testing"
 	"time"
 
+	redis "github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/state"
 	state_redis "github.com/dapr/components-contrib/state/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -29,12 +33,9 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	redis "github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -46,11 +47,16 @@ const (
 )
 
 func TestRedis(t *testing.T) {
+	// Dapr run takes longer than 5 seconds to becomes ready because of the
+	// (ignoreErrors=true) failing redis component below, so we need to configure
+	// the go-sdk to wait longer to connect.
+	t.Setenv("DAPR_CLIENT_TIMEOUT_SECONDS", "10")
+
 	log := logger.NewLogger("dapr.components")
 
 	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -70,22 +76,22 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert", string(item.Value))
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "redisCertUpdate", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -99,22 +105,19 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		ttlInSecondsWrongValue := "mock value"
-		mapOptionsWrongValue :=
-			map[string]string{
-				"ttlInSeconds": ttlInSecondsWrongValue,
-			}
+		mapOptionsWrongValue := map[string]string{
+			"ttlInSeconds": ttlInSecondsWrongValue,
+		}
 
 		ttlInSecondsNonExpiring := -1
-		mapOptionsNonExpiring :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
-			}
+		mapOptionsNonExpiring := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
+		}
 
 		ttlInSeconds := 1
-		mapOptions :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
-			}
+		mapOptions := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
 
 		rdb := redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379", // host:port of the redis server
@@ -125,21 +128,21 @@ func TestRedis(t *testing.T) {
 		err1 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("redisCert"), mapOptionsWrongValue)
 		assert.Error(t, err1)
 		err2 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("redisCert2"), mapOptionsNonExpiring)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		err3 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("redisCert3"), mapOptions)
-		assert.NoError(t, err3)
+		require.NoError(t, err3)
 
 		res, err := rdb.Do(ctx.Context, "TTL", sidecarNamePrefix+"dockerDefault||"+certificationTestPrefix+"ttl3").Result()
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		assert.Equal(t, int64(1), res)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert3", string(item.Value))
 		time.Sleep(2 * time.Second)
 		itemAgain, errAgain := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, errAgain)
+		require.NoError(t, errAgain)
 		assert.Nil(t, nil, itemAgain)
 
 		return nil
@@ -154,13 +157,13 @@ func TestRedis(t *testing.T) {
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl2", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert2", string(item.Value))
 
 		return nil
 	}
 
-	//ETag test
+	// ETag test
 	eTagTest := func(ctx flow.Context) error {
 		etag1 := "1"
 		etag100 := "100"
@@ -185,7 +188,7 @@ func TestRedis(t *testing.T) {
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "k",
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))
 
@@ -196,80 +199,65 @@ func TestRedis(t *testing.T) {
 	upsertTest := func(ctx flow.Context) error {
 		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal1",
-						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
-						},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey2",
-						Value: "reqVal2",
-						Metadata: map[string]string{
-							"ttlInSeconds": "222",
-						},
+				state.SetRequest{
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal3",
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal3",
+				},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal101",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
-					},
-				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal103",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		assert.Equal(t, "2", *resp1.ETag)
-		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
+		assert.Equal(t, `"reqVal101"`, string(resp1.Data))
 
 		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "2", *resp3.ETag)
-		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		assert.Equal(t, `"reqVal103"`, string(resp3.Data))
 		return nil
 	}
 
 	testForStateStoreNotConfigured := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		// assert.Error(t, err)
+		// require.Error(t, err)
 		if err != nil {
 			panic(err)
 		}
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
-		assert.EqualError(t, err, stateStoreNoConfigError)
+		require.EqualError(t, err, stateStoreNoConfigError)
 
 		return nil
 	}
@@ -295,10 +283,10 @@ func TestRedis(t *testing.T) {
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test", basicTest).
 		Step("Run TTL related test", timeToLiveTest).
@@ -313,6 +301,7 @@ func TestRedis(t *testing.T) {
 		Step("start redis server", dockercompose.Start("redis", dockerComposeYAML, "redis")).
 		Step("Waiting for Redis readiness after Redis Restart", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step("Get Values Saved Earlier And Not Expired, after redis restart", testGetAfterRedisRestart).
+		Step("stop dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Run()
 
 	flow.New(t, "test redis state store yaml having enableTLS true with no relevant certs/secrets").
@@ -320,24 +309,12 @@ func TestRedis(t *testing.T) {
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/enableTLSConf"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
-		Run()
-
-	flow.New(t, "test redis state store yaml having maxRetries set to non int value").
-		Step(dockercompose.Run("redis", dockerComposeYAML)).
-		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/maxRetriesNonInt"),
-			runtime.WithStates(stateRegistry),
-		)).
-		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
+		Step("stop dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Run()
 }

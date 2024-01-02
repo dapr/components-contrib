@@ -14,16 +14,22 @@ limitations under the License.
 package signalr
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -188,7 +194,7 @@ func TestConfigurationValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedEndpoint, s.endpoint)
 			assert.Equal(t, tt.expectedAccessKey, s.accessKey)
 			assert.Equal(t, tt.expectedHub, s.hub)
@@ -258,9 +264,20 @@ func TestInvalidConfigurations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.NotNil(t, err)
+			require.Error(t, err)
 		})
 	}
+}
+
+type MockTokenCredential struct {
+	AccessToken string
+}
+
+func (m *MockTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{
+		Token:     m.AccessToken,
+		ExpiresOn: time.Now().Add(time.Hour),
+	}, nil
 }
 
 type mockTransport struct {
@@ -301,7 +318,7 @@ func TestWriteShouldFail(t *testing.T) {
 			Metadata: map[string]string{},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("SignalR call failed should be returned", func(t *testing.T) {
@@ -315,7 +332,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), httpErr.Error())
 	})
 
@@ -329,7 +346,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -340,7 +357,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 	s.endpoint = "https://fake.service.signalr.net"
-	s.accessKey = "fakekey"
+	s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
 	s.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
@@ -354,10 +371,10 @@ func TestWriteShouldSucceed(t *testing.T) {
 			},
 		})
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		actualAuthorization := httpTransport.request.Header.Get("Authorization")
 		assert.NotEmpty(t, actualAuthorization)
-		assert.True(t, strings.HasPrefix(actualAuthorization, "Bearer "), fmt.Sprintf("expecting to start with 'Bearer ', but was '%s'", actualAuthorization))
+		assert.Truef(t, strings.HasPrefix(actualAuthorization, "Bearer "), "expecting to start with 'Bearer ', but was '%s'", actualAuthorization)
 	})
 
 	tests := []struct {
@@ -368,12 +385,12 @@ func TestWriteShouldSucceed(t *testing.T) {
 		userID            string
 		expectedURL       string
 	}{
-		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
-		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
-		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
-		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
-		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
-		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
+		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/hubs/testhub/:send?api-version=2022-11-01"},
+		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/hubs/testhub/:send?api-version=2022-11-01"},
+		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/hubs/testhub/groups/mygroup/:send?api-version=2022-11-01"},
+		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/hubs/testhub/groups/mygroup/:send?api-version=2022-11-01"},
+		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/hubs/testhub/users/myuser/:send?api-version=2022-11-01"},
+		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/hubs/testhub/users/myuser/:send?api-version=2022-11-01"},
 	}
 
 	for _, tt := range tests {
@@ -390,11 +407,122 @@ func TestWriteShouldSucceed(t *testing.T) {
 				},
 			})
 
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, int32(1), httpTransport.requestCount)
 			assert.Equal(t, tt.expectedURL, httpTransport.request.URL.String())
 			assert.NotNil(t, httpTransport.request)
 			assert.Equal(t, "application/json; charset=utf-8", httpTransport.request.Header.Get("Content-Type"))
 		})
 	}
+}
+
+func TestGetShouldSucceed(t *testing.T) {
+	payload := map[string]string{
+		"token": "ABCDEFG.ABC.ABC",
+	}
+	payloadBytes, _ := json.Marshal(payload)
+	httpTransport := &mockTransport{
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBuffer(payloadBytes))},
+	}
+
+	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
+	s.endpoint = "https://fake.service.signalr.net"
+	s.httpClient = &http.Client{
+		Transport: httpTransport,
+	}
+
+	t.Run("Can get negotiate response with accessKey", func(t *testing.T) {
+		s.aadToken = nil
+		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey: "testHub",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		require.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+		assert.Equal(t, int32(0), httpTransport.requestCount)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		require.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.NotNil(t, accessToken)
+		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
+
+		require.NoError(t, err)
+		audience := claims.Audience()
+		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
+	})
+
+	t.Run("Can get negotiate response with accessKey and userId", func(t *testing.T) {
+		s.aadToken = nil
+		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey:  "testHub",
+				userKey: "user1",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		require.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+		assert.Equal(t, int32(0), httpTransport.requestCount)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		require.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.NotNil(t, accessToken)
+		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
+
+		require.NoError(t, err)
+		audience := claims.Audience()
+		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
+		user := claims.Subject()
+		assert.Equal(t, "user1", user)
+	})
+
+	t.Run("Can get negotiate response with aad token and userId", func(t *testing.T) {
+		s.aadToken = &MockTokenCredential{
+			AccessToken: "mock-access-token",
+		}
+
+		httpTransport.reset()
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey:  "testHub",
+				userKey: "user?1&2",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		require.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+
+		assert.Equal(t, int32(1), httpTransport.requestCount)
+		assert.Equal(t, "https://fake.service.signalr.net/api/hubs/testhub/:generateToken?api-version=2022-11-01&userId=user%3F1%262", httpTransport.request.URL.String())
+		assert.NotNil(t, httpTransport.request)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		require.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.Equal(t, "ABCDEFG.ABC.ABC", accessToken)
+	})
 }

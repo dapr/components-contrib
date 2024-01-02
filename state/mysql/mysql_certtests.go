@@ -19,6 +19,7 @@ package mysql
 
 import (
 	"database/sql"
+	"time"
 )
 
 // GetConnection returns the database connection.
@@ -34,4 +35,13 @@ func (m *MySQL) SchemaName() string {
 // TableName returns the value of the tableName property.
 func (m *MySQL) TableName() string {
 	return m.tableName
+}
+
+// CleanupInterval returns the value of the cleanupInterval property.
+func (m *MySQL) CleanupInterval() *time.Duration {
+	return m.cleanupInterval
+}
+
+func (m *MySQL) CleanupExpired() error {
+	return m.gc.CleanupExpired()
 }

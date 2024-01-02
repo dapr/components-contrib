@@ -22,7 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -53,7 +53,7 @@ type smSecretStore struct {
 }
 
 // Init creates a AWS secret manager client.
-func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *smSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
@@ -165,9 +165,8 @@ func (s *smSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (s *smSecretStore) GetComponentMetadata() map[string]string {
+func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := SecretManagerMetaData{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

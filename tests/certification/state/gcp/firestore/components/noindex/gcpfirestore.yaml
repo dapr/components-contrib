@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-basic
+spec:
+  type: state.gcp.firestore
+  version: v1
+  metadata:
+    - name: project_id
+      secretKeyRef:
+        name: GCP_PROJECT_ID
+        key: GCP_PROJECT_ID
+    - name: noindex
+      value: "true" 
+
+auth:
+  secretStore: envvar-secret-store

@@ -14,16 +14,19 @@ limitations under the License.
 package vault
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -36,14 +39,14 @@ const (
 func createTempFileWithContent(t *testing.T, contents string) (fileName string, cleanUpFunc func()) {
 	dir := os.TempDir()
 	f, err := os.CreateTemp(dir, "vault-token")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	fileName = f.Name()
 	cleanUpFunc = func() {
 		os.Remove(fileName)
 	}
 
 	_, err = f.WriteString(contents)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return fileName, cleanUpFunc
 }
@@ -63,7 +66,7 @@ func TestReadVaultToken(t *testing.T) {
 		}
 
 		err := v.initVaultToken()
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, tokenString, v.vaultToken)
 	})
 
@@ -73,7 +76,7 @@ func TestReadVaultToken(t *testing.T) {
 		}
 
 		err := v.initVaultToken()
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, "ThisIs-NOT-TheRootToken", v.vaultToken)
 	})
 
@@ -84,7 +87,7 @@ func TestReadVaultToken(t *testing.T) {
 
 		err := v.initVaultToken()
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedTok, v.vaultToken)
 	})
 }
@@ -103,12 +106,12 @@ func TestVaultTLSConfig(t *testing.T) {
 		}
 
 		meta := VaultMetadata{}
-		err := metadata.DecodeMetadata(m.Properties, &meta)
-		assert.NoError(t, err)
+		err := kitmd.DecodeMetadata(m.Properties, &meta)
+		require.NoError(t, err)
 
 		tlsConfig := metadataToTLSConfig(&meta)
 		skipVerify, err := strconv.ParseBool(properties["skipVerify"])
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)
 		assert.Equal(t, skipVerify, tlsConfig.vaultSkipVerify)
 		assert.Equal(t, properties["tlsServerName"], tlsConfig.vaultServerName)
@@ -117,19 +120,23 @@ func TestVaultTLSConfig(t *testing.T) {
 
 func TestVaultEnginePath(t *testing.T) {
 	t.Run("without engine path config", func(t *testing.T) {
-		v := vaultSecretStore{}
+		v := vaultSecretStore{
+			logger: logger.NewLogger("test"),
+		}
 
-		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
-		assert.Nil(t, err)
-		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
+		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
+		require.NoError(t, err)
+		assert.Equal(t, defaultVaultEnginePath, v.vaultEnginePath)
 	})
 
 	t.Run("with engine path config", func(t *testing.T) {
-		v := vaultSecretStore{}
+		v := vaultSecretStore{
+			logger: logger.NewLogger("test"),
+		}
 
-		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
-		assert.Nil(t, err)
-		assert.Equal(t, v.vaultEnginePath, "kv")
+		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
+		require.NoError(t, err)
+		assert.Equal(t, "kv", v.vaultEnginePath)
 	})
 }
 
@@ -151,7 +158,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(m); err != nil {
+		if err := target.Init(context.Background(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -174,7 +181,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(m); err != nil {
+		if err := target.Init(context.Background(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -193,7 +200,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		meta := VaultMetadata{}
-		metadata.DecodeMetadata(m.Properties, &meta)
+		kitmd.DecodeMetadata(m.Properties, &meta)
 
 		assert.False(t, meta.VaultKVUsePrefix)
 	})
@@ -215,11 +222,11 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(m)
+		err := target.Init(context.Background(), m)
 
 		assert.Equal(t, "", target.vaultToken)
 		assert.Equal(t, "", target.vaultTokenMountPath)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "token mount path and token not set", err.Error())
 	})
 
@@ -237,7 +244,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(m); err != nil {
+		if err := target.Init(context.Background(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -259,7 +266,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(m); err != nil {
+		if err := target.Init(context.Background(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -282,11 +289,11 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(m)
+		err := target.Init(context.Background(), m)
 
 		assert.Equal(t, expectedTok, target.vaultToken)
 		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "token mount path and token both set", err.Error())
 	})
 }
@@ -309,7 +316,7 @@ func TestDefaultVaultAddress(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(m); err != nil {
+		if err := target.Init(context.Background(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -331,11 +338,11 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(m)
-		assert.Nil(t, err)
+		err := target.Init(context.Background(), m)
+		require.NoError(t, err)
 		assert.True(t, target.vaultValueType.isMapType())
 	})
 
@@ -352,11 +359,11 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(m)
-		assert.Nil(t, err)
+		err := target.Init(context.Background(), m)
+		require.NoError(t, err)
 		assert.False(t, target.vaultValueType.isMapType())
 	})
 
@@ -372,11 +379,11 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(m)
-		assert.Nil(t, err)
+		err := target.Init(context.Background(), m)
+		require.NoError(t, err)
 		assert.True(t, target.vaultValueType.isMapType())
 	})
 
@@ -396,8 +403,8 @@ func TestVaultValueType(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(m)
-		assert.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
+		err := target.Init(context.Background(), m)
+		require.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
 	})
 }
 
@@ -421,14 +428,14 @@ func TestGetFeatures(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
 		// This call will throw an error on Windows systems because of the of
 		// the call x509.SystemCertPool() because system root pool is not
 		// available on Windows so ignore the error for when the tests are run
 		// on the Windows platform during CI
-		_ = target.Init(m)
+		_ = target.Init(context.Background(), m)
 
 		return target
 	}

@@ -42,16 +42,16 @@ func TestInit(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": "a",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init with missing metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"dummy": "a",
 		}
-		err := s.Init(m)
-		assert.NotNil(t, err)
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing local secrets file in metadata"))
 	})
 }
@@ -74,15 +74,15 @@ func TestSeparator(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": ".",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root.key1",
 			Metadata: map[string]string{},
 		}
 		output, err := s.GetSecret(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value1", output.Data[req.Name])
 	})
 
@@ -90,15 +90,15 @@ func TestSeparator(t *testing.T) {
 		m.Properties = map[string]string{
 			"secretsFile": "a",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root:key2",
 			Metadata: map[string]string{},
 		}
 		output, err := s.GetSecret(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value2", output.Data[req.Name])
 	})
 }
@@ -118,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(m)
+	s.Init(context.Background(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
@@ -126,7 +126,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		output, e := s.GetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data[req.Name])
 	})
 
@@ -136,7 +136,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.GetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
 	})
 
@@ -160,12 +160,12 @@ func TestBulkGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(m)
+	s.Init(context.Background(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
 		output, e := s.BulkGetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data["secret"]["secret"])
 	})
 }
@@ -197,7 +197,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 			return secrets, err
 		},
 	}
-	err := s.Init(m)
+	err := s.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	t.Run("MultiValued stores support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {

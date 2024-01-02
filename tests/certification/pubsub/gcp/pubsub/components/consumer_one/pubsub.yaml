@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: gcp-pubsub-cert-tests
+spec:
+  type: pubsub.gcp.pubsub
+  version: v1
+  metadata:
+    - name: projectId
+      secretKeyRef:
+        name: GCP_PROJECT_ID
+        key: GCP_PROJECT_ID
+    - name: consumerID
+      secretKeyRef:
+        name: PUBSUB_GCP_CONSUMER_ID_1
+        key: PUBSUB_GCP_CONSUMER_ID_1
+auth:
+  secretstore: envvar-secret-store

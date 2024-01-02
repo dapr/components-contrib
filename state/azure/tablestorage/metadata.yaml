@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: azure.tablestorage
+version: v1
+status: stable
+title: "Azure Table Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-tablestorage/
+capabilities:
+  - crud
+  - etag
+authenticationProfiles:
+  - title: "Account Key"
+    description: "Authenticate using a pre-shared \"account key\"."
+    metadata:
+      - name: accountKey
+        required: true
+        sensitive: true
+        description: "The key to authenticate to the Storage Account or Cosmos DB Table API."
+        example: '"my-secret-key"'
+builtinAuthenticationProfiles:
+  - name: "azuread"
+metadata:
+  - name: accountName
+    description: "The storage account name."
+    required: true
+    type: string
+    example: '"mystorageaccount"'
+  - name: tableName
+    description: "The name of the table to be used for Dapr state. The table will be created for you if it doesn't exist."
+    required: true
+    type: string
+    example: '"table"'
+  - name: cosmosDbMode
+    description: "If enabled, connects to Cosmos DB Table API instead of Azure Tables (Storage Accounts). Defaults to `false`."
+    example: '"false"'
+    type: bool
+    default: 'false'
+  - name: serviceURL
+    description: "The full storage service endpoint URL. Useful for Azure environments other than public cloud."
+    example: '"https://mystorageaccount.table.core.windows.net/"'
+    type: string
+  - name: skipCreateTable
+    description: "Skips the check for and, if necessary, creation of the specified storage table. This is useful when using active directory authentication with minimal privileges. Defaults to `false`."
+    example: '"true"'
+    type: bool
+    default: 'false'

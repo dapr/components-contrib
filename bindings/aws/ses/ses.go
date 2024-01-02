@@ -15,20 +15,19 @@ package ses
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/service/ses"
 
 	"github.com/dapr/components-contrib/bindings"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -61,7 +60,7 @@ func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSES) Init(metadata bindings.Metadata) error {
+func (a *AWSSES) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {
@@ -83,21 +82,8 @@ func (a *AWSSES) Operations() []bindings.OperationKind {
 }
 
 func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
-	b, err := json.Marshal(meta.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var m sesMetadata
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	if meta.Properties["region"] == "" || meta.Properties["accessKey"] == "" ||
-		meta.Properties["secretKey"] == "" {
-		return &m, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
-	}
+	m := sesMetadata{}
+	kitmd.DecodeMetadata(meta.Properties, &m)
 
 	return &m, nil
 }
@@ -167,27 +153,7 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 // Helper to merge config and request metadata.
 func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) sesMetadata {
 	merged := metadata
-
-	if emailFrom := req.Metadata["emailFrom"]; emailFrom != "" {
-		merged.EmailFrom = emailFrom
-	}
-
-	if emailTo := req.Metadata["emailTo"]; emailTo != "" {
-		merged.EmailTo = emailTo
-	}
-
-	if emailCC := req.Metadata["emailCc"]; emailCC != "" {
-		merged.EmailCc = emailCC
-	}
-
-	if emailBCC := req.Metadata["emailBcc"]; emailBCC != "" {
-		merged.EmailBcc = emailBCC
-	}
-
-	if subject := req.Metadata["subject"]; subject != "" {
-		merged.Subject = subject
-	}
-
+	kitmd.DecodeMetadata(req.Metadata, &merged)
 	return merged
 }
 
@@ -201,4 +167,11 @@ func (a *AWSSES) getClient(metadata *sesMetadata) (*ses.SES, error) {
 	svc := ses.New(sess)
 
 	return svc, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+	metadataStruct := sesMetadata{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return
 }

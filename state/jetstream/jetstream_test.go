@@ -97,7 +97,7 @@ func TestSetGetAndDelete(t *testing.T) {
 
 	store := NewJetstreamStateStore(nil)
 
-	err := store.Init(state.Metadata{
+	err := store.Init(context.Background(), state.Metadata{
 		Base: metadata.Base{Properties: map[string]string{
 			"natsURL": nats.DefaultURL,
 			"bucket":  "test",

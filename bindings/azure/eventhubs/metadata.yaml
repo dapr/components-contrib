@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.eventhubs
+version: v1
+status: stable
+title: "Azure Event Hubs"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/eventhubs/
+binding:
+  input: true
+  output: true
+  operations:
+    - name: create
+      description: "Create an event subscription"
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          Connection string for the Event Hub or the Event Hub namespace.
+        example: |
+          "Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"
+      - name: eventHub
+        type: string
+        description: |
+          The name of the Event Hubs hub ("topic"). Required if the connection string doesn't contain an EntityPath value.
+        required: false # Optional when a connectionString is provided
+        example: |
+          mytopic
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: eventHubNamespace
+        type: string
+        required: true
+        description: |
+          The Event Hub Namespace name.
+        example: '"namespace"'
+      - name: eventHub
+        type: string
+        required: true # required for Azure AD
+        description: |
+          The name of the Event Hubs hub (“topic”).
+        example: '"mytopic"'
+      # Entity management is only possible when using Azure AD
+      - name: enableEntityManagement
+        type: bool
+        required: false
+        default: "false"
+        example: "false"
+        description: |
+          Allow management of the Event Hub namespace and storage account.
+      - name: resourceGroupName
+        type: string
+        required: false
+        description: |
+          Name of the resource group the Event Hub namespace is part of.
+          Required when entity management is enabled.
+        example: '"test-rg"'
+      - name: subscriptionId
+        type: string
+        required: false
+        binding:
+          input: true
+          output: false
+        description: |
+          Azure subscription ID value. Required when entity management is enabled
+        example: '"00112233-4455-6677-8899-aabbccddeeff"'
+      - name: messageRetentionInDays
+        type: number
+        required: false
+        default: "1"
+        example: "90"
+        description: |
+          Number of days to retain messages for in the newly created Event
+          Hub namespace. Used only when entity management is enabled.
+      - name: partitionCount
+        type: number
+        required: false
+        default: "1"
+        example: "3"
+        description: |
+          Number of partitions for the new Event Hub namespace. Used only when
+          entity management is enabled.
+metadata:
+  # Input-only metadata
+  # consumerGroup is an alias for consumerId, if both are defined consumerId takes precedence.
+  - name: consumerId
+    type: string
+    required: true # consumerGroup is an alias for this field, let's promote this to default
+    binding:
+      input: true
+      output: false
+    description: |
+      The name of the Event Hubs Consumer Group to listen on.
+    example: '"group1"'
+  - name: consumerGroup
+    type: string
+    required: false
+    binding:
+      input: true
+      output: false
+    description: |
+      The name of the Event Hubs Consumer Group to listen on.
+      Alias to consumerId.
+    example: '"group1"'
+    deprecated: true
+  - name: storageAccountKey
+    type: string
+    required: false
+    binding:
+      input: true
+      output: false
+    description: |
+      Storage account key for the checkpoint store account. When using Azure AD,
+      it is possible to omit this if the service principal has access to the
+      storage account too.
+      Property "storageAccountKey" is ignored when "storageConnectionString" is present
+    example: '"112233445566778899"'
+  - name: storageConnectionString
+    type: string
+    required: false
+    binding:
+      input: true
+      output: false
+    description: |
+      Connection string for the checkpoint store, alternative to specifying
+      storageAccountKey.
+      Property "storageAccountKey" is ignored when "storageConnectionString" is present
+    example: |
+      "BlobEndpoint=https://storagesample.blob.core.windows.net;..."
+  - name: storageAccountName
+    type: string
+    required: true
+    binding:
+      input: true
+      output: false
+    description: |
+      Storage account name to use for the checkpoint store.
+    example: '"myeventhubstorage"'
+  - name: storageContainerName
+    type: string
+    required: true
+    binding:
+      input: true
+      output: false
+    description: |
+      Storage container name.
+    example: '"myeventhubstoragecontainer"'

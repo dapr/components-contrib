@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: postgresql
+version: v1
+status: stable
+title: "PostgreSQL"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/postgresql-configuration-store/
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useAzureAD
+        required: true
+        type: bool
+        example: '"true"'
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
+          This authentication method only works with Azure Database for PostgreSQL databases.
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string for the PostgreSQL database
+          This must contain the user, which corresponds to the name of the user created inside PostgreSQL that maps to the Azure AD identity; this is often the name of the corresponding principal (e.g. the name of the Azure AD application). This connection string should not contain any password.
+        example: |
+          "host=mydb.postgres.database.azure.com user=myapplication port=5432 database=dapr_test sslmode=require"
+        type: string
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: The connection string for the PostgreSQL database
+        example: |
+          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+        type: string
+metadata:
+  - name: table
+    required: true
+    description: The table name for configuration information.
+    example:  "configTable"
+    type: string
+  - name: connectionMaxIdleTime
+    required: false
+    description: |
+      Max idle time before unused connections are automatically closed in the
+      connection pool. By default, there's no value and this is left to the
+      database driver to choose.
+    example:  "5m"
+    type: duration
+  - name: maxConns
+    required: false
+    description: |
+      Maximum number of connections pooled by this component.
+      Set to 0 or lower to use the default value, which is the greater of 4 or the number of CPUs.
+    example: "4"
+    default: "0"
+    type: number
+  - name: connMaxIdleTime
+    deprecated: true
+    required: false
+    description: |
+      Deprecated alias for 'connectionMaxIdleTime'.
+    example:  "5m"
+    type: duration
+  - name: queryExecMode
+    required: false
+    description: |
+      Controls the default mode for executing queries. By default Dapr uses the extended protocol and automatically prepares and caches prepared statements.
+      However, this may be incompatible with proxies such as PGBouncer. In this case it may be preferrable to use `exec` or `simple_protocol`.
+    allowedValues:
+      - "cache_statement"
+      - "cache_describe"
+      - "describe_exec"
+      - "exec"
+      - "simple_protocol"
+    example: "cache_describe"
+    default: ""

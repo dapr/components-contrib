@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/signal"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -172,7 +171,7 @@ func NewSubscriber() Subscriber {
 
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
-	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	runCtx, runCancel := context.WithCancel(context.Background())
 
 	r := &Resolver{
 		subs:             make(map[string]*SubscriberPool),
@@ -192,9 +191,9 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 		// stop serving queries for registered app ids.
 		registrations: make(map[string]chan struct{}),
 		// shutdown refreshers
-		refreshCtx:    refreshCtx,
-		refreshCancel: refreshCancel,
-		logger:        logger,
+		runCtx:    runCtx,
+		runCancel: runCancel,
+		logger:    logger,
 	}
 
 	return r
@@ -224,8 +223,9 @@ type Resolver struct {
 	registrationMu sync.RWMutex
 	registrations  map[string]chan struct{}
 	// shutdown refreshes.
-	refreshCtx     context.Context
-	refreshCancel  context.CancelFunc
+	runCtx         context.Context
+	runCancel      context.CancelFunc
+	serversRunning sync.WaitGroup
 	refreshRunning atomic.Bool
 	logger         logger.Logger
 }
@@ -238,28 +238,29 @@ func (m *Resolver) startRefreshers() {
 
 	// refresh app addresses periodically and on demand
 	go func() {
-		defer func() {
-			m.refreshRunning.Store(false)
-		}()
+		defer m.refreshRunning.Store(false)
+
+		t := time.NewTicker(refreshInterval)
+		defer t.Stop()
 
 		for {
 			select {
 			// Refresh on demand
 			case appID := <-m.refreshChan:
 				go func() {
-					if err := m.refreshApp(m.refreshCtx, appID); err != nil {
+					if err := m.refreshApp(m.runCtx, appID); err != nil {
 						m.logger.Warnf(err.Error())
 					}
 				}()
 			// Refresh periodically
-			case <-time.After(refreshInterval):
+			case <-t.C:
 				go func() {
-					if err := m.refreshAllApps(m.refreshCtx); err != nil {
+					if err := m.refreshAllApps(m.runCtx); err != nil {
 						m.logger.Warnf(err.Error())
 					}
 				}()
 			// Stop on context canceled
-			case <-m.refreshCtx.Done():
+			case <-m.runCtx.Done():
 				m.logger.Debug("stopping cache refreshes")
 				return
 			}
@@ -268,43 +269,23 @@ func (m *Resolver) startRefreshers() {
 }
 
 // Init registers service for mDNS.
-func (m *Resolver) Init(metadata nameresolution.Metadata) error {
-	var (
-		appID       string
-		hostAddress string
-		ok          bool
-		instanceID  string
-	)
-
-	props := metadata.Properties
-
-	if appID, ok = props[nameresolution.MDNSInstanceName]; !ok {
+func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
+	if metadata.Instance.AppID == "" {
 		return errors.New("name is missing")
 	}
-	if hostAddress, ok = props[nameresolution.MDNSInstanceAddress]; !ok {
+	if metadata.Instance.Address == "" {
 		return errors.New("address is missing")
 	}
-
-	p, ok := props[nameresolution.MDNSInstancePort]
-	if !ok {
-		return errors.New("port is missing")
+	if metadata.Instance.DaprInternalPort <= 0 {
+		return errors.New("port is missing or invalid")
 	}
 
-	port, err := strconv.ParseInt(p, 10, 32)
-	if err != nil {
-		return errors.New("port is invalid")
-	}
-
-	if instanceID, ok = props[nameresolution.MDNSInstanceID]; !ok {
-		instanceID = ""
-	}
-
-	err = m.registerMDNS(instanceID, appID, []string{hostAddress}, int(port))
+	err := m.registerMDNS("", metadata.Instance.AppID, []string{metadata.Instance.Address}, metadata.Instance.DaprInternalPort)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
+	m.logger.Infof("local service entry announced: %s -> %s:%d", metadata.Instance.AppID, metadata.Instance.Address, metadata.Instance.DaprInternalPort)
 
 	go m.startRefreshers()
 
@@ -338,27 +319,28 @@ func (m *Resolver) Close() error {
 	m.registrationMu.Lock()
 	defer m.registrationMu.Unlock()
 	for _, doneChan := range m.registrations {
-		doneChan <- struct{}{}
 		close(doneChan)
 	}
 	// clear the registrations map.
 	m.registrations = make(map[string]chan struct{})
 
-	// stop all refresh loops
-	if m.refreshCancel != nil {
-		m.refreshCancel()
+	// stop all background operations
+	if m.runCancel != nil {
+		m.runCancel()
 	}
+
+	// Wait for all running servers
+	m.serversRunning.Wait()
 
 	return nil
 }
 
 func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, port int) error {
-	started := make(chan bool, 1)
-	var err error
+	started := make(chan error)
 
 	// Register the app id with the resolver.
 	done := make(chan struct{}, 1)
-	key := fmt.Sprintf("%s:%d", appID, port) // WARN: we do not support unique ips.
+	key := appID + ":" + strconv.Itoa(port) // WARN: we do not support unique ips.
 
 	// NOTE: The registrations map is used to track all registered
 	// app ids. The Dapr runtime currently only registers 1 app ID
@@ -372,15 +354,20 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 	m.registrations[key] = done
 	m.registrationMu.Unlock()
 
+	m.serversRunning.Add(1)
 	go func() {
-		var server *zeroconf.Server
+		var (
+			server *zeroconf.Server
+			err    error
+		)
+		defer m.serversRunning.Done()
 
 		host, _ := os.Hostname()
 		info := []string{appID}
 
 		// default instance id is unique to the process.
 		if instanceID == "" {
-			instanceID = fmt.Sprintf("%s-%d", host, syscall.Getpid())
+			instanceID = host + ":" + strconv.Itoa(syscall.Getpid())
 		}
 
 		if len(ips) > 0 {
@@ -390,35 +377,31 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 		}
 
 		if err != nil {
-			started <- false
 			m.logger.Errorf("error from zeroconf register: %s", err)
-
+			started <- err
+			close(started)
 			return
 		}
-		started <- true
+		close(started)
 
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
-		// wait until either a SIGTERM or done is received.
+		// wait until either context is canceled (when the component is shut down) or done is received.
 		select {
-		case <-sig:
-			m.logger.Debugf("received SIGTERM signal, shutting down...")
+		case <-m.runCtx.Done():
+			m.logger.Debugf("context canceled, shutting down…")
 		case <-done:
-			m.logger.Debugf("received done signal , shutting down...")
+			m.logger.Debugf("received done signal, shutting down…")
 		}
 
 		m.logger.Info("stopping mDNS server for app id: ", appID)
 		server.Shutdown()
 	}()
 
-	<-started
-
-	return err
+	// Could return an error
+	return <-started
 }
 
 // ResolveID resolves name to address via mDNS.
-func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+func (m *Resolver) ResolveID(parentCtx context.Context, req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
 	if addr := m.nextIPv4Address(req.ID); addr != nil {
 		return *addr, nil
@@ -451,7 +434,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// requested app id. The rest will subscribe for an address or error.
 	var once *sync.Once
 	var published chan struct{}
-	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
 		published = make(chan struct{})

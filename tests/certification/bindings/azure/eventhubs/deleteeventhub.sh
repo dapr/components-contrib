@@ -11,8 +11,19 @@
 # limitations under the License.
 # ------------------------------------------------------------
 
+set -e
+
+CONTAINER_NAME=${1}
+
+if [ -z "$CONTAINER_NAME" ]; then
+    echo "Usage: ./deleteeventhub.sh [container-name]"
+    exit 1
+fi
+
+echo "Deleting container $CONTAINER_NAME"
+
 # login to azure
 az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 
 # delete container used by the consumer
-az storage container delete --account-key $AzureBlobStorageAccessKey --account-name $AzureBlobStorageAccount --name $AzureEventHubsBindingsContainer
+az storage container delete --account-key $AzureBlobStorageAccessKey --account-name $AzureBlobStorageAccount --name "$CONTAINER_NAME"

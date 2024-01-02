@@ -13,8 +13,6 @@ spec:
   - name: retain
     value: false
   - name: qos
-    value: 2
+    value: 1
   - name: cleanSession
     value: false
-  - name: backOffMaxRetries
-    value: 5

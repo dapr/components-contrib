@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -30,7 +31,7 @@ func TestParseMetadata(t *testing.T) {
 		m.Properties = map[string]string{"serverToken": "abc", "accountToken": "123", "emailFrom": "test1@example.net", "emailTo": "test2@example.net", "subject": "hello"}
 		r := Postmark{logger: logger}
 		pMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "abc", pMeta.ServerToken)
 		assert.Equal(t, "123", pMeta.AccountToken)
 		assert.Equal(t, "test1@example.net", pMeta.EmailFrom)

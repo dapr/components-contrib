@@ -19,8 +19,8 @@ import (
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/dapr/pkg/proto/runtime/v1"
 	"github.com/dapr/go-sdk/client"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,21 +34,6 @@ func testComponentFound(targetComponentName string, currentGrpcPort int) flow.Ru
 		assert.True(ctx.T, componentFound, "Component was expected to be found but it was missing.")
 		return nil
 	}
-}
-
-// Due to https://github.com/dapr/dapr/issues/5487 we cannot perform negative tests
-// for the component presence against the metadata registry.
-// Instead, we turned testComponentNotFound into a simpler negative test that ensures a good key cannot be found
-func testComponentNotFound(targetComponentName string, currentGrpcPort int) flow.Runnable {
-	// TODO(tmacam) once https://github.com/dapr/dapr/issues/5487 is fixed, uncomment the code bellow
-	return testSecretIsNotFound(currentGrpcPort, targetComponentName, "multiplekeyvaluessecret")
-
-	//return func(ctx flow.Context) error {
-	//	// Find the component
-	//	componentFound, _ := getComponentCapabilities(ctx, currentGrpcPort, targetComponentName)
-	//	assert.False(ctx.T, componentFound, "Component was expected to be missing but it was found.")
-	//	return nil
-	//}
 }
 
 func testComponentDoesNotHaveFeature(currentGrpcPort int, targetComponentName string, targetCapability secretstores.Feature) flow.Runnable {
@@ -89,7 +74,7 @@ func getComponentCapabilities(ctx flow.Context, currentGrpcPort int, targetCompo
 
 	clientCtx := context.Background()
 
-	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, &empty.Empty{})
+	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, &runtime.GetMetadataRequest{})
 	assert.NoError(ctx.T, err)
 	assert.NotNil(ctx.T, resp)
 	assert.NotNil(ctx.T, resp.GetRegisteredComponents())

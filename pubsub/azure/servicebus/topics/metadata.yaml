@@ -1,0 +1,115 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: azure.servicebus.topics
+version: v1
+status: stable
+title: "Azure Service Bus Topics"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus-topics
+capabilities:
+  - ttl
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "Shared access policy connection string for the Service Bus."
+        example: |
+          "Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
+          input: true
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: namespaceName
+        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
+        example: '"namespace.servicebus.windows.net"'
+        required: true
+        binding:
+          output: true
+          input: true
+metadata:
+  - name: consumerID
+    description: "Consumer ID (a.k.a consumer tag) organizes one or more consumers into a group. Consumers with the same consumer ID work as one virtual consumer, i.e. a message is processed only once by one of the consumers in the group. If the consumer ID is not set, the dapr runtime will set it to the dapr application ID."
+    type: string
+    default: "The ID of the app"
+    example: "myconsumer"
+  - name: maxRetriableErrorsPerSec
+    description: "Maximum number of retriable errors that are processed per second. If a message fails to be processed with a retriable error, the component adds a delay before it starts processing another message, to avoid immediately re-processing messages that have failed"
+    type: number
+    default: '10'
+    example: '2'
+  - name: minConnectionRecoveryInSec
+    description: "Minimum interval (in seconds) to wait before attempting to reconnect to Azure Service Bus in case of a connection failure."
+    type: number
+    default: '2'
+    example: '5'
+  - name: maxConnectionRecoveryInSec
+    description: "Maximum interval (in seconds) to wait before attempting to reconnect to Azure Service Bus in case of a connection failure. After each attempt, the binding waits a random number of seconds, increasing every time, between the minimum and the maximum. Default is 300 seconds (5 minutes)."
+    type: number
+    default: '300'
+    example: '600'
+  - name: maxActiveMessages
+    description: "Defines the maximum number of messages to be processing or in the buffer at once. This should be at least as big as the maximum concurrent handlers. Default: 1000."
+    type: number
+    default: '1000'
+    example: '2000'
+  - name: maxConcurrentHandlers
+    description: "Defines the maximum number of concurrent message handlers. Default: `0` (unlimited)"
+    type: number
+    default: '0'
+    example: '10'
+  - name: lockRenewalInSec
+    description: "Defines the frequency at which buffered message locks will be renewed. Default: 20."
+    type: number
+    default: '20'
+    example: '20'
+  - name: timeoutInSec
+    description: "Timeout for sending messages and for management operations. Default: 60"
+    type: number
+    default: '60'
+    example: '30'
+  - name: disableEntityManagement
+    description: "When set to true, queues and subscriptions do not get created automatically. Default: 'false'"
+    type: bool
+    default: 'false'
+    example: 'true'
+  - name: lockDurationInSec
+    description: "Defines the length in seconds that a message will be locked for before expiring. Used during subscription creation only. Default set by server."
+    type: number
+    example: '5'
+  - name: autoDeleteOnIdleInSec
+    description: "Time in seconds to wait before auto deleting idle subscriptions. Used during subscription creation only. Default: `0` (disabled)"
+    type: number
+    default: '0'
+    example: '3600'
+  - name: defaultMessageTimeToLiveInSec
+    description: "Default message time to live, in seconds. Used during subscription creation only."
+    type: number
+    example: '10'
+  - name: maxDeliveryCount
+    description: "Defines the number of attempts the server will make to deliver a message. Used during subscription creation only. Default set by server."
+    type: number
+    example: '10'
+  - name: handlerTimeoutInSec
+    description: "Timeout for invoking the app’s handler. Default: 60"
+    type: number
+    example: "30"
+    default: "60"
+  - name: publishMaxRetries
+    description: 'The max number of retries for when Azure Service Bus responds with "too busy" in order to throttle messages. Defaults: `5`'
+    type: number
+    example: "10"
+    default: "5"
+  - name: publishInitialRetryIntervalInMs
+    description: "Time in milliseconds for the initial exponential backoff when Azure Service Bus throttle messages. Defaults: `500`"
+    type: number
+    example: "1000"
+    default: "500"
+  

@@ -91,7 +91,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	var err error
 	if contribContenttype.IsJSONContentType(dataContentType) {
 		err = unmarshalPrecise(data, &ceData)
-	} else if contribContenttype.IsBinaryContentType(dataContentType) {
+	} else if contribContenttype.IsBinaryContentType(dataContentType) || contribContenttype.IsCloudEventProtobuf(dataContentType, data) {
 		ceData = base64.StdEncoding.EncodeToString(data)
 		ceDataField = DataBase64Field
 	} else {
@@ -141,9 +141,15 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 		m[TimeField] = time.Now().Format(time.RFC3339)
 	}
 
-	m[TraceIDField] = traceParent
-	m[TraceParentField] = traceParent
-	m[TraceStateField] = traceState
+	if _, ok := m[TraceIDField]; !ok {
+		m[TraceIDField] = traceParent
+		m[TraceParentField] = traceParent
+	}
+
+	if _, ok := m[TraceStateField]; !ok {
+		m[TraceStateField] = traceState
+	}
+
 	m[TopicField] = topic
 	m[PubsubField] = pubsub
 

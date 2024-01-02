@@ -7,8 +7,8 @@ spec:
   version: v1
   initTimeout: 5m
   metadata:
-    - name: host
-      value: "localhost:27017"
+    - name: connectionString
+      value: "mongodb://localhost:27017/admin"
     - name: databaseName
       value: "admin"
     - name: writeConcern

@@ -17,7 +17,7 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 )
 
 // Component metadata struct.
@@ -26,7 +26,7 @@ type componentMetadata struct {
 	KVNamespaceID        string `mapstructure:"kvNamespaceID"`
 }
 
-var kvNamespaceValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
+var kvNamespaceValidation = regexp.MustCompile(`^([a-zA-Z0-9_\-\.]+)$`)
 
 // Validate the metadata object.
 func (m *componentMetadata) Validate() error {

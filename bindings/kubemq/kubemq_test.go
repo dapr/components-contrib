@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -32,13 +33,14 @@ func Test_createOptions(t *testing.T) {
 				},
 			},
 			want: &options{
-				host:               "localhost",
-				port:               50000,
-				authToken:          "authToken",
-				channel:            "test",
-				autoAcknowledged:   true,
-				pollMaxItems:       10,
-				pollTimeoutSeconds: 10,
+				Address:            "localhost:50000",
+				internalHost:       "localhost",
+				internalPort:       50000,
+				AuthToken:          "authToken",
+				Channel:            "test",
+				AutoAcknowledged:   true,
+				PollMaxItems:       10,
+				PollTimeoutSeconds: 10,
 			},
 			wantErr: false,
 		},
@@ -116,8 +118,17 @@ func Test_createOptions(t *testing.T) {
 					"autoAcknowledged": "bad",
 				},
 			}},
-			want:    nil,
-			wantErr: true,
+			want: &options{
+				Address:            "localhost:50000",
+				internalHost:       "localhost",
+				internalPort:       50000,
+				AuthToken:          "",
+				Channel:            "test",
+				AutoAcknowledged:   false,
+				PollMaxItems:       1,
+				PollTimeoutSeconds: 3600,
+			},
+			wantErr: false,
 		},
 		{
 			name: "create invalid opts with invalid pollMaxItems",
@@ -177,9 +188,9 @@ func Test_createOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := createOptions(tt.meta)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
 		})

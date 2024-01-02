@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: azure.appconfig
+version: v1
+status: alpha
+title: "Azure App Configuration"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/azure-appconfig-configuration-store/
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The Azure App Configuration connection string."
+        example: 'Endpoint=https://foo.azconfig.io;Id=osOX-l9-s0:sig;Secret=xxx"'
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
+          input: true
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+    - name: host
+      description: "Endpoint for the Azure App Configuration instance. Mutally exclusive with connectionString field. To be used when Azure Authentication is used"
+      example: '"https://dapr.azconfig.io"'
+metadata:
+  - name: maxRetries
+    description: "Maximum number of retries before giving up"
+    type: number
+    default: '3'
+    example: '10'
+  - name: retryDelay
+    description: "Specifies the initial amount of delay to use before retrying an operation. The delay increases exponentially with each retry up to the maximum specified by MaxRetryDelay. Defaults to 4 seconds."
+    type: duration
+    default: '4s'
+    example: '5s'
+  - name: maxRetryDelay
+    description: "Specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 2 minutes."
+    type: duration
+    default: '2m'
+    example: '3m'
+  - name: subscribePollInterval
+    description: "Specifies the poll interval for polling the subscribed keys for any changes. Default polling interval is set to 24 hours."
+    type: duration
+    default: '24h'
+    example: '5m'
+  - name: requesttimeout
+    description: "Specifies the time allowed to pass until a request is failed. Default timeout is set to 15 seconds."
+    type: duration
+    default: '15s'
+    example: '30s'

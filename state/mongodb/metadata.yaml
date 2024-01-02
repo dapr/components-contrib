@@ -17,39 +17,69 @@ capabilities:
   - transactional
   - etag
   - query
+  - ttl
+authenticationProfiles:
+  - title: "Connection string"
+    description: |
+      Authenticate using a connection string.
+    metadata:
+      - name: connectionString
+        required: true
+        description: |
+          The connection string to use. One of `server`, `host` or `connectionstring` is required.
+        example: '"mongodb://localhost:27017"'
+  - title: "Username and password"
+    description: |
+      Authenticate using username, password and either server or host properties.
+    metadata:
+      - name: username
+        description: |
+          The username of the user to connect with (applicable in conjunction with `host`)
+        required: true
+        example: '"admin"'
+      - name: password
+        sensitive: true
+        description: |
+          The password of the user (applicable in conjunction with `host`)
+        required: true
+        example: '"password"'
+      - name: server
+        # Required if host is not set
+        required: false
+        description: |
+          The server to connect to, when using DNS SRV record. One of `server` or `host` is required.
+        example: '"server.example.com"'
+      - name: host
+        # Required if server is not set
+        required: false
+        description: |
+          The host to connect to. One of `server` or `host` is required.
+        example: '"mongo-mongodb.default.svc.cluster.local:27017"'
+      - name: params
+        description: |
+          Additional parameters to use when connecting. The params field accepts a query string that specifies connection specific options as `<name>=<value>` pairs, separated by `&` and prefixed with `?`. See the MongoDB manual for the list of available options and their use cases.
+        example: '"?authSource=daprStore&ssl=true"'
+        required: false
 metadata:
-  - name: server
-    # Required if host is not set
-    required: false
-    description: "The server to connect to, when using DNS SRV record. One of \"server\" and \"host\" is required."
-    example: '"server.example.com"'
-  - name: host
-    # Required if server is not set
-    required: false
-    description: "The host to connect to. One of \"server\" and \"host\" is required."
-    example: '"mongo-mongodb.default.svc.cluster.local:27017"'
-  - name: username
-    description: "The username of the user to connect with (applicable in conjunction with \"host\")"
-    example: '"admin"'
-  - name: password
-    sensitive: true
-    description: "The password of the user (applicable in conjunction with \"host\")"
-    example: '"password"'
   - name: databaseName
-    description: "The name of the database to use."
+    description: |
+      The name of the database to use.
     default: '"daprStore"'
     example: '"daprStore"'
   - name: collectionName
-    description: "The name of the collection to use."
+    description: |
+      The name of the collection to use.
     default: '"daprCollection"'
     example: '"daprCollection"'
   - name: writeconcern
-    description: "The write concern to use"
+    description: |
+      The write concern to use
     example: '"majority", "2"'
   - name: readconcern
-    description: "The read concern to use"
+    description: |
+      The read concern to use
     type: string
-    allowedValues: 
+    allowedValues:
       - "available"
       - "local"
       - "linearizable"
@@ -57,10 +87,8 @@ metadata:
       - "snapshot"
     example: '"local"'
   - name: operationTimeout
-    description: "The timeout for the operation."
+    description: |
+      The timeout for the operation.
     type: duration
     default: '"5s"'
     example: '"10s"'
-  - name: params
-    description: "Additional parameters to use when connecting. The params field accepts a query string that specifies connection specific options as \"<name>=<value>\" pairs, separated by \"&\" and prefixed with \"?\". See the MongoDB manual for the list of available options and their use cases."
-    example: '"?authSource=daprStore&ssl=true"'

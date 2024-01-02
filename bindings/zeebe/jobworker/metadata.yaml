@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: zeebe.jobworker
+version: v1
+status: stable
+title: "Zeebe JobWorker"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/zeebe-jobworker/
+binding:
+  output: false
+  input: true
+  operations: []
+metadata:
+  - name: gatewayAddr
+    required: true
+    description: Zeebe gateway address
+    example: "localhost:26500"
+    type: string
+  - name: gatewayKeepAlive
+    required: false
+    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    example: "45s"
+    type: duration
+  - name: usePlainTextConnection	
+    required: false
+    description: Whether to use a plain text connection or not
+    example: "true"
+    type: bool
+  - name: caCertificatePath
+    required: false
+    description: The path to the CA cert
+    example: "/path/to/ca-cert"
+    type: string
+  - name: workerName
+    required: false
+    description: The name of the worker activating the jobs, mostly used for logging purposes
+    example: "products-worker"
+    type: string
+  - name: workerTimeout
+    required: false
+    description: A job returned after this call will not be activated by another call until the timeout has been reached; defaults to 5 minutes
+    example: "5m"
+    type: duration
+  - name: requestTimeout
+    required: false
+    description: The request will be completed when at least one job is activated or after the requestTimeout. If the requestTimeout = 0, a default timeout is used. If the requestTimeout < 0, long polling is disabled and the request is completed immediately, even when no job is activated. Defaults to 10 seconds
+    example: "30s"
+    type: duration
+  - name: jobType
+    required: true
+    description: the job type, as defined in the BPMN process (e.g. <zeebe:taskDefinition type=\"fetch-products\" />)
+    example: "fetch-products"
+    type: string
+  - name: maxJobsActive
+    required: false
+    description: Set the maximum number of jobs which will be activated for this worker at the same time. Defaults to 32
+    example: "32"
+    type: number
+  - name: concurrency
+    required: false
+    description: The maximum number of concurrent spawned goroutines to complete jobs. Defaults to 4
+    example: "4"
+    type: number
+  - name: pollInterval
+    required: false
+    description: Set the maximal interval between polling for new jobs. Defaults to 100 milliseconds
+    example: "100ms"
+    type: duration
+  - name: pollThreshold
+    required: false
+    description: Set the threshold of buffered activated jobs before polling for new jobs, i.e. threshold * maxJobsActive. Defaults to 0.3
+    example: "0.3"
+    type: number
+  - name: fetchVariables
+    required: false
+    description: A list of variables to fetch as the job variables; if empty, all visible variables at the time of activation for the scope of the job will be returned
+    example: "productId, productName, productKey"
+    type: string
+  - name: autocomplete
+    required: false
+    description: Indicates if a job should be autocompleted or not. If not set, all jobs will be auto-completed by default. Disable it if the worker should manually complete or fail the job with either a business error or an incident
+    example: "true"
+    type: bool
+  - name: retryBackOff
+    required: false
+    description: The backoff timeout for the next retry after a job failed. This will only be applied if autocomplete is set to true.
+    example: "15s"
+    type: duration

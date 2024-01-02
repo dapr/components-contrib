@@ -1,0 +1,159 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/dapr/kit/logger"
+	mdutils "github.com/dapr/components-contrib/metadata"
+
+{{- range $fullpkg, $val := .Pkgs }}
+	{{index $val 0}} "{{print "github.com/dapr/components-contrib/" $fullpkg}}"
+{{- end}}
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Please provide the path to the components-contrib root as an argument")
+		os.Exit(1)
+	}
+	basePath := os.Args[1]
+	log := logger.NewLogger("metadata")
+
+	var (
+		yamlMetadata *map[string]string
+		missing      []string
+		unexpected   []string
+	)
+	missingByComponent := make(map[string][]string)
+	unexpectedByComponent := make(map[string][]string)
+
+{{range $fullpkg, $val := .Pkgs}}
+	instanceOf_{{index $val 0}} := {{index $val 0}}.{{index $val 1}}(log)
+	metadataFor_{{index $val 0}} := instanceOf_{{index $val 0}}.(mdutils.ComponentWithMetadata).GetComponentMetadata()
+	yamlMetadata = getYamlMetadata(basePath, "{{$fullpkg}}")
+	missing = checkMissingMetadata(yamlMetadata, metadataFor_{{index $val 0}})
+	if len(missing) > 0 {
+		missingByComponent["{{$fullpkg}}"] = missing
+	}
+	if yamlMetadata != nil && len(*yamlMetadata) > 0 {
+		unexpected = checkUnexpectedBuiltinMetadata(*yamlMetadata, mdutils.ComponentType("{{index $val 2}}"))
+		if len(unexpected) > 0 {
+			unexpectedByComponent["{{$fullpkg}}"] = unexpected
+		}
+	}
+{{end}}
+
+	var failed bool
+	if len(missingByComponent) > 0 {
+		failed = true
+		jsonData, err := json.MarshalIndent(missingByComponent, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("The following components are missing metadata in their metadata.yaml:")
+		fmt.Println(string(jsonData))
+	}
+	if len(unexpectedByComponent) > 0 {
+		failed = true
+		jsonData, err := json.MarshalIndent(unexpectedByComponent, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("The following components have unexpected metadata in their metadata.yaml:")
+		fmt.Println(string(jsonData))
+	}
+	if failed {
+		os.Exit(1)
+	}
+}
+
+type Data struct {
+	Metadata               []Metadata `yaml:"metadata"`
+	AuthenticationProfiles []struct {
+		Metadata []Metadata `yaml:"metadata"`
+	} `yaml:"authenticationProfiles"`
+	BuiltinAuthenticationProfiles []struct {
+		Metadata []Metadata `yaml:"metadata"`
+	} `yaml:"builtinAuthenticationProfiles"`
+}
+
+type Metadata struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+}
+
+func getYamlMetadata(basePath string, pkg string) *map[string]string {
+	metadatayamlpath := basePath + "/" + pkg + "/metadata.yaml"
+	data, err := os.ReadFile(metadatayamlpath)
+	if err != nil {
+		return nil
+	}
+
+	var d Data
+	err = yaml.Unmarshal(data, &d)
+	if err != nil {
+		fmt.Println(fmt.Errorf("Invalid metadata yaml format. Error unmarshalling yaml %s: %s", metadatayamlpath, err.Error()))
+		os.Exit(1)
+	}
+
+	names := make(map[string]string)
+	for _, m := range d.Metadata {
+		names[strings.ToLower(m.Name)] = "string"
+		if m.Type != "" {
+			names[strings.ToLower(m.Name)] = m.Type
+		}
+	}
+	for _, ap := range d.AuthenticationProfiles {
+		for _, m := range ap.Metadata {
+			names[strings.ToLower(m.Name)] = "string"
+			if m.Type != "" {
+				names[strings.ToLower(m.Name)] = m.Type
+			}
+		}
+	}
+	for _, bi := range d.BuiltinAuthenticationProfiles {
+		for _, m := range bi.Metadata {
+			names[strings.ToLower(m.Name)] = "string"
+			if m.Type != "" {
+				names[strings.ToLower(m.Name)] = m.Type
+			}
+		}
+	}
+	return &names
+}
+
+func checkMissingMetadata(yamlMetadata *map[string]string, componentMetadata mdutils.MetadataMap) []string {
+	missingMetadata := make([]string, 0)
+	// if there is no yaml metadata, then we are not missing anything yet
+	if yamlMetadata != nil && len(*yamlMetadata) > 0 {
+		for key, md := range componentMetadata {
+			if md.Ignored {
+				continue
+			}
+			lowerKey := strings.ToLower(key)
+			if _, ok := (*yamlMetadata)[lowerKey]; !ok {
+				missingMetadata = append(missingMetadata, key)
+			}
+			// todo - check if the metadata is the same data type
+		}
+	}
+	return missingMetadata
+}
+
+func checkUnexpectedBuiltinMetadata(yamlMetadata map[string]string, compType mdutils.ComponentType) []string {
+	unexpected := []string{}
+	builtin := compType.BuiltInMetadataProperties()
+	for _, k := range builtin {
+		k = strings.ToLower(k)
+		_, ok := yamlMetadata[k]
+		if ok {
+			unexpected = append(unexpected, k)
+		}
+	}
+	return unexpected
+}

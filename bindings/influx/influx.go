@@ -16,15 +16,17 @@ package influx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go"
-	"github.com/influxdata/influxdb-client-go/api"
-	"github.com/pkg/errors"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const queryOperation bindings.OperationKind = "query"
@@ -35,11 +37,11 @@ const (
 )
 
 var (
-	ErrInvalidRequestData      = errors.New("Influx Error: Cannot convert request data")
-	ErrCannotWriteRecord       = errors.New("Influx Error: Cannot write point")
-	ErrInvalidRequestOperation = errors.Errorf("invalid operation type. Expected %s or %s", queryOperation, bindings.CreateOperation)
+	ErrInvalidRequestData      = errors.New("influx error: Cannot convert request data")
+	ErrCannotWriteRecord       = errors.New("influx error: Cannot write point")
+	ErrInvalidRequestOperation = errors.New("invalid operation type. Expected " + string(queryOperation) + " or " + string(bindings.CreateOperation))
 	ErrMetadataMissing         = errors.New("metadata required")
-	ErrMetadataRawNotFound     = errors.Errorf("required metadata not set: %s", rawQueryKey)
+	ErrMetadataRawNotFound     = errors.New("required metadata not set: " + rawQueryKey)
 )
 
 // Influx allows writing to InfluxDB.
@@ -64,7 +66,7 @@ func NewInflux(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection establishment.
-func (i *Influx) Init(metadata bindings.Metadata) error {
+func (i *Influx) Init(_ context.Context, metadata bindings.Metadata) error {
 	influxMeta, err := i.getInfluxMetadata(metadata)
 	if err != nil {
 		return err
@@ -72,19 +74,19 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 
 	i.metadata = influxMeta
 	if i.metadata.URL == "" {
-		return errors.New("Influx Error: URL required")
+		return errors.New("influx error: URL required")
 	}
 
 	if i.metadata.Token == "" {
-		return errors.New("Influx Error: Token required")
+		return errors.New("influx error: Token required")
 	}
 
 	if i.metadata.Org == "" {
-		return errors.New("Influx Error: Org required")
+		return errors.New("influx error: Org required")
 	}
 
 	if i.metadata.Bucket == "" {
-		return errors.New("Influx Error: Bucket required")
+		return errors.New("influx error: Bucket required")
 	}
 
 	client := influxdb2.NewClient(i.metadata.URL, i.metadata.Token)
@@ -98,7 +100,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 // GetInfluxMetadata returns new Influx metadata.
 func (i *Influx) getInfluxMetadata(meta bindings.Metadata) (*influxMetadata, error) {
 	var iMetadata influxMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &iMetadata)
+	err := kitmd.DecodeMetadata(meta.Properties, &iMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +143,7 @@ func (i *Influx) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 
 		res, err := i.queryAPI.QueryRaw(ctx, s, influxdb2.DefaultDialect())
 		if err != nil {
-			return nil, errors.Wrap(err, "do query influx err")
+			return nil, fmt.Errorf("do query influx err: %w", err)
 		}
 
 		resp := &bindings.InvokeResponse{
@@ -163,4 +165,11 @@ func (i *Influx) Close() error {
 	i.writeAPI = nil
 	i.queryAPI = nil
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (i *Influx) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := influxMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

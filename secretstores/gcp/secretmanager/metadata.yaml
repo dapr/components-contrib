@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: gcp.secretmanager
+version: v1
+status: alpha
+title: "GCP Secret Manager"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/gcp-secret-manager/
+builtinAuthenticationProfiles:
+  - name: "gcp"
+metadata: []

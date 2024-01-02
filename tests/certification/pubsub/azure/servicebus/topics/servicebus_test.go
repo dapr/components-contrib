@@ -36,6 +36,7 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -165,11 +166,12 @@ func TestServicebus(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -178,12 +180,13 @@ func TestServicebus(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
@@ -290,11 +293,12 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -303,12 +307,13 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
@@ -410,11 +415,12 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -423,12 +429,13 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -533,11 +540,12 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -546,12 +554,13 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
@@ -653,12 +662,13 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -758,12 +768,13 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
@@ -846,12 +857,13 @@ func TestServicebusEntityManagement(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/entity_mgmt"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/entity_mgmt"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
@@ -937,23 +949,25 @@ func TestServicebusDefaultTtl(t *testing.T) {
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run("initalSidecar",
-			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/default_ttl"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, "initalSidecar", topicActiveName, consumerGroup1)).
 		Step("stop initial sidecar", sidecar.Stop("initialSidecar")).
 		Step("wait", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/default_ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*2)),
+			)...,
 		)).
 		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
@@ -1051,12 +1065,13 @@ func TestServicebusAuthentication(t *testing.T) {
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/authentication"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/authentication"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -1225,11 +1240,12 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
 			"SessionId": session2,
@@ -1524,11 +1540,12 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
 			"SessionId": session2,
@@ -1541,8 +1558,9 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
+	log.SetOutputLevel(logger.DebugLevel)
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
@@ -1552,8 +1570,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

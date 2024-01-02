@@ -25,6 +25,12 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+// This interface is used to help improve testing.
+type iMySQLFactory interface {
+	Open(connectionString string) (*sql.DB, error)
+	RegisterTLSConfig(pemPath string) error
+}
+
 type mySQLFactory struct {
 	logger logger.Logger
 }

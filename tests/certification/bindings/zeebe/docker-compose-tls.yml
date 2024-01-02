@@ -1,0 +1,16 @@
+version: "3.3"
+services:
+  zeebe:
+    image: camunda/zeebe:${ZEEBE_VERSION}
+    environment:
+      - ZEEBE_LOG_LEVEL=ALL
+      - ZEEBE_BROKER_GATEWAY_SECURITY_ENABLED=true
+      - ZEEBE_BROKER_GATEWAY_SECURITY_CERTIFICATECHAINPATH=/usr/local/zeebe/cert.pem
+      - ZEEBE_BROKER_GATEWAY_SECURITY_PRIVATEKEYPATH=/usr/local/zeebe/key.pem
+      - "JAVA_TOOL_OPTIONS=-Xms512m -Xmx512m"
+    env_file: .env
+    ports:
+      - "${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}:${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}"
+    volumes:
+      - "/tmp/dapr-cert-test-zeebe-cert.pem:/usr/local/zeebe/cert.pem:ro"
+      - "/tmp/dapr-cert-test-zeebe-key.pem:/usr/local/zeebe/key.pem:ro"

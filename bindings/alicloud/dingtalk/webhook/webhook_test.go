@@ -45,7 +45,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 		}
 
 		body, err := io.ReadAll(r.Body)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, msg, string(body))
 	}))
 	defer ts.Close()
@@ -57,7 +57,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
+	err := d.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
@@ -78,8 +78,8 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
-	assert.NoError(t, err)
+	err := d.Init(context.Background(), m)
+	require.NoError(t, err)
 
 	var count int32
 	ch := make(chan bool, 1)
@@ -101,8 +101,23 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 
 	select {
 	case <-ch:
-		require.True(t, atomic.LoadInt32(&count) > 0)
+		require.Greater(t, atomic.LoadInt32(&count), int32(0))
 	case <-time.After(time.Second):
 		require.FailNow(t, "read timeout")
 	}
+}
+
+func TestBindingClose(t *testing.T) {
+	d := NewDingTalkWebhook(logger.NewLogger("test"))
+	m := bindings.Metadata{Base: metadata.Base{
+		Name: "test",
+		Properties: map[string]string{
+			"url":    "/test",
+			"secret": "",
+			"id":     "x",
+		},
+	}}
+	require.NoError(t, d.Init(context.Background(), m))
+	require.NoError(t, d.Close())
+	require.NoError(t, d.Close(), "second close should not error")
 }

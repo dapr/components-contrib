@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -30,6 +29,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -70,7 +70,7 @@ func (m mqttMessage) Payload() []byte {
 }
 
 func (m mqttMessage) Ack() {
-	return
+	// nop
 }
 
 type mockedMQTTToken struct {
@@ -146,7 +146,7 @@ func (m mockedMQTTClient) Connect() mqtt.Token {
 }
 
 func (m mockedMQTTClient) Disconnect(quiesce uint) {
-	return
+	// nop
 }
 
 func (m mockedMQTTClient) Publish(topic string, qos byte, retained bool, payload interface{}) mqtt.Token {
@@ -199,7 +199,7 @@ func (m mockedMQTTClient) Unsubscribe(topics ...string) mqtt.Token {
 }
 
 func (m mockedMQTTClient) AddRoute(topic string, callback mqtt.MessageHandler) {
-	return
+	// nop
 }
 
 func (m mockedMQTTClient) OptionsReader() mqtt.ClientOptionsReader {
@@ -226,11 +226,11 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, true, m.retain)
-		assert.Equal(t, false, m.cleanSession)
+		require.NoError(t, err)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.True(t, m.Retain)
+		assert.False(t, m.CleanSession)
 	})
 
 	t.Run("missing consumerID", func(t *testing.T) {
@@ -254,8 +254,8 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.EqualError(t, err, errors.New("mqtt pub sub error: missing url").Error())
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
+		require.ErrorContains(t, err, "missing url")
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 	})
 
 	t.Run("qos and retain is not given", func(t *testing.T) {
@@ -264,31 +264,16 @@ func TestParseMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[mqttQOS] = ""
-		fakeMetaData.Properties[mqttRetain] = ""
+		delete(fakeMetaData.Properties, mqttQOS)
+		delete(fakeMetaData.Properties, mqttRetain)
 
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, false, m.retain)
-	})
-
-	t.Run("invalid clean session field", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Base: mdata.Base{Properties: fakeProperties},
-		}
-		fakeMetaData.Properties[mqttCleanSession] = "randomString"
-
-		m, err := parseMQTTMetaData(fakeMetaData, log)
-
-		// assert
-		assert.Contains(t, err.Error(), "invalid cleanSession")
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
+		require.NoError(t, err)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.False(t, m.Retain)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -308,7 +293,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.TLSProperties.CACert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -334,7 +319,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.TLSProperties.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -360,7 +345,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, m.TLSProperties.ClientKey, "failed to parse valid client certificate key")
 	})
 }
@@ -639,7 +624,7 @@ func Test_buildRegexForTopic(t *testing.T) {
 func Test_mqttPubSub_Publish(t *testing.T) {
 	type fields struct {
 		logger   logger.Logger
-		metadata *metadata
+		metadata *mqttMetadata
 		ctx      context.Context
 	}
 	type args struct {
@@ -657,8 +642,8 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
 				ctx:    context.Background(),
-				metadata: &metadata{
-					retain: true,
+				metadata: &mqttMetadata{
+					Retain: true,
 				},
 			},
 			args: args{
@@ -683,8 +668,8 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
 				ctx:    context.Background(),
-				metadata: &metadata{
-					retain: true,
+				metadata: &mqttMetadata{
+					Retain: true,
 				},
 			},
 			args: args{
@@ -710,9 +695,8 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			msgCh := make(chan mqttMessage, 1)
 
 			m := &mqttPubSub{
-				producer: newMockedMQTTClient(msgCh),
+				conn:     newMockedMQTTClient(msgCh),
 				logger:   tt.fields.logger,
-				ctx:      tt.fields.ctx,
 				metadata: tt.fields.metadata,
 			}
 

@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: cloudflare.workerskv
+version: v1
+status: beta
+title: "Cloudflare Workers KV"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cloudflare-workerskv/
+capabilities:
+  - crud
+  - ttl
+authenticationProfiles:
+  - title: "Cloudflare API Token"
+    description: |
+      Authenticate with a Cloudflare API token to let Dapr manage your Worker
+    metadata:
+      - name: cfAccountID
+        required: true
+        sensitive: true
+        description: |
+          Cloudflare account ID. Required to have Dapr manage the worker.  
+        example: '"456789abcdef8b5588f3d134f74ac"'
+      - name: cfAPIToken
+        required: true
+        sensitive: true
+        description: |
+          API token for Cloudflare. Required to have Dapr manage the Worker.
+        example: '"secret-key"'
+  - title: "No authentication"
+    description: Using a pre-previsioned Worker that is not managed by Dapr doesn't require authenticating with Cloudflare
+    metadata:
+      - name: workerUrl
+        description: |
+          URL of the pre-provisioned Worker
+        required: true
+        type: string
+        example: '"https://mydaprkv.mydomain.workers.dev"'
+metadata:
+  - name: key
+    required: true
+    sensitive: true
+    description: |
+      Key for authenticating calls from Dapr to the Worker. This is an Ed25519 private key, PEM-encoded.
+    example: |
+      -----BEGIN PRIVATE KEY-----
+      MC4CAQ...
+      -----END PRIVATE KEY-----
+  - name: kvNamespaceID
+    description: |
+      ID of the pre-created Workers KV namespace.
+    required: true
+    type: string
+    example: '"123456789abcdef8b5588f3d134f74ac"'
+  - name: workerName
+    description: |
+      Name of the Worker to connect to.
+    required: true
+    type: string
+    example: '"mydaprkv"'
+  - name: timeoutInSeconds
+    required: false
+    description: |
+      Timeout for network requests, in seconds.
+    type: number
+    default: '20'
+    example: '20'

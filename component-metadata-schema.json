@@ -72,6 +72,27 @@
       ],
       "description": "BindingOperation represents an operation offered by an output binding."
     },
+    "BuiltinAuthenticationProfile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the built-in authentication profile."
+        },
+        "metadata": {
+          "items": {
+            "$ref": "#/$defs/Metadata"
+          },
+          "type": "array",
+          "description": "Additional metadata options applicable when using this authentication profile."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "BuiltinAuthenticationProfile is a reference to a built-in authentication profile."
+    },
     "Metadata": {
       "properties": {
         "name": {
@@ -96,7 +117,8 @@
             "string",
             "number",
             "bool",
-            "duration"
+            "duration",
+            "bytesize"
           ],
           "description": "Type of the property.\nIf this is empty, it's interpreted as \"string\"."
         },
@@ -118,6 +140,14 @@
         "binding": {
           "$ref": "#/$defs/MetadataBinding",
           "description": "If set, specifies that the property is only applicable to bindings of the type specified below.\nAt least one of \"input\" and \"output\" must be \"true\"."
+        },
+        "url": {
+          "$ref": "#/$defs/URL",
+          "description": "URL with additional information, such as docs."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "If set, specifies that the property is deprecated and should not be used in new configurations."
         }
       },
       "additionalProperties": false,
@@ -182,7 +212,8 @@
         "workflows",
         "configuration",
         "lock",
-        "middleware"
+        "middleware",
+        "crypto"
       ],
       "description": "Component type, of one of the allowed values."
     },
@@ -236,6 +267,13 @@
       },
       "type": "array",
       "description": "Authentication profiles for the component."
+    },
+    "builtinAuthenticationProfiles": {
+      "items": {
+        "$ref": "#/$defs/BuiltinAuthenticationProfile"
+      },
+      "type": "array",
+      "description": "Built-in authentication profiles to import."
     },
     "metadata": {
       "items": {

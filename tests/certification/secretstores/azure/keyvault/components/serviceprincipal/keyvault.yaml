@@ -11,16 +11,16 @@ spec:
         key:  AzureKeyVaultName
   - name: azureTenantId
     secretKeyRef:
-        name: AzureKeyVaultSecretStoreTenantId
-        key:  AzureKeyVaultSecretStoreTenantId
+        name: AzureKeyVaultTenantId
+        key:  AzureKeyVaultTenantId
   - name: azureClientId
     secretKeyRef:
-        name: AzureKeyVaultSecretStoreServicePrincipalClientId
-        key:  AzureKeyVaultSecretStoreServicePrincipalClientId
+        name: AzureKeyVaultServicePrincipalClientId
+        key:  AzureKeyVaultServicePrincipalClientId
   - name: azureClientSecret
     secretKeyRef:
-        name: AzureKeyVaultSecretStoreServicePrincipalClientSecret
-        key:  AzureKeyVaultSecretStoreServicePrincipalClientSecret
+        name: AzureKeyVaultServicePrincipalClientSecret
+        key:  AzureKeyVaultServicePrincipalClientSecret
 
 auth:
   secretStore: envvar-secret-store

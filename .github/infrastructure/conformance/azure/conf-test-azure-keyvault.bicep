@@ -49,7 +49,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
           ]
         }
       }
-      // This access policy is used by the AKV conformance test to Get and BulkGet secrets.
+      // This access policy is used by the AKV conformance test to Get and BulkGet secrets, and to perform cryptographic operations.
       {
         tenantId: tenantId
         objectId: certAuthSpId
@@ -57,6 +57,12 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
           keys: [
             'get'
             'list'
+            'encrypt'
+            'decrypt'
+            'wrapKey'
+            'unwrapKey'
+            'sign'
+            'verify'
           ]
           secrets: [
             'get'
@@ -78,20 +84,32 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
         tenantId: tenantId
         objectId: sdkAuthSpId
         permissions: {
+          keys: [
+            'get'
+            'list'
+            'encrypt'
+            'decrypt'
+            'wrapKey'
+            'unwrapKey'
+            'sign'
+            'verify'
+          ]
           secrets: [
             'get'
+            'list'
           ]
         }
       }
     ]
   }
 
-  // These test secrets are defined by the conformance tests secretstores.go
+  // These test secrets are defined by the conformance tests for the Azure Key Vault secret store
+
   resource testsecret1 'secrets' = {
     name: 'conftestsecret'
     properties: {
       value: 'abcd'
-      contentType: 'plaintext-value'
+      contentType: 'text/plain'
     }
   }
 
@@ -99,7 +117,59 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
     name: 'secondsecret'
     properties: {
       value: 'efgh'
-      contentType: 'plaintext-value'
+      contentType: 'text/plain'
+    }
+  }
+
+  // These test keys are used by the conformance tests for the Azure Key Vault crypto provider
+
+  resource testKeyRSA 'keys' = {
+    name: 'rsakey'
+    properties: {
+      attributes: {
+        enabled: true
+      }
+      keyOps: [
+        'encrypt'
+        'decrypt'
+        'sign'
+        'verify'
+        'wrapKey'
+        'unwrapKey'
+      ]
+      keySize: 4096
+      kty: 'RSA'
+    }
+  }
+
+  resource testKeyP256 'keys' = {
+    name: 'ec256key'
+    properties: {
+      attributes: {
+        enabled: true
+      }
+      keyOps: [
+        'sign'
+        'verify'
+      ]
+      curveName: 'P-256'
+      kty: 'EC'
+    }
+  }
+
+  resource testKeyP521 'keys' = {
+    // Note: "521" is not a typo
+    name: 'ec521key'
+    properties: {
+      attributes: {
+        enabled: true
+      }
+      keyOps: [
+        'sign'
+        'verify'
+      ]
+      curveName: 'P-521'
+      kty: 'EC'
     }
   }
 }

@@ -13,6 +13,12 @@ limitations under the License.
 
 package state
 
+const (
+	// GetRespMetaKeyTTLExpireTime is the key for the metadata value of the TTL
+	// expire time. Value is a RFC3339 formatted string.
+	GetRespMetaKeyTTLExpireTime string = "ttlExpireTime"
+)
+
 // GetResponse is the response object for getting state.
 type GetResponse struct {
 	Data        []byte            `json:"data"`
@@ -45,4 +51,9 @@ type QueryItem struct {
 	ETag        *string `json:"etag,omitempty"`
 	Error       string  `json:"error,omitempty"`
 	ContentType *string `json:"contentType,omitempty"`
+}
+
+// DeleteWithPrefixResponse is the object representing a delete with prefix state response containing the number of items removed.
+type DeleteWithPrefixResponse struct {
+	Count int64 `json:"count"` // count of items removed
 }

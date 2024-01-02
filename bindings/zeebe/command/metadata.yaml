@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: zeebe.command
+version: v1
+status: stable
+title: "Zeebe Command"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/zeebe-command/
+binding:
+  output: true
+  input: false
+  operations: 
+    - name: topology
+      description: "Obtains the current topology of the cluster the gateway is part of."
+    - name: deploy-process
+      description: "Deprecated alias of 'deploy-resource'."
+    - name: deploy-resource
+      description: "Deploys a single resource to Zeebe."
+    - name: create-instance
+      description: "Creates and starts an instance of the specified process."
+    - name: cancel-instance
+      description: "Cancels a running process instance."
+    - name: set-variables
+      description: "Creates or updates variables for an element instance (e.g. process instance, flow element instance)."
+    - name: resolve-incident
+      description: "This operation resolves an incident."
+    - name: publish-message
+      description: "The publish-message operation publishes a single message"
+    - name: activate-jobs
+      description: "Iterates through all known partitions round-robin and activates up to the requested maximum and streams them back to the client as they are activated."
+    - name: complete-job
+      description: "Completes a job with the given payload, which allows completing the associated service task."
+    - name: fail-job
+      description: "The fail-job operation marks the job as failed."
+    - name: update-job-retries
+      description: "Updates the number of retries a job has left. "
+    - name: throw-error
+      description: "Throw an error to indicate that a business error is occurred while processing the job."
+metadata:
+  - name: gatewayAddr
+    required: true
+    description: Zeebe gateway address
+    example: "localhost:26500"
+    type: string
+  - name: gatewayKeepAlive
+    required: false
+    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    example: "45s"
+    type: duration
+  - name: usePlainTextConnection	
+    required: false
+    description: Whether to use a plain text connection or not
+    example: "true"
+    type: bool
+  - name: caCertificatePath
+    required: false
+    description: The path to the CA cert
+    example: "/path/to/ca-cert"
+    type: string

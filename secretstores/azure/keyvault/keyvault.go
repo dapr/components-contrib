@@ -22,12 +22,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Keyvault secret store component metadata properties
@@ -61,27 +62,23 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
+func (k *keyvaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := KeyvaultMetadata{}
-	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
+	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
 		return err
 	}
 	// Fix for maintaining backwards compatibility with a change introduced in 1.3 that allowed specifying an Azure environment by setting a FQDN for vault name
 	// This should be considered deprecated and users should rely the "azureEnvironment" metadata instead, but it's maintained here for backwards-compatibility
 	if m.VaultName != "" {
 		keyVaultSuffixToEnvironment := map[string]string{
-			".vault.azure.net":         "AZUREPUBLICCLOUD",
-			".vault.azure.cn":          "AZURECHINACLOUD",
-			".vault.usgovcloudapi.net": "AZUREUSGOVERNMENTCLOUD",
-			".vault.microsoftazure.de": "AZUREGERMANCLOUD",
+			".vault.azure.net":         "AzurePublicCloud",
+			".vault.azure.cn":          "AzureChinaCloud",
+			".vault.usgovcloudapi.net": "AzureUSGovernmentCloud",
 		}
 		for suffix, environment := range keyVaultSuffixToEnvironment {
 			if strings.HasSuffix(m.VaultName, suffix) {
 				meta.Properties["azureEnvironment"] = environment
-				m.VaultName = strings.TrimSuffix(m.VaultName, suffix)
-				if strings.HasPrefix(m.VaultName, "https://") {
-					m.VaultName = strings.TrimPrefix(m.VaultName, "https://")
-				}
+				m.VaultName = strings.TrimPrefix(strings.TrimSuffix(m.VaultName, suffix), "https://")
 				k.vaultName = m.VaultName
 				break
 			}
@@ -89,13 +86,13 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	}
 
 	// Initialization code
-	settings, err := azauth.NewEnvironmentSettings("keyvault", meta.Properties)
+	settings, err := azauth.NewEnvironmentSettings(meta.Properties)
 	if err != nil {
 		return err
 	}
 
 	k.vaultName = m.VaultName
-	k.vaultDNSSuffix = settings.AzureEnvironment.KeyVaultDNSSuffix
+	k.vaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
 
 	cred, err := settings.GetTokenCredential()
 	if err != nil {
@@ -150,7 +147,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 
 	secretIDPrefix := k.getVaultURI() + secretItemIDPrefix
 
-	pager := k.vaultClient.NewListSecretsPager(nil)
+	pager := k.vaultClient.NewListSecretPropertiesPager(nil)
 
 out:
 	for pager.More() {
@@ -210,9 +207,8 @@ func (k *keyvaultSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (k *keyvaultSecretStore) GetComponentMetadata() map[string]string {
+func (k *keyvaultSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := KeyvaultMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

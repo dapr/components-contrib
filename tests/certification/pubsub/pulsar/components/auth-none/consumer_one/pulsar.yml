@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.pulsar
+  version: v1
+  metadata:
+  - name: host
+    value: "localhost:6650"
+  - name: consumerID
+    value: certification1
+  - name: redeliveryDelay
+    value: 200ms

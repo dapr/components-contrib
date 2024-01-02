@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.cosmosdb
+version: v1
+status: stable
+title: "Azure Cosmos DB (SQL API)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/cosmosdb/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create an item"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
+authenticationProfiles:
+  - title: "Master key"
+    description: |
+      Authenticate using a pre-shared "master key".
+    metadata:
+      - name: masterKey
+        required: true
+        sensitive: true
+        description: |
+          The key to authenticate to the Cosmos DB account.
+        example: '"my-secret-key"'
+metadata:
+  - name: url
+    required: true
+    description: |
+      The Cosmos DB url.
+    example: '"https://******.documents.azure.com:443/"'
+    type: string
+  - name: database
+    type: string
+    required: true
+    description: |
+      The name of the database.
+    example: '"OrdersDB"'
+  - name: collection
+    type: string
+    required: true
+    description: |
+      The name of the collection (container).
+    example: '"Orders"'
+  - name: partitionKey
+    type: string
+    required: true
+    description: |
+      The name of the key to extract from the payload (document to be created) that is used as the
+      partition key. This name must match the partition key specified upon creation of the
+      Cosmos DB container.
+    example: '"OrderId"'
+

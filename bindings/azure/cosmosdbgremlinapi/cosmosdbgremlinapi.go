@@ -18,12 +18,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	gremcos "github.com/supplyon/gremcos"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -59,7 +62,7 @@ func NewCosmosDBGremlinAPI(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs CosmosDBGremlinAPI connection parsing and connecting.
-func (c *CosmosDBGremlinAPI) Init(metadata bindings.Metadata) error {
+func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata) error {
 	c.logger.Debug("Initializing Cosmos Graph DB binding")
 
 	m, err := c.parseMetadata(metadata)
@@ -79,14 +82,9 @@ func (c *CosmosDBGremlinAPI) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (c *CosmosDBGremlinAPI) parseMetadata(metadata bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds cosmosDBGremlinAPICredentials
-	err = json.Unmarshal(b, &creds)
+func (c *CosmosDBGremlinAPI) parseMetadata(meta bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
+	creds := cosmosDBGremlinAPICredentials{}
+	err := kitmd.DecodeMetadata(meta.Properties, &creds)
 	if err != nil {
 		return nil, err
 	}
@@ -130,4 +128,11 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
 	return resp, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (c *CosmosDBGremlinAPI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := cosmosDBGremlinAPICredentials{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

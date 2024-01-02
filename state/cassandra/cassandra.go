@@ -15,9 +15,11 @@ package cassandra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
@@ -26,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -49,7 +52,8 @@ const (
 
 // Cassandra is a state store implementation for Apache Cassandra.
 type Cassandra struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	session *gocql.Session
 	cluster *gocql.ClusterConfig
 	table   string
@@ -58,27 +62,29 @@ type Cassandra struct {
 }
 
 type cassandraMetadata struct {
-	Hosts             []string
-	Port              int
-	ProtoVersion      int
-	ReplicationFactor int
-	Username          string
-	Password          string
-	Consistency       string
-	Table             string
-	Keyspace          string
+	Hosts                  []string
+	Port                   int
+	ProtoVersion           int
+	ReplicationFactor      int
+	Username               string
+	Password               string
+	Consistency            string
+	Table                  string
+	Keyspace               string
+	EnableHostVerification bool
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
 func NewCassandraStateStore(logger logger.Logger) state.Store {
-	s := &Cassandra{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Cassandra{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
 // Init performs metadata and connection parsing.
-func (c *Cassandra) Init(metadata state.Metadata) error {
+func (c *Cassandra) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := getCassandraMetadata(metadata)
 	if err != nil {
 		return err
@@ -86,38 +92,40 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 
 	cluster, err := c.createClusterConfig(meta)
 	if err != nil {
-		return fmt.Errorf("error creating cluster config: %s", err)
+		return fmt.Errorf("error creating cluster config: %w", err)
 	}
 	c.cluster = cluster
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		return fmt.Errorf("error creating session: %s", err)
+		return fmt.Errorf("error creating session: %w", err)
 	}
 	c.session = session
 
 	err = c.tryCreateKeyspace(meta.Keyspace, meta.ReplicationFactor)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.Keyspace, err)
+		return fmt.Errorf("error creating keyspace %s: %w", meta.Keyspace, err)
 	}
 
 	err = c.tryCreateTable(meta.Table, meta.Keyspace)
 	if err != nil {
-		return fmt.Errorf("error creating table %s: %s", meta.Table, err)
+		return fmt.Errorf("error creating table %s: %w", meta.Table, err)
 	}
 
-	c.table = fmt.Sprintf("%s.%s", meta.Keyspace, meta.Table)
+	c.table = meta.Keyspace + "." + meta.Table
 
 	return nil
 }
 
 // Features returns the features available in this state store.
 func (c *Cassandra) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
-	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
+	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, strconv.Itoa(replicationFactor))).Exec()
 }
 
 func (c *Cassandra) tryCreateTable(table, keyspace string) error {
@@ -128,6 +136,11 @@ func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.Clu
 	clusterConfig := gocql.NewCluster(metadata.Hosts...)
 	if metadata.Username != "" && metadata.Password != "" {
 		clusterConfig.Authenticator = gocql.PasswordAuthenticator{Username: metadata.Username, Password: metadata.Password}
+	}
+	if metadata.EnableHostVerification {
+		clusterConfig.SslOpts = &gocql.SslOptions{
+			EnableHostVerification: true,
+		}
 	}
 	clusterConfig.Port = metadata.Port
 	clusterConfig.ProtoVersion = metadata.ProtoVersion
@@ -177,7 +190,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		Consistency:       "All",
 		Port:              defaultPort,
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +251,8 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		session = sess
 	}
 
-	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
+	const selectQuery = "SELECT value, TTL(value) AS ttl, toTimestamp(now()) AS now FROM %s WHERE key = ?"
+	results, err := session.Query(fmt.Sprintf(selectQuery, c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +261,20 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		return &state.GetResponse{}, nil
 	}
 
+	var metadata map[string]string
+	if ttl := results[0]["ttl"].(int); ttl > 0 {
+		now, ok := results[0]["now"].(time.Time)
+		if !ok {
+			return nil, errors.New("failed to parse cassandra timestamp")
+		}
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: now.Add(time.Duration(ttl) * time.Second).UTC().Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: results[0]["value"].([]byte),
+		Data:     results[0]["value"].([]byte),
+		Metadata: metadata,
 	}, nil
 }
 
@@ -303,9 +329,19 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	return session, nil
 }
 
-func (c *Cassandra) GetComponentMetadata() map[string]string {
+func (c *Cassandra) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := cassandraMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
+}
+
+// Close the connection to Cassandra.
+func (c *Cassandra) Close() error {
+	if c.session == nil {
+		return nil
+	}
+
+	c.session.Close()
+
+	return nil
 }

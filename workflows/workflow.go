@@ -13,12 +13,21 @@ limitations under the License.
 
 package workflows
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrNotImplemented = errors.New("this component doesn't implement the current API operation")
 
 // Workflow is an interface to perform operations on Workflow.
 type Workflow interface {
 	Init(metadata Metadata) error
-	Start(ctx context.Context, req *StartRequest) (*WorkflowReference, error)
-	Terminate(ctx context.Context, req *WorkflowReference) error
-	Get(ctx context.Context, req *WorkflowReference) (*StateResponse, error)
+	Start(ctx context.Context, req *StartRequest) (*StartResponse, error)
+	Terminate(ctx context.Context, req *TerminateRequest) error
+	Get(ctx context.Context, req *GetRequest) (*StateResponse, error)
+	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
+	Purge(ctx context.Context, req *PurgeRequest) error
+	Pause(ctx context.Context, req *PauseRequest) error
+	Resume(ctx context.Context, req *ResumeRequest) error
 }

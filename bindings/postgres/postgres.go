@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,13 +16,17 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -32,36 +36,46 @@ const (
 	queryOperation bindings.OperationKind = "query"
 	closeOperation bindings.OperationKind = "close"
 
-	connectionURLKey = "url"
-	commandSQLKey    = "sql"
+	commandSQLKey  = "sql"
+	commandArgsKey = "params"
 )
 
 // Postgres represents PostgreSQL output binding.
 type Postgres struct {
 	logger logger.Logger
 	db     *pgxpool.Pool
+	closed atomic.Bool
 }
 
 // NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) bindings.OutputBinding {
-	return &Postgres{logger: logger}
+	return &Postgres{
+		logger: logger,
+	}
 }
 
 // Init initializes the PostgreSql binding.
-func (p *Postgres) Init(metadata bindings.Metadata) error {
-	url, ok := metadata.Properties[connectionURLKey]
-	if !ok || url == "" {
-		return errors.Errorf("required metadata not set: %s", connectionURLKey)
+func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
+	if p.closed.Load() {
+		return errors.New("cannot initialize a previously-closed component")
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(url)
+	m := psqlMetadata{}
+	err := m.InitWithMetadata(meta.Properties)
 	if err != nil {
-		return errors.Wrap(err, "error opening DB connection")
+		return err
 	}
 
-	p.db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	poolConfig, err := m.GetPgxPoolConfig()
 	if err != nil {
-		return errors.Wrap(err, "unable to ping the DB")
+		return fmt.Errorf("error opening DB connection: %w", err)
+	}
+
+	// This context doesn't control the lifetime of the connection pool, and is
+	// only scoped to postgres creating resources at init.
+	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return fmt.Errorf("unable to connect to the DB: %w", err)
 	}
 
 	return nil
@@ -79,23 +93,37 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 // Invoke handles all invoke operations.
 func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil {
-		return nil, errors.Errorf("invoke request required")
+		return nil, errors.New("invoke request required")
 	}
 
+	// We let the "close" operation here succeed even if the component has been closed already
 	if req.Operation == closeOperation {
-		p.db.Close()
+		err = p.Close()
+		return nil, err
+	}
 
-		return nil, nil
+	if p.closed.Load() {
+		return nil, errors.New("component is closed")
 	}
 
 	if req.Metadata == nil {
-		return nil, errors.Errorf("metadata required")
+		return nil, errors.New("metadata required")
 	}
-	p.logger.Debugf("operation: %v", req.Operation)
 
-	sql, ok := req.Metadata[commandSQLKey]
-	if !ok || sql == "" {
-		return nil, errors.Errorf("required metadata not set: %s", commandSQLKey)
+	// Metadata property "sql" contains the query to execute
+	sql := req.Metadata[commandSQLKey]
+	if sql == "" {
+		return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
+	}
+
+	// Metadata property "params" contains JSON-encoded parameters, and it's optional
+	// If present, it must be unserializable into a []any object
+	var args []any
+	if argsStr := req.Metadata[commandArgsKey]; argsStr != "" {
+		err = json.Unmarshal([]byte(argsStr), &args)
+		if err != nil {
+			return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandArgsKey, err)
+		}
 	}
 
 	startTime := time.Now().UTC()
@@ -109,21 +137,21 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 	switch req.Operation { //nolint:exhaustive
 	case execOperation:
-		r, err := p.exec(ctx, sql)
+		r, err := p.exec(ctx, sql, args...)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
+			return nil, err
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
-		d, err := p.query(ctx, sql)
+		d, err := p.query(ctx, sql, args...)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
+			return nil, err
 		}
 		resp.Data = d
 
 	default:
-		return nil, errors.Errorf(
+		return nil, fmt.Errorf(
 			"invalid operation type: %s. Expected %s, %s, or %s",
 			req.Operation, execOperation, queryOperation, closeOperation,
 		)
@@ -138,47 +166,55 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 // Close close PostgreSql instance.
 func (p *Postgres) Close() error {
-	if p.db == nil {
+	if !p.closed.CompareAndSwap(false, true) {
+		// If this failed, the component has already been closed
+		// We allow multiple calls to close
 		return nil
 	}
-	p.db.Close()
+
+	if p.db != nil {
+		p.db.Close()
+	}
+	p.db = nil
 
 	return nil
 }
 
-func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err error) {
-	p.logger.Debugf("query: %s", sql)
-
-	rows, err := p.db.Query(ctx, sql)
+func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result []byte, err error) {
+	rows, err := p.db.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing %s", sql)
+		return nil, fmt.Errorf("error executing query: %w", err)
 	}
 
 	rs := make([]any, 0)
 	for rows.Next() {
 		val, rowErr := rows.Values()
 		if rowErr != nil {
-			return nil, errors.Wrapf(rowErr, "error parsing result: %v", rows.Err())
+			return nil, fmt.Errorf("error reading result '%v': %w", rows.Err(), rowErr)
 		}
 		rs = append(rs, val) //nolint:asasalint
 	}
 
-	if result, err = json.Marshal(rs); err != nil {
-		err = errors.Wrap(err, "error serializing results")
+	result, err = json.Marshal(rs)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing results: %w", err)
 	}
 
-	return
+	return result, nil
 }
 
-func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err error) {
-	p.logger.Debugf("exec: %s", sql)
-
-	res, err := p.db.Exec(ctx, sql)
+func (p *Postgres) exec(ctx context.Context, sql string, args ...any) (result int64, err error) {
+	res, err := p.db.Exec(ctx, sql, args...)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error executing %s", sql)
+		return 0, fmt.Errorf("error executing query: %w", err)
 	}
 
-	result = res.RowsAffected()
+	return res.RowsAffected(), nil
+}
 
+// GetComponentMetadata returns the metadata of the component.
+func (p *Postgres) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := psqlMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

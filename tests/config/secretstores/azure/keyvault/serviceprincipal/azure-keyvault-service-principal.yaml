@@ -8,8 +8,8 @@ spec:
   - name: vaultName
     value: ${{AzureKeyVaultName}}
   - name: azureTenantId
-    value: ${{AzureKeyVaultSecretStoreTenantId}}
+    value: ${{AzureKeyVaultTenantId}}
   - name: azureClientId
-    value: ${{AzureKeyVaultSecretStoreServicePrincipalClientId}}
+    value: ${{AzureKeyVaultServicePrincipalClientId}}
   - name: azureClientSecret
-    value: ${{AzureKeyVaultSecretStoreServicePrincipalClientSecret}}
+    value: ${{AzureKeyVaultServicePrincipalClientSecret}}

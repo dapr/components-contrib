@@ -18,8 +18,8 @@ spec:
     value: ${{AzureEventGridClientId}}
   - name: clientSecret
     value: ${{AzureEventGridClientSecret}}
-  - name: subscriberEndpoint
   # Generated dynamically when starting ngrok
+  - name: subscriberEndpoint
     value: ${{AzureEventGridSubscriberEndpoint}}
   - name: handshakePort
     value: 9000

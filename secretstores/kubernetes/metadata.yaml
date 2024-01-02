@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: kubernetes
+version: v1
+status: stable
+title: "Kubernetes"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/kubernetes-secret-store/
+metadata: []

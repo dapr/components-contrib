@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: mysql
+version: v1
+status: alpha
+title: "MySQL & MariaDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/mysql/
+binding:
+  output: true
+  input: false
+  operations: 
+    - name: exec
+      description: "The exec operation can be used for DDL operations (like table creation), as well as INSERT, UPDATE, DELETE operations which return only metadata (e.g. number of affected rows)."
+    - name: query
+      description: "The query operation is used for SELECT statements, which returns the metadata along with data in a form of an array of row values."
+    - name: close
+      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
+metadata:
+  - name: url
+    required: true
+    description: "Represent a DB connection in Data Source Name (DNS) format"
+    example: '"user:password@tcp(localhost:3306)/dbname"'
+    type: string
+  - name: pemPath
+    required: false
+    description: "Path to the PEM file. Used with SSL connection"
+    example: '"path/to/pem/file"'
+    type: string
+  - name: maxIdleConns
+    required: false
+    description: "The max idle connections. Integer greater than 0"
+    example: "10"
+    type: number
+  - name: maxOpenConns
+    required: false
+    description: "The max open connections. Integer greater than 0"
+    example: "10"
+    type: number
+  - name: connMaxLifetime
+    required: false
+    description: "The max connection lifetime."
+    example: "12s"
+    type: duration
+  - name: connMaxIdleTime
+    required: false
+    description: "The max connection idel time."
+    example: "12s"
+    type: duration

@@ -22,6 +22,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -65,9 +66,12 @@ func TestCancelInstance(t *testing.T) {
 
 	t.Run("processInstanceKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: CancelInstanceOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: CancelInstanceOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingProcessInstanceKey)
+		require.ErrorIs(t, err, ErrMissingProcessInstanceKey)
 	})
 
 	t.Run("cancel a command", func(t *testing.T) {
@@ -75,7 +79,7 @@ func TestCancelInstance(t *testing.T) {
 			ProcessInstanceKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CancelInstanceOperation}
 
@@ -83,7 +87,7 @@ func TestCancelInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessInstanceKey, mc.cmd1.cmd2.processInstanceKey)
 	})

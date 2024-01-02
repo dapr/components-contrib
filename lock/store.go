@@ -13,11 +13,17 @@ limitations under the License.
 
 package lock
 
-import "context"
+import (
+	"context"
+
+	"github.com/dapr/components-contrib/metadata"
+)
 
 type Store interface {
+	metadata.ComponentWithMetadata
+
 	// Init this component.
-	InitLockStore(metadata Metadata) error
+	InitLockStore(ctx context.Context, metadata Metadata) error
 
 	// TryLock tries to acquire a lock.
 	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)

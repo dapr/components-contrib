@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: "v1"
+type: "bindings"
+name: "azure.signalr"
+version: "v1"
+status: "alpha"
+title: "Azure SignalR"
+urls:
+  - title: "Reference"
+    url: "https://docs.dapr.io/reference/components-reference/supported-bindings/signalr/"
+binding:
+  output: true
+  input: false
+  operations:
+    - name: "create"
+      description: "Send a message to SignalR"
+    - name: "clientNegotiate"
+      description: "Get the SignalR client negotiation response"
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string with access key"
+    description: "Authenticate using a connection string with an access key."
+    metadata:
+      - name: "connectionString"
+        required: true
+        sensitive: true
+        description: "The Azure SignalR connection string."
+        example: |
+          "Endpoint=https://<your-azure-signalr>.service.signalr.net;AccessKey=<your-access-key>;Version=1.0;"
+      - name: "endpoint"
+        description: "Endpoint of Azure SignalR. Required if not included in the connection string."
+        example: |
+          "https://<your-azure-signalr>.service.signalr.net"
+  - title: "Access key"
+    description: "Authenticate using an access key."
+    metadata:
+      - name: "accessKey"
+        required: true
+        sensitive: true
+        description: "The access key for Azure SignalR."
+        example: |
+          "your-access-key"
+      - name: "endpoint"
+        required: true
+        description: "Endpoint of Azure SignalR. Required if not included in the connection string."
+        example: |
+          "https://<your-azure-signalr>.service.signalr.net"
+  - title: "Connection string with Azure AD credentials"
+    description: "Authenticate using Azure AD credentials defined in the connection string."
+    metadata:
+      - name: "connectionString"
+        required: true
+        sensitive: true
+        description: |
+          The Azure SignalR connection string containing Azure AD credentials. This includes the `AuthType=aad` option.
+          Note that you cannot use a connection string if your application's ClientSecret contains a `;` character.
+        # Note the example below contains Markdown inside a string
+        example: |
+          - With a system-assigned managed identity: `"Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;Version=1.0;"`
+          - With a user-assigned managed identity: `"Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;ClientId=<clientid>;Version=1.0;"`
+          - With an Azure AD application: `"Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;ClientId=<clientid>;ClientSecret=<clientsecret>;TenantId=<tenantid>;Version=1.0;"`
+      - name: "endpoint"
+        description: "Endpoint of Azure SignalR. Required if not included in the connection string."
+        example: |
+          "https://<your-azure-signalr>.service.signalr.net"
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: "endpoint"
+        description: "Endpoint of Azure SignalR"
+        example: |
+          "https://<your-azure-signalr>.service.signalr.net"
+        required: true
+metadata:
+  - name: "hub"
+    description: |
+      Defines the hub in which the message will be sent.
+      This value can also be set for each invocation of the binding by passing the metadata option `hub` with the invocation request.
+    example: |
+      "myhub"
+

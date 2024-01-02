@@ -22,6 +22,7 @@ import (
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -32,9 +33,7 @@ const (
 	secretValue = "oos-secret-value"
 )
 
-type mockedParameterStore struct {
-	parameterStoreClient
-}
+type mockedParameterStore struct{}
 
 func (m *mockedParameterStore) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return &oos.GetSecretParameterResponse{
@@ -60,9 +59,7 @@ func (m *mockedParameterStore) GetSecretParametersByPathWithOptions(request *oos
 	}, nil
 }
 
-type mockedParameterStoreReturnError struct {
-	parameterStoreClient
-}
+type mockedParameterStoreReturnError struct{}
 
 func (m *mockedParameterStoreReturnError) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return nil, fmt.Errorf("mocked error")
@@ -81,8 +78,8 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init without regionId", func(t *testing.T) {
@@ -90,8 +87,8 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
-		assert.NotNil(t, err)
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
 	})
 }
 
@@ -107,7 +104,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
@@ -123,7 +120,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 	})
@@ -141,7 +138,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			_, e := s.GetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 
 		t.Run("with parameter store retrieve error", func(t *testing.T) {
@@ -154,7 +151,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			_, e := s.GetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 	})
 }
@@ -170,7 +167,7 @@ func TestBulkGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.BulkGetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
 
@@ -185,7 +182,7 @@ func TestBulkGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.BulkGetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
 	})
@@ -200,7 +197,7 @@ func TestBulkGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			_, e := s.BulkGetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 	})
 }
@@ -208,7 +205,7 @@ func TestBulkGetSecret(t *testing.T) {
 func TestGetFeatures(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
-	s.Init(m)
+	s.Init(context.Background(), m)
 	t.Run("no features are advertised", func(t *testing.T) {
 		f := s.Features()
 		assert.Empty(t, f)

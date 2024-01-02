@@ -12,7 +12,6 @@ services:
       RABBITMQ_DEFAULT_USER: test
       RABBITMQ_DEFAULT_PASS: test
     hostname: rmq
-
 networks:
   rabbitmq_go_net:
     driver: bridge

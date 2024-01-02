@@ -36,6 +36,10 @@ do
         NGROK_TOKEN="${opt#*=}"
         ;;
 
+    --admin-id=*)
+        ADMIN_ID="${opt#*=}"
+        ;;
+
     --outpath=*)
         OUTPUT_PATH="${opt#*=}"
         ;;
@@ -116,6 +120,9 @@ OPTIONS:
                     needed for setting AzureEventGridNgrokToken in the KeyVault,
                     which is used by the GitHub workflow for the EventGrid
                     bindings conformance test.
+    --admin-id      Optional. Sets the Object ID of the admin user to the given
+                    value. Useful if querying the directory using the UPN is
+                    failing.
 EOF
     exit $ERR
 fi
@@ -153,6 +160,7 @@ echo "DEPLOY_LOCATION=${DEPLOY_LOCATION}"
 echo "OUTPUT_PATH=${OUTPUT_PATH}"
 echo "NGROK_TOKEN=${NGROK_TOKEN}"
 echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
+echo "ADMIN_ID=${ADMIN_ID}"
 
 ##==============================================================================
 ##
@@ -200,17 +208,16 @@ CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME="AzureEve
 CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI1_VAR_NAME="AzureEventHubsPubsubTopicMulti1Name"
 CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI2_VAR_NAME="AzureEventHubsPubsubTopicMulti2Name"
 
-
 IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
 IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
 IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureIotHubBindingsConsumerGroup"
 IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
 
-KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
-KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
-KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientSecret"
-KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientId"
-KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
+KEYVAULT_CERT_NAME="AzureKeyVaultCert"
+KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultClientId"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureKeyVaultServicePrincipalClientSecret"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureKeyVaultServicePrincipalClientId"
+KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
 RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
@@ -222,16 +229,26 @@ SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
 SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
 SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
+AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME="AzureDBPostgresConnectionString"
+AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME="AzureDBPostgresClientId"
+AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME="AzureDBPostgresClientSecret"
+AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME="AzureDBPostgresTenantId"
+
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
 STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
 STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
+AZURE_APP_CONFIG_NAME_VAR_NAME="AzureAppConfigName"
+
 # Derived variables
-ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
 if [[ -z "${ADMIN_ID}" ]]; then
-    echo "Could not find user with upn ${ADMIN_UPN}"
-    exit 1
+    # If the user did not pass an admin ID, look it up in the directory
+    ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].id" --output tsv)"
+    if [[ -z "${ADMIN_ID}" ]]; then
+        echo "Could not find user with upn ${ADMIN_UPN}"
+        exit 1
+    fi
 fi
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
@@ -245,28 +262,29 @@ az config set extension.use_dynamic_install=yes_without_prompt
 
 # Create Service Principals for use with the conformance tests
 CERT_AUTH_SP_NAME="${PREFIX}-akv-conf-test-sp"
-az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --skip-assignment --years 1
-CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --years 1
+CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].id" --output tsv)"
 echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
     SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
-    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientId')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
     if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1
     fi
     SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" --output tsv)"
-    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" --output tsv)"
-    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "id" --output tsv)"
+    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME} (ID: ${SDK_AUTH_SP_ID})"
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
-    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
-    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --years 1)"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientId')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
+    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].id" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
-    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME} (ID: ${SDK_AUTH_SP_ID})"
     AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
     echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
 fi
@@ -281,7 +299,17 @@ echo "Building conf-test-azure.bicep to ${ARM_TEMPLATE_FILE} ..."
 az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
-az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
+az deployment sub create \
+  --name "${DEPLOY_NAME}" \
+  --location "${DEPLOY_LOCATION}" \
+  --template-file "${ARM_TEMPLATE_FILE}" \
+  -p namePrefix="${PREFIX}" \
+  -p adminId="${ADMIN_ID}" \
+  -p certAuthSpId="${CERT_AUTH_SP_ID}" \
+  -p sdkAuthSpId="${SDK_AUTH_SP_ID}" \
+  -p sdkAuthSpName="${SDK_AUTH_SP_NAME}" \
+  -p rgLocation="${DEPLOY_LOCATION}" \
+  -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
 sleep 5
@@ -337,6 +365,8 @@ CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME="$(az deployment sub show --nam
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME}"
 #end
 
+AZURE_APP_CONFIG_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.appconfigName.value" --output tsv)"
+
 IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" --output tsv)"
 echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
 IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" --output tsv)"
@@ -371,28 +401,49 @@ echo "Created Identity ${MANAGED_IDENTITY_ID}"
 # az container create -g ${RESOURCE_GROUP_NAME} -n testcontainer --image golang:latest --command-line "tail -f /dev/null" --assign-identity $MANAGED_IDENTITY_ID
 
 echo "Granting identity azure-managed-identity permissions to access the Key Vault ${KEYVAULT_NAME}"
-az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${MANAGED_IDENTITY_SP}"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --certificate-permissions get list --key-permissions all --object-id "${MANAGED_IDENTITY_SP}"
 # Other tests verifying managed identity will want to grant permission like so:
 # MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id "${MANAGED_IDENTITY_SP}" --assignee-principal-type ServicePrincipal --role "Azure Service Bus Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.ServiceBus/namespaces/${SERVICE_BUS_NAME}"
 
 # Creating service principal for service principal authentication with KeyVault
 AKV_SPAUTH_SP_NAME="${PREFIX}-akv-spauth-conf-test-sp"
 echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${KEYVAULT_NAME}"
-{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
 
 # Give the service principal read access to the KeyVault Secrets
-AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
-az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${AKV_SPAUTH_SP_OBJECTID}"
+AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query id -otsv)"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --certificate-permissions get list --key-permissions all --object-id "${AKV_SPAUTH_SP_OBJECTID}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
-az ad sp credential reset --name "${CERT_AUTH_SP_NAME}" --create-cert --cert "${KEYVAULT_CERT_NAME}" --keyvault "${KEYVAULT_NAME}"
+az ad sp credential reset --id "${CERT_AUTH_SP_ID}" --create-cert --cert "${KEYVAULT_CERT_NAME}" --keyvault "${KEYVAULT_NAME}"
 
 # Add an EventGrid role to the SDK auth Service Principal so that it can be reused for the EventGrid binding conformance tests.
 EVENT_GRID_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventGrid/topics/${EVENT_GRID_TOPIC_NAME}"
 # MSYS_NO_PATHCONV is needed to prevent MSYS in Git Bash from converting the scope string to a local filesystem path and is benign on Linux
 echo "Assigning \"EventGrid EventSubscription Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${EVENT_GRID_SCOPE}\"..."
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "EventGrid EventSubscription Contributor" --scope "${EVENT_GRID_SCOPE}"
+
+# The following lines have been commented out because not all steps can be performed with the Azure CLI yet, so we need to use PowerShell instead
+# However, saving the code here to get a headstart for the future
+# Creates Azure Event Grid service principal if not exists
+# echo "Creating service principal for Microsoft.EventGrid"
+# # Note this appId is a "constant"
+# EVENTGRID_SP_ID=$(az ad sp list --filter "appId eq '4962773b-9cdb-44cf-a8bf-237846a00ab7'" --query "[].id" --output tsv)
+# if [[ -z "${EVENTGRID_SP_ID}" ]]; then
+#     az ad sp create --id "4962773b-9cdb-44cf-a8bf-237846a00ab7"
+#     EVENTGRID_SP_ID=$(az ad sp list --filter "appId eq '4962773b-9cdb-44cf-a8bf-237846a00ab7'" --query "[].id" --output tsv)
+#     echo "Service Principal Microsoft.EventGrid created with ID ${EVENTGRID_SP_ID}"
+# else
+#     echo "Service Principal Microsoft.EventGrid already exists with ID ${EVENTGRID_SP_ID}"
+# fi
+#
+# # Assign the required app role to the SDK auth Service Principal so it can be used with EventGrid binding conformance tests.
+# echo "Assigning \"AzureEventGridSecureWebhookSubscriber\" app role to app ${SDK_AUTH_SP_NAME} (${SDK_AUTH_SP_APPID}) if it doesn't already exist"
+# az ad app show --id "${SDK_AUTH_SP_APPID}" | \
+#     jq -er '.appRoles | map(select(.value == "AzureEventGridSecureWebhookSubscriber"))[0] | .id' && \
+#     echo "App role already exists" || \
+#     az ad app update --id "${SDK_AUTH_SP_APPID}" --app-roles '[{"allowedMemberTypes":["User","Application"],"description":"Azure Event Grid Role","displayName":"AzureEventGridSecureWebhookSubscriber","isEnabled":true,"value":"AzureEventGridSecureWebhookSubscriber"}]'
 
 # Add Contributor role to the SDK auth Service Principal so it can add devices to the Azure IoT Hub for tests.
 IOT_HUB_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
@@ -499,7 +550,7 @@ echo export ${KEYVAULT_CERT_NAME}=\"${KEYVAULT_CERT_FILE}\" >> "${ENV_CONFIG_FIL
 echo export ${KEYVAULT_NAME_VAR_NAME}=\"${KEYVAULT_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_NAME}"
 
-KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
+KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerOrganizationId" --output tsv)"
 echo export ${KEYVAULT_TENANT_ID_VAR_NAME}=\"${KEYVAULT_TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_TENANT_ID}"
 
@@ -514,6 +565,7 @@ az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}"
 KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET=${AKV_SPAUTH_SP_CLIENT_SECRET}
 echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}"
+
 # ------------------------------------
 # Populate Blob Storage test settings
 # ------------------------------------
@@ -640,6 +692,24 @@ echo export ${SQL_SERVER_CONNECTION_STRING_VAR_NAME}=\"${SQL_SERVER_CONNECTION_S
 az keyvault secret set --name "${SQL_SERVER_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_CONNECTION_STRING}"
 
 # ----------------------------------
+# Populate Azure Database for PostgreSQL test settings
+# ----------------------------------
+echo "Configuring Azure Database for PostgreSQL test settings ..."
+
+AZURE_DB_POSTGRES_CONNSTRING="host=${PREFIX}-conf-test-pg.postgres.database.azure.com user=${SDK_AUTH_SP_NAME} port=5432 connect_timeout=30 database=dapr_test"
+echo export ${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}=\"${AZURE_DB_POSTGRES_CONNSTRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_DB_POSTGRES_CONNSTRING}"
+
+echo export ${AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME}=\"${SDK_AUTH_SP_APPID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SDK_AUTH_SP_APPID}"
+
+echo export ${AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME}=\"${SDK_AUTH_SP_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SDK_AUTH_SP_CLIENT_SECRET}"
+
+echo export ${AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME}=\"${TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${TENANT_ID}"
+
+# ----------------------------------
 # Populate Event Hubs test settings
 # ----------------------------------
 echo "Configuring Event Hub test settings ..."
@@ -692,6 +762,11 @@ EVENT_HUBS_PUBSUB_CONTAINER_NAME="${PREFIX}-eventhubs-pubsub-container"
 echo export ${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONTAINER_NAME}"
 
+# ------------------------------
+# Populate Azure App config info
+# ------------------------------
+echo export ${AZURE_APP_CONFIG_NAME_VAR_NAME}=\"${AZURE_APP_CONFIG_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_APP_CONFIG_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_APP_CONFIG_NAME}"
 # ----------------------------------
 # Populate IoT Hub test settings
 # ----------------------------------
@@ -716,8 +791,8 @@ az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vaul
 # CERTIFICATION TESTS: Create service principal and grant resource access
 # ------------------------------------------------------------------------
 CERTIFICATION_SPAUTH_SP_NAME="${PREFIX}-certification-spauth-conf-test-sp"
-{ read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
-CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+{ read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
+CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].id" --output tsv)"
 
 # Give the service principal used for certification test access to the relevant data plane resources
 # Cosmos DB
@@ -733,9 +808,11 @@ az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" -
 # Azure Service Bus
 ASB_ID=$(az servicebus namespace show --resource-group "${RESOURCE_GROUP_NAME}" --name "${SERVICE_BUS_NAME}" --query "id" -otsv)
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Service Bus Data Owner" --scope "${ASB_ID}"
+# Azure App Config
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "App Configuration Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.AppConfiguration/configurationStores/${AZURE_APP_CONFIG_NAME}"
 
 # Now export the service principal information
-CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
+CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerOrganizationId" --output tsv)"
 echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_SPAUTH_SP_CLIENT_ID}"
 echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"

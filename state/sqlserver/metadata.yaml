@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: "v1"
+type: "state"
+name: "sqlserver"
+version: "v1"
+status: "stable"
+title: "SQL Server"
+description: "Microsoft SQL Server and Azure SQL"
+urls:
+  - title: "Reference"
+    url: "https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-sqlserver/"
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - "actorStateStore"
+  - "crud"
+  - "transactional"
+  - "etag"
+  - "ttl"
+authenticationProfiles:
+  - title: "Connection string"
+    description: |
+      Authenticates using a connection string
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string used to connect.
+          If the connection string contains the database, it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
+        example: |
+          "Server=myServerName\myInstanceName;Database=myDataBase;User Id=myUsername;Password=myPassword;"
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useAzureAD
+        required: true
+        type: bool
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
+          This authentication method only works with Azure SQL databases.
+        example: "true"
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string or URL of the Azure SQL database, without credentials.
+          If the connection string contains the database, it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
+        example: |
+          "sqlserver://myServerName.database.windows.net:1433?database=myDataBase"
+metadata:
+  - name: tableName
+    description: |
+      The name of the table to use. Alpha-numeric with underscores.
+    example: |
+      "table_name"
+    default: |
+      "state"
+  - name: metadataTableName
+    description: |
+      Name of the table Dapr uses to store metadata properties.
+    example: |
+      "dapr_metadata"
+    default: |
+      "dapr_metadata"
+  - name: schema
+    description: |
+      The schema to use.
+    example: |
+      "dapr"
+    default: |
+      "dbo"
+  - name: keyType
+    description: |
+      The type of key used
+    allowedValues:
+      - "string"
+      - "uuid"
+      - "integer"
+    default: |
+      "string"
+    example: |
+      "string"
+  - name: keyLength
+    type: number
+    description: |
+      The max length of key. Ignored if "keyType" is not `string`.
+    example: |
+      200
+    default: |
+      200
+  - name: indexedProperties
+    description: |
+      List of indexed properties, as a string containing a JSON document.
+    example: |
+      '[{"column": "transactionid", "property": "id", "type": "int"}, {"column": "customerid", "property": "customer", "type": "nvarchar(100)"}]'
+  - name: cleanupIntervalInSeconds
+    type: number
+    description: |
+      Interval, in seconds, to clean up rows with an expired TTL. Default: 3600 (i.e. 1 hour).
+      Setting this to values <=0 disables the periodic cleanup.
+    default: |
+      "3600"
+    example: |
+      "1800", "-1"

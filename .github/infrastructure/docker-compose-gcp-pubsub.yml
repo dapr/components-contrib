@@ -1,0 +1,8 @@
+version: '3'
+services:
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:422.0.0-emulators
+    ports:
+      - "8085:8085"
+    container_name: gcp-pubsub
+    entrypoint: gcloud beta emulators pubsub start --project conformance-test-prj --host-port 0.0.0.0:8085

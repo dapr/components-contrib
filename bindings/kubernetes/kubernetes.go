@@ -17,85 +17,116 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
+	"fmt"
+	"os"
+	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/dapr/components-contrib/bindings"
-	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
+	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type kubernetesInput struct {
-	kubeClient   kubernetes.Interface
-	namespace    string
-	resyncPeriod time.Duration
-	logger       logger.Logger
+	metadata   kubernetesMetadata
+	kubeClient kubernetes.Interface
+	logger     logger.Logger
+	closed     atomic.Bool
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
 }
 
 type EventResponse struct {
-	Event  string   `json:"event"`
-	OldVal v1.Event `json:"oldVal"`
-	NewVal v1.Event `json:"newVal"`
+	Event  string       `json:"event"`
+	OldVal corev1.Event `json:"oldVal"`
+	NewVal corev1.Event `json:"newVal"`
+}
+
+type kubernetesMetadata struct {
+	Namespace      string        `mapstructure:"namespace"`
+	KubeconfigPath string        `mapstructure:"kubeconfigPath"`
+	ResyncPeriod   time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec"`
 }
 
 // NewKubernetes returns a new Kubernetes event input binding.
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
-	return &kubernetesInput{logger: logger}
+	return &kubernetesInput{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
-func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
-	client, err := kubeclient.GetKubeClient()
+func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
+	err := k.parseMetadata(metadata)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	kubeconfigPath := k.metadata.KubeconfigPath
+	if kubeconfigPath == "" {
+		kubeconfigPath = kubeclient.GetKubeconfigPath(k.logger, os.Args)
+	}
+
+	client, err := kubeclient.GetKubeClient(kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Kubernetes client: %w", err)
 	}
 	k.kubeClient = client
 
-	return k.parseMetadata(metadata)
+	return nil
 }
 
-func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
-	if val, ok := metadata.Properties["namespace"]; ok && val != "" {
-		k.namespace = val
-	} else {
-		return errors.New("namespace is missing in metadata")
+func (k *kubernetesInput) parseMetadata(meta bindings.Metadata) error {
+	// Set default values
+	k.metadata = kubernetesMetadata{
+		ResyncPeriod: 10 * time.Second,
 	}
-	if val, ok := metadata.Properties["resyncPeriodInSec"]; ok && val != "" {
-		intval, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			k.logger.Warnf("invalid resyncPeriodInSec %s; %v; defaulting to 10s", val, err)
-			k.resyncPeriod = time.Second * 10
-		} else {
-			k.resyncPeriod = time.Second * time.Duration(intval)
-		}
+
+	// Decode
+	err := kitmd.DecodeMetadata(meta.Properties, &k.metadata)
+	if err != nil {
+		return err
+	}
+
+	// Validate
+	if k.metadata.Namespace == "" {
+		return errors.New("namespace is missing in metadata")
 	}
 
 	return nil
 }
 
 func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) error {
+	if k.closed.Load() {
+		return errors.New("binding is closed")
+	}
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
-		k.namespace,
+		k.metadata.Namespace,
 		fields.Everything(),
 	)
 	resultChan := make(chan EventResponse)
 	_, controller := cache.NewInformer(
 		watchlist,
-		&v1.Event{},
-		k.resyncPeriod,
+		&corev1.Event{},
+		k.metadata.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "add",
-						NewVal: *(obj.(*v1.Event)),
-						OldVal: v1.Event{},
+						NewVal: *(obj.(*corev1.Event)),
+						OldVal: corev1.Event{},
 					}
 				} else {
 					k.logger.Warnf("Nil Object in Add handle %v", obj)
@@ -105,8 +136,8 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "delete",
-						OldVal: *(obj.(*v1.Event)),
-						NewVal: v1.Event{},
+						OldVal: *(obj.(*corev1.Event)),
+						NewVal: corev1.Event{},
 					}
 				} else {
 					k.logger.Warnf("Nil Object in Delete handle %v", obj)
@@ -116,8 +147,8 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 				if oldObj != nil && newObj != nil {
 					resultChan <- EventResponse{
 						Event:  "update",
-						OldVal: *(oldObj.(*v1.Event)),
-						NewVal: *(newObj.(*v1.Event)),
+						OldVal: *(oldObj.(*corev1.Event)),
+						NewVal: *(newObj.(*corev1.Event)),
 					}
 				} else {
 					k.logger.Warnf("Nil Objects in Update handle %v %v", oldObj, newObj)
@@ -126,12 +157,28 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		},
 	)
 
-	// Start the controller in backgound
-	stopCh := make(chan struct{})
-	go controller.Run(stopCh)
+	k.wg.Add(3)
+	readCtx, cancel := context.WithCancel(ctx)
+
+	// catch when binding is closed.
+	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		select {
+		case <-readCtx.Done():
+		case <-k.closeCh:
+		}
+	}()
+
+	// Start the controller in background
+	go func() {
+		defer k.wg.Done()
+		controller.Run(readCtx.Done())
+	}()
 
 	// Watch for new messages and for context cancellation
 	go func() {
+		defer k.wg.Done()
 		var (
 			obj  EventResponse
 			data []byte
@@ -148,12 +195,26 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 						Data: data,
 					})
 				}
-			case <-ctx.Done():
-				close(stopCh)
+			case <-readCtx.Done():
 				return
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (k *kubernetesInput) Close() error {
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
+	}
+	k.wg.Wait()
+	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (k *kubernetesInput) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := kubernetesMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -69,9 +70,9 @@ func NewSSM(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a TencentCloud ssm client.
-func (s *ssmSecretStore) Init(meta secretstores.Metadata) error {
+func (s *ssmSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := SsmMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
@@ -193,9 +194,8 @@ func (s *ssmSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
+func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := SsmMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

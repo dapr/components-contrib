@@ -23,11 +23,13 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	jsoniter "github.com/json-iterator/go"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -40,29 +42,31 @@ const (
 )
 
 type Memcached struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client *memcache.Client
 	json   jsoniter.API
 	logger logger.Logger
+	clock  clock.Clock
 }
 
 type memcachedMetadata struct {
-	Hosts              []string
-	MaxIdleConnections int
-	Timeout            int
+	Hosts              []string `mapstructure:"hosts"`
+	MaxIdleConnections int      `mapstructure:"maxIdleConnections"`
+	Timeout            int      `mapstructure:"timeout"`
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
+		clock:  clock.RealClock{},
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
-func (m *Memcached) Init(metadata state.Metadata) error {
+func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := getMemcachedMetadata(metadata)
 	if err != nil {
 		return err
@@ -78,6 +82,8 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 
 	m.client = client
 
+	// TODO: pass context when PR is merged.
+	// https://github.com/bradfitz/gomemcache/pull/126
 	err = client.Ping()
 	if err != nil {
 		return err
@@ -88,7 +94,9 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
@@ -97,7 +105,7 @@ func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
 		Timeout:            -1,
 	}
 
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +139,14 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		parsedInt := int32(parsedVal)
+
+		// If ttl is more than 30 days, convert it to unix timestamp.
+		// https://github.com/memcached/memcached/wiki/Commands#standard-protocol
+		if parsedInt >= 60*60*24*30 {
+			parsedInt = int32(m.clock.Now().Unix()) + parsedInt
+		}
 
 		// Notice that for Dapr, -1 means "persist with no TTL".
 		// Memcached uses "0" as the non-expiring marker TTL.
@@ -195,9 +210,18 @@ func (m *Memcached) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	}, nil
 }
 
-func (m *Memcached) GetComponentMetadata() map[string]string {
+func (m *Memcached) Close() (err error) {
+	if m.client != nil {
+		err = m.client.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Memcached) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := memcachedMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }

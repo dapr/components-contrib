@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.oracledatabase
+  version: v1
+  metadata:
+  - name: connectionString
+    value: "oracle://system:daprdev@localhost:1521/xe"

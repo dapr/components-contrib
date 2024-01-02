@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -42,7 +43,8 @@ const (
 
 // Couchbase is a couchbase state store.
 type Couchbase struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	bucket                        *gocb.Bucket
 	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
@@ -65,43 +67,44 @@ type couchbaseMetadata struct {
 // NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
+		json: jsoniter.ConfigFastest,
+		features: []state.Feature{
+			state.FeatureETag,
+		},
+		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 	m := couchbaseMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
 
 	if m.CouchbaseURL == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase URL is missing")
+		return nil, fmt.Errorf("couchbase URL is missing")
 	}
 
 	if m.Username == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase username is missing")
+		return nil, fmt.Errorf("couchbase username is missing")
 	}
 
 	if m.Password == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase password is missing")
+		return nil, fmt.Errorf("couchbase password is missing")
 	}
 
 	if m.BucketName == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase bucket name is missing")
+		return nil, fmt.Errorf("couchbase bucket name is missing")
 	}
 
 	v := meta.Properties[numReplicasDurableReplication]
 	if v != "" {
 		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("couchbase error: %v", err)
+			return nil, err
 		}
 		m.NumReplicasDurableReplication = uint(num)
 	}
@@ -110,7 +113,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 	if v != "" {
 		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("couchbase error: %v", err)
+			return nil, err
 		}
 		m.NumReplicasDurablePersistence = uint(num)
 	}
@@ -119,7 +122,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (cbs *Couchbase) Init(metadata state.Metadata) error {
+func (cbs *Couchbase) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
@@ -127,7 +130,7 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	cbs.bucketName = meta.BucketName
 	c, err := gocb.Connect(meta.CouchbaseURL)
 	if err != nil {
-		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
+		return fmt.Errorf("unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
 	}
 	// does not actually trigger the authentication
 	c.Authenticate(gocb.PasswordAuthenticator{
@@ -138,7 +141,7 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	// with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
 	bucket, err := c.OpenBucket(cbs.bucketName, "")
 	if err != nil {
-		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucketName, err)
+		return fmt.Errorf("failed to open bucket %s - %v", cbs.bucketName, err)
 	}
 	cbs.bucket = bucket
 
@@ -168,12 +171,12 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
 	if err != nil {
-		return fmt.Errorf("couchbase error: failed to convert value %v", err)
+		return fmt.Errorf("failed to convert value %v", err)
 	}
 
 	//nolint:nestif
 	// key already exists (use Replace)
-	if req.ETag != nil {
+	if req.HasETag() {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(*req.ETag)
 		if cerr != nil {
@@ -194,11 +197,11 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
+		return fmt.Errorf("failed to set value for key %s - %v", req.Key, err)
 	}
 
 	return nil
@@ -213,7 +216,7 @@ func (cbs *Couchbase) Get(ctx context.Context, req *state.GetRequest) (*state.Ge
 			return &state.GetResponse{}, nil
 		}
 
-		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
+		return nil, fmt.Errorf("failed to get value for key %s - %v", req.Key, err)
 	}
 
 	return &state.GetResponse{
@@ -231,7 +234,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 
 	var cas gocb.Cas = 0
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		cas, err = eTagToCas(*req.ETag)
 		if err != nil {
 			return err
@@ -243,11 +246,11 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 		_, err = cbs.bucket.Remove(req.Key, cas)
 	}
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
+		return fmt.Errorf("failed to delete key %s - %v", req.Key, err)
 	}
 
 	return nil
@@ -266,9 +269,15 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 	return cas, nil
 }
 
-func (cbs *Couchbase) GetComponentMetadata() map[string]string {
+func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := couchbaseMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
+}
+
+func (cbs *Couchbase) Close() error {
+	if cbs.bucket == nil {
+		return nil
+	}
+	return cbs.bucket.Close()
 }

@@ -16,15 +16,17 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
@@ -35,12 +37,12 @@ type DynamoDB struct {
 }
 
 type dynamoDBMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Table        string `json:"table"`
+	Region       string `json:"region" mapstructure:"region"`
+	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken"`
+	Table        string `json:"table" mapstructure:"table"`
 }
 
 // NewDynamoDB returns a new DynamoDB instance.
@@ -49,7 +51,7 @@ func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing for DynamoDB.
-func (d *DynamoDB) Init(metadata bindings.Metadata) error {
+func (d *DynamoDB) Init(_ context.Context, metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
@@ -95,7 +97,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
 	var meta dynamoDBMetadata
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -111,4 +113,11 @@ func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, er
 	c := dynamodb.New(sess)
 
 	return c, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := dynamoDBMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

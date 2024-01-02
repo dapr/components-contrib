@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -33,11 +34,11 @@ func TestParseMetadata(t *testing.T) {
 	}}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "172.0.0.1:1234", meta.GatewayAddr)
 	assert.Equal(t, 5*time.Second, meta.GatewayKeepAlive)
 	assert.Equal(t, "/cert/path", meta.CaCertificatePath)
-	assert.Equal(t, true, meta.UsePlaintextConnection)
+	assert.True(t, meta.UsePlaintextConnection)
 }
 
 func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
@@ -45,7 +46,7 @@ func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.Nil(t, meta)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, err, ErrMissingGatewayAddr)
 }
 
@@ -53,8 +54,8 @@ func TestParseMetadataDefaultValues(t *testing.T) {
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"gatewayAddr": "172.0.0.1:1234"}}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), meta.GatewayKeepAlive)
 	assert.Equal(t, "", meta.CaCertificatePath)
-	assert.Equal(t, false, meta.UsePlaintextConnection)
+	assert.False(t, meta.UsePlaintextConnection)
 }

@@ -22,10 +22,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Constant literals.
@@ -42,8 +43,8 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 
 type ParameterStoreMetaData struct {
 	Region       string `json:"region"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken"`
 	Prefix       string `json:"prefix"`
 }
@@ -55,7 +56,7 @@ type ssmSecretStore struct {
 }
 
 // Init creates a AWS secret manager client.
-func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *ssmSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
@@ -163,7 +164,7 @@ func (s *ssmSecretStore) getClient(metadata *ParameterStoreMetaData) (*ssm.SSM, 
 
 func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
 	meta := ParameterStoreMetaData{}
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	return &meta, err
 }
 
@@ -172,9 +173,8 @@ func (s *ssmSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
+func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := ParameterStoreMetaData{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

@@ -37,8 +37,8 @@ type mockClient struct {
 	zbc.Client
 }
 
-func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
-	mcf.metadata = metadata //nolint:staticcheck
+func (mcf *mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
+	mcf.metadata = metadata
 
 	if mcf.error != nil {
 		return nil, mcf.error
@@ -53,27 +53,27 @@ func TestInit(t *testing.T) {
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{
+		mcf := &mockClientFactory{
 			error: errParsing,
 		}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(metadata)
-		assert.Error(t, err, errParsing)
+		err := cmd.Init(context.Background(), metadata)
+		require.ErrorIs(t, err, errParsing)
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{}
+		mcf := &mockClientFactory{}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(metadata)
+		err := cmd.Init(context.Background(), metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mc, cmd.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})
@@ -86,24 +86,25 @@ func TestInvoke(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrUnsupportedOperation(bindings.DeleteOperation))
+		require.EqualError(t, err, ErrUnsupportedOperation(bindings.DeleteOperation).Error())
 	})
 }
 
 func TestOperations(t *testing.T) {
 	testBinding := ZeebeCommand{logger: logger.NewLogger("test")}
 	operations := testBinding.Operations()
-	require.Equal(t, 12, len(operations))
+	require.Len(t, operations, 13)
 	assert.Equal(t, TopologyOperation, operations[0])
 	assert.Equal(t, DeployProcessOperation, operations[1])
-	assert.Equal(t, CreateInstanceOperation, operations[2])
-	assert.Equal(t, CancelInstanceOperation, operations[3])
-	assert.Equal(t, SetVariablesOperation, operations[4])
-	assert.Equal(t, ResolveIncidentOperation, operations[5])
-	assert.Equal(t, PublishMessageOperation, operations[6])
-	assert.Equal(t, ActivateJobsOperation, operations[7])
-	assert.Equal(t, CompleteJobOperation, operations[8])
-	assert.Equal(t, FailJobOperation, operations[9])
-	assert.Equal(t, UpdateJobRetriesOperation, operations[10])
-	assert.Equal(t, ThrowErrorOperation, operations[11])
+	assert.Equal(t, DeployResourceOperation, operations[2])
+	assert.Equal(t, CreateInstanceOperation, operations[3])
+	assert.Equal(t, CancelInstanceOperation, operations[4])
+	assert.Equal(t, SetVariablesOperation, operations[5])
+	assert.Equal(t, ResolveIncidentOperation, operations[6])
+	assert.Equal(t, PublishMessageOperation, operations[7])
+	assert.Equal(t, ActivateJobsOperation, operations[8])
+	assert.Equal(t, CompleteJobOperation, operations[9])
+	assert.Equal(t, FailJobOperation, operations[10])
+	assert.Equal(t, UpdateJobRetriesOperation, operations[11])
+	assert.Equal(t, ThrowErrorOperation, operations[12])
 }

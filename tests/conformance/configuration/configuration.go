@@ -17,16 +17,19 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	postgres_updater "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 )
 
 const (
@@ -34,18 +37,20 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
+	postgresComponent      = "postgresql"
+	pgNotifyChannelKey     = "pgNotifyChannel"
+	pgNotifyChannel        = "config"
 )
 
 type TestConfig struct {
 	utils.CommonConfig
 }
 
-func NewTestConfig(componentName string, allOperations bool, operations []string, configMap map[string]interface{}) TestConfig {
+func NewTestConfig(componentName string, operations []string, configMap map[string]interface{}) TestConfig {
 	tc := TestConfig{
 		utils.CommonConfig{
 			ComponentType: "configuration",
 			ComponentName: componentName,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 	}
@@ -77,8 +82,8 @@ func generateKeyValues(runID string, counter int, keyCount int, version string) 
 	m := make(map[string]*configuration.Item, keyCount)
 	k := counter
 	for ; k < counter+keyCount; k++ {
-		key := runID + "-key-" + strconv.Itoa(k)
-		val := runID + "-val-" + strconv.Itoa(k)
+		key := runID + "_key_" + strconv.Itoa(k)
+		val := runID + "_val_" + strconv.Itoa(k)
 		m[key] = &configuration.Item{
 			Value:    val,
 			Version:  version,
@@ -93,7 +98,7 @@ func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter
 	m := make(map[string]*configuration.Item, len(mymap))
 	k := counter
 	for key := range mymap {
-		updatedVal := runID + "-val-" + strconv.Itoa(k)
+		updatedVal := runID + "_val_" + strconv.Itoa(k)
 		m[key] = &configuration.Item{
 			Value:    updatedVal,
 			Version:  version,
@@ -125,13 +130,13 @@ func getStringItem(item *configuration.Item) string {
 	return string(jsonItem)
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig, component string) {
 	var subscribeIDs []string
 	initValues1 := make(map[string]*configuration.Item)
 	initValues2 := make(map[string]*configuration.Item)
 	initValues := make(map[string]*configuration.Item)
 	newValues := make(map[string]*configuration.Item)
-	runID := uuid.Must(uuid.NewRandom()).String()
+	runID := strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
 	counter := 0
 
 	awaitingMessages1 := make(map[string]map[string]struct{}, keyCount*4)
@@ -142,24 +147,38 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	processedC3 := make(chan *configuration.UpdateEvent, keyCount*4)
 
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(configuration.Metadata{
-			Base: metadata.Base{Properties: props},
+		// Initializing config updater. It has to be initialized before the store to create the table
+		err := updater.Init(props)
+		require.NoError(t, err)
+
+		// Creating trigger for postgres config updater
+		if strings.HasPrefix(component, postgresComponent) {
+			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
+			require.NoError(t, err)
+		}
+
+		// Initializing store
+		err = store.Init(context.Background(), configuration.Metadata{
+			Base: metadata.Base{
+				Properties: props,
+			},
 		})
-		assert.Nil(t, err)
-		// Initializing config updater
-		err = updater.Init(props)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
+
+	if t.Failed() {
+		t.Fatal("initialization failed")
+	}
 
 	t.Run("insert initial keys", func(t *testing.T) {
 		initValues1, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues2, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues = mergeMaps(initValues1, initValues2)
 		err := updater.AddKey(initValues)
-		assert.NoError(t, err, "expected no error on adding keys")
+		require.NoError(t, err, "expected no error on adding keys")
 	})
 
-	if config.HasOperation("get") {
+	t.Run("get", func(t *testing.T) {
 		t.Run("get with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
 
@@ -169,7 +188,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, initValues1, resp.Items)
 		})
 
@@ -182,7 +201,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, initValues, resp.Items)
 		})
 
@@ -197,24 +216,28 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, expectedResponse, resp.Items)
 		})
-	}
+	})
 
-	if config.HasOperation("subscribe") {
+	t.Run("subscribe", func(t *testing.T) {
+		subscribeMetadata := make(map[string]string)
+		if strings.HasPrefix(component, postgresComponent) {
+			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
+		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC1 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -223,13 +246,13 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC2 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -238,13 +261,13 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC3 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -255,7 +278,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		t.Run("update key values and verify messages received", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate1 := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate1, "expected no error on updating keys")
+			require.NoError(t, errUpdate1, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages1, initValues1)
 			updateAwaitingMessages(awaitingMessages2, initValues1)
@@ -264,14 +287,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Update initValues2
 			initValues2, counter = updateKeyValues(initValues2, runID, counter, v1)
 			errUpdate2 := updater.UpdateKey(initValues2)
-			assert.NoError(t, errUpdate2, "expected no error on updating keys")
+			require.NoError(t, errUpdate2, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
 
 			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)
-			assert.NoError(t, errAdd, "expected no error on adding new keys")
+			require.NoError(t, errAdd, "expected no error on adding new keys")
 
 			updateAwaitingMessages(awaitingMessages3, newValues)
 
@@ -283,9 +306,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		t.Run("delete keys and verify messages received", func(t *testing.T) {
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
-			assert.NoError(t, errDelete, "expected no error on updating keys")
-			for k := range initValues2 {
-				initValues2[k] = nil
+			require.NoError(t, errDelete, "expected no error on updating keys")
+			if !strings.HasPrefix(component, postgresComponent) {
+				for k := range initValues2 {
+					initValues2[k] = &configuration.Item{}
+				}
 			}
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)
@@ -294,23 +319,22 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			verifyMessagesReceived(t, processedC2, awaitingMessages2)
 			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 		})
-	}
+	})
 
-	if config.HasOperation("unsubscribe") {
+	t.Run("unsubscribe", func(t *testing.T) {
 		t.Run("unsubscribe subscriber 1", func(t *testing.T) {
-			ID1 := subscribeIDs[0]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID1,
+					ID: subscribeIDs[0],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 1 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages2, initValues1)
 			updateAwaitingMessages(awaitingMessages3, initValues1)
@@ -321,19 +345,18 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 2", func(t *testing.T) {
-			ID2 := subscribeIDs[1]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID2,
+					ID: subscribeIDs[1],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 2 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages3, initValues1)
 
@@ -342,23 +365,22 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 3", func(t *testing.T) {
-			ID3 := subscribeIDs[2]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID3,
+					ID: subscribeIDs[2],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 3 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			verifyNoMessagesReceived(t, processedC3)
 		})
-	}
+	})
 }
 
 func verifyNoMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent) {

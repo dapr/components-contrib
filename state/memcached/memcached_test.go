@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -33,7 +35,7 @@ func TestMemcachedMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := getMemcachedMetadata(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("with required configuration, single host", func(t *testing.T) {
@@ -44,7 +46,7 @@ func TestMemcachedMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		metadata, err := getMemcachedMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["hosts"], metadata.Hosts[0])
 		assert.Equal(t, defaultMaxIdleConnections, metadata.MaxIdleConnections)
 		assert.Equal(t, -1, metadata.Timeout)
@@ -59,7 +61,7 @@ func TestMemcachedMetadata(t *testing.T) {
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, split, metadata.Hosts)
 		assert.Equal(t, defaultMaxIdleConnections, metadata.MaxIdleConnections)
 		assert.Equal(t, -1, metadata.Timeout)
@@ -76,7 +78,7 @@ func TestMemcachedMetadata(t *testing.T) {
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, split, metadata.Hosts)
 		assert.Equal(t, 10, metadata.MaxIdleConnections)
 		assert.Equal(t, int(5000*time.Millisecond), metadata.Timeout*int(time.Millisecond))
@@ -85,6 +87,7 @@ func TestMemcachedMetadata(t *testing.T) {
 
 func TestParseTTL(t *testing.T) {
 	store := NewMemCacheStateStore(logger.NewLogger("test")).(*Memcached)
+	store.clock = clocktesting.NewFakeClock(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -93,7 +96,7 @@ func TestParseTTL(t *testing.T) {
 			},
 		})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, ttl)
 	})
 	t.Run("TTL is a negative integer ends up translated to 0", func(t *testing.T) {
@@ -103,8 +106,8 @@ func TestParseTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		assert.NoError(t, err)
-		assert.Equal(t, int(*ttl), 0)
+		require.NoError(t, err)
+		assert.Equal(t, 0, int(*ttl))
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345
@@ -114,7 +117,7 @@ func TestParseTTL(t *testing.T) {
 			},
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, ttl)
 	})
 	t.Run("TTL is a number", func(t *testing.T) {
@@ -125,7 +128,7 @@ func TestParseTTL(t *testing.T) {
 			},
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int(*ttl), ttlInSeconds)
 	})
 
@@ -137,7 +140,19 @@ func TestParseTTL(t *testing.T) {
 			},
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int(*ttl), ttlInSeconds)
+	})
+
+	t.Run("TTL is Unix time larger than a month", func(t *testing.T) {
+		ttlInSeconds := 2 * 30 * 24 * 60 * 60
+		ttl, err := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, time.Date(2023, 2, 30, 0, 0, 0, 0, time.UTC).Unix(), int64(*ttl))
 	})
 }

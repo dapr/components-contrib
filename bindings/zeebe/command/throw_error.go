@@ -30,7 +30,7 @@ type throwErrorPayload struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
-func (z *ZeebeCommand) throwError(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) throwError(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload throwErrorPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -53,7 +53,7 @@ func (z *ZeebeCommand) throwError(req *bindings.InvokeRequest) (*bindings.Invoke
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot throw error for job key %d: %w", payload.JobKey, err)
 	}

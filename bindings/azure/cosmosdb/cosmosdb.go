@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -24,8 +25,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/common/authentication/azure"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // CosmosDB allows performing state operations on collections.
@@ -53,7 +56,7 @@ func NewCosmosDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs CosmosDB connection parsing and connecting.
-func (c *CosmosDB) Init(metadata bindings.Metadata) error {
+func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -82,7 +85,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		}
 	} else {
 		// Fallback to using Azure AD
-		env, errEnv := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		env, errEnv := azure.NewEnvironmentSettings(metadata.Properties)
 		if errEnv != nil {
 			return errEnv
 		}
@@ -103,21 +106,15 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	}
 
 	c.client = dbContainer
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
-	_, err = c.client.Read(ctx, nil)
-	cancel()
+	readCtx, readCancel := context.WithTimeout(ctx, timeoutValue*time.Second)
+	defer readCancel()
+	_, err = c.client.Read(readCtx, nil)
 	return err
 }
 
 func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentials, error) {
-	connInfo := metadata.Properties
-	b, err := json.Marshal(connInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds cosmosDBCredentials
-	err = json.Unmarshal(b, &creds)
+	creds := cosmosDBCredentials{}
+	err := kitmd.DecodeMetadata(metadata.Properties, &creds)
 	if err != nil {
 		return nil, err
 	}
@@ -178,8 +175,6 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 		return nil, fmt.Errorf("needs at least one key")
 	}
 
-	c.logger.Infof("%s, %s", ks[0], m[ks[0]])
-
 	if val, ok = m[ks[0]]; !ok {
 		return nil, fmt.Errorf("key not found %v", ks[0])
 	}
@@ -195,4 +190,11 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 	}
 
 	return c.lookup(m, ks[1:])
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (c *CosmosDB) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+	metadataStruct := cosmosDBCredentials{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return
 }

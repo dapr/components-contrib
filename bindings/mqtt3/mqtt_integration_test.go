@@ -1,3 +1,18 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package mqtt
 
 import (
@@ -9,6 +24,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	mdata "github.com/dapr/components-contrib/metadata"
@@ -34,6 +50,7 @@ func getConnectionString() string {
 
 func TestInvokeWithTopic(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	url := getConnectionString()
 	if url == "" {
@@ -64,11 +81,11 @@ func TestInvokeWithTopic(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewMQTT(logger).(*MQTT)
-	err := r.Init(metadata)
-	assert.Nil(t, err)
+	err := r.Init(ctx, metadata)
+	require.NoError(t, err)
 
-	conn, err := r.connect(uuid.NewString())
-	assert.Nil(t, err)
+	conn, err := r.connect(uuid.NewString(), false)
+	require.NoError(t, err)
 	defer conn.Disconnect(1)
 
 	msgCh := make(chan interface{})
@@ -80,7 +97,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	ok := token.WaitTimeout(2 * time.Second)
 	assert.True(t, ok, "subscribe to /app/# timeout")
 	err = token.Error()
-	assert.Nil(t, err, "error subscribe to test topic")
+	require.NoError(t, err, "error subscribe to test topic")
 
 	// Timeout in case message transfer error.
 	go func() {
@@ -90,7 +107,7 @@ func TestInvokeWithTopic(t *testing.T) {
 
 	// Test invoke with default topic configured for component.
 	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: dataDefault})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	m := <-msgCh
 	mqttMessage, ok := m.(mqtt.Message)
@@ -105,11 +122,12 @@ func TestInvokeWithTopic(t *testing.T) {
 			mqttTopic: topicCustomized,
 		},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	m = <-msgCh
 	mqttMessage, ok = m.(mqtt.Message)
 	assert.True(t, ok)
 	assert.Equal(t, dataCustomized, mqttMessage.Payload())
 	assert.Equal(t, topicCustomized, mqttMessage.Topic())
+	require.NoError(t, r.Close())
 }

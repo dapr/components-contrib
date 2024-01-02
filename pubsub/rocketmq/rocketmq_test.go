@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -28,9 +28,10 @@ import (
 func getTestMetadata() map[string]string {
 	return map[string]string{
 		"nameServer":         "127.0.0.1:9876",
-		"consumerGroup":      "dapr.rocketmq.producer",
+		"consumerGroup":      "dapr_rocketmq_producer",
 		"accessKey":          "RocketMQ",
 		"secretKey":          "12345",
+		"consumeTimeout":     "20",
 		"consumerBatchSize":  "1",
 		"consumerThreadNums": "2",
 		"retries":            "2",
@@ -41,19 +42,19 @@ func getTestMetadata() map[string]string {
 func TestParseRocketMQMetadata(t *testing.T) {
 	meta := getTestMetadata()
 	_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestRocketMQ_Init(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	require.NoError(t, err)
 }
 
 func TestRocketMQ_Publish_Currently(t *testing.T) {
 	l, r, e := BuildRocketMQ()
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\"}"),
@@ -66,7 +67,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		l.Error(e)
 		return
 	}
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 2, \"value\": \"2\"}"),
@@ -80,7 +81,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		},
 	}
 	e = r.Publish(context.Background(), req)
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 3, \"value\": \"3\"}"),
@@ -93,7 +94,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		},
 	}
 	e = r.Publish(context.Background(), req)
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 4, \"value\": \"4\"}"),
@@ -106,12 +107,15 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		},
 	}
 	e = r.Publish(context.Background(), req)
-	assert.Nil(t, e)
+	require.NoError(t, e)
+
+	time.Sleep(time.Second)
+	require.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Publish_Orderly(t *testing.T) {
 	l, r, e := BuildRocketMQ()
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\", \"sKey\": \"sKeyHello\"}"),
@@ -129,7 +133,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		l.Error(e)
 		return
 	}
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 2, \"value\": \"2\", \"sKey\": \"sKeyHello\"}"),
@@ -143,7 +147,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		},
 	}
 	e = r.Publish(context.Background(), req)
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 3, \"value\": \"3\", \"sKey\": \"sKeyHello\"}"),
@@ -156,12 +160,14 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		},
 	}
 	e = r.Publish(context.Background(), req)
-	assert.Nil(t, e)
+	require.NoError(t, e)
+	time.Sleep(2 * time.Second)
+	require.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 	l, r, e := BuildRocketMQ()
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req := pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
@@ -175,13 +181,14 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		l.Error(e)
 		return
 	}
-	assert.Nil(t, e)
-	time.Sleep(20 * time.Second)
+	require.NoError(t, e)
+	time.Sleep(2 * time.Second)
+	require.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	l, r, e := BuildRocketMQ()
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		l.Info(msg.Topic, string(msg.Data))
@@ -199,7 +206,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 		l.Error(e)
 		return
 	}
-	assert.Nil(t, e)
+	require.NoError(t, e)
 
 	req = pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
@@ -209,14 +216,15 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 		},
 	}
 	e = r.Subscribe(context.Background(), req, handler)
-	assert.Nil(t, e)
-	time.Sleep(20 * time.Second)
+	require.NoError(t, e)
+	time.Sleep(2 * time.Second)
+	require.NoError(t, r.Close())
 }
 
 func BuildRocketMQ() (logger.Logger, pubsub.PubSub, error) {
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	return l, r, err
 }

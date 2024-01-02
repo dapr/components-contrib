@@ -20,8 +20,8 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"github.com/dapr/components-contrib/bindings"
-	metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
@@ -36,7 +36,7 @@ type ClientFactoryImpl struct {
 }
 
 // https://docs.zeebe.io/operations/authentication.html
-type clientMetadata struct {
+type ClientMetadata struct {
 	GatewayAddr            string        `json:"gatewayAddr" mapstructure:"gatewayAddr"`
 	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
@@ -67,9 +67,9 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 	return client, nil
 }
 
-func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*clientMetadata, error) {
-	var m clientMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetadata, error) {
+	var m ClientMetadata
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

@@ -14,30 +14,32 @@ limitations under the License.
 package sentinel
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/alibaba/sentinel-golang/core/base"
 	"github.com/alibaba/sentinel-golang/core/config"
-	"github.com/pkg/errors"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type middlewareMetadata struct {
-	AppName string `json:"appName"`
+	AppName string `json:"appName" mapstructure:"appName"`
 	// LogConfig
-	LogDir string `json:"logDir"`
+	LogDir string `json:"logDir" mapstructure:"logDir"`
 	// Rules
-	FlowRules           string `yaml:"flowRules"`
-	CircuitBreakerRules string `yaml:"circuitBreakerRules"`
-	HotSpotParamRules   string `yaml:"hotSpotParamRules"`
-	IsolationRules      string `yaml:"isolationRules"`
-	SystemRules         string `yaml:"systemRules"`
+	FlowRules           string `yaml:"flowRules" mapstructure:"flowRules"`
+	CircuitBreakerRules string `yaml:"circuitBreakerRules" mapstructure:"circuitBreakerRules"`
+	HotSpotParamRules   string `yaml:"hotSpotParamRules" mapstructure:"hotSpotParamRules"`
+	IsolationRules      string `yaml:"isolationRules" mapstructure:"isolationRules"`
+	SystemRules         string `yaml:"systemRules" mapstructure:"systemRules"`
 }
 
 // NewMiddleware returns a new sentinel middleware.
@@ -51,7 +53,7 @@ type Middleware struct {
 }
 
 // GetHandler returns the HTTP handler provided by sentinel middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	var (
 		meta *middlewareMetadata
 		err  error
@@ -59,13 +61,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 	meta, err = getNativeMetadata(metadata)
 	if err != nil {
-		return nil, errors.Wrap(err, "error to parse sentinel metadata")
+		return nil, fmt.Errorf("error to parse sentinel metadata: %w", err)
 	}
 
 	conf := m.newSentinelConfig(meta)
 	err = sentinel.InitWithConfig(conf)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error to init sentinel with config: %s", conf)
+		return nil, fmt.Errorf("error to init sentinel with config '%s': %w", conf, err)
 	}
 
 	err = m.loadSentinelRules(meta)
@@ -96,40 +98,35 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 	if meta.FlowRules != "" {
 		err := loadRules(meta.FlowRules, newFlowRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel flow rules: %s", meta.FlowRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel flow rules '%s': %w", meta.FlowRules, err)
 		}
 	}
 
 	if meta.IsolationRules != "" {
 		err := loadRules(meta.IsolationRules, newIsolationRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel isolation rules: %s", meta.IsolationRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel isolation rules '%s': %w", meta.IsolationRules, err)
 		}
 	}
 
 	if meta.CircuitBreakerRules != "" {
 		err := loadRules(meta.CircuitBreakerRules, newCircuitBreakerRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel circuit breaker rules: %s", meta.CircuitBreakerRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel circuit breaker rules '%s': %w", meta.CircuitBreakerRules, err)
 		}
 	}
 
 	if meta.HotSpotParamRules != "" {
 		err := loadRules(meta.HotSpotParamRules, newHotSpotParamRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel hotspot param rules: %s", meta.HotSpotParamRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel hotspot param rules '%s': %w", meta.HotSpotParamRules, err)
 		}
 	}
 
 	if meta.SystemRules != "" {
 		err := loadRules(meta.SystemRules, newSystemRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel system rules: %s", meta.SystemRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel system rules '%s': %w", meta.SystemRules, err)
 		}
 	}
 
@@ -154,9 +151,15 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 
 func getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
 	var md middlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &md)
+	err := kitmd.DecodeMetadata(metadata.Properties, &md)
 	if err != nil {
 		return nil, err
 	}
 	return &md, nil
+}
+
+func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := middlewareMetadata{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

@@ -1,10 +1,10 @@
-version: '2'
+version: "3.8"
+
 services:
-  snssqs:
-    image: localstack/localstack:0.13.3
-    container_name: snssqs
-    environment:
-      SERVICES: "sns,sqs,sts"
-      DEBUG: 1
+  localstack:
+    container_name: "conformance-aws-snssqs"
+    image: localstack/localstack:1.4.0
     ports:
-      - 4566:4566
+      - "127.0.0.1:4566:4566"
+    environment:
+      - DEBUG=1

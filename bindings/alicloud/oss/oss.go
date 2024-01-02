@@ -16,6 +16,7 @@ package oss
 import (
 	"bytes"
 	"context"
+	"reflect"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // AliCloudOSS is a binding for an AliCloud OSS storage bucket.
@@ -45,7 +47,7 @@ func NewAliCloudOSS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (s *AliCloudOSS) Init(metadata bindings.Metadata) error {
+func (s *AliCloudOSS) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -89,7 +91,7 @@ func (s *AliCloudOSS) Invoke(_ context.Context, req *bindings.InvokeRequest) (*b
 
 func (s *AliCloudOSS) parseMetadata(meta bindings.Metadata) (*ossMetadata, error) {
 	var m ossMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -104,4 +106,11 @@ func (s *AliCloudOSS) getClient(metadata *ossMetadata) (*oss.Client, error) {
 	}
 
 	return client, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudOSS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := ossMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

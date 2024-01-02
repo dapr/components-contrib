@@ -13,6 +13,10 @@ limitations under the License.
 
 package secretstores
 
+import (
+	"golang.org/x/exp/slices"
+)
+
 // Feature names a feature that can be implemented by Secret Store components.
 type Feature string
 
@@ -23,11 +27,5 @@ const (
 
 // IsPresent checks if a given feature is present in the list.
 func (f Feature) IsPresent(features []Feature) bool {
-	for _, feature := range features {
-		if feature == f {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(features, f)
 }

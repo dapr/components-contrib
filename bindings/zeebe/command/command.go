@@ -17,18 +17,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 const (
 	// operations.
 	TopologyOperation         bindings.OperationKind = "topology"
-	DeployProcessOperation    bindings.OperationKind = "deploy-process"
+	DeployResourceOperation   bindings.OperationKind = "deploy-resource"
+	DeployProcessOperation    bindings.OperationKind = "deploy-process" // Deprecated, kept for backward compatibility
 	CreateInstanceOperation   bindings.OperationKind = "create-instance"
 	CancelInstanceOperation   bindings.OperationKind = "cancel-instance"
 	SetVariablesOperation     bindings.OperationKind = "set-variables"
@@ -61,7 +64,7 @@ func NewZeebeCommand(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (z *ZeebeCommand) Init(metadata bindings.Metadata) error {
+func (z *ZeebeCommand) Init(ctx context.Context, metadata bindings.Metadata) error {
 	client, err := z.clientFactory.Get(metadata)
 	if err != nil {
 		return err
@@ -76,6 +79,7 @@ func (z *ZeebeCommand) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		TopologyOperation,
 		DeployProcessOperation,
+		DeployResourceOperation,
 		CreateInstanceOperation,
 		CancelInstanceOperation,
 		SetVariablesOperation,
@@ -93,8 +97,8 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	switch req.Operation {
 	case TopologyOperation:
 		return z.topology(ctx)
-	case DeployProcessOperation:
-		return z.deployProcess(ctx, req)
+	case DeployResourceOperation, DeployProcessOperation:
+		return z.deployResource(ctx, req)
 	case CreateInstanceOperation:
 		return z.createInstance(ctx, req)
 	case CancelInstanceOperation:
@@ -114,7 +118,7 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	case UpdateJobRetriesOperation:
 		return z.updateJobRetries(ctx, req)
 	case ThrowErrorOperation:
-		return z.throwError(req)
+		return z.throwError(ctx, req)
 	case bindings.GetOperation:
 		fallthrough
 	case bindings.CreateOperation:
@@ -126,4 +130,11 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	default:
 		return nil, ErrUnsupportedOperation(req.Operation)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (z *ZeebeCommand) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := zeebe.ClientMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

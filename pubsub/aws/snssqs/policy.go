@@ -13,47 +13,12 @@ limitations under the License.
 
 package snssqs
 
-import (
-	"encoding/json"
-	"reflect"
-)
-
 type arnEquals struct {
-	AwsSourceArn awsSourceArn `json:"aws:SourceArn"`
-}
-
-type awsSourceArn []string
-
-// UnmarshalJSON This is a custom unmarshaler for awsSourceArn for handling a special case
-// where aws flatten awsSourceArn into a string when it only contains one element
-func (a *awsSourceArn) UnmarshalJSON(data []byte) error {
-	var i interface{}
-	err := json.Unmarshal(data, &i)
-	if err != nil {
-		return err
-	}
-
-	items := reflect.ValueOf(i)
-	switch items.Kind() {
-	case reflect.String:
-		*a = append(*a, items.String())
-	case reflect.Slice:
-		*a = make([]string, 0, items.Len())
-		for i := 0; i < items.Len(); i++ {
-			item := items.Index(i)
-			switch item.Kind() {
-			case reflect.String:
-				*a = append(*a, item.String())
-			case reflect.Interface:
-				*a = append(*a, item.Interface().(string))
-			}
-		}
-	}
-	return nil
+	AwsSourceArn string `json:"aws:SourceArn"`
 }
 
 type condition struct {
-	ForAllValuesArnEquals arnEquals `json:"ForAllValues:ArnEquals"`
+	ValueArnEquals arnEquals `json:"ArnEquals"`
 }
 
 type principal struct {
@@ -74,29 +39,24 @@ type policy struct {
 }
 
 func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
-	for i, s := range p.Statement {
+	for _, s := range p.Statement {
 		// if there is a statement for sqsArn
 		if s.Resource == sqsArn {
-			// check if the snsArn already exists
-			for _, a := range s.Condition.ForAllValuesArnEquals.AwsSourceArn {
-				if a == snsArn {
-					return true
-				}
+			// check if the snsArn already exists then return true
+			if s.Condition.ValueArnEquals.AwsSourceArn == snsArn {
+				return true
 			}
-			// insert it if it does not exist
-			p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn = append(p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
-			return false
 		}
 	}
-	// insert a new statement if no statement for the sqsArn
+	// insert a new statement if no statement for the sqsArn or is new sns subscriber
 	newStatement := &statement{
 		Effect:    "Allow",
 		Principal: principal{Service: "sns.amazonaws.com"},
 		Action:    "sqs:SendMessage",
 		Resource:  sqsArn,
 		Condition: condition{
-			ForAllValuesArnEquals: arnEquals{
-				AwsSourceArn: []string{snsArn},
+			ValueArnEquals: arnEquals{
+				AwsSourceArn: snsArn,
 			},
 		},
 	}

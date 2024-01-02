@@ -13,6 +13,12 @@ limitations under the License.
 
 package pubsub
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
 // PublishRequest is the request to publish a message.
 type PublishRequest struct {
 	Data        []byte            `json:"data"`
@@ -45,11 +51,33 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
+// String implements fmt.Stringer and it's useful for debugging.
+func (m NewMessage) String() string {
+	ct := "(nil)"
+	if m.ContentType != nil {
+		ct = *m.ContentType
+	}
+	md, _ := json.Marshal(m.Metadata)
+	return fmt.Sprintf("[NewMessage] topic='%s' data='%s' content-type='%s' metadata=%s", m.Topic, string(m.Data), ct, md)
+}
+
 // BulkMessage represents bulk message arriving from a message bus instance.
 type BulkMessage struct {
 	Entries  []BulkMessageEntry `json:"entries"`
 	Topic    string             `json:"topic"`
 	Metadata map[string]string  `json:"metadata"`
+}
+
+// String implements fmt.Stringer and it's useful for debugging.
+func (m BulkMessage) String() string {
+	md, _ := json.Marshal(m.Metadata)
+	b := strings.Builder{}
+	b.WriteString(fmt.Sprintf("[BulkMessage] topic='%s' metadata=%s entries=%d", m.Topic, md, len(m.Entries)))
+	for i, e := range m.Entries {
+		b.WriteString(fmt.Sprintf("\n%d: ", i))
+		b.WriteString(e.String())
+	}
+	return b.String()
 }
 
 // BulkMessageEntry represents a single message inside a bulk request.
@@ -58,6 +86,12 @@ type BulkMessageEntry struct {
 	Event       []byte            `json:"event"`
 	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
+}
+
+// String implements fmt.Stringer and it's useful for debugging.
+func (m BulkMessageEntry) String() string {
+	md, _ := json.Marshal(m.Metadata)
+	return fmt.Sprintf("[BulkMessageEntry] entryId='%s' data='%s' content-type='%s' metadata=%s", m.EntryId, string(m.Event), m.ContentType, md)
 }
 
 // BulkSubscribeConfig represents the configuration for bulk subscribe.

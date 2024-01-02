@@ -24,8 +24,7 @@ const MetadataTTLKey = "ttlInSeconds"
 
 // ParseTTL parses the "ttlInSeconds" metadata property.
 func ParseTTL(requestMetadata map[string]string) (*int, error) {
-	val, found := requestMetadata[MetadataTTLKey]
-	if found && val != "" {
+	if val := requestMetadata[MetadataTTLKey]; val != "" {
 		parsedVal, err := strconv.ParseInt(val, 10, 0)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect value for metadata '%s': %w", MetadataTTLKey, err)
@@ -35,6 +34,21 @@ func ParseTTL(requestMetadata map[string]string) (*int, error) {
 		}
 		i := int(parsedVal)
 		return &i, nil
+	}
+	return nil, nil
+}
+
+// ParseTTL64 parses the "ttlInSeconds" metadata property.
+func ParseTTL64(requestMetadata map[string]string) (*int64, error) {
+	if val := requestMetadata[MetadataTTLKey]; val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("incorrect value for metadata '%s': %w", MetadataTTLKey, err)
+		}
+		if parsedVal < -1 || parsedVal > math.MaxInt32 {
+			return nil, fmt.Errorf("incorrect value for metadata '%s': must be -1 or greater", MetadataTTLKey)
+		}
+		return &parsedVal, nil
 	}
 	return nil, nil
 }

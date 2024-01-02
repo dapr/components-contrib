@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/kubemq-io/kubemq-go"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -145,13 +145,13 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 			setResultError(tt.resultError).
 			setPublishError(tt.publishErr)
 		k.isInitialized = true
-		k.metadata = &metadata{
-			host:      "",
-			port:      0,
-			clientID:  "some-client-id",
-			authToken: "",
-			group:     "",
-			isStore:   true,
+		k.metadata = &kubemqMetadata{
+			internalHost: "",
+			internalPort: 0,
+			ClientID:     "some-client-id",
+			AuthToken:    "",
+			Group:        "",
+			IsStore:      true,
 		}
 		if tt.timeout > 0 {
 			k.waitForResultTimeout = tt.timeout - 1*time.Second
@@ -161,9 +161,9 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 		_ = k.setPublishStream()
 		err := k.Publish(tt.req)
 		if tt.wantErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 		} else {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		_ = k.Features()
 		_ = k.Close()
@@ -208,19 +208,19 @@ func Test_kubeMQkubeMQEventsStore_Subscribe(t *testing.T) {
 		k.client = newKubemqEventsStoreMock().
 			setSubscribeError(tt.subscribeError)
 		k.isInitialized = true
-		k.metadata = &metadata{
-			host:      "",
-			port:      0,
-			clientID:  "some-client-id",
-			authToken: "",
-			group:     "",
-			isStore:   true,
+		k.metadata = &kubemqMetadata{
+			internalHost: "",
+			internalPort: 0,
+			ClientID:     "some-client-id",
+			AuthToken:    "",
+			Group:        "",
+			IsStore:      true,
 		}
 		err := k.Subscribe(k.ctx, pubsub.SubscribeRequest{Topic: "some-topic"}, tt.subscribeHandler)
 		if tt.wantErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 		} else {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		_ = k.Features()
 		_ = k.Close()

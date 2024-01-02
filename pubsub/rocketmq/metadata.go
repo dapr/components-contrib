@@ -16,8 +16,8 @@ package rocketmq
 import (
 	"fmt"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -154,7 +154,7 @@ type rocketMQMetaData struct {
 	// then pullThresholdForQueue will be set to 100
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdForTopic int64 `mapstructure:"pullThresholdForTopic"`
+	PullThresholdForTopic int `mapstructure:"pullThresholdForTopic"`
 
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	PullThresholdSizeForQueue int `mapstructure:"pullThresholdSizeForQueue"`
@@ -182,7 +182,7 @@ type rocketMQMetaData struct {
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
-	if err := metadata.DecodeMetadata(in, &s); err != nil {
+	if err := kitmd.DecodeMetadata(in, &s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 	return nil

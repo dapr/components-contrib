@@ -19,8 +19,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,13 +35,12 @@ import (
 
 	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt3"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
-
-	kit_retry "github.com/dapr/kit/retry"
 
 	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -127,8 +128,8 @@ func TestMQTT(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messages.Observe(e.Data)
-					ctx.Logf("%s Event - pubsub: %s, topic: %s, id: %s, data: %s", appID,
-						e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("%s Event - pubsub: %s, topic: %s, id: %s, data: %s",
+						appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -141,8 +142,8 @@ func TestMQTT(t *testing.T) {
 			handlerGen := func(name string, messages *watcher.Watcher) func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 				return func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					messages.Observe(e.Data)
-					ctx.Logf("%s/%s Event - pubsub: %s, topic: %s, id: %s, data: %s", appID, name,
-						e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("%s/%s Event - pubsub: %s, topic: %s, id: %s, data: %s",
+						appID, name, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}
 			}
@@ -218,8 +219,7 @@ func TestMQTT(t *testing.T) {
 				ctx.Log("Sending messages!")
 				for _, msg := range msgs {
 					ctx.Logf("Sending: %q", msg)
-					err := client.PublishEvent(
-						ctx, pubsubName, topicName, msg)
+					err := client.PublishEvent(ctx, pubsubName, topicName, msg)
 					require.NoError(ctx, err, "error publishing message")
 				}
 			}
@@ -241,6 +241,8 @@ func TestMQTT(t *testing.T) {
 	// messages reliably when infrastructure and network
 	// interruptions occur.
 	var task flow.AsyncTask
+	counter := &atomic.Int64{}
+	counter.Store(1)
 	sendMessagesInBackground := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
@@ -251,32 +253,35 @@ func TestMQTT(t *testing.T) {
 			t := time.NewTicker(200 * time.Millisecond)
 			defer t.Stop()
 
-			counter := 1
 			for {
 				select {
 				case <-task.Done():
 					return nil
 				case <-t.C:
-					msg := fmt.Sprintf("Background message - %03d", counter)
+					msg := fmt.Sprintf("Background message - %03d", counter.Load())
 					for _, m := range messages {
 						m.Prepare(msg) // Track for observation
 					}
 
 					// Publish with retries.
-					bo := backoff.WithContext(backoff.NewConstantBackOff(time.Second), task)
-					if err := kit_retry.NotifyRecover(func() error {
-						return client.PublishEvent(
+					err := backoff.RetryNotify(
+						func() error {
+							ctx.Logf("Sending '%q' to topic '%s'", msg, topicName)
 							// Using ctx instead of task here is deliberate.
 							// We don't want cancelation to prevent adding
 							// the message, only to interrupt between tries.
-							ctx, pubsubName, topicName, msg)
-					}, bo, func(err error, t time.Duration) {
-						ctx.Logf("Error publishing message, retrying in %s", t)
-					}, func() {}); err == nil {
+							return client.PublishEvent(ctx, pubsubName, topicName, msg)
+						},
+						backoff.WithContext(backoff.NewConstantBackOff(time.Second), task),
+						func(err error, t time.Duration) {
+							ctx.Logf("Error publishing message '%s', retrying in %s", msg, t)
+						},
+					)
+					if err == nil {
 						for _, m := range messages {
 							m.Add(msg) // Success
 						}
-						counter++
+						counter.Add(1)
 					} else {
 						for _, m := range messages {
 							m.Remove(msg) // Remove from Tracking
@@ -312,33 +317,37 @@ func TestMQTT(t *testing.T) {
 			application(consumerGroup1, appID1, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		//
 		// Send messages and test
-		Step("send and wait", test(topicName, consumerGroup1)).
-		Step("reset", flow.Reset(consumerGroup1)).
+		Step("send and wait 1", test(topicName, consumerGroup1)).
+		Step("reset 1", flow.Reset(consumerGroup1)).
 		//
 		//Run Second application App2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			application(consumerGroup2, appID2, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		//
 		// Send messages and test
 		Step("multiple send and wait", multipleTest(consumerGroup1, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Step("reset 2", flow.Reset(consumerGroup1, consumerGroup2)).
 		//
 		// Test multiple topics and wildcards
 		Step(
@@ -353,12 +362,14 @@ func TestMQTT(t *testing.T) {
 			),
 		).
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer3"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+(portOffset*3)),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+(portOffset*3)),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+(portOffset*3)),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+(portOffset*3)),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer3"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+(portOffset*3))),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+(portOffset*3))),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+(portOffset*3))),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+(portOffset*3))),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		Step("send and wait wildcard", test(wildcardTopicPublish, consumerGroupMultiWildcard)).
 		Step("send and wait shared", test(sharedTopicPublish, consumerGroupMultiShared)).
@@ -366,45 +377,49 @@ func TestMQTT(t *testing.T) {
 		// Infra test
 		StepAsync("steady flow of messages to publish", &task,
 			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait before stopping sidecar 2", flow.Sleep(5*time.Second)).
 		Step("stop sidecar 2", sidecar.Stop(sidecarName2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait before stopping sidecar 1", flow.Sleep(5*time.Second)).
 		Step("stop sidecar 1", sidecar.Stop(sidecarName1)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 1", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 2", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Step("wait 3", flow.Sleep(5*time.Second)).
+		Step("assert messages 1", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("reset 3", flow.Reset(consumerGroup1, consumerGroup2)).
 		//
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
 		// when Dapr is disconnected abnormally.
 		StepAsync("steady flow of messages to publish", &task,
 			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 4", flow.Sleep(5*time.Second)).
 		//
 		// Errors will occurring here.
 		Step("interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "18084")).
 		//
 		// Component should recover at this point.
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("wait 5", flow.Sleep(5*time.Second)).
+		Step("assert messages 2", assertMessages(consumerGroup1, consumerGroup2)).
 		Run()
 }
 
@@ -414,15 +429,15 @@ type topicSubscription struct {
 	route    string
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt3")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
 	}
 }
 

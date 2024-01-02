@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.cosmosdb.gremlinapi
+version: v1
+status: alpha
+title: "Azure Cosmos DB (Gremlin API)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/cosmosdbgremlinapi/
+binding:
+  output: true
+  operations:
+    - name: query
+      description: "Perform a query"
+capabilities: []
+authenticationProfiles:
+  - title: "Master key"
+    description: |
+      Authenticate using a pre-shared "master key".
+    metadata:
+      - name: masterKey
+        required: true
+        sensitive: true
+        description: |
+          The key to authenticate to the Cosmos DB account.
+        example: '"my-secret-key"'
+      - name: username
+        required: true
+        sensitive: false
+        description: |
+          The username of the Cosmos DB database.
+        example: '"/dbs/<database_name>/colls/<graph_name>"'
+metadata:
+  - name: url
+    type: string
+    required: true
+    description: |
+        The Cosmos DB URL for Gremlin APIs
+    example: '"wss://******.gremlin.cosmos.azure.com:443/"'

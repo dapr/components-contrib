@@ -15,20 +15,26 @@ package pubsub
 
 // GCPPubSubMetaData pubsub metadata.
 type metadata struct {
-	consumerID              string
-	Type                    string
-	IdentityProjectID       string
-	ProjectID               string
-	PrivateKeyID            string
-	PrivateKey              string
-	ClientEmail             string
-	ClientID                string
-	AuthURI                 string
-	TokenURI                string
-	AuthProviderCertURL     string
-	ClientCertURL           string
-	DisableEntityManagement bool
-	EnableMessageOrdering   bool
-	MaxReconnectionAttempts int
-	ConnectionRecoveryInSec int
+	// Ignored by metadata parser because included in built-in authentication profile
+	ConsumerID          string `mapstructure:"consumerID"              mdignore:"true"`
+	Type                string `mapstructure:"type"                    mdignore:"true"`
+	IdentityProjectID   string `mapstructure:"identityProjectID"       mdignore:"true"`
+	ProjectID           string `mapstructure:"projectID"               mdignore:"true"`
+	PrivateKeyID        string `mapstructure:"privateKeyID"            mdignore:"true"`
+	PrivateKey          string `mapstructure:"privateKey"              mdignore:"true"`
+	ClientEmail         string `mapstructure:"clientEmail"             mdignore:"true"`
+	ClientID            string `mapstructure:"clientID"                mdignore:"true"`
+	AuthURI             string `mapstructure:"authURI"                 mdignore:"true"`
+	TokenURI            string `mapstructure:"tokenURI"                mdignore:"true"`
+	AuthProviderCertURL string `mapstructure:"authProviderX509CertUrl" mdignore:"true"`
+	ClientCertURL       string `mapstructure:"clientX509CertUrl"       mdignore:"true"`
+
+	DisableEntityManagement bool   `mapstructure:"disableEntityManagement"`
+	EnableMessageOrdering   bool   `mapstructure:"enableMessageOrdering"`
+	MaxReconnectionAttempts int    `mapstructure:"maxReconnectionAttempts"`
+	ConnectionRecoveryInSec int    `mapstructure:"connectionRecoveryInSec"`
+	ConnectionEndpoint      string `mapstructure:"endpoint"`
+	OrderingKey             string `mapstructure:"orderingKey"`
+	DeadLetterTopic         string `mapstructure:"deadLetterTopic"`
+	MaxDeliveryAttempts     int    `mapstructure:"maxDeliveryAttempts"`
 }

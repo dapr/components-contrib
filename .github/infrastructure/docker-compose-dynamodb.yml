@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  localstack:
+    container_name: "conformance-aws-dynamodb"
+    image: localstack/localstack:1.4.0
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${PWD}/.github/scripts/docker-compose-init/init-conformance-state-aws-dynamodb.sh:/etc/localstack/init/ready.d/init-aws.sh"  # ready hook
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

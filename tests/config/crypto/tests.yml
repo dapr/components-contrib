@@ -1,0 +1,70 @@
+# Supported operations:
+# - public: if the crypto provider has a public key
+# - symmetric: if the crypto provider has a symmetric key
+componentType: crypto
+components:
+  - component: localstorage
+    operations: ["public", "symmetric"]
+    config:
+      keys:
+        - algorithms: ["EdDSA"]
+          type: public
+          name: ed25519-public.pem
+        - algorithms: ["EdDSA"]
+          type: private
+          name: ed25519-private.pem
+        - algorithms: ["ES256"]
+          type: public
+          name: p256-public.json
+        - algorithms: ["ES256"]
+          type: private
+          name: p256-private.json
+        - algorithms: ["RSA-OAEP"] # This key has an "alg" paramter specified
+          type: public
+          name: rsa-public.json
+        - algorithms: ["PS256", "PS384", "PS512", "RS256", "RS384", "RS512", "RSA1_5", "RSA-OAEP", "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512"]
+          type: private
+          name: rsa-private.pem
+        - algorithms: ["A256CBC", "A256GCM", "A256KW", "C20P", "XC20P", "C20PKW", "XC20PKW", "A128CBC-HS256"]
+          type: symmetric
+          name: symmetric-256.b64
+  - component: jwks
+    operations: ["public", "symmetric"]
+    config:
+      keys:
+        - algorithms: ["EdDSA"]
+          type: public
+          name: ed25519-public
+        - algorithms: ["EdDSA"]
+          type: private
+          name: ed25519-private
+        - algorithms: ["ES256"]
+          type: public
+          name: p256-public
+        - algorithms: ["ES256"]
+          type: private
+          name: p256-private
+        - algorithms: ["PS256", "RS256", "RSA1_5", "RSA-OAEP", "RSA-OAEP-256"]
+          type: public
+          name: rsa-public
+        - algorithms: ["PS256", "PS384", "PS512", "RS256", "RS384", "RS512", "RSA1_5", "RSA-OAEP", "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512"]
+          type: private
+          name: rsa-private
+        - algorithms: ["A256CBC", "A256GCM", "A256KW", "C20P", "XC20P", "C20PKW", "XC20PKW", "A128CBC-HS256"]
+          type: symmetric
+          name: symmetric-256
+  - component: azure.keyvault
+    # Althoguh Azure Key Vault supports symmetric keys, those are only available in "Managed HSMs", which are too impractical for our tests
+    operations: []
+    config:
+      keys:
+        - algorithms: ["ES256"]
+          type: private
+          name: ec256key
+        - algorithms: ["ES512"]
+          type: private
+          # "521" is not a typo
+          name: ec521key
+        - algorithms: ["PS256" , "PS384" , "PS512" , "RS256" , "RS384" , "RS512" , "RSA1_5" , "RSA-OAEP" , "RSA-OAEP-256"]
+          type: private
+          name: rsakey

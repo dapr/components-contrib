@@ -1,0 +1,9 @@
+version: '3'
+services:
+  oracledatabase:
+    # Uses "Express Edition"
+    image: gvenzl/oracle-xe:11-slim-faststart
+    ports:
+      - "1521:1521"
+    environment:
+      - ORACLE_PASSWORD=daprdev

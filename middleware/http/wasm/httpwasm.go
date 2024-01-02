@@ -1,54 +1,53 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
-
-	"github.com/http-wasm/http-wasm-host-go/handler"
-
-	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
+	"reflect"
+	"time"
 
 	"github.com/http-wasm/http-wasm-host-go/api"
-	"github.com/tetratelabs/wazero"
+	"github.com/http-wasm/http-wasm-host-go/handler"
+	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
 
+	"github.com/dapr/components-contrib/common/wasm"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
-
-// ctx substitutes for context propagation until middleware APIs support it.
-var ctx = context.Background()
-
-// middlewareMetadata includes configuration used for the WebAssembly handler.
-// Detailed notes are in README.md for visibility.
-//
-// Note: When changing this, you must update the docs with summary comments per
-// field.
-// https://github.com/dapr/docs/blob/v1.9/daprdocs/content/en/reference/components-reference/supported-middleware/middleware-wasm.md
-type middlewareMetadata struct {
-	// Path is where to load a `%.wasm` file that implements the guest side of
-	// the handler protocol. No default.
-	Path string `json:"path"`
-
-	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte
-}
 
 type middleware struct {
 	logger logger.Logger
+}
+
+type Metadata struct {
+	// GuestConfig is an optional configuration passed to WASM guests.
+	// Users can pass an arbitrary string to be parsed by the guest code.
+	GuestConfig string `mapstructure:"guestConfig"`
 }
 
 func NewMiddleware(logger logger.Logger) dapr.Middleware {
 	return &middleware{logger: logger}
 }
 
-func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
-	rh, err := m.getHandler(metadata)
+func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
+	rh, err := m.getHandler(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -56,23 +55,28 @@ func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler)
 }
 
 // getHandler is extracted for unit testing.
-func (m *middleware) getHandler(metadata dapr.Metadata) (*requestHandler, error) {
-	meta, err := m.getMetadata(metadata)
+func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
+	// parse common wasm metadata configuration
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
-		return nil, fmt.Errorf("wasm basic: failed to parse metadata: %w", err)
+		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
+	}
+
+	// parse wasm middleware specific metadata
+	var middlewareMeta Metadata
+	err = kitmd.DecodeMetadata(metadata.Base, &middlewareMeta)
+	if err != nil {
+		return nil, fmt.Errorf("wasm: failed to parse wasm middleware metadata: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
-	mw, err := wasmnethttp.NewMiddleware(ctx, meta.guest,
+	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
 		handler.Logger(m),
-		handler.ModuleConfig(wazero.NewModuleConfig().
-			WithStdout(&stdout). // reset per request
-			WithStderr(&stderr). // reset per request
-			// The below violate sand-boxing, but allow code to behave as expected.
-			WithRandSource(rand.Reader).
-			WithSysNanosleep().
-			WithSysWalltime().
-			WithSysNanosleep()))
+		handler.ModuleConfig(wasm.NewModuleConfig(meta).
+			WithName(meta.GuestName).
+			WithStdout(&stdout).  // reset per request
+			WithStderr(&stderr)), // reset per request
+		handler.GuestConfig([]byte(middlewareMeta.GuestConfig)))
 	if err != nil {
 		return nil, err
 	}
@@ -114,30 +118,6 @@ func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) 
 	}
 }
 
-func (m *middleware) getMetadata(metadata dapr.Metadata) (*middlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var data middlewareMetadata
-	err = json.Unmarshal(b, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	if data.Path == "" {
-		return nil, errors.New("missing path")
-	}
-
-	data.guest, err = os.ReadFile(data.Path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading path: %w", err)
-	}
-
-	return &data, nil
-}
-
 type requestHandler struct {
 	mw             wasmnethttp.Middleware
 	logger         logger.Logger
@@ -165,5 +145,13 @@ func (rh *requestHandler) requestHandler(next http.Handler) http.Handler {
 
 // Close implements io.Closer
 func (rh *requestHandler) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	return rh.mw.Close(ctx)
+}
+
+func (m *middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := wasm.InitMetadata{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

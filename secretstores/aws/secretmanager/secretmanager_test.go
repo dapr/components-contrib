@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -50,8 +51,8 @@ func TestInit(t *testing.T) {
 			"SecretKey":    "a",
 			"SessionToken": "a",
 		}
-		err := s.Init(m)
-		assert.Nil(t, err)
+		err := s.Init(context.Background(), m)
+		require.NoError(t, err)
 	})
 }
 
@@ -78,7 +79,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
 
@@ -104,7 +105,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
@@ -130,7 +131,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 	})
@@ -148,7 +149,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.GetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 

@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: gcp-pubsub-cert-tests
+spec:
+  type: pubsub.gcp.pubsub
+  version: v1
+  metadata:
+    - name: projectId
+      secretKeyRef:
+        name: GCP_PROJECT_ID
+        key: GCP_PROJECT_ID
+    - name: consumerID
+      secretKeyRef:
+        name: PUBSUB_GCP_PUBSUB_TOPIC_DLIN
+        key: PUBSUB_GCP_PUBSUB_TOPIC_DLIN
+    - name: deadLetterTopic
+      secretKeyRef:
+        name: PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
+        key: PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
+    - name: maxDeliveryAttempts
+      value: 5
+auth:
+  secretstore: envvar-secret-store

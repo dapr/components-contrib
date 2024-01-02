@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: hashicorp.vault
+version: v1
+status: stable
+title: "Hashicorp Vault"
+urls:
+  - title: Reference
+    url: "https://docs.dapr.io/reference/components-reference/supported-secret-stores/hashicorp-vault/"
+metadata:
+  - name: vaultAddr
+    required: false
+    description: |
+      The address of the Vault server. Defaults to "https://127.0.0.1:8200"
+    example: "https://127.0.0.1:8200"
+    type: string
+  - name: caPem
+    required: false
+    description: |
+      The inlined contents of the CA certificate to use, in PEM format. If defined, takes precedence over "caPath" and "caCert".
+    example: |
+      "-----BEGIN PUBLIC KEY-----\n...Base64 encoding of the DER encoded certificate...\n-----END PUBLIC KEY-----"
+    type: string
+  - name: caPath
+    required: false
+    description: The path to a folder holding the CA certificate file to use, in PEM format. If the folder contains multiple files, only the first file found will be used. If defined, takes precedence over caCert.
+    example: "path/to/cacert/holding/folder"
+    type: string
+  - name: caCert
+    required: false
+    description: The path to the CA certificate to use, in PEM format.
+    example: "path/to/cacert.pem"
+    type: string
+  - name: skipVerify
+    required: false
+    description: Skip TLS verification. Defaults to false
+    example: "true"
+    type: string
+  - name: tlsServerName
+    required: false
+    description: The name of the server requested during TLS handshake in order to support virtual hosting. This value is also used to verify the TLS certificate presented by Vault server.
+    example: "tls-server"
+    type: string
+  - name: vaultTokenMountPath
+    required: true
+    description: Path to file containing token
+    example: "path/to/file"
+    type: string
+  - name: vaultToken
+    required: true
+    description: Token for authentication within Vault.
+    example: "tokenValue"
+    type: string
+  - name: vaultKVPrefix
+    required: false
+    description: |
+      The prefix in vault. Defaults to "dapr"
+    example: "myprefix"
+    type: string
+  - name: vaultKVUsePrefix
+    required: false
+    description: If false, vaultKVPrefix is forced to be empty. If the value is not given or set to true, vaultKVPrefix is used when accessing the vault. Setting it to false is needed to be able to use the BulkGetSecret method of the store.
+    example: "true"
+    type: bool
+  - name: enginePath
+    required: false
+    description: |
+      The engine path in vault. Defaults to "secret"
+    example: "kv"
+    type: string
+  - name: vaultValueType
+    required: false
+    description: |
+      Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. "map" sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics. Defaults to "map"
+    example: "map"
+    type: string

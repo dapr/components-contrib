@@ -164,7 +164,7 @@ func TestServicebus(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -291,7 +291,7 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -413,7 +413,7 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -538,7 +538,7 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1238,7 +1238,7 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1422,7 +1422,7 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
 			subscriberApplicationWithSessions(appID1, topic))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1539,7 +1539,7 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),

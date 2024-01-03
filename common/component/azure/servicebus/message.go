@@ -76,6 +76,11 @@ const (
 	// MessageKeyReplyToSessionID defines the metadata key for the reply to session id.
 	// Currently unused.
 	MessageKeyReplyToSessionID = "ReplyToSessionId" // read, write.
+
+	// Message property limits
+	// see: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-quotas
+	maxMessageIDLength = 128
+	maxSessionIDLength = 128
 )
 
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
@@ -132,6 +137,9 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 		// Keys with aliases
 		case MessageKeyMessageID, MessageKeyMessageIDAlias:
 			if asbMsg.MessageID == nil {
+				if len(v) > maxMessageIDLength {
+					return fmt.Errorf("message id %s exceeds maximum length of 128 characters", v)
+				}
 				asbMsg.MessageID = ptr.Of(v)
 			}
 
@@ -142,9 +150,7 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 
 		// String types
 		case MessageKeySessionID:
-			// max length of the session id is 128 characters,
-			// see https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusmessage.sessionid?view=azure-dotnet#property-value
-			if len(v) > 128 {
+			if len(v) > maxSessionIDLength {
 				return fmt.Errorf("session id %s exceeds maximum length of 128 characters", v)
 			}
 			asbMsg.SessionID = ptr.Of(v)

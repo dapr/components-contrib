@@ -481,7 +481,7 @@ func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.Transaction
 	default:
 		_, err := pgtransactions.ExecuteInTransaction[struct{}](parentCtx, p.logger, p.db, p.metadata.Timeout, func(ctx context.Context, tx pgx.Tx) (res struct{}, err error) {
 			for _, op := range request.Operations {
-				err = p.execMultiOperation(parentCtx, op, tx)
+				err = p.execMultiOperation(ctx, op, tx)
 				if err != nil {
 					return res, err
 				}

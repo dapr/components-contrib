@@ -15,7 +15,9 @@ package parameterstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -56,20 +58,45 @@ type ssmSecretStore struct {
 }
 
 // Init creates a AWS secret manager client.
-func (s *ssmSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
+func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	client, err := s.getClient(meta)
-	if err != nil {
-		return err
+	// We have this check because we need to set the client to  a mock in tests
+	if s.client == nil {
+		s.client, err = s.getClient(meta)
+		if err != nil {
+			return err
+		}
 	}
-	s.client = client
 	s.prefix = meta.Prefix
 
+	// Validate client connection
+	var notFoundErr *ssm.ParameterNotFound
+	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
+		return fmt.Errorf("error validating access to the secret store: %w", err)
+	}
 	return nil
+}
+
+func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
+	var param string
+	if random, err := uuid.NewRandom(); err == nil {
+		param = random.String()
+	} else {
+		// We would get to this block if the entropy pool is empty.
+		// We don't want to fail initialising Dapr because of it though,
+		// since it's a dummy table that is only needed to check access, anyway
+		// So we'll just use a hardcoded parameter name
+		param = "dapr-test-param"
+	}
+
+	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+		Name: aws.String(s.prefix + param),
+	})
+	return err
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.

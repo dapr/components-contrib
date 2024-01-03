@@ -81,6 +81,8 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 	return nil
 }
 
+// validateConnection runs a dummy GetParameterWithContext operation
+// to validate the connection credentials
 func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
 	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 		Name: aws.String(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),

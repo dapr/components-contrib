@@ -80,6 +80,8 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 	return nil
 }
 
+// validateConnection runs a dummy GetSecretValueWithContext operation
+// to validate the connection credentials
 func (s *smSecretStore) validateConnection(ctx context.Context) error {
 	output, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: ptr.Of(utils.GetRandOrDefaultString("dapr-test-secret")),

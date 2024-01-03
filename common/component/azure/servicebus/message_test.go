@@ -25,30 +25,31 @@ import (
 )
 
 var (
-	testMessageID               = "testMessageId"
-	testCorrelationID           = "testCorrelationId"
-	testSessionID               = "testSessionId"
-	testLabel                   = "testLabel"
-	testReplyTo                 = "testReplyTo"
-	testTo                      = "testTo"
-	testPartitionKey            = testSessionID
-	testPartitionKeyUnique      = "testPartitionKey"
-	testContentType             = "testContentType"
-	nowUtc                      = time.Now().UTC()
-	testScheduledEnqueueTimeUtc = nowUtc.Format(http.TimeFormat)
-	testLockTokenString         = "bG9ja3Rva2VuAAAAAAAAAA==" //nolint:gosec
-	testLockTokenBytes          = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
-	testDeliveryCount           = uint32(1)
-	testSampleTime              = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-	testSampleTimeHTTPFormat    = "Thu, 01 Jan 1970 00:00:00 GMT"
-	testSequenceNumber          = int64(1)
+	testMessageID                       = "testMessageId"
+	testCorrelationID                   = "testCorrelationId"
+	testSessionID                       = "testSessionId"
+	testInvalidSessionIDExceedingLength = "testSession123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
+	testLabel                           = "testLabel"
+	testReplyTo                         = "testReplyTo"
+	testTo                              = "testTo"
+	testPartitionKey                    = testSessionID
+	testPartitionKeyUnique              = "testPartitionKey"
+	testContentType                     = "testContentType"
+	nowUtc                              = time.Now().UTC()
+	testScheduledEnqueueTimeUtc         = nowUtc.Format(http.TimeFormat)
+	testLockTokenString                 = "bG9ja3Rva2VuAAAAAAAAAA==" //nolint:gosec
+	testLockTokenBytes                  = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
+	testDeliveryCount                   = uint32(1)
+	testSampleTime                      = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+	testSampleTimeHTTPFormat            = "Thu, 01 Jan 1970 00:00:00 GMT"
+	testSequenceNumber                  = int64(1)
 )
 
 func TestAddMetadataToMessage(t *testing.T) {
 	testCases := []struct {
 		name                        string
 		metadata                    map[string]string
-		expectedAzServiceBusMessage azservicebus.Message
+		expectedAzServiceBusMessage *azservicebus.Message
 		expectError                 bool
 	}{
 		{
@@ -64,7 +65,7 @@ func TestAddMetadataToMessage(t *testing.T) {
 				MessageKeyContentType:             testContentType,
 				MessageKeyScheduledEnqueueTimeUtc: testScheduledEnqueueTimeUtc,
 			},
-			expectedAzServiceBusMessage: azservicebus.Message{
+			expectedAzServiceBusMessage: &azservicebus.Message{
 				MessageID:            &testMessageID,
 				CorrelationID:        &testCorrelationID,
 				SessionID:            &testSessionID,
@@ -89,15 +90,19 @@ func TestAddMetadataToMessage(t *testing.T) {
 				MessageKeyPartitionKey:  testPartitionKeyUnique,
 				MessageKeyContentType:   testContentType,
 			},
-			expectedAzServiceBusMessage: azservicebus.Message{
-				MessageID:     &testMessageID,
-				CorrelationID: &testCorrelationID,
-				SessionID:     &testSessionID,
-				Subject:       &testLabel,
-				ReplyTo:       &testReplyTo,
-				To:            &testTo,
-				PartitionKey:  &testPartitionKey,
-				ContentType:   &testContentType,
+			expectError: true,
+		},
+		{
+			name: "Errors when session id longer than 128 characters.",
+			metadata: map[string]string{
+				MessageKeyMessageID:     testMessageID,
+				MessageKeyCorrelationID: testCorrelationID,
+				MessageKeySessionID:     testInvalidSessionIDExceedingLength,
+				MessageKeyLabel:         testLabel,
+				MessageKeyReplyTo:       testReplyTo,
+				MessageKeyTo:            testTo,
+				MessageKeyPartitionKey:  testPartitionKeyUnique,
+				MessageKeyContentType:   testContentType,
 			},
 			expectError: true,
 		},

@@ -142,6 +142,11 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 
 		// String types
 		case MessageKeySessionID:
+			// max length of the session id is 128 characters,
+			// see https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusmessage.sessionid?view=azure-dotnet#property-value
+			if len(v) > 128 {
+				return fmt.Errorf("session id %s exceeds maximum length of 128 characters", v)
+			}
 			asbMsg.SessionID = ptr.Of(v)
 		case MessageKeyLabel:
 			asbMsg.Subject = ptr.Of(v)

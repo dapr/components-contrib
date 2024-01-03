@@ -16,7 +16,10 @@ package secretmanager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/common/utils"
+	"github.com/dapr/kit/ptr"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -52,8 +55,8 @@ type smSecretStore struct {
 	logger logger.Logger
 }
 
-// Init creates a AWS secret manager client.
-func (s *smSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
+// Init creates an AWS secret manager client.
+func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
@@ -65,7 +68,20 @@ func (s *smSecretStore) Init(_ context.Context, metadata secretstores.Metadata) 
 	}
 	s.client = client
 
+	var notFoundErr *secretsmanager.ResourceNotFoundException
+	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
+		return fmt.Errorf("error validating access to the aws.secretmanager secret store: %w", err)
+	}
 	return nil
+}
+
+func (s *smSecretStore) validateConnection(ctx context.Context) error {
+	output, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: ptr.Of(utils.GetRandOrDefaultString("dapr-test-secret")),
+	})
+	fmt.Println(output)
+
+	return err
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.

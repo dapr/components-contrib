@@ -17,7 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
+	"github.com/dapr/components-contrib/common/utils"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -57,7 +57,7 @@ type ssmSecretStore struct {
 	logger logger.Logger
 }
 
-// Init creates a AWS secret manager client.
+// Init creates an AWS secret manager client.
 func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
@@ -76,25 +76,14 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 	// Validate client connection
 	var notFoundErr *ssm.ParameterNotFound
 	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
-		return fmt.Errorf("error validating access to the secret store: %w", err)
+		return fmt.Errorf("error validating access to the aws.parameterstore secret store: %w", err)
 	}
 	return nil
 }
 
 func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
-	var param string
-	if random, err := uuid.NewRandom(); err == nil {
-		param = random.String()
-	} else {
-		// We would get to this block if the entropy pool is empty.
-		// We don't want to fail initialising Dapr because of it though,
-		// since it's a dummy table that is only needed to check access, anyway
-		// So we'll just use a hardcoded parameter name
-		param = "dapr-test-param"
-	}
-
 	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name: aws.String(s.prefix + param),
+		Name: aws.String(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),
 	})
 	return err
 }

@@ -19,11 +19,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/common/utils"
 	"reflect"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/dapr/kit/ptr"
 
@@ -104,23 +103,12 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // validateConnection runs a dummy Get operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
 func (d *StateStore) validateTableAccess(ctx context.Context) error {
-	var tableName string
-	if random, err := uuid.NewRandom(); err == nil {
-		tableName = random.String()
-	} else {
-		// We would get to this block if the entropy pool is empty.
-		// We don't want to fail initialising Dapr because of it though,
-		// since it's a dummy table that is only needed to check access, anyway
-		// So we'll just use a hardcoded table name
-		tableName = "dapr-test-table"
-	}
-
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: ptr.Of(false),
 		TableName:      ptr.Of(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
 			d.partitionKey: {
-				S: ptr.Of(tableName),
+				S: ptr.Of(utils.GetRandOrDefaultString("dapr-test-table")),
 			},
 		},
 	}

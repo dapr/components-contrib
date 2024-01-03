@@ -17,6 +17,7 @@ package dynamodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -76,6 +77,12 @@ func TestInit(t *testing.T) {
 	m := state.Metadata{}
 	s := &StateStore{
 		partitionKey: defaultPartitionKeyName,
+		client: &mockedDynamoDB{
+			// We're adding this so we can pass the connection check on Init
+			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+				return nil, nil
+			},
+		},
 	}
 
 	t.Run("NewDynamoDBStateStore Default Partition Key", func(t *testing.T) {
@@ -123,6 +130,23 @@ func TestInit(t *testing.T) {
 		err := s.Init(context.Background(), m)
 		require.NoError(t, err)
 		assert.Equal(t, s.partitionKey, pkey)
+	})
+
+	t.Run("Init with bad table name or permissions", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"Table":  "does-not-exist",
+			"Region": "eu-west-1",
+		}
+
+		s.client = &mockedDynamoDB{
+			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+				return nil, errors.New("Requested resource not found")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
 }
 

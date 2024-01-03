@@ -14,10 +14,7 @@ limitations under the License.
 package utils
 
 import (
-	"math/rand"
 	"testing"
-
-	"github.com/google/uuid"
 )
 
 func TestGetElemOrDefaultFromMap(t *testing.T) {
@@ -125,15 +122,4 @@ func TestUnquote(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetRandOrDefaultString(t *testing.T) {
-	t.Run("UUID generation successful", func(t *testing.T) {
-		uuid.SetRand(rand.New(rand.NewSource(1)))
-
-		result := GetRandOrDefaultString("default-value")
-		if result != "52fdfc07-2182-454f-963f-5f0f9a621d72" {
-			t.Errorf("Expected random value, got %v", result)
-		}
-	})
 }

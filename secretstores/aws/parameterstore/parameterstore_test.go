@@ -73,13 +73,13 @@ func TestInit(t *testing.T) {
 		s.(*ssmSecretStore).client = &mockedSSM{
 			GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 				// Simulate a failure that resembles what AWS SSM would return
-				return nil, fmt.Errorf("wrong-key")
+				return nil, fmt.Errorf("wrong-credentials")
 			},
 		}
 
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		require.EqualError(t, err, "error validating access to the secret store: wrong-key")
+		require.EqualError(t, err, "error validating access to the aws.parameterstore secret store:: wrong-credentials")
 	})
 }
 

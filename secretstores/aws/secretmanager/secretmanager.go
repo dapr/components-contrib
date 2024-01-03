@@ -62,11 +62,16 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	client, err := s.getClient(meta)
+	// We have this check because we need to set the client to  a mock in tests
+	if s.client == nil {
+		s.client, err = s.getClient(meta)
+		if err != nil {
+			return err
+		}
+	}
 	if err != nil {
 		return err
 	}
-	s.client = client
 
 	var notFoundErr *secretsmanager.ResourceNotFoundException
 	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {

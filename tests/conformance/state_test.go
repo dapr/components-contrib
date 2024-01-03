@@ -30,7 +30,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
-	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_cockroachdb_v1 "github.com/dapr/components-contrib/state/cockroachdb"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
 	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
@@ -38,7 +38,8 @@ import (
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
-	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
+	s_postgresql_v1 "github.com/dapr/components-contrib/state/postgresql/v1"
+	s_postgresql_v2 "github.com/dapr/components-contrib/state/postgresql/v2"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
 	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
@@ -91,10 +92,14 @@ func loadStateStore(name string) state.Store {
 		return s_sqlserver.New(testLogger)
 	case "sqlserver":
 		return s_sqlserver.New(testLogger)
-	case "postgresql.docker":
-		return s_postgresql.NewPostgreSQLStateStore(testLogger)
-	case "postgresql.azure":
-		return s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.v1.docker":
+		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.v1.azure":
+		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.v2.docker":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.v2.azure":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		return s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":
@@ -111,8 +116,12 @@ func loadStateStore(name string) state.Store {
 		return s_cassandra.NewCassandraStateStore(testLogger)
 	case "cloudflare.workerskv":
 		return s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
-	case "cockroachdb":
-		return s_cockroachdb.New(testLogger)
+	case "cockroachdb.v1":
+		return s_cockroachdb_v1.New(testLogger)
+	case "cockroachdb.v2":
+		// v2 of the component is an alias for the PostgreSQL state store
+		// We still have a conformance test to validate that the component works with CockroachDB
+		return s_postgresql_v2.NewPostgreSQLStateStoreWithOptions(testLogger, s_postgresql_v2.Options{NoAzureAD: true})
 	case "memcached":
 		return s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":

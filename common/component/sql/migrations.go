@@ -47,14 +47,16 @@ type (
 )
 
 // Migrate performs database migrations.
-func Migrate(ctx context.Context, db DatabaseConn, opts MigrationOptions) error {
+func Migrate(ctx context.Context, db DatabaseConn, opts MigrationOptions) (err error) {
 	opts.Logger.Debug("Migrate: start")
 
 	// Ensure that the metadata table exists
-	opts.Logger.Debug("Migrate: ensure metadata table exists")
-	err := opts.EnsureMetadataTable(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to ensure metadata table exists: %w", err)
+	if opts.EnsureMetadataTable != nil {
+		opts.Logger.Debug("Migrate: ensure metadata table exists")
+		err = opts.EnsureMetadataTable(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to ensure metadata table exists: %w", err)
+		}
 	}
 
 	// Select the migration level

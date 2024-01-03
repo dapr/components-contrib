@@ -46,7 +46,7 @@ func newMigration(metadata *sqlServerMetadata) migrator {
 func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.Schema, m.metadata.TableName),
-		upsertProcName:           fmt.Sprintf("sp_Upsert_v4_%s", m.metadata.TableName),
+		upsertProcName:           fmt.Sprintf("sp_Upsert_v5_%s", m.metadata.TableName),
 		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.Schema, m.metadata.TableName),
 		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.Schema, m.metadata.TableName),
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.Schema, m.metadata.TableName),
@@ -289,7 +289,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 						IF (@RowVersion IS NOT NULL)
 							BEGIN
 								BEGIN TRANSACTION;
-								IF NOT EXISTS (SELECT * FROM [%[3]s] WHERE [KEY]=@KEY AND RowVersion = @RowVersion)
+								IF NOT EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@Key AND RowVersion = @RowVersion)
 									BEGIN
 										THROW 2601, ''FIRST-WRITE: COMPETING RECORD ALREADY WRITTEN.'', 1
 									END
@@ -303,7 +303,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 						ELSE
 							BEGIN
 								BEGIN TRANSACTION;
-								IF EXISTS (SELECT * FROM [%[3]s] WHERE [KEY]=@KEY)
+								IF EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@Key)
 									BEGIN
 										THROW 2601, ''FIRST-WRITE: COMPETING RECORD ALREADY WRITTEN.'', 1
 									END

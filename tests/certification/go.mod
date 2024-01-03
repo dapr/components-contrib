@@ -18,8 +18,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.12.0-rc.4.0.20231009175401-9f2cc5c158bb
-	github.com/dapr/dapr v1.12.1-0.20231030205344-441017b888c5
+	github.com/dapr/components-contrib v1.12.1-0.20231102232056-f4e73b0e6511
+	github.com/dapr/dapr v1.12.1-0.20231127182349-91899493566c
 	github.com/dapr/go-sdk v1.6.1-0.20231102031149-87bbb8cd690a
 	github.com/dapr/kit v0.12.2-0.20231031211530-0e1fd37fc4b3
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -27,7 +27,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.4.0
-	github.com/jackc/pgx/v5 v5.4.3
+	github.com/jackc/pgx/v5 v5.5.0
 	github.com/joho/godotenv v1.4.0
 	github.com/lestrrat-go/jwx/v2 v2.0.16
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
@@ -78,6 +78,19 @@ require (
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
+	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.19.0 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.18.28 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.27 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.35 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.36 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.29 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3 // indirect
+	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
@@ -166,6 +179,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
@@ -317,6 +331,3 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
-
-// TODO: REMOVE WHEN https://github.com/dapr/dapr/pull/7038 IS MERGED
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20231101232117-048ec5617b9f

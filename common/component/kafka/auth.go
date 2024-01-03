@@ -14,12 +14,15 @@ limitations under the License.
 package kafka
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 
 	"github.com/IBM/sarama"
+	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 )
 
 func updatePasswordAuthInfo(config *sarama.Config, metadata *KafkaMetadata, saslUsername, saslPassword string) {
@@ -87,4 +90,46 @@ func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	config.Net.SASL.TokenProvider = tokenProvider
 
 	return nil
+}
+
+func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *KafkaMetadata) error {
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	config.Net.SASL.TokenProvider = &mskAccessTokenProvider{
+		ctx:          ctx,
+		region:       metadata.AWSRegion,
+		accessKey:    metadata.AWSAccessKey,
+		secretKey:    metadata.AWSSecretKey,
+		sessionToken: metadata.AWSSessionToken,
+	}
+
+	_, err := config.Net.SASL.TokenProvider.Token()
+	if err != nil {
+		return fmt.Errorf("error validating iam credentials %v", err)
+	}
+	return nil
+}
+
+type mskAccessTokenProvider struct {
+	ctx          context.Context
+	accessKey    string
+	secretKey    string
+	sessionToken string
+	region       string
+}
+
+func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	if m.accessKey != "" && m.secretKey != "" {
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(m.ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+			return aws2.Credentials{
+				AccessKeyID:     m.accessKey,
+				SecretAccessKey: m.secretKey,
+				SessionToken:    m.sessionToken,
+			}, nil
+		}))
+		return &sarama.AccessToken{Token: token}, err
+	}
+
+	token, _, err := signer.GenerateAuthToken(m.ctx, m.region)
+	return &sarama.AccessToken{Token: token}, err
 }

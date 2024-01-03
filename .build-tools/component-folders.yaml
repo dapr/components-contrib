@@ -40,4 +40,5 @@ excludeFolders:
   - state/gcp
   - state/hashicorp
   - state/oci
+  - state/postgresql
   - state/utils

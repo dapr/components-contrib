@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,6 +79,9 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config := sarama.NewConfig()
 	config.Version = meta.internalVersion
 	config.Consumer.Offsets.Initial = k.initialOffset
+	config.Consumer.Fetch.Min = meta.consumerFetchMin
+	config.Consumer.Fetch.Default = meta.consumerFetchDefault
+	config.ChannelBufferSize = meta.channelBufferSize
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
@@ -88,7 +92,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		return err
 	}
 
-	switch k.authType {
+	switch strings.ToLower(k.authType) {
 	case oidcAuthType:
 		k.logger.Info("Configuring SASL OAuth2/OIDC authentication")
 		err = updateOidcAuthInfo(config, meta)

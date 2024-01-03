@@ -615,14 +615,17 @@ const components = {
         conformanceSetup: 'conformance-state.cloudflare.workerskv-setup.sh',
         conformanceDestroy: 'conformance-state.cloudflare.workerskv-destroy.sh',
     },
-    'state.cockroachdb': {
+    'state.cockroachdb.v1': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
         sourcePkg: [
             'state/cockroachdb',
-            'common/component/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
     'state.etcd.v1': {
@@ -664,26 +667,32 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh oracledatabase',
     },
-    'state.postgresql': {
+    'state.postgresql.v1': {
         certification: true,
         sourcePkg: [
-            'state/postgresql',
+            'state/postgresql/v1',
             'common/authentication/postgresql',
-            'common/component/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.docker': {
+    'state.postgresql.v1.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
-            'state/postgresql',
+            'state/postgresql/v1',
             'common/authentication/postgresql',
-            'common/component/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.azure': {
+    'state.postgresql.v1.azure': {
         conformance: true,
         requiredSecrets: [
             'AzureDBPostgresConnectionString',
@@ -692,10 +701,53 @@ const components = {
             'AzureDBPostgresTenantId',
         ],
         sourcePkg: [
-            'state/postgresql',
+            'state/postgresql/v1',
             'common/authentication/postgresql',
-            'common/component/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2': {
+        certification: true,
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2.azure': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureDBPostgresConnectionString',
+            'AzureDBPostgresClientId',
+            'AzureDBPostgresClientSecret',
+            'AzureDBPostgresTenantId',
+        ],
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
     'state.redis': {

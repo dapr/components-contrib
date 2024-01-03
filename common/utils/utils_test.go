@@ -14,9 +14,10 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/google/uuid"
 	"math/rand"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestGetElemOrDefaultFromMap(t *testing.T) {

@@ -19,10 +19,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/common/utils"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/dapr/components-contrib/common/utils"
 
 	"github.com/dapr/kit/ptr"
 

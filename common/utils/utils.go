@@ -15,8 +15,9 @@ package utils
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
 	"strconv"
+
+	"github.com/google/uuid"
 
 	"github.com/spf13/cast"
 )

@@ -18,9 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/kit/ptr"
-	"reflect"
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
@@ -83,10 +84,9 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 // validateConnection runs a dummy GetSecretValueWithContext operation
 // to validate the connection credentials
 func (s *smSecretStore) validateConnection(ctx context.Context) error {
-	output, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	_, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: ptr.Of(utils.GetRandOrDefaultString("dapr-test-secret")),
 	})
-	fmt.Println(output)
 
 	return err
 }

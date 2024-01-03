@@ -72,7 +72,7 @@ func TestInit(t *testing.T) {
 
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		require.EqualError(t, err, "error validating access to the aws.secretmanager secret store: : wrong-credentials")
+		require.EqualError(t, err, "error validating access to the aws.secretmanager secret store: wrong-credentials")
 	})
 }
 

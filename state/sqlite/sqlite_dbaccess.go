@@ -445,29 +445,38 @@ func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteW
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
-	tx, err := a.db.BeginTx(parentCtx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	for _, o := range reqs {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = a.doSet(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		case state.DeleteRequest:
-			err = a.doDelete(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		default:
-			// Do nothing
+	// If there's only 1 operation, skip starting a transaction
+	switch len(reqs) {
+	case 0:
+		return nil
+	case 1:
+		return a.execMultiOperation(parentCtx, reqs[0], a.db)
+	default:
+		tx, err := a.db.BeginTx(parentCtx, nil)
+		if err != nil {
+			return err
 		}
+		defer tx.Rollback()
+
+		for _, op := range reqs {
+			err = a.execMultiOperation(parentCtx, op, tx)
+			if err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
 	}
-	return tx.Commit()
+}
+
+func (a *sqliteDBAccess) execMultiOperation(parentCtx context.Context, op state.TransactionalStateOperation, db querier) (err error) {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return a.doSet(parentCtx, db, &req)
+	case state.DeleteRequest:
+		return a.doDelete(parentCtx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
+	}
 }
 
 // Close implements io.Closer.

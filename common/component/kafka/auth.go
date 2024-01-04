@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
@@ -96,11 +97,13 @@ func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 	config.Net.SASL.TokenProvider = &mskAccessTokenProvider{
-		ctx:          ctx,
-		region:       metadata.AWSRegion,
-		accessKey:    metadata.AWSAccessKey,
-		secretKey:    metadata.AWSSecretKey,
-		sessionToken: metadata.AWSSessionToken,
+		ctx:               ctx,
+		region:            metadata.AWSRegion,
+		accessKey:         metadata.AWSAccessKey,
+		secretKey:         metadata.AWSSecretKey,
+		sessionToken:      metadata.AWSSessionToken,
+		awsIamRoleArn:     metadata.AWSIamRoleArn,
+		awsStsSessionName: metadata.AWSStsSessionName,
 	}
 
 	_, err := config.Net.SASL.TokenProvider.Token()
@@ -111,11 +114,13 @@ func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *
 }
 
 type mskAccessTokenProvider struct {
-	ctx          context.Context
-	accessKey    string
-	secretKey    string
-	sessionToken string
-	region       string
+	ctx               context.Context
+	accessKey         string
+	secretKey         string
+	sessionToken      string
+	awsIamRoleArn     string
+	awsStsSessionName string
+	region            string
 }
 
 func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
@@ -127,6 +132,13 @@ func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 				SessionToken:    m.sessionToken,
 			}, nil
 		}))
+		return &sarama.AccessToken{Token: token}, err
+	} else if m.awsIamRoleArn != "" {
+		// Using a different context since the context from init may have been cancelled when token is refreshed
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		token, _, err := signer.GenerateAuthTokenFromRole(ctx, m.region, m.awsIamRoleArn, m.awsStsSessionName)
 		return &sarama.AccessToken{Token: token}, err
 	}
 

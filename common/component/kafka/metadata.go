@@ -83,6 +83,8 @@ type KafkaMetadata struct {
 	AWSAccessKey         string `mapstructure:"awsAccessKey"`
 	AWSSecretKey         string `mapstructure:"awsSecretKey"`
 	AWSSessionToken      string `mapstructure:"awsSessionToken"`
+	AWSIamRoleArn        string `mapstructure:"awsIamRoleArn"`
+	AWSStsSessionName    string `mapstructure:"awsStsSessionName"`
 	AWSRegion            string `mapstructure:"awsRegion"`
 	channelBufferSize    int    `mapstructure:"-"`
 	consumerFetchMin     int32  `mapstructure:"-"`
@@ -236,6 +238,9 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	case awsIAMAuthType:
 		if m.AWSRegion == "" {
 			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
+		}
+		if m.AWSIamRoleArn == "" && m.AWSSecretKey == "" && m.AWSAccessKey == "" {
+			return nil, errors.New("missing AWS credentials or IAM role properties for authType 'awsiam'")
 		}
 		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:

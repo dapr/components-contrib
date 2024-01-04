@@ -230,6 +230,7 @@ func (m *MySQL) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 
@@ -497,6 +498,29 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	}
 
 	return nil
+}
+
+func (m *MySQL) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, m.timeout)
+	defer cancel()
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	//nolint:gosec
+	result, err := m.db.ExecContext(ctx, "DELETE FROM "+m.metadataTableName+" WHERE prefix = ?", req.Prefix)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	return state.DeleteWithPrefixResponse{Count: rows}, nil
 }
 
 // Get returns an entity from store

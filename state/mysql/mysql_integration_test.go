@@ -255,6 +255,10 @@ func TestMySQLIntegration(t *testing.T) {
 		testBulkSetAndBulkDelete(t, mys)
 	})
 
+	t.Run("Delete with Prefix (actor state)", func(t *testing.T) {
+		testDeleteWithPrefix(t, mys)
+	})
+
 	t.Run("Get and BulkGet with ttl", func(t *testing.T) {
 		t.Parallel()
 		testGetExpireTime(t, mys)
@@ -597,6 +601,55 @@ func testGetExpireTime(t *testing.T, mys *MySQL) {
 	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
 	require.NoError(t, err)
 	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 5)
+}
+
+func testDeleteWithPrefix(t *testing.T, mys *MySQL) {
+	setReq1 := &state.SetRequest{
+		Key: "mock-app-id||mock-actor-type||mock-actor-id||key0",
+	}
+
+	setReq2 := &state.SetRequest{
+		Key: "mock-app-id||mock-actor-type||mock-actor-id||key1",
+	}
+
+	setReq3 := &state.SetRequest{
+		Key: "mock-app-id||mock-actor-type||mock-actor-id||key2",
+	}
+
+	setReq4 := &state.SetRequest{
+		Key: "different-app-id||different-actor-type||different-actor-id||key0",
+	}
+
+	delReq := state.DeleteWithPrefixRequest{
+		Prefix: "mock-app-id||mock-actor-type||mock-actor-id",
+	}
+
+	err := mys.Set(context.Background(), setReq1)
+	require.NoError(t, err)
+
+	err = mys.Set(context.Background(), setReq2)
+	require.NoError(t, err)
+
+	err = mys.Set(context.Background(), setReq3)
+	require.NoError(t, err)
+
+	err = mys.Set(context.Background(), setReq4)
+	require.NoError(t, err)
+
+	res, err := mys.DeleteWithPrefix(context.Background(), delReq)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), res.Count)
+
+	delReq = state.DeleteWithPrefixRequest{
+		Prefix: "different-app-id||different-actor-type||different-actor-id||",
+	}
+	res, err = mys.DeleteWithPrefix(context.Background(), delReq)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), res.Count)
+
+	res, err = mys.DeleteWithPrefix(context.Background(), delReq)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), res.Count)
 }
 
 func testGetBulkExpireTime(t *testing.T, mys *MySQL) {

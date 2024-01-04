@@ -17,13 +17,15 @@ package sqlserver
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -42,10 +44,10 @@ const (
 	// connectionStringEnvKey defines the key containing the integration test connection string
 	// To use docker, server=localhost;user id=sa;password=Pass@Word1;port=1433;
 	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;.
-	connectionStringEnvKey        = "DAPR_TEST_SQL_CONNSTRING"
-	usersTableName                = "Users"
-	beverageTea                   = "tea"
-	invalidEtag            string = "FFFFFFFFFFFFFFFF"
+	connectionStringEnvKey = "DAPR_TEST_SQL_CONNSTRING"
+	usersTableName         = "Users"
+	beverageTea            = "tea"
+	invalidEtag            = "FFFFFFFFFFFFFFFF"
 )
 
 type user struct {
@@ -67,7 +69,7 @@ type userWithEtag struct {
 func TestIntegrationCases(t *testing.T) {
 	connectionString := os.Getenv(connectionStringEnvKey)
 	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+		t.Skipf(`SQLServer state integration tests skipped. To enable this test, define the connection string using environment variable '%[1]s' (example 'export %[1]s="server=localhost;user id=sa;password=Pass@Word1;port=1433;")'`, connectionStringEnvKey)
 	}
 
 	t.Run("Single operations", testSingleOperations)
@@ -84,11 +86,11 @@ func TestIntegrationCases(t *testing.T) {
 	}
 }
 
-func getUniqueDBSchema() string {
-	uuid := uuid.New().String()
-	uuid = strings.ReplaceAll(uuid, "-", "")
-
-	return fmt.Sprintf("v%s", uuid)
+func getUniqueDBSchema(t *testing.T) string {
+	b := make([]byte, 4)
+	_, err := io.ReadFull(rand.Reader, b)
+	require.NoError(t, err)
+	return fmt.Sprintf("v%s", hex.EncodeToString(b))
 }
 
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
@@ -116,7 +118,7 @@ func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 }
 
 func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
-	schema := getUniqueDBSchema()
+	schema := getUniqueDBSchema(t)
 	metadata := createMetadata(schema, kt, indexedProperties)
 	store := &SQLServer{
 		logger:          logger.NewLogger("test"),

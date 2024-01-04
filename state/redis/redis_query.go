@@ -295,20 +295,83 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 	if err != nil {
 		return nil, "", err
 	}
-	arr, ok := ret.([]interface{})
-	if !ok {
-		return nil, "", fmt.Errorf("invalid output")
+
+	res, ok, err := parseQueryResponsePost28(ret)
+	if err != nil {
+		return nil, "", err
 	}
-	// arr[0] = number of matching elements in DB (ignoring pagination)
+	if !ok {
+		res, err = parseQueryResponsePre28(ret)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	// set next query token only if limit is specified
+	var token string
+	if q.limit > 0 && len(res) > 0 {
+		token = strconv.FormatInt(q.offset+int64(len(res)), 10)
+	}
+
+	return res, token, err
+}
+
+// parseQueryResponsePost28 parses the query Do response from redisearch 2.8+.
+func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
+	aarr, ok := ret.(map[any]any)
+	if !ok {
+		return nil, false, nil
+	}
+
+	var res []state.QueryItem
+	arr := aarr["results"].([]any)
+	if len(arr) == 0 {
+		return nil, false, errors.New("invalid output")
+	}
+	for i := 0; i < len(arr); i++ {
+		inner, ok := arr[i].(map[any]any)
+		if !ok {
+			return nil, false, fmt.Errorf("invalid output")
+		}
+		exattr, ok := inner["extra_attributes"].(map[any]any)
+		if !ok {
+			return nil, false, fmt.Errorf("invalid output")
+		}
+		item := state.QueryItem{
+			Key: inner["id"].(string),
+		}
+		if data, ok := exattr["$.data"].(string); ok {
+			item.Data = []byte(data)
+		} else {
+			item.Error = fmt.Sprintf("%#v is not string", exattr["$.data"])
+		}
+		if etag, ok := exattr["$.version"].(string); ok {
+			item.ETag = &etag
+		}
+		res = append(res, item)
+	}
+
+	return res, true, nil
+}
+
+// parseQueryResponsePre28 parses the query Do response from redisearch 2.8-.
+func parseQueryResponsePre28(ret any) ([]state.QueryItem, error) {
+	arr, ok := ret.([]any)
+	if !ok {
+		return nil, errors.New("invalid output")
+	}
+
+	// arr[0] = number of matching elements in DB (ignoring pagination
 	// arr[2n] = key
 	// arr[2n+1][0] = "$.data"
 	// arr[2n+1][1] = value
 	// arr[2n+1][2] = "$.version"
 	// arr[2n+1][3] = etag
 	if len(arr)%2 != 1 {
-		return nil, "", fmt.Errorf("invalid output")
+		return nil, fmt.Errorf("invalid output")
 	}
-	res := []state.QueryItem{}
+
+	var res []state.QueryItem
 	for i := 1; i < len(arr); i += 2 {
 		item := state.QueryItem{
 			Key: arr[i].(string),
@@ -322,11 +385,6 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 		}
 		res = append(res, item)
 	}
-	// set next query token only if limit is specified
-	var token string
-	if q.limit > 0 && len(res) > 0 {
-		token = strconv.FormatInt(q.offset+int64(len(res)), 10)
-	}
 
-	return res, token, err
+	return res, nil
 }

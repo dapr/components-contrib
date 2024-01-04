@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -390,6 +391,123 @@ func TestInvalidConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCleanupInterval(t *testing.T) {
+	t.Run("cleanupInterval not set", func(t *testing.T) {
+		properties := map[string]string{
+			"url": "test",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		assert.Equal(t, "test", md.ConnectionString)
+		require.NotNil(t, md.CleanupInterval)
+		assert.Equal(t, defaultCleanupInterval, *md.CleanupInterval)
+	})
+
+	t.Run("cleanupInterval as Go duration", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString": "test",
+			"cleanupInterval":  "1m",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		assert.Equal(t, "test", md.ConnectionString)
+		require.NotNil(t, md.CleanupInterval)
+		assert.Equal(t, time.Minute, *md.CleanupInterval)
+	})
+
+	t.Run("cleanupInterval as seconds", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString": "test",
+			"cleanupInterval":  "10",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		assert.Equal(t, "test", md.ConnectionString)
+		require.NotNil(t, md.CleanupInterval)
+		assert.Equal(t, 10*time.Second, *md.CleanupInterval)
+	})
+
+	t.Run("cleanupIntervalInSeconds as Go duration", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString":         "test",
+			"cleanupIntervalInSeconds": "1m",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.NotNil(t, md.CleanupInterval)
+		assert.Equal(t, time.Minute, *md.CleanupInterval)
+	})
+
+	t.Run("cleanupIntervalInSeconds as seconds", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString":         "test",
+			"cleanupIntervalInSeconds": "10",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.NotNil(t, md.CleanupInterval)
+		assert.Equal(t, 10*time.Second, *md.CleanupInterval)
+	})
+
+	t.Run("cleanupInterval as 0", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString": "test",
+			"cleanupInterval":  "0",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.Nil(t, md.CleanupInterval)
+	})
+
+	t.Run("cleanupIntervallInSeconds as 0", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString":         "test",
+			"cleanupIntervalInSeconds": "0",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.Nil(t, md.CleanupInterval)
+	})
+
+	t.Run("cleanupInterval negative", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString": "test",
+			"cleanupInterval":  "-1",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.Nil(t, md.CleanupInterval)
+	})
+
+	t.Run("cleanupIntervallInSeconds negative", func(t *testing.T) {
+		properties := map[string]string{
+			"connectionString":         "test",
+			"cleanupIntervalInSeconds": "-1",
+		}
+
+		md := newMetadata()
+		err := md.Parse(properties)
+		require.NoError(t, err)
+		require.Nil(t, md.CleanupInterval)
+	})
 }
 
 // Test that if the migration fails the error is reported.

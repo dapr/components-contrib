@@ -160,21 +160,6 @@ func TestClosingDatabaseTwiceReturnsNil(t *testing.T) {
 	require.NoError(t, err, "error returned")
 }
 
-func TestMultiCannotBeginTransaction(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	m.mock1.ExpectBegin().WillReturnError(fmt.Errorf("beginError"))
-
-	// Act
-	err := m.mySQL.Multi(context.Background(), nil)
-
-	// Assert
-	require.Error(t, err, "no error returned")
-	assert.Equal(t, "beginError", err.Error(), "wrong error returned")
-}
-
 func TestMultiCommitSetsAndDeletes(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -685,21 +670,42 @@ func TestValidSetRequest(t *testing.T) {
 	// Arrange
 	t.Parallel()
 	m, _ := mockDatabase(t)
-	ops := []state.TransactionalStateOperation{
-		createSetRequest(),
-	}
 
-	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
-	m.mock1.ExpectCommit()
+	t.Run("single op", func(t *testing.T) {
+		ops := []state.TransactionalStateOperation{
+			createSetRequest(),
+		}
 
-	// Act
-	err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: ops,
+		m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+
+		// Act
+		err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: ops,
+		})
+
+		// Assert
+		require.NoError(t, err)
 	})
 
-	// Assert
-	require.NoError(t, err)
+	t.Run("multiple ops", func(t *testing.T) {
+		ops := []state.TransactionalStateOperation{
+			createSetRequest(),
+			createSetRequest(),
+		}
+
+		m.mock1.ExpectBegin()
+		m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+		m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+		m.mock1.ExpectCommit()
+
+		// Act
+		err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: ops,
+		})
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInvalidMultiSetRequestNoKey(t *testing.T) {
@@ -727,21 +733,42 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	// Arrange
 	t.Parallel()
 	m, _ := mockDatabase(t)
-	ops := []state.TransactionalStateOperation{
-		createDeleteRequest(),
-	}
 
-	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
-	m.mock1.ExpectCommit()
+	t.Run("single op", func(t *testing.T) {
+		ops := []state.TransactionalStateOperation{
+			createDeleteRequest(),
+		}
 
-	// Act
-	err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: ops,
+		m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
+
+		// Act
+		err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: ops,
+		})
+
+		// Assert
+		require.NoError(t, err)
 	})
 
-	// Assert
-	require.NoError(t, err)
+	t.Run("multiple ops", func(t *testing.T) {
+		ops := []state.TransactionalStateOperation{
+			createDeleteRequest(),
+			createDeleteRequest(),
+		}
+
+		m.mock1.ExpectBegin()
+		m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
+		m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
+		m.mock1.ExpectCommit()
+
+		// Act
+		err := m.mySQL.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: ops,
+		})
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {

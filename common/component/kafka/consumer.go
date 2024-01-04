@@ -141,12 +141,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	for i, message := range messages {
 		if message != nil {
-			metadata := make(map[string]string, len(message.Headers))
-			if message.Headers != nil {
-				for _, t := range message.Headers {
-					metadata[string(t.Key)] = string(t.Value)
-				}
-			}
+			metadata := GetEventMetadata(message)
 			childMessage := KafkaBulkMessageEntry{
 				EntryId:  strconv.Itoa(i),
 				Event:    message.Value,
@@ -193,18 +188,31 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		Topic: message.Topic,
 		Data:  message.Value,
 	}
-	// This is true only when headers are set (Kafka > 0.11)
-	if len(message.Headers) > 0 {
-		event.Metadata = make(map[string]string, len(message.Headers))
-		for _, header := range message.Headers {
-			event.Metadata[string(header.Key)] = string(header.Value)
-		}
-	}
+	event.Metadata = GetEventMetadata(message)
+
 	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")
 	}
 	return err
+}
+
+func GetEventMetadata(message *sarama.ConsumerMessage) map[string]string {
+	if message != nil {
+		metadata := make(map[string]string, len(message.Headers)+5)
+		if message.Key != nil {
+			metadata[keyMetadataKey] = string(message.Key)
+		}
+		metadata[offsetMetadataKey] = strconv.FormatInt(message.Offset, 10)
+		metadata[topicMetadataKey] = message.Topic
+		metadata[timestampMetadataKey] = strconv.FormatInt(message.Timestamp.UnixMilli(), 10)
+		metadata[partitionMetadataKey] = strconv.FormatInt(int64(message.Partition), 10)
+		for _, header := range message.Headers {
+			metadata[string(header.Key)] = string(header.Value)
+		}
+		return metadata
+	}
+	return nil
 }
 
 func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {

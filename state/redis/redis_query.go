@@ -295,10 +295,49 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 	if err != nil {
 		return nil, "", err
 	}
-	arr, ok := ret.([]interface{})
+
+	res := []state.QueryItem{}
+
+	arr, ok := ret.([]any)
 	if !ok {
-		return nil, "", fmt.Errorf("invalid output")
+		aarr, ok := ret.(map[any]any)
+		if !ok {
+			return nil, "", fmt.Errorf("invalid output")
+		}
+
+		// Post redisearch 2.8
+
+		arr = aarr["results"].([]any)
+		if len(arr) == 0 {
+			return nil, "", errors.New("invalid output")
+		}
+		for i := 0; i < len(arr); i++ {
+			aarr, ok = arr[i].(map[any]any)
+			if !ok {
+				return nil, "", fmt.Errorf("invalid output")
+			}
+			exattr, ok := aarr["extra_attributes"].(map[any]any)
+			if !ok {
+				return nil, "", fmt.Errorf("invalid output")
+			}
+			item := state.QueryItem{
+				Key: aarr["id"].(string),
+			}
+			if data, ok := exattr["$.data"].(string); ok {
+				item.Data = []byte(data)
+			} else {
+				item.Error = fmt.Sprintf("%#v is not string", exattr["$.data"])
+			}
+			if etag, ok := exattr["$.version"].(string); ok {
+				item.ETag = &etag
+			}
+			res = append(res, item)
+		}
+		return res, "", nil
 	}
+
+	// Pre redisearch 2.8
+
 	// arr[0] = number of matching elements in DB (ignoring pagination)
 	// arr[2n] = key
 	// arr[2n+1][0] = "$.data"
@@ -308,7 +347,6 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 	if len(arr)%2 != 1 {
 		return nil, "", fmt.Errorf("invalid output")
 	}
-	res := []state.QueryItem{}
 	for i := 1; i < len(arr); i += 2 {
 		item := state.QueryItem{
 			Key: arr[i].(string),

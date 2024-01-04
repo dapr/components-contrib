@@ -49,6 +49,7 @@ const (
 	consumerFetchMin     = "consumerFetchMin"
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
+	valueSchemaType      = "valueSchemaType"
 )
 
 type KafkaMetadata struct {
@@ -87,6 +88,12 @@ type KafkaMetadata struct {
 	channelBufferSize    int    `mapstructure:"-"`
 	consumerFetchMin     int32  `mapstructure:"-"`
 	consumerFetchDefault int32  `mapstructure:"-"`
+	// schema registry
+	SchemaRegistryURL       string        `mapstructure:"schemaRegistryURL"`
+	SchemaRegistryAPIKey    string        `mapstructure:"schemaRegistryAPIKey"`
+	SchemaRegistryAPISecret string        `mapstructure:"schemaRegistryAPISecret"`
+	SchemaCachingEnabled    bool          `mapstructure:"schemaCachingEnabled"`
+	LatestSchemaCacheTTL    time.Duration `mapstructure:"LatestSchemaCacheTTL"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.

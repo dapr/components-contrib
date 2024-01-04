@@ -260,3 +260,30 @@ metadata:
         The default number of message bytes to fetch from the broker in each request.
       example: '2097152'
       default: '1048576'
+    - name: schemaRegistryURL
+      type: string
+      description: |
+        The Schema Registry URL.
+      example: '"http://localhost:8081"'
+    - name: schemaRegistryAPIKey
+      type: string
+      description: |
+        The Schema Registry credentials API Key.
+      example: '"XYAXXAZ"'
+    - name: schemaRegistryAPISecret
+      type: string
+      description: |
+        The Schema Registry credentials API Secret.
+      example: '"ABCDEFGMEADFF"'
+    - name: schemaCachingEnabled
+      type: bool
+      description: |
+        Enables caching for schemas.
+      example: '"true"'
+      default: '"true"'
+    - name: LatestSchemaCacheTTL
+      type: duration
+      description: |
+        The TTL for schema caching when publishing a message with latest schema available.
+      example: '"5min"'
+      default: '"5min"'

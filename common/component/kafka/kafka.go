@@ -15,11 +15,16 @@ package kafka
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/linkedin/goavro/v2"
+	"github.com/riferrei/srclient"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -42,13 +47,51 @@ type Kafka struct {
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 
-	backOffConfig retry.Config
+	backOffConfig         retry.Config
+	srClient              srclient.ISchemaRegistryClient
+	schemaCachingEnabled  bool
+	latestSchemaCache     map[string]SchemaCacheEntry
+	latestSchemaCacheTTL  time.Duration
+	latestSchemaCacheLock sync.RWMutex
 
 	// The default value should be true for kafka pubsub component and false for kafka binding component
 	// This default value can be overridden by metadata consumeRetryEnabled
 	DefaultConsumeRetryEnabled bool
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
+}
+
+type SchemaType int
+
+const (
+	None SchemaType = iota
+	Avro
+)
+
+type SchemaCacheEntry struct {
+	schema         *srclient.Schema
+	codec          *goavro.Codec
+	expirationTime time.Time
+}
+
+func GetValueSchemaType(metadata map[string]string) (SchemaType, error) {
+	schemaTypeStr, ok := metadata[valueSchemaType]
+	if ok {
+		v, err := parseSchemaType(schemaTypeStr)
+		return v, err
+	}
+	return None, nil
+}
+
+func parseSchemaType(sVal string) (SchemaType, error) {
+	switch strings.ToLower(sVal) {
+	case "avro":
+		return Avro, nil
+	case "none":
+		return None, nil
+	default:
+		return None, fmt.Errorf("error parsing schema type. '%s' is not a supported value", sVal)
+	}
 }
 
 func NewKafka(logger logger.Logger) *Kafka {
@@ -139,6 +182,18 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.consumeRetryEnabled = meta.ConsumeRetryEnabled
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
 
+	if meta.SchemaRegistryURL != "" {
+		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
+		// Empty password is a possibility
+		if meta.SchemaRegistryAPIKey != "" {
+			k.srClient.SetCredentials(meta.SchemaRegistryAPIKey, meta.SchemaRegistryAPISecret)
+		}
+		k.srClient.CachingEnabled(meta.SchemaCachingEnabled)
+		if meta.SchemaCachingEnabled {
+			k.latestSchemaCache = make(map[string]SchemaCacheEntry)
+			k.latestSchemaCacheTTL = meta.LatestSchemaCacheTTL
+		}
+	}
 	k.logger.Debug("Kafka message bus initialization complete")
 
 	return nil
@@ -155,6 +210,128 @@ func (k *Kafka) Close() (err error) {
 	return err
 }
 
+func getSchemaSubject(topic string) string {
+	// For now assumes that subject is named after topic (e.g. `my-topic-value`)
+	return fmt.Sprintf("%s-value", topic)
+}
+
+func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
+	if config.ValueSchemaType == Avro {
+		srClient, err := k.getSchemaRegistyClient()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(message.Value) < 5 {
+			return nil, fmt.Errorf("value is too short")
+		}
+		schemaID := binary.BigEndian.Uint32(message.Value[1:5])
+		schema, err := srClient.GetSchema(int(schemaID))
+		if err != nil {
+			return nil, err
+		}
+		// The data coming through is standard JSON. The version currently supported by srclient doesn't support this yet
+		// Use this specific codec instead.
+		codec, err := goavro.NewCodecForStandardJSONFull(schema.Schema())
+		if err != nil {
+			return nil, err
+		}
+		native, _, err := codec.NativeFromBinary(message.Value[5:])
+		if err != nil {
+			return nil, err
+		}
+		value, err := codec.TextualFromNative(nil, native)
+		if err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	}
+	return message.Value, nil
+}
+
+func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, error) {
+	srClient, err := k.getSchemaRegistyClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	subject := getSchemaSubject(topic)
+	if k.schemaCachingEnabled {
+		cacheEntry, ok := k.latestSchemaCache[subject]
+		// Cache present and not expired
+		if ok && cacheEntry.expirationTime.Compare(time.Now()) < 0 {
+			return cacheEntry.schema, cacheEntry.codec, nil
+		}
+		schema, errSchema := srClient.GetLatestSchema(subject)
+		if errSchema != nil {
+			return nil, nil, errSchema
+		}
+		// New JSON standard serialization/Deserialization is not integrated in srclient yet.
+		// Since standard json is passed from dapr, it is needed.
+		codec, errCodec := goavro.NewCodecForStandardJSONFull(schema.Schema())
+		if errCodec != nil {
+			return nil, nil, err
+		}
+		k.latestSchemaCacheLock.Lock()
+		k.latestSchemaCache[subject] = SchemaCacheEntry{schema: schema, codec: codec, expirationTime: time.Now().Add(k.latestSchemaCacheTTL)}
+		k.latestSchemaCacheLock.Unlock()
+		return schema, codec, nil
+	}
+	schema, err := srClient.GetLatestSchema(getSchemaSubject(topic))
+	if err != nil {
+		return nil, nil, err
+	}
+	codec, err := goavro.NewCodecForStandardJSONFull(schema.Schema())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return schema, codec, nil
+}
+
+func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error) {
+	if k.srClient == nil {
+		return nil, errors.New("schema registry details not set")
+	}
+
+	return k.srClient, nil
+}
+
+func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
+	valueSchemaType, err := GetValueSchemaType(metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	if valueSchemaType == Avro {
+		schema, codec, err := k.getLatestSchema(topic)
+		if err != nil {
+			return nil, err
+		}
+
+		native, _, err := codec.NativeFromTextual(data)
+		if err != nil {
+			return nil, err
+		}
+
+		valueBytes, err := codec.BinaryFromNative(nil, native)
+		if err != nil {
+			return nil, err
+		}
+		schemaIDBytes := make([]byte, 4)
+		binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID()))
+
+		var recordValue []byte
+		recordValue = append(recordValue, byte(0))
+		recordValue = append(recordValue, schemaIDBytes...)
+		recordValue = append(recordValue, valueBytes...)
+		return recordValue, nil
+	}
+
+	return data, nil
+}
+
 // EventHandler is the handler used to handle the subscribed event.
 type EventHandler func(ctx context.Context, msg *NewEvent) error
 
@@ -167,6 +344,7 @@ type SubscriptionHandlerConfig struct {
 	SubscribeConfig pubsub.BulkSubscribeConfig
 	BulkHandler     BulkEventHandler
 	Handler         EventHandler
+	ValueSchemaType SchemaType
 }
 
 // NewEvent is an event arriving from a message bus instance.

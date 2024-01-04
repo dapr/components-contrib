@@ -316,7 +316,7 @@ func TestRedis(t *testing.T) {
 
 	testForStateStoreNotConfigured := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		require.Error(t, err)
+		require.NoError(t, err)
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)

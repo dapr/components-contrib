@@ -151,11 +151,11 @@ END TRY
 BEGIN CATCH
 UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
-COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName), sql.Named("Interval", arg)
+COMMIT TRANSACTION;`, s.metadata.SchemaName, s.metadata.MetadataTableName), sql.Named("Interval", arg)
 		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(
 			`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
-			s.metadata.Schema, s.metadata.TableName,
+			s.metadata.SchemaName, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
 		DB:              commonsql.AdaptDatabaseSQLConn(s.db),

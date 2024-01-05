@@ -383,8 +383,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
 			`
 			ALTER TABLE %[1]s ADD COLUMN prefix VARCHAR(255);
-			UPDATE %[1]s SET prefix = SUBSTRING_INDEX(id, '||', -2);
-			`,
+			UPDATE %[1]s SET prefix = SUBSTRING_INDEX(coalesce(id, ''), '||', -2);`,
 			stateTableName))
 	}
 	if err != nil {

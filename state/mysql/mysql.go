@@ -70,6 +70,9 @@ const (
 
 	// Used if the user does not configure a cleanup interval in the metadata.
 	defaultCleanupInterval = time.Hour
+
+	// User defined function used for deleting actor's state
+	keyPrefixFunction = "parse_key_prefix"
 )
 
 // MySQL state store.
@@ -369,6 +372,32 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 		if err != nil {
 			return err
 		}
+	}
+
+	// Check if prefix column exists to allow the use of DeleteWithPrefix method
+	prefixColumn, err := columnExists(ctx, m.db, schemaName, stateTableName, "prefix", m.timeout)
+	if err != nil {
+		return err
+	}
+
+	if !prefixColumn {
+		m.logger.Infof("Creating keyPrefixFunction and adding prefix index into mySql state table '%s'", stateTableName)
+
+		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
+			`
+			CREATE FUNCTION %[1]s(k text) RETURNS text
+			IMMUTABLE
+			RETURNS NULL ON NULL INPUT
+			RETURN
+			  array_to_string(trim_array(string_to_array(k, '||')1), '||);
+			
+			CREATE INDEX %[2]s+prefix_idx ON %[2]s (%[1]s("key") WHERE %[1]s("key") <> '';
+			`,
+			keyPrefixFunction, stateTableName,
+		))
+	}
+	if err != nil {
+		return err
 	}
 
 	// Check if expiredate column exists - to cater cases when table was created before v1.11.

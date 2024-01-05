@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -151,9 +152,10 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 	}
 
 	stateTable := p.metadata.TableName(pgTableState)
+	keyPrefixFunction := p.metadata.FunctionName(pgFunctionKeyPrefix)
 
 	return m.Perform(ctx, []sqlinternal.MigrationFn{
-		// Migration 1: create the table for state
+		// Migration 0: create the table for state
 		func(ctx context.Context) error {
 			p.logger.Infof("Creating state table: '%s'", stateTable)
 			_, err := p.db.Exec(ctx,
@@ -175,6 +177,33 @@ CREATE INDEX ON %[1]s (expires_at);
 			}
 			return nil
 		},
+		// Migration 1: add the "key_prefix" function and "prefix" index to the state table
+		func(ctx context.Context) error {
+			// Create the "key_prefix" function
+			// Then add the "prefix" index to the state table that can be used by DeleteWithPrefix
+			p.logger.Infof("Creating function '%s' and adding 'prefix' index to table '%s'", keyPrefixFunction, stateTable)
+			_, err := p.db.Exec(
+				ctx,
+				fmt.Sprintf(
+					`
+CREATE FUNCTION %[1]s(k text) RETURNS text
+LANGUAGE SQL
+IMMUTABLE
+LEAKPROOF
+RETURNS NULL ON NULL INPUT
+RETURN
+  array_to_string(trim_array(string_to_array(k, '||'),1), '||');
+
+CREATE INDEX %[2]s_prefix_idx ON %[2]s (%[1]s("key")) WHERE %[1]s("key") <> '';
+`,
+					keyPrefixFunction, stateTable,
+				),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create virtual column: %w", err)
+			}
+			return nil
+		},
 	})
 }
 
@@ -184,6 +213,7 @@ func (p *PostgreSQL) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 
@@ -502,6 +532,26 @@ func (p *PostgreSQL) execMultiOperation(ctx context.Context, op state.Transactio
 	default:
 		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
+}
+
+func (p *PostgreSQL) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer cancel()
+
+	// Trim the trailing "||" from the prefix
+	result, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE "+p.metadata.FunctionName(pgFunctionKeyPrefix)+`("key") = $1`, strings.TrimSuffix(req.Prefix, "||"))
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	return state.DeleteWithPrefixResponse{
+		Count: result.RowsAffected(),
+	}, nil
 }
 
 func (p *PostgreSQL) CleanupExpired() error {

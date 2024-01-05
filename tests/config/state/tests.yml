@@ -45,12 +45,12 @@ components:
       # This component requires etags to be numeric
       badEtag: "1"
   - component: postgresql.v2.docker
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: postgresql.v2.azure
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
@@ -83,7 +83,7 @@ components:
       # This component requires etags to be numeric
       badEtag: "9999999"
   - component: cockroachdb.v2
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "delete-with-prefix" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "7b104dbd-1ae2-4772-bfa0-e29c7b89bc9b"

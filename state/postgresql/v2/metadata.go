@@ -23,10 +23,15 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type pgTable string
+type (
+	pgTable    string
+	pgFunction string
+)
 
 const (
 	pgTableState pgTable = "state"
+
+	pgFunctionKeyPrefix pgFunction = "key_prefix"
 )
 
 const (
@@ -84,4 +89,8 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 
 func (m pgMetadata) TableName(table pgTable) string {
 	return m.TablePrefix + string(table)
+}
+
+func (m pgMetadata) FunctionName(function pgFunction) string {
+	return m.TablePrefix + string(function)
 }

@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	contribContenttype "github.com/dapr/components-contrib/contenttype"
+	contribContenttype "github.com/dapr/components-contrib/common/contenttype"
 )
 
 func TestCreateCloudEventsEnvelope(t *testing.T) {

@@ -768,40 +768,50 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 	return key, value, &etag, expireTime, nil
 }
 
-// Multi handles multiple transactions.
-// TransactionalStore Interface.
+// Multi handles multiple operations in batch.
+// Implements the TransactionalStore Interface.
 func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
+	if request == nil {
+		return nil
 	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
 
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = m.setValue(ctx, tx, &req)
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return m.execMultiOperation(ctx, request.Operations[0], m.db)
+	default:
+		tx, err := m.db.Begin()
+		if err != nil {
+			return err
+		}
+		defer func() {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+			}
+		}()
+
+		for _, op := range request.Operations {
+			err = m.execMultiOperation(ctx, op, tx)
 			if err != nil {
 				return err
 			}
-
-		case state.DeleteRequest:
-			err = m.deleteValue(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation())
 		}
+		return tx.Commit()
 	}
+}
 
-	return tx.Commit()
+func (m *MySQL) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db querier) error {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return m.setValue(ctx, db, &req)
+	case state.DeleteRequest:
+		return m.deleteValue(ctx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
+	}
 }
 
 // Close implements io.Closer.

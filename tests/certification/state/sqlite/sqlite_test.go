@@ -63,7 +63,8 @@ const (
 	keyBusyTimeout       = "busyTimeout"
 
 	// Update this constant if you add more migrations
-	migrationLevel = "1"
+	// Don't forget to also run the utility `artifacts/update_readonlydb.go` to update the read-only DB
+	migrationLevel = "2"
 )
 
 func TestSQLite(t *testing.T) {

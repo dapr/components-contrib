@@ -114,7 +114,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentcation")
-		err = updateAWSIAMAuthInfo(ctx, config, meta)
+		err = updateAWSIAMAuthInfo(config, meta)
 		if err != nil {
 			return err
 		}

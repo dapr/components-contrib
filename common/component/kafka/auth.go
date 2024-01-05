@@ -92,11 +92,10 @@ func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	return nil
 }
 
-func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *KafkaMetadata) error {
+func updateAWSIAMAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 	config.Net.SASL.TokenProvider = &mskAccessTokenProvider{
-		ctx:          ctx,
 		region:       metadata.AWSRegion,
 		accessKey:    metadata.AWSAccessKey,
 		secretKey:    metadata.AWSSecretKey,
@@ -111,16 +110,16 @@ func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *
 }
 
 type mskAccessTokenProvider struct {
-	ctx          context.Context
 	accessKey    string
 	secretKey    string
 	sessionToken string
 	region       string
 }
 
+// this function can't use the context passed on Init because that context would be cancelled right after Init
 func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 	if m.accessKey != "" && m.secretKey != "" {
-		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(m.ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(context.Background(), m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
 			return aws2.Credentials{
 				AccessKeyID:     m.accessKey,
 				SecretAccessKey: m.secretKey,
@@ -130,6 +129,6 @@ func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 		return &sarama.AccessToken{Token: token}, err
 	}
 
-	token, _, err := signer.GenerateAuthToken(m.ctx, m.region)
+	token, _, err := signer.GenerateAuthToken(context.Background(), m.region)
 	return &sarama.AccessToken{Token: token}, err
 }

@@ -70,9 +70,6 @@ const (
 
 	// Used if the user does not configure a cleanup interval in the metadata.
 	defaultCleanupInterval = time.Hour
-
-	// User defined function used for deleting actor's state
-	keyPrefixFunction = "parse_key_prefix"
 )
 
 // MySQL state store.
@@ -381,20 +378,16 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 	}
 
 	if !prefixColumn {
-		m.logger.Infof("Creating keyPrefixFunction and adding prefix index into mySql state table '%s'", stateTableName)
+		m.logger.Infof("Altering table '%s' to add in prefix column", stateTableName)
 
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
 			`
-			CREATE FUNCTION %[1]s(k text) RETURNS text
-			IMMUTABLE
-			RETURNS NULL ON NULL INPUT
-			RETURN
-			  array_to_string(trim_array(string_to_array(k, '||')1), '||);
-			
-			CREATE INDEX %[2]s+prefix_idx ON %[2]s (%[1]s("key") WHERE %[1]s("key") <> '';
+			ALTER TABLE %[1]s
+			ADD COLUMN prefix VARCHAR(255);
+			UPDATE %[1]s
+			SET prefix = SUBSTRING_INDEX(key, '||' -2);
 			`,
-			keyPrefixFunction, stateTableName,
-		))
+			stateTableName))
 	}
 	if err != nil {
 		return err

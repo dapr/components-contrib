@@ -35,12 +35,12 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: postgresql.v1.docker
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "delete-with-prefix" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric
       badEtag: "1"
   - component: postgresql.v1.azure
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "delete-with-prefix" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric
       badEtag: "1"

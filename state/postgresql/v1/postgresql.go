@@ -14,9 +14,6 @@ limitations under the License.
 package postgresql
 
 import (
-	"context"
-	"strings"
-
 	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -63,34 +60,4 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		},
 	})
-}
-
-// PostgreSQLStoreWithDeleteWithPrefix is a state store for PostgreSQL that implements the DeleteWithPrefix method
-type PostgreSQLStoreWithDeleteWithPrefix struct {
-	state.Store
-}
-
-// Features returns the features available in this state store.
-func (p *PostgreSQLStoreWithDeleteWithPrefix) Features() []state.Feature {
-	return append(p.Store.Features(), state.FeatureDeleteWithPrefix)
-}
-
-func (p *PostgreSQLStoreWithDeleteWithPrefix) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, p.metadata.Timeout)
-	defer cancel()
-
-	// Trim the trailing "||" from the prefix
-	result, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE "+p.metadata.TableName+`_key_prefix("key") = $1`, strings.TrimSuffix(req.Prefix, "||"))
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	return state.DeleteWithPrefixResponse{
-		Count: result.RowsAffected(),
-	}, nil
 }

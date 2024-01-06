@@ -294,5 +294,5 @@ metadata:
     type: duration
     description: |
       The TTL for schema caching when publishing a message with latest schema available.
-    example: '"15min"'
-    default: '"15min"'
+    example: '"5min"'
+    default: '"5min"'

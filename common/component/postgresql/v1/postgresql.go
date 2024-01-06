@@ -64,6 +64,7 @@ type Options struct {
 type MigrateOptions struct {
 	Logger            logger.Logger
 	StateTableName    string
+	KeyPrefixFuncName string
 	MetadataTableName string
 }
 
@@ -120,6 +121,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	err = p.migrateFn(ctx, p.db, MigrateOptions{
 		Logger:            p.logger,
 		StateTableName:    p.metadata.TableName,
+		KeyPrefixFuncName: p.metadata.TableName + "_key_prefix",
 		MetadataTableName: p.metadata.MetadataTableName,
 	})
 	if err != nil {

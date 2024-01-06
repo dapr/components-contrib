@@ -16,6 +16,7 @@ capabilities:
   - etag
   - query
   - ttl
+  - deleteWithPrefix
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:

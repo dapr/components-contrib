@@ -39,14 +39,14 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 			opts.Logger.Infof("Creating state table '%s'", opts.StateTableName)
 			_, err := db.Exec(
 				ctx,
-				fmt.Sprintf(
-					`CREATE TABLE IF NOT EXISTS %s (
-							key text NOT NULL PRIMARY KEY,
-							value jsonb NOT NULL,
-							isbinary boolean NOT NULL,
-							insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-							updatedate TIMESTAMP WITH TIME ZONE NULL
-						)`,
+				fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS %s (
+  key text NOT NULL PRIMARY KEY,
+  value jsonb NOT NULL,
+  isbinary boolean NOT NULL,
+  insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updatedate TIMESTAMP WITH TIME ZONE NULL
+)`,
 					opts.StateTableName,
 				),
 			)
@@ -68,6 +68,31 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 			}
 			return nil
 		},
-	},
-	)
+		// Migration 2: add the "key_prefix" function and "prefix" index to the state table
+		func(ctx context.Context) error {
+			// Create the "key_prefix" function
+			// Then add the "prefix" index to the state table that can be used by DeleteWithPrefix
+			opts.Logger.Infof("Creating function '%s' and adding 'prefix' index to table '%s'", opts.KeyPrefixFuncName, opts.StateTableName)
+			_, err := db.Exec(
+				ctx,
+				fmt.Sprintf(`
+CREATE FUNCTION %[1]s(k text) RETURNS text
+LANGUAGE SQL
+IMMUTABLE
+LEAKPROOF
+RETURNS NULL ON NULL INPUT
+RETURN
+  array_to_string(trim_array(string_to_array(k, '||'),1), '||');
+
+CREATE INDEX %[2]s_prefix_idx ON %[2]s (%[1]s("key")) WHERE %[1]s("key") <> '';
+`,
+					opts.KeyPrefixFuncName, opts.StateTableName,
+				),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create virtual column: %w", err)
+			}
+			return nil
+		},
+	})
 }

@@ -54,6 +54,7 @@ func (p *PostgreSQLQuery) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureQueryAPI,
 		state.FeatureTTL,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 

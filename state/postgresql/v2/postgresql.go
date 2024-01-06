@@ -48,13 +48,22 @@ type PostgreSQL struct {
 
 	gc sqlinternal.GarbageCollector
 
-	enableAzureAD bool
+	enableAzureAD    bool
+	deleteWithPrefix bool
+}
+
+// PostgreSQLDeleteWithPrefix extends PostgreSQL and adds support for DeleteWithPrefix.
+type PostgreSQLDeleteWithPrefix struct {
+	*PostgreSQL
 }
 
 type Options struct {
 	// Disables support for authenticating with Azure AD
 	// This should be set to "false" when targeting different databases than PostgreSQL (such as CockroachDB)
 	NoAzureAD bool
+	// Disables support for DeleteWithPrefix
+	// This should be set to "false" when targeting CockroachDB and other PostgreSQL-compatible database that don't offer the necessary capabilities
+	NoDeleteWithPrefix bool
 }
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store v2 with the default options.
@@ -67,11 +76,20 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 // NewPostgreSQLStateStoreWithOptions creates a new instance of PostgreSQL state store with options.
 func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) state.Store {
 	s := &PostgreSQL{
-		logger:        logger,
-		enableAzureAD: !opts.NoAzureAD,
+		logger:           logger,
+		enableAzureAD:    !opts.NoAzureAD,
+		deleteWithPrefix: !opts.NoDeleteWithPrefix,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
+
+	// If we want DeleteWithPrefix support, wrap into a PostgreSQLDeleteWithPrefix object
+	if opts.NoDeleteWithPrefix {
+		return s
+	}
+
+	return &PostgreSQLDeleteWithPrefix{
+		PostgreSQL: s,
+	}
 }
 
 // Init sets up Postgres connection and performs migrations
@@ -155,7 +173,7 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 	keyPrefixFunction := p.metadata.FunctionName(pgFunctionKeyPrefix)
 
 	return m.Perform(ctx, []sqlinternal.MigrationFn{
-		// Migration 0: create the table for state
+		// Migration 1: create the table for state
 		func(ctx context.Context) error {
 			p.logger.Infof("Creating state table: '%s'", stateTable)
 			_, err := p.db.Exec(ctx,
@@ -177,8 +195,13 @@ CREATE INDEX ON %[1]s (expires_at);
 			}
 			return nil
 		},
-		// Migration 1: add the "key_prefix" function and "prefix" index to the state table
+		// Migration 2: add the "key_prefix" function and "prefix" index to the state table
+		// If DeleteWithPrefix support is disabled, this is a no-op, but we keep the migration here because we want the migration level to increase, or bad things will happen if another migration is added in the future
 		func(ctx context.Context) error {
+			if !p.deleteWithPrefix {
+				return nil
+			}
+
 			// Create the "key_prefix" function
 			// Then add the "prefix" index to the state table that can be used by DeleteWithPrefix
 			p.logger.Infof("Creating function '%s' and adding 'prefix' index to table '%s'", keyPrefixFunction, stateTable)
@@ -209,6 +232,15 @@ CREATE INDEX %[2]s_prefix_idx ON %[2]s (%[1]s("key")) WHERE %[1]s("key") <> '';
 
 // Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
+}
+
+// Features returns the features available in this state store.
+func (p *PostgreSQLDeleteWithPrefix) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
@@ -534,26 +566,6 @@ func (p *PostgreSQL) execMultiOperation(ctx context.Context, op state.Transactio
 	}
 }
 
-func (p *PostgreSQL) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, p.metadata.Timeout)
-	defer cancel()
-
-	// Trim the trailing "||" from the prefix
-	result, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE "+p.metadata.FunctionName(pgFunctionKeyPrefix)+`("key") = $1`, strings.TrimSuffix(req.Prefix, "||"))
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	return state.DeleteWithPrefixResponse{
-		Count: result.RowsAffected(),
-	}, nil
-}
-
 func (p *PostgreSQL) CleanupExpired() error {
 	if p.gc != nil {
 		return p.gc.CleanupExpired()
@@ -586,3 +598,34 @@ func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (p *PostgreSQLDeleteWithPrefix) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer cancel()
+
+	// Trim the trailing "||" from the prefix
+	result, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE "+p.metadata.FunctionName(pgFunctionKeyPrefix)+`("key") = $1`, strings.TrimSuffix(req.Prefix, "||"))
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	return state.DeleteWithPrefixResponse{
+		Count: result.RowsAffected(),
+	}, nil
+}
+
+// Compile-time interface assertions
+var (
+	_ state.Store              = (*PostgreSQL)(nil)
+	_ state.TransactionalStore = (*PostgreSQL)(nil)
+	_ state.BulkStore          = (*PostgreSQL)(nil)
+	_ state.Store              = (*PostgreSQLDeleteWithPrefix)(nil)
+	_ state.TransactionalStore = (*PostgreSQLDeleteWithPrefix)(nil)
+	_ state.BulkStore          = (*PostgreSQLDeleteWithPrefix)(nil)
+	_ state.DeleteWithPrefix   = (*PostgreSQLDeleteWithPrefix)(nil)
+)

@@ -100,6 +100,8 @@ func loadStateStore(name string) state.Store {
 		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v2.azure":
 		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
+	case "yugabytedb.v2":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		return s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":

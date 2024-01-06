@@ -214,8 +214,9 @@ LANGUAGE SQL
 IMMUTABLE
 LEAKPROOF
 RETURNS NULL ON NULL INPUT
-RETURN
-  array_to_string(trim_array(string_to_array(k, '||'),1), '||');
+AS $$
+  SELECT array_to_string(trim_array(string_to_array(k, '||'),1), '||');
+$$;
 
 CREATE INDEX %[2]s_prefix_idx ON %[2]s (%[1]s("key")) WHERE %[1]s("key") <> '';
 `,
@@ -223,7 +224,7 @@ CREATE INDEX %[2]s_prefix_idx ON %[2]s (%[1]s("key")) WHERE %[1]s("key") <> '';
 				),
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create virtual column: %w", err)
+				return err
 			}
 			return nil
 		},

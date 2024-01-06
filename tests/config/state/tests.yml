@@ -54,6 +54,11 @@ components:
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
+  - component: yugabytedb.v2
+    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix" ]
+    config:
+      # This component requires etags to be UUIDs
+      badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: sqlite
     operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix" ]
   - component: mysql.mysql

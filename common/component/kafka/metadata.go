@@ -28,6 +28,11 @@ import (
 
 const (
 	key                  = "partitionKey"
+	keyMetadataKey       = "__key"
+	timestampMetadataKey = "__timestamp"
+	offsetMetadataKey    = "__offset"
+	partitionMetadataKey = "__partition"
+	topicMetadataKey     = "__topic"
 	skipVerify           = "skipVerify"
 	caCert               = "caCert"
 	certificateAuthType  = "certificate"

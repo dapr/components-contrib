@@ -15,6 +15,7 @@ package cosmosDBStorage_test
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/metadata"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"

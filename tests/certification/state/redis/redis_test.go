@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	state_redis "github.com/dapr/components-contrib/state/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -248,12 +249,74 @@ func TestRedis(t *testing.T) {
 		return nil
 	}
 
+	type qValue struct {
+		Qmsg string `json:"qmsg"`
+	}
+
+	// Query test
+	queryTest := func(ctx flow.Context) error {
+		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{
+					Key:   "qKey1",
+					Value: qValue{Qmsg: "test1"},
+				},
+				state.SetRequest{
+					Key:   "qKey2",
+					Value: qValue{Qmsg: "test2"},
+				},
+				state.SetRequest{
+					Key:   "qKey3",
+					Value: qValue{Qmsg: "test3"},
+				},
+			},
+			Metadata: map[string]string{
+				"contentType": "application/json",
+			},
+		})
+		require.NoError(t, err)
+		resp, err := stateStore.Query(context.Background(), &state.QueryRequest{
+			Query: query.Query{
+				QueryFields: query.QueryFields{
+					Filters: map[string]any{
+						"OR": []any{
+							map[string]any{
+								"EQ": map[string]any{
+									"qmsg": "test1",
+								},
+							},
+							map[string]any{
+								"EQ": map[string]any{
+									"qmsg": "test2",
+								},
+							},
+						},
+					},
+				},
+				Filter: &query.OR{
+					Filters: []query.Filter{
+						&query.EQ{Key: "qmsg", Val: "test1"},
+						&query.EQ{Key: "qmsg", Val: "test2"},
+					},
+				},
+			},
+			Metadata: map[string]string{
+				"queryIndexName": "tquery",
+				"contentType":    "application/json",
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Results, 2)
+		assert.Equal(t, "qKey1", resp.Results[0].Key)
+		assert.Equal(t, "qKey2", resp.Results[1].Key)
+		assert.JSONEq(t, `{"qmsg":"test1"}`, string(resp.Results[0].Data))
+		assert.JSONEq(t, `{"qmsg":"test2"}`, string(resp.Results[1].Data))
+		return nil
+	}
+
 	testForStateStoreNotConfigured := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		// require.Error(t, err)
-		if err != nil {
-			panic(err)
-		}
+		require.NoError(t, err)
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
@@ -289,6 +352,7 @@ func TestRedis(t *testing.T) {
 			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test", basicTest).
+		Step("Run test for Query", queryTest).
 		Step("Run TTL related test", timeToLiveTest).
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).

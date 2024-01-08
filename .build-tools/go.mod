@@ -9,7 +9,6 @@ require (
 	github.com/invopop/jsonschema v0.6.0
 	github.com/spf13/cobra v1.6.1
 	github.com/xeipuuv/gojsonschema v1.2.1-0.20201027075954-b076d39a02e5
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.4.0
 )

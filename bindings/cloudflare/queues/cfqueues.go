@@ -20,9 +20,8 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/common/component/cloudflare/workers"

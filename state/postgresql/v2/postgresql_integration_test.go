@@ -576,24 +576,46 @@ func TestValidSetRequest(t *testing.T) {
 	defer m.db.Close()
 
 	setReq := createSetRequest()
-	operations := []state.TransactionalStateOperation{setReq}
 	val, _ := json.Marshal(setReq.Value)
 
-	m.db.ExpectBegin()
-	m.db.ExpectExec("INSERT INTO").
-		WithArgs(setReq.Key, val).
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	m.db.ExpectCommit()
-	// There's also a rollback called after a commit, which is expected and will not have effect
-	m.db.ExpectRollback()
+	t.Run("single op", func(t *testing.T) {
+		operations := []state.TransactionalStateOperation{setReq}
 
-	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		m.db.ExpectExec("INSERT INTO").
+			WithArgs(setReq.Key, val).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		// Act
+		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: operations,
+		})
+
+		// Assert
+		require.NoError(t, err)
 	})
 
-	// Assert
-	require.NoError(t, err)
+	t.Run("multiple ops", func(t *testing.T) {
+		operations := []state.TransactionalStateOperation{setReq, setReq}
+
+		m.db.ExpectBegin()
+		m.db.ExpectExec("INSERT INTO").
+			WithArgs(setReq.Key, val).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		m.db.ExpectExec("INSERT INTO").
+			WithArgs(setReq.Key, val).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		m.db.ExpectCommit()
+		// There's also a rollback called after a commit, which is expected and will not have effect
+		m.db.ExpectRollback()
+
+		// Act
+		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: operations,
+		})
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInvalidMultiSetRequestNoKey(t *testing.T) {
@@ -623,23 +645,45 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	defer m.db.Close()
 
 	deleteReq := createDeleteRequest()
-	operations := []state.TransactionalStateOperation{deleteReq}
 
-	m.db.ExpectBegin()
-	m.db.ExpectExec("DELETE FROM").
-		WithArgs(deleteReq.Key).
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
-	m.db.ExpectCommit()
-	// There's also a rollback called after a commit, which is expected and will not have effect
-	m.db.ExpectRollback()
+	t.Run("single op", func(t *testing.T) {
+		operations := []state.TransactionalStateOperation{deleteReq}
 
-	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		m.db.ExpectExec("DELETE FROM").
+			WithArgs(deleteReq.Key).
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+		// Act
+		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: operations,
+		})
+
+		// Assert
+		require.NoError(t, err)
 	})
 
-	// Assert
-	require.NoError(t, err)
+	t.Run("multiple ops", func(t *testing.T) {
+		operations := []state.TransactionalStateOperation{deleteReq, deleteReq}
+
+		m.db.ExpectBegin()
+		m.db.ExpectExec("DELETE FROM").
+			WithArgs(deleteReq.Key).
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		m.db.ExpectExec("DELETE FROM").
+			WithArgs(deleteReq.Key).
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		m.db.ExpectCommit()
+		// There's also a rollback called after a commit, which is expected and will not have effect
+		m.db.ExpectRollback()
+
+		// Act
+		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: operations,
+		})
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {

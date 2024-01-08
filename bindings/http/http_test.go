@@ -58,6 +58,7 @@ func TestOperations(t *testing.T) {
 	}, opers)
 }
 
+//nolint:forbidigo
 func TestMain(m *testing.M) {
 	err := generateCACertificate()
 	if err != nil {
@@ -89,7 +90,7 @@ func deleteTestCerts() error {
 	}
 
 	for _, file := range files {
-		err := os.Remove(file)
+		err = os.Remove(file)
 		if err != nil {
 			return err
 		}
@@ -101,7 +102,7 @@ func deleteTestCerts() error {
 	}
 
 	for _, file := range files {
-		err := os.Remove(file)
+		err = os.Remove(file)
 		if err != nil {
 			return err
 		}

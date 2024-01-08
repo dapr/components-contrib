@@ -17,8 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dapr/kit/ptr"
 	"reflect"
+
+	"github.com/dapr/kit/ptr"
 
 	"github.com/dapr/components-contrib/common/utils"
 

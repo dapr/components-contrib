@@ -45,14 +45,14 @@ func newMigration(metadata *sqlServerMetadata) migrator {
 
 func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
-		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.Schema, m.metadata.TableName),
+		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.SchemaName, m.metadata.TableName),
 		upsertProcName:           fmt.Sprintf("sp_Upsert_v5_%s", m.metadata.TableName),
-		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.Schema, m.metadata.TableName),
-		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.Schema, m.metadata.TableName),
-		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.Schema, m.metadata.TableName),
+		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.SchemaName, m.metadata.TableName),
+		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.SchemaName, m.metadata.TableName),
+		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.SchemaName, m.metadata.TableName),
 	}
 
-	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.metadata.Schema, r.upsertProcName)
+	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.metadata.SchemaName, r.upsertProcName)
 
 	//nolint:exhaustive
 	switch m.metadata.keyTypeParsed {
@@ -148,11 +148,11 @@ func (m *migration) ensureIndexedPropertyExists(ctx context.Context, db *sql.DB,
 				   WHERE object_id = OBJECT_ID('[%s].%s')
     					AND name='%s'))
 		CREATE INDEX %s ON [%s].[%s]([%s])`,
-		m.metadata.Schema,
+		m.metadata.SchemaName,
 		m.metadata.TableName,
 		indexName,
 		indexName,
-		m.metadata.Schema,
+		m.metadata.SchemaName,
 		m.metadata.TableName,
 		ix.ColumnName)
 
@@ -174,7 +174,7 @@ func (m *migration) ensureSchemaExists(ctx context.Context, db *sql.DB) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS(SELECT * FROM sys.schemas WHERE name = N'%s')
 		EXEC('CREATE SCHEMA [%s]')`,
-		m.metadata.Schema, m.metadata.Schema)
+		m.metadata.SchemaName, m.metadata.SchemaName)
 
 	return runCommand(ctx, db, tsql)
 }
@@ -189,7 +189,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 			[InsertDate] 	DateTime2 NOT NULL DEFAULT(GETDATE()),
 			[UpdateDate] 	DateTime2 NULL,
 			[ExpireDate] 	DateTime2 NULL,`,
-		m.metadata.Schema, m.metadata.TableName, m.metadata.Schema, m.metadata.TableName, r.pkColumnType, m.metadata.TableName)
+		m.metadata.SchemaName, m.metadata.TableName, m.metadata.SchemaName, m.metadata.TableName, r.pkColumnType, m.metadata.TableName)
 
 	for _, prop := range m.metadata.indexedPropertiesParsed {
 		if prop.Type != "" {
@@ -212,7 +212,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
     FROM INFORMATION_SCHEMA.COLUMNS
 	  WHERE TABLE_SCHEMA = '%[1]s' AND TABLE_NAME = '%[2]s'
 	   AND COLUMN_NAME = 'ExpireDate')
-  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.metadata.Schema, m.metadata.TableName)
+  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.metadata.SchemaName, m.metadata.TableName)
 	if err := runCommand(ctx, db, tsql); err != nil {
 		return fmt.Errorf("failed to ensure ExpireDate column: %w", err)
 	}
@@ -222,7 +222,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 			CREATE TABLE [%[1]s].[%[2]s] (
 			[Key] 			%[3]s CONSTRAINT PK_%[4]s PRIMARY KEY,
 			[Value]			NVARCHAR(MAX) NOT NULL
-		)`, m.metadata.Schema, m.metadata.MetadataTableName, r.pkColumnType, m.metadata.MetadataTableName)
+		)`, m.metadata.SchemaName, m.metadata.MetadataTableName, r.pkColumnType, m.metadata.MetadataTableName)
 	if err := runCommand(ctx, db, tsql); err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (m *migration) ensureTypeExists(ctx context.Context, db *sql.DB, mr migrati
 			[Key]           		%s NOT NULL,
 			[RowVersion]			BINARY(8)
 		)
-	`, m.metadata.Schema, m.metadata.TableName, m.metadata.Schema, m.metadata.TableName, mr.pkColumnType)
+	`, m.metadata.SchemaName, m.metadata.TableName, m.metadata.SchemaName, m.metadata.TableName, mr.pkColumnType)
 
 	return runCommand(ctx, db, tsql)
 }
@@ -265,7 +265,7 @@ func (m *migration) createStoredProcedureIfNotExists(ctx context.Context, db *sq
 	BEGIN
 		execute ('%s')
 	END`,
-		m.metadata.Schema,
+		m.metadata.SchemaName,
 		name,
 		escapedDefinition)
 

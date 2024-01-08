@@ -438,29 +438,40 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQueri
 }
 
 func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.TransactionalStateRequest) error {
-	_, err := pgtransactions.ExecuteInTransaction[struct{}](parentCtx, p.logger, p.db, p.metadata.Timeout, func(ctx context.Context, tx pgx.Tx) (res struct{}, err error) {
-		for _, o := range request.Operations {
-			switch x := o.(type) {
-			case state.SetRequest:
-				err = p.doSet(parentCtx, tx, &x)
+	if request == nil {
+		return nil
+	}
+
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return p.execMultiOperation(parentCtx, request.Operations[0], p.db)
+	default:
+		_, err := pgtransactions.ExecuteInTransaction[struct{}](parentCtx, p.logger, p.db, p.metadata.Timeout, func(ctx context.Context, tx pgx.Tx) (res struct{}, err error) {
+			for _, op := range request.Operations {
+				err = p.execMultiOperation(ctx, op, tx)
 				if err != nil {
 					return res, err
 				}
-
-			case state.DeleteRequest:
-				err = p.doDelete(parentCtx, tx, &x)
-				if err != nil {
-					return res, err
-				}
-
-			default:
-				return res, fmt.Errorf("unsupported operation: %s", o.Operation())
 			}
-		}
 
-		return res, nil
-	})
-	return err
+			return res, nil
+		})
+		return err
+	}
+}
+
+func (p *PostgreSQL) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db pginterfaces.DBQuerier) error {
+	switch x := op.(type) {
+	case state.SetRequest:
+		return p.doSet(ctx, db, &x)
+	case state.DeleteRequest:
+		return p.doDelete(ctx, db, &x)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
+	}
 }
 
 func (p *PostgreSQL) CleanupExpired() error {

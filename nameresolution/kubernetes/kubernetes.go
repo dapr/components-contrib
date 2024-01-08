@@ -16,7 +16,10 @@ package kubernetes
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/dapr/components-contrib/nameresolution"
@@ -28,6 +31,12 @@ const (
 	DefaultClusterDomain = "cluster.local"
 	ClusterDomainKey     = "clusterDomain"
 	TemplateKey          = "template"
+)
+
+// Compile-time interface assertions
+var (
+	_ nameresolution.Resolver      = (*resolver)(nil)
+	_ nameresolution.ResolverMulti = (*resolver)(nil)
 )
 
 func executeTemplateWithResolveRequest(tmpl *template.Template, req nameresolution.ResolveRequest) (string, error) {
@@ -90,4 +99,34 @@ func (k *resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequ
 	}
 	// Dapr requires this formatting for Kubernetes services
 	return req.ID + "-dapr." + req.Namespace + ".svc." + k.clusterDomain + ":" + strconv.Itoa(req.Port), nil
+}
+
+// ResolveIDMulti resolves an app-id to a set of IP addresses in Kubernetes
+func (k *resolver) ResolveIDMulti(ctx context.Context, req nameresolution.ResolveRequest) (nameresolution.AddressList, error) {
+	// First, get the address from ResolveID, which is usually a DNS name
+	addr, err := k.ResolveID(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the port if present
+	var port string
+	idx := strings.LastIndexByte(addr, ':')
+	if idx > -1 && (idx+1) < len(addr) {
+		port = addr[(idx + 1):]
+		addr = addr[:idx]
+	}
+
+	// Resolve the DNS name for a list of IPv4 or IPv6
+	ips, err := net.LookupIP(addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve address for '%s': %w", addr, err)
+	}
+
+	// Return a list of IPs + port
+	res := make(nameresolution.AddressList, len(ips))
+	for i, ip := range ips {
+		res[i] = net.JoinHostPort(ip.String(), port)
+	}
+	return res, nil
 }

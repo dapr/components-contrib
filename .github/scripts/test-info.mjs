@@ -288,6 +288,9 @@ const components = {
     'middleware.http.ratelimit': {
         certification: true,
     },
+    'middleware.http.opa': {
+        'certification': true,
+    },
     'pubsub.aws.snssqs': {
         certification: true,
         requireAWSCredentials: true,

@@ -63,7 +63,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	// We have this check because we need to set the client to  a mock in tests
+	// This check is needed because d.client is set to a mock in tests
 	if s.client == nil {
 		s.client, err = s.getClient(meta)
 		if err != nil {

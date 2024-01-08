@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dapr/kit/ptr"
 	"reflect"
 
 	"github.com/dapr/components-contrib/common/utils"
@@ -65,7 +66,7 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		return err
 	}
 
-	// We have this check because we need to set the client to  a mock in tests
+	// This check is needed because d.client is set to a mock in tests
 	if s.client == nil {
 		s.client, err = s.getClient(meta)
 		if err != nil {
@@ -86,7 +87,7 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 // to validate the connection credentials
 func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
 	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name: aws.String(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),
+		Name: ptr.Of(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),
 	})
 	return err
 }
@@ -102,8 +103,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	}
 
 	output, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name:           aws.String(s.prefix + name),
-		WithDecryption: aws.Bool(true),
+		Name:           ptr.Of(s.prefix + name),
+		WithDecryption: ptr.Of(true),
 	})
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)

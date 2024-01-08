@@ -83,7 +83,7 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 		return err
 	}
 
-	// We have this check because we need to set the client to  a mock in tests
+	// This check is needed because d.client is set to a mock in tests
 	if d.client == nil {
 		d.client, err = d.getClient(meta)
 		if err != nil {

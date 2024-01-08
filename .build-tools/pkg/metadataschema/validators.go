@@ -16,9 +16,8 @@ package metadataschema
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	mdutils "github.com/dapr/components-contrib/metadata"
 )

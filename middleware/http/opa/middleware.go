@@ -24,12 +24,12 @@ import (
 	"net/http"
 	"net/textproto"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/open-policy-agent/opa/rego"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/common/httputils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"

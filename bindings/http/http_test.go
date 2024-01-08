@@ -15,10 +15,17 @@ package http
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -49,6 +56,243 @@ func TestOperations(t *testing.T) {
 		"options",
 		"trace",
 	}, opers)
+}
+
+//nolint:forbidigo
+func TestMain(m *testing.M) {
+	err := generateCACertificate()
+	if err != nil {
+		fmt.Println("Failed to generate CA certificate:", err)
+		os.Exit(1)
+	}
+
+	err = generateMTLSCertificates()
+	if err != nil {
+		fmt.Println("Failed to generate mTLS certificates:", err)
+		os.Exit(1)
+	}
+
+	exitCode := m.Run()
+
+	err = deleteTestCerts()
+	if err != nil {
+		fmt.Println("Failed to delete test certificates:", err)
+		os.Exit(1)
+	}
+
+	os.Exit(exitCode)
+}
+
+func deleteTestCerts() error {
+	files, err := filepath.Glob(filepath.Join("testdata", "*.key"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err = os.Remove(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	files, err = filepath.Glob(filepath.Join("testdata", "*.pem"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err = os.Remove(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func generateCACertificate() error {
+	// Generate a private key for the CA
+	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a self-signed CA certificate
+	caTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "CA"},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	caCertificate, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, caPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the CA certificate to "ca.pem"
+	caCertFile, err := os.Create(filepath.Join("testdata", "ca.pem"))
+	if err != nil {
+		return err
+	}
+	defer caCertFile.Close()
+
+	err = pem.Encode(caCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: caCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the CA private key to "ca.key"
+	caKeyFile, err := os.Create(filepath.Join("testdata", "ca.key"))
+	if err != nil {
+		return err
+	}
+	defer caKeyFile.Close()
+
+	caPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(caKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: caPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generateMTLSCertificates() error {
+	// Load the CA private key
+	caKeyFile, err := os.ReadFile(filepath.Join("testdata", "ca.key"))
+	if err != nil {
+		return err
+	}
+
+	caKeyBlock, _ := pem.Decode(caKeyFile)
+	caPrivateKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// Load the CA certificate
+	caCertFile, err := os.ReadFile(filepath.Join("testdata", "ca.pem"))
+	if err != nil {
+		return err
+	}
+
+	caCertBlock, _ := pem.Decode(caCertFile)
+	caCertificate, err := x509.ParseCertificate(caCertBlock.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// Generate a private key for the client
+	clientPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a certificate for the client
+	client := &x509.Certificate{
+		SerialNumber: big.NewInt(10),
+		Subject:      pkix.Name{Organization: []string{"client"}},
+		NotBefore:    time.Now().Add(-1 * time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	clientCertificate, err := x509.CreateCertificate(rand.Reader, client, caCertificate, clientPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the client certificate to "client.pem"
+	clientCertFile, err := os.Create(filepath.Join("testdata", "client.pem"))
+	if err != nil {
+		return err
+	}
+	defer clientCertFile.Close()
+
+	err = pem.Encode(clientCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: clientCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the client private key to "client.key"
+	clientKeyFile, err := os.Create(filepath.Join("testdata", "client.key"))
+	if err != nil {
+		return err
+	}
+	defer clientKeyFile.Close()
+
+	clientPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(clientPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(clientKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: clientPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	// Generate a private key for the server
+	serverPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a certificate for the server
+	server := &x509.Certificate{
+		SerialNumber: big.NewInt(11),
+		Subject:      pkix.Name{Organization: []string{"server"}},
+		NotBefore:    time.Now().Add(-1 * time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	serverCertificate, err := x509.CreateCertificate(rand.Reader, server, caCertificate, serverPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the server certificate to "server.pem"
+	serverCertFile, err := os.Create(filepath.Join("testdata", "server.pem"))
+	if err != nil {
+		return err
+	}
+	defer serverCertFile.Close()
+
+	err = pem.Encode(serverCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: serverCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the server private key to "server.key"
+	serverKeyFile, err := os.Create(filepath.Join("testdata", "server.key"))
+	if err != nil {
+		return err
+	}
+	defer serverKeyFile.Close()
+
+	serverPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(serverPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(serverKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: serverPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type TestCase struct {

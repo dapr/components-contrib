@@ -121,8 +121,8 @@ type mskAccessTokenProvider struct {
 	region               string
 }
 
-// this function can't use the context passed on Init because that context would be cancelled right after Init
 func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+    // this function can't use the context passed on Init because that context would be cancelled right after Init
 	ctx, cancel := context.WithTimeout(m.ctx, m.generateTokenTimeout)
 	defer cancel()
 

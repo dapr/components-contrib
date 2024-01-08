@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
@@ -92,14 +93,16 @@ func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	return nil
 }
 
-func updateAWSIAMAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
+func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *KafkaMetadata) error {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 	config.Net.SASL.TokenProvider = &mskAccessTokenProvider{
-		region:       metadata.AWSRegion,
-		accessKey:    metadata.AWSAccessKey,
-		secretKey:    metadata.AWSSecretKey,
-		sessionToken: metadata.AWSSessionToken,
+		ctx:                  ctx,
+		generateTokenTimeout: 10 * time.Second,
+		region:               metadata.AWSRegion,
+		accessKey:            metadata.AWSAccessKey,
+		secretKey:            metadata.AWSSecretKey,
+		sessionToken:         metadata.AWSSessionToken,
 	}
 
 	_, err := config.Net.SASL.TokenProvider.Token()
@@ -110,16 +113,21 @@ func updateAWSIAMAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error 
 }
 
 type mskAccessTokenProvider struct {
-	accessKey    string
-	secretKey    string
-	sessionToken string
-	region       string
+	ctx                  context.Context
+	generateTokenTimeout time.Duration
+	accessKey            string
+	secretKey            string
+	sessionToken         string
+	region               string
 }
 
 // this function can't use the context passed on Init because that context would be cancelled right after Init
 func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	ctx, cancel := context.WithTimeout(m.ctx, m.generateTokenTimeout)
+	defer cancel()
+
 	if m.accessKey != "" && m.secretKey != "" {
-		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(context.Background(), m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
 			return aws2.Credentials{
 				AccessKeyID:     m.accessKey,
 				SecretAccessKey: m.secretKey,
@@ -129,6 +137,6 @@ func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 		return &sarama.AccessToken{Token: token}, err
 	}
 
-	token, _, err := signer.GenerateAuthToken(context.Background(), m.region)
+	token, _, err := signer.GenerateAuthToken(ctx, m.region)
 	return &sarama.AccessToken{Token: token}, err
 }

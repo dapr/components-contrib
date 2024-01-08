@@ -131,6 +131,8 @@ linters-settings:
             desc: "must use context"
           - pkg: "github.com/pkg/errors"
             desc: "must use standard library (errors package and/or fmt.Errorf)"
+          - pkg: "golang.org/x/exp/slices"
+            desc: "must use slices from standard library"
           - pkg: "github.com/go-chi/chi$"
             desc: "must use github.com/go-chi/chi/v5"
           - pkg: "github.com/cenkalti/backoff$"

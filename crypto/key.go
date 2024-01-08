@@ -15,10 +15,10 @@ package crypto
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"golang.org/x/exp/slices"
 )
 
 // Key extends jwk.Key adding optional properties for determining if the key is valid (time bounds) or can be used for certain purposes.

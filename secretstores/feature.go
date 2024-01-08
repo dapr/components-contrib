@@ -17,10 +17,9 @@ import (
 	"github.com/dapr/components-contrib/common/features"
 )
 
-// Feature names a feature that can be implemented by Secret Store components.
-type Feature = features.Feature[SecretStore]
-
 const (
 	// FeatureMultipleKeyValuesPerSecret advertises that this SecretStore supports multiple keys-values under a single secret.
 	FeatureMultipleKeyValuesPerSecret Feature = "MULTIPLE_KEY_VALUES_PER_SECRET"
 )
+
+type Feature = features.Feature[SecretStore]

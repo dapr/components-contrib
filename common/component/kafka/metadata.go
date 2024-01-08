@@ -28,6 +28,11 @@ import (
 
 const (
 	key                  = "partitionKey"
+	keyMetadataKey       = "__key"
+	timestampMetadataKey = "__timestamp"
+	offsetMetadataKey    = "__offset"
+	partitionMetadataKey = "__partition"
+	topicMetadataKey     = "__topic"
 	skipVerify           = "skipVerify"
 	caCert               = "caCert"
 	certificateAuthType  = "certificate"
@@ -230,7 +235,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		k.logger.Debug("Configuring root certificate authentication.")
 	case awsIAMAuthType:
 		if m.AWSRegion == "" {
-			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsIAM'")
+			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
 		}
 		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:

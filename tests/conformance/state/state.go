@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
@@ -337,7 +337,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			require.EqualError(t, err, "ping is not implemented by this state store")
+			require.ErrorIs(t, err, state.ErrPingNotImplemented)
 		} else {
 			require.NoError(t, err)
 		}
@@ -575,7 +575,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			transactionStore, ok := statestore.(state.TransactionalStore)
-			assert.True(t, ok)
+			require.True(t, ok)
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
@@ -704,7 +704,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		})
 	} else {
-		t.Run("transactional feature not present", func(t *testing.T) {
+		t.Run("component does not implement TransactionalStore interface", func(t *testing.T) {
+			_, ok := statestore.(state.TransactionalStore)
+			require.False(t, ok)
+		})
+
+		t.Run("Transactional feature not present", func(t *testing.T) {
 			features := statestore.Features()
 			assert.False(t, state.FeatureTransactional.IsPresent(features))
 		})
@@ -1300,6 +1305,109 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					}
 				}
 			})
+		})
+	}
+
+	if config.HasOperation("delete-with-prefix") {
+		keys := map[string]bool{
+			"prefix||key1":          true,
+			"prefix||key2":          true,
+			"prefix||prefix2||key3": true,
+			"other-prefix||key1":    true,
+			"no-prefix":             true,
+		}
+		validateFn := func() func(t *testing.T) {
+			return func(t *testing.T) {
+				for key, exists := range keys {
+					res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key})
+					require.NoErrorf(t, err, "Error retrieving key '%s'", key)
+					if exists {
+						require.NotEmptyf(t, res.Data, "Expected key '%s' to be not empty", key)
+					} else {
+						require.Emptyf(t, res.Data, "Expected key '%s' to be empty, but contained data: %s", key, string(res.Data))
+					}
+				}
+			}
+		}
+
+		var statestoreDeleteWithPrefix state.DeleteWithPrefix
+		t.Run("component implements DeleteWithPrefix interface", func(t *testing.T) {
+			var ok bool
+			statestoreDeleteWithPrefix, ok = statestore.(state.DeleteWithPrefix)
+			require.True(t, ok)
+		})
+
+		t.Run("DeleteWithPrefix feature present", func(t *testing.T) {
+			features := statestore.Features()
+			require.True(t, state.FeatureDeleteWithPrefix.IsPresent(features))
+		})
+
+		t.Run("set test data", func(t *testing.T) {
+			err := statestore.BulkSet(context.Background(), []state.SetRequest{
+				{Key: "prefix||key1", Value: []byte("Ovid, Metamorphoseon")},
+				{Key: "prefix||key2", Value: []byte("In nova fert animus mutatas dicere formas")},
+				{Key: "prefix||prefix2||key3", Value: []byte("corpora; di, coeptis (nam vos mutastis et illas)")},
+				{Key: "other-prefix||key1", Value: []byte("adspirate meis primaque ab origine mundi")}, // Note this still has "prefix||" but not at the start of the string
+				{Key: "no-prefix", Value: []byte("ad mea perpetuum deducite tempora carmen.")},
+			}, state.BulkStoreOpts{})
+			require.NoError(t, err)
+
+			t.Run("all keys are set", validateFn())
+		})
+
+		require.False(t, t.Failed(), "Cannot continue if previous test failed")
+
+		t.Run("delete with prefix", func(t *testing.T) {
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				// Does not delete "prefix||prefix2||key3"
+				Prefix: "prefix||",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int64(2), res.Count)
+
+			keys["prefix||key1"] = false
+			keys["prefix||key2"] = false
+
+			t.Run("validate keys present", validateFn())
+		})
+
+		t.Run("delete with prefix appends ||", func(t *testing.T) {
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				// Appends || automatically
+				Prefix: "other-prefix",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), res.Count)
+
+			keys["other-prefix||key1"] = false
+
+			t.Run("validate keys present", validateFn())
+		})
+
+		t.Run("error when prefix is empty", func(t *testing.T) {
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				Prefix: "",
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "prefix is required")
+		})
+
+		t.Run("error when prefix is ||", func(t *testing.T) {
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				Prefix: "||",
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "prefix is required")
+		})
+	} else {
+		t.Run("component does not implement DeleteWithPrefix interface", func(t *testing.T) {
+			_, ok := statestore.(state.DeleteWithPrefix)
+			require.False(t, ok)
+		})
+
+		t.Run("DeleteWithPrefix feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			require.False(t, state.FeatureDeleteWithPrefix.IsPresent(features))
 		})
 	}
 }

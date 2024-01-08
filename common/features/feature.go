@@ -14,7 +14,7 @@ limitations under the License.
 package features
 
 import (
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // Feature is a generic type for features supported by components.

@@ -1,6 +1,7 @@
+version: '2'
 services:
   standalone:
-    image: apachepulsar/pulsar:3.1.1
+    image: apachepulsar/pulsar:2.8.2
     ports:
       - '6651:6651'
       - '8081:8081'
@@ -23,5 +24,10 @@ services:
       - ${PWD}/certificates/ca.cert.pem:/etc/pulsar/cert/ca.cert.pem
       - ${PWD}/certificates/broker.cert.pem:/etc/pulsar/cert/broker.cert.pem
       - ${PWD}/certificates/broker.key-pk8.pem:/etc/pulsar/cert/broker.key-pk8.pem
+      - pulsardata:/pulsar/data
+      - pulsarconf:/pulsar/conf
+volumes:
+  pulsardata:
+  pulsarconf:
 
 

@@ -47,13 +47,13 @@ type Kafka struct {
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 
-  // schema registry settings
+	// schema registry settings
 	srClient              srclient.ISchemaRegistryClient
 	schemaCachingEnabled  bool
 	latestSchemaCache     map[string]SchemaCacheEntry
 	latestSchemaCacheTTL  time.Duration
 	latestSchemaCacheLock sync.RWMutex
-  
+
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
 	internalContextCancel func()

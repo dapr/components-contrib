@@ -42,6 +42,10 @@ type Kafka struct {
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 
+	// used for background logic that cannot use the context passed to the Init function
+	internalContext       context.Context
+	internalContextCancel func()
+
 	backOffConfig retry.Config
 
 	// The default value should be true for kafka pubsub component and false for kafka binding component
@@ -70,6 +74,9 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	if err != nil {
 		return err
 	}
+
+	// this context can't use the context passed to Init because that context would be cancelled right after Init
+	k.internalContext, k.internalContextCancel = context.WithCancel(context.Background())
 
 	k.brokers = meta.internalBrokers
 	k.consumerGroup = meta.ConsumerGroup
@@ -114,7 +121,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentcation")
-		err = updateAWSIAMAuthInfo(ctx, config, meta)
+		err = updateAWSIAMAuthInfo(k.internalContext, config, meta)
 		if err != nil {
 			return err
 		}
@@ -150,6 +157,10 @@ func (k *Kafka) Close() (err error) {
 	if k.producer != nil {
 		err = k.producer.Close()
 		k.producer = nil
+	}
+
+	if k.internalContext != nil {
+		k.internalContextCancel()
 	}
 
 	return err

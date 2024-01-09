@@ -62,7 +62,7 @@ metadata:
       "dapr_metadata"
     default: |
       "dapr_metadata"
-  - name: schema
+  - name: schemaName
     description: |
       The schema to use.
     example: |
@@ -93,7 +93,7 @@ metadata:
       List of indexed properties, as a string containing a JSON document.
     example: |
       '[{"column": "transactionid", "property": "id", "type": "int"}, {"column": "customerid", "property": "customer", "type": "nvarchar(100)"}]'
-  - name: cleanupIntervalInSeconds
+  - name: cleanupInterval
     type: number
     description: |
       Interval, in seconds, to clean up rows with an expired TTL. Default: 3600 (i.e. 1 hour).

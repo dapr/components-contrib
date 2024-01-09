@@ -20,7 +20,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.12.1-0.20231102232056-f4e73b0e6511
 	github.com/dapr/dapr v1.12.1-0.20231127182349-91899493566c
-	github.com/dapr/go-sdk v1.6.1-0.20231102031149-87bbb8cd690a
+	github.com/dapr/go-sdk v1.6.1-0.20240108023639-c8f353378719
 	github.com/dapr/kit v0.12.2-0.20231031211530-0e1fd37fc4b3
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.10
@@ -286,14 +286,14 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
 	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.13.0 // indirect
 	golang.org/x/sync v0.4.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

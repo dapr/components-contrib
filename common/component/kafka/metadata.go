@@ -246,9 +246,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		if m.AWSRegion == "" {
 			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
 		}
-		if m.AWSIamRoleArn == "" && m.AWSSecretKey == "" && m.AWSAccessKey == "" {
-			return nil, errors.New("missing AWS credentials or IAM role properties for authType 'awsiam'")
-		}
 		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")

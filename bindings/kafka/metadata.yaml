@@ -302,7 +302,7 @@ metadata:
       Enables caching for schemas.
     example: '"true"'
     default: '"true"'
-  - name: SchemaLatestVersionCacheTTL
+  - name: schemaLatestVersionCacheTTL
     type: duration
     description: |
       The TTL for schema caching when publishing a message with latest schema available.

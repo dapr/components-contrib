@@ -142,9 +142,17 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 	for i, message := range messages {
 		if message != nil {
 			metadata := GetEventMetadata(message)
+			handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
+			if err != nil {
+				return err
+			}
+			messageVal, err := consumer.k.DeserializeValue(message, handlerConfig)
+			if err != nil {
+				return err
+			}
 			childMessage := KafkaBulkMessageEntry{
 				EntryId:  strconv.Itoa(i),
-				Event:    message.Value,
+				Event:    messageVal,
 				Metadata: metadata,
 			}
 			messageValues[i] = childMessage
@@ -184,9 +192,14 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	if !handlerConfig.IsBulkSubscribe && handlerConfig.Handler == nil {
 		return errors.New("invalid handler config for subscribe call")
 	}
+
+	messageVal, err := consumer.k.DeserializeValue(message, handlerConfig)
+	if err != nil {
+		return err
+	}
 	event := NewEvent{
 		Topic: message.Topic,
-		Data:  message.Value,
+		Data:  messageVal,
 	}
 	event.Metadata = GetEventMetadata(message)
 

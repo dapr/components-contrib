@@ -21,11 +21,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/common/component/kafka"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (

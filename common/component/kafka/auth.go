@@ -103,6 +103,8 @@ func updateAWSIAMAuthInfo(ctx context.Context, config *sarama.Config, metadata *
 		accessKey:            metadata.AWSAccessKey,
 		secretKey:            metadata.AWSSecretKey,
 		sessionToken:         metadata.AWSSessionToken,
+		awsIamRoleArn:        metadata.AWSIamRoleArn,
+		awsStsSessionName:    metadata.AWSStsSessionName,
 	}
 
 	_, err := config.Net.SASL.TokenProvider.Token()
@@ -118,6 +120,8 @@ type mskAccessTokenProvider struct {
 	accessKey            string
 	secretKey            string
 	sessionToken         string
+	awsIamRoleArn        string
+	awsStsSessionName    string
 	region               string
 }
 
@@ -134,6 +138,9 @@ func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 				SessionToken:    m.sessionToken,
 			}, nil
 		}))
+		return &sarama.AccessToken{Token: token}, err
+	} else if m.awsIamRoleArn != "" {
+		token, _, err := signer.GenerateAuthTokenFromRole(ctx, m.region, m.awsIamRoleArn, m.awsStsSessionName)
 		return &sarama.AccessToken{Token: token}, err
 	}
 

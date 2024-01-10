@@ -134,7 +134,7 @@ authenticationProfiles:
         allowedValues:
           - "none"
   - title: "AWS IAM"
-    description: "Authenticate using AWS IAM, useful for Serverless AWS MSK"
+    description: "Authenticate using AWS IAM credentials or role for AWS MSK"
     metadata:
       - name: authType
         type: string
@@ -170,6 +170,18 @@ authenticationProfiles:
         description: |
           AWS session token to use. A session token is only required if you are using\ntemporary security credentials.
         example: '"TOKEN"'
+      - name: awsIamRoleArn
+        type: string
+        required: true
+        description: |
+          IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: awsStsSessionName
+        type: string
+        description: |
+          Represents the session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"MSKSASLDefaultSession"'
 metadata:
     - name: brokers
       type: string

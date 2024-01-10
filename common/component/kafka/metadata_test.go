@@ -369,6 +369,31 @@ func TestTls(t *testing.T) {
 	})
 }
 
+func TestAwsIam(t *testing.T) {
+	k := getKafka()
+
+	t.Run("missing aws region", func(t *testing.T) {
+		m := getBaseMetadata()
+		m[authType] = awsIAMAuthType
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+
+		require.Equal(t, "missing AWS region property 'awsRegion' for authType 'awsiam'", err.Error())
+	})
+
+	t.Run("missing aws credentials", func(t *testing.T) {
+		m := getBaseMetadata()
+		m[authType] = awsIAMAuthType
+		m["awsRegion"] = "us-east-1"
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+
+		require.Equal(t, "missing AWS credentials or IAM role properties for authType 'awsiam'", err.Error())
+	})
+}
+
 func TestMetadataConsumerFetchValues(t *testing.T) {
 	k := getKafka()
 	m := getCompleteMetadata()

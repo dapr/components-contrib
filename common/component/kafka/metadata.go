@@ -49,6 +49,7 @@ const (
 	consumerFetchMin     = "consumerFetchMin"
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
+	valueSchemaType      = "valueSchemaType"
 )
 
 type KafkaMetadata struct {
@@ -83,10 +84,18 @@ type KafkaMetadata struct {
 	AWSAccessKey         string `mapstructure:"awsAccessKey"`
 	AWSSecretKey         string `mapstructure:"awsSecretKey"`
 	AWSSessionToken      string `mapstructure:"awsSessionToken"`
+	AWSIamRoleArn        string `mapstructure:"awsIamRoleArn"`
+	AWSStsSessionName    string `mapstructure:"awsStsSessionName"`
 	AWSRegion            string `mapstructure:"awsRegion"`
 	channelBufferSize    int    `mapstructure:"-"`
 	consumerFetchMin     int32  `mapstructure:"-"`
 	consumerFetchDefault int32  `mapstructure:"-"`
+	// schema registry
+	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
+	SchemaRegistryAPIKey        string        `mapstructure:"schemaRegistryAPIKey"`
+	SchemaRegistryAPISecret     string        `mapstructure:"schemaRegistryAPISecret"`
+	SchemaCachingEnabled        bool          `mapstructure:"schemaCachingEnabled"`
+	SchemaLatestVersionCacheTTL time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -236,6 +245,9 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	case awsIAMAuthType:
 		if m.AWSRegion == "" {
 			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
+		}
+		if m.AWSIamRoleArn == "" && m.AWSSecretKey == "" && m.AWSAccessKey == "" {
+			return nil, errors.New("missing AWS credentials or IAM role properties for authType 'awsiam'")
 		}
 		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:

@@ -28,6 +28,7 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/retry"
 )
 
@@ -48,11 +49,12 @@ type Kafka struct {
 	subscribeLock   sync.Mutex
 
 	// schema registry settings
-	srClient              srclient.ISchemaRegistryClient
-	schemaCachingEnabled  bool
-	latestSchemaCache     map[string]SchemaCacheEntry
-	latestSchemaCacheTTL  time.Duration
-	latestSchemaCacheLock sync.RWMutex
+	srClient                   srclient.ISchemaRegistryClient
+	schemaCachingEnabled       bool
+	latestSchemaCache          map[string]SchemaCacheEntry
+	latestSchemaCacheTTL       time.Duration
+	latestSchemaCacheWriteLock sync.RWMutex
+	latestSchemaCacheReadLock  sync.Mutex
 
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
@@ -81,7 +83,7 @@ type SchemaCacheEntry struct {
 }
 
 func GetValueSchemaType(metadata map[string]string) (SchemaType, error) {
-	schemaTypeStr, ok := metadata[valueSchemaType]
+	schemaTypeStr, ok := kitmd.GetMetadataProperty(metadata, valueSchemaType)
 	if ok {
 		v, err := parseSchemaType(schemaTypeStr)
 		return v, err
@@ -200,7 +202,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		k.srClient.CachingEnabled(meta.SchemaCachingEnabled)
 		if meta.SchemaCachingEnabled {
 			k.latestSchemaCache = make(map[string]SchemaCacheEntry)
-			k.latestSchemaCacheTTL = meta.LatestSchemaCacheTTL
+			k.latestSchemaCacheTTL = meta.SchemaLatestVersionCacheTTL
 		}
 	}
 	k.logger.Debug("Kafka message bus initialization complete")
@@ -225,16 +227,16 @@ func (k *Kafka) Close() (err error) {
 
 func getSchemaSubject(topic string) string {
 	// For now assumes that subject is named after topic (e.g. `my-topic-value`)
-	return fmt.Sprintf("%s-value", topic)
+	return topic + "-value"
 }
 
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
-	if config.ValueSchemaType == Avro {
+	switch config.ValueSchemaType {
+	case Avro:
 		srClient, err := k.getSchemaRegistyClient()
 		if err != nil {
 			return nil, err
 		}
-
 		if len(message.Value) < 5 {
 			return nil, fmt.Errorf("value is too short")
 		}
@@ -257,10 +259,10 @@ func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config Subscri
 		if err != nil {
 			return nil, err
 		}
-
 		return value, nil
+	default:
+		return message.Value, nil
 	}
-	return message.Value, nil
 }
 
 func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, error) {
@@ -271,9 +273,12 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 
 	subject := getSchemaSubject(topic)
 	if k.schemaCachingEnabled {
+		k.latestSchemaCacheReadLock.Lock()
 		cacheEntry, ok := k.latestSchemaCache[subject]
+		k.latestSchemaCacheReadLock.Unlock()
+
 		// Cache present and not expired
-		if ok && cacheEntry.expirationTime.Compare(time.Now()) < 0 {
+		if ok && cacheEntry.expirationTime.After(time.Now()) {
 			return cacheEntry.schema, cacheEntry.codec, nil
 		}
 		schema, errSchema := srClient.GetLatestSchema(subject)
@@ -284,11 +289,11 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 		// Since standard json is passed from dapr, it is needed.
 		codec, errCodec := goavro.NewCodecForStandardJSONFull(schema.Schema())
 		if errCodec != nil {
-			return nil, nil, err
+			return nil, nil, errCodec
 		}
-		k.latestSchemaCacheLock.Lock()
+		k.latestSchemaCacheWriteLock.Lock()
 		k.latestSchemaCache[subject] = SchemaCacheEntry{schema: schema, codec: codec, expirationTime: time.Now().Add(k.latestSchemaCacheTTL)}
-		k.latestSchemaCacheLock.Unlock()
+		k.latestSchemaCacheWriteLock.Unlock()
 		return schema, codec, nil
 	}
 	schema, err := srClient.GetLatestSchema(getSchemaSubject(topic))
@@ -317,7 +322,8 @@ func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]st
 		return nil, err
 	}
 
-	if valueSchemaType == Avro {
+	switch valueSchemaType {
+	case Avro:
 		schema, codec, err := k.getLatestSchema(topic)
 		if err != nil {
 			return nil, err
@@ -335,14 +341,14 @@ func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]st
 		schemaIDBytes := make([]byte, 4)
 		binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID()))
 
-		var recordValue []byte
+		recordValue := make([]byte, 0, len(schemaIDBytes)+len(valueBytes)+1)
 		recordValue = append(recordValue, byte(0))
 		recordValue = append(recordValue, schemaIDBytes...)
 		recordValue = append(recordValue, valueBytes...)
 		return recordValue, nil
+	default:
+		return data, nil
 	}
-
-	return data, nil
 }
 
 // EventHandler is the handler used to handle the subscribed event.

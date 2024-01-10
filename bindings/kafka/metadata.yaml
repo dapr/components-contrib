@@ -290,9 +290,9 @@ metadata:
       Enables caching for schemas.
     example: '"true"'
     default: '"true"'
-  - name: LatestSchemaCacheTTL
+  - name: SchemaLatestVersionCacheTTL
     type: duration
     description: |
       The TTL for schema caching when publishing a message with latest schema available.
-    example: '"5min"'
-    default: '"5min"'
+    example: '"5m"'
+    default: '"5m"'

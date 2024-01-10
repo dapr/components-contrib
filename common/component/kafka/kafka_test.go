@@ -215,7 +215,7 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		srClient:             registry,
 		schemaCachingEnabled: true,
 		latestSchemaCache:    make(map[string]SchemaCacheEntry),
-		latestSchemaCacheTTL: time.Duration(time.Duration.Seconds(3)),
+		latestSchemaCacheTTL: time.Minute * 5,
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
@@ -243,7 +243,7 @@ func TestLatestSchemaCaching(t *testing.T) {
 			srClient:             m,
 			schemaCachingEnabled: true,
 			latestSchemaCache:    make(map[string]SchemaCacheEntry),
-			latestSchemaCacheTTL: time.Duration(time.Duration.Seconds(3)),
+			latestSchemaCacheTTL: time.Second * 10,
 		}
 
 		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(1)
@@ -258,12 +258,34 @@ func TestLatestSchemaCaching(t *testing.T) {
 		assertValueSerialized(t, act, valJSON, schema)
 	})
 
+	t.Run("Caching enabled, when cache entry expires, call GetLatestSchema() again", func(t *testing.T) {
+		k := Kafka{
+			srClient:             m,
+			schemaCachingEnabled: true,
+			latestSchemaCache:    make(map[string]SchemaCacheEntry),
+			latestSchemaCacheTTL: time.Second * 1,
+		}
+
+		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(2)
+
+		valJSON, _ := json.Marshal(testValue1)
+
+		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		assertValueSerialized(t, act, valJSON, schema)
+
+		time.Sleep(2 * time.Second)
+
+		// Call a 2nd time within TTL and make sure it's not called again
+		act, _ = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		assertValueSerialized(t, act, valJSON, schema)
+	})
+
 	t.Run("Caching disabled, call GetLatestSchema() twice", func(t *testing.T) {
 		k := Kafka{
 			srClient:             m,
 			schemaCachingEnabled: false,
 			latestSchemaCache:    make(map[string]SchemaCacheEntry),
-			latestSchemaCacheTTL: time.Duration(time.Duration.Minutes(1)),
+			latestSchemaCacheTTL: 0,
 		}
 
 		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(2)

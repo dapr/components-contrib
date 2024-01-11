@@ -13,7 +13,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.2

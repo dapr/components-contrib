@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,6 +93,7 @@ func (store *inMemoryStore) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 
@@ -114,6 +116,34 @@ func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest
 	// this operation won't fail
 	store.doDelete(ctx, req.Key)
 	return nil
+}
+
+func (store *inMemoryStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	// step1: validate parameters
+	err := req.Validate()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	// step2 should be protected by write-lock
+	store.lock.Lock()
+	defer store.lock.Unlock()
+
+	// step2: do really delete
+	// this operation won't fail
+	var count int64
+
+	for key := range store.items {
+		if strings.HasPrefix(key, req.Prefix) {
+			// The string contains the prefix, now we check to make sure there aren't more || after
+			longerPrefix := strings.Contains(key[len(req.Prefix):], "||")
+			if !longerPrefix {
+				delete(store.items, key)
+				count++
+			}
+		}
+	}
+	return state.DeleteWithPrefixResponse{Count: count}, nil
 }
 
 func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {

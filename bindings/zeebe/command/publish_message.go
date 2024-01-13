@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 var ErrMissingMessageName = errors.New("messageName is a required attribute")

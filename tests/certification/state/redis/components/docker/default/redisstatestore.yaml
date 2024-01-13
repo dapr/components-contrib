@@ -13,3 +13,16 @@ spec:
     value: 5m
   - name: timeout
     value: 100s
+  - name: queryIndexes
+    value: |
+      [
+        {
+          "name": "tquery",
+          "indexes": [
+            {
+              "key": "qmsg",
+              "type": "TEXT"
+            }
+          ]
+        }
+      ]

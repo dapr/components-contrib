@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Postmark allows sending of emails using the 3rd party Postmark service.
@@ -53,7 +54,7 @@ func NewPostmark(logger logger.Logger) bindings.OutputBinding {
 func (p *Postmark) parseMetadata(meta bindings.Metadata) (postmarkMetadata, error) {
 	pMeta := postmarkMetadata{}
 
-	err := metadata.DecodeMetadata(meta.Properties, &pMeta)
+	err := kitmd.DecodeMetadata(meta.Properties, &pMeta)
 	if err != nil {
 		return pMeta, err
 	}

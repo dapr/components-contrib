@@ -22,8 +22,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-	"github.com/dapr/components-contrib/internal/utils"
+	impl "github.com/dapr/components-contrib/common/component/azure/servicebus"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -108,7 +108,7 @@ func (a *azureServiceBus) BulkSubscribe(ctx context.Context, req pubsub.Subscrib
 		return errors.New("component is closed")
 	}
 
-	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
+	maxBulkSubCount := commonutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,

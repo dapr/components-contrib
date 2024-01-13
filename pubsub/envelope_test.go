@@ -16,8 +16,8 @@ package pubsub
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +25,7 @@ import (
 	format "github.com/cloudevents/sdk-go/binding/format/protobuf/v2"
 	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	contribContenttype "github.com/dapr/components-contrib/contenttype"
 )
@@ -220,7 +221,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
 			"mypubsub", "", []byte(str), "", "")
 		ApplyMetadata(envelope, nil, map[string]string{
-			"ttlInSeconds": fmt.Sprintf("%v", math.MaxInt64),
+			"ttlInSeconds": strconv.Itoa(math.MaxInt64),
 		})
 		assert.NotEqual(t, "", envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
@@ -257,7 +258,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -271,7 +272,7 @@ func TestNewFromExisting(t *testing.T) {
 
 	t.Run("invalid cloudevent", func(t *testing.T) {
 		_, err := FromCloudEvent([]byte("a"), "1", "", "", "")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("valid cloudevent with text data", func(t *testing.T) {
@@ -284,7 +285,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -305,7 +306,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
@@ -326,7 +327,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "1", "2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1", n[TraceIDField])
 		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "2", n[TraceStateField])
@@ -344,7 +345,7 @@ func TestNewFromExisting(t *testing.T) {
 		b, _ := json.Marshal(&m)
 
 		n, err := FromCloudEvent(b, "b", "pubsub", "", "")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "e", n[TraceIDField])
 		assert.Equal(t, "f", n[TraceStateField])
 		assert.Equal(t, "g", n[TraceParentField])

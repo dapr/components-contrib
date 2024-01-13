@@ -23,6 +23,8 @@ import (
 	"github.com/dapr/kit/config"
 )
 
+const defaultDaprPortMetaKey string = "DAPR_PORT" // default key for DaprPort in meta
+
 // The intermediateConfig is based off of the consul api types. User configurations are
 // deserialized into this type before being converted to the equivalent consul types
 // that way breaking changes in future versions of the consul api cannot break user configuration.
@@ -33,8 +35,10 @@ type intermediateConfig struct {
 	Meta                 map[string]string
 	QueryOptions         *QueryOptions
 	AdvancedRegistration *AgentServiceRegistration // advanced use-case
-	SelfRegister         bool
 	DaprPortMetaKey      string
+	SelfRegister         bool
+	SelfDeregister       bool
+	UseCache             bool
 }
 
 type configSpec struct {
@@ -44,8 +48,16 @@ type configSpec struct {
 	Meta                 map[string]string
 	QueryOptions         *consul.QueryOptions
 	AdvancedRegistration *consul.AgentServiceRegistration // advanced use-case
-	SelfRegister         bool
 	DaprPortMetaKey      string
+	SelfRegister         bool
+	SelfDeregister       bool
+	UseCache             bool
+}
+
+func newIntermediateConfig() intermediateConfig {
+	return intermediateConfig{
+		DaprPortMetaKey: defaultDaprPortMetaKey,
+	}
 }
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
@@ -60,7 +72,7 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 		return result, fmt.Errorf("error serializing to json: %w", err)
 	}
 
-	var configuration intermediateConfig
+	configuration := newIntermediateConfig()
 	err = json.Unmarshal(data, &configuration)
 	if err != nil {
 		return result, fmt.Errorf("error deserializing to configSpec: %w", err)
@@ -80,7 +92,9 @@ func mapConfig(config intermediateConfig) configSpec {
 		QueryOptions:         mapQueryOptions(config.QueryOptions),
 		AdvancedRegistration: mapAdvancedRegistration(config.AdvancedRegistration),
 		SelfRegister:         config.SelfRegister,
+		SelfDeregister:       config.SelfDeregister,
 		DaprPortMetaKey:      config.DaprPortMetaKey,
+		UseCache:             config.UseCache,
 	}
 }
 

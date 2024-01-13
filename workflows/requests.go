@@ -16,6 +16,7 @@ type GetRequest struct {
 // TerminateRequest is the struct describing a terminate workflow request.
 type TerminateRequest struct {
 	InstanceID string `json:"instanceID"`
+	Recursive  bool   `json:"recursive"`
 }
 
 // RaiseEventRequest is the struct describing a raise workflow event request.
@@ -38,4 +39,5 @@ type ResumeRequest struct {
 // PurgeRequest is the object describing a Purge request.
 type PurgeRequest struct {
 	InstanceID string `json:"instanceID"`
+	Recursive  bool   `json:"recursive"`
 }

@@ -23,10 +23,11 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type mockActivateJobsClient struct {
@@ -102,9 +103,12 @@ func TestActivateJobs(t *testing.T) {
 
 	t.Run("jobType is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingJobType)
+		require.ErrorIs(t, err, ErrMissingJobType)
 	})
 
 	t.Run("maxJobsToActivate is mandatory", func(t *testing.T) {
@@ -112,12 +116,12 @@ func TestActivateJobs(t *testing.T) {
 			JobType: "a",
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingMaxJobsToActivate)
+		require.ErrorIs(t, err, ErrMissingMaxJobsToActivate)
 	})
 
 	t.Run("activate jobs with mandatory fields", func(t *testing.T) {
@@ -126,7 +130,7 @@ func TestActivateJobs(t *testing.T) {
 			MaxJobsToActivate: new(int32),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
@@ -134,7 +138,7 @@ func TestActivateJobs(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
 		assert.Equal(t, *payload.MaxJobsToActivate, mc.cmd1.cmd2.maxJobsToActivate)
@@ -144,12 +148,12 @@ func TestActivateJobs(t *testing.T) {
 		payload := activateJobsPayload{
 			JobType:           "a",
 			MaxJobsToActivate: new(int32),
-			Timeout:           contribMetadata.Duration{Duration: 1 * time.Second},
+			Timeout:           kitmd.Duration{Duration: 1 * time.Second},
 			WorkerName:        "b",
 			FetchVariables:    []string{"a", "b", "c"},
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
@@ -157,7 +161,7 @@ func TestActivateJobs(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
 		assert.Equal(t, *payload.MaxJobsToActivate, mc.cmd1.cmd2.maxJobsToActivate)

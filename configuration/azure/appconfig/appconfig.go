@@ -28,8 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
 	"github.com/google/uuid"
 
+	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/kit/logger"
@@ -52,7 +52,7 @@ const (
 
 type azAppConfigClient interface {
 	GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error)
-	NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage]
+	NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPageResponse]
 }
 
 // ConfigurationStore is a Azure App Configuration store.

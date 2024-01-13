@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"time"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -101,7 +101,7 @@ type SQLServer struct {
 	features []state.Feature
 	logger   logger.Logger
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // Init initializes the SQL server state store.
@@ -141,23 +141,24 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 func (s *SQLServer) startGC() error {
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	gc, err := commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: s.logger,
-		UpdateLastCleanupQuery: fmt.Sprintf(`BEGIN TRANSACTION;
+		UpdateLastCleanupQuery: func(arg any) (string, any) {
+			return fmt.Sprintf(`BEGIN TRANSACTION;
 BEGIN TRY
 INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
 END TRY
 BEGIN CATCH
 UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
-COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName),
-		UpdateLastCleanupQueryParameterName: "Interval",
+COMMIT TRANSACTION;`, s.metadata.SchemaName, s.metadata.MetadataTableName), sql.Named("Interval", arg)
+		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(
 			`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
-			s.metadata.Schema, s.metadata.TableName,
+			s.metadata.SchemaName, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
-		DBSql:           s.db,
+		DB:              commonsql.AdaptDatabaseSQLConn(s.db),
 	})
 	if err != nil {
 		return err
@@ -172,34 +173,49 @@ func (s *SQLServer) Features() []state.Feature {
 	return s.features
 }
 
-// Multi performs multiple updates on a Sql server store.
+// Multi performs batched updates on a SQL Server store.
 func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	defer tx.Rollback()
-	if err != nil {
-		return err
+	if request == nil {
+		return nil
 	}
 
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = s.executeSet(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		case state.DeleteRequest:
-			err = s.executeDelete(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", o.Operation())
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return s.execMultiOperation(ctx, request.Operations[0], s.db)
+	default:
+		tx, err := s.db.Begin()
+		if err != nil {
+			return err
 		}
-	}
+		defer func() {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				s.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+			}
+		}()
 
-	return tx.Commit()
+		for _, op := range request.Operations {
+			err = s.execMultiOperation(ctx, op, tx)
+			if err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
+	}
+}
+
+func (s *SQLServer) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db dbExecutor) error {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return s.executeSet(ctx, db, &req)
+	case state.DeleteRequest:
+		return s.executeDelete(ctx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
+	}
 }
 
 // Delete removes an entity from the store.

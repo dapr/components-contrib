@@ -50,6 +50,76 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	return replaceKeywords("c.value."+f.Key) + " = " + name, nil
 }
 
+func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
+	// <key> != <val>
+	val, ok := f.Val.(string)
+	if !ok {
+		return "", fmt.Errorf("unsupported type of value %#v; expected string", f.Val)
+	}
+	name := q.setNextParameter(val)
+
+	return replaceKeywords("c.value."+f.Key) + " != " + name, nil
+}
+
+func (q *Query) VisitGT(f *query.GT) (string, error) {
+	// <key> > <val>
+	var name string
+	switch value := f.Val.(type) {
+	case int:
+		name = q.setNextParameterInt(value)
+	case float64:
+		name = q.setNextParameterFloat(value)
+	default:
+		return "", fmt.Errorf("unsupported type of value %#v; expected number", f.Val)
+	}
+	return replaceKeywords("c.value."+f.Key) + " > " + name, nil
+}
+
+func (q *Query) VisitGTE(f *query.GTE) (string, error) {
+	// <key> >= <val>
+	var name string
+	switch value := f.Val.(type) {
+	case int:
+		name = q.setNextParameterInt(value)
+	case float64:
+		name = q.setNextParameterFloat(value)
+	default:
+		return "", fmt.Errorf("unsupported type of value %#v; expected number", f.Val)
+	}
+
+	return replaceKeywords("c.value."+f.Key) + " >= " + name, nil
+}
+
+func (q *Query) VisitLT(f *query.LT) (string, error) {
+	// <key> < <val>
+	var name string
+	switch value := f.Val.(type) {
+	case int:
+		name = q.setNextParameterInt(value)
+	case float64:
+		name = q.setNextParameterFloat(value)
+	default:
+		return "", fmt.Errorf("unsupported type of value %#v; expected number", f.Val)
+	}
+
+	return replaceKeywords("c.value."+f.Key) + " < " + name, nil
+}
+
+func (q *Query) VisitLTE(f *query.LTE) (string, error) {
+	// <key> <= <val>
+	var name string
+	switch value := f.Val.(type) {
+	case int:
+		name = q.setNextParameterInt(value)
+	case float64:
+		name = q.setNextParameterFloat(value)
+	default:
+		return "", fmt.Errorf("unsupported type of value %#v; expected number", f.Val)
+	}
+
+	return replaceKeywords("c.value."+f.Key) + " <= " + name, nil
+}
+
 func (q *Query) VisitIN(f *query.IN) (string, error) {
 	// <key> IN ( <val1>, <val2>, ... , <valN> )
 	if len(f.Vals) == 0 {
@@ -77,6 +147,31 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		switch f := fil.(type) {
 		case *query.EQ:
 			if str, err = q.VisitEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.NEQ:
+			if str, err = q.VisitNEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GT:
+			if str, err = q.VisitGT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GTE:
+			if str, err = q.VisitGTE(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LT:
+			if str, err = q.VisitLT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LTE:
+			if str, err = q.VisitLTE(f); err != nil {
 				return "", err
 			}
 			arr = append(arr, str)
@@ -138,6 +233,20 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 }
 
 func (q *Query) setNextParameter(val string) string {
+	pname := fmt.Sprintf("@__param__%d__", len(q.query.parameters))
+	q.query.parameters = append(q.query.parameters, azcosmos.QueryParameter{Name: pname, Value: val})
+
+	return pname
+}
+
+func (q *Query) setNextParameterInt(val int) string {
+	pname := fmt.Sprintf("@__param__%d__", len(q.query.parameters))
+	q.query.parameters = append(q.query.parameters, azcosmos.QueryParameter{Name: pname, Value: val})
+
+	return pname
+}
+
+func (q *Query) setNextParameterFloat(val float64) string {
 	pname := fmt.Sprintf("@__param__%d__", len(q.query.parameters))
 	q.query.parameters = append(q.query.parameters, azcosmos.QueryParameter{Name: pname, Value: val})
 

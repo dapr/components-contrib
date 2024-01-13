@@ -53,6 +53,16 @@ type Query struct {
 type Visitor interface {
 	// returns "equal" expression
 	VisitEQ(*EQ) (string, error)
+	// returns "not equal" expression
+	VisitNEQ(*NEQ) (string, error)
+	// returns "greater than" expression
+	VisitGT(*GT) (string, error)
+	// returns "greater than equal" expression
+	VisitGTE(*GTE) (string, error)
+	// returns "less than" expression
+	VisitLT(*LT) (string, error)
+	// returns "less than equal" expression
+	VisitLTE(*LTE) (string, error)
 	// returns "in" expression
 	VisitIN(*IN) (string, error)
 	// returns "and" expression
@@ -89,6 +99,16 @@ func (h *Builder) buildFilter(filter Filter) (string, error) {
 	switch f := filter.(type) {
 	case *EQ:
 		return h.visitor.VisitEQ(f)
+	case *NEQ:
+		return h.visitor.VisitNEQ(f)
+	case *GT:
+		return h.visitor.VisitGT(f)
+	case *GTE:
+		return h.visitor.VisitGTE(f)
+	case *LT:
+		return h.visitor.VisitLT(f)
+	case *LTE:
+		return h.visitor.VisitLTE(f)
 	case *IN:
 		return h.visitor.VisitIN(f)
 	case *OR:

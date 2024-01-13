@@ -17,12 +17,12 @@ on:
   push:
     branches:
       - feature/*
-      - gh-readonly-queue/master/*
+      - gh-readonly-queue/main/*
   pull_request:
     branches:
-      - master
+      - main
       - feature/*
-      - gh-readonly-queue/master/*
+      - gh-readonly-queue/main/*
   merge_group:
 
 jobs:
@@ -33,17 +33,18 @@ jobs:
       GOOS: linux
       GOARCH: amd64
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.51.2"
+      GOLANGCI_LINT_VER: "v1.55.2"
     steps:
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version-file: 'go.mod'
+          cache: 'false'
       - name: Cache Go modules (Linux)
         uses: actions/cache@v3
         with:

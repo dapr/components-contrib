@@ -14,9 +14,11 @@ limitations under the License.
 package kubernetes
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -27,15 +29,15 @@ func TestResolve(t *testing.T) {
 	request := nameresolution.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 
 	const expect = "myid-dapr.abc.svc.cluster.local:1234"
-	target, err := resolver.ResolveID(request)
+	target, err := resolver.ResolveID(context.Background(), request)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expect, target)
 }
 
 func TestResolveWithCustomClusterDomain(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
-	_ = resolver.Init(nameresolution.Metadata{
+	_ = resolver.Init(context.Background(), nameresolution.Metadata{
 		Configuration: map[string]interface{}{
 			"clusterDomain": "mydomain.com",
 		},
@@ -43,15 +45,15 @@ func TestResolveWithCustomClusterDomain(t *testing.T) {
 	request := nameresolution.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 
 	const expect = "myid-dapr.abc.svc.mydomain.com:1234"
-	target, err := resolver.ResolveID(request)
+	target, err := resolver.ResolveID(context.Background(), request)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expect, target)
 }
 
 func TestResolveWithTemplate(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
-	_ = resolver.Init(nameresolution.Metadata{
+	_ = resolver.Init(context.Background(), nameresolution.Metadata{
 		Configuration: map[string]interface{}{
 			"template": "{{.ID}}-{{.Namespace}}.internal:{{.Port}}",
 		},
@@ -59,15 +61,15 @@ func TestResolveWithTemplate(t *testing.T) {
 
 	request := nameresolution.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 	const expected = "myid-abc.internal:1234"
-	target, err := resolver.ResolveID(request)
+	target, err := resolver.ResolveID(context.Background(), request)
 
-	assert.NoError(t, err)
-	assert.Equal(t, target, expected)
+	require.NoError(t, err)
+	assert.Equal(t, expected, target)
 }
 
 func TestResolveWithTemplateAndData(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
-	_ = resolver.Init(nameresolution.Metadata{
+	_ = resolver.Init(context.Background(), nameresolution.Metadata{
 		Configuration: map[string]interface{}{
 			"template": "{{.ID}}-{{.Data.region}}.internal:{{.Port}}",
 		},
@@ -82,8 +84,8 @@ func TestResolveWithTemplateAndData(t *testing.T) {
 		},
 	}
 	const expected = "myid-myland.internal:1234"
-	target, err := resolver.ResolveID(request)
+	target, err := resolver.ResolveID(context.Background(), request)
 
-	assert.NoError(t, err)
-	assert.Equal(t, target, expected)
+	require.NoError(t, err)
+	assert.Equal(t, expected, target)
 }

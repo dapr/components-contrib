@@ -22,6 +22,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -65,9 +66,12 @@ func TestResolveIncident(t *testing.T) {
 
 	t.Run("incidentKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: ResolveIncidentOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: ResolveIncidentOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingIncidentKey)
+		require.ErrorIs(t, err, ErrMissingIncidentKey)
 	})
 
 	t.Run("resolve a incident", func(t *testing.T) {
@@ -75,7 +79,7 @@ func TestResolveIncident(t *testing.T) {
 			IncidentKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: ResolveIncidentOperation}
 
@@ -83,7 +87,7 @@ func TestResolveIncident(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.IncidentKey, mc.cmd1.incidentKey)
 	})

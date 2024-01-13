@@ -22,9 +22,9 @@ import (
 	"net/http"
 	"strings"
 
-	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	mdutils "github.com/dapr/kit/metadata"
 )
 
 type bearerMiddlewareMetadata struct {

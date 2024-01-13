@@ -30,7 +30,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/wasm"
+	"github.com/dapr/components-contrib/common/wasm"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -93,7 +93,7 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 			_ = out.runtime.Close(context.Background())
 			return fmt.Errorf("can not instantiate wasi-http with strict sandbox")
 		}
-		err = wasi_http.Instantiate(ctx, out.runtime)
+		err = wasi_http.MakeWasiHTTP().Instantiate(ctx, out.runtime)
 	}
 	if err != nil {
 		_ = out.runtime.Close(context.Background())

@@ -30,10 +30,11 @@ import (
 	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/dapr/components-contrib/internal/authentication/oauth2"
+	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -123,7 +124,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		RedeliveryDelay:         defaultRedeliveryDelay,
 	}
 
-	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
+	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
 		return nil, err
 	}
 

@@ -19,7 +19,7 @@ const components = {
         ],
         sourcePkg: [
             'bindings/azure/blobstorage',
-            'internal/component/azure/blobstorage',
+            'common/component/azure/blobstorage',
         ],
     },
     'bindings.azure.cosmosdb': {
@@ -73,7 +73,7 @@ const components = {
         ],
         sourcePkg: [
             'bindings/azure/eventhubs',
-            'internal/component/azure/eventhubs',
+            'common/component/azure/eventhubs',
         ],
     },
     'bindings.azure.servicebusqueues': {
@@ -82,7 +82,7 @@ const components = {
         requiredSecrets: ['AzureServiceBusConnectionString'],
         sourcePkg: [
             'bindings/azure/servicebusqueues',
-            'internal/component/azure/servicebus',
+            'common/component/azure/servicebus',
         ],
     },
     'bindings.azure.storagequeues': {
@@ -135,17 +135,17 @@ const components = {
     },
     'bindings.kafka': {
         certification: true,
-        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
+        sourcePkg: ['bindings/kafka', 'common/component/kafka'],
     },
     'bindings.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
-        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
+        sourcePkg: ['bindings/kafka', 'common/component/kafka'],
     },
     'bindings.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
-        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
+        sourcePkg: ['bindings/kafka', 'common/component/kafka'],
     },
     'bindings.kitex': {
         certification: true,
@@ -180,7 +180,7 @@ const components = {
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
             'bindings/postgresql',
-            'internal/authentication/postgresql',
+            'common/authentication/postgresql',
         ],
     },
     'bindings.postgresql.azure': {
@@ -193,7 +193,7 @@ const components = {
         ],
         sourcePkg: [
             'bindings/postgresql',
-            'internal/authentication/postgresql',
+            'common/authentication/postgresql',
         ],
     },
     'bindings.rabbitmq': {
@@ -203,23 +203,23 @@ const components = {
     },
     'bindings.redis': {
         certification: true,
-        sourcePkg: ['bindings/redis', 'internal/component/redis'],
+        sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
     'bindings.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: ['bindings/redis', 'internal/component/redis'],
+        sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
     'bindings.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: ['bindings/redis', 'internal/component/redis'],
+        sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
     'configuration.postgres': {
         certification: true,
         sourcePkg: [
             'configuration/postgresql',
-            'internal/authentication/postgresql',
+            'common/authentication/postgresql',
         ],
     },
     'configuration.postgresql.docker': {
@@ -227,7 +227,7 @@ const components = {
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
             'configuration/postgresql',
-            'internal/authentication/postgresql',
+            'common/authentication/postgresql',
         ],
     },
     'configuration.postgresql.azure': {
@@ -240,7 +240,7 @@ const components = {
         ],
         sourcePkg: [
             'configuration/postgresql',
-            'internal/authentication/postgresql',
+            'common/authentication/postgresql',
         ],
     },
     'configuration.redis.v6': {
@@ -275,18 +275,21 @@ const components = {
     'lock.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: ['lock/redis', 'internal/component/redis'],
+        sourcePkg: ['lock/redis', 'common/component/redis'],
     },
     'lock.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: ['lock/redis', 'internal/component/redis'],
+        sourcePkg: ['lock/redis', 'common/component/redis'],
     },
     'middleware.http.bearer': {
         certification: true,
     },
     'middleware.http.ratelimit': {
         certification: true,
+    },
+    'middleware.http.opa': {
+        'certification': true,
     },
     'pubsub.aws.snssqs': {
         certification: true,
@@ -350,7 +353,7 @@ const components = {
         ],
         sourcePkg: [
             'pubsub/azure/eventhubs',
-            'internal/component/azure/eventhubs',
+            'common/component/azure/eventhubs',
         ],
     },
     'pubsub.azure.servicebus.queues': {
@@ -358,7 +361,7 @@ const components = {
         requiredSecrets: ['AzureServiceBusConnectionString'],
         sourcePkg: [
             'pubsub/azure/servicebus/queues',
-            'internal/component/azure/servicebus',
+            'common/component/azure/servicebus',
         ],
     },
     'pubsub.azure.servicebus.topics': {
@@ -373,7 +376,7 @@ const components = {
         ],
         sourcePkg: [
             'pubsub/azure/servicebus/topics',
-            'internal/component/azure/servicebus',
+            'common/component/azure/servicebus',
         ],
     },
     'pubsub.in-memory': {
@@ -385,17 +388,17 @@ const components = {
     },
     'pubsub.kafka': {
         certification: true,
-        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
+        sourcePkg: ['pubsub/kafka', 'common/component/kafka'],
     },
     'pubsub.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
-        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
+        sourcePkg: ['pubsub/kafka', 'common/component/kafka'],
     },
     'pubsub.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
-        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
+        sourcePkg: ['pubsub/kafka', 'common/component/kafka'],
     },
     'pubsub.kubemq': {
         conformance: true,
@@ -414,10 +417,6 @@ const components = {
         conformanceSetup: 'docker-compose.sh vernemq',
         sourcePkg: ['pubsub/mqtt3'],
     },
-    'pubsub.natsstreaming': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh natsstreaming',
-    },
     'pubsub.pulsar': {
         conformance: true,
         certification: true,
@@ -431,7 +430,7 @@ const components = {
     'pubsub.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: ['pubsub/redis', 'internal/component/redis'],
+        sourcePkg: ['pubsub/redis', 'common/component/redis'],
     },
     // This test is currently disabled due to issues with Redis v7
     /*'pubsub.redis.v7': {
@@ -513,8 +512,37 @@ const components = {
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
         sourcePkg: 'state/aws/dynamodb',
     },
-    'state.azure.blobstorage': {
+    'state.azure.blobstorage.v2': {
         conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+            'AzureCertificationTenantId',
+            'AzureCertificationServicePrincipalClientId',
+            'AzureCertificationServicePrincipalClientSecret',
+            'AzureBlobStorageContainer',
+        ],
+        sourcePkg: [
+            'state/azure/blobstorage',
+            'common/component/azure/blobstorage',
+        ],
+    },
+    'state.azure.blobstorage.v1': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+            'AzureCertificationTenantId',
+            'AzureCertificationServicePrincipalClientId',
+            'AzureCertificationServicePrincipalClientSecret',
+            'AzureBlobStorageContainer',
+        ],
+        sourcePkg: [
+            'state/azure/blobstorage',
+            'common/component/azure/blobstorage',
+        ],
+    },
+    'state.azure.blobstorage': {
         certification: true,
         requiredSecrets: [
             'AzureBlobStorageAccount',
@@ -526,7 +554,7 @@ const components = {
         ],
         sourcePkg: [
             'state/azure/blobstorage',
-            'internal/component/azure/blobstorage',
+            'common/component/azure/blobstorage',
         ],
     },
     'state.azure.cosmosdb': {
@@ -590,14 +618,17 @@ const components = {
         conformanceSetup: 'conformance-state.cloudflare.workerskv-setup.sh',
         conformanceDestroy: 'conformance-state.cloudflare.workerskv-destroy.sh',
     },
-    'state.cockroachdb': {
+    'state.cockroachdb.v1': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
         sourcePkg: [
             'state/cockroachdb',
-            'internal/component/postgresql',
-            'internal/component/sql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
+            'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
     'state.etcd.v1': {
@@ -623,42 +654,48 @@ const components = {
     },
     'state.mysql': {
         certification: true,
-        sourcePkg: ['state/mysql', 'internal/component/sql'],
+        sourcePkg: ['state/mysql', 'common/component/sql'],
     },
     'state.mysql.mariadb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mariadb',
-        sourcePkg: ['state/mysql', 'internal/component/sql'],
+        sourcePkg: ['state/mysql', 'common/component/sql'],
     },
     'state.mysql.mysql': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
-        sourcePkg: ['state/mysql', 'internal/component/sql'],
+        sourcePkg: ['state/mysql', 'common/component/sql'],
     },
     'state.oracledatabase': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh oracledatabase',
     },
-    'state.postgresql': {
+    'state.postgresql.v1': {
         certification: true,
         sourcePkg: [
-            'state/postgresql',
-            'internal/authentication/postgresql',
-            'internal/component/postgresql',
-            'internal/component/sql',
+            'state/postgresql/v1',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
+            'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.docker': {
+    'state.postgresql.v1.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
-            'state/postgresql',
-            'internal/authentication/postgresql',
-            'internal/component/postgresql',
-            'internal/component/sql',
+            'state/postgresql/v1',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
+            'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.azure': {
+    'state.postgresql.v1.azure': {
         conformance: true,
         requiredSecrets: [
             'AzureDBPostgresConnectionString',
@@ -667,25 +704,68 @@ const components = {
             'AzureDBPostgresTenantId',
         ],
         sourcePkg: [
-            'state/postgresql',
-            'internal/authentication/postgresql',
-            'internal/component/postgresql',
-            'internal/component/sql',
+            'state/postgresql/v1',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2': {
+        certification: true,
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2.azure': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureDBPostgresConnectionString',
+            'AzureDBPostgresClientId',
+            'AzureDBPostgresClientSecret',
+            'AzureDBPostgresTenantId',
+        ],
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
         ],
     },
     'state.redis': {
         certification: true,
-        sourcePkg: ['state/redis', 'internal/component/redis'],
+        sourcePkg: ['state/redis', 'common/component/redis'],
     },
     'state.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: ['state/redis', 'internal/component/redis'],
+        sourcePkg: ['state/redis', 'common/component/redis'],
     },
     'state.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: ['state/redis', 'internal/component/redis'],
+        sourcePkg: ['state/redis', 'common/component/redis'],
     },
     'state.rethinkdb': {
         conformance: true,
@@ -694,14 +774,14 @@ const components = {
     'state.sqlite': {
         conformance: true,
         certification: true,
-        sourcePkg: ['state/sqlite', 'internal/component/sql'],
+        sourcePkg: ['state/sqlite', 'common/component/sql'],
     },
     'state.sqlserver': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         requiredSecrets: ['AzureSqlServerConnectionString'],
-        sourcePkg: ['state/sqlserver', 'internal/component/sql'],
+        sourcePkg: ['state/sqlserver', 'common/component/sql'],
     },
     // 'state.gcp.firestore.docker': {
     //     conformance: true,
@@ -717,10 +797,6 @@ const components = {
         certification: true,
         requireGCPCredentials: true,
         certificationSetup: 'certification-state.gcp.firestore-setup.sh',
-    },
-    'workflows.temporal': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh temporal',
     },
 }
 

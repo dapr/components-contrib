@@ -22,10 +22,9 @@ import (
 
 	"github.com/dapr/kit/logger"
 
-	"github.com/dapr/components-contrib/internal/component/kafka"
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/common/component/kafka"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
-
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -46,10 +45,14 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	if p.closed.Load() {
 		return errors.New("component is closed")
 	}
-
+	valueSchemaType, err := kafka.GetValueSchemaType(req.Metadata)
+	if err != nil {
+		return err
+	}
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: false,
 		Handler:         adaptHandler(handler),
+		ValueSchemaType: valueSchemaType,
 	}
 	return p.subscribeUtil(ctx, req, handlerConfig)
 }
@@ -62,13 +65,18 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}
 
 	subConfig := pubsub.BulkSubscribeConfig{
-		MaxMessagesCount:   utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
-		MaxAwaitDurationMs: utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
+		MaxMessagesCount:   commonutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
+		MaxAwaitDurationMs: commonutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
+	}
+	valueSchemaType, err := kafka.GetValueSchemaType(req.Metadata)
+	if err != nil {
+		return err
 	}
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: true,
 		SubscribeConfig: subConfig,
 		BulkHandler:     adaptBulkHandler(handler),
+		ValueSchemaType: valueSchemaType,
 	}
 	return p.subscribeUtil(ctx, req, handlerConfig)
 }

@@ -24,18 +24,19 @@ import (
 	"net/http"
 	"net/textproto"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/open-policy-agent/opa/rego"
-	"k8s.io/utils/strings/slices"
 
-	"github.com/dapr/components-contrib/internal/httputils"
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/common/httputils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 type Status int
@@ -241,7 +242,7 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 	meta := middlewareMetadata{
 		DefaultStatus: 403,
 	}
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &meta)
+	err := kitmd.DecodeMetadata(metadata.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}

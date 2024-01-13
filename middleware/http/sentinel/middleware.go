@@ -23,10 +23,11 @@ import (
 	"github.com/alibaba/sentinel-golang/core/base"
 	"github.com/alibaba/sentinel-golang/core/config"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type middlewareMetadata struct {
@@ -150,7 +151,7 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 
 func getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
 	var md middlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &md)
+	err := kitmd.DecodeMetadata(metadata.Properties, &md)
 	if err != nil {
 		return nil, err
 	}

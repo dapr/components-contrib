@@ -122,7 +122,7 @@ func TestReadAndWrite(t *testing.T) {
 		}}, state.BulkGetOpts{})
 
 		require.NoError(t, err)
-		assert.Equal(t, 2, len(resp))
+		assert.Len(t, resp, 2)
 		assert.Equal(t, "666", string(resp[0].Data))
 		assert.Equal(t, "777", string(resp[1].Data))
 	})
@@ -143,7 +143,7 @@ func TestReadAndWrite(t *testing.T) {
 		}}, state.BulkGetOpts{})
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(resp))
+		assert.Len(t, resp, 1)
 		assert.Equal(t, "777", string(resp[0].Data))
 	})
 }

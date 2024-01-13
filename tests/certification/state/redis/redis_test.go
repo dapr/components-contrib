@@ -22,8 +22,10 @@ import (
 
 	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	state_redis "github.com/dapr/components-contrib/state/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -55,7 +57,7 @@ func TestRedis(t *testing.T) {
 
 	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -75,22 +77,22 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert", string(item.Value))
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "redisCertUpdate", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -104,22 +106,19 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		ttlInSecondsWrongValue := "mock value"
-		mapOptionsWrongValue :=
-			map[string]string{
-				"ttlInSeconds": ttlInSecondsWrongValue,
-			}
+		mapOptionsWrongValue := map[string]string{
+			"ttlInSeconds": ttlInSecondsWrongValue,
+		}
 
 		ttlInSecondsNonExpiring := -1
-		mapOptionsNonExpiring :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
-			}
+		mapOptionsNonExpiring := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
+		}
 
 		ttlInSeconds := 1
-		mapOptions :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
-			}
+		mapOptions := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
 
 		rdb := redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379", // host:port of the redis server
@@ -130,21 +129,21 @@ func TestRedis(t *testing.T) {
 		err1 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("redisCert"), mapOptionsWrongValue)
 		assert.Error(t, err1)
 		err2 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("redisCert2"), mapOptionsNonExpiring)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		err3 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("redisCert3"), mapOptions)
-		assert.NoError(t, err3)
+		require.NoError(t, err3)
 
 		res, err := rdb.Do(ctx.Context, "TTL", sidecarNamePrefix+"dockerDefault||"+certificationTestPrefix+"ttl3").Result()
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		assert.Equal(t, int64(1), res)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert3", string(item.Value))
 		time.Sleep(2 * time.Second)
 		itemAgain, errAgain := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, errAgain)
+		require.NoError(t, errAgain)
 		assert.Nil(t, nil, itemAgain)
 
 		return nil
@@ -159,13 +158,13 @@ func TestRedis(t *testing.T) {
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl2", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "redisCert2", string(item.Value))
 
 		return nil
 	}
 
-	//ETag test
+	// ETag test
 	eTagTest := func(ctx flow.Context) error {
 		etag1 := "1"
 		etag100 := "100"
@@ -190,7 +189,7 @@ func TestRedis(t *testing.T) {
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "k",
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))
 
@@ -235,7 +234,7 @@ func TestRedis(t *testing.T) {
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey1",
 		})
@@ -250,16 +249,78 @@ func TestRedis(t *testing.T) {
 		return nil
 	}
 
+	type qValue struct {
+		Qmsg string `json:"qmsg"`
+	}
+
+	// Query test
+	queryTest := func(ctx flow.Context) error {
+		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{
+					Key:   "qKey1",
+					Value: qValue{Qmsg: "test1"},
+				},
+				state.SetRequest{
+					Key:   "qKey2",
+					Value: qValue{Qmsg: "test2"},
+				},
+				state.SetRequest{
+					Key:   "qKey3",
+					Value: qValue{Qmsg: "test3"},
+				},
+			},
+			Metadata: map[string]string{
+				"contentType": "application/json",
+			},
+		})
+		require.NoError(t, err)
+		resp, err := stateStore.Query(context.Background(), &state.QueryRequest{
+			Query: query.Query{
+				QueryFields: query.QueryFields{
+					Filters: map[string]any{
+						"OR": []any{
+							map[string]any{
+								"EQ": map[string]any{
+									"qmsg": "test1",
+								},
+							},
+							map[string]any{
+								"EQ": map[string]any{
+									"qmsg": "test2",
+								},
+							},
+						},
+					},
+				},
+				Filter: &query.OR{
+					Filters: []query.Filter{
+						&query.EQ{Key: "qmsg", Val: "test1"},
+						&query.EQ{Key: "qmsg", Val: "test2"},
+					},
+				},
+			},
+			Metadata: map[string]string{
+				"queryIndexName": "tquery",
+				"contentType":    "application/json",
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Results, 2)
+		assert.Equal(t, "qKey1", resp.Results[0].Key)
+		assert.Equal(t, "qKey2", resp.Results[1].Key)
+		assert.JSONEq(t, `{"qmsg":"test1"}`, string(resp.Results[0].Data))
+		assert.JSONEq(t, `{"qmsg":"test2"}`, string(resp.Results[1].Data))
+		return nil
+	}
+
 	testForStateStoreNotConfigured := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		// assert.Error(t, err)
-		if err != nil {
-			panic(err)
-		}
+		require.NoError(t, err)
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
-		assert.EqualError(t, err, stateStoreNoConfigError)
+		require.EqualError(t, err, stateStoreNoConfigError)
 
 		return nil
 	}
@@ -291,6 +352,7 @@ func TestRedis(t *testing.T) {
 			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test", basicTest).
+		Step("Run test for Query", queryTest).
 		Step("Run TTL related test", timeToLiveTest).
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).

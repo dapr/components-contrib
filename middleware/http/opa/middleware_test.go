@@ -424,7 +424,7 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 
 				return
 			}
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, obj.Value, test.expectValue)
 		})
 	}

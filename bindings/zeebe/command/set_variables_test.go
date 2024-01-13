@@ -22,6 +22,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -86,9 +87,12 @@ func TestSetVariables(t *testing.T) {
 
 	t.Run("elementInstanceKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: SetVariablesOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: SetVariablesOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingElementInstanceKey)
+		require.ErrorIs(t, err, ErrMissingElementInstanceKey)
 	})
 
 	t.Run("variables is mandatory", func(t *testing.T) {
@@ -96,12 +100,12 @@ func TestSetVariables(t *testing.T) {
 			ElementInstanceKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingVariables)
+		require.ErrorIs(t, err, ErrMissingVariables)
 	})
 
 	t.Run("set variables", func(t *testing.T) {
@@ -112,7 +116,7 @@ func TestSetVariables(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
 
@@ -120,11 +124,11 @@ func TestSetVariables(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
-		assert.Equal(t, false, mc.cmd1.cmd2.cmd3.local)
+		assert.False(t, mc.cmd1.cmd2.cmd3.local)
 	})
 
 	t.Run("set local variables", func(t *testing.T) {
@@ -136,7 +140,7 @@ func TestSetVariables(t *testing.T) {
 			Local: true,
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
 
@@ -144,10 +148,10 @@ func TestSetVariables(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
-		assert.Equal(t, true, mc.cmd1.cmd2.cmd3.local)
+		assert.True(t, mc.cmd1.cmd2.cmd3.local)
 	})
 }

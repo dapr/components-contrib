@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -60,7 +61,7 @@ type config struct {
 
 func newConfig(meta map[string]string) (c *config, err error) {
 	var props properties
-	errDecode := metadata.DecodeMetadata(meta, &props)
+	errDecode := kitmd.DecodeMetadata(meta, &props)
 	if errDecode != nil {
 		return nil, errDecode
 	}

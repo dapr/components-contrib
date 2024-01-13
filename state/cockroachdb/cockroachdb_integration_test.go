@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/internal/component/postgresql"
+	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -72,10 +72,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 	t.Run("Create table succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		dbAccess, ok := pgs.GetDBAccess().(*postgresql.PostgresDBAccess)
-		assert.True(t, ok)
-
-		testCreateTable(t, dbAccess)
+		testCreateTable(t, pgs.GetDB())
 	})
 
 	t.Run("Get Set Delete one item", func(t *testing.T) {
@@ -180,20 +177,17 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
+func testCreateTable(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
+	const tableName = "test_state"
 	ctx := context.Background()
-
-	tableName := "test_state"
-
-	db := dba.GetDB()
 
 	// Drop the table if it already exists.
 	exists, err := tableExists(ctx, db, tableName)
 	require.NoError(t, err)
 
 	if exists {
-		dropTable(t, dba.GetDB(), tableName)
+		dropTable(t, db, tableName)
 	}
 
 	// Create the state table and test for its existence.
@@ -205,11 +199,11 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 	require.NoError(t, err)
 
 	exists, err = tableExists(ctx, db, "test_state")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, exists)
 
 	exists, err = tableExists(ctx, db, "test_metadata")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, exists)
 
 	dropTable(t, db, "test_state")
@@ -220,7 +214,7 @@ func dropTable(t *testing.T, db *pgxpool.Pool, tableName string) {
 	t.Helper()
 
 	_, err := db.Exec(context.Background(), fmt.Sprintf("DROP TABLE %s", tableName))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -237,7 +231,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -265,7 +259,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
@@ -303,7 +297,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -358,7 +352,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -390,7 +384,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -406,7 +400,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
@@ -429,7 +423,7 @@ func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -463,7 +457,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		ContentType: nil,
 	}
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -515,7 +509,7 @@ func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	response, getErr := pgs.Get(context.Background(), getReq)
-	assert.NotNil(t, getErr)
+	require.Error(t, getErr)
 	assert.Nil(t, response)
 }
 
@@ -558,7 +552,7 @@ func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 // Tests valid bulk sets and deletes.
@@ -577,7 +571,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
 
@@ -591,7 +585,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err = pgs.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
@@ -629,10 +623,10 @@ func testInitConfiguration(t *testing.T) {
 
 			err := cockroackDB.Init(context.Background(), metadata)
 			if rowTest.expectedErr == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.NotNil(t, err)
-				assert.Equal(t, err.Error(), rowTest.expectedErr)
+				require.Error(t, err)
+				assert.Equal(t, rowTest.expectedErr, err.Error())
 			}
 		})
 	}
@@ -658,7 +652,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
 }
@@ -706,7 +700,7 @@ func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetRe
 	}
 
 	response, getErr := pgs.Get(context.Background(), getReq)
-	assert.NoError(t, getErr)
+	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{
 		Color: "",
@@ -730,7 +724,7 @@ func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *stri
 	}
 
 	deleteErr := pgs.Delete(context.Background(), deleteReq)
-	assert.NoError(t, deleteErr)
+	require.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }
 
@@ -738,13 +732,13 @@ func storeItemExists(t *testing.T, key string) bool {
 	t.Helper()
 
 	databaseConnection, err := sql.Open("pgx", getConnectionString())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer databaseConnection.Close()
 
 	exists := false
 	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, defaultTableName)
 	err = databaseConnection.QueryRow(statement, key).Scan(&exists)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return exists
 }
@@ -753,11 +747,11 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	t.Helper()
 
 	databaseConnection, err := sql.Open("pgx", getConnectionString())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer databaseConnection.Close()
 
 	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return returnValue, insertdate, updatedate
 }
@@ -780,7 +774,7 @@ func setItemWithTTL(t *testing.T, pgs *postgresql.PostgreSQL, key string, value 
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
 }

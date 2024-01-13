@@ -31,9 +31,10 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -72,7 +73,7 @@ type httpMetadata struct {
 	// This can either be an integer which is interpreted in bytes, or a string with an added unit such as Mi.
 	// A value <= 0 means no limit.
 	// Default: 100MB
-	MaxResponseBodySize metadata.ByteSize `mapstructure:"maxResponseBodySize"`
+	MaxResponseBodySize kitmd.ByteSize `mapstructure:"maxResponseBodySize"`
 
 	maxResponseBodySizeBytes int64
 }
@@ -87,9 +88,9 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 // Init performs metadata parsing.
 func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	h.metadata = httpMetadata{
-		MaxResponseBodySize: metadata.NewByteSize(defaultMaxResponseBodySizeBytes),
+		MaxResponseBodySize: kitmd.NewByteSize(defaultMaxResponseBodySizeBytes),
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &h.metadata)
+	err := kitmd.DecodeMetadata(meta.Properties, &h.metadata)
 	if err != nil {
 		return err
 	}

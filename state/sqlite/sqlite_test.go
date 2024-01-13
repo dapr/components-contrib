@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -48,7 +49,7 @@ func TestGetConnectionString(t *testing.T) {
 		db.metadata.reset()
 		db.metadata.ConnectionString = "file:test.db"
 
-		connString, err := db.getConnectionString()
+		connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 		require.NoError(t, err)
 
 		values := url.Values{
@@ -64,7 +65,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "test.db"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -82,7 +83,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = ":memory:"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -103,7 +104,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_txlock=immediate"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -121,7 +122,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_txlock=deferred"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -141,18 +142,18 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_pragma=busy_timeout(50)"
 
-			_, err := db.getConnectionString()
+			_, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
+			require.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
 		})
 		t.Run("journal_mode", func(t *testing.T) {
 			logDest.Reset()
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_pragma=journal_mode(WAL)"
 
-			_, err := db.getConnectionString()
+			_, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
+			require.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
 		})
 	})
 
@@ -162,7 +163,7 @@ func TestGetConnectionString(t *testing.T) {
 		db.metadata.ConnectionString = "file:test.db"
 		db.metadata.BusyTimeout = time.Second
 
-		connString, err := db.getConnectionString()
+		connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 		require.NoError(t, err)
 
 		values := url.Values{
@@ -179,7 +180,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.ConnectionString = "file:test.db"
 			db.metadata.DisableWAL = false
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -195,7 +196,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.ConnectionString = "file:test.db"
 			db.metadata.DisableWAL = true
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -210,7 +211,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file::memory:"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -226,7 +227,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?mode=ro"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -242,7 +243,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?immutable=1"
 
-			connString, err := db.getConnectionString()
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -270,7 +271,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
@@ -280,7 +281,7 @@ func TestValidSetRequest(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createSetRequest()},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -290,7 +291,16 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createDeleteRequest()},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+}
+
+func TestValidEmptyDeleteWithPrefixRequest(t *testing.T) {
+	t.Parallel()
+
+	ods := createSqlite(t)
+	res, err := ods.DeleteWithPrefix(context.Background(), createDeleteWithPrefixRequest())
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), res.Count)
 }
 
 // Proves that the Ping method runs the ping method.
@@ -337,6 +347,10 @@ func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest
 	return nil, nil
 }
 
+func (m *fakeDBaccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	return state.DeleteWithPrefixResponse{}, nil
+}
+
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }
@@ -369,7 +383,7 @@ func createSqlite(t *testing.T) *SQLiteStore {
 
 	err := odb.Init(context.Background(), *metadata)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)
 
 	return odb
@@ -385,6 +399,12 @@ func createSetRequest() state.SetRequest {
 func createDeleteRequest() state.DeleteRequest {
 	return state.DeleteRequest{
 		Key: randomKey(),
+	}
+}
+
+func createDeleteWithPrefixRequest() state.DeleteWithPrefixRequest {
+	return state.DeleteWithPrefixRequest{
+		Prefix: randomKey(),
 	}
 }
 

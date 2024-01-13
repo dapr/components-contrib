@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type kubemqMetadata struct {
@@ -45,13 +45,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*kubemqMetadata, error) {
 		IsStore: true,
 	}
 
-	err := metadata.DecodeMetadata(pubSubMetadata.Properties, result)
+	err := kitmd.DecodeMetadata(pubSubMetadata.Properties, result)
 	if err != nil {
 		return nil, err
 	}
 
 	if result.Address != "" {
-		var err error
 		result.internalHost, result.internalPort, err = parseAddress(result.Address)
 		if err != nil {
 			return nil, err

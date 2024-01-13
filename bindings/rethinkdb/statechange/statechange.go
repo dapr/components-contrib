@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Binding represents RethinkDB change state input binding which fires handler with
@@ -157,7 +158,7 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 		delete(cfg, k)
 	}
 
-	err := metadata.DecodeMetadata(cfg, &c)
+	err := kitmd.DecodeMetadata(cfg, &c)
 	if err != nil {
 		return c, err
 	}

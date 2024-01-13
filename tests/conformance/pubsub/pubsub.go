@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -108,18 +108,18 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		err := ps.Init(context.Background(), pubsub.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
-		assert.NoError(t, err, "expected no error on setting up pubsub")
+		require.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
 	t.Run("ping", func(t *testing.T) {
 		err := pubsub.Ping(context.Background(), ps)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "ping is not implemented by this pubsub")
+			require.EqualError(t, err, "ping is not implemented by this pubsub")
 		} else {
-			assert.Nil(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -211,7 +211,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 			return nil
 		})
-		assert.NoError(t, err, "expected no error on subscribe")
+		require.NoError(t, err, "expected no error on subscribe")
 	})
 
 	// Bulk Subscribe
@@ -308,7 +308,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				}
 				return bulkResponses, nil
 			})
-			assert.NoError(t, err, "expected no error on bulk subscribe")
+			require.NoError(t, err, "expected no error on bulk subscribe")
 		})
 	}
 
@@ -329,7 +329,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			if err == nil {
 				awaitingMessages[string(data)] = struct{}{}
 			}
-			assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
+			require.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
 		}
 		if config.HasOperation("bulksubscribe") {
 			_, ok := ps.(pubsub.BulkSubscriber)
@@ -347,7 +347,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				if err == nil {
 					awaitingMessagesBulk[string(data)] = struct{}{}
 				}
-				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
+				require.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
 			}
 		}
 	})
@@ -401,7 +401,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 			// here only the success case is tested for bulkPublish similar to publish.
 			// For scenarios on partial failures, those will be tested as part of certification tests if possible.
-			assert.NoError(t, err, "expected no error on bulk publishing on topic %s", config.TestTopicName)
+			require.NoError(t, err, "expected no error on bulk publishing on topic %s", config.TestTopicName)
 		})
 	}
 
@@ -493,7 +493,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					Topic:      topic,
 					Metadata:   config.PublishMetadata,
 				})
-				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
+				require.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
 			}
 			allSentCh <- true
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
@@ -546,7 +546,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						Topic:      topic,
 						Metadata:   config.PublishMetadata,
 					})
-					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
+					require.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
 				}
 
 				allSentCh <- true

@@ -14,8 +14,8 @@ limitations under the License.
 package kubernetes
 
 import (
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/metadata"
 )
 
 type kubernetesMetadata struct {

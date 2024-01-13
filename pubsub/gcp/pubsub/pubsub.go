@@ -32,6 +32,7 @@ import (
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -53,9 +54,15 @@ type GCPPubSub struct {
 	metadata *metadata
 	logger   logger.Logger
 
-	closed  atomic.Bool
-	closeCh chan struct{}
-	wg      sync.WaitGroup
+	closed     atomic.Bool
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
+	topicCache map[string]cacheEntry
+	lock       *sync.RWMutex
+}
+
+type cacheEntry struct {
+	LastSync time.Time
 }
 
 type GCPAuthJSON struct {
@@ -75,9 +82,39 @@ type WhatNow struct {
 	Type string `json:"type"`
 }
 
+const topicCacheRefreshInterval = 5 * time.Hour
+
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
-	return &GCPPubSub{logger: logger, closeCh: make(chan struct{})}
+	client := &GCPPubSub{
+		logger:     logger,
+		closeCh:    make(chan struct{}),
+		topicCache: make(map[string]cacheEntry),
+		lock:       &sync.RWMutex{},
+	}
+	return client
+}
+
+func (g *GCPPubSub) periodicCacheRefresh() {
+	// Run this loop 5 times every topicCacheRefreshInterval, to be able to delete items that are stale
+	ticker := time.NewTicker(topicCacheRefreshInterval / 5)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-g.closeCh:
+			return
+		case <-ticker.C:
+			g.lock.Lock()
+			for key, entry := range g.topicCache {
+				// Delete from the cache if the last sync was longer than topicCacheRefreshInterval
+				if time.Since(entry.LastSync) > topicCacheRefreshInterval {
+					delete(g.topicCache, key)
+				}
+			}
+			g.lock.Unlock()
+		}
+	}
 }
 
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
@@ -90,7 +127,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		MaxDeliveryAttempts:     defaultMaxDeliveryAttempts,
 	}
 
-	err := contribMetadata.DecodeMetadata(pubSubMetadata.Properties, &result)
+	err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +146,12 @@ func (g *GCPPubSub) Init(ctx context.Context, meta pubsub.Metadata) error {
 		return err
 	}
 
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		g.periodicCacheRefresh()
+	}()
+
 	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %w", errorMessagePrefix, err)
@@ -124,6 +167,9 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var pubsubClient *gcppubsub.Client
 	var err error
 
+	// context.Background is used here, as the context used to Dial the
+	// server in the gRPC DialPool. Callers should always call `Close` on the
+	// component to ensure all resources are released.
 	if metadata.PrivateKeyID != "" {
 		// TODO: validate that all auth json fields are filled
 		authJSON := &GCPAuthJSON{
@@ -141,7 +187,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		gcpCompatibleJSON, _ := json.Marshal(authJSON)
 		g.logger.Debugf("Using explicit credentials for GCP")
 		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
+		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID, clientOptions)
 		if err != nil {
 			return pubsubClient, err
 		}
@@ -156,7 +202,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
 			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
 		}
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
+		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {
 			return pubsubClient, err
 		}
@@ -170,12 +216,22 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	if g.closed.Load() {
 		return errors.New("component is closed")
 	}
+	g.lock.RLock()
+	_, topicExists := g.topicCache[req.Topic]
+	g.lock.RUnlock()
 
-	if !g.metadata.DisableEntityManagement {
+	// We are not acquiring a write lock before calling ensureTopic, so there's the chance that ensureTopic be called multiple time
+	// This is acceptable in our case, even is slightly wasteful, as ensureTopic is idempotent
+	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
-			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
+			return fmt.Errorf("%s could not get valid topic %s: %w", errorMessagePrefix, req.Topic, err)
 		}
+		g.lock.Lock()
+		g.topicCache[req.Topic] = cacheEntry{
+			LastSync: time.Now(),
+		}
+		g.lock.Unlock()
 	}
 
 	topic := g.getTopic(req.Topic)
@@ -206,12 +262,22 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	if g.closed.Load() {
 		return errors.New("component is closed")
 	}
+	g.lock.RLock()
+	_, topicExists := g.topicCache[req.Topic]
+	g.lock.RUnlock()
 
-	if !g.metadata.DisableEntityManagement {
+	// We are not acquiring a write lock before calling ensureTopic, so there's the chance that ensureTopic be called multiple times
+	// This is acceptable in our case, even is slightly wasteful, as ensureTopic is idempotent
+	if !g.metadata.DisableEntityManagement && !topicExists {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
-			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
+			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %w", errorMessagePrefix, req.Topic, topicErr)
 		}
+		g.lock.Lock()
+		g.topicCache[req.Topic] = cacheEntry{
+			LastSync: time.Now(),
+		}
+		g.lock.Unlock()
 
 		subError := g.ensureSubscription(parentCtx, g.metadata.ConsumerID, req.Topic)
 		if subError != nil {
@@ -350,9 +416,24 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 }
 
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
-	err := g.ensureTopic(parentCtx, topic)
-	if err != nil {
-		return err
+	g.lock.RLock()
+	_, topicOK := g.topicCache[topic]
+	_, dlTopicOK := g.topicCache[g.metadata.DeadLetterTopic]
+	g.lock.RUnlock()
+	if !topicOK {
+		g.lock.Lock()
+		// Double-check if the topic still doesn't exist to avoid race condition
+		if _, ok := g.topicCache[topic]; !ok {
+			err := g.ensureTopic(parentCtx, topic)
+			if err != nil {
+				g.lock.Unlock()
+				return err
+			}
+			g.topicCache[topic] = cacheEntry{
+				LastSync: time.Now(),
+			}
+		}
+		g.lock.Unlock()
 	}
 
 	managedSubscription := subscription + "-" + topic
@@ -365,11 +446,20 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}
 
-		if g.metadata.DeadLetterTopic != "" {
-			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
-			if subErr != nil {
-				return subErr
+		if g.metadata.DeadLetterTopic != "" && !dlTopicOK {
+			g.lock.Lock()
+			// Double-check if the DeadLetterTopic still doesn't exist to avoid race condition
+			if _, ok := g.topicCache[g.metadata.DeadLetterTopic]; !ok {
+				subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
+				if subErr != nil {
+					g.lock.Unlock()
+					return subErr
+				}
+				g.topicCache[g.metadata.DeadLetterTopic] = cacheEntry{
+					LastSync: time.Now(),
+				}
 			}
+			g.lock.Unlock()
 			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
 			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlTopic,

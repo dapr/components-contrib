@@ -15,13 +15,13 @@ name: fossa
 on:
   push:
     branches:
-      - master
+      - main
       - release-*
     tags:
       - v*
   pull_request:
     branches:
-      - master
+      - main
       - release-*
   workflow_dispatch: {}
 jobs:
@@ -32,7 +32,7 @@ jobs:
       FOSSA_API_KEY: b88e1f4287c3108c8751bf106fb46db6 # This is a push-only token that is safe to be exposed.
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Run FOSSA Scan"
         uses: fossas/fossa-action@v1.3.1 # Use a specific version if locking is preferred

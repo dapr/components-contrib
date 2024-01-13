@@ -18,21 +18,25 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -59,7 +63,7 @@ type gcpMetadata struct {
 	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"project_id"`
 	PrivateKeyID        string `json:"private_key_id" mapstructure:"privateKeyID" mdignore:"true" mapstructurealiases:"private_key_id"`
 	PrivateKey          string `json:"private_key" mapstructure:"privateKey" mdignore:"true" mapstructurealiases:"private_key"`
-	ClientEmail         string `json:"client_email " mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"client_email"`
+	ClientEmail         string `json:"client_email" mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"client_email"`
 	ClientID            string `json:"client_id" mapstructure:"clientID" mdignore:"true" mapstructurealiases:"client_id"`
 	AuthURI             string `json:"auth_uri" mapstructure:"authURI" mdignore:"true" mapstructurealiases:"auth_uri"`
 	TokenURI            string `json:"token_uri" mapstructure:"tokenURI" mdignore:"true" mapstructurealiases:"token_uri"`
@@ -112,7 +116,7 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 
 func (g *GCPStorage) parseMetadata(meta bindings.Metadata) (*gcpMetadata, error) {
 	m := gcpMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +216,11 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	var rc io.ReadCloser
 	rc, err = g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(ctx)
 	if err != nil {
+		var apiErr *googleapi.Error
+		if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+			return nil, errors.New("object not found")
+		}
+
 		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
 	}
 	defer rc.Close()
@@ -243,6 +252,11 @@ func (g *GCPStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*
 	object := g.client.Bucket(g.metadata.Bucket).Object(key)
 
 	err := object.Delete(ctx)
+
+	var apiErr *googleapi.Error
+	if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+		return nil, errors.New("object not found")
+	}
 
 	return nil, err
 }

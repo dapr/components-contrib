@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 )
@@ -63,6 +63,81 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 		return fmt.Sprintf("@%s:(%s)", alias, v), nil
 	default:
 		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+	}
+}
+
+func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
+	// string:  @<key>:(<val>)
+	// numeric: @<key>:[<val> <val>]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf("@%s:(%s)", alias, v), nil
+	default:
+		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+	}
+}
+
+func (q *Query) VisitGT(f *query.GT) (string, error) {
+	// numeric: @<key>:[(<val> +inf]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[(%v +inf]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitGTE(f *query.GTE) (string, error) {
+	// numeric: @<key>:[<val> +inf]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[%v +inf]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitLT(f *query.LT) (string, error) {
+	// numeric: @<key>:[-inf <val>)]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[-inf (%v]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitLTE(f *query.LTE) (string, error) {
+	// numeric: @<key>:[-inf <val>]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[-inf %v]", alias, v), nil
 	}
 }
 
@@ -113,6 +188,31 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		switch f := fil.(type) {
 		case *query.EQ:
 			if str, err = q.VisitEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.NEQ:
+			if str, err = q.VisitNEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("-(%s)", str))
+		case *query.GT:
+			if str, err = q.VisitGT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.GTE:
+			if str, err = q.VisitGTE(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.LT:
+			if str, err = q.VisitLT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.LTE:
+			if str, err = q.VisitLTE(f); err != nil {
 				return "", err
 			}
 			arr = append(arr, fmt.Sprintf("(%s)", str))
@@ -179,10 +279,10 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 			if err != nil {
 				return err
 			}
-			q.query = append(q.query, "LIMIT", qq.Page.Token, fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", qq.Page.Token, strconv.Itoa(q.limit))
 		} else {
 			q.offset = 0
-			q.query = append(q.query, "LIMIT", "0", fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", "0", strconv.Itoa(q.limit))
 		}
 	}
 
@@ -195,20 +295,83 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 	if err != nil {
 		return nil, "", err
 	}
-	arr, ok := ret.([]interface{})
-	if !ok {
-		return nil, "", fmt.Errorf("invalid output")
+
+	res, ok, err := parseQueryResponsePost28(ret)
+	if err != nil {
+		return nil, "", err
 	}
-	// arr[0] = number of matching elements in DB (ignoring pagination)
+	if !ok {
+		res, err = parseQueryResponsePre28(ret)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	// set next query token only if limit is specified
+	var token string
+	if q.limit > 0 && len(res) > 0 {
+		token = strconv.FormatInt(q.offset+int64(len(res)), 10)
+	}
+
+	return res, token, err
+}
+
+// parseQueryResponsePost28 parses the query Do response from redisearch 2.8+.
+func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
+	aarr, ok := ret.(map[any]any)
+	if !ok {
+		return nil, false, nil
+	}
+
+	var res []state.QueryItem
+	arr := aarr["results"].([]any)
+	if len(arr) == 0 {
+		return nil, false, errors.New("invalid output")
+	}
+	for i := 0; i < len(arr); i++ {
+		inner, ok := arr[i].(map[any]any)
+		if !ok {
+			return nil, false, fmt.Errorf("invalid output")
+		}
+		exattr, ok := inner["extra_attributes"].(map[any]any)
+		if !ok {
+			return nil, false, fmt.Errorf("invalid output")
+		}
+		item := state.QueryItem{
+			Key: inner["id"].(string),
+		}
+		if data, ok := exattr["$.data"].(string); ok {
+			item.Data = []byte(data)
+		} else {
+			item.Error = fmt.Sprintf("%#v is not string", exattr["$.data"])
+		}
+		if etag, ok := exattr["$.version"].(string); ok {
+			item.ETag = &etag
+		}
+		res = append(res, item)
+	}
+
+	return res, true, nil
+}
+
+// parseQueryResponsePre28 parses the query Do response from redisearch 2.8-.
+func parseQueryResponsePre28(ret any) ([]state.QueryItem, error) {
+	arr, ok := ret.([]any)
+	if !ok {
+		return nil, errors.New("invalid output")
+	}
+
+	// arr[0] = number of matching elements in DB (ignoring pagination
 	// arr[2n] = key
 	// arr[2n+1][0] = "$.data"
 	// arr[2n+1][1] = value
 	// arr[2n+1][2] = "$.version"
 	// arr[2n+1][3] = etag
 	if len(arr)%2 != 1 {
-		return nil, "", fmt.Errorf("invalid output")
+		return nil, fmt.Errorf("invalid output")
 	}
-	res := []state.QueryItem{}
+
+	var res []state.QueryItem
 	for i := 1; i < len(arr); i += 2 {
 		item := state.QueryItem{
 			Key: arr[i].(string),
@@ -222,11 +385,6 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 		}
 		res = append(res, item)
 	}
-	// set next query token only if limit is specified
-	var token string
-	if q.limit > 0 && len(res) > 0 {
-		token = strconv.FormatInt(q.offset+int64(len(res)), 10)
-	}
 
-	return res, token, err
+	return res, nil
 }

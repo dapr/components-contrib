@@ -33,6 +33,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -107,7 +108,7 @@ func (m *Mysql) Init(ctx context.Context, md bindings.Metadata) error {
 
 	// Parse metadata
 	meta := mysqlMetadata{}
-	err := metadata.DecodeMetadata(md.Properties, &meta)
+	err := kitmd.DecodeMetadata(md.Properties, &meta)
 	if err != nil {
 		return err
 	}

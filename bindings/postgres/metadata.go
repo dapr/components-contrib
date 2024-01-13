@@ -14,31 +14,21 @@ limitations under the License.
 package postgres
 
 import (
-	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type psqlMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
-
-	// URL is the connection string to connect to the database.
-	// Deprecated alias: use connectionString instead.
-	URL string `mapstructure:"url"`
 }
 
 func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
-	m.URL = ""
 
-	err := contribMetadata.DecodeMetadata(meta, &m)
+	err := kitmd.DecodeMetadata(meta, &m)
 	if err != nil {
 		return err
-	}
-
-	// Legacy options
-	if m.ConnectionString == "" && m.URL != "" {
-		m.ConnectionString = m.URL
 	}
 
 	// Validate and sanitize input

@@ -1,0 +1,196 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: rabbitmq
+version: v1
+status: stable
+title: "RabbitMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rabbitmq/ 
+capabilities:
+  - ttl
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The RabbitMQ host address."
+        example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
+  - title: "Authenticate Using RabbitMQ properties"
+    description: "RabbitMQ authentication by providing hostname, username and password."
+    metadata:
+    - name: hostname
+      type: string
+      description: |
+        The RabbitMQ hostname.
+      example: '"localhost"'
+    - name: protocol
+      description: |
+        The RabbitMQ protocol.
+      type: string
+      example: '"amqp", "amqps"'
+    - name: username
+      type: string
+      description: |
+        The RabbitMQ username.
+      example: '"username"'
+    - name: password
+      type: string
+      sensitive: true
+      description: |
+        The RabbitMQ password.
+      example: '"password"'
+  - title: "Authenticate Using Connection string and External Sasl and TLS"
+    description: "Authenticate using a connection string along with Exteranl Sasl and TLS."
+    metadata:
+    - name: connectionString
+      required: true
+      sensitive: true
+      description: "The RabbitMQ host address."
+      example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
+    - name: caCert
+      type: string
+      required: true
+      description: |
+        Certificate authority certificate, required for using TLS.
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    - name: clientCert
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        Client certificate, Required for using TLS.
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    - name: clientKey
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        Client key, required for using TLS.
+      example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+    - name: saslExternal
+      type: bool
+      description: |
+        With TLS, should the username be taken
+        from an additional field (e.g. CN.)
+        See RabbitMQ Authentication Mechanisms.
+      url:
+        title: "RabbitMQ Authentication Mechanisms"
+        url: "https://www.rabbitmq.com/access-control.html#mechanisms"
+      default: '"false"'
+      example: '"true"'
+metadata:
+  - name: durable
+    type: bool
+    description: |
+      Whether or not to use durable queues.
+    default: '"false"'
+    example: '"true", "false"'
+  - name: publisherConfirm
+    type: bool
+    description: |
+      If enabled, client waits for publisher confirmation after publishing
+      a message.
+    default: '"false"'
+    example: '"true", "false"'
+  - name: maxLen
+    type: number
+    description: |
+      The maximum number of messages of a queue and its dead letter queue
+      (if dead letter enabled by `enableDeadLetter`). If both `maxLen` and `maxLenBytes` are set then
+      both will apply; whichever limit is hit first will be enforced.
+    example: '1000'
+  - name: maxLenBytes
+    type: number
+    description: |
+      Maximum length in bytes of a queue and its dead letter queue (if dead
+      letter enabled by `enableDeadLetter`). If both `maxLen` and `maxLenBytes` are set then both will 
+      apply; whichever limit is hit first will be enforced.
+    example: '1048576'
+  - name: concurrency
+    type: string
+    description: |
+      Allows processing multiple messages in
+      parallel (limited by the app-max-concurrency annotation, if configured).
+      Set to single to disable parallel processing. In most situations there's 
+      no reason to change this.
+    example: '"parallel", "single"'
+    default: '"parallel"'
+    allowedValues:
+      - "parallel"
+      - "single"
+  - name: enableDeadLetter
+    type: bool
+    description: |
+      Enable forwarding messages that cannot be handled to a dead-letter
+      topic.
+    default: '"false"'
+    example: '"true", "false"'
+  - name: prefetchCount
+    type: number
+    description: |
+      Number of messages to prefetch. Consider changing this to a non-zero
+      value for production environments. The value of "0" means that
+      all available messages will be pre-fetched.
+    default: '0'
+    example: '2'
+  - name: exchangeKind
+    type: string
+    description: |
+      Exchange kind of the rabbitmq exchange.
+    default: '"fanout"'
+    allowedValues:
+      - "fanout"
+      - "topic"
+    example: '"fanout","topic"'
+  - name: deliveryMode
+    type: number
+    description: |
+      Persistence mode when publishing messages.
+      RabbitMQ treats "2" as persistent, all other numbers as non-persistent.
+    default: '0'
+    example: '2'
+  - name: autoAck
+    type: bool
+    description: |
+      Whether or not the queue consumer should auto-ack messages.
+    default: '"false"'
+    example: '"true", "false"'
+  - name: deletedWhenUnused
+    type: bool
+    description: |
+      Whether or not the queue should be configured to auto-delete.
+    default: '"true"'
+    example: '"true", "false"'
+  - name: requeueInFailure
+    description: |
+      Whether or not to requeue when sending a negative acknowledgement
+      in case of a failure.
+    type: bool
+    default: '"false"'
+    example: '"true", "false"'
+  - name: reconnectWaitSeconds
+    description: |
+      Reconnect wait in Seconds.
+    type: duration
+    default: '"3s"'
+    example: '"10s"'
+  - name: ttlInSeconds
+    description: |
+      Default Queue TTL.
+    type: duration
+    example: '"10"'
+  - name: clientName
+    type: string
+    description:
+      The client/connection name.
+    example: '"my_client_name"'
+  - name: heartBeat
+    type: duration
+    description:
+      The heartbeat used for the connection.
+    default: '"10s"'
+    example: '"30s"'

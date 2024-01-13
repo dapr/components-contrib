@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/metadata"
@@ -93,11 +93,11 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 	// Parse all keys and algorithms, then ensure the required ones are present
 	keys := newKeybagFromConfig(config)
 	for _, alg := range strings.Split(algsPrivateRequired, " ") {
-		require.Greaterf(t, len(keys.private[alg]), 0, "could not find a private key for algorithm '%s' in configuration, which is required", alg)
+		require.NotEmptyf(t, keys.private[alg], "could not find a private key for algorithm '%s' in configuration, which is required", alg)
 	}
 	if config.HasOperation(opSymmetric) {
 		for _, alg := range strings.Split(algsSymmetricRequired, " ") {
-			require.Greaterf(t, len(keys.symmetric[alg]), 0, "could not find a symmetric key for algorithm '%s' in configuration, which is required", alg)
+			require.NotEmptyf(t, keys.symmetric[alg], "could not find a symmetric key for algorithm '%s' in configuration, which is required", alg)
 		}
 	}
 	if config.HasOperation(opPublic) {
@@ -219,7 +219,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 		return func(t *testing.T) {
 			// Note: if you change this, make sure it's not a multiple of 16 in length
 			const message = "Quel ramo del lago di Como"
-			require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+			require.NotEqual(t, 0, (len(message) % 16), "message must have a length that's not a multiple of 16")
 
 			// Encrypt the message
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -278,7 +278,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 				return func(t *testing.T) {
 					// Note: if you change this, make sure it's not a multiple of 16 in length
 					const message = "Quel ramo del lago di Como"
-					require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+					require.NotEqual(t, 0, (len(message) % 16), "message must have a length that's not a multiple of 16")
 
 					// Encrypt the message
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

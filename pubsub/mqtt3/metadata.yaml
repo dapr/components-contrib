@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: mqtt3
+version: v1
+status: stable
+title: "MQTT3"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt3/
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: url
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          Address of the MQTT broker.
+          Use the `tcp://`` URI scheme for non-TLS communication. 
+          Use the `ssl://`` URI scheme for TLS communication (requires `caCert`, `clientKey`, `clientCert` to be defined).
+        example: '"tcp://[username][:password]@host.domain[:port]"'
+      - name: caCert
+        type: string
+        description: |
+          Certificate authority certificate, required for using TLS.
+        example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+      - name: clientCert
+        type: string
+        description: |
+          Client certificate, required for using TLS.
+        example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+      - name: clientKey
+        type: string
+        sensitive: true
+        description: |
+          Client key, required for using TLS.
+        example: '"-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"'
+metadata:
+  - name: retain
+    type: bool
+    description: |
+      Defines whether the message is saved by the broker as the last known good value for a specified topic.
+    default: 'false'
+    example: '"true", "false"'
+  - name: cleanSession
+    type: bool
+    description: |
+      When the value is set to "true", sets the clean_session flag in the connection message to the MQTT broker.
+    url:
+      title: "MQTT Clean Sessions Example"
+      url: "http://www.steves-internet-guide.com/mqtt-clean-sessions-example/"
+    default: 'false'
+    example: '"true", "false"'
+  - name: qos
+    type: number
+    description: |
+      Indicates the Quality of Service Level (QoS) of the message.
+    url:
+      title: "MQTT Essentials - Part 6"
+      url: "https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/"
+    default: '1'
+    allowedValues:
+      - '0'
+      - '1'
+      - '2'
+    example: '2'

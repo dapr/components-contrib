@@ -47,13 +47,13 @@ func TestReadAndWrite(t *testing.T) {
 			Value: valueA,
 		}
 		err := store.Set(context.Background(), setReq)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		// get after set
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `"`+valueA+`"`, string(resp.Data))
 		_ = assert.NotNil(t, resp.ETag) &&
@@ -68,7 +68,7 @@ func TestReadAndWrite(t *testing.T) {
 			Metadata: map[string]string{"ttlInSeconds": "1"},
 		}
 		err := store.Set(context.Background(), setReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// simulate expiration
 		fakeClock.Step(2 * time.Second)
 		// get
@@ -76,7 +76,7 @@ func TestReadAndWrite(t *testing.T) {
 			Key: keyA,
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
 		assert.Nil(t, resp.ETag)
@@ -93,14 +93,14 @@ func TestReadAndWrite(t *testing.T) {
 		}
 
 		err := store.Set(context.Background(), setReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `"value of key"`, string(resp.Data))
 		assert.Len(t, resp.Metadata, 1)
@@ -109,12 +109,12 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("return expire time when ttlInSeconds set with GetBulk", func(t *testing.T) {
-		assert.NoError(t, store.Set(context.Background(), &state.SetRequest{
+		require.NoError(t, store.Set(context.Background(), &state.SetRequest{
 			Key:      "a",
 			Value:    "123",
 			Metadata: map[string]string{"ttlInSeconds": "1000"},
 		}))
-		assert.NoError(t, store.Set(context.Background(), &state.SetRequest{
+		require.NoError(t, store.Set(context.Background(), &state.SetRequest{
 			Key:      "b",
 			Value:    "456",
 			Metadata: map[string]string{"ttlInSeconds": "2001"},
@@ -124,7 +124,7 @@ func TestReadAndWrite(t *testing.T) {
 			{Key: "a"},
 			{Key: "b"},
 		}, state.BulkGetOpts{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		require.Len(t, resp, 2)
 		sort.Slice(resp, func(i, j int) bool {
@@ -147,13 +147,13 @@ func TestReadAndWrite(t *testing.T) {
 			Value: 1234,
 		}
 		err := store.Set(context.Background(), setReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// get
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `1234`, string(resp.Data))
 	})
@@ -167,7 +167,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "84",
 		}}, state.BulkStoreOpts{})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("delete theFirstKey", func(t *testing.T) {
@@ -175,6 +175,6 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theFirstKey",
 		}
 		err := store.Delete(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }

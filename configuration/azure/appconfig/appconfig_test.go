@@ -52,7 +52,7 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	return resp, nil
 }
 
-func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
+func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPageResponse] {
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
@@ -65,12 +65,12 @@ func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.Setti
 	settings[0] = setting1
 	settings[1] = setting2
 
-	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPage]{
-		More: func(azappconfig.ListSettingsPage) bool {
+	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPageResponse]{
+		More: func(azappconfig.ListSettingsPageResponse) bool {
 			return false
 		},
-		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPage) (azappconfig.ListSettingsPage, error) {
-			listSettingPage := azappconfig.ListSettingsPage{}
+		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPageResponse) (azappconfig.ListSettingsPageResponse, error) {
+			listSettingPage := azappconfig.ListSettingsPageResponse{}
 			listSettingPage.Settings = settings
 			return listSettingPage, nil
 		},
@@ -111,8 +111,8 @@ func Test_getConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		res, err := s.Get(context.Background(), &req)
-		assert.Nil(t, err)
-		assert.True(t, len(res.Items) == 1)
+		require.NoError(t, err)
+		assert.Len(t, res.Items, 1)
 	})
 }
 
@@ -130,8 +130,8 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: metadata,
 		}
 		subID, err := s.Subscribe(context.Background(), &req, updateEventHandler)
-		assert.True(t, len(subID) > 0)
-		assert.Nil(t, err)
+		assert.NotEmpty(t, subID)
+		require.NoError(t, err)
 		unReq := &configuration.UnsubscribeRequest{
 			ID: subID,
 		}
@@ -144,7 +144,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Metadata: make(map[string]string),
 		}
 		_, err := s.Subscribe(context.Background(), &req, updateEventHandler)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -160,7 +160,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 			ID: "id_not_exist",
 		}
 		err := s.Unsubscribe(cancelContext, &req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.True(t, ok)
 	})
@@ -170,7 +170,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 			ID: "id1",
 		}
 		err := s.Unsubscribe(cancelContext, &req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.False(t, ok)
 	})
@@ -187,8 +187,8 @@ func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		res, err := s.Get(context.Background(), &req)
-		assert.Nil(t, err)
-		assert.True(t, len(res.Items) == 2)
+		require.NoError(t, err)
+		assert.Len(t, res.Items, 2)
 	})
 }
 
@@ -208,7 +208,7 @@ func TestInit(t *testing.T) {
 		}}
 
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
 		assert.Equal(t, testProperties[host], cs.metadata.Host)
@@ -233,7 +233,7 @@ func TestInit(t *testing.T) {
 		}}
 
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
 		assert.Equal(t, testProperties[connectionString], cs.metadata.ConnectionString)

@@ -328,6 +328,8 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	}
 	if ok {
 		m.TTL = &ttl
+	} else {
+		m.TTL = nil
 	}
 
 	return &m, nil

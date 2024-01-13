@@ -82,9 +82,9 @@ func TestTryGetTTL(t *testing.T) {
 			md: map[string]string{
 				TTLMetadataKey: "-1",
 			},
-			wantOK:  true,
+			wantOK:  false,
 			wantErr: true,
-			errStr:  "value must be higher than zero: actual is -1",
+			errStr:  "value must be higher than zero: actual is '-1'",
 			result:  time.Duration(0) * time.Second,
 		},
 		{
@@ -92,7 +92,7 @@ func TestTryGetTTL(t *testing.T) {
 			md: map[string]string{
 				TTLMetadataKey: "-1s",
 			},
-			wantOK:  false,
+			wantOK:  true,
 			wantErr: false,
 			result:  time.Duration(0) * time.Second,
 		},

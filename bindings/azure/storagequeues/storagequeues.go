@@ -255,7 +255,7 @@ type storageQueuesMetadata struct {
 	DecodeBase64      bool
 	EncodeBase64      bool
 	PollingInterval   time.Duration  `mapstructure:"pollingInterval"`
-	TTL               *time.Duration `mapstructure:"ttlInSeconds"`
+	TTL               *time.Duration `mapstructure:"ttl" mapstructurealias:"ttlInSeconds"`
 	VisibilityTimeout *time.Duration
 }
 

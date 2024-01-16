@@ -31,6 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -452,19 +453,16 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 	case 1:
 		return a.execMultiOperation(parentCtx, reqs[0], a.db)
 	default:
-		tx, err := a.db.BeginTx(parentCtx, nil)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		for _, op := range reqs {
-			err = a.execMultiOperation(parentCtx, op, tx)
-			if err != nil {
-				return err
+		_, err := sqltransactions.ExecuteInTransaction(parentCtx, a.logger, a.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range reqs {
+				err = a.execMultiOperation(parentCtx, op, tx)
+				if err != nil {
+					return r, err
+				}
 			}
-		}
-		return tx.Commit()
+			return r, nil
+		})
+		return err
 	}
 }
 

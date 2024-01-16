@@ -263,23 +263,22 @@ func TestSqlServer(t *testing.T) {
 	ttlTest := func(connString string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
 			log := logger.NewLogger("dapr.components")
-			md := state.Metadata{
-				Base: metadata.Base{
-					Name: "ttltest",
-					Properties: map[string]string{
-						"connectionString":  connString,
-						"databaseName":      "certificationtest",
-						"tableName":         "ttltest",
-						"metadataTableName": "ttltest_metadata",
-						"schema":            "ttlschema",
-					},
-				},
-			}
 
 			ctx.T.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 				t.Run("default value", func(t *testing.T) {
 					// Default value is 1 hr
-					md.Properties["cleanupIntervalInSeconds"] = ""
+					md := state.Metadata{
+						Base: metadata.Base{
+							Name: "ttltest",
+							Properties: map[string]string{
+								"connectionString":  connString,
+								"databaseName":      "certificationtest",
+								"tableName":         "ttltest",
+								"metadataTableName": "ttltest_metadata",
+								"schema":            "ttlschema",
+							},
+						},
+					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
 					err := storeObj.Init(context.Background(), md)
@@ -293,7 +292,19 @@ func TestSqlServer(t *testing.T) {
 
 				t.Run("positive value", func(t *testing.T) {
 					// A positive value is interpreted in seconds
-					md.Properties["cleanupIntervalInSeconds"] = "10"
+					md := state.Metadata{
+						Base: metadata.Base{
+							Name: "ttltest",
+							Properties: map[string]string{
+								"connectionString":  connString,
+								"databaseName":      "certificationtest",
+								"tableName":         "ttltest",
+								"metadataTableName": "ttltest_metadata",
+								"schema":            "ttlschema",
+								"cleanupInterval":   "10",
+							},
+						},
+					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
 					err := storeObj.Init(context.Background(), md)
@@ -307,7 +318,19 @@ func TestSqlServer(t *testing.T) {
 
 				t.Run("disabled", func(t *testing.T) {
 					// A value of <=0 means that the cleanup is disabled
-					md.Properties["cleanupIntervalInSeconds"] = "0"
+					md := state.Metadata{
+						Base: metadata.Base{
+							Name: "ttltest",
+							Properties: map[string]string{
+								"connectionString":         connString,
+								"databaseName":             "certificationtest",
+								"tableName":                "ttltest",
+								"metadataTableName":        "ttltest_metadata",
+								"schema":                   "ttlschema",
+								"cleanupIntervalInSeconds": "0",
+							},
+						},
+					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
 					err := storeObj.Init(context.Background(), md)
@@ -325,7 +348,19 @@ func TestSqlServer(t *testing.T) {
 
 				t.Run("automatically delete expiredate records", func(t *testing.T) {
 					// Run every second
-					md.Properties["cleanupIntervalInSeconds"] = "1"
+					md := state.Metadata{
+						Base: metadata.Base{
+							Name: "ttltest",
+							Properties: map[string]string{
+								"connectionString":  connString,
+								"databaseName":      "certificationtest",
+								"tableName":         "ttltest",
+								"metadataTableName": "ttltest_metadata",
+								"schema":            "ttlschema",
+								"cleanupInterval":   "1",
+							},
+						},
+					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 					err := storeObj.Init(context.Background(), md)
@@ -339,7 +374,7 @@ func TestSqlServer(t *testing.T) {
 					require.NoError(t, err, "failed to seed records")
 
 					cleanupInterval := storeObj.GetCleanupInterval()
-					assert.NotNil(t, cleanupInterval)
+					require.NotNil(t, cleanupInterval)
 					assert.Equal(t, time.Duration(time.Second), *cleanupInterval)
 
 					// Wait up to 3 seconds then verify we have only 10 rows left
@@ -371,7 +406,19 @@ func TestSqlServer(t *testing.T) {
 				t.Run("cleanup concurrency", func(t *testing.T) {
 					// Set to run every hour
 					// (we'll manually trigger more frequent iterations)
-					md.Properties["cleanupIntervalInSeconds"] = "3600"
+					md := state.Metadata{
+						Base: metadata.Base{
+							Name: "ttltest",
+							Properties: map[string]string{
+								"connectionString":  connString,
+								"databaseName":      "certificationtest",
+								"tableName":         "ttltest",
+								"metadataTableName": "ttltest_metadata",
+								"schema":            "ttlschema",
+								"cleanupInterval":   "1h",
+							},
+						},
+					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 					err := storeObj.Init(context.Background(), md)

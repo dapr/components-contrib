@@ -50,6 +50,13 @@ func (m *mockedSSM) DescribeParametersWithContext(ctx context.Context, input *ss
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
+	s.(*ssmSecretStore).client = &mockedSSM{
+		GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
+			// Simulate a non error response from AWS SSM
+			return nil, nil
+		},
+	}
+
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
@@ -60,6 +67,19 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(context.Background(), m)
 		require.NoError(t, err)
+	})
+
+	t.Run("Init with invalid connection details", func(t *testing.T) {
+		s.(*ssmSecretStore).client = &mockedSSM{
+			GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
+				// Simulate a failure that resembles what AWS SSM would return
+				return nil, fmt.Errorf("wrong-credentials")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating access to the aws.parameterstore secret store: wrong-credentials")
 	})
 }
 

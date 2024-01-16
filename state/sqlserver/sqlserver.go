@@ -24,6 +24,7 @@ import (
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -186,24 +187,16 @@ func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalState
 	case 1:
 		return s.execMultiOperation(ctx, request.Operations[0], s.db)
 	default:
-		tx, err := s.db.Begin()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-				s.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		_, err := sqltransactions.ExecuteInTransaction(ctx, s.logger, s.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = s.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
 			}
-		}()
-
-		for _, op := range request.Operations {
-			err = s.execMultiOperation(ctx, op, tx)
-			if err != nil {
-				return err
-			}
-		}
-		return tx.Commit()
+			return r, nil
+		})
+		return err
 	}
 }
 

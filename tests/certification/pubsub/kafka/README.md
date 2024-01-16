@@ -25,6 +25,9 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
 * Start third consumer with a matching consumer group
     * Test: Publishes a specific amount of messages
     * Component: Between the each of the consumers in the group, all messages should be consumed, but not necessarily in order.
+* Start avro consumer with schema registry configured
+  * Test: Publishes a specific amount of messages with Avro serialization
+  * Consumer should receive all messages decoded
 * Stop 1 broker node so that 2 of 3 are active
     * The 2 applications should handle the server rebalance
 * Stop another broker so that 1 of 3 are active (loss of quorum)
@@ -54,3 +57,10 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
 * **TODO** Verify raw events
     * **TODO** Publish various raw events
     * **TODO** App receives Kafka messages and verifies their binary encoding
+
+## Running locally
+* Navigate to the `tests/certification/pubsub/kafka` folder
+* Run command:
+  ```bash
+  go test -v --tags certtests
+  ```

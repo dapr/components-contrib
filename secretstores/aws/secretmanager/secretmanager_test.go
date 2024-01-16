@@ -43,6 +43,13 @@ func (m *mockedSM) GetSecretValueWithContext(ctx context.Context, input *secrets
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewSecretManager(logger.NewLogger("test"))
+	s.(*smSecretStore).client = &mockedSM{
+		GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+			// Simulate a non error response
+			return nil, nil
+		},
+	}
+
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
@@ -53,6 +60,19 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(context.Background(), m)
 		require.NoError(t, err)
+	})
+
+	t.Run("Init with invalid connection details", func(t *testing.T) {
+		s.(*smSecretStore).client = &mockedSM{
+			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+				// Simulate a failure that resembles what AWS SM would return
+				return nil, fmt.Errorf("wrong-credentials")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating access to the aws.secretmanager secret store: wrong-credentials")
 	})
 }
 

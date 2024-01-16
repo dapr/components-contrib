@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cast"
 )
 
@@ -71,5 +72,19 @@ func Unquote(data []byte) (res string) {
 			res = string(data)
 		}
 	}
+	return res
+}
+
+// GetRandOrDefaultString is used when we need to generate a random string,
+// but don't want to fail if the entropy pool is empty (e.g. in tests)
+// One example usage is for validating the aws connection on dapr initialisation
+func GetRandOrDefaultString(defaultVal string) string {
+	var res string
+	if random, err := uuid.NewRandom(); err == nil {
+		res = random.String()
+	} else {
+		res = defaultVal
+	}
+
 	return res
 }

@@ -255,7 +255,7 @@ type storageQueuesMetadata struct {
 	DecodeBase64      bool
 	EncodeBase64      bool
 	PollingInterval   time.Duration  `mapstructure:"pollingInterval"`
-	TTL               *time.Duration `mapstructure:"ttlInSeconds"`
+	TTL               *time.Duration `mapstructure:"ttl" mapstructurealiases:"ttlInSeconds"`
 	VisibilityTimeout *time.Duration
 }
 
@@ -328,6 +328,8 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	}
 	if ok {
 		m.TTL = &ttl
+	} else {
+		m.TTL = nil
 	}
 
 	return &m, nil

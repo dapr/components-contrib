@@ -24,6 +24,7 @@ import (
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -151,11 +152,11 @@ END TRY
 BEGIN CATCH
 UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
-COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName), sql.Named("Interval", arg)
+COMMIT TRANSACTION;`, s.metadata.SchemaName, s.metadata.MetadataTableName), sql.Named("Interval", arg)
 		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(
 			`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
-			s.metadata.Schema, s.metadata.TableName,
+			s.metadata.SchemaName, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
 		DB:              commonsql.AdaptDatabaseSQLConn(s.db),
@@ -186,24 +187,16 @@ func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalState
 	case 1:
 		return s.execMultiOperation(ctx, request.Operations[0], s.db)
 	default:
-		tx, err := s.db.Begin()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-				s.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		_, err := sqltransactions.ExecuteInTransaction(ctx, s.logger, s.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = s.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
 			}
-		}()
-
-		for _, op := range request.Operations {
-			err = s.execMultiOperation(ctx, op, tx)
-			if err != nil {
-				return err
-			}
-		}
-		return tx.Commit()
+			return r, nil
+		})
+		return err
 	}
 }
 

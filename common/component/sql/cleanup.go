@@ -129,7 +129,7 @@ func (g *gc) CleanupExpired() error {
 
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
-	// We do this before beginning the transaction
+	// We do this outside of a the transaction since it's atomic
 	canContinue, err := g.updateLastCleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
@@ -139,21 +139,10 @@ func (g *gc) CleanupExpired() error {
 		return nil
 	}
 
-	tx, err := g.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	rowsAffected, err := tx.Exec(ctx, g.deleteExpiredValuesQuery)
+	// Delete the expired values
+	rowsAffected, err := g.db.Exec(ctx, g.deleteExpiredValuesQuery)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	// Commit
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	g.log.Infof("Removed %d expired rows", rowsAffected)

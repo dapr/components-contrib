@@ -15,6 +15,7 @@ package parameterstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -23,10 +24,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/ptr"
 )
 
 // Constant literals.
@@ -55,21 +58,37 @@ type ssmSecretStore struct {
 	logger logger.Logger
 }
 
-// Init creates a AWS secret manager client.
-func (s *ssmSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
+// Init creates an AWS secret manager client.
+func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	client, err := s.getClient(meta)
-	if err != nil {
-		return err
+	// This check is needed because d.client is set to a mock in tests
+	if s.client == nil {
+		s.client, err = s.getClient(meta)
+		if err != nil {
+			return err
+		}
 	}
-	s.client = client
 	s.prefix = meta.Prefix
 
+	// Validate client connection
+	var notFoundErr *ssm.ParameterNotFound
+	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
+		return fmt.Errorf("error validating access to the aws.parameterstore secret store: %w", err)
+	}
 	return nil
+}
+
+// validateConnection runs a dummy GetParameterWithContext operation
+// to validate the connection credentials
+func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
+	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+		Name: ptr.Of(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),
+	})
+	return err
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -83,8 +102,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	}
 
 	output, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name:           aws.String(s.prefix + name),
-		WithDecryption: aws.Bool(true),
+		Name:           ptr.Of(s.prefix + name),
+		WithDecryption: ptr.Of(true),
 	})
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)

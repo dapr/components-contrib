@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -61,15 +62,16 @@ type Cassandra struct {
 }
 
 type cassandraMetadata struct {
-	Hosts             []string
-	Port              int
-	ProtoVersion      int
-	ReplicationFactor int
-	Username          string
-	Password          string
-	Consistency       string
-	Table             string
-	Keyspace          string
+	Hosts                  []string
+	Port                   int
+	ProtoVersion           int
+	ReplicationFactor      int
+	Username               string
+	Password               string
+	Consistency            string
+	Table                  string
+	Keyspace               string
+	EnableHostVerification bool
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
@@ -117,11 +119,13 @@ func (c *Cassandra) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (c *Cassandra) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
-	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
+	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, strconv.Itoa(replicationFactor))).Exec()
 }
 
 func (c *Cassandra) tryCreateTable(table, keyspace string) error {
@@ -132,6 +136,11 @@ func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.Clu
 	clusterConfig := gocql.NewCluster(metadata.Hosts...)
 	if metadata.Username != "" && metadata.Password != "" {
 		clusterConfig.Authenticator = gocql.PasswordAuthenticator{Username: metadata.Username, Password: metadata.Password}
+	}
+	if metadata.EnableHostVerification {
+		clusterConfig.SslOpts = &gocql.SslOptions{
+			EnableHostVerification: true,
+		}
 	}
 	clusterConfig.Port = metadata.Port
 	clusterConfig.ProtoVersion = metadata.ProtoVersion
@@ -181,7 +190,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		Consistency:       "All",
 		Port:              defaultPort,
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

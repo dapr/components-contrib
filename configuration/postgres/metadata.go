@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"time"
 
-	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type metadata struct {
@@ -34,7 +34,7 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	m.ConfigTable = ""
 	m.MaxIdleTimeoutOld = 0
 
-	err := contribMetadata.DecodeMetadata(meta, &m)
+	err := kitmd.DecodeMetadata(meta, &m)
 	if err != nil {
 		return err
 	}

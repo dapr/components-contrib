@@ -22,12 +22,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	cron "github.com/dapr/kit/cron"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Binding represents Cron input binding.
@@ -48,7 +49,7 @@ type metadata struct {
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) bindings.InputBinding {
-	return NewCronWithClock(logger, clock.New())
+	return NewCronWithClock(logger, clock.RealClock{})
 }
 
 func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBinding {
@@ -70,7 +71,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 func (b *Binding) Init(ctx context.Context, meta bindings.Metadata) error {
 	b.name = meta.Name
 	m := metadata{}
-	err := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}

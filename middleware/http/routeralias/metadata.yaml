@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
-schemaVersion: "v1"
-type: "middleware"
-name: "http.routeralias"
-version: "v1"
-status: "alpha"
+schemaVersion: v1
+type: middleware
+name: routeralias
+version: v1
+status: alpha
 title: "Router Alias"
 urls:
   - title: Reference

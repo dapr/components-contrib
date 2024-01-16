@@ -24,8 +24,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/contenttype"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	daprmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -161,9 +161,9 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	if r.clientHasJSON {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureQueryAPI}
 	} else {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL}
 	}
 }
 

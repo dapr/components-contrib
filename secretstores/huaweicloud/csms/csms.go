@@ -15,6 +15,7 @@ package csms
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
@@ -25,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -59,7 +61,10 @@ func NewHuaweiCsmsSecretStore(logger logger.Logger) secretstores.SecretStore {
 // Init creates a Huawei csms client.
 func (c *csmsSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := CsmsSecretStoreMetadata{}
-	metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return fmt.Errorf("failed to decode metadata: %w", err)
+	}
 	auth := basic.NewCredentialsBuilder().
 		WithAk(m.AccessKey).
 		WithSk(m.SecretAccessKey).

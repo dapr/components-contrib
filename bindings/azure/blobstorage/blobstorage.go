@@ -25,12 +25,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
+	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -46,6 +47,8 @@ const (
 	metadataKeyMarker = "marker"
 	// The number of blobs that will be returned in a list operation.
 	metadataKeyNumber = "number"
+	// Defines the response metadata key for the number of pages traversed in a list response.
+	metadataKeyPagesTraversed = "pagesTraversed"
 	// Defines if the user defined metadata should be returned in the get operation.
 	metadataKeyIncludeMetadata = "includeMetadata"
 	// Defines the delete snapshots option for the delete operation.
@@ -62,7 +65,7 @@ var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
-	metadata        *storageinternal.BlobStorageMetadata
+	metadata        *storagecommon.BlobStorageMetadata
 	containerClient *container.Client
 
 	logger logger.Logger
@@ -96,7 +99,7 @@ func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 // Init performs metadata parsing.
 func (a *AzureBlobStorage) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
-	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
+	a.containerClient, a.metadata, err = storagecommon.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -125,7 +128,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobName = id.String()
 	}
 
-	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
+	blobHTTPHeaders, err := storagecommon.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +147,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	}
 
 	uploadOptions := azblob.UploadBufferOptions{
-		Metadata:                storageinternal.SanitizeMetadata(a.logger, req.Metadata),
+		Metadata:                storagecommon.SanitizeMetadata(a.logger, req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
 		TransactionalContentMD5: blobHTTPHeaders.BlobContentMD5,
 	}
@@ -188,6 +191,9 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
 	if err != nil {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return nil, fmt.Errorf("blob not found")
+		}
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
 	reader := blobDownloadResponse.Body
@@ -254,6 +260,10 @@ func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeReque
 	blockBlobClient = a.containerClient.NewBlockBlobClient(val)
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 
+	if bloberror.HasCode(err, bloberror.BlobNotFound) {
+		return nil, fmt.Errorf("blob not found")
+	}
+
 	return nil, err
 }
 
@@ -295,30 +305,34 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}
 	options.Marker = &initialMarker
 
-	metadata := map[string]string{}
+	metadata := make(map[string]string, 3)
 	blobs := []*container.BlobItem{}
 	pager := a.containerClient.NewListBlobsFlatPager(&options)
 
+	metadata[metadataKeyMarker] = ""
+	numBlobs := 0
+	pagesTraversed := 0
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blobs: %w", err)
 		}
+		pagesTraversed++
 
 		blobs = append(blobs, resp.Segment.BlobItems...)
-		numBlobs := len(blobs)
-		metadata[metadataKeyNumber] = strconv.FormatInt(int64(numBlobs), 10)
-		metadata[metadataKeyMarker] = ""
+		numBlobs += len(resp.Segment.BlobItems)
 		if resp.Marker != nil {
 			metadata[metadataKeyMarker] = *resp.Marker
+		} else {
+			metadata[metadataKeyMarker] = ""
 		}
 
-		if *options.MaxResults-maxResults > 0 {
-			*options.MaxResults -= maxResults
-		} else {
+		if numBlobs >= int(*options.MaxResults) {
 			break
 		}
 	}
+	metadata[metadataKeyNumber] = strconv.FormatInt(int64(numBlobs), 10)
+	metadata[metadataKeyPagesTraversed] = strconv.FormatInt(int64(pagesTraversed), 10)
 
 	jsonResponse, err := json.Marshal(blobs)
 	if err != nil {
@@ -359,7 +373,7 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := storageinternal.BlobStorageMetadata{}
+	metadataStruct := storagecommon.BlobStorageMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

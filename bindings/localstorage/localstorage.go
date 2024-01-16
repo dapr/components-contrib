@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -85,7 +86,7 @@ func (ls *LocalStorage) Init(_ context.Context, metadata bindings.Metadata) erro
 
 func (ls *LocalStorage) parseMetadata(meta bindings.Metadata) (*Metadata, error) {
 	var m Metadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

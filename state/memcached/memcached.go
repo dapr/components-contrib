@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -50,9 +51,9 @@ type Memcached struct {
 }
 
 type memcachedMetadata struct {
-	Hosts              []string
-	MaxIdleConnections int
-	Timeout            int
+	Hosts              []string `mapstructure:"hosts"`
+	MaxIdleConnections int      `mapstructure:"maxIdleConnections"`
+	Timeout            int      `mapstructure:"timeout"`
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
@@ -93,7 +94,9 @@ func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
@@ -102,7 +105,7 @@ func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
 		Timeout:            -1,
 	}
 
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

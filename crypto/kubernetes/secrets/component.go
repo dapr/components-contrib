@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -26,8 +27,8 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
 	"github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
@@ -41,14 +42,17 @@ const (
 type kubeSecretsCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
+	logger     logger.Logger
 	md         secretsMetadata
 	kubeClient kubernetes.Interface
 }
 
 // NewKubeSecretsCrypto returns a new Kubernetes secrets crypto provider.
 // The key arguments in methods can be in the format "namespace/secretName/key" or "secretName/key" if using the default namespace passed as component metadata.
-func NewKubeSecretsCrypto(_ logger.Logger) contribCrypto.SubtleCrypto {
-	k := &kubeSecretsCrypto{}
+func NewKubeSecretsCrypto(log logger.Logger) contribCrypto.SubtleCrypto {
+	k := &kubeSecretsCrypto{
+		logger: log,
+	}
 	k.RetrieveKeyFn = k.retrieveKeyFromSecret
 	return k
 }
@@ -62,7 +66,11 @@ func (k *kubeSecretsCrypto) Init(_ context.Context, metadata contribCrypto.Metad
 	}
 
 	// Init Kubernetes client
-	k.kubeClient, err = kubeclient.GetKubeClient()
+	kubeconfigPath := k.md.KubeconfigPath
+	if kubeconfigPath == "" {
+		kubeconfigPath = kubeclient.GetKubeconfigPath(k.logger, os.Args)
+	}
+	k.kubeClient, err = kubeclient.GetKubeClient(kubeconfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to init Kubernetes client: %w", err)
 	}

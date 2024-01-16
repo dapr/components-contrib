@@ -15,13 +15,17 @@ package secrets
 
 import (
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 type secretsMetadata struct {
 	// Default namespace to retrieve secrets from.
-	// If unset, the namespace must be specified for each key, as `namespace/secretName/key`
+	// If unset, the namespace must be specified for each key, as `namespace/secretName/key`.
 	DefaultNamespace string `json:"defaultNamespace" mapstructure:"defaultNamespace"`
+
+	// Path to a kubeconfig file.
+	// If empty, uses the default values.
+	KubeconfigPath string `json:"kubeconfigPath" mapstructure:"kubeconfigPath"`
 }
 
 func (m *secretsMetadata) InitWithMetadata(meta contribCrypto.Metadata) error {

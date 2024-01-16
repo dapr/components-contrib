@@ -88,7 +88,7 @@ func (a App) Stop(ctx flow.Context) error {
 			if errors.Is(err, context.DeadlineExceeded) {
 				// If the error is a context deadline exceeded, it just means the HTTP server couldn't shut down gracefully
 				// We will log that error but we can safely ignore it
-				log.Println("Service did not shut down gracefully - ignoring the error")
+				log.Printf("Service did not shut down gracefully - ignoring the error: %s", err)
 				return nil
 			}
 			return fmt.Errorf("failed to stop service: %w", err)

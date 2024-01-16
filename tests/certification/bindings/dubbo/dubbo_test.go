@@ -16,6 +16,7 @@ package dubbobinding_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/dubbo"
@@ -66,9 +68,9 @@ func TestDubboBinding(t *testing.T) {
 		hessian.RegisterPOJO(reqUser)
 		argTypeList, _ := dubboImpl.GetArgsTypeList([]interface{}{reqUser})
 		err := enc.Encode(argTypeList)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		err = enc.Encode(reqUser)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		reqData := enc.Buffer()
 
 		metadata := map[string]string{
@@ -86,16 +88,16 @@ func TestDubboBinding(t *testing.T) {
 		}
 
 		rsp, err := client.InvokeBinding(ctx, invokeRequest)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		// 4. get rsp value
 		decoder := hessian.NewDecoder(rsp.Data)
 		_, err = decoder.Decode() // decode type
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		rspDecodedValue, err := decoder.Decode() // decode value
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		err = hessian.ReflectResponse(rspDecodedValue, rspUser)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, helloPrefix+reqUser.Name, rspUser.Name)
 		return nil
 	}
@@ -110,9 +112,9 @@ func TestDubboBinding(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithBindings(newBindingsRegistry()))).
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			embedded.WithBindings(newBindingsRegistry()))).
 		Step("verify dubbo invocation", testDubboInvocation).
 		Run()
 }

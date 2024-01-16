@@ -18,8 +18,9 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	influxdb2 "github.com/influxdata/influxdb-client-go"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -31,7 +32,7 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties = map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}
 	influx := Influx{logger: logger.NewLogger("test")}
 	im, err := influx.getInfluxMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", im.URL)
 	assert.Equal(t, "a", im.Token)
 	assert.Equal(t, "a", im.Org)
@@ -55,7 +56,7 @@ func TestInflux_Init(t *testing.T) {
 
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}}}
 	err := influx.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, influx.queryAPI)
 	assert.NotNil(t, influx.writeAPI)
@@ -89,7 +90,7 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	w := NewMockWriteAPIBlocking(ctrl)
-	w.EXPECT().WriteRecord(gomock.Eq(context.Background()), gomock.Eq("a,a a")).Return(nil)
+	w.EXPECT().WriteRecord(gomock.Eq(context.TODO()), gomock.Eq("a,a a")).Return(nil)
 	influx := &Influx{
 		writeAPI: w,
 	}
@@ -152,7 +153,7 @@ func TestInflux_Invoke_BindingQueryOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMockQueryAPI(ctrl)
-	q.EXPECT().QueryRaw(gomock.Eq(context.Background()), gomock.Eq("a"), gomock.Eq(influxdb2.DefaultDialect())).Return("ok", nil)
+	q.EXPECT().QueryRaw(gomock.Eq(context.TODO()), gomock.Eq("a"), gomock.Eq(influxdb2.DefaultDialect())).Return("ok", nil)
 	influx := &Influx{
 		queryAPI: q,
 		logger:   logger.NewLogger("test"),

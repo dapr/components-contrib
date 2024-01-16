@@ -14,6 +14,9 @@ limitations under the License.
 package state
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/dapr/components-contrib/state/query"
 )
 
@@ -65,6 +68,21 @@ func (r DeleteRequest) HasETag() bool {
 // Operation returns the operation type for DeleteRequest, implementing TransactionalStateOperationRequest.
 func (r DeleteRequest) Operation() OperationType {
 	return OperationDelete
+}
+
+// DeleteWithPrefixRequest is the object describing a delete with prefix state request used for deleting actors.
+type DeleteWithPrefixRequest struct {
+	Prefix string `json:"prefix"`
+}
+
+func (r *DeleteWithPrefixRequest) Validate() error {
+	if r.Prefix == "" || r.Prefix == "||" {
+		return fmt.Errorf("a prefix is required for deleteWithPrefix request")
+	}
+	if !strings.HasSuffix(r.Prefix, "||") {
+		r.Prefix += "||"
+	}
+	return nil
 }
 
 // DeleteStateOption controls how a state store reacts to a delete request.

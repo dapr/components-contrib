@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -49,6 +50,13 @@ func (m *mockedSSM) DescribeParametersWithContext(ctx context.Context, input *ss
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
+	s.(*ssmSecretStore).client = &mockedSSM{
+		GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
+			// Simulate a non error response from AWS SSM
+			return nil, nil
+		},
+	}
+
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
@@ -58,7 +66,20 @@ func TestInit(t *testing.T) {
 			"SessionToken": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
+	})
+
+	t.Run("Init with invalid connection details", func(t *testing.T) {
+		s.(*ssmSecretStore).client = &mockedSSM{
+			GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
+				// Simulate a failure that resembles what AWS SSM would return
+				return nil, fmt.Errorf("wrong-credentials")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating access to the aws.parameterstore secret store: wrong-credentials")
 	})
 }
 
@@ -85,7 +106,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
 
@@ -116,7 +137,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
@@ -143,7 +164,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
 	})
@@ -161,7 +182,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.GetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -196,7 +217,7 @@ func TestGetBulkSecrets(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		output, e := s.BulkGetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Contains(t, output.Data, "/aws/dev/secret1")
 		assert.Contains(t, output.Data, "/aws/dev/secret2")
 	})
@@ -232,7 +253,7 @@ func TestGetBulkSecrets(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		output, e := s.BulkGetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, "map[/aws/dev/secret1:/prefix/aws/dev/secret1-secret]", fmt.Sprint(output.Data["/aws/dev/secret1"]))
 		assert.Equal(t, "map[/aws/dev/secret2:/prefix/aws/dev/secret2-secret]", fmt.Sprint(output.Data["/aws/dev/secret2"]))
 	})
@@ -259,7 +280,7 @@ func TestGetBulkSecrets(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.BulkGetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("unsuccessfully retrieve bulk secrets on describe parameter", func(t *testing.T) {
@@ -274,7 +295,7 @@ func TestGetBulkSecrets(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.BulkGetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 

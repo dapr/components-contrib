@@ -23,12 +23,12 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
 
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -90,7 +90,9 @@ func (q *CFWorkersKV) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 
 // Features returns the features supported by this state store.
 func (q CFWorkersKV) Features() []state.Feature {
-	return []state.Feature{}
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {

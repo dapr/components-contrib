@@ -14,7 +14,6 @@ limitations under the License.
 package metadata
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -22,10 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
-	"github.com/dapr/components-contrib/internal/utils"
-	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -136,117 +132,6 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 		}
 	}
 	return "", false
-}
-
-// DecodeMetadata decodes metadata into a struct
-// This is an extension of mitchellh/mapstructure which also supports decoding durations
-func DecodeMetadata(input any, result any) error {
-	// avoids a common mistake of passing the metadata struct, instead of the properties map
-	// if input is of type struct, case it to metadata.Base and access the Properties instead
-	v := reflect.ValueOf(input)
-	if v.Kind() == reflect.Struct {
-		f := v.FieldByName("Properties")
-		if f.IsValid() && f.Kind() == reflect.Map {
-			properties := f.Interface().(map[string]string)
-			input = properties
-		}
-	}
-
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		DecodeHook: mapstructure.ComposeDecodeHookFunc(
-			toTimeDurationArrayHookFunc(),
-			toTimeDurationHookFunc(),
-			toTruthyBoolHookFunc(),
-			toStringArrayHookFunc(),
-		),
-		Metadata:         nil,
-		Result:           result,
-		WeaklyTypedInput: true,
-	})
-	if err != nil {
-		return err
-	}
-	err = decoder.Decode(input)
-	return err
-}
-
-func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any,
-	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(true) {
-			val := data.(string)
-			return utils.IsTruthy(val), nil
-		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(reflect.TypeOf(ptr.Of(true))) {
-			val := data.(string)
-			return ptr.Of(utils.IsTruthy(val)), nil
-		}
-		return data, nil
-	}
-}
-
-func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any,
-	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf([]string{}) {
-			val := data.(string)
-			return strings.Split(val, ","), nil
-		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]string{})) {
-			val := data.(string)
-			return ptr.Of(strings.Split(val, ",")), nil
-		}
-		return data, nil
-	}
-}
-
-func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
-	convert := func(input string) ([]time.Duration, error) {
-		res := make([]time.Duration, 0)
-		for _, v := range strings.Split(input, ",") {
-			input := strings.TrimSpace(v)
-			if input == "" {
-				continue
-			}
-			val, err := time.ParseDuration(input)
-			if err != nil {
-				// If we can't parse the duration, try parsing it as int64 seconds
-				seconds, errParse := strconv.ParseInt(input, 10, 0)
-				if errParse != nil {
-					return nil, errors.Join(err, errParse)
-				}
-				val = time.Duration(seconds * int64(time.Second))
-			}
-			res = append(res, val)
-		}
-		return res, nil
-	}
-
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any,
-	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf([]time.Duration{}) {
-			inputArrayString := data.(string)
-			return convert(inputArrayString)
-		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]time.Duration{})) {
-			inputArrayString := data.(string)
-			res, err := convert(inputArrayString)
-			if err != nil {
-				return nil, err
-			}
-			return ptr.Of(res), nil
-		}
-		return data, nil
-	}
 }
 
 type ComponentType string

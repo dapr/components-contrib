@@ -8,128 +8,294 @@ title: "Apache Kafka"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
+authenticationProfiles:
+  - title: "OIDC Authentication"
+    description: |
+      Authenticate using OpenID Connect.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "oidc" for this authentication profile.
+        example: '"oidc"'
+        allowedValues:
+          - "oidc"
+      - name: oidcTokenEndpoint
+        type: string
+        required: true
+        description: |
+          URL of the OAuth2 identity provider access token endpoint.
+        example: '"https://identity.example.com/v1/token"'
+      - name: oidcClientID
+        description: |
+          The OAuth2 client ID that has been provisioned in the identity provider.
+        example: '"my-client-id"'
+        type: string
+        required: true
+      - name: oidcClientSecret
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The OAuth2 client secret that has been provisioned in the identity provider.
+        example: '"KeFg23!"'
+      - name: oidcScopes
+        type: string
+        description: |
+          Comma-delimited list of OAuth2/OIDC scopes to request with the access token.
+          Although not required, this field is recommended.
+        example: '"openid,kafka-prod"'
+        default: '"openid"'
+      - name: oidcExtensions
+        description: |
+          String containing a JSON-encoded dictionary of OAuth2/OIDC extensions to request with the access token.
+        example: |
+          {"cluster":"kafka","poolid":"kafkapool"}
+        type: string
+  - title: "SASL Authentication"
+    description: |
+      Authenticate using SASL.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "password" for this authentication profile.
+        example: '"password"'
+        allowedValues:
+          - "password"
+      - name: saslUsername
+        type: string
+        required: true
+        description: |
+          The SASL username.
+        example: '"myuser"'
+      - name: saslPassword
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The SASL password.
+        example: '"mypassword"'
+      - name: saslMechanism
+        type: string
+        required: true
+        description: |
+          The SASL authentication mechanism to use.
+        example: '"SHA-512"'
+        default: '"PLAINTEXT"'
+        allowedValues:
+          - "SHA-512"
+          - "SHA-256"
+          - "PLAINTEXT"
+  - title: "mTLS Authentication"
+    description: |
+      Authenticate using mTLS.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "mtls" for this authentication profile.
+        example: '"mtls"'
+        allowedValues:
+          - "mtls"
+      - name: caCert
+        type: string
+        required: true
+        description: "Certificate authority certificate."
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+      - name: clientCert
+        required: true
+        description: "Client certificate."
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientKey
+        type: string
+        required: true
+        sensitive: true
+        description: "Client key."
+        example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+  - title: "No Authentication"
+    description: |
+      Do not perform authentication.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "none" for this authentication profile.
+        example: '"none"'
+        allowedValues:
+          - "none"
+  - title: "AWS IAM"
+    description: "Authenticate using AWS IAM credentials or role for AWS MSK"
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "awsiam" for this authentication profile.
+        example: '"awsiam"'
+        allowedValues:
+          - "awsiam"
+      - name: awsRegion
+        type: string
+        required: true
+        description: |
+          The AWS Region where the MSK Kafka broker is deployed to.
+        example: '"us-east-1"'
+      - name: awsAccessKey
+        type: string
+        required: true
+        description: |
+          AWS access key associated with an IAM account.
+        example: '"AKIAIOSFODNN7EXAMPLE"'
+      - name: awsSecretKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The secret key associated with the access key.
+        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: awsSessionToken
+        type: string
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using\ntemporary security credentials.
+        example: '"TOKEN"'
+      - name: awsIamRoleArn
+        type: string
+        required: true
+        description: |
+          IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: awsStsSessionName
+        type: string
+        description: |
+          Represents the session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"MSKSASLDefaultSession"'
 metadata:
     - name: brokers
-      required: true
-      description: "A comma-separated list of Kafka brokers"
-      example: "localhost:9092,dapr-kafka.myapp.svc.cluster.local:9093"
       type: string
+      required: true
+      description: |
+        A comma-separated list of Kafka brokers.
+      example: '"localhost:9092,dapr-kafka.myapp.svc.cluster.local:9093"'
     - name: consumerGroup
       required: false
-      description: "A kafka consumer group to listen on. Each record published to a topic is delivered to one consumer within each consumer group subscribed to the topic"
-      example: "group1"
+      description: |
+        A kafka consumer group to listen on. Each record published
+        to a topic is delivered to one consumer within each consumer
+        group subscribed to the topic.
       type: string
+      example: '"group1"'
     - name: clientID
-      required: false
-      description: "A user-provided string sent with every request to the Kafka brokers for logging, debugging, and auditing purposes. Defaults to \"sarama\""
-      example: "my-dapr-app"
       type: string
-    - name: authRequired
-      required: false
-      description: "Deprecated Enable SASL authentication with the Kafka brokers"
-      example: "false"
-      type: bool
-    - name: authType
-      required: true
-      description: | 
-        Configure or disable authentication. Supported values: "none", "password", "mtls", or "oidc"
-      example: "none"
-      type: string
-    - name: saslUsername
-      required: false
       description: |
-        The SASL username used for authentication. Only required if authType is set to "password"
-      example: "myuser"
-      type: string
-    - name: saslPassword
-      required: false
-      description: |
-        The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to "password"
-      example: "mypassword"
-      type: string
-    - name: saslMechanism
-      required: false
-      description: |
-        The SASL Authentication Mechanism you wish to use. Only required if authType is set to "password". Defaults to "PLAINTEXT"
-      example: "SHA-512"
-      type: string
+        A user-provided string sent with every request to
+        the Kafka brokers for logging, debugging, and auditing purposes.
+      example: '"my-dapr-app"'
+      default: '"sarama"'
     - name: initialOffset
-      required: false
-      description: |
-        The initial offset to use if no offset was previously committed. Should be "newest" or "oldest". Defaults to "newest"
-      example: "oldest"
       type: string
+      description: |
+        The initial offset to use if no offset was previously committed.
+      example: '"oldest"'
+      default: '"newest"'
+      allowedValues:
+        - "newest"
+        - "oldest"
     - name: maxMessageBytes
-      required: false
-      description: "The maximum size in bytes allowed for a single Kafka message. Defaults to 1024"
-      example: "2048"
       type: number
+      description: |
+        The maximum size in bytes allowed for a single Kafka message.
+      example: '2048'
+      default: '1024'
     - name: consumeRetryInterval
-      required: false
+      type: duration
       description: |
-        The interval between retries when attempting to consume topics. Treats numbers without suffix as milliseconds. Defaults to "100ms"
-      example: "200ms"
-      type: string
+        The interval between retries when attempting to consume topics.
+      example: '"200ms"'
+      default: '"100ms"'
     - name: consumeRetryEnabled
-      required: false
-      description: |
-        Disables consumer retry by setting this to "false"
-      example: "true"
       type: bool
-    - name: version
-      required: false
       description: |
-        Kafka cluster version. Defaults to "2.0.0.0"
-      example: "0.10.2.0"
+        Disables consumer retry by setting this to "false".
+      example: '"true"'
+      default: '"false"'
+    - name: version
       type: string
-    - name: caCert
-      required: false
-      description: "Certificate authority certificate, required for using TLS. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-      type: string
-    - name: clientCert
-      required: false
-      description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-      type: string
-    - name: clientKey
-      required: false
-      description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
-      type: string
+      description: |
+        Kafka cluster version.
+        Note that this must be set to "1.0.0" if you are using Azure Event Hubs with Kafka.
+      example: '"0.10.2.0"'
+      default: '"2.0.0.0"'
     - name: skipVerify
       required: false
       description: |
-        Skip TLS verification, this is not recommended for use in production. Defaults to "false"
+        Skip TLS verification.
+        This is potentially insecure and not recommended for use in production.
       example: "true"
+      default: "false"
       type: bool
     - name: disableTls
       required: false
       description: |
-        Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
+        Disable TLS for transport security.
+        This is potentially insecure and not recommended for use in production.
       example: "true"
+      default: "false"
       type: bool
-    - name: oidcTokenEndpoint
-      required: false
-      description: "Full URL to an OAuth2 identity provider access token endpoint. Required when authType is set to oidc"
-      example: "https://identity.example.com/v1/token"
-      type: string
-    - name: oidcClientID
-      required: false
-      description: "The OAuth2 client ID that has been provisioned in the identity provider. Required when authType is set to oidc"
-      example: "dapr-kafka"
-      type: string
-    - name: oidcClientSecret
-      required: false
-      description: "The OAuth2 client secret that has been provisioned in the identity provider. Required when authType is set to oidc"
-      example: "KeFg23!"
-      type: string
-    - name: oidcScopes
-      required: false
+    - name: channelBufferSize
+      type: number
       description: |
-        Comma-delimited list of OAuth2/OIDC scopes to request with the access token. Recommended when authType is set to oidc. Defaults to "openid"
-      example: "openid,kafka-prod"
+        The number of events to buffer in internal and external channels.
+      example: '128'
+      default: '256'
+    - name: consumerFetchMin
+      type: number
+      description: |
+        The minimum number of message bytes to fetch in a request.
+      example: '4'
+      default: '1'
+    - name: consumerFetchDefault
+      type: number
+      description: |
+        The default number of message bytes to fetch from the broker in each request.
+      example: '2097152'
+      default: '1048576'
+    - name: schemaRegistryURL
       type: string
-
-
-
+      description: |
+        The Schema Registry URL.
+      example: '"http://localhost:8081"'
+    - name: schemaRegistryAPIKey
+      type: string
+      description: |
+        The Schema Registry credentials API Key.
+      example: '"XYAXXAZ"'
+    - name: schemaRegistryAPISecret
+      type: string
+      description: |
+        The Schema Registry credentials API Secret.
+      example: '"ABCDEFGMEADFF"'
+    - name: schemaCachingEnabled
+      type: bool
+      description: |
+        Enables caching for schemas.
+      example: '"true"'
+      default: '"true"'
+    - name: schemaLatestVersionCacheTTL
+      type: duration
+      description: |
+        The TTL for schema caching when publishing a message with latest schema available.
+      example: '"5m"'
+      default: '"5m"'

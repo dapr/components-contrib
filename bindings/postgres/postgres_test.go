@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -44,7 +45,7 @@ func TestOperations(t *testing.T) {
 		b := NewPostgres(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
-		assert.Equal(t, 3, len(l))
+		assert.Len(t, l, 3)
 	})
 }
 
@@ -121,17 +122,17 @@ func TestPostgresIntegration(t *testing.T) {
 		req.Metadata = nil
 		req.Data = nil
 		_, err := b.Invoke(ctx, req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Close", func(t *testing.T) {
 		err := b.Close()
-		assert.NoError(t, err, "expected no error closing output binding")
+		require.NoError(t, err, "expected no error closing output binding")
 	})
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.NotNil(t, res.Metadata)
 }

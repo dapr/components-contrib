@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: gcp.bucket
+version: v1
+status: alpha
+title: "GCP Storage Bucket"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/gcpbucket/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create an item."
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "gcp"
+metadata:
+  - name: bucket
+    required: true
+    description: |
+      The bucket name.
+    example: '"mybucket"'
+    type: string
+  - name: decodeBase64
+    type: bool
+    required: false
+    default: 'false'
+    description: |
+      Configuration to decode base64 file content before saving to bucket storage. 
+      (In case of opening a file with binary content).
+    example: '"true, false"'
+  - name: encodeBase64
+    type: bool
+    required: false
+    default: 'false'
+    description: |
+      Configuration to encode base64 file content before return the content. 
+      (In case of saving a file with binary content).
+    example: '"true, false"'

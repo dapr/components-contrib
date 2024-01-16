@@ -27,9 +27,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"golang.org/x/oauth2"
 
-	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -99,7 +99,7 @@ func (md *OAuth2MiddlewareMetadata) FromMetadata(metadata middleware.Metadata, l
 	md.Mode = modeCookie
 
 	// Decode the properties
-	err := mdutils.DecodeMetadata(metadata.Properties, md)
+	err := kitmd.DecodeMetadata(metadata.Properties, md)
 	if err != nil {
 		return err
 	}

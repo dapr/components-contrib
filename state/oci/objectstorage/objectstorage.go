@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -168,10 +169,13 @@ func (r *StateStore) Ping(ctx context.Context) error {
 
 func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
-		client:   nil,
+		json: jsoniter.ConfigFastest,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTTL,
+		},
+		logger: logger,
+		client: nil,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 
@@ -198,7 +202,7 @@ func getConfigFilePath(configFilePath string) (value string, err error) {
 
 func getObjectStorageMetadata(meta map[string]string) (*objectStoreMetadata, error) {
 	m := objectStoreMetadata{}
-	errDecode := metadata.DecodeMetadata(meta, &m)
+	errDecode := kitmd.DecodeMetadata(meta, &m)
 	if errDecode != nil {
 		return nil, errDecode
 	}

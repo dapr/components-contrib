@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
@@ -38,6 +38,13 @@ import (
 
 type ValueType struct {
 	Message string `json:"message"`
+}
+
+type StructType struct {
+	Product struct {
+		Value int `json:"value"`
+	} `json:"product"`
+	Status string `json:"status"`
 }
 
 type intValueType struct {
@@ -117,6 +124,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:         fmt.Sprintf("%s-struct", key),
 			value:       ValueType{Message: fmt.Sprintf("test%s", key)},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key: fmt.Sprintf("%s-struct-operations", key),
+			value: StructType{Product: struct {
+				Value int `json:"value"`
+			}{Value: 15}, Status: "ACTIVE"},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key: fmt.Sprintf("%s-struct-operations-inactive", key),
+			value: StructType{Product: struct {
+				Value int `json:"value"`
+			}{Value: 12}, Status: "INACTIVE"},
 			contentType: contenttype.JSONContentType,
 		},
 		{
@@ -235,13 +256,74 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				},
 			},
 		},
+		{
+			query: `
+			{
+				"filter": {
+					"AND": [
+						{
+							"GTE": {"product.value": 10}
+						},
+						{
+							"LT": {"product.value": 20}
+						},
+						{
+							"NEQ": {"status": "INACTIVE"}
+						}
+					]
+				}
+			}
+			`,
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations", key),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE"}`)),
+				},
+			},
+		},
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [ 
+						{ 
+							"AND": [
+								{
+									"GT": {"product.value": 11.1}
+								},
+								{
+									"EQ": {"status": "INACTIVE"}
+								}
+							]
+						},
+						{ 
+							"AND": [
+								{
+									"LTE": {"product.value": 0.5}
+								},
+								{
+									"EQ": {"status": "ACTIVE"}
+								}
+							]
+						}
+					]
+				}
+			}
+			`,
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE"}`)),
+				},
+			},
+		},
 	}
 
 	t.Run("init", func(t *testing.T) {
 		err := statestore.Init(context.Background(), state.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	// Don't run more tests if init failed
@@ -252,12 +334,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	t.Run("ping", func(t *testing.T) {
 		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
+		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "ping is not implemented by this state store")
+			require.ErrorIs(t, err, state.ErrPingNotImplemented)
 		} else {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -273,7 +355,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
 				err := statestore.Set(context.Background(), req)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		}
 	})
@@ -312,15 +394,16 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					metadata.ContentType:    contenttype.JSONContentType,
 					metadata.QueryIndexName: "qIndx",
 				}
+
 				resp, err := querier.Query(context.Background(), &req)
 				require.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
 				for i := range scenario.results {
 					var expected, actual interface{}
 					err = json.Unmarshal(scenario.results[i].Data, &expected)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					err = json.Unmarshal(resp.Results[i].Data, &actual)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, scenario.results[i].Key, resp.Results[i].Key)
 					assert.Equal(t, expected, actual)
 				}
@@ -345,13 +428,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
 				err := statestore.Delete(context.Background(), req)
-				assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
+				require.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
 				t.Logf("Checking value absence for %s", scenario.key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: scenario.key,
 				})
-				assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
+				require.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
 				assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 			}
 		}
@@ -443,14 +526,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		}
 		err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, req := range bulk {
 			t.Logf("Checking value absence for %s", req.Key)
 			res, err := statestore.Get(context.Background(), &state.GetRequest{
 				Key: req.Key,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Nil(t, res.Data)
 		}
 	})
@@ -492,7 +575,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			transactionStore, ok := statestore.(state.TransactionalStore)
-			assert.True(t, ok)
+			require.True(t, ok)
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
@@ -558,21 +641,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value:    firstValue,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "set request should be successful")
+			require.NoError(t, err, "set request should be successful")
 
 			// prerequisite: key2 should not be present
 			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      secondKey,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "delete request should be successful")
+			require.NoError(t, err, "delete request should be successful")
 
 			// prerequisite: key3 should not be present
 			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      thirdKey,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "delete request should be successful")
+			require.NoError(t, err, "delete request should be successful")
 
 			operations := []state.TransactionalStateOperation{
 				// delete an item that already exists
@@ -621,7 +704,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		})
 	} else {
-		t.Run("transactional feature not present", func(t *testing.T) {
+		t.Run("component does not implement TransactionalStore interface", func(t *testing.T) {
+			_, ok := statestore.(state.TransactionalStore)
+			require.False(t, ok)
+		})
+
+		t.Run("Transactional feature not present", func(t *testing.T) {
 			features := statestore.Features()
 			assert.False(t, state.FeatureTransactional.IsPresent(features))
 		})
@@ -990,7 +1078,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	if config.HasOperation("ttl") {
+		t.Run("set ttl with bad value should error", func(t *testing.T) {
+			require.Error(t, statestore.Set(context.Background(), &state.SetRequest{
+				Key:   key + "-ttl",
+				Value: "⏱️",
+				Metadata: map[string]string{
+					"ttlInSeconds": "foo",
+				},
+			}))
+		})
+
 		t.Run("set and get with TTL", func(t *testing.T) {
+			// Check if ttl feature is listed
+			features := statestore.Features()
+			require.True(t, state.FeatureTTL.IsPresent(features))
+
 			err := statestore.Set(context.Background(), &state.SetRequest{
 				Key:   key + "-ttl",
 				Value: "⏱️",
@@ -1016,6 +1118,297 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				return res.Data == nil
 			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
+	} else {
+		t.Run("ttl feature not present", func(t *testing.T) {
+			// We skip this check for Cloudflare Workers KV
+			// Even though the component supports TTLs, it's not tested in the conformance tests because the minimum TTL for the component is 1 minute, and the state store doesn't have strong consistency
+			if config.ComponentName == "cloudflare.workerskv" {
+				t.Skip()
+			}
+
+			features := statestore.Features()
+			require.False(t, state.FeatureTTL.IsPresent(features))
+		})
+
+		t.Run("no TTL should not return any expire time", func(t *testing.T) {
+			err := statestore.Set(context.Background(), &state.SetRequest{
+				Key:      key + "-no-ttl",
+				Value:    "⏱️",
+				Metadata: map[string]string{},
+			})
+			require.NoError(t, err)
+
+			// Request immediately
+			res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key + "-no-ttl"})
+			require.NoError(t, err)
+			assertEquals(t, "⏱️", res)
+
+			assert.NotContains(t, res.Metadata, "ttlExpireTime")
+		})
+
+		t.Run("ttlExpireTime", func(t *testing.T) {
+			if !config.HasOperation("transaction") {
+				// This test is only for state stores that support transactions
+				return
+			}
+
+			unsupported := []string{
+				"redis.v6",
+				"redis.v7",
+				"etcd.v1",
+			}
+
+			for _, noSup := range unsupported {
+				if strings.Contains(config.ComponentName, noSup) {
+					t.Skipf("skipping test for unsupported state store %s", noSup)
+				}
+			}
+
+			t.Run("set and get expire time", func(t *testing.T) {
+				now := time.Now()
+				err := statestore.Set(context.Background(), &state.SetRequest{
+					Key:   key + "-ttl-expire-time",
+					Value: "⏱️",
+					Metadata: map[string]string{
+						// Expire in an hour.
+						"ttlInSeconds": "3600",
+					},
+				})
+				require.NoError(t, err)
+
+				// Request immediately
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+
+				require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+				expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
+				require.NoError(t, err)
+				assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
+			})
+
+			t.Run("ttl set to -1 should remove the TTL of a state store key", func(t *testing.T) {
+				req := func(meta map[string]string) *state.SetRequest {
+					return &state.SetRequest{
+						Key:      key + "-ttl-expire-time-minus-1",
+						Value:    "⏱️",
+						Metadata: meta,
+					}
+				}
+
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					// Expire in 2 seconds.
+					"ttlInSeconds": "2",
+				})))
+
+				// Request immediately
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.Contains(t, res.Metadata, "ttlExpireTime")
+
+				// Remove TTL by setting a value of -1.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					"ttlInSeconds": "-1",
+				})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+
+				// Ensure that the key is not expired after previous TTL.
+				time.Sleep(3 * time.Second)
+
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+
+				// Set a new TTL.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					"ttlInSeconds": "2",
+				})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.Contains(t, res.Metadata, "ttlExpireTime")
+
+				// Remove TTL by omitting the ttlInSeconds field.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+
+				// Ensure key is not expired after previous TTL.
+				time.Sleep(3 * time.Second)
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+			})
+
+			t.Run("set and get expire time bulkGet", func(t *testing.T) {
+				now := time.Now()
+				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+					Key:      key + "-ttl-expire-time-bulk-1",
+					Value:    "123",
+					Metadata: map[string]string{"ttlInSeconds": "3600"},
+				}))
+
+				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+					Key:      key + "-ttl-expire-time-bulk-2",
+					Value:    "234",
+					Metadata: map[string]string{"ttlInSeconds": "3600"},
+				}))
+
+				// Request immediately
+				res, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+					{Key: key + "-ttl-expire-time-bulk-1"},
+					{Key: key + "-ttl-expire-time-bulk-2"},
+				}, state.BulkGetOpts{})
+				require.NoError(t, err)
+
+				require.Len(t, res, 2)
+				sort.Slice(res, func(i, j int) bool {
+					return res[i].Key < res[j].Key
+				})
+
+				assert.Equal(t, key+"-ttl-expire-time-bulk-1", res[0].Key)
+				assert.Equal(t, key+"-ttl-expire-time-bulk-2", res[1].Key)
+				assert.Equal(t, []byte(`"123"`), res[0].Data)
+				assert.Equal(t, []byte(`"234"`), res[1].Data)
+
+				for i := range res {
+					if config.HasOperation("transaction") {
+						require.Containsf(t, res[i].Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+						expireTime, err := time.Parse(time.RFC3339, res[i].Metadata["ttlExpireTime"])
+						require.NoError(t, err)
+						// Check the expire time is returned and is in a 10 minute window. This
+						// window should be _more_ than enough.
+						assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
+					} else {
+						assert.NotContains(t, res[i].Metadata, "ttlExpireTime")
+					}
+				}
+			})
+		})
+	}
+
+	if config.HasOperation("delete-with-prefix") {
+		keys := map[string]bool{
+			"prefix||key1":          true,
+			"prefix||key2":          true,
+			"prefix||prefix2||key3": true,
+			"other-prefix||key1":    true,
+			"no-prefix":             true,
+		}
+		validateFn := func() func(t *testing.T) {
+			return func(t *testing.T) {
+				for key, exists := range keys {
+					res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key})
+					require.NoErrorf(t, err, "Error retrieving key '%s'", key)
+					if exists {
+						require.NotEmptyf(t, res.Data, "Expected key '%s' to be not empty", key)
+					} else {
+						require.Emptyf(t, res.Data, "Expected key '%s' to be empty, but contained data: %s", key, string(res.Data))
+					}
+				}
+			}
+		}
+
+		var statestoreDeleteWithPrefix state.DeleteWithPrefix
+		t.Run("component implements DeleteWithPrefix interface", func(t *testing.T) {
+			var ok bool
+			statestoreDeleteWithPrefix, ok = statestore.(state.DeleteWithPrefix)
+			require.True(t, ok)
+		})
+
+		t.Run("DeleteWithPrefix feature present", func(t *testing.T) {
+			features := statestore.Features()
+			require.True(t, state.FeatureDeleteWithPrefix.IsPresent(features))
+		})
+
+		t.Run("set test data", func(t *testing.T) {
+			err := statestore.BulkSet(context.Background(), []state.SetRequest{
+				{Key: "prefix||key1", Value: []byte("Ovid, Metamorphoseon")},
+				{Key: "prefix||key2", Value: []byte("In nova fert animus mutatas dicere formas")},
+				{Key: "prefix||prefix2||key3", Value: []byte("corpora; di, coeptis (nam vos mutastis et illas)")},
+				{Key: "other-prefix||key1", Value: []byte("adspirate meis primaque ab origine mundi")}, // Note this still has "prefix||" but not at the start of the string
+				{Key: "no-prefix", Value: []byte("ad mea perpetuum deducite tempora carmen.")},
+			}, state.BulkStoreOpts{})
+			require.NoError(t, err)
+
+			t.Run("all keys are set", validateFn())
+		})
+
+		require.False(t, t.Failed(), "Cannot continue if previous test failed")
+
+		t.Run("delete with prefix", func(t *testing.T) {
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				// Does not delete "prefix||prefix2||key3"
+				Prefix: "prefix||",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int64(2), res.Count)
+
+			keys["prefix||key1"] = false
+			keys["prefix||key2"] = false
+
+			t.Run("validate keys present", validateFn())
+		})
+
+		t.Run("delete with prefix appends ||", func(t *testing.T) {
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				// Appends || automatically
+				Prefix: "other-prefix",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), res.Count)
+
+			keys["other-prefix||key1"] = false
+
+			t.Run("validate keys present", validateFn())
+		})
+
+		t.Run("error when prefix is empty", func(t *testing.T) {
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				Prefix: "",
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "prefix is required")
+		})
+
+		t.Run("error when prefix is ||", func(t *testing.T) {
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+				Prefix: "||",
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "prefix is required")
+		})
+	} else {
+		t.Run("component does not implement DeleteWithPrefix interface", func(t *testing.T) {
+			_, ok := statestore.(state.DeleteWithPrefix)
+			require.False(t, ok)
+		})
+
+		t.Run("DeleteWithPrefix feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			require.False(t, state.FeatureDeleteWithPrefix.IsPresent(features))
+		})
 	}
 }
 
@@ -1034,6 +1427,12 @@ func assertDataEquals(t *testing.T, expect any, actual []byte) {
 		}
 		assert.Equal(t, expect, v)
 	case ValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
+		}
+		assert.Equal(t, expect, v)
+	case StructType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(actual, &v); err != nil {
 			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))

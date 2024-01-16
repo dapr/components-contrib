@@ -19,6 +19,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/kit/metadata"
 )
 
 func TestIsRawPayload(t *testing.T) {
@@ -27,15 +30,15 @@ func TestIsRawPayload(t *testing.T) {
 			"notfound": "1",
 		})
 
-		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata map is nil", func(t *testing.T) {
 		val, err := IsRawPayload(nil)
 
-		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata with bad value", func(t *testing.T) {
@@ -43,8 +46,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "Not a boolean",
 		})
 
-		assert.Equal(t, false, val)
-		assert.NotNil(t, err)
+		assert.False(t, val)
+		require.Error(t, err)
 	})
 
 	t.Run("Metadata with correct value as false", func(t *testing.T) {
@@ -52,8 +55,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "false",
 		})
 
-		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata with correct value as true", func(t *testing.T) {
@@ -61,8 +64,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "true",
 		})
 
-		assert.Equal(t, true, val)
-		assert.Nil(t, err)
+		assert.True(t, val)
+		require.NoError(t, err)
 	})
 }
 
@@ -71,7 +74,7 @@ func TestTryGetContentType(t *testing.T) {
 		val, ok := TryGetContentType(map[string]string{})
 
 		assert.Equal(t, "", val)
-		assert.Equal(t, false, ok)
+		assert.False(t, ok)
 	})
 
 	t.Run("Metadata with empty content type", func(t *testing.T) {
@@ -80,7 +83,7 @@ func TestTryGetContentType(t *testing.T) {
 		})
 
 		assert.Equal(t, "", val)
-		assert.Equal(t, false, ok)
+		assert.False(t, ok)
 	})
 
 	t.Run("Metadata with corrent content type", func(t *testing.T) {
@@ -90,142 +93,7 @@ func TestTryGetContentType(t *testing.T) {
 		})
 
 		assert.Equal(t, contentType, val)
-		assert.Equal(t, true, ok)
-	})
-}
-
-func TestMetadataDecode(t *testing.T) {
-	t.Run("Test metadata decoding", func(t *testing.T) {
-		type testMetadata struct {
-			Mystring                    string           `mapstructure:"mystring"`
-			Myduration                  Duration         `mapstructure:"myduration"`
-			Myinteger                   int              `mapstructure:"myinteger"`
-			Myfloat64                   float64          `mapstructure:"myfloat64"`
-			Mybool                      *bool            `mapstructure:"mybool"`
-			MyRegularDuration           time.Duration    `mapstructure:"myregularduration"`
-			MyDurationWithoutUnit       time.Duration    `mapstructure:"mydurationwithoutunit"`
-			MyRegularDurationEmpty      time.Duration    `mapstructure:"myregulardurationempty"`
-			MyDurationArray             []time.Duration  `mapstructure:"mydurationarray"`
-			MyDurationArrayPointer      *[]time.Duration `mapstructure:"mydurationarraypointer"`
-			MyDurationArrayPointerEmpty *[]time.Duration `mapstructure:"mydurationarraypointerempty"`
-
-			MyRegularDurationDefaultValueUnset time.Duration `mapstructure:"myregulardurationdefaultvalueunset"`
-			MyRegularDurationDefaultValueEmpty time.Duration `mapstructure:"myregulardurationdefaultvalueempty"`
-		}
-
-		var m testMetadata
-		m.MyRegularDurationDefaultValueUnset = time.Hour
-		m.MyRegularDurationDefaultValueEmpty = time.Hour
-
-		testData := map[string]string{
-			"mystring":               "test",
-			"myduration":             "3s",
-			"myinteger":              "1",
-			"myfloat64":              "1.1",
-			"mybool":                 "true",
-			"myregularduration":      "6m",
-			"mydurationwithoutunit":  "17",
-			"myregulardurationempty": "",
-			// Not setting myregulardurationdefaultvalueunset on purpose
-			"myregulardurationdefaultvalueempty": "",
-			"mydurationarray":                    "1s,2s,3s,10",
-			"mydurationarraypointer":             "1s,10,2s,20,3s,30",
-			"mydurationarraypointerempty":        ",",
-		}
-
-		err := DecodeMetadata(testData, &m)
-
-		assert.Nil(t, err)
-		assert.Equal(t, true, *m.Mybool)
-		assert.Equal(t, "test", m.Mystring)
-		assert.Equal(t, 1, m.Myinteger)
-		assert.Equal(t, 1.1, m.Myfloat64)
-		assert.Equal(t, Duration{Duration: 3 * time.Second}, m.Myduration)
-		assert.Equal(t, 6*time.Minute, m.MyRegularDuration)
-		assert.Equal(t, time.Second*17, m.MyDurationWithoutUnit)
-		assert.Equal(t, time.Duration(0), m.MyRegularDurationEmpty)
-		assert.Equal(t, time.Hour, m.MyRegularDurationDefaultValueUnset)
-		assert.Equal(t, time.Duration(0), m.MyRegularDurationDefaultValueEmpty)
-		assert.Equal(t, []time.Duration{time.Second, time.Second * 2, time.Second * 3, time.Second * 10}, m.MyDurationArray)
-		assert.Equal(t, []time.Duration{time.Second, time.Second * 10, time.Second * 2, time.Second * 20, time.Second * 3, time.Second * 30}, *m.MyDurationArrayPointer)
-		assert.Equal(t, []time.Duration{}, *m.MyDurationArrayPointerEmpty)
-	})
-
-	t.Run("Test metadata decode hook for truthy values", func(t *testing.T) {
-		type testMetadata struct {
-			BoolPointer            *bool
-			BoolPointerNotProvided *bool
-			BoolValueOn            bool
-			BoolValue1             bool
-			BoolValueTrue          bool
-			BoolValue0             bool
-			BoolValueFalse         bool
-			BoolValueNonsense      bool
-		}
-
-		var m testMetadata
-
-		testData := make(map[string]string)
-		testData["boolpointer"] = "on"
-		testData["boolvalueon"] = "on"
-		testData["boolvalue1"] = "1"
-		testData["boolvaluetrue"] = "true"
-		testData["boolvalue0"] = "0"
-		testData["boolvaluefalse"] = "false"
-		testData["boolvaluenonsense"] = "nonsense"
-
-		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
-		assert.True(t, *m.BoolPointer)
-		assert.True(t, m.BoolValueOn)
-		assert.True(t, m.BoolValue1)
-		assert.True(t, m.BoolValueTrue)
-		assert.False(t, m.BoolValue0)
-		assert.False(t, m.BoolValueFalse)
-		assert.False(t, m.BoolValueNonsense)
-		assert.Nil(t, m.BoolPointerNotProvided)
-	})
-
-	t.Run("Test metadata decode for string arrays", func(t *testing.T) {
-		type testMetadata struct {
-			StringArray                           []string
-			StringArrayPointer                    *[]string
-			EmptyStringArray                      []string
-			EmptyStringArrayPointer               *[]string
-			EmptyStringArrayWithComma             []string
-			EmptyStringArrayPointerWithComma      *[]string
-			StringArrayOneElement                 []string
-			StringArrayOneElementPointer          *[]string
-			StringArrayOneElementWithComma        []string
-			StringArrayOneElementPointerWithComma *[]string
-		}
-
-		var m testMetadata
-
-		testData := make(map[string]string)
-		testData["stringarray"] = "one,two,three"
-		testData["stringarraypointer"] = "one,two,three"
-		testData["emptystringarray"] = ""
-		testData["emptystringarraypointer"] = ""
-		testData["stringarrayoneelement"] = "test"
-		testData["stringarrayoneelementpointer"] = "test"
-		testData["stringarrayoneelementwithcomma"] = "test,"
-		testData["stringarrayoneelementpointerwithcomma"] = "test,"
-		testData["emptystringarraywithcomma"] = ","
-		testData["emptystringarraypointerwithcomma"] = ","
-
-		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
-		assert.Equal(t, []string{"one", "two", "three"}, m.StringArray)
-		assert.Equal(t, []string{"one", "two", "three"}, *m.StringArrayPointer)
-		assert.Equal(t, []string{""}, m.EmptyStringArray)
-		assert.Equal(t, []string{""}, *m.EmptyStringArrayPointer)
-		assert.Equal(t, []string{"test"}, m.StringArrayOneElement)
-		assert.Equal(t, []string{"test"}, *m.StringArrayOneElementPointer)
-		assert.Equal(t, []string{"test", ""}, m.StringArrayOneElementWithComma)
-		assert.Equal(t, []string{"test", ""}, *m.StringArrayOneElementPointerWithComma)
-		assert.Equal(t, []string{"", ""}, m.EmptyStringArrayWithComma)
-		assert.Equal(t, []string{"", ""}, *m.EmptyStringArrayPointerWithComma)
+		assert.True(t, ok)
 	})
 }
 
@@ -239,7 +107,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		type testMetadata struct {
 			NestedStruct              `mapstructure:",squash"`
 			Mystring                  string
-			Myduration                Duration
+			Myduration                metadata.Duration
 			Myinteger                 int
 			Myfloat64                 float64
 			Mybool                    *bool

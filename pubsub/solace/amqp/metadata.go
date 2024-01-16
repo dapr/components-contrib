@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"time"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -64,7 +64,7 @@ func isValidPEM(val string) bool {
 func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
 	m := metadata{Anonymous: false}
 
-	err := contribMetadata.DecodeMetadata(md.Properties, &m)
+	err := kitmd.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return &m, fmt.Errorf("%s %s", errorMsgPrefix, err)
 	}

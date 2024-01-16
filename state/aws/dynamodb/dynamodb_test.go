@@ -17,6 +17,7 @@ package dynamodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 )
@@ -75,11 +77,17 @@ func TestInit(t *testing.T) {
 	m := state.Metadata{}
 	s := &StateStore{
 		partitionKey: defaultPartitionKeyName,
+		client: &mockedDynamoDB{
+			// We're adding this so we can pass the connection check on Init
+			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+				return nil, nil
+			},
+		},
 	}
 
 	t.Run("NewDynamoDBStateStore Default Partition Key", func(t *testing.T) {
 		assert.NotNil(t, s)
-		assert.Equal(t, s.partitionKey, defaultPartitionKeyName)
+		assert.Equal(t, defaultPartitionKeyName, s.partitionKey)
 	})
 
 	t.Run("Init with valid metadata", func(t *testing.T) {
@@ -92,7 +100,7 @@ func TestInit(t *testing.T) {
 			"TtlAttributeName": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init with missing table", func(t *testing.T) {
@@ -100,7 +108,7 @@ func TestInit(t *testing.T) {
 			"Dummy": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
 	})
 
@@ -110,7 +118,7 @@ func TestInit(t *testing.T) {
 			"Region": "eu-west-1",
 		}
 		err := s.Init(context.Background(), m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init with partition key", func(t *testing.T) {
@@ -120,8 +128,25 @@ func TestInit(t *testing.T) {
 			"partitionKey": pkey,
 		}
 		err := s.Init(context.Background(), m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, s.partitionKey, pkey)
+	})
+
+	t.Run("Init with bad table name or permissions", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"Table":  "does-not-exist",
+			"Region": "eu-west-1",
+		}
+
+		s.client = &mockedDynamoDB{
+			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+				return nil, errors.New("Requested resource not found")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
 }
 
@@ -156,7 +181,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
 		assert.NotContains(t, out.Metadata, "ttlExpireTime")
@@ -193,12 +218,13 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
 		assert.Contains(t, out.Metadata, "ttlExpireTime")
 		expireTime, err := time.Parse(time.RFC3339, out.Metadata["ttlExpireTime"])
-		_ = assert.NoError(t, err) && assert.Equal(t, expireTime.Unix(), int64(4074862051))
+		require.NoError(t, err)
+		assert.Equal(t, int64(4074862051), expireTime.Unix())
 	})
 	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
 		ss := StateStore{
@@ -232,7 +258,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
 		assert.Nil(t, out.Metadata)
@@ -253,7 +279,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, out)
 	})
 	t.Run("Unsuccessfully with empty response", func(t *testing.T) {
@@ -274,7 +300,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
 		assert.Nil(t, out.Metadata)
@@ -301,7 +327,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, out.Data)
 		assert.Nil(t, out.ETag)
 	})
@@ -324,7 +350,7 @@ func TestSet(t *testing.T) {
 				assert.Equal(t, dynamodb.AttributeValue{
 					S: aws.String(`{"Value":"value"}`),
 				}, *input.Item["value"])
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]*dynamodb.AttributeValue{
@@ -342,7 +368,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Successfully set item with matching etag", func(t *testing.T) {
@@ -361,7 +387,7 @@ func TestSet(t *testing.T) {
 				assert.Equal(t, &dynamodb.AttributeValue{
 					S: aws.String("1bdead4badc0ffee"),
 				}, input.ExpressionAttributeValues[":etag"])
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]*dynamodb.AttributeValue{
@@ -381,7 +407,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with mismatched etag", func(t *testing.T) {
@@ -400,7 +426,7 @@ func TestSet(t *testing.T) {
 				assert.Equal(t, &dynamodb.AttributeValue{
 					S: aws.String("bogusetag"),
 				}, input.ExpressionAttributeValues[":etag"])
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				var checkErr dynamodb.ConditionalCheckFailedException
 				return nil, &checkErr
@@ -416,10 +442,10 @@ func TestSet(t *testing.T) {
 		}
 
 		err := ss.Set(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
-			assert.Equal(t, tagErr.Kind(), state.ETagMismatch)
+			assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 		default:
 			assert.True(t, false)
 		}
@@ -438,7 +464,7 @@ func TestSet(t *testing.T) {
 					S: aws.String(`{"Value":"value"}`),
 				}, *input.Item["value"])
 				assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]*dynamodb.AttributeValue{
@@ -459,7 +485,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with first-write-concurrency", func(t *testing.T) {
@@ -475,7 +501,7 @@ func TestSet(t *testing.T) {
 					S: aws.String(`{"Value":"value"}`),
 				}, *input.Item["value"])
 				assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				var checkErr dynamodb.ConditionalCheckFailedException
 				return nil, &checkErr
@@ -491,7 +517,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 		switch err.(type) {
 		case *state.ETagError:
 			assert.True(t, false)
@@ -505,11 +531,11 @@ func TestSet(t *testing.T) {
 		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, len(input.Item), 4)
+				assert.Len(t, input.Item, 4)
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
-				assert.Equal(t, result.Key, "someKey")
-				assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
+				assert.Equal(t, "someKey", result.Key)
+				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
@@ -534,7 +560,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
 		ss := &StateStore{
@@ -542,11 +568,11 @@ func TestSet(t *testing.T) {
 		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, len(input.Item), 4)
+				assert.Len(t, input.Item, 4)
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
-				assert.Equal(t, result.Key, "someKey")
-				assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
+				assert.Equal(t, "someKey", result.Key)
+				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
 
@@ -571,7 +597,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item", func(t *testing.T) {
@@ -590,7 +616,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
 		ss := &StateStore{
@@ -604,7 +630,7 @@ func TestSet(t *testing.T) {
 				assert.Equal(t, dynamodb.AttributeValue{
 					S: aws.String(`{"Value":"someValue"}`),
 				}, *input.Item["value"])
-				assert.Equal(t, len(input.Item), 3)
+				assert.Len(t, input.Item, 3)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]*dynamodb.AttributeValue{
@@ -625,7 +651,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
 		ss := StateStore{
@@ -664,7 +690,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
 }
@@ -691,7 +717,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Successfully delete item with matching etag", func(t *testing.T) {
@@ -720,7 +746,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully delete item with mismatched etag", func(t *testing.T) {
@@ -751,10 +777,10 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
-			assert.Equal(t, tagErr.Kind(), state.ETagMismatch)
+			assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 		default:
 			assert.True(t, false)
 		}
@@ -772,7 +798,7 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 		err := ss.Delete(context.Background(), req)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -808,7 +834,7 @@ func TestMultiTx(t *testing.T) {
 			TransactWriteItemsWithContextFn: func(ctx context.Context, input *dynamodb.TransactWriteItemsInput, op ...request.Option) (*dynamodb.TransactWriteItemsOutput, error) {
 				// ops - duplicates
 				exOps := len(ops) - 1
-				assert.Equal(t, exOps, len(input.TransactItems), "unexpected number of operations")
+				assert.Len(t, input.TransactItems, exOps, "unexpected number of operations")
 
 				txs := map[string]int{
 					"P": 0,
@@ -835,6 +861,6 @@ func TestMultiTx(t *testing.T) {
 			Metadata:   map[string]string{},
 		}
 		err := ss.Multi(context.Background(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }

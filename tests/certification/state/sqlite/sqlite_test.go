@@ -63,7 +63,8 @@ const (
 	keyBusyTimeout       = "busyTimeout"
 
 	// Update this constant if you add more migrations
-	migrationLevel = "1"
+	// Don't forget to also run the utility `artifacts/update_readonlydb.go` to update the read-only DB
+	migrationLevel = "2"
 )
 
 func TestSQLite(t *testing.T) {
@@ -131,16 +132,16 @@ func TestSQLite(t *testing.T) {
 				for _, sqlInjectionAttempt := range sqlInjectionAttempts {
 					// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
 					err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 
 					// get state for key sqlInjectionAttempt's value
 					item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, sqlInjectionAttempt, string(item.Value))
 
 					// delete state for key sqlInjectionAttempt's value
 					err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 
@@ -164,7 +165,7 @@ func TestSQLite(t *testing.T) {
 				// Saving state should fail
 				err = client.SaveState(ctx, stateStoreName, "my_string", []byte("updated!"), nil)
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "attempt to write a readonly database")
+				require.ErrorContains(t, err, "attempt to write a readonly database")
 
 				// Value should not be updated
 				item, err = client.GetState(ctx, stateStoreName, "my_string", nil)
@@ -174,7 +175,7 @@ func TestSQLite(t *testing.T) {
 				// Deleting state should fail
 				err = client.DeleteState(ctx, stateStoreName, "my_string", nil)
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "attempt to write a readonly database")
+				require.ErrorContains(t, err, "attempt to write a readonly database")
 			})
 
 			return nil
@@ -252,7 +253,6 @@ func TestSQLite(t *testing.T) {
 				cleanupInterval := dbAccess.GetCleanupInterval()
 				assert.Equal(t, time.Duration(0), cleanupInterval)
 			})
-
 		})
 
 		ctx.T.Run("cleanup", func(t *testing.T) {
@@ -286,7 +286,7 @@ func TestSQLite(t *testing.T) {
 				// Wait 2 seconds then verify we have only 10 rows left
 				time.Sleep(2 * time.Second)
 				count, err := countRowsInTable(ctx, dbClient, "ttl_state")
-				assert.NoError(t, err, "failed to run query to count rows")
+				require.NoError(t, err, "failed to run query to count rows")
 				assert.Equal(t, 10, count)
 
 				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
@@ -392,13 +392,13 @@ func TestSQLite(t *testing.T) {
 
 				// We should have the tables correctly created
 				err = tableExists(dbClient, "clean_state")
-				assert.NoError(t, err, "state table does not exist")
+				require.NoError(t, err, "state table does not exist")
 				err = tableExists(dbClient, "clean_metadata")
-				assert.NoError(t, err, "metadata table does not exist")
+				require.NoError(t, err, "metadata table does not exist")
 
 				// Ensure migration level is correct
 				level, err := getMigrationLevel(dbClient, "clean_metadata")
-				assert.NoError(t, err, "failed to get migration level")
+				require.NoError(t, err, "failed to get migration level")
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 			})
 
@@ -410,7 +410,7 @@ func TestSQLite(t *testing.T) {
 
 				// Should already have migration level 2
 				level, err := getMigrationLevel(dbClient, "clean_metadata")
-				assert.NoError(t, err, "failed to get migration level")
+				require.NoError(t, err, "failed to get migration level")
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 				// Init and perform the migrations
@@ -420,7 +420,7 @@ func TestSQLite(t *testing.T) {
 
 				// Ensure migration level is correct
 				level, err = getMigrationLevel(dbClient, "clean_metadata")
-				assert.NoError(t, err, "failed to get migration level")
+				require.NoError(t, err, "failed to get migration level")
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 			})
 
@@ -453,11 +453,11 @@ func TestSQLite(t *testing.T) {
 
 				// We should have the metadata table created
 				err = tableExists(dbClient, "pre_metadata")
-				assert.NoError(t, err, "metadata table does not exist")
+				require.NoError(t, err, "metadata table does not exist")
 
 				// Ensure migration level is correct
 				level, err := getMigrationLevel(dbClient, "pre_metadata")
-				assert.NoError(t, err, "failed to get migration level")
+				require.NoError(t, err, "failed to get migration level")
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 			})
 
@@ -498,16 +498,16 @@ func TestSQLite(t *testing.T) {
 					}(i)
 				}
 
-				failed := false
 				for i := 0; i < 3; i++ {
 					select {
 					case err := <-errs:
-						failed = failed || !assert.NoError(t, err)
+						//nolint:testify
+						assert.NoError(t, err)
 					case <-time.After(time.Minute):
 						t.Fatal("timed out waiting for components to initialize")
 					}
 				}
-				if failed {
+				if t.Failed() {
 					// Short-circuit
 					t.FailNow()
 				}
@@ -517,13 +517,13 @@ func TestSQLite(t *testing.T) {
 
 				// We should have the tables correctly created
 				err = tableExists(dbClient, "mystate")
-				assert.NoError(t, err, "state table does not exist")
+				require.NoError(t, err, "state table does not exist")
 				err = tableExists(dbClient, "mymetadata")
-				assert.NoError(t, err, "metadata table does not exist")
+				require.NoError(t, err, "metadata table does not exist")
 
 				// Ensure migration level is correct
 				level, err := getMigrationLevel(dbClient, "mymetadata")
-				assert.NoError(t, err, "failed to get migration level")
+				require.NoError(t, err, "failed to get migration level")
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 			})
 		})
@@ -592,13 +592,13 @@ func TestSQLite(t *testing.T) {
 								Key:   key,
 								Value: j,
 							})
-							assert.NoError(t, err)
+							require.NoError(t, err)
 
 							// Retrieve state
 							res, err = storeObj.Get(ctx, &state.GetRequest{
 								Key: key,
 							})
-							assert.NoError(t, err)
+							require.NoError(t, err)
 							assert.Equal(t, strconv.Itoa(j), string(res.Data))
 						}
 					}(i)
@@ -636,7 +636,7 @@ func TestSQLite(t *testing.T) {
 								Key:   key,
 								Value: int(save),
 							})
-							assert.NoError(t, err)
+							require.NoError(t, err)
 						}
 					}(i)
 				}
@@ -647,7 +647,7 @@ func TestSQLite(t *testing.T) {
 				res, err := storeObjs[0].Get(ctx, &state.GetRequest{
 					Key: key,
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				expect := [parallel]string{}
 				for i := 0; i < parallel; i++ {
@@ -684,25 +684,26 @@ func TestSQLite(t *testing.T) {
 		// Start the sidecar with the in-memory database
 		Step(sidecar.Run("sqlite-memory",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			embedded.WithProfilingEnabled(false),
 			embedded.WithResourcesPath("resources/memory"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 
 		// Run some basic certification tests with the in-memory database
 		Step("run basic test", basicTest(runtime.DefaultDaprAPIGRPCPort)).
 		Step("run SQL injection test", verifySQLInjectionTest(runtime.DefaultDaprAPIGRPCPort)).
+		Step("stop app", sidecar.Stop("sqlite-memory")).
 
 		// Start the sidecar with a read-only database
 		Step(sidecar.Run("sqlite-readonly",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
 			embedded.WithProfilingEnabled(false),
 			embedded.WithResourcesPath("resources/readonly"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("run read-only test", readonlyTest(runtime.DefaultDaprAPIGRPCPort+portOffset)).
 		Step("stop sqlite-readonly sidecar", sidecar.Stop("sqlite-readonly")).

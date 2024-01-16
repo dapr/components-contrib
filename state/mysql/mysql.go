@@ -27,11 +27,13 @@ import (
 
 	"github.com/google/uuid"
 
-	sqlCleanup "github.com/dapr/components-contrib/internal/component/sql"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -89,7 +91,7 @@ type MySQL struct {
 	logger logger.Logger
 
 	factory iMySQLFactory
-	gc      sqlCleanup.GarbageCollector
+	gc      commonsql.GarbageCollector
 }
 
 type mySQLMetadata struct {
@@ -156,7 +158,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		CleanupInterval:   ptr.Of(defaultCleanupInterval),
 	}
 
-	err := metadata.DecodeMetadata(md, &meta)
+	err := kitmd.DecodeMetadata(md, &meta)
 	if err != nil {
 		return err
 	}
@@ -225,7 +227,11 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 // Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
 }
 
 // Ping the database.
@@ -270,19 +276,21 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	}
 
 	if m.cleanupInterval != nil {
-		gc, err := sqlCleanup.ScheduleGarbageCollector(sqlCleanup.GCOptions{
+		gc, err := commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 			Logger: m.logger,
-			UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %[1]s (id, value)
-			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		  ON DUPLICATE KEY UPDATE
-		  value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
-				m.metadataTableName),
+			UpdateLastCleanupQuery: func(arg any) (string, any) {
+				return fmt.Sprintf(`INSERT INTO %[1]s (id, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+				ON DUPLICATE KEY UPDATE
+				value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
+					m.metadataTableName), arg
+			},
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate <= CURRENT_TIMESTAMP`,
 				m.tableName,
 			),
 			CleanupInterval: *m.cleanupInterval,
-			DBSql:           m.db,
+			DB:              commonsql.AdaptDatabaseSQLConn(m.db),
 		})
 		if err != nil {
 			return err
@@ -381,35 +389,6 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 		if err != nil {
 			return err
 		}
-	}
-
-	// Create the DaprSaveFirstWriteV1 stored procedure
-	_, err = m.db.ExecContext(ctx, `CREATE PROCEDURE IF NOT EXISTS DaprSaveFirstWriteV1(tableName VARCHAR(255), id VARCHAR(255), value JSON, etag VARCHAR(36), isbinary BOOLEAN, expiredateToken TEXT)
-LANGUAGE SQL
-MODIFIES SQL DATA
-  BEGIN
-    SET @id = id;
-    SET @value = value;
-    SET @etag = etag;
-    SET @isbinary = isbinary;
-
-    SET @selectQuery = concat('SELECT COUNT(id) INTO @count FROM ', tableName ,' WHERE id = ? AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)');
-    PREPARE select_stmt FROM @selectQuery;
-    EXECUTE select_stmt USING @id;
-    DEALLOCATE PREPARE select_stmt;
-
-    IF @count < 1 THEN
-      SET @upsertQuery = concat('INSERT INTO ', tableName, ' SET id=?, value=?, eTag=?, isbinary=?, expiredate=', expiredateToken, ' ON DUPLICATE KEY UPDATE value=?, eTag=?, isbinary=?, expiredate=', expiredateToken);
-      PREPARE upsert_stmt FROM @upsertQuery;
-      EXECUTE upsert_stmt USING @id, @value, @etag, @isbinary, @value, @etag, @isbinary;
-      DEALLOCATE PREPARE upsert_stmt;
-	ELSE
-	  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Row already exists';
-    END IF;
-
-  END`)
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -531,6 +510,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	query := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + ` WHERE id = ?
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 	row := m.db.QueryRowContext(ctx, query, req.Key)
@@ -590,7 +570,6 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		ttlQuery string
 		params   []any
 		result   sql.Result
-		maxRows  int64 = 1
 	)
 
 	var v any
@@ -618,10 +597,7 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		ttlQuery = "NULL"
 	}
 
-	mustCommit := false
-	hasEtag := req.ETag != nil && *req.ETag != ""
-
-	if hasEtag {
+	if req.HasETag() {
 		// When an eTag is provided do an update - not insert
 		query = `UPDATE ` + m.tableName + `
 			SET value = ?, eTag = ?, isbinary = ?, expiredate = ` + ttlQuery + `
@@ -630,30 +606,31 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
 	} else if req.Options.Concurrency == state.FirstWrite {
-		// If we're not in a transaction already, start one as we need to ensure consistency
-		if querier == m.db {
-			querier, err = m.db.BeginTx(parentCtx, nil)
-			if err != nil {
-				return fmt.Errorf("failed to begin transaction: %w", err)
-			}
-			defer querier.(*sql.Tx).Rollback()
-			mustCommit = true
-		}
-
-		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
-		// Things get a bit tricky when the row exists but it is expired, so it just hasn't been garbage-collected yet
-		// What we can do in that case is to first check if the row doesn't exist or has expired, and then perform an upsert
-		// To do that, we use a stored procedure
-		query = "CALL DaprSaveFirstWriteV1(?, ?, ?, ?, ?, ?)"
-		params = []any{m.tableName, req.Key, enc, eTag, isBinary, ttlQuery}
+		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
+		// In this case, the row should be considered as if it were deleted
+		query = `REPLACE INTO ` + m.tableName + `
+			WITH a AS (
+				SELECT
+					? AS id,
+					? AS value,
+					? AS isbinary,
+					CURRENT_TIMESTAMP AS insertDate,
+					CURRENT_TIMESTAMP AS updateDate,
+					? AS eTag,
+					` + ttlQuery + ` AS expiredate
+				WHERE NOT EXISTS (
+					SELECT 1
+					FROM ` + m.tableName + `
+					WHERE id = ?
+						AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)
+				)
+			)
+			SELECT * FROM a`
+		params = []any{req.Key, enc, isBinary, eTag, req.Key}
 	} else {
-		// If this is a duplicate MySQL returns that two rows affected
-		maxRows = 2
-		query = `INSERT INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
-			VALUES (?, ?, ?, ?, ` + ttlQuery + `) 
-			ON DUPLICATE KEY UPDATE
-				value=?, eTag=?, isbinary=?, expiredate=` + ttlQuery
-		params = []any{req.Key, enc, eTag, isBinary, enc, eTag, isBinary}
+		query = `REPLACE INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
+			VALUES (?, ?, ?, ?, ` + ttlQuery + `)`
+		params = []any{req.Key, enc, eTag, isBinary}
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
@@ -661,42 +638,19 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	result, err = querier.ExecContext(ctx, query, params...)
 
 	if err != nil {
-		if hasEtag {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 
-	// Do not count affected rows when using first-write
-	// Conflicts are handled separately
-	if hasEtag || req.Options.Concurrency != state.FirstWrite {
-		var rows int64
-		rows, err = result.RowsAffected()
-		if err != nil {
-			return err
-		}
-
-		if rows == 0 {
-			err = errors.New("rows affected error: no rows match given key and eTag")
-			err = state.NewETagError(state.ETagMismatch, err)
-			m.logger.Error(err)
-			return err
-		}
-
-		if rows > maxRows {
-			err = fmt.Errorf("rows affected error: more than %d row affected; actual %d", maxRows, rows)
-			m.logger.Error(err)
-			return err
-		}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
 	}
 
-	// Commit the transaction if needed
-	if mustCommit {
-		err = querier.(*sql.Tx).Commit()
-		if err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
+	if rows == 0 && (req.HasETag() || req.Options.Concurrency == state.FirstWrite) {
+		err = errors.New("rows affected error: no rows match given key and eTag")
+		err = state.NewETagError(state.ETagMismatch, err)
+		m.logger.Error(err)
+		return err
 	}
 
 	return nil
@@ -716,6 +670,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + `
 		WHERE
 			id IN (` + inClause + `)
@@ -814,40 +769,42 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 	return key, value, &etag, expireTime, nil
 }
 
-// Multi handles multiple transactions.
-// TransactionalStore Interface.
+// Multi handles multiple operations in batch.
+// Implements the TransactionalStore Interface.
 func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
+	if request == nil {
+		return nil
+	}
+
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return m.execMultiOperation(ctx, request.Operations[0], m.db)
+	default:
+		_, err := sqltransactions.ExecuteInTransaction(ctx, m.logger, m.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = m.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
+			}
+			return r, nil
+		})
 		return err
 	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
+}
 
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = m.setValue(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		case state.DeleteRequest:
-			err = m.deleteValue(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation())
-		}
+func (m *MySQL) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db querier) error {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return m.setValue(ctx, db, &req)
+	case state.DeleteRequest:
+		return m.deleteValue(ctx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
-
-	return tx.Commit()
 }
 
 // Close implements io.Closer.

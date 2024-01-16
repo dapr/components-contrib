@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,7 +33,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	// Import the embed package.
 	_ "embed"
@@ -44,8 +45,8 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	httpMiddlewareLoader "github.com/dapr/dapr/pkg/components/middleware/http"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	httpMiddleware "github.com/dapr/dapr/pkg/middleware/http"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
@@ -436,7 +437,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"audience": tokenAudience,
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "invalid response status code: 404")
+				require.ErrorContains(t, err, "invalid response status code: 404")
 
 				// No endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration, requestsOpenIDConfiguration.Load())
@@ -452,7 +453,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"audience": tokenAudience,
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "the issuer found in the OpenID Configuration document")
+				require.ErrorContains(t, err, "the issuer found in the OpenID Configuration document")
 
 				// Only the OpenID Configuration endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration+1, requestsOpenIDConfiguration.Load())
@@ -469,7 +470,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"jwksURL":  tokenIssuer + "/not-found/jwks.json",
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "failed to fetch JWKS")
+				require.ErrorContains(t, err, "failed to fetch JWKS")
 
 				// No endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration, requestsOpenIDConfiguration.Load())
@@ -495,24 +496,26 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		// Start app and sidecar 1
 		Step(app.Run("Start application 1", fmt.Sprintf(":%d", appPorts[0]), application)).
 		Step(sidecar.Run(appID,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPorts[0]),
-			embedded.WithDaprGRPCPort(grpcPorts[0]),
-			embedded.WithDaprHTTPPort(httpPorts[0]),
-			embedded.WithResourcesPath("./resources"),
-			embedded.WithAPILoggingEnabled(false),
-			embedded.WithProfilingEnabled(false),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPorts[0])),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPorts[0])),
+				embedded.WithResourcesPath("./resources"),
+				embedded.WithAPILoggingEnabled(false),
+				embedded.WithProfilingEnabled(false),
+			)...,
 		)).
 		// Start app and sidecar 2
 		Step(app.Run("Start application 2", fmt.Sprintf(":%d", appPorts[1]), application)).
 		Step(sidecar.Run(appID,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPorts[1]),
-			embedded.WithDaprGRPCPort(grpcPorts[1]),
-			embedded.WithDaprHTTPPort(httpPorts[1]),
-			embedded.WithResourcesPath("./resources"),
-			embedded.WithAPILoggingEnabled(false),
-			embedded.WithProfilingEnabled(false),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPorts[1])),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPorts[1])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPorts[1])),
+				embedded.WithResourcesPath("./resources"),
+				embedded.WithAPILoggingEnabled(false),
+				embedded.WithProfilingEnabled(false),
+			)...,
 		)).
 		// Tests
 		Step("bearer token validation", bearerTests).
@@ -521,7 +524,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
@@ -530,7 +533,7 @@ func componentRuntimeOptions() []runtime.Option {
 		}
 	}, "bearer")
 
-	return []runtime.Option{
-		runtime.WithHTTPMiddlewares(middlewareRegistry),
+	return []embedded.Option{
+		embedded.WithHTTPMiddlewares(middlewareRegistry),
 	}
 }

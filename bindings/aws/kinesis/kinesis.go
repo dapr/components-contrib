@@ -33,9 +33,10 @@ import (
 	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
@@ -367,7 +368,7 @@ func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, err
 
 func (a *AWSKinesis) parseMetadata(meta bindings.Metadata) (*kinesisMetadata, error) {
 	var m kinesisMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

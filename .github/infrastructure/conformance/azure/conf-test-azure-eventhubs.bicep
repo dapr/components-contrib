@@ -24,6 +24,9 @@ var eventHubPubsubName = 'eventhubs-pubsub-topic'
 var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
 var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
 
+var eventHubBulkPubsubName = 'eventhubs-pubsub-topic-bulk'
+var eventHubBulkPubsubPolicyName = '${eventHubBulkPubsubName}-policy'
+
 var certificationEventHubPubsubTopicActiveName = 'certification-pubsub-topic-active'
 var certificationEventHubPubsubTopicActivePolicyName = '${certificationEventHubPubsubTopicActiveName}-policy'
 
@@ -85,6 +88,24 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
     }
     resource eventHubPubsubPolicy 'authorizationRules' = {
       name: eventHubPubsubPolicyName
+      properties: {
+        rights: [
+          'Send'
+          'Listen'
+        ]
+      }
+    }
+    resource eventHubPubsubConsumerGroup 'consumergroups' = {
+      name: eventHubPubsubConsumerGroupName
+    }
+  }
+  resource eventHubBulkPubsub 'eventhubs' = {
+    name: eventHubBulkPubsubName
+    properties: {
+      messageRetentionInDays: 1
+    }
+    resource eventHubBulkPubsubPolicy 'authorizationRules' = {
+      name: eventHubBulkPubsubPolicyName
       properties: {
         rights: [
           'Send'
@@ -174,6 +195,9 @@ output eventHubBindingsConsumerGroupName string = eventHubsNamespace::eventHubBi
 output eventHubPubsubName string = eventHubsNamespace::eventHubPubsub.name
 output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubPolicy.name
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
+
+output eventHubBulkPubsubName string = eventHubsNamespace::eventHubBulkPubsub.name
+output eventHubBulkPubsubPolicyName string = eventHubsNamespace::eventHubBulkPubsub::eventHubBulkPubsubPolicy.name
 
 output eventHubsNamespacePolicyName string = eventHubsNamespace::eventHubPubsubNamespacePolicy.name
 output certificationEventHubPubsubTopicActiveName string = eventHubsNamespace::certificationEventHubPubsubTopicActive.name

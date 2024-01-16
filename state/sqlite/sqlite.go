@@ -48,6 +48,8 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 		features: []state.Feature{
 			state.FeatureETag,
 			state.FeatureTransactional,
+			state.FeatureTTL,
+			state.FeatureDeleteWithPrefix,
 		},
 		dbaccess: dba,
 	}
@@ -97,6 +99,11 @@ func (s *SQLiteStore) Set(ctx context.Context, req *state.SetRequest) error {
 // Multi handles multiple transactions. Implements TransactionalStore.
 func (s *SQLiteStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	return s.dbaccess.ExecuteMulti(ctx, request.Operations)
+}
+
+// DeleteWithPrefix deletes objects with a prefix.
+func (s *SQLiteStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	return s.dbaccess.DeleteWithPrefix(ctx, req)
 }
 
 // Close implements io.Closer.

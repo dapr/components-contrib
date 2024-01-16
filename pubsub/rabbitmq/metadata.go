@@ -20,15 +20,15 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type rabbitmqMetadata struct {
 	pubsub.TLSProperties `mapstructure:",squash"`
-	ConsumerID           string                 `mapstructure:"consumerID"`
+	ConsumerID           string                 `mapstructure:"consumerID" mdignore:"true"`
 	ConnectionString     string                 `mapstructure:"connectionString"`
 	Protocol             string                 `mapstructure:"protocol"`
 	internalProtocol     string                 `mapstructure:"-"`
@@ -46,6 +46,8 @@ type rabbitmqMetadata struct {
 	MaxLen               int64                  `mapstructure:"maxLen"`
 	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind         string                 `mapstructure:"exchangeKind"`
+	ClientName           string                 `mapstructure:"clientName"`
+	HeartBeat            time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm     bool                   `mapstructure:"publisherConfirm"`
 	SaslExternal         bool                   `mapstructure:"saslExternal"`
 	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
@@ -77,6 +79,8 @@ const (
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
+	metadataClientNameKey           = "clientName"
+	metadataHeartBeatKey            = "heartBeat"
 	metadataQueueNameKey            = "queueName"
 
 	defaultReconnectWaitSeconds = 3
@@ -97,6 +101,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		ExchangeKind:     fanoutExchangeKind,
 		PublisherConfirm: false,
 		SaslExternal:     false,
+		HeartBeat:        defaultHeartbeat,
 	}
 
 	// upgrade metadata
@@ -108,7 +113,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		}
 	}
 
-	if err := metadata.DecodeMetadata(pubSubMetadata.Properties, &result); err != nil {
+	if err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result); err != nil {
 		return nil, err
 	}
 

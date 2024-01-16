@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -42,6 +43,13 @@ func (m *mockedSM) GetSecretValueWithContext(ctx context.Context, input *secrets
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewSecretManager(logger.NewLogger("test"))
+	s.(*smSecretStore).client = &mockedSM{
+		GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+			// Simulate a non error response
+			return nil, nil
+		},
+	}
+
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
@@ -51,7 +59,20 @@ func TestInit(t *testing.T) {
 			"SessionToken": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
+	})
+
+	t.Run("Init with invalid connection details", func(t *testing.T) {
+		s.(*smSecretStore).client = &mockedSM{
+			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+				// Simulate a failure that resembles what AWS SM would return
+				return nil, fmt.Errorf("wrong-credentials")
+			},
+		}
+
+		err := s.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating access to the aws.secretmanager secret store: wrong-credentials")
 	})
 }
 
@@ -78,7 +99,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
 
@@ -104,7 +125,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
@@ -130,7 +151,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 	})
@@ -148,7 +169,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.GetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 

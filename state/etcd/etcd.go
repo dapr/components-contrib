@@ -26,12 +26,13 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/utils"
 )
 
 // Etcd is a state store implementation for Etcd.
@@ -43,6 +44,7 @@ type Etcd struct {
 	features      []state.Feature
 	logger        logger.Logger
 	schema        schemaMarshaller
+	maxTxnOps     int
 }
 
 type etcdConfig struct {
@@ -53,6 +55,8 @@ type etcdConfig struct {
 	CA        string `json:"ca"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`
+	// Transaction server options
+	MaxTxnOps int `mapstructure:"maxTxnOps"`
 }
 
 // NewEtcdStateStoreV1 returns a new etcd state store for schema V1.
@@ -67,9 +71,13 @@ func NewEtcdStateStoreV2(logger logger.Logger) state.Store {
 
 func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 	s := &Etcd{
-		schema:   schema,
-		logger:   logger,
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		schema: schema,
+		logger: logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -89,6 +97,7 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 	}
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
+	e.maxTxnOps = etcdConfig.MaxTxnOps
 
 	return nil
 }
@@ -130,8 +139,11 @@ func (e *Etcd) Features() []state.Feature {
 }
 
 func metadataToConfig(connInfo map[string]string) (*etcdConfig, error) {
-	m := &etcdConfig{}
-	err := metadata.DecodeMetadata(connInfo, m)
+	m := &etcdConfig{
+		// This is the default value for maximum ops per transaction, configurtable via etcd server flag --max-txn-ops.
+		MaxTxnOps: 128,
+	}
+	err := kitmd.DecodeMetadata(connInfo, m)
 	return m, err
 }
 
@@ -188,38 +200,29 @@ func (e *Etcd) doSet(ctx context.Context, key string, val any, etag *string, ttl
 		return err
 	}
 
+	var leaseID clientv3.LeaseID
 	if ttlInSeconds != nil {
-		resp, err := e.client.Grant(ctx, *ttlInSeconds)
+		var resp *clientv3.LeaseGrantResponse
+		resp, err = e.client.Grant(ctx, *ttlInSeconds)
 		if err != nil {
 			return fmt.Errorf("couldn't grant lease %s: %w", key, err)
 		}
-		if etag != nil {
-			etag, _ := strconv.ParseInt(*etag, 10, 64)
-			_, err = e.client.Txn(ctx).
-				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-				Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(resp.ID))).
-				Commit()
-		} else {
-			_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
-		}
-		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %w", key, err)
-		}
-	} else {
-		var err error
-		if etag != nil {
-			etag, _ := strconv.ParseInt(*etag, 10, 64)
-			_, err = e.client.Txn(ctx).
-				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-				Then(clientv3.OpPut(key, reqVal)).
-				Commit()
-		} else {
-			_, err = e.client.Put(ctx, key, reqVal)
-		}
-		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %w", key, err)
-		}
+		leaseID = resp.ID
 	}
+
+	if etag != nil {
+		etag, _ := strconv.ParseInt(*etag, 10, 64)
+		_, err = e.client.Txn(ctx).
+			If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
+			Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(leaseID))).
+			Commit()
+	} else {
+		_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(leaseID))
+	}
+	if err != nil {
+		return fmt.Errorf("couldn't set key %s: %w", key, err)
+	}
+
 	return nil
 }
 
@@ -326,6 +329,13 @@ func (e *Etcd) Ping() error {
 	}
 
 	return nil
+}
+
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For Etcd the default is 128, but this can be configured via the server flag --max-txn-ops.
+// As such we are using the component metadata value maxTxnOps.
+func (e *Etcd) MultiMaxSize() int {
+	return e.maxTxnOps
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.

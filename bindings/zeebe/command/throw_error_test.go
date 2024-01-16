@@ -22,6 +22,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -86,9 +87,12 @@ func TestThrowError(t *testing.T) {
 
 	t.Run("jobKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: ThrowErrorOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: ThrowErrorOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingJobKey)
+		require.ErrorIs(t, err, ErrMissingJobKey)
 	})
 
 	t.Run("errorCode is mandatory", func(t *testing.T) {
@@ -96,12 +100,12 @@ func TestThrowError(t *testing.T) {
 			JobKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingErrorCode)
+		require.ErrorIs(t, err, ErrMissingErrorCode)
 	})
 
 	t.Run("throw an error", func(t *testing.T) {
@@ -111,7 +115,7 @@ func TestThrowError(t *testing.T) {
 			ErrorMessage: "b",
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
 
@@ -119,7 +123,7 @@ func TestThrowError(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
 		assert.Equal(t, payload.ErrorCode, mc.cmd1.cmd2.errorCode)

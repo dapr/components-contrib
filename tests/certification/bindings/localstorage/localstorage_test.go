@@ -120,10 +120,10 @@ func TestLocalStorage(t *testing.T) {
 		flow.Sleep(3 * time.Second)
 
 		err := invokeCreateWithConfig(ctx, map[string]string{"fileName": fileName})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		raw, err := invokeGetWithConfig(ctx, map[string]string{"fileName": fileName})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fileData, string(raw))
 
 		return clear()
@@ -135,8 +135,8 @@ func TestLocalStorage(t *testing.T) {
 
 		_, err := invokeGetWithConfig(ctx, map[string]string{"fileName": "not-exists.txt"})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "file not found:")
-		assert.ErrorContains(t, err, "not-exists.txt")
+		require.ErrorContains(t, err, "file not found:")
+		require.ErrorContains(t, err, "not-exists.txt")
 
 		return clear()
 	}
@@ -146,10 +146,10 @@ func TestLocalStorage(t *testing.T) {
 		flow.Sleep(3 * time.Second)
 
 		err := invokeCreateWithConfig(ctx, map[string]string{"fileName": fileName})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = invokeDeleteWithConfig(ctx, map[string]string{"fileName": fileName})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return clear()
 	}
@@ -161,11 +161,11 @@ func TestLocalStorage(t *testing.T) {
 		fileNames := []string{fileName + "1", fileName + "2", fileName + "3"}
 		for _, fileName := range fileNames {
 			err := invokeCreateWithConfig(ctx, map[string]string{"fileName": fileName})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		raw, err := invokeListWithConfig(ctx, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		for _, fileName := range fileNames {
 			assert.Contains(t, string(raw), fileName)
 		}
@@ -176,11 +176,12 @@ func TestLocalStorage(t *testing.T) {
 
 	flow.New(t, "test local storage operations").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("create file and get data success", testInvokeCreateAndGet).
 		Step("get error when file not exists", testInvokeGetFileNotExists).
@@ -193,14 +194,14 @@ func clear() error {
 	return os.RemoveAll(dir)
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
 	bindingsRegistry.Logger = log
 	bindingsRegistry.RegisterOutputBinding(bindings_localstorage.NewLocalStorage, "localstorage")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

@@ -39,6 +39,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -112,8 +113,13 @@ type Item struct {
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
 	s := &MongoDB{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureQueryAPI,
+			state.FeatureTTL,
+		},
+		logger: logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -607,9 +613,9 @@ func getMongoDBMetaData(meta state.Metadata) (mongoDBMetadata, error) {
 		OperationTimeout: defaultTimeout,
 	}
 
-	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
-	if decodeErr != nil {
-		return m, decodeErr
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return m, err
 	}
 
 	if m.ConnectionString == "" {
@@ -627,7 +633,6 @@ func getMongoDBMetaData(meta state.Metadata) (mongoDBMetadata, error) {
 		}
 	}
 
-	var err error
 	if val, ok := meta.Properties[operationTimeout]; ok && val != "" {
 		m.OperationTimeout, err = time.ParseDuration(val)
 		if err != nil {

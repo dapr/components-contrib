@@ -15,6 +15,7 @@ package vault_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,30 +26,42 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/runtime/registry"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	defaultDockerComposeClusterYAML = "../../../../../.github/infrastructure/docker-compose-hashicorp-vault.yml"
+	sidecarName                     = "hashicorp-vault-sidecar"
+	dockerComposeProjectName        = "hashicorp-vault"
+	// secretStoreName          = "my-hashicorp-vault" // as set in the component YAML
+
+	networkInstabilityTime   = 1 * time.Minute
+	waitAfterInstabilityTime = networkInstabilityTime / 4
+	servicePortToInterrupt   = "8200"
 )
 
 //
 // Flow and test setup helpers
 //
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	secretStoreRegistry := secretstores_loader.NewRegistry()
 	secretStoreRegistry.Logger = log
 	secretStoreRegistry.RegisterComponent(vault.NewHashiCorpVaultSecretStore, "hashicorp.vault")
 
-	return []runtime.Option{
-		runtime.WithSecretStores(secretStoreRegistry),
+	return func(cfg *runtime.Config) {
+		cfg.Registry = registry.NewOptions().WithSecretStores(secretStoreRegistry)
 	}
 }
 
 func GetCurrentGRPCAndHTTPPort(t *testing.T) (int, int) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]
@@ -93,8 +106,8 @@ func createPositiveTestFlow(fs *commonFlowSettings, flowDescription string, comp
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(fs.currentGrpcPort),
-			embedded.WithDaprHTTPPort(fs.currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(fs.currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(fs.currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -120,8 +133,8 @@ func createInitSucceedsButComponentFailsFlow(fs *commonFlowSettings, flowDescrip
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(fs.currentGrpcPort),
-			embedded.WithDaprHTTPPort(fs.currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(fs.currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(fs.currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).

@@ -60,6 +60,7 @@ var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
 var sqlServerName = '${toLower(namePrefix)}-conf-test-sql'
 var postgresServerName = '${toLower(namePrefix)}-conf-test-pg'
 var storageName = '${toLower(namePrefix)}ctstorage'
+var appconfigStoreName = '${toLower(namePrefix)}-conf-test-cfg'
 
 resource confTestRg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: confTestRgName
@@ -177,6 +178,15 @@ module postgres 'conf-test-azure-postgres.bicep' = {
   }
 }
 
+module appconfig 'conf-test-azure-appconfig.bicep' = {
+  name: appconfigStoreName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    configStoreName: appconfigStoreName
+    location: rgLocation
+  }
+}
+
 output confTestRgName string = confTestRg.name
 output cosmosDbName string = cosmosDb.name
 output cosmosDbSqlName string = cosmosDb.outputs.cosmosDbSqlName
@@ -204,3 +214,4 @@ output sqlServerName string = sqlServer.name
 output sqlServerAdminName string = sqlServer.outputs.sqlServerAdminName
 output postgresServerName string = postgres.name
 output storageName string = storage.name
+output appconfigName string = appconfig.name

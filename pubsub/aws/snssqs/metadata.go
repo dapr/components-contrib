@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/metadata"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
@@ -26,7 +26,7 @@ type snsSqsMetadata struct {
 	// aws partition in which SNS/SQS should create resources.
 	internalPartition string `mapstructure:"-"`
 	// name of the queue for this application. The is provided by the runtime as "consumerID".
-	SqsQueueName string `mapstructure:"consumerID"  mdignore:"true"`
+	SqsQueueName string `mapstructure:"consumerID" mdignore:"true"`
 	// name of the dead letter queue for this application.
 	SqsDeadLettersQueueName string `mapstructure:"sqsDeadLettersQueueName"`
 	// flag to SNS and SQS FIFO.

@@ -30,13 +30,14 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
-	"github.com/dapr/components-contrib/internal/authentication/azure"
 	contribmeta "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -119,7 +120,7 @@ func (c *StateStore) Init(ctx context.Context, meta state.Metadata) error {
 	m := metadata{
 		ContentType: "application/json",
 	}
-	errDecode := contribmeta.DecodeMetadata(meta.Properties, &m)
+	errDecode := kitmd.DecodeMetadata(meta.Properties, &m)
 	if errDecode != nil {
 		return errDecode
 	}
@@ -204,6 +205,7 @@ func (c *StateStore) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureQueryAPI,
+		state.FeatureTTL,
 	}
 }
 

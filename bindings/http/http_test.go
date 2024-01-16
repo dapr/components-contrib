@@ -15,10 +15,17 @@ package http
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -51,6 +58,243 @@ func TestOperations(t *testing.T) {
 	}, opers)
 }
 
+//nolint:forbidigo
+func TestMain(m *testing.M) {
+	err := generateCACertificate()
+	if err != nil {
+		fmt.Println("Failed to generate CA certificate:", err)
+		os.Exit(1)
+	}
+
+	err = generateMTLSCertificates()
+	if err != nil {
+		fmt.Println("Failed to generate mTLS certificates:", err)
+		os.Exit(1)
+	}
+
+	exitCode := m.Run()
+
+	err = deleteTestCerts()
+	if err != nil {
+		fmt.Println("Failed to delete test certificates:", err)
+		os.Exit(1)
+	}
+
+	os.Exit(exitCode)
+}
+
+func deleteTestCerts() error {
+	files, err := filepath.Glob(filepath.Join("testdata", "*.key"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err = os.Remove(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	files, err = filepath.Glob(filepath.Join("testdata", "*.pem"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err = os.Remove(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func generateCACertificate() error {
+	// Generate a private key for the CA
+	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a self-signed CA certificate
+	caTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "CA"},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	caCertificate, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, caPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the CA certificate to "ca.pem"
+	caCertFile, err := os.Create(filepath.Join("testdata", "ca.pem"))
+	if err != nil {
+		return err
+	}
+	defer caCertFile.Close()
+
+	err = pem.Encode(caCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: caCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the CA private key to "ca.key"
+	caKeyFile, err := os.Create(filepath.Join("testdata", "ca.key"))
+	if err != nil {
+		return err
+	}
+	defer caKeyFile.Close()
+
+	caPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(caKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: caPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generateMTLSCertificates() error {
+	// Load the CA private key
+	caKeyFile, err := os.ReadFile(filepath.Join("testdata", "ca.key"))
+	if err != nil {
+		return err
+	}
+
+	caKeyBlock, _ := pem.Decode(caKeyFile)
+	caPrivateKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// Load the CA certificate
+	caCertFile, err := os.ReadFile(filepath.Join("testdata", "ca.pem"))
+	if err != nil {
+		return err
+	}
+
+	caCertBlock, _ := pem.Decode(caCertFile)
+	caCertificate, err := x509.ParseCertificate(caCertBlock.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// Generate a private key for the client
+	clientPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a certificate for the client
+	client := &x509.Certificate{
+		SerialNumber: big.NewInt(10),
+		Subject:      pkix.Name{Organization: []string{"client"}},
+		NotBefore:    time.Now().Add(-1 * time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	clientCertificate, err := x509.CreateCertificate(rand.Reader, client, caCertificate, clientPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the client certificate to "client.pem"
+	clientCertFile, err := os.Create(filepath.Join("testdata", "client.pem"))
+	if err != nil {
+		return err
+	}
+	defer clientCertFile.Close()
+
+	err = pem.Encode(clientCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: clientCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the client private key to "client.key"
+	clientKeyFile, err := os.Create(filepath.Join("testdata", "client.key"))
+	if err != nil {
+		return err
+	}
+	defer clientKeyFile.Close()
+
+	clientPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(clientPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(clientKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: clientPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	// Generate a private key for the server
+	serverPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	// Create a certificate for the server
+	server := &x509.Certificate{
+		SerialNumber: big.NewInt(11),
+		Subject:      pkix.Name{Organization: []string{"server"}},
+		NotBefore:    time.Now().Add(-1 * time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	serverCertificate, err := x509.CreateCertificate(rand.Reader, server, caCertificate, serverPrivateKey.Public(), caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Save the server certificate to "server.pem"
+	serverCertFile, err := os.Create(filepath.Join("testdata", "server.pem"))
+	if err != nil {
+		return err
+	}
+	defer serverCertFile.Close()
+
+	err = pem.Encode(serverCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: serverCertificate})
+	if err != nil {
+		return err
+	}
+
+	// Save the server private key to "server.key"
+	serverKeyFile, err := os.Create(filepath.Join("testdata", "server.key"))
+	if err != nil {
+		return err
+	}
+	defer serverKeyFile.Close()
+
+	serverPrivateKeyBytes, err := x509.MarshalPKCS8PrivateKey(serverPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	err = pem.Encode(serverKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: serverPrivateKeyBytes})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type TestCase struct {
 	input      string
 	operation  string
@@ -68,6 +312,7 @@ func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
 	}
 
 	requestMetadata["X-Status-Code"] = strconv.Itoa(tc.statusCode)
+	requestMetadata["path"] = tc.path
 
 	return bindings.InvokeRequest{
 		Data:      []byte(tc.input),
@@ -83,6 +328,14 @@ type HTTPHandler struct {
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
+	if strings.TrimPrefix(h.Path, "/") == "large" {
+		// Write 5KB
+		for i := 0; i < 1<<10; i++ {
+			fmt.Fprint(w, "12345")
+		}
+		return
+	}
+
 	h.Headers = make(map[string]string)
 	for headerKey, headerValue := range req.Header {
 		h.Headers[headerKey] = headerValue[0]
@@ -187,7 +440,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["X-Token"])
 	})
 
@@ -203,7 +456,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, handler.Headers["X-Token"])
 	})
 }
@@ -226,7 +479,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
 	})
@@ -241,7 +494,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, traceParentExists := handler.Headers["Traceparent"]
 		assert.False(t, traceParentExists)
 		_, traceStateExists := handler.Headers["Tracestate"]
@@ -258,7 +511,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
 	})
@@ -281,7 +534,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 func mTLSHandler(w http.ResponseWriter, r *http.Request) {
 	// r.TLS gets ignored by HTTP handlers.
 	// in case where client auth is not required, r.TLS.PeerCertificates will be empty.
-	res := fmt.Sprintf("%v", len(r.TLS.PeerCertificates))
+	res := strconv.Itoa(len(r.TLS.PeerCertificates))
 	io.WriteString(w, res)
 }
 
@@ -372,10 +625,10 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		response, err := hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
-		assert.True(t, peerCerts > 0)
+		require.NoError(t, err)
+		assert.Greater(t, peerCerts, 0)
 
 		req = TestCase{
 			input:      "EXPECTED",
@@ -386,10 +639,10 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 201,
 		}.ToInvokeRequest()
 		response, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
-		assert.True(t, peerCerts > 0)
+		require.NoError(t, err)
+		assert.Greater(t, peerCerts, 0)
 	})
 	t.Run("get with https with no client cert and clientAuthEnabled true", func(t *testing.T) {
 		certMap := map[string]string{}
@@ -405,7 +658,7 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("get with https without client cert and clientAuthEnabled false", func(t *testing.T) {
@@ -425,13 +678,13 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		response, err := hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Checking for 0 peer certs as client auth is disabled.
 		// If client auth is enabled, then the number of peer certs will be > 0.
 		// For HTTP, request will not have TLS info only.
-		assert.True(t, peerCerts == 0)
+		assert.Equal(t, 0, peerCerts)
 
 		req = TestCase{
 			input:      "EXPECTED",
@@ -442,20 +695,20 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 201,
 		}.ToInvokeRequest()
 		response, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Checking for 0 peer certs as client auth is disabled.
 		// If client auth is enabled, then the number of peer certs will be > 0.
 		// For HTTP, request will not have TLS info only.
-		assert.True(t, peerCerts == 0)
+		assert.Equal(t, 0, peerCerts)
 	})
 }
 
 func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler) *httptest.Server {
 	server := httptest.NewUnstartedServer(handler)
 	caCertFile, err := os.ReadFile(filepath.Join(".", "testdata", "ca.pem"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
@@ -463,7 +716,7 @@ func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler
 	serverCert := filepath.Join(".", "testdata", "server.pem")
 	serverKey := filepath.Join(".", "testdata", "server.key")
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
@@ -727,4 +980,28 @@ func verifyTimeoutBehavior(t *testing.T, hs bindings.OutputBinding, handler *HTT
 			}
 		})
 	}
+}
+
+func TestMaxBodySizeHonored(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	hs, err := InitBinding(s, map[string]string{"maxResponseBodySize": "1Ki"})
+	require.NoError(t, err)
+
+	tc := TestCase{
+		input:      "GET",
+		operation:  "get",
+		path:       "/large",
+		err:        "context deadline exceeded",
+		statusCode: 200,
+	}
+
+	req := tc.ToInvokeRequest()
+	response, err := hs.Invoke(context.Background(), &req)
+	require.NoError(t, err)
+
+	// Should have only read 1KB
+	assert.Len(t, response.Data, 1<<10)
 }

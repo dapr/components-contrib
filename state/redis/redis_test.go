@@ -23,8 +23,9 @@ import (
 	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -34,31 +35,31 @@ func TestGetKeyVersion(t *testing.T) {
 	store := newStateStore(logger.NewLogger("test"))
 	t.Run("With all required fields", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
-		assert.NoError(t, err, "failed to read all fields")
+		require.NoError(t, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
 		assert.Equal(t, ptr.Of("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With missing data", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{"version", "TEST_VER"})
-		assert.NotNil(t, err, "failed to respond to missing data field")
+		require.Error(t, err, "failed to respond to missing data field")
 	})
 	t.Run("With missing version", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY"})
-		assert.NotNil(t, err, "failed to respond to missing version field")
+		require.Error(t, err, "failed to respond to missing version field")
 	})
 	t.Run("With all required fields - out of order", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"version", "TEST_VER", "dragon", "TEST_DRAGON", "data", "TEST_KEY"})
-		assert.NoError(t, err, "failed to read all fields")
+		require.NoError(t, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
 		assert.Equal(t, ptr.Of("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With no fields", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{})
-		assert.NotNil(t, err, "failed to respond to missing fields")
+		require.Error(t, err, "failed to respond to missing fields")
 	})
 	t.Run("With wrong fields", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{"dragon", "TEST_DRAGON"})
-		assert.NotNil(t, err, "failed to respond to missing fields")
+		require.Error(t, err, "failed to respond to missing fields")
 	})
 }
 
@@ -69,7 +70,7 @@ func TestParseEtag(t *testing.T) {
 		ver, err := store.parseETag(&state.SetRequest{
 			ETag: &etag,
 		})
-		assert.NoError(t, err, "failed to parse ETag")
+		require.NoError(t, err, "failed to parse ETag")
 		assert.Equal(t, 0, ver, "default version should be 0")
 	})
 	t.Run("Number ETag", func(t *testing.T) {
@@ -77,7 +78,7 @@ func TestParseEtag(t *testing.T) {
 		ver, err := store.parseETag(&state.SetRequest{
 			ETag: &etag,
 		})
-		assert.NoError(t, err, "failed to parse ETag")
+		require.NoError(t, err, "failed to parse ETag")
 		assert.Equal(t, 354, ver, "version should be 254")
 	})
 	t.Run("String ETag", func(t *testing.T) {
@@ -85,7 +86,7 @@ func TestParseEtag(t *testing.T) {
 		_, err := store.parseETag(&state.SetRequest{
 			ETag: &etag,
 		})
-		assert.NotNil(t, err, "shouldn't recognize string ETag")
+		require.Error(t, err, "shouldn't recognize string ETag")
 	})
 	t.Run("Concurrency=LastWrite", func(t *testing.T) {
 		etag := "dragon"
@@ -95,7 +96,7 @@ func TestParseEtag(t *testing.T) {
 			},
 			ETag: &etag,
 		})
-		assert.NoError(t, err, "failed to parse ETag")
+		require.NoError(t, err, "failed to parse ETag")
 		assert.Equal(t, 0, ver, "version should be 0")
 	})
 	t.Run("Concurrency=FirstWrite", func(t *testing.T) {
@@ -104,7 +105,7 @@ func TestParseEtag(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		})
-		assert.NoError(t, err, "failed to parse Concurrency")
+		require.NoError(t, err, "failed to parse Concurrency")
 		assert.Equal(t, 0, ver, "version should be 0")
 
 		// ETag is nil
@@ -112,7 +113,7 @@ func TestParseEtag(t *testing.T) {
 			Options: state.SetStateOption{},
 		}
 		ver, err = store.parseETag(req)
-		assert.NoError(t, err, "failed to parse Concurrency")
+		require.NoError(t, err, "failed to parse Concurrency")
 		assert.Equal(t, 0, ver, "version should be 0")
 
 		// ETag is empty
@@ -121,7 +122,7 @@ func TestParseEtag(t *testing.T) {
 			ETag: &emptyString,
 		}
 		ver, err = store.parseETag(req)
-		assert.NoError(t, err, "failed to parse Concurrency")
+		require.NoError(t, err, "failed to parse Concurrency")
 		assert.Equal(t, 0, ver, "version should be 0")
 	})
 }
@@ -135,7 +136,7 @@ func TestParseTTL(t *testing.T) {
 				"ttlInSeconds": ttlInSeconds,
 			},
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, ttl)
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
@@ -145,7 +146,7 @@ func TestParseTTL(t *testing.T) {
 				"expirationTime": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, ttl)
 	})
 	t.Run("TTL is a number", func(t *testing.T) {
@@ -155,7 +156,7 @@ func TestParseTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, *ttl, ttlInSeconds)
 	})
 
@@ -166,7 +167,7 @@ func TestParseTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, *ttl, ttlInSeconds)
 	})
 }
@@ -228,27 +229,27 @@ func TestTransactionalUpsert(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	vals := res.([]interface{})
 	data, version, err := ss.getKeyVersion(vals)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, ptr.Of("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon2")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(123), res)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon3")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 }
 
@@ -278,13 +279,13 @@ func TestTransactionalDelete(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	vals := res.([]interface{})
-	assert.Equal(t, 0, len(vals))
+	assert.Empty(t, vals)
 }
 
 func TestPing(t *testing.T) {
@@ -298,12 +299,12 @@ func TestPing(t *testing.T) {
 	}
 
 	err := ss.Ping(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	s.Close()
 
 	err = ss.Ping(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRequestsWithGlobalTTL(t *testing.T) {
@@ -366,27 +367,27 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 				},
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		vals := res.([]interface{})
 		data, version, err := ss.getKeyVersion(vals)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ptr.Of("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int64(globalTTLInSeconds), res)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int64(123), res)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon3")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int64(-1), res)
 	})
 }
@@ -485,13 +486,13 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon100")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	vals := res.([]interface{})
-	assert.Equal(t, 0, len(vals))
+	assert.Empty(t, vals)
 }
 
 func TestGetMetadata(t *testing.T) {

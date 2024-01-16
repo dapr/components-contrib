@@ -22,11 +22,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-	"github.com/dapr/components-contrib/internal/utils"
+	impl "github.com/dapr/components-contrib/common/component/azure/servicebus"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -85,8 +86,8 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	}
 
 	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
-	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
-	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
+	sessionIdleTimeout := time.Duration(commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
 		impl.SubscriptionOptions{
@@ -116,10 +117,10 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 	}
 
 	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
-	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
-	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
+	sessionIdleTimeout := time.Duration(commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
-	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
+	maxBulkSubCount := commonutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,

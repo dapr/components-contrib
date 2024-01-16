@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -141,7 +142,7 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
@@ -422,6 +423,10 @@ func (v *vaultSecretStore) initVaultToken() error {
 
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
 	tlsClientConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if config != nil && config.vaultSkipVerify {
+		v.logger.Infof("hashicorp vault: you are using 'skipVerify' to skip server config verify which is unsafe!")
+	}
 
 	tlsClientConfig.InsecureSkipVerify = config.vaultSkipVerify
 	if !config.vaultSkipVerify {

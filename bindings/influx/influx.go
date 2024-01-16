@@ -20,12 +20,13 @@ import (
 	"fmt"
 	"reflect"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go"
-	"github.com/influxdata/influxdb-client-go/api"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const queryOperation bindings.OperationKind = "query"
@@ -99,7 +100,7 @@ func (i *Influx) Init(_ context.Context, metadata bindings.Metadata) error {
 // GetInfluxMetadata returns new Influx metadata.
 func (i *Influx) getInfluxMetadata(meta bindings.Metadata) (*influxMetadata, error) {
 	var iMetadata influxMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &iMetadata)
+	err := kitmd.DecodeMetadata(meta.Properties, &iMetadata)
 	if err != nil {
 		return nil, err
 	}

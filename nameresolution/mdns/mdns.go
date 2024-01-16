@@ -269,34 +269,23 @@ func (m *Resolver) startRefreshers() {
 }
 
 // Init registers service for mDNS.
-func (m *Resolver) Init(metadata nameresolution.Metadata) error {
-	props := metadata.Properties
-
-	appID := props[nameresolution.AppID]
-	if appID == "" {
+func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
+	if metadata.Instance.AppID == "" {
 		return errors.New("name is missing")
 	}
-
-	hostAddress := props[nameresolution.HostAddress]
-	if hostAddress == "" {
+	if metadata.Instance.Address == "" {
 		return errors.New("address is missing")
 	}
-
-	if props[nameresolution.DaprPort] == "" {
-		return errors.New("port is missing")
+	if metadata.Instance.DaprInternalPort <= 0 {
+		return errors.New("port is missing or invalid")
 	}
 
-	port, err := strconv.Atoi(props[nameresolution.DaprPort])
-	if err != nil {
-		return errors.New("port is invalid")
-	}
-
-	err = m.registerMDNS("", appID, []string{hostAddress}, port)
+	err := m.registerMDNS("", metadata.Instance.AppID, []string{metadata.Instance.Address}, metadata.Instance.DaprInternalPort)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
+	m.logger.Infof("local service entry announced: %s -> %s:%d", metadata.Instance.AppID, metadata.Instance.Address, metadata.Instance.DaprInternalPort)
 
 	go m.startRefreshers()
 
@@ -412,7 +401,7 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 }
 
 // ResolveID resolves name to address via mDNS.
-func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+func (m *Resolver) ResolveID(parentCtx context.Context, req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
 	if addr := m.nextIPv4Address(req.ID); addr != nil {
 		return *addr, nil
@@ -445,7 +434,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// requested app id. The rest will subscribe for an address or error.
 	var once *sync.Once
 	var published chan struct{}
-	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
 		published = make(chan struct{})

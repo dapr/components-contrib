@@ -17,14 +17,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dapr/components-contrib/internal/component/postgresql"
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
+	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
 // New creates a new instance of CockroachDB state store.
 func New(logger logger.Logger) state.Store {
-	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
+	return postgresql.NewPostgreSQLQueryStateStore(logger, postgresql.Options{
 		ETagColumn: "etag",
 		MigrateFn:  ensureTables,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
@@ -34,7 +35,7 @@ func New(logger logger.Logger) state.Store {
 				// The difference is that with concurrency as first-write, we'll update the row only if it's expired
 				var whereClause string
 				if req.Options.Concurrency == state.FirstWrite {
-					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < CURRENT_TIMESTAMP)"
+					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < now())"
 				}
 
 				return `
@@ -45,7 +46,7 @@ VALUES
 ON CONFLICT (key) DO UPDATE SET
   value = $2,
   isbinary = $3,
-  updatedate = NOW(),
+  updatedate = now(),
   etag = EXCLUDED.etag + 1,
   expiredate = ` + opts.ExpireDateValue +
 					whereClause
@@ -57,18 +58,18 @@ UPDATE ` + opts.TableName + `
 SET
   value = $2,
   isbinary = $3,
-  updatedate = NOW(),
+  updatedate = now(),
   etag = etag + 1,
   expiredate = ` + opts.ExpireDateValue + `
 WHERE
   key = $1
   AND etag = $4
-  AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP);`
+  AND (expiredate IS NULL OR expiredate >= now());`
 		},
 	})
 }
 
-func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
+func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
 		return err
@@ -122,7 +123,7 @@ func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresq
 	return nil
 }
 
-func tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (bool, error) {
+func tableExists(ctx context.Context, db pginterfaces.PGXPoolConn, tableName string) (bool, error) {
 	exists := false
 	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 	return exists, err

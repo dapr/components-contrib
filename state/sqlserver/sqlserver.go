@@ -23,7 +23,8 @@ import (
 	"reflect"
 	"time"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -65,7 +66,11 @@ const (
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	s := &SQLServer{
-		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:          logger,
 		migratorFactory: newMigration,
 	}
@@ -97,7 +102,7 @@ type SQLServer struct {
 	features []state.Feature
 	logger   logger.Logger
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // Init initializes the SQL server state store.
@@ -137,23 +142,24 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 func (s *SQLServer) startGC() error {
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	gc, err := commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: s.logger,
-		UpdateLastCleanupQuery: fmt.Sprintf(`BEGIN TRANSACTION;
+		UpdateLastCleanupQuery: func(arg any) (string, any) {
+			return fmt.Sprintf(`BEGIN TRANSACTION;
 BEGIN TRY
 INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
 END TRY
 BEGIN CATCH
 UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
-COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName),
-		UpdateLastCleanupQueryParameterName: "Interval",
+COMMIT TRANSACTION;`, s.metadata.SchemaName, s.metadata.MetadataTableName), sql.Named("Interval", arg)
+		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(
 			`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
-			s.metadata.Schema, s.metadata.TableName,
+			s.metadata.SchemaName, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
-		DBSql:           s.db,
+		DB:              commonsql.AdaptDatabaseSQLConn(s.db),
 	})
 	if err != nil {
 		return err
@@ -168,34 +174,41 @@ func (s *SQLServer) Features() []state.Feature {
 	return s.features
 }
 
-// Multi performs multiple updates on a Sql server store.
+// Multi performs batched updates on a SQL Server store.
 func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	defer tx.Rollback()
-	if err != nil {
+	if request == nil {
+		return nil
+	}
+
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return s.execMultiOperation(ctx, request.Operations[0], s.db)
+	default:
+		_, err := sqltransactions.ExecuteInTransaction(ctx, s.logger, s.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = s.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
+			}
+			return r, nil
+		})
 		return err
 	}
+}
 
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = s.executeSet(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		case state.DeleteRequest:
-			err = s.executeDelete(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", o.Operation())
-		}
+func (s *SQLServer) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db dbExecutor) error {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return s.executeSet(ctx, db, &req)
+	case state.DeleteRequest:
+		return s.executeDelete(ctx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
-
-	return tx.Commit()
 }
 
 // Delete removes an entity from the store.
@@ -236,12 +249,6 @@ func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state
 
 	// successful deletion, or noop if no ETAG specified
 	return nil
-}
-
-// TvpDeleteTableStringKey defines a table type with string key.
-type TvpDeleteTableStringKey struct {
-	ID         string
-	RowVersion []byte
 }
 
 // Get returns an entity from store.

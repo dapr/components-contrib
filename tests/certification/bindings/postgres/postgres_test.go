@@ -16,6 +16,7 @@ package postgres_test
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	binding_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -133,7 +133,7 @@ func TestPostgres(t *testing.T) {
 
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
 		require.NoError(t, err)
 		db.Close()
@@ -145,11 +145,12 @@ func TestPostgres(t *testing.T) {
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("Creating table", createTable).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/standard"),
+			)...,
 		)).
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
@@ -201,9 +202,9 @@ func TestPostgresNetworkError(t *testing.T) {
 
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		db.Close()
 		return nil
 	}
@@ -213,11 +214,12 @@ func TestPostgresNetworkError(t *testing.T) {
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("Creating table", createTable).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/standard"),
+			)...,
 		)).
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
@@ -228,7 +230,7 @@ func TestPostgresNetworkError(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -237,7 +239,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return binding_postgres.NewPostgres(l)
 	}, "postgresql")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

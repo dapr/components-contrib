@@ -15,18 +15,20 @@ package pubsub
 
 // GCPPubSubMetaData pubsub metadata.
 type metadata struct {
-	ConsumerID              string `mapstructure:"consumerID"`
-	Type                    string `mapstructure:"type"`
-	IdentityProjectID       string `mapstructure:"identityProjectID"`
-	ProjectID               string `mapstructure:"projectID"`
-	PrivateKeyID            string `mapstructure:"privateKeyID"`
-	PrivateKey              string `mapstructure:"privateKey"`
-	ClientEmail             string `mapstructure:"clientEmail"`
-	ClientID                string `mapstructure:"clientID"`
-	AuthURI                 string `mapstructure:"authURI"`
-	TokenURI                string `mapstructure:"tokenURI"`
-	AuthProviderCertURL     string `mapstructure:"authProviderX509CertUrl"`
-	ClientCertURL           string `mapstructure:"clientX509CertUrl"`
+	// Ignored by metadata parser because included in built-in authentication profile
+	ConsumerID          string `mapstructure:"consumerID"              mdignore:"true"`
+	Type                string `mapstructure:"type"                    mdignore:"true"`
+	IdentityProjectID   string `mapstructure:"identityProjectID"       mdignore:"true"`
+	ProjectID           string `mapstructure:"projectID"               mdignore:"true"`
+	PrivateKeyID        string `mapstructure:"privateKeyID"            mdignore:"true"`
+	PrivateKey          string `mapstructure:"privateKey"              mdignore:"true"`
+	ClientEmail         string `mapstructure:"clientEmail"             mdignore:"true"`
+	ClientID            string `mapstructure:"clientID"                mdignore:"true"`
+	AuthURI             string `mapstructure:"authURI"                 mdignore:"true"`
+	TokenURI            string `mapstructure:"tokenURI"                mdignore:"true"`
+	AuthProviderCertURL string `mapstructure:"authProviderX509CertUrl" mdignore:"true"`
+	ClientCertURL       string `mapstructure:"clientX509CertUrl"       mdignore:"true"`
+
 	DisableEntityManagement bool   `mapstructure:"disableEntityManagement"`
 	EnableMessageOrdering   bool   `mapstructure:"enableMessageOrdering"`
 	MaxReconnectionAttempts int    `mapstructure:"maxReconnectionAttempts"`

@@ -21,9 +21,10 @@ import (
 	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	internalredis "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -51,12 +52,12 @@ func TestInvokeCreate(t *testing.T) {
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.CreateOperation,
 	})
-	assert.Equal(t, nil, err)
-	assert.Equal(t, true, bindingRes == nil)
+	require.NoError(t, err)
+	assert.Nil(t, bindingRes)
 
 	getRes, err := c.DoRead(context.Background(), "GET", testKey)
-	assert.Equal(t, nil, err)
-	assert.Equal(t, true, getRes == testData)
+	require.NoError(t, err)
+	assert.Equal(t, testData, getRes)
 }
 
 func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
@@ -69,23 +70,23 @@ func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 	}
 
 	err := c.DoWrite(context.Background(), "SET", testKey, testData)
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
-	assert.Equal(t, nil, err)
-	assert.Equal(t, true, string(bindingRes.Data) == testData)
+	require.NoError(t, err)
+	assert.Equal(t, testData, string(bindingRes.Data))
 
 	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, true, string(bindingResGet.Data) == testData)
+	assert.Equal(t, testData, string(bindingResGet.Data))
 }
 
 func TestInvokeGetWithDeleteFlag(t *testing.T) {
@@ -98,21 +99,21 @@ func TestInvokeGetWithDeleteFlag(t *testing.T) {
 	}
 
 	err := c.DoWrite(context.Background(), "SET", testKey, testData)
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey, "delete": "true"},
 		Operation: bindings.GetOperation,
 	})
-	assert.Equal(t, nil, err)
-	assert.Equal(t, true, string(bindingRes.Data) == testData)
+	require.NoError(t, err)
+	assert.Equal(t, testData, string(bindingRes.Data))
 
 	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, []byte(nil), bindingResGet.Data)
 }
@@ -127,18 +128,18 @@ func TestInvokeDelete(t *testing.T) {
 	}
 
 	err := c.DoWrite(context.Background(), "SET", testKey, testData)
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	getRes, err := c.DoRead(context.Background(), "GET", testKey)
-	assert.Equal(t, nil, err)
-	assert.Equal(t, true, getRes == testData)
+	require.NoError(t, err)
+	assert.Equal(t, testData, getRes)
 
 	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.DeleteOperation,
 	})
 
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	rgetRep, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
@@ -158,17 +159,17 @@ func TestCreateExpire(t *testing.T) {
 		Operation: bindings.CreateOperation,
 		Data:      []byte(testData),
 	})
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	rgetRep, err := c.DoRead(context.Background(), "TTL", testKey)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), rgetRep)
 
 	res, err2 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
-	assert.Equal(t, nil, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, res.Data, []byte(testData))
 
 	// wait for ttl to expire
@@ -178,14 +179,14 @@ func TestCreateExpire(t *testing.T) {
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, []byte(nil), res.Data)
 
 	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.DeleteOperation,
 	})
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 }
 
 func TestIncrement(t *testing.T) {
@@ -200,7 +201,7 @@ func TestIncrement(t *testing.T) {
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: IncrementOperation,
 	})
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 
 	res, err2 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
@@ -213,17 +214,17 @@ func TestIncrement(t *testing.T) {
 		Metadata:  map[string]string{"key": "incKey", metadata.TTLMetadataKey: "5"},
 		Operation: IncrementOperation,
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	rgetRep, err := c.DoRead(context.Background(), "TTL", "incKey")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(5), rgetRep)
 
 	res, err2 = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
-	assert.Equal(t, nil, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, []byte("2"), res.Data)
 
 	// wait for ttl to expire
@@ -233,17 +234,17 @@ func TestIncrement(t *testing.T) {
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, []byte(nil), res.Data)
 
 	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.DeleteOperation,
 	})
-	assert.Equal(t, nil, err)
+	require.NoError(t, err)
 }
 
-func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {
+func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -253,5 +254,5 @@ func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {
 		DB:   0,
 	}
 
-	return s, internalredis.ClientFromV8Client(redis.NewClient(opts))
+	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 }

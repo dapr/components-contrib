@@ -15,6 +15,7 @@ package cosmosDBStorage_test
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/metadata"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
@@ -33,7 +33,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -50,7 +49,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 	sidecarName := sidecarNamePrefix + uuid.NewString()
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -68,16 +67,16 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, stateValue, string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -107,7 +106,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 					},
 				},
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -137,16 +136,16 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			test := func(setMeta, getMeta map[string]string, expectedValue string) {
 				// save state, default options: strong, last-write
 				err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), setMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				// get state
 				item, err := client.GetState(ctx, statestore, stateKey, getMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
 
 				// delete state
 				err = client.DeleteState(ctx, statestore, stateKey, setMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			// Test	with no partition key
@@ -292,11 +291,13 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 	flow.New(t, "Test master key auth").
 		// Run the Dapr sidecar with azure CosmosDB storage.
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
+		)).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Step("Run transaction test with etag present", transactionsTest("statestore-basic")).
 		Step("Run basic test with multiple parition keys", partitionTest("statestore-basic")).
@@ -306,16 +307,18 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 	flow.New(t, "Test AAD authentication").
 		// Run the Dapr sidecar with azure CosmosDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/aadtest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/aadtest"),
+			)...,
+		)).
 		Step("Run basic test with Azure AD Authentication", basicTest("statestore-aad")).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	stateRegistry.RegisterComponent(cosmosdb.NewCosmosDBStateStore, "azure.cosmosdb")
@@ -324,8 +327,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

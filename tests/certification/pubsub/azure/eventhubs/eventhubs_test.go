@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -32,6 +32,7 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/kit/logger"
 
 	// Dapr runtime and Go-SDK
@@ -180,7 +181,7 @@ func TestEventhubs(t *testing.T) {
 
 	deleteEventhub := func() error {
 		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
-		assert.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		require.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
 		return nil
 	}
 
@@ -193,7 +194,7 @@ func TestEventhubs(t *testing.T) {
 			messageWatchers.ExpectStrings(messages...)
 
 			output, err := exec.Command("/bin/sh", "send-iot-device-events.sh", topicToBeCreated).Output()
-			assert.NoErrorf(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
+			require.NoErrorf(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
 			return nil
 		}
 	}
@@ -220,12 +221,13 @@ func TestEventhubs(t *testing.T) {
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			componentRuntimeOptions(1),
+			append(componentRuntimeOptions(1),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -234,12 +236,13 @@ func TestEventhubs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(2),
+			append(componentRuntimeOptions(2),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
@@ -255,12 +258,13 @@ func TestEventhubs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component 3.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer3"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(3),
+			append(componentRuntimeOptions(3),
+				embedded.WithComponentsPath("./components/consumer3"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*2)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 
@@ -276,12 +280,13 @@ func TestEventhubs(t *testing.T) {
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName4,
-			embedded.WithComponentsPath("./components/entitymanagementconsumer"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(4),
+			append(componentRuntimeOptions(4),
+				embedded.WithComponentsPath("./components/entitymanagementconsumer"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
@@ -293,12 +298,13 @@ func TestEventhubs(t *testing.T) {
 			subscriberApplication(appID5, iotHubName, consumerGroup5, true))).
 		// Run the Dapr sidecar with the iot component
 		Step(sidecar.Run(sidecarName5,
-			embedded.WithComponentsPath("./components/iotconsumer"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
-			componentRuntimeOptions(5),
+			append(componentRuntimeOptions(5),
+				embedded.WithComponentsPath("./components/iotconsumer"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*4)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(20*time.Second)).
 		Step("add expected IoT messages (simulate add message to IoT Hub)", publishMessageAsDevice(consumerGroup5)).
@@ -315,7 +321,7 @@ func TestEventhubs(t *testing.T) {
 	deleteEventhub()
 }
 
-func componentRuntimeOptions(instance int) []runtime.Option {
+func componentRuntimeOptions(instance int) []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 	log.SetOutputLevel(logger.DebugLevel)
 
@@ -334,8 +340,8 @@ func componentRuntimeOptions(instance int) []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

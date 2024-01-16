@@ -31,6 +31,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Metadata is the oAuth clientcredentials middleware config.
@@ -126,7 +127,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2ClientCredentialsMiddlewareMetadata, error) {
 	var middlewareMetadata oAuth2ClientCredentialsMiddlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("metadata errors: %w", err)
 	}

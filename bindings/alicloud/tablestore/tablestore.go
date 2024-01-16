@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -123,7 +124,7 @@ func (s *AliCloudTableStore) Operations() []bindings.OperationKind {
 
 func (s *AliCloudTableStore) parseMetadata(metadata bindings.Metadata) (*tablestoreMetadata, error) {
 	m := tablestoreMetadata{}
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &m)
+	err := kitmd.DecodeMetadata(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

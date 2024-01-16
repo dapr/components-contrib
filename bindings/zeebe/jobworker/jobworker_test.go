@@ -20,6 +20,7 @@ import (
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
@@ -44,7 +45,11 @@ func (mcf *mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error
 		return nil, mcf.error
 	}
 
-	return mockClient{}, nil
+	return &mockClient{}, nil
+}
+
+func (mc *mockClient) Close() error {
+	return nil
 }
 
 func TestInit(t *testing.T) {
@@ -57,8 +62,8 @@ func TestInit(t *testing.T) {
 		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger, closeCh: make(chan struct{})}
 		err := jobWorker.Init(context.Background(), metadata)
 
-		assert.Error(t, err, ErrMissingJobType)
-		assert.NoError(t, jobWorker.Close())
+		require.ErrorIs(t, err, ErrMissingJobType)
+		require.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
@@ -71,27 +76,28 @@ func TestInit(t *testing.T) {
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
 		err := jobWorker.Init(context.Background(), metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
-		assert.NoError(t, jobWorker.Close())
+		require.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
+		metadata.Properties = map[string]string{"maxJobsActive": "notanumber"}
 		mcf := &mockClientFactory{
 			error: errParsing,
 		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
 		err := jobWorker.Init(context.Background(), metadata)
-		assert.Error(t, err, errParsing)
-		assert.NoError(t, jobWorker.Close())
+		require.Error(t, err, errParsing.Error())
+		require.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
@@ -105,13 +111,13 @@ func TestInit(t *testing.T) {
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
 		err := jobWorker.Init(context.Background(), metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
-		assert.NoError(t, jobWorker.Close())
+		require.NoError(t, jobWorker.Close())
 	})
 }

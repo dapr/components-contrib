@@ -1,0 +1,30 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: opa
+spec:
+  type: middleware.http.opa
+  version: v1
+  metadata:
+  - name: defaultStatus
+    value: 418
+  - name: readBody
+    value: "true"
+  - name: rego
+    value: |
+      package http
+      default allow = false
+      allow = { 
+        "allow": true,
+      } {
+        input.request.body == "allow-ok"
+      }
+
+      allow = {
+        "status_code" : 301,
+        "additional_headers" : {
+          "x-custom-header": "redirected"
+        }
+      } {
+        input.request.body == "redirect"
+      }

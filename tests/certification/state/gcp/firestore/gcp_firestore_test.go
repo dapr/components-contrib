@@ -15,6 +15,7 @@ package gcp_firestore_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	firestore "github.com/dapr/components-contrib/state/gcp/firestore"
@@ -26,10 +27,10 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 
 func TestGCPFirestoreStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -57,17 +58,17 @@ func TestGCPFirestoreStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -76,36 +77,42 @@ func TestGCPFirestoreStorage(t *testing.T) {
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with GCP Firestore storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
+		)).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test entity_kind").
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/entity_kind"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/entity_kind"),
+			)...,
+		)).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test NoIndex").
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/noindex"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/noindex"),
+			)...,
+		)).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -116,8 +123,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

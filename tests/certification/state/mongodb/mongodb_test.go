@@ -20,7 +20,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +38,7 @@ func TestMongoDB(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	stateStore := stateMongoDB.NewMongoDB(log).(*stateMongoDB.MongoDB)
 	ports, err := daprTesting.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := stateLoader.NewRegistry()
 	stateRegistry.Logger = log
@@ -58,26 +57,26 @@ func TestMongoDB(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("mongodbCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("mongodbCert2"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "mongodbCert", string(item.Value))
 		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("mongodbCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "mongodbCertUpdate", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -91,7 +90,7 @@ func TestMongoDB(t *testing.T) {
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key2", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "mongodbCert2", string(item.Value))
 
 		return nil
@@ -107,10 +106,10 @@ func TestMongoDB(t *testing.T) {
 			assert.Error(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("mongodbCert"), map[string]string{
 				"ttlInSeconds": "mock value",
 			}))
-			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("mongodbCert2"), map[string]string{
+			require.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("mongodbCert2"), map[string]string{
 				"ttlInSeconds": "-1",
 			}))
-			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("mongodbCert3"), map[string]string{
+			require.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("mongodbCert3"), map[string]string{
 				"ttlInSeconds": "3",
 			}))
 
@@ -124,11 +123,12 @@ func TestMongoDB(t *testing.T) {
 
 			// get state
 			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "mongodbCert3", string(item.Value))
 			assert.Contains(t, item.Metadata, "ttlExpireTime")
 			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
-			_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(time.Second*3).Unix(), expireTime.Unix(), 2)
+			require.NoError(t, err)
+			assert.InDelta(t, time.Now().Add(time.Second*3).Unix(), expireTime.Unix(), 2)
 
 			assert.Eventually(t, func() bool {
 				item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
@@ -153,10 +153,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterDefault")).
@@ -176,10 +176,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/validReadWriteConcernAndTimeout"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout")).
@@ -199,10 +199,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerSingleNode",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/singleNode"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerSingleNode")).

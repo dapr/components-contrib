@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 var _ secretstores.SecretStore = (*envSecretStore)(nil)
@@ -48,7 +49,7 @@ func NewEnvSecretStore(logger logger.Logger) secretstores.SecretStore {
 
 // Init creates a Local secret store.
 func (s *envSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
-	if err := metadata.DecodeMetadata(meta.Properties, &s.metadata); err != nil {
+	if err := kitmd.DecodeMetadata(meta.Properties, &s.metadata); err != nil {
 		return err
 	}
 	return nil

@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +29,9 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -45,6 +46,7 @@ type DBAccess interface {
 	Delete(ctx context.Context, req *state.DeleteRequest) error
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
+	DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error)
 	Close() error
 }
 
@@ -60,7 +62,7 @@ type sqliteDBAccess struct {
 	logger   logger.Logger
 	metadata sqliteMetadataStruct
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
@@ -78,18 +80,22 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	connString, err := a.getConnectionString()
+	registerFuntions()
+	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err
 	}
 
-	db, err := sql.Open("sqlite", connString)
+	a.db, err = sql.Open("sqlite", connString)
 	if err != nil {
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
-	a.db = db
+	// If the database is in-memory, we can't have more than 1 open connection
+	if a.metadata.IsInMemoryDB() {
+		a.db.SetMaxOpenConns(1)
+	}
 
 	err = a.Ping(ctx)
 	if err != nil {
@@ -97,26 +103,35 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	}
 
 	// Performs migrations
-	migrate := &migrations{
-		Logger:            a.logger,
-		Conn:              a.db,
-		MetadataTableName: a.metadata.MetadataTableName,
+	err = performMigrations(ctx, a.db, a.logger, migrationOptions{
 		StateTableName:    a.metadata.TableName,
-	}
-	err = migrate.Perform(ctx)
+		MetadataTableName: a.metadata.MetadataTableName,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	// Init the background GC
+	err = a.initGC()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *sqliteDBAccess) initGC() (err error) {
+	a.gc, err = commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: a.logger,
-		UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %s (key, value)
-		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		ON CONFLICT (key)
-		DO UPDATE SET value = CURRENT_TIMESTAMP
-			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
-			a.metadata.MetadataTableName,
-		),
+		UpdateLastCleanupQuery: func(arg any) (string, any) {
+			return fmt.Sprintf(`INSERT INTO %s (key, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+				ON CONFLICT (key)
+				DO UPDATE SET value = CURRENT_TIMESTAMP
+					WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
+				a.metadata.MetadataTableName,
+			), arg
+		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(`DELETE FROM %s
 		WHERE
 			expiration_time IS NOT NULL
@@ -124,121 +139,17 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 			a.metadata.TableName,
 		),
 		CleanupInterval: a.metadata.CleanupInterval,
-		DBSql:           a.db,
+		DB:              commonsql.AdaptDatabaseSQLConn(a.db),
 	})
-	if err != nil {
-		return err
-	}
-	a.gc = gc
-
-	return nil
+	return err
 }
 
 func (a *sqliteDBAccess) CleanupExpired() error {
 	return a.gc.CleanupExpired()
 }
 
-func (a *sqliteDBAccess) getConnectionString() (string, error) {
-	// Check if we're using the in-memory database
-	lc := strings.ToLower(a.metadata.ConnectionString)
-	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
-
-	// Get the "query string" from the connection string if present
-	idx := strings.IndexRune(a.metadata.ConnectionString, '?')
-	var qs url.Values
-	if idx > 0 {
-		qs, _ = url.ParseQuery(a.metadata.ConnectionString[(idx + 1):])
-	}
-	if len(qs) == 0 {
-		qs = make(url.Values, 2)
-	}
-
-	// If the database is in-memory, we must ensure that cache=shared is set
-	if isMemoryDB {
-		qs["cache"] = []string{"shared"}
-	}
-
-	// Check if the database is read-only or immutable
-	isReadOnly := false
-	if len(qs["mode"]) > 0 {
-		// Keep the first value only
-		qs["mode"] = []string{
-			qs["mode"][0],
-		}
-		if qs["mode"][0] == "ro" {
-			isReadOnly = true
-		}
-	}
-	if len(qs["immutable"]) > 0 {
-		// Keep the first value only
-		qs["immutable"] = []string{
-			qs["immutable"][0],
-		}
-		if qs["immutable"][0] == "1" {
-			isReadOnly = true
-		}
-	}
-
-	// We do not want to override a _txlock if set, but we'll show a warning if it's not "immediate"
-	if len(qs["_txlock"]) > 0 {
-		// Keep the first value only
-		qs["_txlock"] = []string{
-			strings.ToLower(qs["_txlock"][0]),
-		}
-		if qs["_txlock"][0] != "immediate" {
-			a.logger.Warn("Database connection is being created with a _txlock different from the recommended value 'immediate'")
-		}
-	} else {
-		qs["_txlock"] = []string{"immediate"}
-	}
-
-	// Add pragma values
-	if len(qs["_pragma"]) == 0 {
-		qs["_pragma"] = make([]string, 0, 2)
-	} else {
-		for _, p := range qs["_pragma"] {
-			p = strings.ToLower(p)
-			if strings.HasPrefix(p, "busy_timeout") {
-				a.logger.Error("Cannot set `_pragma=busy_timeout` option in the connection string; please use the `busyTimeout` metadata property instead")
-				return "", errors.New("found forbidden option '_pragma=busy_timeout' in the connection string")
-			} else if strings.HasPrefix(p, "journal_mode") {
-				a.logger.Error("Cannot set `_pragma=journal_mode` option in the connection string; please use the `disableWAL` metadata property instead")
-				return "", errors.New("found forbidden option '_pragma=journal_mode' in the connection string")
-			}
-		}
-	}
-	if a.metadata.BusyTimeout > 0 {
-		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.BusyTimeout.Milliseconds()))
-	}
-	if isMemoryDB {
-		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(MEMORY)")
-	} else if a.metadata.DisableWAL || isReadOnly {
-		// Set the journaling mode to "DELETE" (the default) if WAL is disabled or if the database is read-only
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(DELETE)")
-	} else {
-		// Enable WAL
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(WAL)")
-	}
-
-	// Build the final connection string
-	connString := a.metadata.ConnectionString
-	if idx > 0 {
-		connString = connString[:idx]
-	}
-	connString += "?" + qs.Encode()
-
-	// If the connection string doesn't begin with "file:", add the prefix
-	if !strings.HasPrefix(lc, "file:") {
-		a.logger.Debug("prefix 'file:' added to the connection string")
-		connString = "file:" + connString
-	}
-
-	return connString, nil
-}
-
 func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	err := a.db.PingContext(ctx)
 	cancel()
 	return err
@@ -250,11 +161,12 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	row := a.db.QueryRowContext(ctx, stmt, req.Key)
 	_, value, etag, expireTime, err := readRow(row)
@@ -293,11 +205,12 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
 	if err != nil {
@@ -433,54 +346,49 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
-	var (
-		res        sql.Result
-		mustCommit bool
-		stmt       string
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
+	defer cancel()
+
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
-	if !req.HasETag() {
+	switch {
+	case !req.HasETag() && req.Options.Concurrency == state.FirstWrite:
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
-		// With SQLite, the only way we can handle that is by performing a SELECT query first
-		if req.Options.Concurrency == state.FirstWrite {
-			// If we're not in a transaction already, start one as we need to ensure consistency
-			if db == a.db {
-				db, err = a.db.BeginTx(parentCtx, nil)
-				if err != nil {
-					return fmt.Errorf("failed to begin transaction: %w", err)
-				}
-				defer db.(*sql.Tx).Rollback()
-				mustCommit = true
-			}
-
-			// Check if there's already a row with the given key that has not expired yet
-			var count int
-			stmt = `SELECT COUNT(key)
-				FROM ` + a.metadata.TableName + `
-				WHERE key = ?
-					AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-			err = db.QueryRowContext(parentCtx, stmt, req.Key).Scan(&count)
-			if err != nil {
-				return fmt.Errorf("failed to check for existing row with first-write concurrency: %w", err)
-			}
-
-			// If the row exists, then we just return an etag error
-			// Otherwise, we can fall through and continue with an INSERT OR REPLACE statement
-			if count > 0 {
+		stmt := `WITH a AS (
+				SELECT
+					?, ?, ?, ?, ` + expiration + `, CURRENT_TIMESTAMP
+				WHERE NOT EXISTS (
+					SELECT 1
+					FROM ` + a.metadata.TableName + `
+					WHERE key = ?
+						AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)
+				)
+			)
+			INSERT OR REPLACE INTO ` + a.metadata.TableName + `
+			SELECT * FROM a
+			RETURNING 1`
+		var num int
+		err = db.QueryRowContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key).Scan(&num)
+		if err != nil {
+			// If no row was returned, it means no row was updated, so we had an etag failure
+			if errors.Is(err, sql.ErrNoRows) {
 				return state.NewETagError(state.ETagMismatch, nil)
 			}
+			return err
 		}
 
-		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
+	case !req.HasETag():
+		stmt := "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
-		defer cancel()
-		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
-	} else {
-		stmt = `UPDATE ` + a.metadata.TableName + ` SET
+		_, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag)
+		if err != nil {
+			return err
+		}
+
+	default:
+		stmt := `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
@@ -490,31 +398,19 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
-		defer cancel()
+		var res sql.Result
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Count the number of affected rows
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		if req.HasETag() {
-			return state.NewETagError(state.ETagMismatch, nil)
-		}
-		return errors.New("no item was updated")
-	}
-
-	// Commit the transaction if needed
-	if mustCommit {
-		err = db.(*sql.Tx).Commit()
 		if err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
+			return err
+		}
+
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			// 0 affected rows means etag failure
+			return state.NewETagError(state.ETagMismatch, nil)
 		}
 	}
 
@@ -525,43 +421,81 @@ func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return a.doDelete(ctx, a.db, req)
 }
 
-func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
-	tx, err := a.db.BeginTx(parentCtx, nil)
+func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	err := req.Validate()
 	if err != nil {
-		return err
+		return state.DeleteWithPrefixResponse{}, err
 	}
-	defer tx.Rollback()
 
-	for _, o := range reqs {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = a.doSet(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		case state.DeleteRequest:
-			err = a.doDelete(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		default:
-			// Do nothing
-		}
+	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
+	defer cancel()
+
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	//nolint:gosec
+	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?", req.Prefix)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
 	}
-	return tx.Commit()
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	return state.DeleteWithPrefixResponse{Count: rows}, nil
 }
 
-// Close implements io.Close.
-func (a *sqliteDBAccess) Close() error {
-	if a.db != nil {
-		_ = a.db.Close()
+func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
+	// If there's only 1 operation, skip starting a transaction
+	switch len(reqs) {
+	case 0:
+		return nil
+	case 1:
+		return a.execMultiOperation(parentCtx, reqs[0], a.db)
+	default:
+		_, err := sqltransactions.ExecuteInTransaction(parentCtx, a.logger, a.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range reqs {
+				err = a.execMultiOperation(parentCtx, op, tx)
+				if err != nil {
+					return r, err
+				}
+			}
+			return r, nil
+		})
+		return err
 	}
+}
+
+func (a *sqliteDBAccess) execMultiOperation(parentCtx context.Context, op state.TransactionalStateOperation, db querier) (err error) {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return a.doSet(parentCtx, db, &req)
+	case state.DeleteRequest:
+		return a.doDelete(parentCtx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
+	}
+}
+
+// Close implements io.Closer.
+func (a *sqliteDBAccess) Close() (err error) {
+	errs := make([]error, 0)
 
 	if a.gc != nil {
-		return a.gc.Close()
+		err = a.gc.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return nil
+	if a.db != nil {
+		err = a.db.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *state.DeleteRequest) error {
@@ -574,7 +508,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 		return fmt.Errorf("missing key in delete operation")
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	var result sql.Result
 	if !req.HasETag() {

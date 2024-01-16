@@ -24,7 +24,7 @@ on:
       - 'release-*'
   pull_request:
     branches:
-      - 'master'
+      - 'main'
       - 'release-*'
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -120,7 +120,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -224,9 +224,10 @@ jobs:
 
     - name: Set up Go
       id: setup-go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
         go-version-file: 'go.mod'
+        cache: 'false'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -258,7 +259,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ matrix.source-pkg }}
+          -coverprofile=cover.out -covermode=set -tags=certtests -timeout=30m -coverpkg=${{ matrix.source-pkg }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then

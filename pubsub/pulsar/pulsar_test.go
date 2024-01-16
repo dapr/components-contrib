@@ -19,6 +19,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -35,10 +36,10 @@ func TestParsePulsarMetadata(t *testing.T) {
 	}
 	meta, err := parsePulsarMetadata(m)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", meta.Host)
-	assert.Equal(t, false, meta.EnableTLS)
-	assert.Equal(t, true, meta.DisableBatching)
+	assert.False(t, meta.EnableTLS)
+	assert.True(t, meta.DisableBatching)
 	assert.Equal(t, defaultTenant, meta.Tenant)
 	assert.Equal(t, defaultNamespace, meta.Namespace)
 	assert.Equal(t, 5*time.Second, meta.BatchingMaxPublishDelay)
@@ -57,7 +58,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
@@ -73,7 +74,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
@@ -89,7 +90,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
@@ -105,7 +106,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
@@ -124,7 +125,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 3)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
@@ -143,7 +144,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 1)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan.jsonschema"].value)
@@ -177,7 +178,7 @@ func TestParsePublishMetadata(t *testing.T) {
 		"deliverAfter": "60s",
 	}
 	msg, err := parsePublishMetadata(m, schemaMetadata{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	val, _ := time.ParseDuration("60s")
 	assert.Equal(t, val, msg.DeliverAfter)
@@ -190,7 +191,7 @@ func TestMissingHost(t *testing.T) {
 	m.Properties = map[string]string{"host": ""}
 	meta, err := parsePulsarMetadata(m)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, meta)
 	assert.Equal(t, "pulsar error: missing pulsar host", err.Error())
 }
@@ -200,7 +201,7 @@ func TestInvalidTLSInputDefaultsToFalse(t *testing.T) {
 	m.Properties = map[string]string{"host": "a", "enableTLS": "honk"}
 	meta, err := parsePulsarMetadata(m)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, meta)
 	assert.False(t, meta.EnableTLS)
 }
@@ -219,7 +220,7 @@ func TestValidTenantAndNS(t *testing.T) {
 	t.Run("test vaild tenant and namespace", func(t *testing.T) {
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testTenant, meta.Tenant)
 		assert.Equal(t, testNamespace, meta.Namespace)
 	})
@@ -229,8 +230,8 @@ func TestValidTenantAndNS(t *testing.T) {
 		p := Pulsar{metadata: *meta}
 		res := p.formatTopic(testTopic)
 
-		assert.Nil(t, err)
-		assert.Equal(t, true, meta.Persistent)
+		require.NoError(t, err)
+		assert.True(t, meta.Persistent)
 		assert.Equal(t, expectPersistentResult, res)
 	})
 
@@ -240,8 +241,8 @@ func TestValidTenantAndNS(t *testing.T) {
 		p := Pulsar{metadata: *meta}
 		res := p.formatTopic(testTopic)
 
-		assert.Nil(t, err)
-		assert.Equal(t, false, meta.Persistent)
+		require.NoError(t, err)
+		assert.False(t, meta.Persistent)
 		assert.Equal(t, expectNonPersistentResult, res)
 	})
 }
@@ -253,7 +254,7 @@ func TestEncryptionKeys(t *testing.T) {
 	t.Run("test encryption metadata", func(t *testing.T) {
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "111", meta.PrivateKey)
 		assert.Equal(t, "222", meta.PublicKey)
 		assert.Equal(t, "a,b", meta.Keys)

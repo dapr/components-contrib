@@ -31,7 +31,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"

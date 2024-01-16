@@ -15,13 +15,16 @@ package kafka_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/IBM/sarama"
+	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+	"github.com/riferrei/srclient"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -29,6 +32,7 @@ import (
 
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -53,9 +57,11 @@ const (
 	sidecarName1      = "dapr-1"
 	sidecarName2      = "dapr-2"
 	sidecarName3      = "dapr-3"
+	sidecarNameAvro   = "dapr-avro"
 	appID1            = "app-1"
 	appID2            = "app-2"
 	appID3            = "app-3"
+	appIDAvro         = "app-avro"
 	clusterName       = "kafkacertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numMessages       = 1000
@@ -63,9 +69,18 @@ const (
 	portOffset        = 2
 	messageKey        = "partitionKey"
 
-	pubsubName = "messagebus"
-	topicName  = "neworder"
+	pubsubName    = "messagebus"
+	topicName     = "neworder"
+	avroTopicName = "my-topic"
+
+	schemaRegistryURL = "http://localhost:8081"
+	testSchema        = `{"type": "record", "name": "cupcake", "fields": [{"name": "flavor", "type": "string"}, {"name": "created_date", "type": {"type": "long","logicalType": "timestamp-millis"}}]}`
 )
+
+type ComplexType struct {
+	CreatedDate int64  `json:"created_date"`
+	Flavor      string `json:"flavor"`
+}
 
 var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
@@ -75,6 +90,8 @@ func TestKafka(t *testing.T) {
 	// This watcher is across multiple consumers in the same group
 	// so exact ordering is not expected.
 	consumerGroup2 := watcher.NewUnordered()
+
+	consumerGroupAvro := watcher.NewOrdered()
 
 	// Application logic that tracks messages from a topic.
 	application := func(appName string, watcher *watcher.Watcher) app.SetupFn {
@@ -86,7 +103,7 @@ func TestKafka(t *testing.T) {
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
 					PubsubName: "messagebus",
-					Topic:      "neworder",
+					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					if err := sim(); err != nil {
@@ -96,6 +113,31 @@ func TestKafka(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					watcher.Observe(e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	// Application logic that tracks messages from a topic.
+	applicationAvro := func(appName string, watcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: "messagebus",
+					Topic:      avroTopicName,
+					Route:      "/my-topic-handler",
+					Metadata:   map[string]string{"valueSchemaType": "Avro", "rawPayload": "true"},
+				}, func(c context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("======== %s received event: %s", appName, e.Data)
+					// Track/Observe the data of the event.
+					// Data comes back as a []uint8 so needs to unmarshal it first so it matches
+					dataStr := fmt.Sprintf("%s", e.Data)
+					var dataObj ComplexType
+					json.Unmarshal([]byte(dataStr), &dataObj)
+					watcher.Observe(dataObj)
 					return false, nil
 				}),
 			)
@@ -138,6 +180,48 @@ func TestKafka(t *testing.T) {
 				err := client.PublishEvent(
 					ctx, pubsubName, topicName, msg,
 					dapr.PublishEventWithMetadata(metadata))
+				require.NoError(ctx, err, "error publishing message")
+			}
+
+			// Do the messages we observed match what we expect?
+			for _, m := range watchers {
+				m.Assert(ctx, time.Minute)
+			}
+
+			return nil
+		}
+	}
+
+	// Test logic that sends messages to a topic and
+	// verifies the application has received them.
+	sendRecvAvroTest := func(watchers ...*watcher.Watcher) flow.Runnable {
+		md := map[string]string{messageKey: "testAvro"}
+
+		return func(ctx flow.Context) error {
+			client := sidecar.GetClient(ctx, sidecarNameAvro)
+
+			// Declare what is expected BEFORE performing any steps
+			// that will satisfy the test.
+			msgs := make([]interface{}, numMessages)
+
+			for i := range msgs {
+				msg := ComplexType{CreatedDate: time.Now().UnixMilli(), Flavor: fmt.Sprintf("chocolate %03d", i)}
+				msgs[i] = msg
+			}
+			for _, m := range watchers {
+				m.Expect(msgs...)
+			}
+
+			// Avoiding messages to be wrapped as CloudEvent
+			md["rawPayload"] = "true"
+			md["valueSchemaType"] = "Avro"
+
+			// Send events that the application above will observe.
+			ctx.Log("Sending messages!")
+			for _, msg := range msgs {
+				err := client.PublishEvent(
+					ctx, pubsubName, avroTopicName, msg,
+					dapr.PublishEventWithMetadata(md))
 				require.NoError(ctx, err, "error publishing message")
 			}
 
@@ -237,6 +321,13 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("Publish Avro schema", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			srClient := srclient.CreateSchemaRegistryClient(schemaRegistryURL)
+			subjectName := "my-topic-value"
+			_, err := srClient.CreateSchema(subjectName, testSchema, srclient.Avro)
+			return err
+		})).
 		//
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
@@ -244,11 +335,12 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		//
 		// Run the second application.
@@ -257,17 +349,37 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
 		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
+		// Run the avro consumer
+		Step(app.Run(appIDAvro, fmt.Sprintf(":%d", appPort+portOffset*3),
+			applicationAvro(appIDAvro, consumerGroupAvro))).
+		//
+		// Run the Dapr sidecar with the Kafka component.
+		Step(sidecar.Run(sidecarNameAvro,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumerAvro"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
+		)).
+		Step("reset", flow.Reset(consumerGroupAvro)).
+		//
+		// Send messages with random keys to test message consumption
+		// across more than one consumer group and consumers per group.
+		Step("send avro messages and wait(in-order)", sendRecvAvroTest(consumerGroupAvro)).
 		//
 		// Run the third application.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
@@ -275,12 +387,13 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*2)),
+			)...,
 		)).
 		Step("reset", flow.Reset(consumerGroup2)).
 		//
@@ -341,14 +454,14 @@ func TestKafka(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_kafka.NewKafka, "kafka")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
 	}
 }

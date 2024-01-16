@@ -352,7 +352,6 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:         "queue1",
 			expectedQueueEndpointURL:  "",
-			expectedTTL:               ptr.Of(time.Duration(0)),
 			expectedPollingInterval:   defaultPollingInterval,
 			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
@@ -394,7 +393,12 @@ func TestParseMetadata(t *testing.T) {
 			require.NoError(t, err)
 			// assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
-			assert.Equal(t, tt.expectedTTL, meta.TTL)
+			if tt.expectedTTL != nil {
+				_ = assert.NotNil(t, meta.TTL, "Expected TTL to be %v", *tt.expectedTTL) &&
+					assert.Equal(t, *tt.expectedTTL, *meta.TTL)
+			} else if meta.TTL != nil {
+				assert.Failf(t, "Expected TTL to be nil", "Value was %v", *meta.TTL)
+			}
 			assert.Equal(t, tt.expectedQueueEndpointURL, meta.QueueEndpoint)
 			assert.Equal(t, tt.expectedVisibilityTimeout, meta.VisibilityTimeout)
 		})

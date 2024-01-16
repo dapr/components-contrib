@@ -87,7 +87,7 @@ type rabbitMQMetadata struct {
 	PrefetchCount    int            `mapstructure:"prefetchCount"`
 	MaxPriority      *uint8         `mapstructure:"maxPriority"` // Priority Queue deactivated if nil
 	ReconnectWait    time.Duration  `mapstructure:"reconnectWaitInSeconds"`
-	DefaultQueueTTL  *time.Duration `mapstructure:"ttlInSeconds"`
+	DefaultQueueTTL  *time.Duration `mapstructure:"ttl" mapstructurealiases:"ttlInSeconds"`
 	CaCert           string         `mapstructure:"caCert"`
 	ClientCert       string         `mapstructure:"clientCert"`
 	ClientKey        string         `mapstructure:"clientKey"`

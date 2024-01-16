@@ -42,13 +42,13 @@ metadata:
     description: "Enables or disables auto-delete."
     default: 'false'
     example: '"true", "false"'
-  - name: ttlInSeconds
-    type: number
+  - name: ttl
+    type: duration
     description: |
       Set the default message time to live at RabbitMQ queue level.
       If this parameter is omitted, messages won't expire, continuing
       to exist on the queue until processed.
-    example: '60'
+    example: '60s'
     url:
       title: "RabbitMQ Time-To-Live and Expiration"
       url: "https://www.rabbitmq.com/ttl.html"

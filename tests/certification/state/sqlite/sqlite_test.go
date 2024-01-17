@@ -64,7 +64,7 @@ const (
 
 	// Update this constant if you add more migrations
 	// Don't forget to also run the utility `artifacts/update_readonlydb.go` to update the read-only DB
-	migrationLevel = "2"
+	migrationLevel = "1"
 )
 
 func TestSQLite(t *testing.T) {

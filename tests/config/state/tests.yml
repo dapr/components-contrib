@@ -55,7 +55,7 @@ components:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: sqlite
-    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
     operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mariadb

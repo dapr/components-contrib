@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -782,24 +783,16 @@ func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequ
 	case 1:
 		return m.execMultiOperation(ctx, request.Operations[0], m.db)
 	default:
-		tx, err := m.db.Begin()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-				m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		_, err := sqltransactions.ExecuteInTransaction(ctx, m.logger, m.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = m.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
 			}
-		}()
-
-		for _, op := range request.Operations {
-			err = m.execMultiOperation(ctx, op, tx)
-			if err != nil {
-				return err
-			}
-		}
-		return tx.Commit()
+			return r, nil
+		})
+		return err
 	}
 }
 

@@ -50,14 +50,14 @@ metadata:
       Set the interval to poll Azure Storage Queues for new messages
     example: '"30s"'
     default: '"10s"'
-  - name: "ttlInSeconds"
-    type: number
+  - name: "ttl"
+    type: duration
     description: |
-      Set the default message Time To Live (TTL), in seconds.
+      Set the default message Time To Live (TTL).
       If empty, messages expire after 10 minutes.
-      It's also possible to specify a per-message TTL by setting the `ttlInSeconds` property in the invocation request's metadata.
-    example: '30'
-    default: '600'
+      It's also possible to specify a per-message TTL by setting the `ttl` property in the invocation request's metadata.
+    example: '30s'
+    default: '10m'
     binding:
       output: true
       input: false

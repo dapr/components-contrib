@@ -23,20 +23,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/dapr/kit/ptr"
-
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	jsoniterator "github.com/json-iterator/go"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/ptr"
 )
 
 // StateStore is a DynamoDB state store.
@@ -83,7 +81,7 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 		return err
 	}
 
-	// We have this check because we need to set the client to  a mock in tests
+	// This check is needed because d.client is set to a mock in tests
 	if d.client == nil {
 		d.client, err = d.getClient(meta)
 		if err != nil {
@@ -104,23 +102,12 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // validateConnection runs a dummy Get operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
 func (d *StateStore) validateTableAccess(ctx context.Context) error {
-	var tableName string
-	if random, err := uuid.NewRandom(); err == nil {
-		tableName = random.String()
-	} else {
-		// We would get to this block if the entropy pool is empty.
-		// We don't want to fail initialising Dapr because of it though,
-		// since it's a dummy table that is only needed to check access, anyway
-		// So we'll just use a hardcoded table name
-		tableName = "dapr-test-table"
-	}
-
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: ptr.Of(false),
 		TableName:      ptr.Of(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
 			d.partitionKey: {
-				S: ptr.Of(tableName),
+				S: ptr.Of(utils.GetRandOrDefaultString("dapr-test-table")),
 			},
 		},
 	}

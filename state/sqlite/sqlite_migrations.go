@@ -16,45 +16,16 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
-	"strings"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	sqlitemigrations "github.com/dapr/components-contrib/common/component/sql/migrations/sqlite"
 	"github.com/dapr/kit/logger"
-
-	sqlite3 "modernc.org/sqlite"
 )
 
 type migrationOptions struct {
 	StateTableName    string
 	MetadataTableName string
-}
-
-func registerFuntions() {
-	sqlite3.RegisterDeterministicScalarFunction(
-		"parse_key_prefix",
-		1,
-		func(ctx *sqlite3.FunctionContext, args []driver.Value) (driver.Value, error) {
-			var s1 string
-			switch arg0 := args[0].(type) {
-			case string:
-				s1 = arg0
-			default:
-				return "", fmt.Errorf("expected argv[0] to be text")
-			}
-			if len(s1) == 0 {
-				return "", fmt.Errorf("cannot create prefix for empty string")
-			}
-
-			lastIndex := strings.LastIndex(s1, "||")
-			if lastIndex != -1 {
-				return s1[:lastIndex+2], nil
-			}
-			return "", nil
-		},
-	)
 }
 
 // Perform the required migrations
@@ -90,23 +61,5 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 			}
 			return nil
 		},
-		// Migration 1: add the "prefix" column
-		func(ctx context.Context) error {
-			// Add the "prefix" column that can be used by DeleteWithPrefix
-			logger.Infof("Adding 'prefix' column to table '%s'", opts.StateTableName)
-			_, err := m.GetConn().ExecContext(
-				ctx,
-				fmt.Sprintf(
-					`ALTER TABLE %[1]s ADD COLUMN prefix TEXT GENERATED ALWAYS AS (parse_key_prefix(key)) VIRTUAL;
-					 CREATE INDEX %[1]s_prefix_index ON %[1]s(prefix) WHERE prefix != ""`,
-					opts.StateTableName,
-				),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create virtual column: %w", err)
-			}
-			return nil
-		},
-	},
-	)
+	})
 }

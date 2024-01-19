@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -768,40 +769,42 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 	return key, value, &etag, expireTime, nil
 }
 
-// Multi handles multiple transactions.
-// TransactionalStore Interface.
+// Multi handles multiple operations in batch.
+// Implements the TransactionalStore Interface.
 func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
+	if request == nil {
+		return nil
+	}
+
+	// If there's only 1 operation, skip starting a transaction
+	switch len(request.Operations) {
+	case 0:
+		return nil
+	case 1:
+		return m.execMultiOperation(ctx, request.Operations[0], m.db)
+	default:
+		_, err := sqltransactions.ExecuteInTransaction(ctx, m.logger, m.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range request.Operations {
+				err = m.execMultiOperation(ctx, op, tx)
+				if err != nil {
+					return r, err
+				}
+			}
+			return r, nil
+		})
 		return err
 	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
+}
 
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = m.setValue(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		case state.DeleteRequest:
-			err = m.deleteValue(ctx, tx, &req)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation())
-		}
+func (m *MySQL) execMultiOperation(ctx context.Context, op state.TransactionalStateOperation, db querier) error {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return m.setValue(ctx, db, &req)
+	case state.DeleteRequest:
+		return m.deleteValue(ctx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
-
-	return tx.Commit()
 }
 
 // Close implements io.Closer.

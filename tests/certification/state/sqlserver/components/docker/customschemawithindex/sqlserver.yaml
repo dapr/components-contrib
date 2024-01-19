@@ -5,11 +5,11 @@ metadata:
 spec:
   type: state.sqlserver
   metadata:
-  - name: connectionString
+  - name: url
     value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;Connection Timeout=30;"
   - name: databaseName
     value: certificationtest
-  - name: schema
+  - name: schemaName
     value: customschema
   - name: tableName
     value: mystates

@@ -14,18 +14,12 @@ limitations under the License.
 package secretstores
 
 import (
-	"golang.org/x/exp/slices"
+	"github.com/dapr/components-contrib/common/features"
 )
-
-// Feature names a feature that can be implemented by Secret Store components.
-type Feature string
 
 const (
 	// FeatureMultipleKeyValuesPerSecret advertises that this SecretStore supports multiple keys-values under a single secret.
 	FeatureMultipleKeyValuesPerSecret Feature = "MULTIPLE_KEY_VALUES_PER_SECRET"
 )
 
-// IsPresent checks if a given feature is present in the list.
-func (f Feature) IsPresent(features []Feature) bool {
-	return slices.Contains(features, f)
-}
+type Feature = features.Feature[SecretStore]

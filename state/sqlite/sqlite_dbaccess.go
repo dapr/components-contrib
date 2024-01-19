@@ -31,6 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -45,7 +46,6 @@ type DBAccess interface {
 	Delete(ctx context.Context, req *state.DeleteRequest) error
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
-	DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error)
 	Close() error
 }
 
@@ -79,7 +79,6 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	registerFuntions()
 	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
@@ -420,58 +419,36 @@ func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return a.doDelete(ctx, a.db, req)
 }
 
-func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	if req.Prefix == "" {
-		return state.DeleteWithPrefixResponse{}, fmt.Errorf("missing prefix in delete with prefix operation")
-	}
-	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
-	defer cancel()
-
-	err := req.Validate()
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
-	//nolint:gosec
-	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?",
-		req.Prefix)
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return state.DeleteWithPrefixResponse{}, err
-	}
-
-	return state.DeleteWithPrefixResponse{Count: rows}, nil
-}
-
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
-	tx, err := a.db.BeginTx(parentCtx, nil)
-	if err != nil {
+	// If there's only 1 operation, skip starting a transaction
+	switch len(reqs) {
+	case 0:
+		return nil
+	case 1:
+		return a.execMultiOperation(parentCtx, reqs[0], a.db)
+	default:
+		_, err := sqltransactions.ExecuteInTransaction(parentCtx, a.logger, a.db, func(ctx context.Context, tx *sql.Tx) (r struct{}, err error) {
+			for _, op := range reqs {
+				err = a.execMultiOperation(parentCtx, op, tx)
+				if err != nil {
+					return r, err
+				}
+			}
+			return r, nil
+		})
 		return err
 	}
-	defer tx.Rollback()
+}
 
-	for _, o := range reqs {
-		switch req := o.(type) {
-		case state.SetRequest:
-			err = a.doSet(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		case state.DeleteRequest:
-			err = a.doDelete(parentCtx, tx, &req)
-			if err != nil {
-				return err
-			}
-		default:
-			// Do nothing
-		}
+func (a *sqliteDBAccess) execMultiOperation(parentCtx context.Context, op state.TransactionalStateOperation, db querier) (err error) {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return a.doSet(parentCtx, db, &req)
+	case state.DeleteRequest:
+		return a.doDelete(parentCtx, db, &req)
+	default:
+		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
-	return tx.Commit()
 }
 
 // Close implements io.Closer.

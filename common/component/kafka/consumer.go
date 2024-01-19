@@ -29,12 +29,15 @@ import (
 )
 
 type consumer struct {
-	k       *Kafka
-	ready   chan bool
-	running chan struct{}
-	stopped atomic.Bool
-	once    sync.Once
-	mutex   sync.Mutex
+	k             *Kafka
+	ready         chan bool
+	running       chan struct{}
+	stopped       atomic.Bool
+	once          sync.Once
+	mutex         sync.Mutex
+	skipConsume   bool
+	consumeCtx    context.Context
+	consumeCancel context.CancelFunc
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
@@ -138,15 +141,18 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	for i, message := range messages {
 		if message != nil {
-			metadata := make(map[string]string, len(message.Headers))
-			if message.Headers != nil {
-				for _, t := range message.Headers {
-					metadata[string(t.Key)] = string(t.Value)
-				}
+			metadata := GetEventMetadata(message)
+			handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
+			if err != nil {
+				return err
+			}
+			messageVal, err := consumer.k.DeserializeValue(message, handlerConfig)
+			if err != nil {
+				return err
 			}
 			childMessage := KafkaBulkMessageEntry{
 				EntryId:  strconv.Itoa(i),
-				Event:    message.Value,
+				Event:    messageVal,
 				Metadata: metadata,
 			}
 			messageValues[i] = childMessage
@@ -186,22 +192,40 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	if !handlerConfig.IsBulkSubscribe && handlerConfig.Handler == nil {
 		return errors.New("invalid handler config for subscribe call")
 	}
+
+	messageVal, err := consumer.k.DeserializeValue(message, handlerConfig)
+	if err != nil {
+		return err
+	}
 	event := NewEvent{
 		Topic: message.Topic,
-		Data:  message.Value,
+		Data:  messageVal,
 	}
-	// This is true only when headers are set (Kafka > 0.11)
-	if len(message.Headers) > 0 {
-		event.Metadata = make(map[string]string, len(message.Headers))
-		for _, header := range message.Headers {
-			event.Metadata[string(header.Key)] = string(header.Value)
-		}
-	}
+	event.Metadata = GetEventMetadata(message)
+
 	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")
 	}
 	return err
+}
+
+func GetEventMetadata(message *sarama.ConsumerMessage) map[string]string {
+	if message != nil {
+		metadata := make(map[string]string, len(message.Headers)+5)
+		if message.Key != nil {
+			metadata[keyMetadataKey] = string(message.Key)
+		}
+		metadata[offsetMetadataKey] = strconv.FormatInt(message.Offset, 10)
+		metadata[topicMetadataKey] = message.Topic
+		metadata[timestampMetadataKey] = strconv.FormatInt(message.Timestamp.UnixMilli(), 10)
+		metadata[partitionMetadataKey] = strconv.FormatInt(int64(message.Partition), 10)
+		for _, header := range message.Headers {
+			metadata[string(header.Key)] = string(header.Value)
+		}
+		return metadata
+	}
+	return nil
 }
 
 func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
@@ -261,71 +285,93 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 	k.subscribeLock.Lock()
 	defer k.subscribeLock.Unlock()
 
-	// Close resources and reset synchronization primitives
-	k.closeSubscriptionResources()
-
 	topics := k.subscribeTopics.TopicList()
 	if len(topics) == 0 {
 		// Nothing to subscribe to
 		return nil
 	}
+	k.consumer.skipConsume = true
 
-	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-	if err != nil {
-		return err
+	ctxCreateFn := func() {
+		consumeCtx, cancel := context.WithCancel(context.Background())
+
+		k.consumer.consumeCtx = consumeCtx
+		k.consumer.consumeCancel = cancel
+
+		k.consumer.skipConsume = false
 	}
 
-	k.cg = cg
-
-	ready := make(chan bool)
-	k.consumer = consumer{
-		k:       k,
-		ready:   ready,
-		running: make(chan struct{}),
-	}
-
-	go func() {
-		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
-
-		for {
-			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
-			// us out of the consume loop
-			if ctx.Err() != nil {
-				break
-			}
-
-			k.logger.Debugf("Starting loop to consume.")
-
-			// Consume the requested topics
-			bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
-			innerErr := retry.NotifyRecover(func() error {
-				if ctxErr := ctx.Err(); ctxErr != nil {
-					return backoff.Permanent(ctxErr)
-				}
-				return k.cg.Consume(ctx, topics, &(k.consumer))
-			}, bo, func(err error, t time.Duration) {
-				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
-			}, func() {
-				k.logger.Infof("Recovered consuming %v", topics)
-			})
-			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
-				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
-			}
-		}
-
-		k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
-		err := k.cg.Close()
+	if k.cg == nil {
+		cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
 		if err != nil {
-			k.logger.Errorf("Error closing consumer group: %v", err)
+			return err
 		}
 
-		// Ensure running channel is only closed once.
-		if k.consumer.stopped.CompareAndSwap(false, true) {
-			close(k.consumer.running)
-		}
-	}()
+		k.cg = cg
 
-	<-ready
+		ready := make(chan bool)
+		k.consumer = consumer{
+			k:       k,
+			ready:   ready,
+			running: make(chan struct{}),
+		}
+
+		ctxCreateFn()
+
+		go func() {
+			k.logger.Debugf("Subscribed and listening to topics: %s", topics)
+
+			for {
+				// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
+				// us out of the consume loop
+				if ctx.Err() != nil {
+					k.logger.Info("Consume context cancelled")
+					break
+				}
+
+				k.logger.Debugf("Starting loop to consume.")
+
+				if k.consumer.skipConsume {
+					continue
+				}
+
+				topics = k.subscribeTopics.TopicList()
+
+				// Consume the requested topics
+				bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
+				innerErr := retry.NotifyRecover(func() error {
+					if ctxErr := ctx.Err(); ctxErr != nil {
+						return backoff.Permanent(ctxErr)
+					}
+					return k.cg.Consume(k.consumer.consumeCtx, topics, &(k.consumer))
+				}, bo, func(err error, t time.Duration) {
+					k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+				}, func() {
+					k.logger.Infof("Recovered consuming %v", topics)
+				})
+				if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
+					k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
+				}
+			}
+
+			k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
+			err := k.cg.Close()
+			if err != nil {
+				k.logger.Errorf("Error closing consumer group: %v", err)
+			}
+
+			// Ensure running channel is only closed once.
+			if k.consumer.stopped.CompareAndSwap(false, true) {
+				close(k.consumer.running)
+			}
+		}()
+
+		<-ready
+	} else {
+		// The consumer group is already created and consuming topics. This means a new subscription is being added
+		k.consumer.consumeCancel()
+		ctxCreateFn()
+	}
 
 	return nil
 }

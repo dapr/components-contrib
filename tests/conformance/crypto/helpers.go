@@ -23,12 +23,12 @@ import (
 	"hash"
 	"io"
 	"log"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 type keybag struct {

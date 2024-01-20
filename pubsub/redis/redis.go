@@ -196,8 +196,8 @@ func (r *redisStreams) createRedisMessageWrapper(ctx context.Context, stream str
 
 	var metadata map[string]string
 	if metadataValue, exists := msg.Values["metadata"]; exists && metadataValue != nil {
-		metadataBytes := metadataValue.(string)
-		err := json.Unmarshal([]byte(metadataBytes), &metadata)
+		metadataStr := metadataValue.(string)
+		err := json.Unmarshal([]byte(metadataStr), &metadata)
 		if err != nil {
 			r.logger.Warnf("Could not extract metadata for Redis message %s: %v", msg.ID, err)
 		}

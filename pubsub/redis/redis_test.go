@@ -90,7 +90,7 @@ func TestProcessStreams(t *testing.T) {
 
 		// assert
 		assert.Equal(t, expectedData, string(msg.Data))
-		assert.Equal(t, expectedMetadata, string(msg.Metadata["mymetadata"]))
+		assert.Equal(t, expectedMetadata, msg.Metadata["mymetadata"])
 
 		// return fake error to skip executing redis client command
 		return errors.New("fake error")

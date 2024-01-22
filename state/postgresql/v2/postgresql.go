@@ -19,14 +19,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
-
+	"github.com/aws/aws-sdk-go-v2/aws"
+	aws_config "github.com/aws/aws-sdk-go-v2/config"
+	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
+	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/aws/aws-sdk-go/service/rds"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	sqlinternal "github.com/dapr/components-contrib/common/component/sql"
@@ -35,6 +37,22 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	createDatabaseTmpl = "CREATE DATABASE %s"
+	deleteDatabaseTmpl = "DROP DATABASE IF EXISTS %s WITH (FORCE)"
+)
+
+var (
+	// Define a regular expression to match the 'dbname' parameter in the connection string
+	databaseNameRegex = regexp.MustCompile(`\bdbname=([^ ]+)\b`)
+	userRegex         = regexp.MustCompile(`\buser=([^ ]+)\b`)
+	passwordRegex     = regexp.MustCompile(`\bpassword=([^ ]+)\b`)
 )
 
 // PostgreSQL state store.
@@ -48,12 +66,21 @@ type PostgreSQL struct {
 	gc sqlinternal.GarbageCollector
 
 	enableAzureAD bool
+
+	enableAWSIAM bool
+
+	// TODO(@Sam): clean up bc I don't think I'm using this!
+	awsClient *rds.RDS
 }
 
 type Options struct {
 	// Disables support for authenticating with Azure AD
 	// This should be set to "false" when targeting different databases than PostgreSQL (such as CockroachDB)
 	NoAzureAD bool
+
+	// Disables support for authenticating with AWS IAM
+	// This should be set to "false" when targeting different databases than PostgreSQL (such as CockroachDB)
+	NoAWSIAM bool
 }
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store v2 with the default options.
@@ -68,32 +95,189 @@ func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) stat
 	s := &PostgreSQL{
 		logger:        logger,
 		enableAzureAD: !opts.NoAzureAD,
+		enableAWSIAM:  !opts.NoAWSIAM,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
+func (p *PostgreSQL) parseDatabaseFromConnectionString(connectionString string) (string, error) {
+	match := databaseNameRegex.FindStringSubmatch(connectionString)
+	if len(match) < 2 {
+		return "", fmt.Errorf("unable to find database name ('dbname' field) in the connection string")
+	}
+
+	// Return the value after "dbname="
+	return match[1], nil
+}
+
+func (p *PostgreSQL) getAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig) (string, error) {
+	var dbEndpoint string = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
+
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
+	// Default to load default config through aws credentials file (~/.aws/credentials)
+	awsCfg, _ := aws_config.LoadDefaultConfig(ctx)
+	// TODO(@Sam): need to reallow this above!
+	// if err != nil {
+
+	// otherwise use metadata fields
+	// if p.awsClient != nil {
+
+	// Check if access key and secret access key are set
+	accessKey := p.metadata.AWSAccessKey
+	secretKey := p.metadata.AWSSecretKey
+
+	// Validate if access key and secret access key are provided
+	if accessKey == "" || secretKey == "" {
+		return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey")
+	}
+
+	// Set credentials explicitly
+	var awsCfg2 aws.CredentialsProvider
+	awsCfg2 = aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
+	if awsCfg2 == nil {
+		return "", fmt.Errorf("failed to get accessKey and secretKey for AWS")
+
+	} /* else {
+		return "", fmt.Errorf("failed to load default configuration for AWS: %v", err)
+	}*/
+	// }
+
+	authenticationToken, err := aws_auth.BuildAuthToken(
+		ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg2)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AWS authentication token: %v", err)
+	}
+
+	return authenticationToken, nil
+}
+
+// Replace the value of 'database' with 'postgres'
+func (p *PostgreSQL) getPostgresDBConnString(connString string) string {
+	newConnStr := userRegex.ReplaceAllString(connString, "user=postgres")
+	return databaseNameRegex.ReplaceAllString(newConnStr, "dbname=postgres")
+}
+
+func (p *PostgreSQL) getClient(dbEndpoint string) (*rds.RDS, error) {
+	meta := p.metadata
+	sess, err := awsAuth.GetClient(meta.AWSAccessKey, meta.AWSSecretKey, meta.AWSSessionToken, meta.AWSRegion, dbEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	c := rds.New(sess)
+
+	return c, nil
+}
+
 // Init sets up Postgres connection and performs migrations
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
+	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, p.enableAWSIAM)
 	if err != nil {
-		p.logger.Errorf("Failed to parse metadata: %v", err)
+		p.logger.Errorf("failed to parse metadata: %v", err)
 		return err
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig()
+	masterConnStr := p.getPostgresDBConnString(p.metadata.ConnectionString)
+	// TODO(@Sam): clean up and remove the second version of the func below!
+	config, err := p.metadata.GetPgxPoolConfig2(masterConnStr)
 	if err != nil {
 		p.logger.Error(err)
 		return err
 	}
 
+	var dbEndpoint string = fmt.Sprintf("%s:%d", config.ConnConfig.Host, config.ConnConfig.Port)
+	rdsClient, err := p.getClient(dbEndpoint)
+	if err != nil {
+		return err
+	}
+	p.awsClient = rdsClient
+
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
-	connCancel()
+	defer connCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
 		p.logger.Error(err)
 		return err
+	}
+
+	// TODO(@Sam): create helpers to check & create db/user/grant roles! & consts for queries
+	if p.enableAWSIAM {
+		// Parse database name from connection string
+		dbName, err := p.parseDatabaseFromConnectionString(p.metadata.ConnectionString)
+		if err != nil {
+			return fmt.Errorf("failed to parse database name from connection string to create database %v", err)
+		}
+
+		// check if database exists in connection string
+		var dbExists bool
+		dbExistsCtx, dbExistsCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+		err = p.db.QueryRow(dbExistsCtx, "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", dbName).Scan(&dbExists)
+		dbExistsCancel()
+		if err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("failed to check if the PostgreSQL database %s exists: %v", dbName, err)
+		}
+
+		// Create database if needed using master password in connection string
+		if !dbExists {
+			createDbCtx, createDbCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+			_, err := p.db.Exec(createDbCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
+			createDbCancel()
+			if err != nil {
+				return fmt.Errorf("failed to create PostgreSQL user: %v", err)
+			}
+		}
+
+		// Check if the user exists
+		var userExists bool
+		err = p.db.QueryRow(ctx, "SELECT CAST((SELECT 1 FROM pg_roles WHERE rolname = $1) AS BOOLEAN)", dbName).Scan(&userExists)
+		if err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("failed to check if the PostgreSQL user %s exists: %v", dbName, err)
+		}
+
+		// Create the user if it doesn't exist
+		if !userExists {
+			_, err := p.db.Exec(ctx, fmt.Sprintf("CREATE USER %v", dbName))
+			if err != nil {
+				return fmt.Errorf("failed to create PostgreSQL user: %v", err)
+			}
+		}
+
+		// Check if the role is already granted
+		var roleGranted bool
+		awsRole := "rds_iam"
+		err = p.db.QueryRow(ctx, "SELECT 1 FROM pg_roles WHERE rolname = $1 AND 'rds_iam' = rolname", dbName).Scan(&roleGranted)
+		if err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("failed to check if the role %v is already granted to the PostgreSQL user %s: %v", awsRole, dbName, err)
+		}
+
+		// Grant the role if it's not already granted
+		if !roleGranted {
+			_, err := p.db.Exec(ctx, fmt.Sprintf("GRANT %v TO %v", awsRole, dbName))
+			if err != nil {
+				return fmt.Errorf("failed to grant PostgreSQL user role: %v", err)
+			}
+		}
+
+		// Set max connection lifetime to 14 minutes in postgres connection pool configuration.
+		// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
+		// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
+		config.MaxConnLifetime = time.Minute * 14
+
+		// Setup connection pool config needed for AWS IAM authentication
+		config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
+
+			// Manually reset auth token with aws and reset the config password using the new iam token
+			pwd, err := p.getAccessToken(ctx, pgConfig)
+			if err != nil {
+				return fmt.Errorf("failed to refresh access token for iam authentication with postgresql: %v", err)
+			}
+
+			pgConfig.Password = pwd
+			return nil
+		}
+
+		// TODO: add clean up hooks on user/db?
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)

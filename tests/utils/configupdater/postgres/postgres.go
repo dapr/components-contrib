@@ -87,8 +87,9 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 	md := pgauth.PostgresAuthMetadata{
 		ConnectionString: props["connectionString"],
 		UseAzureAD:       utils.IsTruthy(props["useAzureAD"]),
+		// TODO(@Sam): do i update here for aws iam?
 	}
-	err := md.InitWithMetadata(props, true)
+	err := md.InitWithMetadata(props, true, true)
 	if err != nil {
 		return err
 	}

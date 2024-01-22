@@ -32,8 +32,8 @@ func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	}
 
 	// Validate and sanitize input
-	// Azure AD auth is supported for this component
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true)
+	// Azure AD & AWS IAM auth is supported for this component
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true, true)
 	if err != nil {
 		return err
 	}

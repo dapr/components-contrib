@@ -41,9 +41,20 @@ type pgMetadata struct {
 	MetadataTableName string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
+
+	// AWS IAM related
+	// Ignored by metadata parser because included in built-in authentication profile
+	// access key to use for accessing sqs/sns.
+	AWSAccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey" mdignore:"true"`
+	// secret key to use for accessing sqs/sns.
+	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey" mdignore:"true"`
+	// aws session token to use.
+	AWSSessionToken string `mapstructure:"awsSessionToken" mdignore:"true"`
+	// aws region in which SNS/SQS should create resources.
+	AWSRegion string `mapstructure:"awsRegion"`
 }
 
-func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
+func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled, awsIAMEnabled bool) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
 	m.TablePrefix = ""
@@ -58,7 +69,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 	}
 
 	// Validate and sanitize input
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled)
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled, awsIAMEnabled)
 	if err != nil {
 		return err
 	}

@@ -19,12 +19,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/dapr/components-contrib/common/authentication/azure"
 )
+
+var log = logger.NewLogger("sam.logger")
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
 type PostgresAuthMetadata struct {
@@ -32,6 +35,7 @@ type PostgresAuthMetadata struct {
 	ConnectionMaxIdleTime time.Duration `mapstructure:"connectionMaxIdleTime"`
 	MaxConns              int           `mapstructure:"maxConns"`
 	UseAzureAD            bool          `mapstructure:"useAzureAD"`
+	UseAWSIAM             bool          `mapstructure:"useAWSIAM"`
 	QueryExecMode         string        `mapstructure:"queryExecMode"`
 
 	azureEnv azure.EnvironmentSettings
@@ -43,27 +47,31 @@ func (m *PostgresAuthMetadata) Reset() {
 	m.ConnectionMaxIdleTime = 0
 	m.MaxConns = 0
 	m.UseAzureAD = false
+	m.UseAWSIAM = false
 	m.QueryExecMode = ""
 }
 
 // InitWithMetadata inits the object with metadata from the user.
 // Set azureADEnabled to true if the component can support authentication with Azure AD.
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
-func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADEnabled bool) (err error) {
+func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADEnabled, awsIAMEnabled bool) (err error) {
+	fmt.Printf("sam.logger print statement")
+	log.Debugf("sam InitWithMetadata connection string %v %v", m.ConnectionString, m.UseAWSIAM)
 	// Validate input
-	if m.ConnectionString == "" {
-		return errors.New("missing connection string")
-	}
-
-	// Populate the Azure environment if using Azure AD
-	if azureADEnabled && m.UseAzureAD {
+	switch {
+	case azureADEnabled && m.UseAzureAD:
 		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
 		}
-	} else {
-		// Make sure this is false
+	case awsIAMEnabled && m.UseAWSIAM:
+		// Do y'all want the logic moved to moreso here instead of where I have it?
+	case m.ConnectionString == "":
+		return errors.New("missing connection string")
+	default:
+		// Make sure these are false
 		m.UseAzureAD = false
+		m.UseAWSIAM = false
 	}
 
 	return nil
@@ -73,6 +81,66 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADE
 func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 	// Get the config from the connection string
 	config, err := pgxpool.ParseConfig(m.ConnectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+	if m.ConnectionMaxIdleTime > 0 {
+		config.MaxConnIdleTime = m.ConnectionMaxIdleTime
+	}
+	if m.MaxConns > 1 {
+		config.MaxConns = int32(m.MaxConns)
+	}
+
+	if m.QueryExecMode != "" {
+		queryExecModes := map[string]pgx.QueryExecMode{
+			"cache_statement": pgx.QueryExecModeCacheStatement,
+			"cache_describe":  pgx.QueryExecModeCacheDescribe,
+			"describe_exec":   pgx.QueryExecModeDescribeExec,
+			"exec":            pgx.QueryExecModeExec,
+			"simple_protocol": pgx.QueryExecModeSimpleProtocol,
+		}
+		if mode, ok := queryExecModes[m.QueryExecMode]; ok {
+			config.ConnConfig.DefaultQueryExecMode = mode
+		} else {
+			return nil, fmt.Errorf("invalid queryExecMode metadata value: %s", m.QueryExecMode)
+		}
+	}
+
+	// Check if we should use Azure AD
+	if m.UseAzureAD {
+		tokenCred, errToken := m.azureEnv.GetTokenCredential()
+		if errToken != nil {
+			return nil, errToken
+		}
+
+		// Reset the password
+		config.ConnConfig.Password = ""
+
+		// We need to retrieve the token every time we attempt a new connection
+		// This is because tokens expire, and connections can drop and need to be re-established at any time
+		// Fortunately, we can do this with the "BeforeConnect" hook
+		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{
+					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
+				},
+			})
+			if err != nil {
+				return err
+			}
+
+			cc.Password = at.Token
+			return nil
+		}
+	}
+
+	return config, nil
+}
+
+// GetPgxPoolConfig2 returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
+func (m *PostgresAuthMetadata) GetPgxPoolConfig2(connectionString string) (*pgxpool.Config, error) {
+	// Get the config from the connection string
+	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}

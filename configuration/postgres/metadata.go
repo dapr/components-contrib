@@ -55,8 +55,8 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 		return fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 	}
 
-	// Azure AD auth is supported for this component
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true)
+	// Azure AD & AWS IAM auth is supported for this component
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true, true)
 	if err != nil {
 		return err
 	}

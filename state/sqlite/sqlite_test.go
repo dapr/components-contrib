@@ -294,15 +294,6 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidEmptyDeleteWithPrefixRequest(t *testing.T) {
-	t.Parallel()
-
-	ods := createSqlite(t)
-	res, err := ods.DeleteWithPrefix(context.Background(), createDeleteWithPrefixRequest())
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), res.Count)
-}
-
 // Proves that the Ping method runs the ping method.
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
@@ -345,10 +336,6 @@ func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.G
 
 func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	return nil, nil
-}
-
-func (m *fakeDBaccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	return state.DeleteWithPrefixResponse{}, nil
 }
 
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
@@ -399,12 +386,6 @@ func createSetRequest() state.SetRequest {
 func createDeleteRequest() state.DeleteRequest {
 	return state.DeleteRequest{
 		Key: randomKey(),
-	}
-}
-
-func createDeleteWithPrefixRequest() state.DeleteWithPrefixRequest {
-	return state.DeleteWithPrefixRequest{
-		Prefix: randomKey(),
 	}
 }
 

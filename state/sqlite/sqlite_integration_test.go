@@ -140,10 +140,6 @@ func TestSqliteIntegration(t *testing.T) {
 		multiWithSetOnly(t, s)
 	})
 
-	t.Run("Delete with Prefix (actor state)", func(t *testing.T) {
-		testDeleteWithPrefix(t, s)
-	})
-
 	t.Run("ttlExpireTime", func(t *testing.T) {
 		getExpireTime(t, s)
 		getBulkExpireTime(t, s)
@@ -612,55 +608,6 @@ func setItemWithNoKey(t *testing.T, s state.Store) {
 
 	err := s.Set(context.Background(), setReq)
 	require.Error(t, err)
-}
-
-func testDeleteWithPrefix(t *testing.T, s state.Store) {
-	setReq1 := &state.SetRequest{
-		Key: "mock-app-id||mock-actor-type||mock-actor-id||key0",
-	}
-
-	setReq2 := &state.SetRequest{
-		Key: "mock-app-id||mock-actor-type||mock-actor-id||key1",
-	}
-
-	setReq3 := &state.SetRequest{
-		Key: "mock-app-id||mock-actor-type||mock-actor-id||key2",
-	}
-
-	setReq4 := &state.SetRequest{
-		Key: "different-app-id||different-actor-type||different-actor-id||key0",
-	}
-
-	delReq := state.DeleteWithPrefixRequest{
-		Prefix: "mock-app-id||mock-actor-type||mock-actor-id",
-	}
-
-	err := s.Set(context.Background(), setReq1)
-	require.NoError(t, err)
-
-	err = s.Set(context.Background(), setReq2)
-	require.NoError(t, err)
-
-	err = s.Set(context.Background(), setReq3)
-	require.NoError(t, err)
-
-	err = s.Set(context.Background(), setReq4)
-	require.NoError(t, err)
-
-	res, err := s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
-	require.NoError(t, err)
-	assert.Equal(t, int64(3), res.Count)
-
-	delReq = state.DeleteWithPrefixRequest{
-		Prefix: "different-app-id||different-actor-type||different-actor-id||",
-	}
-	res, err = s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), res.Count)
-
-	res, err = s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), res.Count)
 }
 
 func testSetItemWithInvalidTTL(t *testing.T, s state.Store) {

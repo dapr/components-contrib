@@ -555,9 +555,9 @@ func getPulsarURL(m *pulsarMetadata) string {
 		!strings.HasPrefix(m.Host, "pulsar+ssl://") &&
 		!strings.HasPrefix(m.Host, "pulsar://") {
 		if m.EnableTLS {
-			pulsarURL = fmt.Sprintf("%s%s", pulsarSSLPrefix, m.Host)
+			pulsarURL = pulsarSSLPrefix + m.Host
 		} else {
-			pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, m.Host)
+			pulsarURL = pulsarPrefix + m.Host
 		}
 	}
 	return pulsarURL

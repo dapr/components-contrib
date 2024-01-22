@@ -24,10 +24,10 @@ services:
       - ${PWD}/certificates/ca.cert.pem:/etc/pulsar/cert/ca.cert.pem
       - ${PWD}/certificates/broker.cert.pem:/etc/pulsar/cert/broker.cert.pem
       - ${PWD}/certificates/broker.key-pk8.pem:/etc/pulsar/cert/broker.key-pk8.pem
-      - pulsardata:/pulsar/data
-      - pulsarconf:/pulsar/conf
+      - pulsardataTLS:/pulsar/data
+      - pulsarconfTLS:/pulsar/conf
 volumes:
-  pulsardata:
-  pulsarconf:
+  pulsardataTLS:
+  pulsarconfTLS:
 
 

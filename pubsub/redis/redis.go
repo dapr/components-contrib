@@ -199,7 +199,7 @@ func (r *redisStreams) createRedisMessageWrapper(ctx context.Context, stream str
 		metadataStr := metadataValue.(string)
 		err := json.Unmarshal([]byte(metadataStr), &metadata)
 		if err != nil {
-			r.logger.Warnf("Could not extract metadata for Redis message %s: %v", msg.ID, err)
+			r.logger.Warnf("Redis PubSub: Could not extract metadata for Redis message %s: %v", msg.ID, err)
 		}
 	}
 

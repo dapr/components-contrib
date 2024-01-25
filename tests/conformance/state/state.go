@@ -44,7 +44,8 @@ type StructType struct {
 	Product struct {
 		Value int `json:"value"`
 	} `json:"product"`
-	Status string `json:"status"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type intValueType struct {
@@ -62,8 +63,10 @@ type scenario struct {
 }
 
 type queryScenario struct {
-	query   string
-	results []state.QueryItem
+	query         string
+	results       []state.QueryItem
+	metadata      map[string]string
+	partitionOnly bool
 }
 
 type TestConfig struct {
@@ -130,14 +133,19 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			key: fmt.Sprintf("%s-struct-operations", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 15}, Status: "ACTIVE"},
+			}{Value: 15}, Status: "ACTIVE", Message: fmt.Sprintf("%smessage", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
 			key: fmt.Sprintf("%s-struct-operations-inactive", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 12}, Status: "INACTIVE"},
+			}{Value: 12}, Status: "INACTIVE", Message: fmt.Sprintf("%smessage", key)},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key:         fmt.Sprintf("%s-struct-2", key),
+			value:       ValueType{Message: fmt.Sprintf("%stest", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
@@ -262,6 +270,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				"filter": {
 					"AND": [
 						{
+							"EQ": {"message": "` + key + `message"}
+						},
+						{
 							"GTE": {"product.value": 10}
 						},
 						{
@@ -277,7 +288,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct-operations", key),
-					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE"}`)),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE","message":"%smessage"}`, key)),
 				},
 			},
 		},
@@ -289,6 +300,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						{ 
 							"AND": [
 								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
 									"GT": {"product.value": 11.1}
 								},
 								{
@@ -298,6 +312,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						},
 						{ 
 							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
 								{
 									"LTE": {"product.value": 0.5}
 								},
@@ -313,7 +330,65 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
-					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE"}`)),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE","message":"%smessage"}`, key)),
+				},
+			},
+		},
+
+		// In CosmosDB this query uses the cross partition ( value with 2 different partitionKey <key>-struct and <key>-struct-2)
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [
+						{
+							"EQ": {"message": "` + key + `test"}
+						},
+						{
+							"IN": {"message": ["test` + key + `", "dummy"]}
+						}
+					]
+				}
+			}
+			`,
+			// Return 2 item from 2 different partitionKey (<key>-struct and <key>-struct-2), for default the partitionKey is equals to key
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct", key),
+					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
+				},
+				{
+					Key:  fmt.Sprintf("%s-struct-2", key),
+					Data: []byte(fmt.Sprintf(`{"message":"%stest"}`, key)),
+				},
+			},
+		},
+
+		// Test for CosmosDB (filter test with partitionOnly) this query doesn't use the cross partition ( value from 2 different partitionKey %s-struct and %s-struct-2)
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [
+						{
+							"EQ": {"message": "` + key + `test"}
+						},
+						{
+							"IN": {"message": ["test` + key + `", "dummy"]}
+						}
+					]
+				}
+			}
+			`,
+			metadata: map[string]string{
+				"partitionKey": fmt.Sprintf("%s-struct-2", key),
+			},
+			partitionOnly: true,
+			// The same query from previous test but return only item having the same partitionKey value (%s-struct-2) given in the metadata
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-2", key),
+					Data: []byte(fmt.Sprintf(`{"message":"%stest"}`, key)),
 				},
 			},
 		},
@@ -382,10 +457,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Check if query feature is listed
 			features := statestore.Features()
 			require.True(t, state.FeatureQueryAPI.IsPresent(features))
-
 			querier, ok := statestore.(state.Querier)
 			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
+				if (scenario.partitionOnly) && (!state.FeaturePartitionKey.IsPresent(features)) {
+					break
+				}
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
 				err := json.Unmarshal([]byte(scenario.query), &req.Query)
@@ -393,6 +470,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				req.Metadata = map[string]string{
 					metadata.ContentType:    contenttype.JSONContentType,
 					metadata.QueryIndexName: "qIndx",
+				}
+
+				if val, found := scenario.metadata["partitionKey"]; found {
+					req.Metadata["partitionKey"] = val
 				}
 
 				resp, err := querier.Query(context.Background(), &req)

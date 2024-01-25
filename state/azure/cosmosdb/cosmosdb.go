@@ -92,8 +92,11 @@ func (p crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, erro
 	// Check if we're performing a query
 	// In that case, remove the partitionkey header and enable cross-partition queries
 	if strings.ToLower(raw.Header.Get("x-ms-documentdb-query")) == "true" {
-		raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "true")
-		raw.Header.Del("x-ms-documentdb-partitionkey")
+		// Only when the partitionKey is fake (true), it will be removed amd enabled the cross partition
+		if strings.ToLower(raw.Header.Get("x-ms-documentdb-partitionkey")) == "[true]" {
+			raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "true")
+			raw.Header.Del("x-ms-documentdb-partitionkey")
+		}
 	}
 	return req.Next()
 }
@@ -206,6 +209,7 @@ func (c *StateStore) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureQueryAPI,
 		state.FeatureTTL,
+		state.FeaturePartitionKey,
 	}
 }
 
@@ -592,6 +596,12 @@ func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	qbuilder := query.NewQueryBuilder(q)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
+	}
+
+	// If present partitionKey, the value will be used in the query disabling the cross partition
+	q.partitionKey = ""
+	if val, found := req.Metadata[metadataPartitionKey]; found {
+		q.partitionKey = val
 	}
 
 	data, token, err := q.execute(ctx, c.client)

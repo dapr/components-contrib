@@ -34,9 +34,10 @@ type InternalQuery struct {
 }
 
 type Query struct {
-	query InternalQuery
-	limit int
-	token string
+	query        InternalQuery
+	limit        int
+	token        string
+	partitionKey string
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
@@ -264,7 +265,14 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 	}
 
 	items := []CosmosItem{}
-	pk := azcosmos.NewPartitionKeyBool(true)
+
+	var pk azcosmos.PartitionKey
+	if q.partitionKey != "" {
+		pk = azcosmos.NewPartitionKeyString(q.partitionKey)
+	} else {
+		pk = azcosmos.NewPartitionKeyBool(true)
+	}
+
 	queryPager := client.NewQueryItemsPager(q.query.query, pk, opts)
 
 	token := ""

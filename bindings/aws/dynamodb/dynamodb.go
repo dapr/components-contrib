@@ -16,6 +16,10 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/dapr/components-contrib/common/utils"
+	"github.com/dapr/kit/ptr"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,7 +35,7 @@ import (
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
 type DynamoDB struct {
-	client *dynamodb.DynamoDB
+	client dynamodbiface.DynamoDBAPI
 	table  string
 	logger logger.Logger
 }
@@ -51,21 +55,43 @@ func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing for DynamoDB.
-func (d *DynamoDB) Init(_ context.Context, metadata bindings.Metadata) error {
+func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	client, err := d.getClient(meta)
-	if err != nil {
-		return err
+	if d.client == nil {
+		d.client, err = d.getClient(meta)
+		if err != nil {
+			return err
+		}
 	}
 
-	d.client = client
 	d.table = meta.Table
 
+	if err := d.validateTableAccess(ctx); err != nil {
+		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
+	}
+
 	return nil
+}
+
+// validateConnection runs a dummy Get operation to validate the connection credentials,
+// as well as validating that the table exists, and we have access to it
+func (d *DynamoDB) validateTableAccess(ctx context.Context) error {
+	input := &dynamodb.GetItemInput{
+		ConsistentRead: ptr.Of(false),
+		TableName:      ptr.Of(d.table),
+		Key: map[string]*dynamodb.AttributeValue{
+			"key": {
+				S: ptr.Of(utils.GetRandOrDefaultString("dapr-test-table")),
+			},
+		},
+	}
+
+	_, err := d.client.GetItemWithContext(ctx, input)
+	return err
 }
 
 func (d *DynamoDB) Operations() []bindings.OperationKind {

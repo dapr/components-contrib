@@ -14,6 +14,10 @@ limitations under the License.
 package dynamodb
 
 import (
+	"context"
+	"errors"
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +25,41 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 )
+
+type mockedDynamoDB struct {
+	GetItemWithContextFn func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error)
+	dynamodb.DynamoDB
+}
+
+func (m *mockedDynamoDB) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+	return m.GetItemWithContextFn(ctx, input, op...)
+}
+
+func TestInit(t *testing.T) {
+	b := &DynamoDB{
+		table:  "test-table",
+		client: &mockedDynamoDB{},
+	}
+
+	t.Run("Init with bad table name or permissions", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"Table":  "does-not-exist",
+			"Region": "eu-west-1",
+		}
+
+		b.client = &mockedDynamoDB{
+			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+				return nil, errors.New("Requested resource not found")
+			},
+		}
+
+		err := b.Init(context.Background(), m)
+		require.Error(t, err)
+		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
+	})
+
+}
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}

@@ -175,61 +175,6 @@ func (p *PostgreSQL) getClient(dbEndpoint string) (*rds.RDS, error) {
 	return c, nil
 }
 
-func (p *PostgreSQL) checkDatabaseExists(ctx context.Context, dbName string) error {
-	// check if database exists in connection string
-	var dbExists bool
-	dbExistsCtx, dbExistsCancel := context.WithTimeout(ctx, p.metadata.Timeout)
-	err := p.db.QueryRow(dbExistsCtx, databaseExistsTmpl, dbName).Scan(&dbExists)
-	dbExistsCancel()
-	if err != nil && err != pgx.ErrNoRows {
-		return fmt.Errorf("failed to check if the PostgreSQL database %s exists: %v", dbName, err)
-	}
-
-	// Create database if needed using master password in connection string
-	if !dbExists {
-		createDbCtx, createDbCancel := context.WithTimeout(ctx, p.metadata.Timeout)
-		_, err := p.db.Exec(createDbCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
-		createDbCancel()
-		if err != nil {
-			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
-		}
-	}
-	return nil
-}
-func (p *PostgreSQL) checkDatabaseUser(ctx context.Context, dbName string) error {
-	var userExists bool
-	err := p.db.QueryRow(ctx, userExistsTmpl, dbName).Scan(&userExists)
-	if err != nil && err != pgx.ErrNoRows {
-		return fmt.Errorf("failed to check if the PostgreSQL user %s exists: %v", dbName, err)
-	}
-
-	// Create the user if it doesn't exist
-	if !userExists {
-		_, err := p.db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
-		if err != nil {
-			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
-		}
-	}
-	return nil
-}
-
-func (p *PostgreSQL) checkDatabaseRole(ctx context.Context, dbName string) error {
-	var roleGranted bool
-	err := p.db.QueryRow(ctx, checkRoleTmpl, dbName).Scan(&roleGranted)
-	if err != nil && err != pgx.ErrNoRows {
-		return fmt.Errorf("failed to check if the role %v is already granted to the PostgreSQL user %s: %v", awsRole, dbName, err)
-	}
-
-	// Grant the role if it's not already granted
-	if !roleGranted {
-		_, err := p.db.Exec(ctx, fmt.Sprintf(grantRoleTmpl, awsRole, dbName))
-		if err != nil {
-			return fmt.Errorf("failed to grant PostgreSQL user role: %v", err)
-		}
-	}
-	return nil
-}
-
 // Init sets up Postgres connection and performs migrations
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, p.enableAWSIAM)

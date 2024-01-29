@@ -27,8 +27,6 @@ import (
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
 	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	"github.com/aws/aws-sdk-go/service/rds"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	sqlinternal "github.com/dapr/components-contrib/common/component/sql"
@@ -162,17 +160,6 @@ func (p *PostgreSQL) getAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig) 
 func (p *PostgreSQL) getPostgresDBConnString(connString string) string {
 	newConnStr := userRegex.ReplaceAllString(connString, "user=postgres")
 	return databaseNameRegex.ReplaceAllString(newConnStr, "dbname=postgres")
-}
-
-func (p *PostgreSQL) getClient(dbEndpoint string) (*rds.RDS, error) {
-	meta := p.metadata
-	sess, err := awsAuth.GetClient(meta.AWSAccessKey, meta.AWSSecretKey, meta.AWSSessionToken, meta.AWSRegion, dbEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := rds.New(sess)
-
-	return c, nil
 }
 
 // Init sets up Postgres connection and performs migrations

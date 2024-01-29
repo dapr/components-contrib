@@ -52,6 +52,7 @@ type PostgreSQL struct {
 	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	etagColumn    string
 	enableAzureAD bool
+	enableAWSIAM  bool
 }
 
 type Options struct {
@@ -87,13 +88,13 @@ func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 
 // Init sets up Postgres connection and performs migrations.
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
+	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, false)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig()
+	config, err := p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
 	if err != nil {
 		p.logger.Error(err)
 		return err

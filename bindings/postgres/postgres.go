@@ -66,7 +66,7 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 
-	poolConfig, err := m.GetPgxPoolConfig()
+	poolConfig, err := m.GetPgxPoolConfig(m.ConnectionString)
 	if err != nil {
 		return fmt.Errorf("error opening DB connection: %w", err)
 	}

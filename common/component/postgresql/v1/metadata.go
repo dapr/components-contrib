@@ -39,7 +39,7 @@ type pgMetadata struct {
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 }
 
-func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
+func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool, awsIAMEnabled bool) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
 	m.TableName = defaultTableName
@@ -54,7 +54,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 	}
 
 	// Validate and sanitize input
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled)
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled, awsIAMEnabled)
 	if err != nil {
 		return err
 	}

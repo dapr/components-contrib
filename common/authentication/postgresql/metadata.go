@@ -78,67 +78,7 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADE
 }
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
-func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
-	// Get the config from the connection string
-	config, err := pgxpool.ParseConfig(m.ConnectionString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection string: %w", err)
-	}
-	if m.ConnectionMaxIdleTime > 0 {
-		config.MaxConnIdleTime = m.ConnectionMaxIdleTime
-	}
-	if m.MaxConns > 1 {
-		config.MaxConns = int32(m.MaxConns)
-	}
-
-	if m.QueryExecMode != "" {
-		queryExecModes := map[string]pgx.QueryExecMode{
-			"cache_statement": pgx.QueryExecModeCacheStatement,
-			"cache_describe":  pgx.QueryExecModeCacheDescribe,
-			"describe_exec":   pgx.QueryExecModeDescribeExec,
-			"exec":            pgx.QueryExecModeExec,
-			"simple_protocol": pgx.QueryExecModeSimpleProtocol,
-		}
-		if mode, ok := queryExecModes[m.QueryExecMode]; ok {
-			config.ConnConfig.DefaultQueryExecMode = mode
-		} else {
-			return nil, fmt.Errorf("invalid queryExecMode metadata value: %s", m.QueryExecMode)
-		}
-	}
-
-	// Check if we should use Azure AD
-	if m.UseAzureAD {
-		tokenCred, errToken := m.azureEnv.GetTokenCredential()
-		if errToken != nil {
-			return nil, errToken
-		}
-
-		// Reset the password
-		config.ConnConfig.Password = ""
-
-		// We need to retrieve the token every time we attempt a new connection
-		// This is because tokens expire, and connections can drop and need to be re-established at any time
-		// Fortunately, we can do this with the "BeforeConnect" hook
-		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
-			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{
-					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
-				},
-			})
-			if err != nil {
-				return err
-			}
-
-			cc.Password = at.Token
-			return nil
-		}
-	}
-
-	return config, nil
-}
-
-// GetPgxPoolConfig2 returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
-func (m *PostgresAuthMetadata) GetPgxPoolConfig2(connectionString string) (*pgxpool.Config, error) {
+func (m *PostgresAuthMetadata) GetPgxPoolConfig(connectionString string) (*pgxpool.Config, error) {
 	// Get the config from the connection string
 	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {

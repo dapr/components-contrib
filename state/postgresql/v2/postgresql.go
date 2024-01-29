@@ -46,6 +46,13 @@ import (
 const (
 	createDatabaseTmpl = "CREATE DATABASE %s"
 	deleteDatabaseTmpl = "DROP DATABASE IF EXISTS %s WITH (FORCE)"
+	databaseExistsTmpl = "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
+	userExistsTmpl     = "SELECT CAST((SELECT 1 FROM pg_roles WHERE rolname = $1) AS BOOLEAN)"
+	createUserTmpl     = "CREATE USER %v"
+	checkRoleTmpl      = "SELECT 1 FROM pg_roles WHERE rolname = $1 AND 'rds_iam' = rolname"
+	grantRoleTmpl      = "GRANT %v TO %v"
+
+	awsRole = "rds_iam"
 )
 
 var (
@@ -68,9 +75,6 @@ type PostgreSQL struct {
 	enableAzureAD bool
 
 	enableAWSIAM bool
-
-	// TODO(@Sam): clean up bc I don't think I'm using this!
-	awsClient *rds.RDS
 }
 
 type Options struct {
@@ -113,38 +117,40 @@ func (p *PostgreSQL) parseDatabaseFromConnectionString(connectionString string) 
 
 func (p *PostgreSQL) getAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig) (string, error) {
 	var dbEndpoint string = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
+	var authenticationToken string
 
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
 	// Default to load default config through aws credentials file (~/.aws/credentials)
-	awsCfg, _ := aws_config.LoadDefaultConfig(ctx)
-	// TODO(@Sam): need to reallow this above!
-	// if err != nil {
+	awsCfg, err := aws_config.LoadDefaultConfig(ctx)
+	if err != nil {
+		// otherwise use metadata fields
+		// Check if access key and secret access key are set
+		accessKey := p.metadata.AWSAccessKey
+		secretKey := p.metadata.AWSSecretKey
 
-	// otherwise use metadata fields
-	// if p.awsClient != nil {
+		// Validate if access key and secret access key are provided
+		if accessKey == "" || secretKey == "" {
+			return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey")
+		}
 
-	// Check if access key and secret access key are set
-	accessKey := p.metadata.AWSAccessKey
-	secretKey := p.metadata.AWSSecretKey
+		// Set credentials explicitly
+		var awsCfg2 aws.CredentialsProvider
+		awsCfg2 = aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
+		if awsCfg2 == nil {
+			return "", fmt.Errorf("failed to get accessKey and secretKey for AWS")
+		}
 
-	// Validate if access key and secret access key are provided
-	if accessKey == "" || secretKey == "" {
-		return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey")
+		authenticationToken, err = aws_auth.BuildAuthToken(
+			ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg2)
+		if err != nil {
+			return "", fmt.Errorf("failed to create AWS authentication token: %v", err)
+		}
+
+		return authenticationToken, nil
 	}
 
-	// Set credentials explicitly
-	var awsCfg2 aws.CredentialsProvider
-	awsCfg2 = aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
-	if awsCfg2 == nil {
-		return "", fmt.Errorf("failed to get accessKey and secretKey for AWS")
-
-	} /* else {
-		return "", fmt.Errorf("failed to load default configuration for AWS: %v", err)
-	}*/
-	// }
-
-	authenticationToken, err := aws_auth.BuildAuthToken(
-		ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg2)
+	authenticationToken, err = aws_auth.BuildAuthToken(
+		ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg.Credentials)
 	if err != nil {
 		return "", fmt.Errorf("failed to create AWS authentication token: %v", err)
 	}
@@ -169,6 +175,61 @@ func (p *PostgreSQL) getClient(dbEndpoint string) (*rds.RDS, error) {
 	return c, nil
 }
 
+func (p *PostgreSQL) checkDatabaseExists(ctx context.Context, dbName string) error {
+	// check if database exists in connection string
+	var dbExists bool
+	dbExistsCtx, dbExistsCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	err := p.db.QueryRow(dbExistsCtx, databaseExistsTmpl, dbName).Scan(&dbExists)
+	dbExistsCancel()
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("failed to check if the PostgreSQL database %s exists: %v", dbName, err)
+	}
+
+	// Create database if needed using master password in connection string
+	if !dbExists {
+		createDbCtx, createDbCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+		_, err := p.db.Exec(createDbCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
+		createDbCancel()
+		if err != nil {
+			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
+		}
+	}
+	return nil
+}
+func (p *PostgreSQL) checkDatabaseUser(ctx context.Context, dbName string) error {
+	var userExists bool
+	err := p.db.QueryRow(ctx, userExistsTmpl, dbName).Scan(&userExists)
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("failed to check if the PostgreSQL user %s exists: %v", dbName, err)
+	}
+
+	// Create the user if it doesn't exist
+	if !userExists {
+		_, err := p.db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
+		if err != nil {
+			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
+		}
+	}
+	return nil
+}
+
+func (p *PostgreSQL) checkDatabaseRole(ctx context.Context, dbName string) error {
+	var roleGranted bool
+	err := p.db.QueryRow(ctx, checkRoleTmpl, dbName).Scan(&roleGranted)
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("failed to check if the role %v is already granted to the PostgreSQL user %s: %v", awsRole, dbName, err)
+	}
+
+	// Grant the role if it's not already granted
+	if !roleGranted {
+		_, err := p.db.Exec(ctx, fmt.Sprintf(grantRoleTmpl, awsRole, dbName))
+		if err != nil {
+			return fmt.Errorf("failed to grant PostgreSQL user role: %v", err)
+		}
+	}
+	return nil
+}
+
 // Init sets up Postgres connection and performs migrations
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, p.enableAWSIAM)
@@ -178,20 +239,11 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	masterConnStr := p.getPostgresDBConnString(p.metadata.ConnectionString)
-	// TODO(@Sam): clean up and remove the second version of the func below!
-	config, err := p.metadata.GetPgxPoolConfig2(masterConnStr)
+	config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
 	if err != nil {
 		p.logger.Error(err)
 		return err
 	}
-
-	var dbEndpoint string = fmt.Sprintf("%s:%d", config.ConnConfig.Host, config.ConnConfig.Port)
-	rdsClient, err := p.getClient(dbEndpoint)
-	if err != nil {
-		return err
-	}
-	p.awsClient = rdsClient
-
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	defer connCancel()
@@ -201,7 +253,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return err
 	}
 
-	// TODO(@Sam): create helpers to check & create db/user/grant roles! & consts for queries
 	if p.enableAWSIAM {
 		// Parse database name from connection string
 		dbName, err := p.parseDatabaseFromConnectionString(p.metadata.ConnectionString)
@@ -212,7 +263,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		// check if database exists in connection string
 		var dbExists bool
 		dbExistsCtx, dbExistsCancel := context.WithTimeout(ctx, p.metadata.Timeout)
-		err = p.db.QueryRow(dbExistsCtx, "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", dbName).Scan(&dbExists)
+		err = p.db.QueryRow(dbExistsCtx, databaseExistsTmpl, dbName).Scan(&dbExists)
 		dbExistsCancel()
 		if err != nil && err != pgx.ErrNoRows {
 			return fmt.Errorf("failed to check if the PostgreSQL database %s exists: %v", dbName, err)
@@ -230,14 +281,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 
 		// Check if the user exists
 		var userExists bool
-		err = p.db.QueryRow(ctx, "SELECT CAST((SELECT 1 FROM pg_roles WHERE rolname = $1) AS BOOLEAN)", dbName).Scan(&userExists)
+		err = p.db.QueryRow(ctx, userExistsTmpl, dbName).Scan(&userExists)
 		if err != nil && err != pgx.ErrNoRows {
 			return fmt.Errorf("failed to check if the PostgreSQL user %s exists: %v", dbName, err)
 		}
 
 		// Create the user if it doesn't exist
 		if !userExists {
-			_, err := p.db.Exec(ctx, fmt.Sprintf("CREATE USER %v", dbName))
+			_, err := p.db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
 			if err != nil {
 				return fmt.Errorf("failed to create PostgreSQL user: %v", err)
 			}
@@ -245,15 +296,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 
 		// Check if the role is already granted
 		var roleGranted bool
-		awsRole := "rds_iam"
-		err = p.db.QueryRow(ctx, "SELECT 1 FROM pg_roles WHERE rolname = $1 AND 'rds_iam' = rolname", dbName).Scan(&roleGranted)
+		err = p.db.QueryRow(ctx, checkRoleTmpl, dbName).Scan(&roleGranted)
 		if err != nil && err != pgx.ErrNoRows {
 			return fmt.Errorf("failed to check if the role %v is already granted to the PostgreSQL user %s: %v", awsRole, dbName, err)
 		}
 
 		// Grant the role if it's not already granted
 		if !roleGranted {
-			_, err := p.db.Exec(ctx, fmt.Sprintf("GRANT %v TO %v", awsRole, dbName))
+			_, err := p.db.Exec(ctx, fmt.Sprintf(grantRoleTmpl, awsRole, dbName))
 			if err != nil {
 				return fmt.Errorf("failed to grant PostgreSQL user role: %v", err)
 			}

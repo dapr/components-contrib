@@ -87,7 +87,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 	md := pgauth.PostgresAuthMetadata{
 		ConnectionString: props["connectionString"],
 		UseAzureAD:       utils.IsTruthy(props["useAzureAD"]),
-		// TODO(@Sam): do i update here for aws iam?
+		UseAWSIAM:        utils.IsTruthy(props["useAWSIAM"]),
 	}
 	err := md.InitWithMetadata(props, true, true)
 	if err != nil {
@@ -103,7 +103,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
 
-	config, err := md.GetPgxPoolConfig()
+	config, err := md.GetPgxPoolConfig(md.ConnectionString)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error : %w", err)
 	}

@@ -19,15 +19,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var log = logger.NewLogger("sam.logger")
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
 type PostgresAuthMetadata struct {
@@ -55,8 +51,6 @@ func (m *PostgresAuthMetadata) Reset() {
 // Set azureADEnabled to true if the component can support authentication with Azure AD.
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
 func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADEnabled, awsIAMEnabled bool) (err error) {
-	fmt.Printf("sam.logger print statement")
-	log.Debugf("sam InitWithMetadata connection string %v %v", m.ConnectionString, m.UseAWSIAM)
 	// Validate input
 	switch {
 	case azureADEnabled && m.UseAzureAD:

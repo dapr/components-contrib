@@ -23,10 +23,10 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 	"github.com/dapr/components-contrib/metadata"

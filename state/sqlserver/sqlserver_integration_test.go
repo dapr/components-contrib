@@ -17,13 +17,15 @@ package sqlserver
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -42,10 +44,10 @@ const (
 	// connectionStringEnvKey defines the key containing the integration test connection string
 	// To use docker, server=localhost;user id=sa;password=Pass@Word1;port=1433;
 	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;.
-	connectionStringEnvKey        = "DAPR_TEST_SQL_CONNSTRING"
-	usersTableName                = "Users"
-	beverageTea                   = "tea"
-	invalidEtag            string = "FFFFFFFFFFFFFFFF"
+	connectionStringEnvKey = "DAPR_TEST_SQL_CONNSTRING"
+	usersTableName         = "Users"
+	beverageTea            = "tea"
+	invalidEtag            = "FFFFFFFFFFFFFFFF"
 )
 
 type user struct {
@@ -67,7 +69,7 @@ type userWithEtag struct {
 func TestIntegrationCases(t *testing.T) {
 	connectionString := os.Getenv(connectionStringEnvKey)
 	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+		t.Skipf(`SQLServer state integration tests skipped. To enable this test, define the connection string using environment variable '%[1]s' (example 'export %[1]s="server=localhost;user id=sa;password=Pass@Word1;port=1433;")'`, connectionStringEnvKey)
 	}
 
 	t.Run("Single operations", testSingleOperations)
@@ -84,26 +86,26 @@ func TestIntegrationCases(t *testing.T) {
 	}
 }
 
-func getUniqueDBSchema() string {
-	uuid := uuid.New().String()
-	uuid = strings.ReplaceAll(uuid, "-", "")
-
-	return fmt.Sprintf("v%s", uuid)
+func getUniqueDBSchema(t *testing.T) string {
+	b := make([]byte, 4)
+	_, err := io.ReadFull(rand.Reader, b)
+	require.NoError(t, err)
+	return fmt.Sprintf("v%s", hex.EncodeToString(b))
 }
 
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
 	metadata := state.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
-			connectionStringKey: os.Getenv(connectionStringEnvKey),
-			schemaKey:           schema,
-			tableNameKey:        usersTableName,
-			keyTypeKey:          string(kt),
-			databaseNameKey:     "dapr_test",
+			"connectionString": os.Getenv(connectionStringEnvKey),
+			"schema":           schema,
+			"tableName":        usersTableName,
+			"keyType":          string(kt),
+			"databaseName":     "dapr_test",
 		},
 	}}
 
 	if indexedProperties != "" {
-		metadata.Properties[indexedPropertiesKey] = indexedProperties
+		metadata.Properties["indexedProperties"] = indexedProperties
 	}
 
 	return metadata
@@ -116,7 +118,7 @@ func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 }
 
 func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
-	schema := getUniqueDBSchema()
+	schema := getUniqueDBSchema(t)
 	metadata := createMetadata(schema, kt, indexedProperties)
 	store := &SQLServer{
 		logger:          logger.NewLogger("test"),
@@ -168,7 +170,7 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 
 /* #nosec. */
 func assertUserCountIsEqualTo(t *testing.T, store *SQLServer, expected int) {
-	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.metadata.Schema, store.metadata.TableName)
+	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.metadata.SchemaName, store.metadata.TableName)
 	assertDBQuery(t, store, tsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 		var actual int
@@ -287,7 +289,7 @@ func testIndexedProperties(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the database for computed columns
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.metadata.Schema, usersTableName), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.metadata.SchemaName, usersTableName), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -296,7 +298,7 @@ func testIndexedProperties(t *testing.T) {
 	})
 
 	// Ensure we can get by beverage
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.metadata.Schema, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.metadata.SchemaName, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -495,7 +497,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	require.NoError(t, err)
 
 	var originalInsertTime time.Time
-	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.metadata.Schema, store.metadata.TableName, u.ID)
+	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.metadata.SchemaName, store.metadata.TableName, u.ID)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
@@ -591,7 +593,7 @@ func testMultipleInitializations(t *testing.T) {
 				migratorFactory: newMigration,
 			}
 			store2.BulkStore = state.NewDefaultBulkStore(store2)
-			err := store2.Init(context.Background(), createMetadata(store.metadata.Schema, test.kt, test.indexedProperties))
+			err := store2.Init(context.Background(), createMetadata(store.metadata.SchemaName, test.kt, test.indexedProperties))
 			require.NoError(t, err)
 		})
 	}

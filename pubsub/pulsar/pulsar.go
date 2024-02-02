@@ -124,7 +124,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		BatchingMaxMessages:     defaultMaxMessages,
 		BatchingMaxSize:         defaultMaxBatchSize,
 		RedeliveryDelay:         defaultRedeliveryDelay,
-		Concurrency:             defaultConcurrency,
+		MaxConcurrentHandlers:   defaultConcurrency,
 	}
 
 	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
@@ -395,7 +395,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return errors.New("component is closed")
 	}
 
-	channel := make(chan pulsar.ConsumerMessage, p.metadata.Concurrency)
+	channel := make(chan pulsar.ConsumerMessage, p.metadata.MaxConcurrentHandlers)
 
 	topic := p.formatTopic(req.Topic)
 

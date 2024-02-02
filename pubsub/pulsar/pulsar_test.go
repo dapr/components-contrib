@@ -33,7 +33,7 @@ func TestParsePulsarMetadata(t *testing.T) {
 		"batchingMaxPublishDelay": "5s",
 		"batchingMaxSize":         "100",
 		"batchingMaxMessages":     "200",
-		"concurrency":             "333",
+		"maxConcurrentHandlers":   "333",
 	}
 	meta, err := parsePulsarMetadata(m)
 
@@ -46,7 +46,7 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.BatchingMaxPublishDelay)
 	assert.Equal(t, uint(100), meta.BatchingMaxSize)
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
-	assert.Equal(t, uint(333), meta.Concurrency)
+	assert.Equal(t, uint(333), meta.MaxConcurrentHandlers)
 	assert.Empty(t, meta.internalTopicSchemas)
 }
 

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
@@ -42,19 +43,10 @@ type pgMetadata struct {
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 
-	// AWS IAM related
-	// Ignored by metadata parser because included in built-in authentication profile
-	// access key to use for accessing sqs/sns.
-	AWSAccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey" mdignore:"true"`
-	// secret key to use for accessing sqs/sns.
-	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey" mdignore:"true"`
-	// aws session token to use.
-	AWSSessionToken string `mapstructure:"awsSessionToken" mdignore:"true"`
-	// aws region in which SNS/SQS should create resources.
-	AWSRegion string `mapstructure:"awsRegion"`
+	awsiam.AWSIAM `mapstructure:",squash"`
 }
 
-func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled, awsIAMEnabled bool) error {
+func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
 	m.TablePrefix = ""
@@ -69,7 +61,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled, awsIA
 	}
 
 	// Validate and sanitize input
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled, awsIAMEnabled)
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, opts)
 	if err != nil {
 		return err
 	}

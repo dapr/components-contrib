@@ -19,14 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	aws_config "github.com/aws/aws-sdk-go-v2/config"
-	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
-	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	sqlinternal "github.com/dapr/components-contrib/common/component/sql"
@@ -39,25 +36,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-)
-
-const (
-	createDatabaseTmpl = "CREATE DATABASE %s"
-	deleteDatabaseTmpl = "DROP DATABASE IF EXISTS %s WITH (FORCE)"
-	databaseExistsTmpl = "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
-	userExistsTmpl     = "SELECT CAST((SELECT 1 FROM pg_roles WHERE rolname = $1) AS BOOLEAN)"
-	createUserTmpl     = "CREATE USER %v"
-	checkRoleTmpl      = "SELECT 1 FROM pg_roles WHERE rolname = $1 AND 'rds_iam' = rolname"
-	grantRoleTmpl      = "GRANT %v TO %v"
-
-	awsRole = "rds_iam"
-)
-
-var (
-	// Define a regular expression to match the 'dbname' parameter in the connection string
-	databaseNameRegex = regexp.MustCompile(`\bdbname=([^ ]+)\b`)
-	userRegex         = regexp.MustCompile(`\buser=([^ ]+)\b`)
-	passwordRegex     = regexp.MustCompile(`\bpassword=([^ ]+)\b`)
 )
 
 // PostgreSQL state store.
@@ -103,74 +81,20 @@ func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) stat
 	return s
 }
 
-func (p *PostgreSQL) parseDatabaseFromConnectionString(connectionString string) (string, error) {
-	match := databaseNameRegex.FindStringSubmatch(connectionString)
-	if len(match) < 2 {
-		return "", fmt.Errorf("unable to find database name ('dbname' field) in the connection string")
-	}
-
-	// Return the value after "dbname="
-	return match[1], nil
-}
-
-func (p *PostgreSQL) getAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig) (string, error) {
-	var dbEndpoint string = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
-	var authenticationToken string
-
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
-	// Default to load default config through aws credentials file (~/.aws/credentials)
-	awsCfg, err := aws_config.LoadDefaultConfig(ctx)
-	if err != nil {
-		// otherwise use metadata fields
-		// Check if access key and secret access key are set
-		accessKey := p.metadata.AWSAccessKey
-		secretKey := p.metadata.AWSSecretKey
-
-		// Validate if access key and secret access key are provided
-		if accessKey == "" || secretKey == "" {
-			return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey")
-		}
-
-		// Set credentials explicitly
-		var awsCfg2 aws.CredentialsProvider
-		awsCfg2 = aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
-		if awsCfg2 == nil {
-			return "", fmt.Errorf("failed to get accessKey and secretKey for AWS")
-		}
-
-		authenticationToken, err = aws_auth.BuildAuthToken(
-			ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg2)
-		if err != nil {
-			return "", fmt.Errorf("failed to create AWS authentication token: %v", err)
-		}
-
-		return authenticationToken, nil
-	}
-
-	authenticationToken, err = aws_auth.BuildAuthToken(
-		ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg.Credentials)
-	if err != nil {
-		return "", fmt.Errorf("failed to create AWS authentication token: %v", err)
-	}
-
-	return authenticationToken, nil
-}
-
-// Replace the value of 'database' with 'postgres'
-func (p *PostgreSQL) getPostgresDBConnString(connString string) string {
-	newConnStr := userRegex.ReplaceAllString(connString, "user=postgres")
-	return databaseNameRegex.ReplaceAllString(newConnStr, "dbname=postgres")
-}
-
 // Init sets up Postgres connection and performs migrations
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, p.enableAWSIAM)
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
+	}
+
+	err := p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
 		p.logger.Errorf("failed to parse metadata: %v", err)
 		return err
 	}
 
-	masterConnStr := p.getPostgresDBConnString(p.metadata.ConnectionString)
+	masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
 	config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
 	if err != nil {
 		p.logger.Error(err)
@@ -186,80 +110,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	if p.enableAWSIAM {
-		// Parse database name from connection string
-		dbName, err := p.parseDatabaseFromConnectionString(p.metadata.ConnectionString)
-		if err != nil {
-			return fmt.Errorf("failed to parse database name from connection string to create database %v", err)
-		}
-
-		// check if database exists in connection string
-		var dbExists bool
-		dbExistsCtx, dbExistsCancel := context.WithTimeout(ctx, p.metadata.Timeout)
-		err = p.db.QueryRow(dbExistsCtx, databaseExistsTmpl, dbName).Scan(&dbExists)
-		dbExistsCancel()
-		if err != nil && err != pgx.ErrNoRows {
-			return fmt.Errorf("failed to check if the PostgreSQL database %s exists: %v", dbName, err)
-		}
-
-		// Create database if needed using master password in connection string
-		if !dbExists {
-			createDbCtx, createDbCancel := context.WithTimeout(ctx, p.metadata.Timeout)
-			_, err := p.db.Exec(createDbCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
-			createDbCancel()
+		if p.enableAWSIAM {
+			err := awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
 			if err != nil {
-				return fmt.Errorf("failed to create PostgreSQL user: %v", err)
+				err = fmt.Errorf("failed to init AWS database: %v", err)
+				p.logger.Error(err)
+				return err
 			}
 		}
-
-		// Check if the user exists
-		var userExists bool
-		err = p.db.QueryRow(ctx, userExistsTmpl, dbName).Scan(&userExists)
-		if err != nil && err != pgx.ErrNoRows {
-			return fmt.Errorf("failed to check if the PostgreSQL user %s exists: %v", dbName, err)
-		}
-
-		// Create the user if it doesn't exist
-		if !userExists {
-			_, err := p.db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
-			if err != nil {
-				return fmt.Errorf("failed to create PostgreSQL user: %v", err)
-			}
-		}
-
-		// Check if the role is already granted
-		var roleGranted bool
-		err = p.db.QueryRow(ctx, checkRoleTmpl, dbName).Scan(&roleGranted)
-		if err != nil && err != pgx.ErrNoRows {
-			return fmt.Errorf("failed to check if the role %v is already granted to the PostgreSQL user %s: %v", awsRole, dbName, err)
-		}
-
-		// Grant the role if it's not already granted
-		if !roleGranted {
-			_, err := p.db.Exec(ctx, fmt.Sprintf(grantRoleTmpl, awsRole, dbName))
-			if err != nil {
-				return fmt.Errorf("failed to grant PostgreSQL user role: %v", err)
-			}
-		}
-
-		// Set max connection lifetime to 14 minutes in postgres connection pool configuration.
-		// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
-		// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
-		config.MaxConnLifetime = time.Minute * 14
-
-		// Setup connection pool config needed for AWS IAM authentication
-		config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
-
-			// Manually reset auth token with aws and reset the config password using the new iam token
-			pwd, err := p.getAccessToken(ctx, pgConfig)
-			if err != nil {
-				return fmt.Errorf("failed to refresh access token for iam authentication with postgresql: %v", err)
-			}
-
-			pgConfig.Password = pwd
-			return nil
-		}
-
-		// TODO: add clean up hooks on user/db?
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)

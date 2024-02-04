@@ -23,11 +23,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -36,6 +33,10 @@ import (
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgreSQL state store.
@@ -60,6 +61,7 @@ type Options struct {
 	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	ETagColumn    string
 	EnableAzureAD bool
+	EnableAWSIAM  bool
 }
 
 type MigrateOptions struct {
@@ -81,6 +83,7 @@ func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 		setQueryFn:    opts.SetQueryFn,
 		etagColumn:    opts.ETagColumn,
 		enableAzureAD: opts.EnableAzureAD,
+		enableAWSIAM:  opts.EnableAWSIAM,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -88,16 +91,31 @@ func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 
 // Init sets up Postgres connection and performs migrations.
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD, false)
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
+	}
+
+	err := p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
+	masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
+	config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
 	if err != nil {
 		p.logger.Error(err)
 		return err
+	}
+
+	if p.enableAWSIAM {
+		err := awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			p.logger.Error(err)
+			return err
+		}
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)

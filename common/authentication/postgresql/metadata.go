@@ -47,19 +47,22 @@ func (m *PostgresAuthMetadata) Reset() {
 	m.QueryExecMode = ""
 }
 
+type InitWithMetadataOpts struct {
+	AzureADEnabled bool
+	AWSIAMEnabled  bool
+}
+
 // InitWithMetadata inits the object with metadata from the user.
 // Set azureADEnabled to true if the component can support authentication with Azure AD.
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
-func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADEnabled, awsIAMEnabled bool) (err error) {
+func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts InitWithMetadataOpts) (err error) {
 	// Validate input
 	switch {
-	case azureADEnabled && m.UseAzureAD:
+	case opts.AzureADEnabled && m.UseAzureAD:
 		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
 		}
-	case awsIAMEnabled && m.UseAWSIAM:
-		// Do y'all want the logic moved to moreso here instead of where I have it?
 	case m.ConnectionString == "":
 		return errors.New("missing connection string")
 	default:

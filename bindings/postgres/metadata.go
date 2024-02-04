@@ -31,9 +31,14 @@ func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 		return err
 	}
 
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: m.UseAzureAD,
+		AWSIAMEnabled:  m.UseAWSIAM,
+	}
+
 	// Validate and sanitize input
 	// Azure AD & AWS IAM auth is supported for this component
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true, true)
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta, opts)
 	if err != nil {
 		return err
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/bindings"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -66,9 +67,11 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 
-	poolConfig, err := m.GetPgxPoolConfig(m.ConnectionString)
+	masterConnStr := awsiam.GetPostgresDBConnString(m.ConnectionString)
+	poolConfig, err := m.GetPgxPoolConfig(masterConnStr)
 	if err != nil {
-		return fmt.Errorf("error opening DB connection: %w", err)
+		p.logger.Error(err)
+		return err
 	}
 
 	// This context doesn't control the lifetime of the connection pool, and is
@@ -76,6 +79,14 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return fmt.Errorf("unable to connect to the DB: %w", err)
+	}
+	if meta.Properties["useAWSIAM"] == "true" {
+		err := awsiam.InitAWSDatabase(ctx, poolConfig, p.db, m.Timeout, masterConnStr, meta.Properties["AWSAccessKey"], meta.Properties["AWSSecretKey"])
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			p.logger.Error(err)
+			return err
+		}
 	}
 
 	return nil

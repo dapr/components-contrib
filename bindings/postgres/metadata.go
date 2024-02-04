@@ -14,17 +14,27 @@ limitations under the License.
 package postgres
 
 import (
+	"time"
+
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	kitmd "github.com/dapr/kit/metadata"
+)
+
+const (
+	defaultTimeout = 20 * time.Second // Default timeout for network requests
 )
 
 type psqlMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
+	awsiam.AWSIAM               `mapstructure:",squash"`
+	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 }
 
 func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
+	m.Timeout = defaultTimeout
 
 	err := kitmd.DecodeMetadata(meta, &m)
 	if err != nil {

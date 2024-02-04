@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -79,11 +80,13 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 		return err
 	}
 
+	masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	p.client, err = p.connectDB(ctx)
+	p.client, err = p.connectDB(ctx, masterConnStr)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%w'", err)
 	}
+
 	err = p.client.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to connect to configuration store: '%w'", err)
@@ -284,8 +287,8 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 }
 
-func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
+func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
+	config, err := p.metadata.GetPgxPoolConfig(connStr)
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
 	}
@@ -297,6 +300,14 @@ func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, erro
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store ping error : %w", err)
 	}
+
+	if p.metadata.UseAWSIAM {
+		err := awsiam.InitAWSDatabase(ctx, config, pool, p.metadata.Timeout, connStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init AWS database: %v", err)
+		}
+	}
+
 	return pool, nil
 }
 

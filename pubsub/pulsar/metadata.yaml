@@ -171,3 +171,9 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: maxConcurrentHandlers
+    type: number
+    description: |
+      Sets the maximum number of concurrent messages sent to the application. Default is 100.
+    default: '"100"'
+    example: '"100"'

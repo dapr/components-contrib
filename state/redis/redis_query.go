@@ -61,8 +61,10 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return fmt.Sprintf("@%s:(%s)", alias, v), nil
+	case float64, float32:
+		return fmt.Sprintf("@%s:[%f %f]", alias, v, v), nil
 	default:
-		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+		return fmt.Sprintf("@%s:[%d %d]", alias, v, v), nil
 	}
 }
 
@@ -77,8 +79,10 @@ func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return fmt.Sprintf("@%s:(%s)", alias, v), nil
+	case float64, float32:
+		return fmt.Sprintf("@%s:[%f %f]", alias, v, v), nil
 	default:
-		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+		return fmt.Sprintf("@%s:[%d %d]", alias, v, v), nil
 	}
 }
 
@@ -92,8 +96,10 @@ func (q *Query) VisitGT(f *query.GT) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	case float64, float32:
+		return fmt.Sprintf("@%s:[(%f +inf]", alias, v), nil
 	default:
-		return fmt.Sprintf("@%s:[(%v +inf]", alias, v), nil
+		return fmt.Sprintf("@%s:[(%d +inf]", alias, v), nil
 	}
 }
 
@@ -107,8 +113,10 @@ func (q *Query) VisitGTE(f *query.GTE) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	case float64, float32:
+		return fmt.Sprintf("@%s:[%f +inf]", alias, v), nil
 	default:
-		return fmt.Sprintf("@%s:[%v +inf]", alias, v), nil
+		return fmt.Sprintf("@%s:[%d +inf]", alias, v), nil
 	}
 }
 
@@ -122,8 +130,10 @@ func (q *Query) VisitLT(f *query.LT) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	case float64, float32:
+		return fmt.Sprintf("@%s:[-inf (%f]", alias, v), nil
 	default:
-		return fmt.Sprintf("@%s:[-inf (%v]", alias, v), nil
+		return fmt.Sprintf("@%s:[-inf (%d]", alias, v), nil
 	}
 }
 
@@ -136,8 +146,10 @@ func (q *Query) VisitLTE(f *query.LTE) (string, error) {
 	switch v := f.Val.(type) {
 	case string:
 		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	case float64, float32:
+		return fmt.Sprintf("@%s:[-inf %f]", alias, v), nil
 	default:
-		return fmt.Sprintf("@%s:[-inf %v]", alias, v), nil
+		return fmt.Sprintf("@%s:[-inf %d]", alias, v), nil
 	}
 }
 

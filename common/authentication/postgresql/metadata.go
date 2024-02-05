@@ -20,9 +20,10 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/dapr/components-contrib/common/authentication/azure"
 )
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.

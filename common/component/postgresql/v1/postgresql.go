@@ -110,7 +110,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	if p.enableAWSIAM {
-		err := awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		err = awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
 		if err != nil {
 			err = fmt.Errorf("failed to init AWS database: %v", err)
 			p.logger.Error(err)

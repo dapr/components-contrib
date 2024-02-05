@@ -10,9 +10,10 @@ import (
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
 	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 )
 
 const (
@@ -46,7 +47,7 @@ type AWSIAM struct {
 }
 
 func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, accessKey, secretKey string) (string, error) {
-	var dbEndpoint string = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
+	var dbEndpoint = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
 	var authenticationToken string
 
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
@@ -66,10 +67,6 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, accessKey, secre
 		// Set credentials explicitly
 		var awsCfg2 aws.CredentialsProvider
 		awsCfg2 = aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
-		if awsCfg2 == nil {
-			return "", fmt.Errorf("failed to get accessKey and secretKey for AWS")
-		}
-
 		authenticationToken, err = aws_auth.BuildAuthToken(
 			ctx, dbEndpoint, awsCfg.Region, pgCfg.User, awsCfg2)
 		if err != nil {
@@ -122,9 +119,9 @@ func CreateDatabaseIfNeeded(ctx context.Context, timeout time.Duration, connecti
 
 	// Create database if needed using master password in connection string
 	if !dbExists {
-		createDBCtx, createDbCancel := context.WithTimeout(ctx, timeout)
+		createDBCtx, createDBCancel := context.WithTimeout(ctx, timeout)
 		_, err := db.Exec(createDBCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
-		createDbCancel()
+		createDBCancel()
 		if err != nil {
 			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
 		}

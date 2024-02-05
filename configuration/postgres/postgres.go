@@ -288,24 +288,46 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 }
 
 func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig(connStr)
-	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
-	}
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
-	}
-	err = pool.Ping(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store ping error : %w", err)
-	}
-
+	var (
+		config *pgxpool.Config
+		pool   *pgxpool.Pool
+		err    error
+	)
+	// Note: if AWS IAM enabled then must use master connection string to connect initially,
+	// otherwise connect using regular p.metadata.ConnectionString.
 	if p.metadata.UseAWSIAM {
-		err := awsiam.InitAWSDatabase(ctx, config, pool, p.metadata.Timeout, connStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
+		config, err = p.metadata.GetPgxPoolConfig(masterConnStr)
+		if err != nil {
+			return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
+		}
+
+		pool, err = pgxpool.NewWithConfig(ctx, config)
+		if err != nil {
+			return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
+		}
+
+		err = awsiam.InitAWSDatabase(ctx, config, pool, p.metadata.Timeout, connStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init AWS database: %v", err)
 		}
+	} else {
+		config, err = p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
+		if err != nil {
+			p.logger.Error(err)
+			return nil, fmt.Errorf("failed to parse state store pool config: %v", err)
+		}
+
+		pool, err = pgxpool.NewWithConfig(ctx, config)
+		if err != nil {
+			return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
+		}
+
+	}
+
+	err = pool.Ping(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres configuration store ping error : %w", err)
 	}
 
 	return pool, nil

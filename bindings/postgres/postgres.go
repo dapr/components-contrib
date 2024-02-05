@@ -67,11 +67,29 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 
-	masterConnStr := awsiam.GetPostgresDBConnString(m.ConnectionString)
-	poolConfig, err := m.GetPgxPoolConfig(masterConnStr)
-	if err != nil {
-		p.logger.Error(err)
-		return err
+	var poolConfig *pgxpool.Config
+	// Note: if AWS IAM enabled then must use master connection string to connect initially,
+	// otherwise connect using regular p.metadata.ConnectionString.
+	if meta.Properties["useAWSIAM"] == "true" {
+		masterConnStr := awsiam.GetPostgresDBConnString(m.ConnectionString)
+		poolConfig, err := m.GetPgxPoolConfig(masterConnStr)
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
+
+		err = awsiam.InitAWSDatabase(ctx, poolConfig, p.db, m.Timeout, masterConnStr, meta.Properties["AWSAccessKey"], meta.Properties["AWSSecretKey"])
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			p.logger.Error(err)
+			return err
+		}
+	} else {
+		poolConfig, err = m.GetPgxPoolConfig(m.ConnectionString)
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
 	}
 
 	// This context doesn't control the lifetime of the connection pool, and is
@@ -79,14 +97,6 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return fmt.Errorf("unable to connect to the DB: %w", err)
-	}
-	if meta.Properties["useAWSIAM"] == "true" {
-		err := awsiam.InitAWSDatabase(ctx, poolConfig, p.db, m.Timeout, masterConnStr, meta.Properties["AWSAccessKey"], meta.Properties["AWSSecretKey"])
-		if err != nil {
-			err = fmt.Errorf("failed to init AWS database: %v", err)
-			p.logger.Error(err)
-			return err
-		}
 	}
 
 	return nil

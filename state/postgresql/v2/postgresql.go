@@ -94,12 +94,31 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return err
 	}
 
-	masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
-	config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
-	if err != nil {
-		p.logger.Error(err)
-		return err
+	var config *pgxpool.Config
+	// Note: if AWS IAM enabled then must use master connection string to connect initially,
+	// otherwise connect using regular p.metadata.ConnectionString.
+	if p.enableAWSIAM {
+		masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
+		config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
+
+		err = awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			p.logger.Error(err)
+			return err
+		}
+	} else {
+		config, err = p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
 	}
+
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	defer connCancel()
@@ -107,15 +126,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
 		p.logger.Error(err)
 		return err
-	}
-
-	if p.enableAWSIAM {
-		err = awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
-		if err != nil {
-			err = fmt.Errorf("failed to init AWS database: %v", err)
-			p.logger.Error(err)
-			return err
-		}
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)

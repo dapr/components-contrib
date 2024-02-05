@@ -82,10 +82,11 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.19.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.24.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.18.28 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.27 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.3.10 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.36 // indirect
@@ -93,7 +94,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3 // indirect
-	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/aws/smithy-go v1.19.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect

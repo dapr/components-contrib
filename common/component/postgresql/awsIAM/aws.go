@@ -31,7 +31,6 @@ var (
 	// Define a regular expression to match the 'dbname' parameter in the connection string
 	databaseNameRegex = regexp.MustCompile(`\bdbname=([^ ]+)\b`)
 	userRegex         = regexp.MustCompile(`\buser=([^ ]+)\b`)
-	passwordRegex     = regexp.MustCompile(`\bpassword=([^ ]+)\b`)
 )
 
 type AWSIAM struct {
@@ -123,8 +122,8 @@ func CreateDatabaseIfNeeded(ctx context.Context, timeout time.Duration, connecti
 
 	// Create database if needed using master password in connection string
 	if !dbExists {
-		createDbCtx, createDbCancel := context.WithTimeout(ctx, timeout)
-		_, err := db.Exec(createDbCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
+		createDBCtx, createDbCancel := context.WithTimeout(ctx, timeout)
+		_, err := db.Exec(createDBCtx, fmt.Sprintf(createDatabaseTmpl, dbName))
 		createDbCancel()
 		if err != nil {
 			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
@@ -150,7 +149,7 @@ func CreateUserAndRoleIfNeeded(ctx context.Context, timeout time.Duration, conne
 
 	// Create the user if it doesn't exist
 	if !userExists {
-		_, err := db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
+		_, err = db.Exec(ctx, fmt.Sprintf(createUserTmpl, dbName))
 		if err != nil {
 			return fmt.Errorf("failed to create PostgreSQL user: %v", err)
 		}
@@ -195,7 +194,6 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, db pginterface
 
 	// Setup connection pool config needed for AWS IAM authentication
 	config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
-
 		// Manually reset auth token with aws and reset the config password using the new iam token
 		pwd, err := GetAccessToken(ctx, pgConfig, awsAccessKey, awsSecretKey)
 		if err != nil {

@@ -7,14 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/dapr/components-contrib/common/authentication/postgresql"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/utils"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ConfigUpdater struct {
@@ -90,7 +88,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		UseAzureAD:       utils.IsTruthy(props["useAzureAD"]),
 		UseAWSIAM:        utils.IsTruthy(props["useAWSIAM"]),
 	}
-	err := md.InitWithMetadata(props, postgresql.InitWithMetadataOpts{AzureADEnabled: true, AWSIAMEnabled: true})
+	err := md.InitWithMetadata(props, pgauth.InitWithMetadataOpts{AzureADEnabled: true, AWSIAMEnabled: true})
 	if err != nil {
 		return err
 	}

@@ -16,9 +16,10 @@ package dynamodb
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,12 +28,12 @@ import (
 )
 
 type mockedDynamoDB struct {
-	GetItemWithContextFn func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error)
+	DescribeTableWithContextFn func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...request.Option) (*dynamodb.DescribeTableOutput, error)
 	dynamodb.DynamoDB
 }
 
-func (m *mockedDynamoDB) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
-	return m.GetItemWithContextFn(ctx, input, op...)
+func (m *mockedDynamoDB) DescribeTableWithContext(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...request.Option) (*dynamodb.DescribeTableOutput, error) {
+	return m.DescribeTableWithContextFn(ctx, input)
 }
 
 func TestInit(t *testing.T) {
@@ -49,7 +50,7 @@ func TestInit(t *testing.T) {
 		}
 
 		b.client = &mockedDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+			DescribeTableWithContextFn: func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...request.Option) (*dynamodb.DescribeTableOutput, error) {
 				return nil, errors.New("Requested resource not found")
 			},
 		}
@@ -58,7 +59,6 @@ func TestInit(t *testing.T) {
 		require.Error(t, err)
 		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
-
 }
 
 func TestParseMetadata(t *testing.T) {

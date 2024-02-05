@@ -17,10 +17,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	"github.com/dapr/components-contrib/common/utils"
-	"github.com/dapr/kit/ptr"
 	"reflect"
+
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+
+	"github.com/dapr/kit/ptr"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -70,7 +71,7 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	d.table = meta.Table
 
-	if err := d.validateTableAccess(ctx); err != nil {
+	if err := d.validateAccess(ctx); err != nil {
 		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
 	}
 
@@ -79,18 +80,12 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 // validateConnection runs a dummy Get operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
-func (d *DynamoDB) validateTableAccess(ctx context.Context) error {
-	input := &dynamodb.GetItemInput{
-		ConsistentRead: ptr.Of(false),
-		TableName:      ptr.Of(d.table),
-		Key: map[string]*dynamodb.AttributeValue{
-			"key": {
-				S: ptr.Of(utils.GetRandOrDefaultString("dapr-test-table")),
-			},
-		},
+func (d *DynamoDB) validateAccess(ctx context.Context) error {
+	input := &dynamodb.DescribeTableInput{
+		TableName: ptr.Of(d.table),
 	}
 
-	_, err := d.client.GetItemWithContext(ctx, input)
+	_, err := d.client.DescribeTableWithContext(ctx, input)
 	return err
 }
 

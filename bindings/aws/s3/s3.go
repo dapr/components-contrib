@@ -108,7 +108,7 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
+func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -138,11 +138,46 @@ func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 
 	s.metadata = m
-	s.s3Client = s3.New(session, cfg)
-	s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
-	s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
+
+	// If the client is not already set (used in tests), create a new one
+	if s.s3Client == nil {
+		s.s3Client = s3.New(session, cfg)
+		s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
+		s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
+	}
+
+	//verr := s.validateAccess(ctx)
+	//if verr != nil {
+	//	aerr, ok := verr.(awserr.Error)
+	//	if ok && aerr.Code() == "NotFound" {
+	//		return nil
+	//	}
+	//	return fmt.Errorf("error validating access to S3 bucket '%s': %w", m.Bucket, err)
+	//}
+
+	if err := s.validateAccess(ctx); err != nil {
+		return fmt.Errorf("error validating access to S3 bucket '%s': %w", m.Bucket, err)
+	}
 
 	return nil
+}
+
+// validateConnection runs a dummy Get operation to validate the connection credentials,
+// as well as validating that the table exists, and we have access to it
+func (d *AWSS3) validateAccess(ctx context.Context) error {
+	//input := &s3.HeadObjectInput{
+	//	Bucket: ptr.Of(d.metadata.Bucket),
+	//	Key:    ptr.Of(commonutils.GetRandOrDefaultString("dapr")),
+	//}
+	//
+	//_, err := d.s3Client.HeadObjectWithContext(ctx, input)
+
+	_, err := d.s3Client.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+		Bucket:  ptr.Of(d.metadata.Bucket),
+		MaxKeys: ptr.Of(int64(1)),
+	})
+
+	return err
 }
 
 func (s *AWSS3) Close() error {

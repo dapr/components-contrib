@@ -78,7 +78,7 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	return nil
 }
 
-// validateConnection runs a dummy Get operation to validate the connection credentials,
+// validateConnection runs a dummy DescribeTable operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
 func (d *DynamoDB) validateAccess(ctx context.Context) error {
 	input := &dynamodb.DescribeTableInput{

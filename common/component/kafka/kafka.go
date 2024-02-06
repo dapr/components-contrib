@@ -34,6 +34,7 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
+	client          sarama.Client
 	producer        sarama.SyncProducer
 	consumerGroup   string
 	brokers         []string
@@ -174,10 +175,17 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		}
 	}
 
-	k.config = config
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 
-	k.producer, err = getSyncProducer(*k.config, k.brokers, meta.MaxMessageBytes)
+	setProducerConfig(config, meta.MaxMessageBytes)
+	k.config = config
+
+	k.client, err = sarama.NewClient(k.brokers, config)
+	if err != nil {
+		return err
+	}
+
+	k.producer, err = sarama.NewSyncProducerFromClient(k.client)
 	if err != nil {
 		return err
 	}
@@ -218,11 +226,23 @@ func (k *Kafka) Close() (err error) {
 		k.producer = nil
 	}
 
+	if k.client != nil {
+		cerr := k.client.Close()
+		if cerr != nil {
+			err = errors.Join(err, cerr)
+		}
+		k.client = nil
+	}
+
 	if k.internalContext != nil {
 		k.internalContextCancel()
 	}
 
 	return err
+}
+
+func (k *Kafka) GetClient() sarama.Client {
+	return k.client
 }
 
 func getSchemaSubject(topic string) string {

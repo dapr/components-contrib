@@ -302,7 +302,7 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 	}
 
 	if k.cg == nil {
-		cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
+		cg, err := sarama.NewConsumerGroupFromClient(k.consumerGroup, k.client)
 		if err != nil {
 			return err
 		}

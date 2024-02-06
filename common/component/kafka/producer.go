@@ -22,8 +22,8 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
-	// Add SyncProducer specific properties to copy of base config
+func setProducerConfig(config *sarama.Config, maxMessageBytes int) {
+	// Add producer specific properties to copy of base config
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
@@ -31,13 +31,6 @@ func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 	if maxMessageBytes > 0 {
 		config.Producer.MaxMessageBytes = maxMessageBytes
 	}
-
-	producer, err := sarama.NewSyncProducer(brokers, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return producer, nil
 }
 
 // Publish message to Kafka cluster.

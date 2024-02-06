@@ -122,6 +122,10 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
+func (p *PubSub) GetKafka() *kafka.Kafka {
+	return p.kafka
+}
+
 // Publish message to Kafka cluster.
 func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {

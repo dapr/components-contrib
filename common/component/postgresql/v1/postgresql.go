@@ -23,6 +23,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
@@ -33,10 +38,6 @@ import (
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgreSQL state store.
@@ -107,7 +108,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	// otherwise connect using regular p.metadata.ConnectionString.
 	if p.enableAWSIAM {
 		masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
-		config, err := p.metadata.GetPgxPoolConfig(masterConnStr)
+		config, err = p.metadata.GetPgxPoolConfig(masterConnStr)
 		if err != nil {
 			p.logger.Error(err)
 			return err

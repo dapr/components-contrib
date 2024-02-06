@@ -322,7 +322,6 @@ func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pg
 		if err != nil {
 			return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
 		}
-
 	}
 
 	err = pool.Ping(ctx)

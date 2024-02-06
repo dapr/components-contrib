@@ -72,7 +72,7 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	// otherwise connect using regular p.metadata.ConnectionString.
 	if meta.Properties["useAWSIAM"] == "true" {
 		masterConnStr := awsiam.GetPostgresDBConnString(m.ConnectionString)
-		poolConfig, err := m.GetPgxPoolConfig(masterConnStr)
+		poolConfig, err = m.GetPgxPoolConfig(masterConnStr)
 		if err != nil {
 			p.logger.Error(err)
 			return err

@@ -121,7 +121,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	var config *pgxpool.Config
 	// Note: if AWS IAM enabled then must use master connection string to connect initially,
 	// otherwise connect using regular p.metadata.ConnectionString.
-	if p.enableAWSIAM {
+	if useAWS {
 		config, err = p.metadata.GetPgxPoolConfig()
 		if err != nil {
 			p.logger.Error(err)

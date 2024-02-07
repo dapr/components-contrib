@@ -10,9 +10,10 @@ import (
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
 	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 )
 
 const (
@@ -185,7 +186,12 @@ func CreateUserAndRoleIfNeeded(ctx context.Context, timeout time.Duration, conne
 
 func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, timeout time.Duration, connString string, region string, awsAccessKey, awsSecretKey string) error {
 	// Note: check if password supplied, otherwise auto generate the AWS access token immediately
-	pass, err := parsePasswordFromConnectionString(connString)
+	var (
+		err  error
+		pass string
+		db   *pgxpool.Pool
+	)
+	pass, err = parsePasswordFromConnectionString(connString)
 	if err != nil || pass == "" {
 		pwd, err := GetAccessToken(ctx, config.ConnConfig, region, awsAccessKey, awsSecretKey)
 		if err != nil || pwd == "" {
@@ -194,7 +200,7 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, timeout time.D
 		config.ConnConfig.Password = pwd
 	}
 
-	db, err := pgxpool.NewWithConfig(ctx, config)
+	db, err = pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error: %w", err)
 	}

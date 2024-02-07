@@ -36,8 +36,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var log = logger.NewLogger("hi-sam")
-
 type ConfigurationStore struct {
 	metadata             metadata
 	client               *pgxpool.Pool
@@ -310,11 +308,6 @@ func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pg
 		if err != nil {
 			p.logger.Error(err)
 			return nil, fmt.Errorf("failed to parse state store pool config: %v", err)
-		}
-
-		pool, err = pgxpool.NewWithConfig(ctx, config)
-		if err != nil {
-			return nil, fmt.Errorf("postgres configuration store connection error: %w", err)
 		}
 	}
 

@@ -48,7 +48,7 @@ type AWSIAM struct {
 }
 
 func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKey, secretKey string) (string, error) {
-	var dbEndpoint = fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
+	dbEndpoint := fmt.Sprintf("%s:%d", pgCfg.Host, pgCfg.Port)
 	var authenticationToken string
 
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
@@ -187,13 +187,13 @@ func CreateUserAndRoleIfNeeded(ctx context.Context, timeout time.Duration, conne
 func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, timeout time.Duration, connString string, region string, awsAccessKey, awsSecretKey string) error {
 	// Note: check if password supplied, otherwise auto generate the AWS access token immediately
 	var (
-		err  error
-		pass string
-		db   *pgxpool.Pool
+		err       error
+		pass, pwd string
+		db        *pgxpool.Pool
 	)
 	pass, err = parsePasswordFromConnectionString(connString)
 	if err != nil || pass == "" {
-		pwd, err := GetAccessToken(ctx, config.ConnConfig, region, awsAccessKey, awsSecretKey)
+		pwd, err = GetAccessToken(ctx, config.ConnConfig, region, awsAccessKey, awsSecretKey)
 		if err != nil || pwd == "" {
 			return fmt.Errorf("failed to refresh access token for iam authentication with postgresql: %v", err)
 		}

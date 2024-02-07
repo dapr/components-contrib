@@ -14,6 +14,8 @@ limitations under the License.
 package metadata
 
 import (
+	"fmt"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -23,6 +25,110 @@ import (
 
 	"github.com/dapr/kit/metadata"
 )
+
+func TestTryGetTTL(t *testing.T) {
+	tests := []struct {
+		name    string
+		md      map[string]string
+		result  any
+		wantOK  bool
+		wantErr bool
+		errStr  string
+	}{
+		{
+			name: "ttl valid duration 20s",
+			md: map[string]string{
+				TTLMetadataKey: "20s",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "ttl valid integer 20",
+			md: map[string]string{
+				TTLMetadataKey: "20",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "ttlInSeconds valid duration 20s",
+			md: map[string]string{
+				TTLInSecondsMetadataKey: "20s",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "ttlInSeconds valid integer 20",
+			md: map[string]string{
+				TTLInSecondsMetadataKey: "20",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "invalid integer 20b",
+			md: map[string]string{
+				TTLMetadataKey: "20b",
+			},
+			wantOK:  false,
+			wantErr: true,
+			errStr:  "value must be a valid integer: actual is '20b'",
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name: "negative ttl -1",
+			md: map[string]string{
+				TTLMetadataKey: "-1",
+			},
+			wantOK:  false,
+			wantErr: true,
+			errStr:  "value must be higher than zero: actual is '-1'",
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name: "negative ttl -1s",
+			md: map[string]string{
+				TTLMetadataKey: "-1s",
+			},
+			wantOK:  true,
+			wantErr: false,
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name:    "no ttl",
+			md:      map[string]string{},
+			wantOK:  false,
+			wantErr: false,
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name: "out of range",
+			md: map[string]string{
+				TTLMetadataKey: fmt.Sprintf("%d1", math.MaxInt64),
+			},
+			wantOK:  false,
+			wantErr: true,
+			result:  time.Duration(0) * time.Second,
+			errStr:  "value must be a valid integer: actual is '92233720368547758071'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, ok, err := TryGetTTL(tt.md)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.errStr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantOK, ok, "wanted ok, but instead got not ok")
+			assert.Equal(t, tt.result, d, "expected result %v, but instead got = %v", tt.result, d)
+		})
+	}
+}
 
 func TestIsRawPayload(t *testing.T) {
 	t.Run("Metadata not found", func(t *testing.T) {

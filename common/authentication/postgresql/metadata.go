@@ -64,6 +64,8 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 		if err != nil {
 			return err
 		}
+	case opts.AWSIAMEnabled && m.UseAWSIAM:
+		return nil
 	case m.ConnectionString == "":
 		return errors.New("missing connection string")
 	default:
@@ -76,9 +78,9 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 }
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
-func (m *PostgresAuthMetadata) GetPgxPoolConfig(connectionString string) (*pgxpool.Config, error) {
+func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 	// Get the config from the connection string
-	config, err := pgxpool.ParseConfig(connectionString)
+	config, err := pgxpool.ParseConfig(m.ConnectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}

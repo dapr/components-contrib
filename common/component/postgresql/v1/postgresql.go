@@ -107,21 +107,20 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	// Note: if AWS IAM enabled then must use master connection string to connect initially,
 	// otherwise connect using regular p.metadata.ConnectionString.
 	if p.enableAWSIAM {
-		masterConnStr := awsiam.GetPostgresDBConnString(p.metadata.ConnectionString)
-		config, err = p.metadata.GetPgxPoolConfig(masterConnStr)
+		config, err = p.metadata.GetPgxPoolConfig()
 		if err != nil {
 			p.logger.Error(err)
 			return err
 		}
 
-		err = awsiam.InitAWSDatabase(ctx, config, p.db, p.metadata.Timeout, masterConnStr, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
+		err = awsiam.InitAWSDatabase(ctx, config, p.metadata.Timeout, p.metadata.ConnectionString, p.metadata.AWSRegion, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
 		if err != nil {
 			err = fmt.Errorf("failed to init AWS database: %v", err)
 			p.logger.Error(err)
 			return err
 		}
 	} else {
-		config, err = p.metadata.GetPgxPoolConfig(p.metadata.ConnectionString)
+		config, err = p.metadata.GetPgxPoolConfig()
 		if err != nil {
 			p.logger.Error(err)
 			return err

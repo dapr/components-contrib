@@ -7,7 +7,7 @@ toolchain go1.21.4
 require (
 	cloud.google.com/go/pubsub v1.33.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.1
 	github.com/IBM/sarama v1.42.1
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
@@ -22,7 +22,7 @@ require (
 	github.com/dapr/components-contrib v1.12.1-0.20231102232056-f4e73b0e6511
 	github.com/dapr/dapr v1.12.1-0.20231127182349-91899493566c
 	github.com/dapr/go-sdk v1.6.1-0.20231102031149-87bbb8cd690a
-	github.com/dapr/kit v0.12.2-0.20231031211530-0e1fd37fc4b3
+	github.com/dapr/kit v0.13.0
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-redis/redis/v8 v8.11.5
@@ -61,7 +61,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.6.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.1.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0 // indirect

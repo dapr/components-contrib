@@ -103,7 +103,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
 
-	config, err := md.GetPgxPoolConfig(md.ConnectionString)
+	config, err := md.GetPgxPoolConfig()
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error : %w", err)
 	}

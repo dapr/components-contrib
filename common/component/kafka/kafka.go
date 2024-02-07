@@ -45,7 +45,6 @@ type Kafka struct {
 	initialOffset   int64
 	cg              sarama.ConsumerGroup
 	consumer        consumer
-	config          *sarama.Config
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 
@@ -177,8 +176,14 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 
-	setProducerConfig(config, meta.MaxMessageBytes)
-	k.config = config
+	// Add producer specific properties to copy of base config
+	config.Producer.RequiredAcks = sarama.WaitForAll
+	config.Producer.Retry.Max = 5
+	config.Producer.Return.Successes = true
+
+	if meta.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
+	}
 
 	k.client, err = sarama.NewClient(k.brokers, config)
 	if err != nil {

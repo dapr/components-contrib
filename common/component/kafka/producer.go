@@ -22,17 +22,6 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-func setProducerConfig(config *sarama.Config, maxMessageBytes int) {
-	// Add producer specific properties to copy of base config
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Retry.Max = 5
-	config.Producer.Return.Successes = true
-
-	if maxMessageBytes > 0 {
-		config.Producer.MaxMessageBytes = maxMessageBytes
-	}
-}
-
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
 	if k.producer == nil {

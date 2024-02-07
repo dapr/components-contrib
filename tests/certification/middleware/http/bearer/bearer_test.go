@@ -46,7 +46,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	httpMiddlewareLoader "github.com/dapr/dapr/pkg/components/middleware/http"
 	"github.com/dapr/dapr/pkg/config/protocol"
-	httpMiddleware "github.com/dapr/dapr/pkg/middleware/http"
+	runtimeMiddleware "github.com/dapr/dapr/pkg/middleware"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
@@ -528,7 +528,7 @@ func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
-		return func(metadata middleware.Metadata) (httpMiddleware.Middleware, error) {
+		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
 			return bearerMw.NewBearerMiddleware(log).GetHandler(context.Background(), metadata)
 		}
 	}, "bearer")

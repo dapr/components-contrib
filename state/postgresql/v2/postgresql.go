@@ -84,15 +84,28 @@ func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) stat
 
 // Init sets up Postgres connection and performs migrations
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	useAWS, err := strconv.ParseBool(meta.Properties["UseAWSIAM"])
-	if err != nil {
-		p.logger.Error(err)
-		return err
+	var (
+		useAWS   bool
+		useAzure bool
+		err      error
+	)
+	if meta.Properties["UseAWSIAM"] == "" {
+		useAWS = false
+	} else {
+		useAWS, err = strconv.ParseBool(meta.Properties["UseAWSIAM"])
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
 	}
-	useAzure, err := strconv.ParseBool(meta.Properties["UseAzureAD"])
-	if err != nil {
-		p.logger.Error(err)
-		return err
+	if meta.Properties["UseAzureAD"] == "" {
+		useAWS = false
+	} else {
+		useAzure, err = strconv.ParseBool(meta.Properties["UseAzureAD"])
+		if err != nil {
+			p.logger.Error(err)
+			return err
+		}
 	}
 	opts := pgauth.InitWithMetadataOpts{
 		AzureADEnabled: useAzure,

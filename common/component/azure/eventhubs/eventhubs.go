@@ -306,7 +306,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 		for {
 			// This is a blocking call that runs until the context is canceled
 			err = processor.Run(subscribeCtx)
-			// Do not log context.Canceled which happens at shutdown
+			// Exit if the context is canceled
 			if err != nil && errors.Is(err, context.Canceled) {
 				return
 			} else {
@@ -316,10 +316,18 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 					aeh.logger.Debugf("Event processor terminated without error")
 				}
 				// wait for subscription loop finished signal
-				<-subscriptionLoopFinished
-				// wait for 5 seconds before restarting the subscription loop
-				<-time.After(5 * time.Second)
-				go subscriberLoop()
+				select {
+				case <-subscribeCtx.Done():
+					return
+				case <-subscriptionLoopFinished:
+					// Waiting here is not strictly necessary, however, we will wait for a short time to increase the likelihood of transient errors having disappeared
+					select {
+					case <-subscribeCtx.Done():
+						return
+					case <-time.After(5 * time.Second):
+						go subscriberLoop()
+					}
+				}
 			}
 		}
 	}()

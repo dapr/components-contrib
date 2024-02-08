@@ -76,9 +76,9 @@ func TestParseRedisMetadata(t *testing.T) {
 
 func TestProcessStreams(t *testing.T) {
 	fakeConsumerID := "fakeConsumer"
-	topicCount := 0
 	messageCount := 0
 	expectedData := "testData"
+	expectedMetadata := "testMetadata"
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -87,12 +87,10 @@ func TestProcessStreams(t *testing.T) {
 		defer wg.Done()
 
 		messageCount++
-		if topicCount == 0 {
-			topicCount = 1
-		}
 
 		// assert
 		assert.Equal(t, expectedData, string(msg.Data))
+		assert.Equal(t, expectedMetadata, msg.Metadata["mymetadata"])
 
 		// return fake error to skip executing redis client command
 		return errors.New("fake error")
@@ -105,23 +103,66 @@ func TestProcessStreams(t *testing.T) {
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
-	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(2, 3, expectedData))
+	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, expectedMetadata))
 
 	// Wait for the handler to finish processing
 	wg.Wait()
 
 	// assert
-	assert.Equal(t, 1, topicCount)
 	assert.Equal(t, 3, messageCount)
 }
 
-func generateRedisStreamTestData(topicCount, messageCount int, data string) []commonredis.RedisXMessage {
+func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
+	fakeConsumerID := "fakeConsumer"
+	messageCount := 0
+	expectedData := "testData"
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	fakeHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		defer wg.Done()
+
+		messageCount++
+
+		// assert
+		assert.Equal(t, expectedData, string(msg.Data))
+
+		assert.Nil(t, msg.Metadata)
+
+		// return fake error to skip executing redis client command
+		return errors.New("fake error")
+	}
+
+	// act
+	testRedisStream := &redisStreams{
+		logger:         logger.NewLogger("test"),
+		clientSettings: &commonredis.Settings{},
+	}
+	testRedisStream.queue = make(chan redisMessageWrapper, 10)
+	go testRedisStream.worker()
+	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, ""))
+
+	// Wait for the handler to finish processing
+	wg.Wait()
+
+	// assert
+	assert.Equal(t, 3, messageCount)
+}
+
+func generateRedisStreamTestData(messageCount int, data string, metadata string) []commonredis.RedisXMessage {
 	generateXMessage := func(id int) commonredis.RedisXMessage {
+		values := map[string]interface{}{
+			"data": data,
+		}
+
+		if metadata != "" {
+			values["metadata"] = "{\"mymetadata\": \"" + metadata + "\"}"
+		}
+
 		return commonredis.RedisXMessage{
-			ID: strconv.Itoa(id),
-			Values: map[string]interface{}{
-				"data": data,
-			},
+			ID:     strconv.Itoa(id),
+			Values: values,
 		}
 	}
 

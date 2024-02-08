@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -368,6 +369,20 @@ func TestTls(t *testing.T) {
 	})
 }
 
+func TestAwsIam(t *testing.T) {
+	k := getKafka()
+
+	t.Run("missing aws region", func(t *testing.T) {
+		m := getBaseMetadata()
+		m[authType] = awsIAMAuthType
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+
+		require.Equal(t, "missing AWS region property 'awsRegion' for authType 'awsiam'", err.Error())
+	})
+}
+
 func TestMetadataConsumerFetchValues(t *testing.T) {
 	k := getKafka()
 	m := getCompleteMetadata()
@@ -388,4 +403,57 @@ func TestMetadataChannelBufferSize(t *testing.T) {
 	meta, err := k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	require.Equal(t, 128, meta.channelBufferSize)
+}
+
+func TestGetEventMetadata(t *testing.T) {
+	ts := time.Now()
+
+	t.Run("no headers", func(t *testing.T) {
+		m := sarama.ConsumerMessage{
+			Headers: nil, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m)
+		require.Len(t, act, 5)
+		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
+		require.Equal(t, "MyKey", act["__key"])
+		require.Equal(t, "0", act["__partition"])
+		require.Equal(t, "123", act["__offset"])
+		require.Equal(t, "TestTopic", act["__topic"])
+	})
+
+	t.Run("with headers", func(t *testing.T) {
+		headers := []*sarama.RecordHeader{
+			{Key: []byte("key1"), Value: []byte("value1")},
+			{Key: []byte("key2"), Value: []byte("value2")},
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m)
+		require.Len(t, act, 7)
+		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
+		require.Equal(t, "MyKey", act["__key"])
+		require.Equal(t, "0", act["__partition"])
+		require.Equal(t, "123", act["__offset"])
+		require.Equal(t, "TestTopic", act["__topic"])
+		require.Equal(t, "value1", act["key1"])
+		require.Equal(t, "value2", act["key2"])
+	})
+
+	t.Run("no key", func(t *testing.T) {
+		m := sarama.ConsumerMessage{
+			Headers: nil, Timestamp: ts, Key: nil, Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m)
+		require.Len(t, act, 4)
+		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
+		require.Equal(t, "0", act["__partition"])
+		require.Equal(t, "123", act["__offset"])
+		require.Equal(t, "TestTopic", act["__topic"])
+	})
+
+	t.Run("null message", func(t *testing.T) {
+		act := GetEventMetadata(nil)
+		require.Nil(t, act)
+	})
 }

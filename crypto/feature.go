@@ -14,13 +14,8 @@ limitations under the License.
 package crypto
 
 import (
-	"golang.org/x/exp/slices"
+	"github.com/dapr/components-contrib/common/features"
 )
 
 // Feature names a feature that can be implemented by the crypto provider components.
-type Feature string
-
-// IsPresent checks if a given feature is present in the list.
-func (f Feature) IsPresent(features []Feature) bool {
-	return slices.Contains(features, f)
-}
+type Feature = features.Feature[SubtleCrypto]

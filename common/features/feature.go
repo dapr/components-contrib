@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,12 +11,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package nameresolution
+package features
 
-// ResolveRequest represents service discovery resolver request.
-type ResolveRequest struct {
-	ID        string
-	Namespace string
-	Port      int
-	Data      map[string]string
+import (
+	"slices"
+)
+
+// Feature is a generic type for features supported by components.
+type Feature[T any] string
+
+// IsPresent checks if a given feature is present in the list.
+func (f Feature[T]) IsPresent(features []Feature[T]) bool {
+	return slices.Contains(features, f)
 }

@@ -32,7 +32,7 @@ func getFakeProperties() map[string]string {
 		keyTimeoutInSec:                  "90",
 		keyHandlerTimeoutInSec:           "30",
 		keyMaxDeliveryCount:              "10",
-		keyAutoDeleteOnIdleInSec:         "240",
+		keyAutoDeleteOnIdleInSec:         "340",
 		keyDefaultMessageTimeToLiveInSec: "2400",
 		keyLockDurationInSec:             "120",
 		keyLockRenewalInSec:              "15",
@@ -71,7 +71,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 50, m.MaxRetriableErrorsPerSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
-		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
+		assert.Equal(t, 340, *m.AutoDeleteOnIdleInSec)
 		assert.NotNil(t, m.MaxDeliveryCount)
 		assert.Equal(t, int32(10), *m.MaxDeliveryCount)
 		assert.NotNil(t, m.DefaultMessageTimeToLiveInSec)
@@ -106,7 +106,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 50, m.MaxRetriableErrorsPerSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
-		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
+		assert.Equal(t, 340, *m.AutoDeleteOnIdleInSec)
 		assert.NotNil(t, m.MaxDeliveryCount)
 		assert.Equal(t, int32(10), *m.MaxDeliveryCount)
 		assert.NotNil(t, m.DefaultMessageTimeToLiveInSec)
@@ -142,7 +142,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 50, m.MaxRetriableErrorsPerSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
-		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
+		assert.Equal(t, 340, *m.AutoDeleteOnIdleInSec)
 		assert.NotNil(t, m.MaxDeliveryCount)
 		assert.Equal(t, int32(10), *m.MaxDeliveryCount)
 		assert.NotNil(t, m.DefaultMessageTimeToLiveInSec)
@@ -494,6 +494,16 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		// assert.
 		assert.Nil(t, m.AutoDeleteOnIdleInSec)
 		require.NoError(t, err)
+	})
+
+	t.Run("autoDeleteOnIdleInSec too small", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+		delete(fakeProperties, keyAutoDeleteOnIdleInSec)
+		fakeProperties[keyAutoDeleteOnIdleInSec] = "299"
+
+		// act.
+		_, err := ParseMetadata(fakeProperties, nil, 0)
+		require.Error(t, err)
 	})
 
 	t.Run("missing nullable lockDurationInSec", func(t *testing.T) {

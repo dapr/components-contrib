@@ -299,35 +299,35 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 			}()
 		}
 	}
-	go subscriberLoop()
 
 	// Start the processor
 	go func() {
 		for {
+			go subscriberLoop()
 			// This is a blocking call that runs until the context is canceled
 			err = processor.Run(subscribeCtx)
 			// Exit if the context is canceled
 			if err != nil && errors.Is(err, context.Canceled) {
 				return
+			}
+			if err != nil {
+				aeh.logger.Errorf("Error from event processor: %v", err)
 			} else {
-				if err != nil {
-					aeh.logger.Errorf("Error from event processor: %v", err)
-				} else {
-					aeh.logger.Debugf("Event processor terminated without error")
-				}
-				// wait for subscription loop finished signal
-				select {
-				case <-subscribeCtx.Done():
-					return
-				case <-subscriptionLoopFinished:
-					// Waiting here is not strictly necessary, however, we will wait for a short time to increase the likelihood of transient errors having disappeared
-					select {
-					case <-subscribeCtx.Done():
-						return
-					case <-time.After(5 * time.Second):
-						go subscriberLoop()
-					}
-				}
+				aeh.logger.Debugf("Event processor terminated without error")
+			}
+			// wait for subscription loop finished signal
+			select {
+			case <-subscribeCtx.Done():
+				return
+			case <-subscriptionLoopFinished:
+				// noop
+			}
+			// Waiting here is not strictly necessary, however, we will wait for a short time to increase the likelihood of transient errors having disappeared
+			select {
+			case <-subscribeCtx.Done():
+				return
+			case <-time.After(5 * time.Second):
+				// noop - continue the for loop
 			}
 		}
 	}()

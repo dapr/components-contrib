@@ -67,7 +67,7 @@ builtinAuthenticationProfiles:
         example: '"AKIAIOSFODNN7EXAMPLE"'
       - name: awsSecretKey
         type: string
-        required: true
+        required: false
         sensitive: true
         description: |
           The secret key associated with the access key.

@@ -60,13 +60,13 @@ builtinAuthenticationProfiles:
         example: '"us-east-1"'
       - name: awsAccessKey
         type: string
-        required: true
+        required: false
         description: |
           AWS access key associated with an IAM account.
         example: '"AKIAIOSFODNN7EXAMPLE"'
       - name: awsSecretKey
         type: string
-        required: true
+        required: false
         sensitive: true
         description: |
           The secret key associated with the access key.

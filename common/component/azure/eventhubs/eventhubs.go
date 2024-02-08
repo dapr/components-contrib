@@ -275,13 +275,16 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 		Handler:                         retryHandler,
 	}
 
+	subscriptionLoopFinished := make(chan bool, 1)
+
 	// Process all partition clients as they come in
-	go func() {
+	subscriberLoop := func() {
 		for {
 			// This will block until a new partition client is available
 			// It returns nil if processor.Run terminates or if the context is canceled
 			partitionClient := processor.NextPartitionClient(subscribeCtx)
 			if partitionClient == nil {
+				subscriptionLoopFinished <- true
 				return
 			}
 			aeh.logger.Debugf("Received client for partition %s", partitionClient.PartitionID())
@@ -295,15 +298,29 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 				}
 			}()
 		}
-	}()
+	}
+	go subscriberLoop()
 
 	// Start the processor
 	go func() {
-		// This is a blocking call that runs until the context is canceled
-		err = processor.Run(subscribeCtx)
-		// Do not log context.Canceled which happens at shutdown
-		if err != nil && !errors.Is(err, context.Canceled) {
-			aeh.logger.Errorf("Error from event processor: %v", err)
+		for {
+			// This is a blocking call that runs until the context is canceled
+			err = processor.Run(subscribeCtx)
+			// Do not log context.Canceled which happens at shutdown
+			if err != nil && errors.Is(err, context.Canceled) {
+				return
+			} else {
+				if err != nil {
+					aeh.logger.Errorf("Error from event processor: %v", err)
+				} else {
+					aeh.logger.Debugf("Event processor terminated without error")
+				}
+				// wait for subscription loop finished signal
+				<-subscriptionLoopFinished
+				// wait for 5 seconds before restarting the subscription loop
+				<-time.After(5 * time.Second)
+				go subscriberLoop()
+			}
 		}
 	}()
 

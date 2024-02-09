@@ -44,7 +44,7 @@ const (
 	dockerComposeYAML       = "docker-compose.yml"
 	stateStoreName          = "statestore"
 	certificationTestPrefix = "stable-certification-"
-	stateStoreNoConfigError = "error saving state: rpc error: code = FailedPrecondition desc = state store is not configured"
+	stateStoreNoConfigError = "error saving state: rpc error: code = FailedPrecondition desc = state store statestore is not configured"
 )
 
 func TestRedis(t *testing.T) {

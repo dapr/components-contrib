@@ -324,7 +324,7 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 			for {
 				// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 				// us out of the consume loop
-				if ctx.Err() != nil {
+				if k.consumer.consumeCtx.Err() != nil {
 					k.logger.Info("Consume context cancelled")
 					break
 				}
@@ -377,12 +377,14 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 }
 
 // Close down consumer group resources, refresh once.
-func (k *Kafka) closeSubscriptionResources() {
+func (k *Kafka) CloseSubscriptionResources() {
 	if k.cg != nil {
+		k.consumer.consumeCancel()
 		err := k.cg.Close()
 		if err != nil {
 			k.logger.Errorf("Error closing consumer group: %v", err)
 		}
+		k.cg = nil
 
 		k.consumer.once.Do(func() {
 			// Wait for shutdown to be complete

@@ -90,6 +90,7 @@ func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest,
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():
+			p.kafka.CloseSubscriptionResources()
 		case <-p.closeCh:
 		}
 

@@ -64,6 +64,7 @@ var bundleComponentMetadataCmd = &cobra.Command{
 				fmt.Fprintln(os.Stderr, "Info: metadata file not found in component "+component)
 				continue
 			}
+			fmt.Fprintln(os.Stderr, "Info: metadata file loaded for component "+component)
 			bundle.Components = append(bundle.Components, componentMetadata)
 		}
 

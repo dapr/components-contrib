@@ -14,15 +14,21 @@ excludeFolders:
   - bindings/alicloud
   - bindings/aws
   - bindings/azure
+  - bindings/cloudflare
   - bindings/gcp
+  - bindings/http/testdata
   - bindings/huawei
   - bindings/rethinkdb
   - bindings/twilio
+  - bindings/wasm/testdata
   - bindings/zeebe
   - configuration/azure
   - configuration/redis/internal
   - crypto/azure
   - crypto/kubernetes
+  - middleware/http/oauth2clientcredentials/mocks
+  - middleware/http/wasm/example
+  - middleware/http/wasm/internal
   - pubsub/aws
   - pubsub/azure
   - pubsub/azure/servicebus
@@ -34,11 +40,15 @@ excludeFolders:
   - secretstores/hashicorp
   - secretstores/huaweicloud
   - secretstores/local
+  - secretstores/tencentcloud
   - state/alicloud
   - state/aws
   - state/azure
+  - state/azure/blobstorage/internal
+  - state/cloudflare
   - state/gcp
   - state/hashicorp
   - state/oci
   - state/postgresql
+  - state/query
   - state/utils

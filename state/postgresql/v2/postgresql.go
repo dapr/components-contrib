@@ -158,7 +158,7 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 			p.logger.Infof("Creating state table: '%s'", stateTable)
 			_, err := p.db.Exec(ctx,
 				fmt.Sprintf(`
-CREATE TABLE %[1]s (
+CREATE TABLE %[1]s IF NOT EXISTS (
   key text NOT NULL PRIMARY KEY,
   value bytea NOT NULL,
   etag uuid NOT NULL DEFAULT gen_random_uuid(),

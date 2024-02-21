@@ -15,9 +15,13 @@ package servicebus_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +61,7 @@ const (
 	appID2 = "app-2"
 
 	numMessages      = 10
+	numMessagesBig   = 100
 	appPort          = 8000
 	portOffset       = 2
 	messageKey       = "partitionKey"
@@ -95,7 +100,7 @@ func TestServicebus(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -159,7 +164,7 @@ func TestServicebus(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -222,7 +227,7 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -286,7 +291,7 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -344,7 +349,7 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -408,7 +413,7 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -469,7 +474,7 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -533,7 +538,7 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -591,7 +596,7 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -697,7 +702,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -798,7 +803,7 @@ func TestServicebusEntityManagement(t *testing.T) {
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -994,7 +999,7 @@ func TestServicebusAuthentication(t *testing.T) {
 
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -1100,7 +1105,7 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -1233,7 +1238,7 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1253,6 +1258,189 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 		}, sidecarName1, topic, sessionWatcher)).
 		Step("verify if app1 has recevied messages published to only a single session", assertMessages(10*time.Second, sessionWatcher)).
 		Step("reset", flow.Reset(sessionWatcher)).
+		Run()
+}
+
+// TestServicebusWithConcurrentSessionsFIFO tests that if we publish messages to the same
+// topic and session concurrently using sessions that we only receive the messages from a
+// single session in FIFO order when using concurrent sessions.
+func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
+	topic := "sessions-conc-fifo" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	session1 := "session1"
+	session2 := "session2"
+	session3 := "session3"
+
+	var count atomic.Uint32
+	done := make(chan struct{})
+	mu := sync.Mutex{}
+	sequences := make(map[string]int64) // store the highest sequence number for each session id
+
+	// subscriber of the given topic
+	subscriberApplicationWithSessions := func(appID string, topicName string) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+					Metadata: map[string]string{
+						"requireSessions":       "true",
+						"maxConcurrentSessions": "8",
+					},
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					// simulate retriable errors but only
+					// on new messages to avoid dead lettering
+					// as this will stop us being able to detect
+					// the end of the test.
+					deliveryCount := e.Metadata["deliverycount"]
+					if deliveryCount == "0" {
+						if rand.Intn(100) < 10 {
+							return true, errors.New("retriable error")
+						}
+					}
+
+					var sessionID string
+					match := sessionIDRegex.FindStringSubmatch(e.Data.(string))
+					if len(match) > 0 {
+						sessionID = match[1]
+					} else {
+						err := fmt.Errorf("session id not found in message")
+						t.Fatalf("error: %s", err)
+						return false, err
+					}
+
+					mu.Lock()
+					defer mu.Unlock()
+
+					sequenceNumber := e.Metadata["sequencenumber"]
+					if sequenceNumber == "" {
+						err := fmt.Errorf("sequence number not found in message")
+						t.Fatalf("error: %s", err)
+						return false, err
+					}
+
+					sequence, err := strconv.ParseInt(sequenceNumber, 10, 64)
+					if err != nil {
+						err := fmt.Errorf("error parsing sequence number: %s", err)
+						t.Fatalf("error: %s", err)
+						return false, err
+					}
+
+					if sequences[sessionID] > sequence {
+						err := fmt.Errorf("sequence number %d is less than previous sequence number %d for session id %s", sequence, sequences[sessionID], sessionID)
+						t.Fatalf("error: %s", err)
+						return false, err
+					}
+
+					sequences[sessionID] = sequence
+
+					count.Add(1)
+					if count.Load() == numMessagesBig {
+						close(done)
+					}
+
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, sequence: %d, data: %s", appID, e.PubsubName, e.Topic, e.ID, sequence, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessagesBig)
+			for i := range messages {
+				var msgSuffix string
+				if metadata["SessionId"] != "" {
+					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
+				}
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s", metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			var wg sync.WaitGroup
+
+			for _, message := range messages {
+				wg.Add(1)
+
+				go func(m string) {
+					defer wg.Done()
+					ctx.Logf("Publishing: %q", m)
+					var err error
+
+					if publishOptions != nil {
+						err = client.PublishEvent(ctx, pubsubName, topicName, m, publishOptions)
+					} else {
+						err = client.PublishEvent(ctx, pubsubName, topicName, m)
+					}
+					require.NoError(ctx, err, "error publishing message")
+				}(message)
+			}
+
+			wg.Wait()
+
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration) flow.Runnable {
+		return func(ctx flow.Context) error {
+			select {
+			case <-done:
+				// sleep 10 seconds after all messages have been handled to
+				// allow for message processing completion.
+				time.Sleep(10 * time.Second)
+				return nil
+			case <-time.After(timeout):
+				t.Fatalf("timed out waiting for messages")
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus certification concurrent sessions test").
+
+		// Run subscriberApplicationWithSessions app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic))).
+
+		// Run a second subscriber to simulate multiple replicas
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
+			subscriberApplicationWithSessions(appID1, topic))).
+
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
+			"SessionId": session1,
+		}, sidecarName1, topic)).
+		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
+			"SessionId": session2,
+		}, sidecarName1, topic)).
+		Step("publish messages to topic1 on session 3", publishMessages(map[string]string{
+			"SessionId": session3,
+		}, sidecarName1, topic)).
+		Step("verify if app1 has recevied all messages published to the sessions", assertMessages(60*time.Second)).
 		Run()
 }
 
@@ -1283,7 +1471,7 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					// Track/Observe the data of the event.
 					messageWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -1351,7 +1539,7 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with the service bus component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),

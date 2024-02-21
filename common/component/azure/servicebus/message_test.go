@@ -26,8 +26,10 @@ import (
 
 var (
 	testMessageID               = "testMessageId"
+	testInvalidMessageIDTooLong = "testMessage123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
 	testCorrelationID           = "testCorrelationId"
 	testSessionID               = "testSessionId"
+	testInvalidSessionIDTooLong = "testSession123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
 	testLabel                   = "testLabel"
 	testReplyTo                 = "testReplyTo"
 	testTo                      = "testTo"
@@ -48,7 +50,7 @@ func TestAddMetadataToMessage(t *testing.T) {
 	testCases := []struct {
 		name                        string
 		metadata                    map[string]string
-		expectedAzServiceBusMessage azservicebus.Message
+		expectedAzServiceBusMessage *azservicebus.Message
 		expectError                 bool
 	}{
 		{
@@ -64,7 +66,7 @@ func TestAddMetadataToMessage(t *testing.T) {
 				MessageKeyContentType:             testContentType,
 				MessageKeyScheduledEnqueueTimeUtc: testScheduledEnqueueTimeUtc,
 			},
-			expectedAzServiceBusMessage: azservicebus.Message{
+			expectedAzServiceBusMessage: &azservicebus.Message{
 				MessageID:            &testMessageID,
 				CorrelationID:        &testCorrelationID,
 				SessionID:            &testSessionID,
@@ -89,15 +91,33 @@ func TestAddMetadataToMessage(t *testing.T) {
 				MessageKeyPartitionKey:  testPartitionKeyUnique,
 				MessageKeyContentType:   testContentType,
 			},
-			expectedAzServiceBusMessage: azservicebus.Message{
-				MessageID:     &testMessageID,
-				CorrelationID: &testCorrelationID,
-				SessionID:     &testSessionID,
-				Subject:       &testLabel,
-				ReplyTo:       &testReplyTo,
-				To:            &testTo,
-				PartitionKey:  &testPartitionKey,
-				ContentType:   &testContentType,
+			expectError: true,
+		},
+		{
+			name: "Errors when message id longer than 128 characters.",
+			metadata: map[string]string{
+				MessageKeyMessageID:     testInvalidMessageIDTooLong,
+				MessageKeyCorrelationID: testCorrelationID,
+				MessageKeySessionID:     testSessionID,
+				MessageKeyLabel:         testLabel,
+				MessageKeyReplyTo:       testReplyTo,
+				MessageKeyTo:            testTo,
+				MessageKeyPartitionKey:  testPartitionKeyUnique,
+				MessageKeyContentType:   testContentType,
+			},
+			expectError: true,
+		},
+		{
+			name: "Errors when session id longer than 128 characters.",
+			metadata: map[string]string{
+				MessageKeyMessageID:     testMessageID,
+				MessageKeyCorrelationID: testCorrelationID,
+				MessageKeySessionID:     testInvalidSessionIDTooLong,
+				MessageKeyLabel:         testLabel,
+				MessageKeyReplyTo:       testReplyTo,
+				MessageKeyTo:            testTo,
+				MessageKeyPartitionKey:  testPartitionKeyUnique,
+				MessageKeyContentType:   testContentType,
 			},
 			expectError: true,
 		},

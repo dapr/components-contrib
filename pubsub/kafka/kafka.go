@@ -86,19 +86,24 @@ func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest,
 
 	p.wg.Add(1)
 	go func() {
+		var componentClosed bool
 		defer p.wg.Done()
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():
 			p.kafka.CloseSubscriptionResources()
 		case <-p.closeCh:
+			componentClosed = true
 		}
 
 		// Remove the topic handler before restarting the subscriber
 		p.kafka.RemoveTopicHandler(req.Topic)
 
-		// If the component's context has been canceled, do not re-subscribe
-		if ctx.Err() != nil {
+		// If the component has been closed, do not re-subscribe
+		// NOTE: we cannot check on the context p.kafka.internalContext
+		// because that would resource on a deadlock with the wait group
+		// created above
+		if componentClosed {
 			return
 		}
 

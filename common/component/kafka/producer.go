@@ -58,17 +58,18 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 	}
 
 	for name, value := range metadata {
-		if name == key {
+		switch name {
+		case key, keyMetadataKey:
 			msg.Key = sarama.StringEncoder(value)
-		} else {
-			if msg.Headers == nil {
-				msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
-			}
-			msg.Headers = append(msg.Headers, sarama.RecordHeader{
-				Key:   []byte(name),
-				Value: []byte(value),
-			})
 		}
+
+		if msg.Headers == nil {
+			msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+		}
+		msg.Headers = append(msg.Headers, sarama.RecordHeader{
+			Key:   []byte(name),
+			Value: []byte(value),
+		})
 	}
 
 	partition, offset, err := k.producer.SendMessage(msg)

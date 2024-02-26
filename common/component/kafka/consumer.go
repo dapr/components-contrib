@@ -277,7 +277,7 @@ func (k *Kafka) GetTopicHandlerConfig(topic string) (SubscriptionHandlerConfig, 
 }
 
 // Subscribe to topic in the Kafka cluster, in a background goroutine
-func (k *Kafka) Subscribe(ctx context.Context) error {
+func (k *Kafka) Subscribe(_ context.Context) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
@@ -338,9 +338,9 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 				topics = k.subscribeTopics.TopicList()
 
 				// Consume the requested topics
-				bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
+				bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), k.consumer.consumeCtx)
 				innerErr := retry.NotifyRecover(func() error {
-					if ctxErr := ctx.Err(); ctxErr != nil {
+					if ctxErr := k.consumer.consumeCtx.Err(); ctxErr != nil {
 						return backoff.Permanent(ctxErr)
 					}
 					return k.cg.Consume(k.consumer.consumeCtx, topics, &(k.consumer))

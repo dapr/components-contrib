@@ -72,7 +72,7 @@ require (
 	github.com/hashicorp/consul/api v1.25.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/http-wasm/http-wasm-host-go v0.5.1
+	github.com/http-wasm/http-wasm-host-go v0.6.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
 	github.com/influxdata/influxdb-client-go/v2 v2.12.3
@@ -286,7 +286,7 @@ require (
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.16.7 // indirect
+	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
 	github.com/kubemq-io/protobuf v1.3.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect

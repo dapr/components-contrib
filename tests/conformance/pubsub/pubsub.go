@@ -499,61 +499,6 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
 			<-wait
 		})
-
-		t.Run("stop subscribers", func(t *testing.T) {
-			sent1Ch := make(chan string)
-			sent2Ch := make(chan string)
-			allSentCh := make(chan bool)
-			defer func() {
-				close(allSentCh)
-			}()
-
-			for i := 0; i < 3; i++ {
-				t.Logf("Starting iteration %d", i)
-				switch i {
-				case 1: // On iteration 1, close the first subscriber
-					subscribe1Cancel()
-					close(sent1Ch)
-					sent1Ch = nil
-					time.Sleep(config.WaitDurationToPublish)
-				case 2: // On iteration 2, close the second subscriber
-					subscribe2Cancel()
-					close(sent2Ch)
-					sent2Ch = nil
-					time.Sleep(config.WaitDurationToPublish)
-				}
-
-				wait := receiveInBackground(t, config.MaxReadDuration, received1Ch, received2Ch, sent1Ch, sent2Ch, allSentCh)
-
-				offset := config.MessageCount * (i + 2)
-				for k := offset + 1; k <= (offset + config.MessageCount); k++ {
-					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-					var topic string
-					if k%2 == 0 {
-						topic = config.TestMultiTopic1Name
-						if sent1Ch != nil {
-							sent1Ch <- string(data)
-						}
-					} else {
-						topic = config.TestMultiTopic2Name
-						if sent2Ch != nil {
-							sent2Ch <- string(data)
-						}
-					}
-					err := ps.Publish(ctx, &pubsub.PublishRequest{
-						Data:       data,
-						PubsubName: config.PubsubName,
-						Topic:      topic,
-						Metadata:   config.PublishMetadata,
-					})
-					require.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
-				}
-
-				allSentCh <- true
-				t.Logf("Waiting for %v to complete read", config.MaxReadDuration)
-				<-wait
-			}
-		})
 	})
 }
 

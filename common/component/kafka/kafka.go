@@ -211,7 +211,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 }
 
 func (k *Kafka) Close() (err error) {
-	k.closeSubscriptionResources()
+	k.CloseSubscriptionResources()
 
 	if k.producer != nil {
 		err = k.producer.Close()

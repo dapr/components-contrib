@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -481,5 +482,41 @@ func Test_Subscribe(t *testing.T) {
 		}, time.Second, time.Millisecond)
 		assert.Empty(t, k.subscribeTopics)
 		assert.Equal(t, int64(7), consumeCalled.Load())
+	})
+
+	t.Run("Can call Subscribe concurrently", func(t *testing.T) {
+		var cancelCalled atomic.Int64
+		var consumeCalled atomic.Int64
+		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
+			consumeCalled.Add(1)
+			<-ctx.Done()
+			cancelCalled.Add(1)
+			return nil
+		})
+		k := &Kafka{
+			logger:               logger.NewLogger("test"),
+			cg:                   cg,
+			consumerCancel:       nil,
+			closeCh:              make(chan struct{}),
+			subscribeTopics:      make(TopicHandlerConfig),
+			consumeRetryInterval: time.Millisecond,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		for i := 0; i < 100; i++ {
+			go func(i int) {
+				k.Subscribe(ctx, SubscriptionHandlerConfig{}, strconv.Itoa(i))
+			}(i)
+		}
+
+		assert.Eventually(t, func() bool {
+			return consumeCalled.Load() == 100
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(99), cancelCalled.Load())
+		cancel()
+		assert.Eventually(t, func() bool {
+			return cancelCalled.Load() == 199
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(199), consumeCalled.Load())
 	})
 }

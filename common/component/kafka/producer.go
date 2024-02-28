@@ -16,9 +16,9 @@ package kafka
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/IBM/sarama"
-	"maps"
 
 	"github.com/dapr/components-contrib/pubsub"
 )

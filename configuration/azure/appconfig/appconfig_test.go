@@ -122,7 +122,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 	s.client = &MockConfigurationStore{}
 
 	metadata := make(map[string]string)
-	metadata["sentinelKey"] = "test_sentinel_key"
+	metadata["sentinelkey"] = "test_sentinel_key"
 
 	t.Run("call subscribe with sentinel key", func(t *testing.T) {
 		req := configuration.SubscribeRequest{

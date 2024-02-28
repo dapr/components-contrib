@@ -100,29 +100,26 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		return nil
 	}
 
-	handlerConfig := kafka.SubscriptionHandlerConfig{
-		IsBulkSubscribe: false,
-		Handler:         adaptHandler(handler),
-	}
-	for _, t := range b.topics {
-		b.kafka.AddTopicHandler(t, handlerConfig)
-	}
+	ctx, cancel := context.WithCancel(ctx)
+
 	b.wg.Add(1)
 	go func() {
-		defer b.wg.Done()
-		// Wait for context cancelation or closure.
 		select {
 		case <-ctx.Done():
 		case <-b.closeCh:
 		}
-
-		// Remove the topic handlers.
-		for _, t := range b.topics {
-			b.kafka.RemoveTopicHandler(t)
-		}
+		cancel()
+		b.wg.Done()
 	}()
 
-	return b.kafka.Subscribe(ctx)
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		Handler:         adaptHandler(handler),
+	}
+
+	b.kafka.Subscribe(ctx, handlerConfig, b.topics...)
+
+	return nil
 }
 
 func adaptHandler(handler bindings.Handler) kafka.EventHandler {

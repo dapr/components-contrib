@@ -54,7 +54,9 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		Handler:         adaptHandler(handler),
 		ValueSchemaType: valueSchemaType,
 	}
-	return p.subscribeUtil(ctx, req, handlerConfig)
+
+	p.subscribeUtil(ctx, req, handlerConfig)
+	return nil
 }
 
 func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
@@ -78,36 +80,24 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		BulkHandler:     adaptBulkHandler(handler),
 		ValueSchemaType: valueSchemaType,
 	}
-	return p.subscribeUtil(ctx, req, handlerConfig)
+	p.subscribeUtil(ctx, req, handlerConfig)
+	return nil
 }
 
-func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest, handlerConfig kafka.SubscriptionHandlerConfig) error {
-	p.kafka.AddTopicHandler(req.Topic, handlerConfig)
+func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest, handlerConfig kafka.SubscriptionHandlerConfig) {
+	ctx, cancel := context.WithCancel(ctx)
 
 	p.wg.Add(1)
 	go func() {
-		defer p.wg.Done()
-		// Wait for context cancelation
 		select {
 		case <-ctx.Done():
 		case <-p.closeCh:
 		}
-
-		// Remove the topic handler before restarting the subscriber
-		p.kafka.RemoveTopicHandler(req.Topic)
-
-		// If the component's context has been canceled, do not re-subscribe
-		if ctx.Err() != nil {
-			return
-		}
-
-		err := p.kafka.Subscribe(ctx)
-		if err != nil {
-			p.logger.Errorf("kafka pubsub: error re-subscribing: %v", err)
-		}
+		cancel()
+		p.wg.Done()
 	}()
 
-	return p.kafka.Subscribe(ctx)
+	p.kafka.Subscribe(ctx, handlerConfig, req.Topic)
 }
 
 // NewKafka returns a new kafka pubsub instance.

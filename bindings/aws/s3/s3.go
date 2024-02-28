@@ -203,10 +203,10 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:      ptr.Of(metadata.Bucket),
-		Key:         ptr.Of(key),
-		Body:        r,
-		ContentType: contentType,
+		Bucket:       ptr.Of(metadata.Bucket),
+		Key:          ptr.Of(key),
+		Body:         r,
+		ContentType:  contentType,
 		StorageClass: storageClass,
 	})
 	if err != nil {

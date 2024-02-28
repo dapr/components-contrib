@@ -50,6 +50,7 @@ const (
 	metadataEncodeBase64 = "encodeBase64"
 	metadataFilePath     = "filePath"
 	metadataPresignTTL   = "presignTTL"
+	metadataStorageClass = "storageClass"
 
 	metatadataContentType = "Content-Type"
 	metadataKey           = "key"
@@ -83,6 +84,7 @@ type s3Metadata struct {
 	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
 	FilePath       string `json:"filePath" mapstructure:"filePath"   mdignore:"true"`
 	PresignTTL     string `json:"presignTTL" mapstructure:"presignTTL"  mdignore:"true"`
+	StorageClass   string `json:"storageClass" mapstructure:"storageClass"  mdignore:"true"`
 }
 
 type createResponse struct {
@@ -195,11 +197,17 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		r = b64.NewDecoder(b64.StdEncoding, r)
 	}
 
+	var storageClass *string
+	if metadata.StorageClass != "" {
+		storageClass = aws.String(metadata.StorageClass)
+	}
+
 	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:      ptr.Of(metadata.Bucket),
-		Key:         ptr.Of(key),
-		Body:        r,
-		ContentType: contentType,
+		Bucket:       ptr.Of(metadata.Bucket),
+		Key:          ptr.Of(key),
+		Body:         r,
+		ContentType:  contentType,
+		StorageClass: storageClass,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
@@ -434,6 +442,10 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 
 	if val, ok := req.Metadata[metadataPresignTTL]; ok && val != "" {
 		merged.PresignTTL = val
+	}
+
+	if val, ok := req.Metadata[metadataStorageClass]; ok && val != "" {
+		merged.StorageClass = val
 	}
 
 	return merged, nil

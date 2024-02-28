@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -34,19 +35,24 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer        sarama.SyncProducer
-	consumerGroup   string
-	brokers         []string
-	logger          logger.Logger
-	authType        string
-	saslUsername    string
-	saslPassword    string
-	initialOffset   int64
+	producer      sarama.SyncProducer
+	consumerGroup string
+	brokers       []string
+	logger        logger.Logger
+	authType      string
+	saslUsername  string
+	saslPassword  string
+	initialOffset int64
+	config        *sarama.Config
+
 	cg              sarama.ConsumerGroup
-	consumer        consumer
-	config          *sarama.Config
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
+	consumerCancel  context.CancelFunc
+	consumerWG      sync.WaitGroup
+	closeCh         chan struct{}
+	closed          atomic.Bool
+	wg              sync.WaitGroup
 
 	// schema registry settings
 	srClient                   srclient.ISchemaRegistryClient
@@ -106,7 +112,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
 		logger:          logger,
 		subscribeTopics: make(TopicHandlerConfig),
-		subscribeLock:   sync.Mutex{},
+		closeCh:         make(chan struct{}),
 	}
 }
 
@@ -184,11 +190,11 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
-	if err := retry.DecodeConfigWithPrefix(
+	if rerr := retry.DecodeConfigWithPrefix(
 		&k.backOffConfig,
 		metadata,
-		"backOff"); err != nil {
-		return err
+		"backOff"); rerr != nil {
+		return rerr
 	}
 	k.consumeRetryEnabled = meta.ConsumeRetryEnabled
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
@@ -207,22 +213,41 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 	k.logger.Debug("Kafka message bus initialization complete")
 
+	k.cg, err = sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (k *Kafka) Close() (err error) {
-	k.closeSubscriptionResources()
+func (k *Kafka) Close() error {
+	defer k.wg.Wait()
+	defer k.consumerWG.Wait()
 
-	if k.producer != nil {
-		err = k.producer.Close()
-		k.producer = nil
+	errs := make([]error, 2)
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
+
+		if k.producer != nil {
+			errs[0] = k.producer.Close()
+			k.producer = nil
+		}
+
+		if k.internalContext != nil {
+			k.internalContextCancel()
+		}
+
+		k.subscribeLock.Lock()
+		if k.consumerCancel != nil {
+			k.consumerCancel()
+		}
+		k.subscribeLock.Unlock()
+
+		errs[1] = k.cg.Close()
 	}
 
-	if k.internalContext != nil {
-		k.internalContextCancel()
-	}
-
-	return err
+	return errors.Join(errs...)
 }
 
 func getSchemaSubject(topic string) string {

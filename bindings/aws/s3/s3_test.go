@@ -83,6 +83,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"encodeBase64": "false",
 			"filePath":     "/usr/vader.darth",
 			"presignTTL":   "15s",
+			"storageClass": "STANDARD_IA",
 		}
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
@@ -99,6 +100,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.False(t, mergedMeta.EncodeBase64)
 		assert.Equal(t, "/usr/vader.darth", mergedMeta.FilePath)
 		assert.Equal(t, "15s", mergedMeta.PresignTTL)
+		assert.Equal(t, "STANDARD_IA", mergedMeta.StorageClass)
 	})
 
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {

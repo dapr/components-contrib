@@ -1,8 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.21
+go 1.22
 
-toolchain go1.21.4
+toolchain go1.22.0
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -24,7 +24,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
-	github.com/Azure/go-amqp v1.0.4
+	github.com/Azure/go-amqp v1.0.5-0.20240301200753-2dff4b36f85f
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.42.1
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
@@ -187,11 +187,11 @@ require (
 	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/chenzhuoyu/iasm v0.9.0 // indirect
-	github.com/choleraehyq/pid v0.0.17 // indirect
+	github.com/chenzhuoyu/iasm v0.9.1 // indirect
+	github.com/choleraehyq/pid v0.0.18 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.8 // indirect
+	github.com/cloudwego/frugal v0.1.14 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect

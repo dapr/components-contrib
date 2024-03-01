@@ -26,7 +26,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
 	github.com/Azure/go-amqp v1.0.5-0.20240301200753-2dff4b36f85f
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/IBM/sarama v1.42.1
+	github.com/IBM/sarama v1.42.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
@@ -114,10 +114,10 @@ require (
 	go.mongodb.org/mongo-driver v1.12.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
-	golang.org/x/crypto v0.18.0
+	golang.org/x/crypto v0.19.0
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
 	golang.org/x/mod v0.14.0
-	golang.org/x/net v0.20.0
+	golang.org/x/net v0.21.0
 	golang.org/x/oauth2 v0.16.0
 	google.golang.org/api v0.138.0
 	google.golang.org/grpc v1.59.0
@@ -206,7 +206,7 @@ require (
 	github.com/dubbogo/triple v1.1.8 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
-	github.com/eapache/go-resiliency v1.4.0 // indirect
+	github.com/eapache/go-resiliency v1.5.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
@@ -325,7 +325,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pierrec/lz4 v2.6.0+incompatible // indirect
-	github.com/pierrec/lz4/v4 v4.1.18 // indirect
+	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -381,8 +381,8 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect

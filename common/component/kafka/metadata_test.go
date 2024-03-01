@@ -133,7 +133,7 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
 	require.Equal(t, 8, defaultClientConnectionRefreshIntervalMin)
-	require.Equal(t, 9, defaultClientConnectionMaxKeepAliveMin)
+	require.Equal(t, 0, defaultClientConnectionMaxKeepAliveMin)
 }
 
 func TestMissingBrokers(t *testing.T) {

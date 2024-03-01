@@ -56,9 +56,9 @@ const (
 	// This prevents write: broken pipe err when writer does not know connection was closed,
 	// and continues to publish to closed connection.
 	clientConnectionRefreshIntervalMin        = "clientConnectionRefreshIntervalMin"
-	defaultClientConnectionRefreshIntervalMin = 8
+	defaultClientConnectionRefreshIntervalMin = 8 // needs to be 8 as kafka default for killing idle connections is 9 min
 	clientConnectionMaxKeepAliveMin           = "clientConnectionMaxKeepAliveMin"
-	defaultClientConnectionMaxKeepAliveMin    = 9
+	defaultClientConnectionMaxKeepAliveMin    = 0 // default to keep connection alive
 )
 
 type KafkaMetadata struct {

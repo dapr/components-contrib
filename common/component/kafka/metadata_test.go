@@ -132,8 +132,8 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
-	require.Equal(t, 8, defaultProducerConnectionRefreshIntervalMin)
-	require.Equal(t, 9, defaultProducerConnectionMaxKeepAliveMin)
+	require.Equal(t, 8, defaultClientConnectionRefreshIntervalMin)
+	require.Equal(t, 9, defaultClientConnectionMaxKeepAliveMin)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -404,20 +404,20 @@ func TestMetadataProducerValues(t *testing.T) {
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, defaultProducerConnectionRefreshIntervalMin, meta.producerConnectionRefreshIntervalMin)
-		require.Equal(t, defaultProducerConnectionMaxKeepAliveMin, meta.producerConnectionMaxKeepAliveMin)
+		require.Equal(t, defaultClientConnectionRefreshIntervalMin, meta.clientConnectionRefreshIntervalMin)
+		require.Equal(t, defaultClientConnectionMaxKeepAliveMin, meta.clientConnectionMaxKeepAliveMin)
 	})
 
 	t.Run("setting producer values explicitly", func(t *testing.T) {
 		k := getKafka()
 		m := getCompleteMetadata()
-		m[producerConnectionRefreshIntervalMin] = "3"
-		m[producerConnectionMaxKeepAliveMin] = "4"
+		m[clientConnectionRefreshIntervalMin] = "3"
+		m[clientConnectionMaxKeepAliveMin] = "4"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, 3, meta.producerConnectionRefreshIntervalMin)
-		require.Equal(t, 4, meta.producerConnectionMaxKeepAliveMin)
+		require.Equal(t, 3, meta.clientConnectionRefreshIntervalMin)
+		require.Equal(t, 4, meta.clientConnectionMaxKeepAliveMin)
 	})
 }
 

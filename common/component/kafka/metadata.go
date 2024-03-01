@@ -51,14 +51,14 @@ const (
 	channelBufferSize    = "channelBufferSize"
 	valueSchemaType      = "valueSchemaType"
 
-	// Producer config default values.
+	// Kafka client config default values.
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
 	// This prevents write: broken pipe err when writer does not know connection was closed,
 	// and continues to publish to closed connection.
-	producerConnectionRefreshIntervalMin        = "producerConnectionRefreshIntervalMin"
-	defaultProducerConnectionRefreshIntervalMin = 8
-	producerConnectionMaxKeepAliveMin           = "producerConnectionMaxKeepAliveMin"
-	defaultProducerConnectionMaxKeepAliveMin    = 9
+	clientConnectionRefreshIntervalMin        = "clientConnectionRefreshIntervalMin"
+	defaultClientConnectionRefreshIntervalMin = 8
+	clientConnectionMaxKeepAliveMin           = "clientConnectionMaxKeepAliveMin"
+	defaultClientConnectionMaxKeepAliveMin    = 9
 )
 
 type KafkaMetadata struct {
@@ -90,9 +90,9 @@ type KafkaMetadata struct {
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
-	// producer configs for kafka client
-	producerConnectionRefreshIntervalMin int `mapstructure:"producerConnectionRefreshIntervalMin"`
-	producerConnectionMaxKeepAliveMin    int `mapstructure:"producerConnectionMaxKeepAliveMin"`
+	// configs for kafka client
+	clientConnectionRefreshIntervalMin int `mapstructure:"clientConnectionRefreshIntervalMin"`
+	clientConnectionMaxKeepAliveMin    int `mapstructure:"clientConnectionMaxKeepAliveMin"`
 
 	// aws iam auth profile
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
@@ -324,24 +324,24 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	}
 
 	// producer connection specifications
-	if val, ok := meta[producerConnectionRefreshIntervalMin]; ok && val != "" {
+	if val, ok := meta[clientConnectionRefreshIntervalMin]; ok && val != "" {
 		v, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, err
 		}
-		m.producerConnectionRefreshIntervalMin = v
+		m.clientConnectionRefreshIntervalMin = v
 	} else {
-		m.producerConnectionRefreshIntervalMin = defaultProducerConnectionRefreshIntervalMin
+		m.clientConnectionRefreshIntervalMin = defaultClientConnectionRefreshIntervalMin
 	}
 
-	if val, ok := meta[producerConnectionMaxKeepAliveMin]; ok && val != "" {
+	if val, ok := meta[clientConnectionMaxKeepAliveMin]; ok && val != "" {
 		v, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, err
 		}
-		m.producerConnectionMaxKeepAliveMin = v
+		m.clientConnectionMaxKeepAliveMin = v
 	} else {
-		m.producerConnectionMaxKeepAliveMin = defaultProducerConnectionMaxKeepAliveMin
+		m.clientConnectionMaxKeepAliveMin = defaultClientConnectionMaxKeepAliveMin
 	}
 
 	return &m, nil

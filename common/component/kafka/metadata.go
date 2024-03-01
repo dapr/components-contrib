@@ -50,6 +50,15 @@ const (
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
 	valueSchemaType      = "valueSchemaType"
+
+	// Producer config default values.
+	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
+	// This prevents write: broken pipe err when writer does not know connection was closed,
+	// and continues to publish to closed connection.
+	producerConnectionRefreshIntervalMin        = "producerConnectionRefreshIntervalMin"
+	defaultProducerConnectionRefreshIntervalMin = 8
+	producerConnectionMaxKeepAliveMin           = "producerConnectionMaxKeepAliveMin"
+	defaultProducerConnectionMaxKeepAliveMin    = 9
 )
 
 type KafkaMetadata struct {
@@ -80,16 +89,27 @@ type KafkaMetadata struct {
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
+
+	// producer configs for kafka client
+	ProducerConnectionRefreshIntervalMin int `mapstructure:"producerConnectionRefreshIntervalMin"`
+	ProducerConnectionMaxKeepAliveMin    int `mapstructure:"producerConnectionMaxKeepAliveMin"`
+
 	// aws iam auth profile
-	AWSAccessKey         string `mapstructure:"awsAccessKey"`
-	AWSSecretKey         string `mapstructure:"awsSecretKey"`
-	AWSSessionToken      string `mapstructure:"awsSessionToken"`
-	AWSIamRoleArn        string `mapstructure:"awsIamRoleArn"`
-	AWSStsSessionName    string `mapstructure:"awsStsSessionName"`
-	AWSRegion            string `mapstructure:"awsRegion"`
-	channelBufferSize    int    `mapstructure:"-"`
-	consumerFetchMin     int32  `mapstructure:"-"`
-	consumerFetchDefault int32  `mapstructure:"-"`
+	AWSAccessKey      string `mapstructure:"awsAccessKey"`
+	AWSSecretKey      string `mapstructure:"awsSecretKey"`
+	AWSSessionToken   string `mapstructure:"awsSessionToken"`
+	AWSIamRoleArn     string `mapstructure:"awsIamRoleArn"`
+	AWSStsSessionName string `mapstructure:"awsStsSessionName"`
+	AWSRegion         string `mapstructure:"awsRegion"`
+	channelBufferSize int    `mapstructure:"-"`
+
+	consumerFetchMin     int32 `mapstructure:"-"`
+	consumerFetchDefault int32 `mapstructure:"-"`
+
+	// production connection configuration
+	producerConnectionRefreshIntervalMin int32 `mapstructure:"-"`
+	producerConnectionMaxKeepAliveMin    int32 `mapstructure:"-"`
+
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
 	SchemaRegistryAPIKey        string        `mapstructure:"schemaRegistryAPIKey"`
@@ -126,9 +146,29 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 	}
 
 	// if consumeRetryEnabled is not present, use component default value
-	consumeRetryEnabledVal, consumeRetryEnabledPres := metadata[consumeRetryEnabled]
-	if !consumeRetryEnabledPres || consumeRetryEnabledVal == "" {
+	consumeRetryEnabledVal, consumeRetryEnabledOk := metadata[consumeRetryEnabled]
+	if !consumeRetryEnabledOk || consumeRetryEnabledVal == "" {
 		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
+	}
+
+	// if producer connection specifications are not present, use component default values
+	producerConnectionRefreshIntervalMinValString, producerConnectionRefreshIntervalMinOk := metadata[producerConnectionRefreshIntervalMin]
+	connectionRefreshIntervalMinVal, err := strconv.ParseInt(producerConnectionRefreshIntervalMinValString, 10, 32)
+	if err != nil {
+		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionRefreshIntervalMin))
+	}
+	if !producerConnectionRefreshIntervalMinOk || connectionRefreshIntervalMinVal <= 0 {
+		metadata[producerConnectionRefreshIntervalMin] = strconv.Itoa(defaultProducerConnectionRefreshIntervalMin)
+	}
+
+	// if producer connection specifications are not present, use component default values
+	producerConnectionMaxKeepAliveMinValString, producerConnectionMaxKeepAliveMinOk := metadata[producerConnectionRefreshIntervalMin]
+	connectionMaxKeepAliveMinVal, err := strconv.ParseInt(producerConnectionMaxKeepAliveMinValString, 10, 32)
+	if err != nil {
+		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionRefreshIntervalMin))
+	}
+	if !producerConnectionMaxKeepAliveMinOk || connectionMaxKeepAliveMinVal < 0 {
+		metadata[producerConnectionMaxKeepAliveMin] = strconv.Itoa(defaultProducerConnectionMaxKeepAliveMin)
 	}
 
 	return metadata, nil
@@ -305,6 +345,25 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 
 		m.consumerFetchMin = int32(v)
+	}
+
+	// producer connection specifications
+	if val, ok := meta[producerConnectionRefreshIntervalMin]; ok && val != "" {
+		v, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		m.producerConnectionRefreshIntervalMin = int32(v)
+	}
+
+	if val, ok := meta[producerConnectionMaxKeepAliveMin]; ok && val != "" {
+		v, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		m.producerConnectionMaxKeepAliveMin = int32(v)
 	}
 
 	return &m, nil

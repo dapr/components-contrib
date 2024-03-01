@@ -364,7 +364,5 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		m.producerConnectionMaxKeepAliveMin = defaultProducerConnectionMaxKeepAliveMin
 	}
 
-	k.logger.Infof("sam %v %v", m.producerConnectionRefreshIntervalMin, m.producerConnectionMaxKeepAliveMin)
-
 	return &m, nil
 }

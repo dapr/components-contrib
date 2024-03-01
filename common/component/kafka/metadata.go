@@ -147,25 +147,6 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
 	}
 
-	// if producer connection specifications are not present, use component default values
-	producerConnectionRefreshIntervalMinValString, producerConnectionRefreshIntervalMinOk := metadata[producerConnectionRefreshIntervalMin]
-	connectionRefreshIntervalMinVal, err := strconv.ParseInt(producerConnectionRefreshIntervalMinValString, 10, 32)
-	if err != nil {
-		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionRefreshIntervalMin))
-	}
-	if !producerConnectionRefreshIntervalMinOk || connectionRefreshIntervalMinVal <= 0 {
-		metadata[producerConnectionRefreshIntervalMin] = strconv.Itoa(defaultProducerConnectionRefreshIntervalMin)
-	}
-
-	// if producer connection specifications are not present, use component default values
-	producerConnectionMaxKeepAliveMinValString, producerConnectionMaxKeepAliveMinOk := metadata[producerConnectionMaxKeepAliveMin]
-	connectionMaxKeepAliveMinVal, err := strconv.ParseInt(producerConnectionMaxKeepAliveMinValString, 10, 32)
-	if err != nil {
-		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionMaxKeepAliveMin))
-	}
-	if !producerConnectionMaxKeepAliveMinOk || connectionMaxKeepAliveMinVal < 0 {
-		metadata[producerConnectionMaxKeepAliveMin] = strconv.Itoa(defaultProducerConnectionMaxKeepAliveMin)
-	}
 
 	return metadata, nil
 }

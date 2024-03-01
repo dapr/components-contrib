@@ -91,8 +91,8 @@ type KafkaMetadata struct {
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
 	// producer configs for kafka client
-	ProducerConnectionRefreshIntervalMin int `mapstructure:"producerConnectionRefreshIntervalMin"`
-	ProducerConnectionMaxKeepAliveMin    int `mapstructure:"producerConnectionMaxKeepAliveMin"`
+	producerConnectionRefreshIntervalMin int `mapstructure:"producerConnectionRefreshIntervalMin"`
+	producerConnectionMaxKeepAliveMin    int `mapstructure:"producerConnectionMaxKeepAliveMin"`
 
 	// aws iam auth profile
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
@@ -105,10 +105,6 @@ type KafkaMetadata struct {
 
 	consumerFetchMin     int32 `mapstructure:"-"`
 	consumerFetchDefault int32 `mapstructure:"-"`
-
-	// production connection configuration
-	producerConnectionRefreshIntervalMin int32 `mapstructure:"-"`
-	producerConnectionMaxKeepAliveMin    int32 `mapstructure:"-"`
 
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
@@ -162,10 +158,10 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 	}
 
 	// if producer connection specifications are not present, use component default values
-	producerConnectionMaxKeepAliveMinValString, producerConnectionMaxKeepAliveMinOk := metadata[producerConnectionRefreshIntervalMin]
+	producerConnectionMaxKeepAliveMinValString, producerConnectionMaxKeepAliveMinOk := metadata[producerConnectionMaxKeepAliveMin]
 	connectionMaxKeepAliveMinVal, err := strconv.ParseInt(producerConnectionMaxKeepAliveMinValString, 10, 32)
 	if err != nil {
-		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionRefreshIntervalMin))
+		return metadata, errors.New(fmt.Sprintf("kafka error: invalid value for %q attribute", producerConnectionMaxKeepAliveMin))
 	}
 	if !producerConnectionMaxKeepAliveMinOk || connectionMaxKeepAliveMinVal < 0 {
 		metadata[producerConnectionMaxKeepAliveMin] = strconv.Itoa(defaultProducerConnectionMaxKeepAliveMin)
@@ -349,22 +345,27 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 
 	// producer connection specifications
 	if val, ok := meta[producerConnectionRefreshIntervalMin]; ok && val != "" {
-		v, err := strconv.ParseInt(val, 10, 32)
+		v, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, err
 		}
-
-		m.producerConnectionRefreshIntervalMin = int32(v)
+		m.producerConnectionRefreshIntervalMin = v
+	} else {
+		m.producerConnectionRefreshIntervalMin = defaultProducerConnectionRefreshIntervalMin
 	}
 
 	if val, ok := meta[producerConnectionMaxKeepAliveMin]; ok && val != "" {
-		v, err := strconv.ParseInt(val, 10, 32)
+		v, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, err
 		}
+		m.producerConnectionMaxKeepAliveMin = v
+	} else {
+		m.producerConnectionMaxKeepAliveMin = defaultProducerConnectionMaxKeepAliveMin
 
-		m.producerConnectionMaxKeepAliveMin = int32(v)
 	}
+
+	k.logger.Infof("sam %v %v", m.producerConnectionRefreshIntervalMin, m.producerConnectionMaxKeepAliveMin)
 
 	return &m, nil
 }

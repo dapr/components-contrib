@@ -147,7 +147,6 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
 	}
 
-
 	return metadata, nil
 }
 

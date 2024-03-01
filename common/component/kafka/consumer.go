@@ -14,12 +14,10 @@ limitations under the License.
 package kafka
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -29,15 +27,8 @@ import (
 )
 
 type consumer struct {
-	k             *Kafka
-	ready         chan bool
-	running       chan struct{}
-	stopped       atomic.Bool
-	once          sync.Once
-	mutex         sync.Mutex
-	skipConsume   bool
-	consumeCtx    context.Context
-	consumeCancel context.CancelFunc
+	k     *Kafka
+	mutex sync.Mutex
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
@@ -233,25 +224,7 @@ func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
-	consumer.once.Do(func() {
-		close(consumer.ready)
-	})
-
 	return nil
-}
-
-// AddTopicHandler adds a handler and configuration for a topic
-func (k *Kafka) AddTopicHandler(topic string, handlerConfig SubscriptionHandlerConfig) {
-	k.subscribeLock.Lock()
-	k.subscribeTopics[topic] = handlerConfig
-	k.subscribeLock.Unlock()
-}
-
-// RemoveTopicHandler removes a topic handler
-func (k *Kafka) RemoveTopicHandler(topic string) {
-	k.subscribeLock.Lock()
-	delete(k.subscribeTopics, topic)
-	k.subscribeLock.Unlock()
 }
 
 // checkBulkSubscribe checks if a bulk handler and config are correctly registered for provided topic
@@ -274,121 +247,4 @@ func (k *Kafka) GetTopicHandlerConfig(topic string) (SubscriptionHandlerConfig, 
 	}
 	return SubscriptionHandlerConfig{},
 		fmt.Errorf("any handler for messages of topic %s not found", topic)
-}
-
-// Subscribe to topic in the Kafka cluster, in a background goroutine
-func (k *Kafka) Subscribe(ctx context.Context) error {
-	if k.consumerGroup == "" {
-		return errors.New("kafka: consumerGroup must be set to subscribe")
-	}
-
-	k.subscribeLock.Lock()
-	defer k.subscribeLock.Unlock()
-
-	topics := k.subscribeTopics.TopicList()
-	if len(topics) == 0 {
-		// Nothing to subscribe to
-		return nil
-	}
-	k.consumer.skipConsume = true
-
-	ctxCreateFn := func() {
-		consumeCtx, cancel := context.WithCancel(context.Background())
-
-		k.consumer.consumeCtx = consumeCtx
-		k.consumer.consumeCancel = cancel
-
-		k.consumer.skipConsume = false
-	}
-
-	if k.cg == nil {
-		cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-		if err != nil {
-			return err
-		}
-
-		k.cg = cg
-
-		ready := make(chan bool)
-		k.consumer = consumer{
-			k:       k,
-			ready:   ready,
-			running: make(chan struct{}),
-		}
-
-		ctxCreateFn()
-
-		go func() {
-			k.logger.Debugf("Subscribed and listening to topics: %s", topics)
-
-			for {
-				// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
-				// us out of the consume loop
-				if ctx.Err() != nil {
-					k.logger.Info("Consume context cancelled")
-					break
-				}
-
-				k.logger.Debugf("Starting loop to consume.")
-
-				if k.consumer.skipConsume {
-					continue
-				}
-
-				topics = k.subscribeTopics.TopicList()
-
-				// Consume the requested topics
-				bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
-				innerErr := retry.NotifyRecover(func() error {
-					if ctxErr := ctx.Err(); ctxErr != nil {
-						return backoff.Permanent(ctxErr)
-					}
-					return k.cg.Consume(k.consumer.consumeCtx, topics, &(k.consumer))
-				}, bo, func(err error, t time.Duration) {
-					k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
-				}, func() {
-					k.logger.Infof("Recovered consuming %v", topics)
-				})
-				if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
-					k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
-				}
-			}
-
-			k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
-			err := k.cg.Close()
-			if err != nil {
-				k.logger.Errorf("Error closing consumer group: %v", err)
-			}
-
-			// Ensure running channel is only closed once.
-			if k.consumer.stopped.CompareAndSwap(false, true) {
-				close(k.consumer.running)
-			}
-		}()
-
-		<-ready
-	} else {
-		// The consumer group is already created and consuming topics. This means a new subscription is being added
-		k.consumer.consumeCancel()
-		ctxCreateFn()
-	}
-
-	return nil
-}
-
-// Close down consumer group resources, refresh once.
-func (k *Kafka) closeSubscriptionResources() {
-	if k.cg != nil {
-		err := k.cg.Close()
-		if err != nil {
-			k.logger.Errorf("Error closing consumer group: %v", err)
-		}
-
-		k.consumer.once.Do(func() {
-			// Wait for shutdown to be complete
-			<-k.consumer.running
-			close(k.consumer.ready)
-			k.consumer.once = sync.Once{}
-		})
-	}
 }

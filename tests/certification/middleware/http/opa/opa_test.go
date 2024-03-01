@@ -17,9 +17,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/middleware"
 	opaMw "github.com/dapr/components-contrib/middleware/http/opa"
@@ -29,14 +31,12 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	httpMiddlewareLoader "github.com/dapr/dapr/pkg/components/middleware/http"
 	"github.com/dapr/dapr/pkg/config/protocol"
-	httpMiddleware "github.com/dapr/dapr/pkg/middleware/http"
+	runtimeMiddleware "github.com/dapr/dapr/pkg/middleware"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 
 	"github.com/stretchr/testify/require"
-	"io"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -47,13 +47,10 @@ const (
 	responseHeaderName = "x-custom-header"
 )
 
-var (
-	// Logger
-	log = logger.NewLogger("dapr.components")
-)
+// Logger
+var log = logger.NewLogger("dapr.components")
 
 func TestHTTPMiddlewareOpa(t *testing.T) {
-
 	ports, err := dapr_testing.GetFreePorts(6)
 	require.NoError(t, err)
 
@@ -130,7 +127,6 @@ func TestHTTPMiddlewareOpa(t *testing.T) {
 		ctx.T.Run("bearer token validation", func(t *testing.T) {
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
-
 					// Invoke sidecar
 					resStatus, resHeaderValue, err := sendRequest(ctx.Context, httpPorts[0], &sendRequestOpts{
 						Body: tt.body,
@@ -162,14 +158,13 @@ func TestHTTPMiddlewareOpa(t *testing.T) {
 		Step("opa validation", opaTests).
 		// Run
 		Run()
-
 }
 
 func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
-		return func(metadata middleware.Metadata) (httpMiddleware.Middleware, error) {
+		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
 			return opaMw.NewMiddleware(log).GetHandler(context.Background(), metadata)
 		}
 	}, "opa")

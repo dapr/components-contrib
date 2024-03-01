@@ -32,6 +32,8 @@ import (
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 
+	kitmd "github.com/dapr/kit/metadata"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -201,8 +203,14 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 }
 
 func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *string {
-	if s, ok := metadata["label"]; ok && s != "" {
-		return to.Ptr(s)
+	type labelMetadata = struct {
+		Label string `mapstructure:"label"`
+	}
+	var label labelMetadata
+	kitmd.DecodeMetadata(metadata, &label)
+
+	if label.Label != "" {
+		return to.Ptr(label.Label)
 	}
 
 	return nil
@@ -284,9 +292,16 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 }
 
 func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]string) string {
-	if s, ok := metadata["sentinelKey"]; ok && s != "" {
-		return s
+	type sentinelKeyMetadata = struct {
+		SentinelKey string `mapstructure:"sentinelKey"`
 	}
+	var sentinelKey sentinelKeyMetadata
+	kitmd.DecodeMetadata(metadata, &sentinelKey)
+
+	if sentinelKey.SentinelKey != "" {
+		return sentinelKey.SentinelKey
+	}
+
 	return ""
 }
 

@@ -24,7 +24,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
-	github.com/Azure/go-amqp v1.0.4
+	github.com/Azure/go-amqp v1.0.5-0.20240301200753-2dff4b36f85f
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.42.1
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0

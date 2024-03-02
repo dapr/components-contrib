@@ -77,6 +77,8 @@ type KafkaMetadata struct {
 	TLSClientKey           string              `mapstructure:"clientKey"`
 	ConsumeRetryEnabled    bool                `mapstructure:"consumeRetryEnabled"`
 	ConsumeRetryInterval   time.Duration       `mapstructure:"consumeRetryInterval"`
+	HeartbeatInterval      time.Duration       `mapstructure:"heartbeatInterval"`
+	SessionTimeout         time.Duration       `mapstructure:"sessionTimeout"`
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`

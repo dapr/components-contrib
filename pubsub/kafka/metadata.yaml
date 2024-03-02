@@ -231,6 +231,18 @@ metadata:
         Disables consumer retry by setting this to "false".
       example: '"true"'
       default: '"false"'
+    - name: heartbeatInterval
+      type: duration
+      description: |
+        The interval between heartbeats to the consumer coordinator.
+      example: '5s'
+      default: '3s'
+    - name: sessionTimeout
+      type: duration
+      description: |
+        The maximum time between heartbeats before the consumer is considered inactive and will timeout.
+      example: '20s'
+      default: '10s'
     - name: version
       type: string
       description: |

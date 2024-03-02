@@ -141,6 +141,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Offsets.Initial = k.initialOffset
 	config.Consumer.Fetch.Min = meta.consumerFetchMin
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
+	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
+	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	if meta.ClientID != "" {

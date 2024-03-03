@@ -46,6 +46,8 @@ const (
 	mtlsAuthType         = "mtls"
 	awsIAMAuthType       = "awsiam"
 	noAuthType           = "none"
+	heartbeatInterval    = "heartbeatInterval"
+	sessionTimeout       = "sessionTimeout"
 	consumerFetchMin     = "consumerFetchMin"
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
@@ -144,6 +146,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		channelBufferSize:    256,
 		consumerFetchMin:     1,
 		consumerFetchDefault: 1024 * 1024,
+		HeartbeatInterval:    3 * time.Second,
+		SessionTimeout:       10 * time.Second,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)

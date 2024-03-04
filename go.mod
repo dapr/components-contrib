@@ -1,8 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.21
-
-toolchain go1.21.4
+go 1.22
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -51,7 +49,7 @@ require (
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0
 	github.com/cloudevents/sdk-go/v2 v2.14.0
-	github.com/cloudwego/kitex v0.5.0
+	github.com/cloudwego/kitex v0.9.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
@@ -135,6 +133,19 @@ require (
 )
 
 require (
+	github.com/bytedance/sonic v1.11.1 // indirect
+	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
+	github.com/cloudwego/configmanager v0.2.0 // indirect
+	github.com/cloudwego/dynamicgo v0.2.0 // indirect
+	github.com/cloudwego/localsession v0.0.2 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
+	github.com/iancoleman/strcase v0.2.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
+	github.com/modern-go/gls v0.0.0-20220109145502-612d0167dce5 // indirect
+	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
+)
+
+require (
 	cloud.google.com/go v0.110.8 // indirect
 	cloud.google.com/go/compute v1.23.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
@@ -184,16 +195,16 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/bufbuild/protocompile v0.4.0 // indirect
-	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
+	github.com/bytedance/gopkg v0.0.0-20230728082804-614d0af6619b // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/chenzhuoyu/iasm v0.9.0 // indirect
-	github.com/choleraehyq/pid v0.0.17 // indirect
+	github.com/chenzhuoyu/iasm v0.9.1 // indirect
+	github.com/choleraehyq/pid v0.0.18 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
-	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.8 // indirect
-	github.com/cloudwego/netpoll v0.3.2 // indirect
-	github.com/cloudwego/thriftgo v0.3.0 // indirect
+	github.com/cloudwego/fastpb v0.0.4 // indirect
+	github.com/cloudwego/frugal v0.1.14 // indirect
+	github.com/cloudwego/netpoll v0.6.0 // indirect
+	github.com/cloudwego/thriftgo v0.3.6 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect

@@ -55,10 +55,10 @@ const (
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
 	// This prevents write: broken pipe err when writer does not know connection was closed,
 	// and continues to publish to closed connection.
-	clientConnectionRefreshIntervalMin        = "clientConnectionRefreshIntervalMin"
-	defaultClientConnectionRefreshIntervalMin = 8 // needs to be 8 as kafka default for killing idle connections is 9 min
-	clientConnectionMaxKeepAliveMin           = "clientConnectionMaxKeepAliveMin"
-	defaultClientConnectionMaxKeepAliveMin    = 0 // default to keep connection alive
+	clientConnectionRefreshInterval          = "clientConnectionRefreshInterval"
+	defaultClientConnectionRefreshInterval   = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
+	clientConnectionKeepAliveInterval        = "clientConnectionKeepAliveInterval"
+	defaultClientConnectionKeepAliveInterval = 0 * time.Minute // default to keep connection alive
 )
 
 type KafkaMetadata struct {
@@ -91,8 +91,8 @@ type KafkaMetadata struct {
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
 	// configs for kafka client
-	clientConnectionRefreshIntervalMin int `mapstructure:"clientConnectionRefreshIntervalMin"`
-	clientConnectionMaxKeepAliveMin    int `mapstructure:"clientConnectionMaxKeepAliveMin"`
+	clientConnectionRefreshInterval   time.Duration `mapstructure:"clientConnectionRefreshInterval"`
+	clientConnectionKeepAliveInterval time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
 	// aws iam auth profile
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
@@ -115,10 +115,10 @@ type KafkaMetadata struct {
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
-func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, error) {
-	authTypeVal, authTypePres := metadata[authType]
-	authReqVal, authReqPres := metadata["authRequired"]
-	saslPassVal, saslPassPres := metadata["saslPassword"]
+func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, error) {
+	authTypeVal, authTypePres := meta[authType]
+	authReqVal, authReqPres := meta["authRequired"]
+	saslPassVal, saslPassPres := meta["saslPassword"]
 
 	// If authType is not set, derive it from authRequired.
 	if (!authTypePres || authTypeVal == "") && authReqPres && authReqVal != "" {
@@ -129,25 +129,25 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 				// If legacy authRequired was used, either SASL username or mtls is the method.
 				if saslPassPres && saslPassVal != "" {
 					// User has specified saslPassword, so intend for password auth.
-					metadata[authType] = passwordAuthType
+					meta[authType] = passwordAuthType
 				} else {
-					metadata[authType] = mtlsAuthType
+					meta[authType] = mtlsAuthType
 				}
 			} else {
-				metadata[authType] = noAuthType
+				meta[authType] = noAuthType
 			}
 		} else {
-			return metadata, errors.New("kafka error: invalid value for 'authRequired' attribute")
+			return meta, errors.New("kafka error: invalid value for 'authRequired' attribute")
 		}
 	}
 
 	// if consumeRetryEnabled is not present, use component default value
-	consumeRetryEnabledVal, consumeRetryEnabledOk := metadata[consumeRetryEnabled]
+	consumeRetryEnabledVal, consumeRetryEnabledOk := metadata.GetMetadataProperty(meta, consumeRetryEnabled)
 	if !consumeRetryEnabledOk || consumeRetryEnabledVal == "" {
-		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
+		meta[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
 	}
 
-	return metadata, nil
+	return meta, nil
 }
 
 // getKafkaMetadata returns new Kafka metadata.
@@ -324,24 +324,42 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	}
 
 	// producer connection specifications
-	if val, ok := meta[clientConnectionRefreshIntervalMin]; ok && val != "" {
-		v, err := strconv.Atoi(val)
+	if val, ok := meta[clientConnectionRefreshInterval]; ok && val != "" {
+		// Parse the duration string
+		dur, err := time.ParseDuration(val)
 		if err != nil {
-			return nil, err
+			// If parsing as duration fails, check if it's a number and interpret as minutes
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionRefreshInterval, err)
+			}
+			dur = time.Duration(intVal) * time.Minute
 		}
-		m.clientConnectionRefreshIntervalMin = v
+		m.clientConnectionRefreshInterval = dur
+		if m.clientConnectionRefreshInterval <= 0 {
+			m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
+		}
 	} else {
-		m.clientConnectionRefreshIntervalMin = defaultClientConnectionRefreshIntervalMin
+		m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
 	}
 
-	if val, ok := meta[clientConnectionMaxKeepAliveMin]; ok && val != "" {
-		v, err := strconv.Atoi(val)
+	if val, ok := meta[clientConnectionKeepAliveInterval]; ok && val != "" {
+		// Parse the duration string
+		dur, err := time.ParseDuration(val)
 		if err != nil {
-			return nil, err
+			// If parsing as duration fails, check if it's a number and interpret as minutes
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionKeepAliveInterval, err)
+			}
+			dur = time.Duration(intVal) * time.Minute
 		}
-		m.clientConnectionMaxKeepAliveMin = v
+		m.clientConnectionKeepAliveInterval = dur
+		if m.clientConnectionKeepAliveInterval < 0 {
+			m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+		}
 	} else {
-		m.clientConnectionMaxKeepAliveMin = defaultClientConnectionMaxKeepAliveMin
+		m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
 	}
 
 	return &m, nil

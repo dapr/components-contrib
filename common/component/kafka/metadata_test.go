@@ -132,8 +132,8 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
-	require.Equal(t, 8, defaultClientConnectionRefreshIntervalMin)
-	require.Equal(t, 0, defaultClientConnectionMaxKeepAliveMin)
+	require.Equal(t, 8*time.Minute, defaultClientConnectionRefreshInterval)
+	require.Equal(t, 0*time.Minute, defaultClientConnectionKeepAliveInterval)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -404,20 +404,32 @@ func TestMetadataProducerValues(t *testing.T) {
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, defaultClientConnectionRefreshIntervalMin, meta.clientConnectionRefreshIntervalMin)
-		require.Equal(t, defaultClientConnectionMaxKeepAliveMin, meta.clientConnectionMaxKeepAliveMin)
+		require.Equal(t, defaultClientConnectionRefreshInterval, meta.clientConnectionRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.clientConnectionKeepAliveInterval)
 	})
 
 	t.Run("setting producer values explicitly", func(t *testing.T) {
 		k := getKafka()
 		m := getCompleteMetadata()
-		m[clientConnectionRefreshIntervalMin] = "3"
-		m[clientConnectionMaxKeepAliveMin] = "4"
+		m[clientConnectionRefreshInterval] = "3m"
+		m[clientConnectionKeepAliveInterval] = "4m"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, 3, meta.clientConnectionRefreshIntervalMin)
-		require.Equal(t, 4, meta.clientConnectionMaxKeepAliveMin)
+		require.Equal(t, 3*time.Minute, meta.clientConnectionRefreshInterval)
+		require.Equal(t, 4*time.Minute, meta.clientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[clientConnectionRefreshInterval] = "-100m"
+		m[clientConnectionKeepAliveInterval] = "-100m"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultClientConnectionRefreshInterval, meta.clientConnectionRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.clientConnectionKeepAliveInterval)
 	})
 }
 

@@ -266,18 +266,18 @@ metadata:
         The minimum number of message bytes to fetch in a request.
       example: '4'
       default: '1'
-    - name: clientConnectionRefreshIntervalMin
+    - name: clientConnectionRefreshInterval
       type: number
       description: |
         The interval for the client connection to be refreshed with the broker in minutes.
-      example: '4'
-      default: '9'
-    - name: clientConnectionMaxKeepAliveMin
+      example: '4m'
+      default: '9m'
+    - name: clientConnectionKeepAliveInterval
       type: number
       description: |
         The max amount of time for the client connection to be kept alive with the broker, in minutes, before closing the connection. Zero defaults to keeping alive indefinitely.
-      example: '4'
-      default: '0'
+      example: '4m'
+      default: '0m'
     - name: consumerFetchDefault
       type: number
       description: |

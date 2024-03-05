@@ -89,7 +89,7 @@ type SchemaCacheEntry struct {
 }
 
 func GetValueSchemaType(metadata map[string]string) (SchemaType, error) {
-	schemaTypeStr, ok := kitmd.GetMetadataProperty(metadata, valueSchemaType)
+	_, schemaTypeStr, ok := kitmd.GetMetadataProperty(metadata, valueSchemaType)
 	if ok {
 		v, err := parseSchemaType(schemaTypeStr)
 		return v, err

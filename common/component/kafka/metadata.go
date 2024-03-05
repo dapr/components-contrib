@@ -116,25 +116,25 @@ type KafkaMetadata struct {
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
 func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, error) {
-	authTypeVal, authTypePres := meta[authType]
-	authReqVal, authReqPres := meta["authRequired"]
-	saslPassVal, saslPassPres := meta["saslPassword"]
+	authTypeKey, authTypeVal, authTypeOk := metadata.GetMetadataProperty(meta, authType)
+	_, authReqVal, authReqOk := metadata.GetMetadataProperty(meta, "authRequired")
+	_, saslPassVal, saslPassOk := metadata.GetMetadataProperty(meta, "saslPassword")
 
 	// If authType is not set, derive it from authRequired.
-	if (!authTypePres || authTypeVal == "") && authReqPres && authReqVal != "" {
+	if (!authTypeOk || authTypeVal == "") && authReqOk && authReqVal != "" {
 		k.logger.Warn("AuthRequired is deprecated, use AuthType instead.")
 		validAuthRequired, err := strconv.ParseBool(authReqVal)
 		if err == nil {
 			if validAuthRequired {
 				// If legacy authRequired was used, either SASL username or mtls is the method.
-				if saslPassPres && saslPassVal != "" {
+				if saslPassOk && saslPassVal != "" {
 					// User has specified saslPassword, so intend for password auth.
-					meta[authType] = passwordAuthType
+					meta[authTypeKey] = passwordAuthType
 				} else {
-					meta[authType] = mtlsAuthType
+					meta[authTypeKey] = mtlsAuthType
 				}
 			} else {
-				meta[authType] = noAuthType
+				meta[authTypeKey] = noAuthType
 			}
 		} else {
 			return meta, errors.New("kafka error: invalid value for 'authRequired' attribute")
@@ -142,9 +142,9 @@ func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, erro
 	}
 
 	// if consumeRetryEnabled is not present, use component default value
-	consumeRetryEnabledVal, consumeRetryEnabledOk := metadata.GetMetadataProperty(meta, consumeRetryEnabled)
+	consumeRetryEnabledKey, consumeRetryEnabledVal, consumeRetryEnabledOk := metadata.GetMetadataProperty(meta, consumeRetryEnabled)
 	if !consumeRetryEnabledOk || consumeRetryEnabledVal == "" {
-		meta[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
+		meta[consumeRetryEnabledKey] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
 	}
 
 	return meta, nil

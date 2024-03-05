@@ -431,3 +431,8 @@ replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday
 
 // this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// Uncomment for local development for testing with changes in the components-contrib && kit repositories.
+// Don't commit with this uncommented!
+//
+// replace github.com/dapr/kit => ../kit

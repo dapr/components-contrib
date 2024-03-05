@@ -96,7 +96,7 @@ func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 	if m.CleanupInterval != nil {
 		// Non-positive value from meta means disable auto cleanup.
 		if *m.CleanupInterval <= 0 {
-			val, _ := metadata.GetMetadataProperty(meta, "cleanupInterval", "cleanupIntervalInSeconds")
+			_, val, _ := metadata.GetMetadataProperty(meta, "cleanupInterval", "cleanupIntervalInSeconds")
 			if val == "" {
 				// Unfortunately the mapstructure decoder decodes an empty string to 0, a missing key would be nil however
 				m.CleanupInterval = ptr.Of(defaultCleanupInterval)

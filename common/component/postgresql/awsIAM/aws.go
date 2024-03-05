@@ -62,7 +62,7 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKe
 }
 
 func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString string, region string, awsAccessKey, awsSecretKey string) error {
-	var timeout = 15 * time.Second
+	timeout := 15 * time.Second
 
 	// Set max connection lifetime to 14 minutes in postgres connection pool configuration.
 	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,

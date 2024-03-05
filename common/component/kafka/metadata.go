@@ -46,8 +46,6 @@ const (
 	mtlsAuthType         = "mtls"
 	awsIAMAuthType       = "awsiam"
 	noAuthType           = "none"
-	heartbeatInterval    = "heartbeatInterval"
-	sessionTimeout       = "sessionTimeout"
 	consumerFetchMin     = "consumerFetchMin"
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"

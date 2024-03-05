@@ -69,7 +69,7 @@ builtinAuthenticationProfiles:
         type: string
         sensitive: true
         description: |
-          AWS session token to use. A session token is only required if you are using\ntemporary security credentials.
+          AWS session token to use. A session token is only required if you are using temporary security credentials.
         example: '"TOKEN"'
 authenticationProfiles:
   - title: "Connection string"

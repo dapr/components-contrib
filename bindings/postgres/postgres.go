@@ -26,7 +26,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -67,28 +66,10 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 
-	var poolConfig *pgxpool.Config
-	// Note: if AWS IAM enabled then must use master connection string to connect initially,
-	// otherwise connect using regular p.metadata.ConnectionString.
-	if meta.Properties["useAWSIAM"] == "true" {
-		poolConfig, err = m.GetPgxPoolConfig()
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
-
-		err = awsiam.InitAWSDatabase(ctx, poolConfig, m.Timeout, m.ConnectionString, meta.Properties["AWSRegion"], meta.Properties["AWSAccessKey"], meta.Properties["AWSSecretKey"])
-		if err != nil {
-			err = fmt.Errorf("failed to init AWS database: %v", err)
-			p.logger.Error(err)
-			return err
-		}
-	} else {
-		poolConfig, err = m.GetPgxPoolConfig()
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
+	poolConfig, err := m.GetPgxPoolConfig()
+	if err != nil {
+		p.logger.Error(err)
+		return err
 	}
 
 	// This context doesn't control the lifetime of the connection pool, and is

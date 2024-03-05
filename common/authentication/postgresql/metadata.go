@@ -23,7 +23,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/common/authentication/azure"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
@@ -36,6 +39,7 @@ type PostgresAuthMetadata struct {
 	QueryExecMode         string        `mapstructure:"queryExecMode"`
 
 	azureEnv azure.EnvironmentSettings
+	awsEnv   aws.EnvironmentSettings
 }
 
 // Reset the object.
@@ -58,6 +62,9 @@ type InitWithMetadataOpts struct {
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
 func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts InitWithMetadataOpts) (err error) {
 	// Validate input
+	if m.ConnectionString == "" {
+		return errors.New("missing connection string")
+	}
 	switch {
 	case opts.AzureADEnabled && m.UseAzureAD:
 		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
@@ -65,9 +72,10 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 			return err
 		}
 	case opts.AWSIAMEnabled && m.UseAWSIAM:
-		return nil
-	case m.ConnectionString == "":
-		return errors.New("missing connection string")
+		m.awsEnv, err = aws.NewEnvironmentSettings(meta)
+		if err != nil {
+			return err
+		}
 	default:
 		// Make sure these are false
 		m.UseAzureAD = false
@@ -133,6 +141,25 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 			return nil
 		}
 	}
+	if m.UseAWSIAM {
+		awsRegion, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
+		if !ok {
+			return nil, fmt.Errorf("failed to find AWSRegion metadata field")
+		}
+		awsAccessKey, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+		if !ok {
+			return nil, fmt.Errorf("failed to find AWSAccessKey metadata field")
+		}
+		awsSecretKey, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
+		if !ok {
+			return nil, fmt.Errorf("failed to find AWSSecretKey metadata field")
+		}
 
+		err = awsiam.InitAWSDatabase(context.Background(), config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			return nil, err
+		}
+	}
 	return config, nil
 }

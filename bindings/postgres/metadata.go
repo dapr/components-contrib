@@ -42,8 +42,8 @@ func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	}
 
 	opts := pgauth.InitWithMetadataOpts{
-		AzureADEnabled: m.UseAzureAD,
-		AWSIAMEnabled:  m.UseAWSIAM,
+		AzureADEnabled: true,
+		AWSIAMEnabled:  true,
 	}
 
 	// Validate and sanitize input

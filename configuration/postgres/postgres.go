@@ -30,7 +30,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -287,38 +286,20 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 }
 
 func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
-	var (
-		config *pgxpool.Config
-		pool   *pgxpool.Pool
-		err    error
-	)
-	// Note: if AWS IAM enabled then must use master connection string to connect initially,
-	// otherwise connect using regular p.metadata.ConnectionString.
-	if p.metadata.UseAWSIAM {
-		config, err = p.metadata.GetPgxPoolConfig()
-		if err != nil {
-			return nil, fmt.Errorf("postgres configuration store connection error: %w", err)
-		}
-		err = awsiam.InitAWSDatabase(ctx, config, p.metadata.Timeout, connStr, p.metadata.AWSRegion, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to init AWS database: %v", err)
-		}
-	} else {
-		config, err = p.metadata.GetPgxPoolConfig()
-		if err != nil {
-			p.logger.Error(err)
-			return nil, fmt.Errorf("failed to parse state store pool config: %v", err)
-		}
+	config, err := p.metadata.GetPgxPoolConfig()
+	if err != nil {
+		p.logger.Error(err)
+		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
 	}
 
-	pool, err = pgxpool.NewWithConfig(ctx, config)
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store connection error: %w", err)
+		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
 	}
 
 	err = pool.Ping(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store ping error: %w", err)
+		return nil, fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
 	}
 
 	return pool, nil

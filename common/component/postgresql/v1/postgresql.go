@@ -29,7 +29,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -103,28 +102,10 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return err
 	}
 
-	var config *pgxpool.Config
-	// Note: if AWS IAM enabled then must use master connection string to connect initially,
-	// otherwise connect using regular p.metadata.ConnectionString.
-	if p.enableAWSIAM {
-		config, err = p.metadata.GetPgxPoolConfig()
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
-
-		err = awsiam.InitAWSDatabase(ctx, config, p.metadata.Timeout, p.metadata.ConnectionString, p.metadata.AWSRegion, p.metadata.AWSAccessKey, p.metadata.AWSSecretKey)
-		if err != nil {
-			err = fmt.Errorf("failed to init AWS database: %v", err)
-			p.logger.Error(err)
-			return err
-		}
-	} else {
-		config, err = p.metadata.GetPgxPoolConfig()
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
+	config, err := p.metadata.GetPgxPoolConfig()
+	if err != nil {
+		p.logger.Error(err)
+		return err
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)

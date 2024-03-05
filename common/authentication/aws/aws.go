@@ -22,6 +22,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+type EnvironmentSettings struct {
+	Metadata map[string]string
+}
+
 func GetClient(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (*session.Session, error) {
 	awsConfig := aws.NewConfig()
 
@@ -52,4 +56,13 @@ func GetClient(accessKey string, secretKey string, sessionToken string, region s
 	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
 
 	return awsSession, nil
+}
+
+// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
+	es := EnvironmentSettings{
+		Metadata: md,
+	}
+
+	return es, nil
 }

@@ -63,8 +63,8 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	}
 
 	opts := pgauth.InitWithMetadataOpts{
-		AzureADEnabled: m.UseAzureAD,
-		AWSIAMEnabled:  m.UseAWSIAM,
+		AzureADEnabled: true,
+		AWSIAMEnabled:  true,
 	}
 
 	// Azure AD & AWS IAM auth is supported for this component

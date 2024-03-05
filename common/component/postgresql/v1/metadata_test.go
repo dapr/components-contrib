@@ -30,7 +30,7 @@ func TestMetadata(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "connection string")
@@ -42,7 +42,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 	})
@@ -53,7 +53,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, defaultTableName, m.TableName)
@@ -66,7 +66,7 @@ func TestMetadata(t *testing.T) {
 			"tableName":        "mytable",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, "mytable", m.TableName)
@@ -78,7 +78,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, defaultTimeout, m.Timeout)
@@ -91,7 +91,7 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "NaN",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
@@ -103,7 +103,7 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "42",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 42*time.Second, m.Timeout)
@@ -116,7 +116,7 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "0",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
@@ -127,7 +127,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -141,7 +141,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "NaN",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
@@ -153,7 +153,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "42",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -167,7 +167,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "42",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -181,7 +181,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "42m",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -195,7 +195,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInseconds": "42m",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -209,7 +209,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "0",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
@@ -222,7 +222,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "0",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
@@ -235,7 +235,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)
@@ -249,7 +249,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "",
 		}
 
-		opts := postgresql.InitWithMetadataOpts{AzureADEnabled: false, AWSIAMEnabled: false}
+		opts := postgresql.InitWithMetadataOpts{}
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, m.CleanupInterval)

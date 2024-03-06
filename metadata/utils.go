@@ -48,7 +48,7 @@ const (
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
 func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
-	_, val, _ := kitmd.GetMetadataProperty(props, TTLMetadataKey, TTLInSecondsMetadataKey)
+	val, _ := kitmd.GetMetadataProperty(props, TTLMetadataKey, TTLInSecondsMetadataKey)
 	if val == "" {
 		return 0, false, nil
 	}

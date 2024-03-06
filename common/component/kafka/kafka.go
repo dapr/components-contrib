@@ -89,7 +89,7 @@ type SchemaCacheEntry struct {
 }
 
 func GetValueSchemaType(metadata map[string]string) (SchemaType, error) {
-	_, schemaTypeStr, ok := kitmd.GetMetadataProperty(metadata, valueSchemaType)
+	schemaTypeStr, ok := kitmd.GetMetadataProperty(metadata, valueSchemaType)
 	if ok {
 		v, err := parseSchemaType(schemaTypeStr)
 		return v, err
@@ -143,8 +143,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.ChannelBufferSize = meta.channelBufferSize
 
-	config.Net.KeepAlive = meta.clientConnectionKeepAliveInterval
-	config.Metadata.RefreshFrequency = meta.clientConnectionRefreshInterval
+	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
+	config.Metadata.RefreshFrequency = meta.ClientConnectionRefreshInterval
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID

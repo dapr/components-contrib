@@ -91,8 +91,8 @@ type KafkaMetadata struct {
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
 	// configs for kafka client
-	clientConnectionRefreshInterval   time.Duration `mapstructure:"clientConnectionRefreshInterval"`
-	clientConnectionKeepAliveInterval time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
+	ClientConnectionRefreshInterval   time.Duration `mapstructure:"clientConnectionRefreshInterval"`
+	ClientConnectionKeepAliveInterval time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
 	// aws iam auth profile
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
@@ -116,9 +116,9 @@ type KafkaMetadata struct {
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
 func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, error) {
-	authTypeKey, authTypeVal, authTypeOk := metadata.GetMetadataProperty(meta, authType)
-	_, authReqVal, authReqOk := metadata.GetMetadataProperty(meta, "authRequired")
-	_, saslPassVal, saslPassOk := metadata.GetMetadataProperty(meta, "saslPassword")
+	authTypeKey, authTypeVal, authTypeOk := metadata.GetMetadataPropertyWithMatchedKey(meta, authType)
+	authReqVal, authReqOk := metadata.GetMetadataProperty(meta, "authRequired")
+	saslPassVal, saslPassOk := metadata.GetMetadataProperty(meta, "saslPassword")
 
 	// If authType is not set, derive it from authRequired.
 	if (!authTypeOk || authTypeVal == "") && authReqOk && authReqVal != "" {
@@ -141,24 +141,60 @@ func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, erro
 		}
 	}
 
-	// if consumeRetryEnabled is not present, use component default value
-	consumeRetryEnabledKey, consumeRetryEnabledVal, consumeRetryEnabledOk := metadata.GetMetadataProperty(meta, consumeRetryEnabled)
-	if !consumeRetryEnabledOk || consumeRetryEnabledVal == "" {
-		meta[consumeRetryEnabledKey] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
-	}
-
 	return meta, nil
 }
 
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
-		ConsumeRetryInterval: 100 * time.Millisecond,
-		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
-		channelBufferSize:    256,
-		consumerFetchMin:     1,
-		consumerFetchDefault: 1024 * 1024,
+		ConsumeRetryEnabled:               k.DefaultConsumeRetryEnabled,
+		ConsumeRetryInterval:              100 * time.Millisecond,
+		internalVersion:                   sarama.V2_0_0_0, //nolint:nosnakecase
+		channelBufferSize:                 256,
+		consumerFetchMin:                  1,
+		consumerFetchDefault:              1024 * 1024,
+		ClientConnectionRefreshInterval:   defaultClientConnectionRefreshInterval,
+		ClientConnectionKeepAliveInterval: defaultClientConnectionKeepAliveInterval,
 	}
+
+	// // client connection specifications
+	// if val, ok := meta[clientConnectionRefreshInterval]; ok && val != "" {
+	// 	// Parse the duration string
+	// 	dur, err := time.ParseDuration(val)
+	// 	if err != nil {
+	// 		// If parsing as duration fails, check if it's a number and interpret as minutes
+	// 		intVal, err := strconv.Atoi(val)
+	// 		if err != nil {
+	// 			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionRefreshInterval, err)
+	// 		}
+	// 		dur = time.Duration(intVal) * time.Minute
+	// 	}
+	// 	m.clientConnectionRefreshInterval = dur
+	// 	if m.clientConnectionRefreshInterval <= 0 {
+	// 		m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
+	// 	}
+	// } else {
+	// 	m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
+	// }
+
+	// if val, ok := meta[clientConnectionKeepAliveInterval]; ok && val != "" {
+	// 	// Parse the duration string
+	// 	dur, err := time.ParseDuration(val)
+	// 	if err != nil {
+	// 		// If parsing as duration fails, check if it's a number and interpret as minutes
+	// 		intVal, err := strconv.Atoi(val)
+	// 		if err != nil {
+	// 			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionKeepAliveInterval, err)
+	// 		}
+	// 		dur = time.Duration(intVal) * time.Minute
+	// 	}
+	// 	m.clientConnectionKeepAliveInterval = dur
+	// 	if m.clientConnectionKeepAliveInterval < 0 {
+	// 		m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+	// 	}
+	// } else {
+	// 	m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+	// }
 
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
@@ -321,45 +357,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 
 		m.consumerFetchMin = int32(v)
-	}
-
-	// producer connection specifications
-	if val, ok := meta[clientConnectionRefreshInterval]; ok && val != "" {
-		// Parse the duration string
-		dur, err := time.ParseDuration(val)
-		if err != nil {
-			// If parsing as duration fails, check if it's a number and interpret as minutes
-			intVal, err := strconv.Atoi(val)
-			if err != nil {
-				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionRefreshInterval, err)
-			}
-			dur = time.Duration(intVal) * time.Minute
-		}
-		m.clientConnectionRefreshInterval = dur
-		if m.clientConnectionRefreshInterval <= 0 {
-			m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
-		}
-	} else {
-		m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
-	}
-
-	if val, ok := meta[clientConnectionKeepAliveInterval]; ok && val != "" {
-		// Parse the duration string
-		dur, err := time.ParseDuration(val)
-		if err != nil {
-			// If parsing as duration fails, check if it's a number and interpret as minutes
-			intVal, err := strconv.Atoi(val)
-			if err != nil {
-				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionKeepAliveInterval, err)
-			}
-			dur = time.Duration(intVal) * time.Minute
-		}
-		m.clientConnectionKeepAliveInterval = dur
-		if m.clientConnectionKeepAliveInterval < 0 {
-			m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
-		}
-	} else {
-		m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
 	}
 
 	return &m, nil

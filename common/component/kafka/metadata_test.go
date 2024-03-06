@@ -404,20 +404,20 @@ func TestMetadataProducerValues(t *testing.T) {
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, defaultClientConnectionRefreshInterval, meta.clientConnectionRefreshInterval)
-		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.clientConnectionKeepAliveInterval)
+		require.Equal(t, defaultClientConnectionRefreshInterval, meta.ClientConnectionRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
 	})
 
 	t.Run("setting producer values explicitly", func(t *testing.T) {
 		k := getKafka()
 		m := getCompleteMetadata()
-		m[clientConnectionRefreshInterval] = "3m"
-		m[clientConnectionKeepAliveInterval] = "4m"
+		m[clientConnectionRefreshInterval] = "3m0s"
+		m[clientConnectionKeepAliveInterval] = "4m0s"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, 3*time.Minute, meta.clientConnectionRefreshInterval)
-		require.Equal(t, 4*time.Minute, meta.clientConnectionKeepAliveInterval)
+		require.Equal(t, 3*time.Minute, meta.ClientConnectionRefreshInterval)
+		require.Equal(t, 4*time.Minute, meta.ClientConnectionKeepAliveInterval)
 	})
 
 	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
@@ -428,8 +428,8 @@ func TestMetadataProducerValues(t *testing.T) {
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
-		require.Equal(t, defaultClientConnectionRefreshInterval, meta.clientConnectionRefreshInterval)
-		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.clientConnectionKeepAliveInterval)
+		require.Equal(t, defaultClientConnectionRefreshInterval, meta.ClientConnectionRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
 	})
 }
 

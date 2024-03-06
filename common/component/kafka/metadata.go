@@ -157,45 +157,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 	}
 
-	// // client connection specifications
-	// if val, ok := meta[clientConnectionRefreshInterval]; ok && val != "" {
-	// 	// Parse the duration string
-	// 	dur, err := time.ParseDuration(val)
-	// 	if err != nil {
-	// 		// If parsing as duration fails, check if it's a number and interpret as minutes
-	// 		intVal, err := strconv.Atoi(val)
-	// 		if err != nil {
-	// 			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionRefreshInterval, err)
-	// 		}
-	// 		dur = time.Duration(intVal) * time.Minute
-	// 	}
-	// 	m.clientConnectionRefreshInterval = dur
-	// 	if m.clientConnectionRefreshInterval <= 0 {
-	// 		m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
-	// 	}
-	// } else {
-	// 	m.clientConnectionRefreshInterval = defaultClientConnectionRefreshInterval
-	// }
-
-	// if val, ok := meta[clientConnectionKeepAliveInterval]; ok && val != "" {
-	// 	// Parse the duration string
-	// 	dur, err := time.ParseDuration(val)
-	// 	if err != nil {
-	// 		// If parsing as duration fails, check if it's a number and interpret as minutes
-	// 		intVal, err := strconv.Atoi(val)
-	// 		if err != nil {
-	// 			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", clientConnectionKeepAliveInterval, err)
-	// 		}
-	// 		dur = time.Duration(intVal) * time.Minute
-	// 	}
-	// 	m.clientConnectionKeepAliveInterval = dur
-	// 	if m.clientConnectionKeepAliveInterval < 0 {
-	// 		m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
-	// 	}
-	// } else {
-	// 	m.clientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
-	// }
-
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, err
@@ -357,6 +318,19 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 
 		m.consumerFetchMin = int32(v)
+	}
+
+	// confirm client connection fields are valid
+	if m.ClientConnectionTopicMetadataRefreshInterval <= 0 {
+		m.ClientConnectionTopicMetadataRefreshInterval = defaultClientConnectionTopicMetadataRefreshInterval
+	} else {
+		m.ClientConnectionTopicMetadataRefreshInterval = defaultClientConnectionTopicMetadataRefreshInterval
+	}
+
+	if m.ClientConnectionKeepAliveInterval < 0 {
+		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+	} else {
+		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
 	}
 
 	return &m, nil

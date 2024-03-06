@@ -423,8 +423,8 @@ func TestMetadataProducerValues(t *testing.T) {
 	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
 		k := getKafka()
 		m := getCompleteMetadata()
-		m[clientConnectionTopicMetadataRefreshInterval] = "-100m"
-		m[clientConnectionKeepAliveInterval] = "-100m"
+		m[clientConnectionTopicMetadataRefreshInterval] = "-1h40m0s"
+		m[clientConnectionKeepAliveInterval] = "-1h40m0s"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)

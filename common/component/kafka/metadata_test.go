@@ -61,8 +61,8 @@ func getCompleteMetadata() map[string]string {
 		consumerFetchDefault:   "1048576",
 		consumerFetchMin:       "1",
 		channelBufferSize:      "256",
-		"heartbeatInterval":	"2s",
-		"sessionTimeout":		"30s",
+		"heartbeatInterval":    "2s",
+		"sessionTimeout":       "30s",
 	}
 }
 
@@ -134,8 +134,8 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
-	require.Equal(t, 2 * time.Second, meta.HeartbeatInterval)
-	require.Equal(t, 30 * time.Second, meta.SessionTimeout)
+	require.Equal(t, 2*time.Second, meta.HeartbeatInterval)
+	require.Equal(t, 30*time.Second, meta.SessionTimeout)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -421,7 +421,7 @@ func TestMetadataHeartbeartInterval(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		require.Equal(t, 3 * time.Second, meta.HeartbeatInterval)
+		require.Equal(t, 3*time.Second, meta.HeartbeatInterval)
 	})
 
 	t.Run("with heartbeat interval set", func(t *testing.T) {
@@ -434,7 +434,7 @@ func TestMetadataHeartbeartInterval(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		require.Equal(t, 1 * time.Second, meta.HeartbeatInterval)
+		require.Equal(t, 1*time.Second, meta.HeartbeatInterval)
 	})
 }
 
@@ -450,20 +450,20 @@ func TestMetadataSessionTimeout(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		require.Equal(t, 10 * time.Second, meta.SessionTimeout)
+		require.Equal(t, 10*time.Second, meta.SessionTimeout)
 	})
 
 	t.Run("with session timeout set", func(t *testing.T) {
 		// arrange
 		m := getBaseMetadata()
-		m["sessionTimeout"] = "30s"
+		m["sessionTimeout"] = "20s"
 
 		// act
 		meta, err := k.getKafkaMetadata(m)
 
 		// assert
 		require.NoError(t, err)
-		require.Equal(t, 30 * time.Second, meta.SessionTimeout)
+		require.Equal(t, 20*time.Second, meta.SessionTimeout)
 	})
 }
 

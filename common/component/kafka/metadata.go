@@ -55,10 +55,10 @@ const (
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
 	// This prevents write: broken pipe err when writer does not know connection was closed,
 	// and continues to publish to closed connection.
-	clientConnectionRefreshInterval          = "clientConnectionRefreshInterval"
-	defaultClientConnectionRefreshInterval   = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
-	clientConnectionKeepAliveInterval        = "clientConnectionKeepAliveInterval"
-	defaultClientConnectionKeepAliveInterval = 0 * time.Minute // default to keep connection alive
+	clientConnectionTopicMetadataRefreshInterval        = "clientConnectionTopicMetadataRefreshInterval"
+	defaultClientConnectionTopicMetadataRefreshInterval = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
+	clientConnectionKeepAliveInterval                   = "clientConnectionKeepAliveInterval"
+	defaultClientConnectionKeepAliveInterval            = 0 * time.Minute // default to keep connection alive
 )
 
 type KafkaMetadata struct {
@@ -91,8 +91,8 @@ type KafkaMetadata struct {
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
 	// configs for kafka client
-	ClientConnectionRefreshInterval   time.Duration `mapstructure:"clientConnectionRefreshInterval"`
-	ClientConnectionKeepAliveInterval time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
+	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
+	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
 	// aws iam auth profile
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
@@ -147,14 +147,14 @@ func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, erro
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
-		ConsumeRetryEnabled:               k.DefaultConsumeRetryEnabled,
-		ConsumeRetryInterval:              100 * time.Millisecond,
-		internalVersion:                   sarama.V2_0_0_0, //nolint:nosnakecase
-		channelBufferSize:                 256,
-		consumerFetchMin:                  1,
-		consumerFetchDefault:              1024 * 1024,
-		ClientConnectionRefreshInterval:   defaultClientConnectionRefreshInterval,
-		ClientConnectionKeepAliveInterval: defaultClientConnectionKeepAliveInterval,
+		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
+		ConsumeRetryInterval:                         100 * time.Millisecond,
+		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
+		channelBufferSize:                            256,
+		consumerFetchMin:                             1,
+		consumerFetchDefault:                         1024 * 1024,
+		ClientConnectionTopicMetadataRefreshInterval: defaultClientConnectionTopicMetadataRefreshInterval,
+		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 	}
 
 	// // client connection specifications

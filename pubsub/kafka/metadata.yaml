@@ -266,10 +266,10 @@ metadata:
         The minimum number of message bytes to fetch in a request.
       example: '4'
       default: '1'
-    - name: clientConnectionRefreshInterval
+    - name: clientConnectionTopicMetadataRefreshInterval
       type: number
       description: |
-        The interval for the client connection to be refreshed with the broker in minutes.
+        The interval for the client connection's topic metadata to be refreshed with the broker in minutes.
       example: '4m'
       default: '9m'
     - name: clientConnectionKeepAliveInterval

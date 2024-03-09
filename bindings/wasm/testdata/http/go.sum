@@ -1,12 +1,2 @@
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230719223707-93dda6a5141a h1:Xa+RFQuSXvusNnWYhZHnDDNPWyU2Hg0JizKR4ePHI2s=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230719223707-93dda6a5141a/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230720212318-cb04411741fd h1:fLCnhqCMaCHXhA6Ozb7sfTyqt/g5mp1dHOjbHo/PacM=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230720212318-cb04411741fd/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230731220621-d65072e621f8 h1:rjf63WtV6ygqiF0814ArbVILK5Iox1nMI7S84S2U5a0=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230731220621-d65072e621f8/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=
 github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230803142009-0dee5e3d3722 h1:H8rt2at/lzf9hSuZX/+/E0Rqp5o7hYOZ1XZiOGVkwSw=
 github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230803142009-0dee5e3d3722/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230911185808-aca93c30bca9 h1:wVnGyNSdoyMAXe2EWGmgbaJxw1Q3IaRqwp4nnnoEm3Q=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20230911185808-aca93c30bca9/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20231231033019-7b4a3ddc545a h1:exO3ATzbV+U7KPuB5g6Mbhk+dS3EKPXBaCrQKx8JJSo=
-github.com/dev-wasm/dev-wasm-go/http v0.0.0-20231231033019-7b4a3ddc545a/go.mod h1:K7HKbanDfLH3UL/hvExI1hVPetqnn9OZ4IOFcD5Pzw0=

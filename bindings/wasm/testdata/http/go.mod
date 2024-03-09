@@ -2,7 +2,6 @@ module github.com/dapr/components-contrib/bindings/wasm/testdata/http
 
 go 1.20
 
-
 // This is the last version building with
 // stealthrocket/wasi-go host ABI.
 // The guest is revlocked to TinyGo 0.28.1

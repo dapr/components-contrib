@@ -1,9 +1,5 @@
 package main
 
-// Building main.wasm:
-// go get github.com/dev-wasm/dev-wasm-go/http/client
-// tinygo build -target wasi -o main.wasm main.go
-
 import (
 	"fmt"
 	"io/ioutil"

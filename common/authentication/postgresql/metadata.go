@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/exported"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -129,8 +128,7 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		// This is because tokens expire, and connections can drop and need to be re-established at any time
 		// Fortunately, we can do this with the "BeforeConnect" hook
 		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
-			var at exported.AccessToken
-			at, err = tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
 				Scopes: []string{
 					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
 				},
@@ -144,17 +142,17 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		}
 	}
 	if m.UseAWSIAM {
-		awsRegion, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
-		if !ok {
-			return nil, fmt.Errorf("failed to find AWSRegion metadata field")
+		awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
+		if awsRegion == "" {
+			return nil, errors.New("metadata property AWSRegion is missing")
 		}
-		awsAccessKey, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
-		if !ok {
-			return nil, fmt.Errorf("failed to find AWSAccessKey metadata field")
+		awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+		if awsAccessKey == "" {
+			return nil, errors.New("metadata property AWSAccessKey is missing")
 		}
-		awsSecretKey, ok := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
-		if !ok {
-			return nil, fmt.Errorf("failed to find AWSSecretKey metadata field")
+		awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
+		if awsSecretKey == "" {
+			return nil, errors.New("metadata property AWSSecretKey is missing")
 		}
 
 		err = awsiam.InitAWSDatabase(context.Background(), config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)

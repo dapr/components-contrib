@@ -98,13 +98,12 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 
 	err := p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
-		p.logger.Errorf("Failed to parse metadata: %v", err)
+		err = fmt.Errorf("failed to parse metadata: %w", err)
 		return err
 	}
 
 	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 
@@ -113,7 +112,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	connCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
-		p.logger.Error(err)
 		return err
 	}
 
@@ -122,7 +120,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	pingCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to ping the database: %w", err)
-		p.logger.Error(err)
 		return err
 	}
 

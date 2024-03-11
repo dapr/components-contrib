@@ -36,6 +36,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/utils"
 )
 
 // PostgreSQL state store.
@@ -89,27 +90,11 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		err      error
 	)
 
-	awsIam, ok := metadata.GetMetadataProperty(meta.Properties, "UseAWSIAM")
-	if !ok {
-		useAWS = false
-	} else {
-		useAWS, err = strconv.ParseBool(awsIam)
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
-	}
+	awsIam, _ := metadata.GetMetadataProperty(meta.Properties, "UseAWSIAM")
+	useAWS = utils.IsTruthy(awsIam)
+	azureAd, _ := metadata.GetMetadataProperty(meta.Properties, "UseAzureAD")
+	useAzure = utils.IsTruthy(azureAd)
 
-	azureAd, ok := metadata.GetMetadataProperty(meta.Properties, "UseAzureAD")
-	if !ok {
-		useAzure = false
-	} else {
-		useAzure, err = strconv.ParseBool(azureAd)
-		if err != nil {
-			p.logger.Error(err)
-			return err
-		}
-	}
 	opts := pgauth.InitWithMetadataOpts{
 		AzureADEnabled: useAzure,
 		AWSIAMEnabled:  useAWS,
@@ -117,13 +102,11 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 
 	err = p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
-		p.logger.Errorf("failed to parse metadata: %v", err)
 		return err
 	}
 
 	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 
@@ -132,7 +115,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	defer connCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
-		p.logger.Error(err)
 		return err
 	}
 
@@ -141,14 +123,12 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	pingCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to ping the database: %w", err)
-		p.logger.Error(err)
 		return err
 	}
 
 	// Migrate schema
 	err = p.performMigrations(ctx)
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 

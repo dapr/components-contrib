@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	createDatabaseTmpl = "CREATE DATABASE %s"
-	deleteDatabaseTmpl = "DROP DATABASE IF EXISTS %s WITH (FORCE)"
+	createDatabaseTmpl = "CREATE DATABASE $1"
+	deleteDatabaseTmpl = "DROP DATABASE IF EXISTS $1 WITH (FORCE)"
 	databaseExistsTmpl = "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)"
 	userExistsTmpl     = "SELECT CAST((SELECT 1 FROM pg_roles WHERE rolname = $1) AS BOOLEAN)"
-	createUserTmpl     = "CREATE USER %v WITH PASSWORD '%v'"
+	createUserTmpl     = "CREATE USER $1"
 	checkRoleTmpl      = "SELECT 1 FROM pg_roles WHERE rolname = $1 AND 'rds_iam' = rolname"
-	grantRoleTmpl      = "GRANT %v TO %v"
+	grantRoleTmpl      = "GRANT $1 TO $2"
 
 	awsRole = "rds_iam"
 )
@@ -39,7 +39,7 @@ func CreateDatabaseIfNeeded(ctx context.Context, timeout time.Duration, connecti
 	// Create database if needed using master password in connection string
 	if !dbExists {
 		createDBCtx, createDBCancel := context.WithTimeout(ctx, timeout)
-		_, err := db.Exec(createDBCtx, fmt.Sprintf(createDatabaseTmpl, config.Database))
+		_, err := db.Exec(createDBCtx, createDatabaseTmpl, config.Database)
 		createDBCancel()
 		if err != nil {
 			return fmt.Errorf("failed to create PostgreSQL user: %w", err)
@@ -59,9 +59,10 @@ func CreateUserAndRoleIfNeeded(ctx context.Context, timeout time.Duration, conne
 	err = db.QueryRow(userExistsCtx, userExistsTmpl, config.User).Scan(&userExists)
 	userExistsCancel()
 	if err != nil && err != pgx.ErrNoRows {
-		// If user does not exist, create the user with pwd = user name for now.
+		// If user does not exist, create the user without pwd for now.
 		// This will be rotated to use proper iam credentials before connecting again.
-		_, err = db.Exec(ctx, fmt.Sprintf(createUserTmpl, config.User, config.User))
+		// However, this will also prevent the user from being locked out in the event the sidecar has startup issues.
+		_, err = db.Exec(ctx, createUserTmpl, config.User)
 		if err != nil {
 			return fmt.Errorf("failed to create PostgreSQL user: %w", err)
 		}
@@ -81,7 +82,7 @@ func CreateUserAndRoleIfNeeded(ctx context.Context, timeout time.Duration, conne
 	// so we should prevent this.
 	if !roleGranted && config.User != "postgres" {
 		grantRoleCtx, grantRoleCancel := context.WithTimeout(ctx, timeout)
-		_, err := db.Exec(grantRoleCtx, fmt.Sprintf(grantRoleTmpl, awsRole, config.User))
+		_, err := db.Exec(grantRoleCtx, grantRoleTmpl, awsRole, config.User)
 		grantRoleCancel()
 		if err != nil {
 			return fmt.Errorf("failed to grant PostgreSQL user role: %w", err)

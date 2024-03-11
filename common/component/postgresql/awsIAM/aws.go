@@ -27,6 +27,7 @@ type AWSIAM struct {
 }
 
 func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKey, secretKey string) (string, error) {
+
 	dbEndpoint := pgCfg.Host + ":" + strconv.Itoa(int(pgCfg.Port))
 	var authenticationToken string
 
@@ -62,15 +63,20 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKe
 }
 
 func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString string, region string, awsAccessKey, awsSecretKey string) error {
-	timeout := 15 * time.Second
+	const timeout = 15 * time.Second
 
 	// Set max connection lifetime to 14 minutes in postgres connection pool configuration.
 	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
 	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
 	config.MaxConnLifetime = time.Minute * 14
+	db, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return fmt.Errorf("failed to get PostgreSQL config: %w", err)
+	}
 
 	// Setup connection pool config needed for AWS IAM authentication
 	config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
+
 		// Manually reset auth token with aws and reset the config password using the new iam token
 		pwd, err := GetAccessToken(ctx, pgConfig, region, awsAccessKey, awsSecretKey)
 		if err != nil {
@@ -78,16 +84,12 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString str
 		}
 
 		pgConfig.Password = pwd
+		config.ConnConfig.Password = pwd
+
 		return nil
 	}
 
-	db, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return fmt.Errorf("failed to get PostgreSQL config: %w", err)
-	}
-
 	// Create database and user with proper iam role if not using an already created iam user
-
 	err = databases.CreateDatabaseIfNeeded(ctx, timeout, connString, db)
 	if err != nil {
 		return fmt.Errorf("failed create AWS database if needed %w", err)
@@ -98,6 +100,5 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString str
 		return fmt.Errorf("failed create AWS user and grant role if needed %w", err)
 	}
 
-	// TODO: add clean up hooks on user/db?
 	return nil
 }

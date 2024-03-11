@@ -22,6 +22,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
+	jsoniterator "github.com/json-iterator/go"
 	ravendb "github.com/ravendb/ravendb-go-client"
 	"time"
 )
@@ -115,8 +116,34 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 }
 
 func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
-	//TODO implement me
-	panic("implement me")
+	data, err := r.marshalToString(req.Value)
+	if err != nil {
+		return fmt.Errorf("ravendb error: failed to marshal value for key %s: %w", req.Key, err)
+	}
+
+	session, err := r.documentStore.OpenSession("")
+	if err != nil {
+		return fmt.Errorf("error opening session while storing data faild with error %s", err)
+	}
+	defer session.Close()
+
+	item := Item{
+		Key:   req.Key,
+		Value: data,
+	}
+
+	err = session.Store(item)
+	if err != nil {
+		return fmt.Errorf("error storing data %s", err)
+	}
+}
+
+func (r *RavenDB) marshalToString(v interface{}) (string, error) {
+	if buf, ok := v.([]byte); ok {
+		return string(buf), nil
+	}
+
+	return jsoniterator.ConfigFastest.MarshalToString(v)
 }
 
 func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {

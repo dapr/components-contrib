@@ -128,13 +128,13 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		// This is because tokens expire, and connections can drop and need to be re-established at any time
 		// Fortunately, we can do this with the "BeforeConnect" hook
 		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
-			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+			at, errGetAccessToken := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
 				Scopes: []string{
 					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
 				},
 			})
-			if err != nil {
-				return err
+			if errGetAccessToken != nil {
+				return errGetAccessToken
 			}
 
 			cc.Password = at.Token

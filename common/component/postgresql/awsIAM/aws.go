@@ -76,9 +76,9 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString str
 	// Setup connection pool config needed for AWS IAM authentication
 	config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
 		// Manually reset auth token with aws and reset the config password using the new iam token
-		pwd, err := GetAccessToken(ctx, pgConfig, region, awsAccessKey, awsSecretKey)
-		if err != nil {
-			return fmt.Errorf("failed to refresh access token for iam authentication with PostgreSQL: %w", err)
+		pwd, errGetAccessToken := GetAccessToken(ctx, pgConfig, region, awsAccessKey, awsSecretKey)
+		if errGetAccessToken != nil {
+			return fmt.Errorf("failed to refresh access token for iam authentication with PostgreSQL: %w", errGetAccessToken)
 		}
 
 		pgConfig.Password = pwd

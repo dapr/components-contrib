@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/jackc/pgx/v5"
+
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 )
 
 const (

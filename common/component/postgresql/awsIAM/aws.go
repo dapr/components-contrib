@@ -27,7 +27,6 @@ type AWSIAM struct {
 }
 
 func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKey, secretKey string) (string, error) {
-
 	dbEndpoint := pgCfg.Host + ":" + strconv.Itoa(int(pgCfg.Port))
 	var authenticationToken string
 
@@ -76,7 +75,6 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString str
 
 	// Setup connection pool config needed for AWS IAM authentication
 	config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
-
 		// Manually reset auth token with aws and reset the config password using the new iam token
 		pwd, err := GetAccessToken(ctx, pgConfig, region, awsAccessKey, awsSecretKey)
 		if err != nil {

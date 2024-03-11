@@ -323,13 +323,9 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	// confirm client connection fields are valid
 	if m.ClientConnectionTopicMetadataRefreshInterval <= 0 {
 		m.ClientConnectionTopicMetadataRefreshInterval = defaultClientConnectionTopicMetadataRefreshInterval
-	} else {
-		m.ClientConnectionTopicMetadataRefreshInterval = defaultClientConnectionTopicMetadataRefreshInterval
 	}
 
 	if m.ClientConnectionKeepAliveInterval < 0 {
-		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
-	} else {
 		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
 	}
 

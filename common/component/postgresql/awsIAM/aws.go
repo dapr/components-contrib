@@ -9,9 +9,10 @@ import (
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	aws_credentials "github.com/aws/aws-sdk-go-v2/credentials"
 	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	"github.com/dapr/components-contrib/common/component/postgresql/databases"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/dapr/components-contrib/common/component/postgresql/databases"
 )
 
 type AWSIAM struct {

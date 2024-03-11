@@ -136,6 +136,8 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("error storing data %s", err)
 	}
+
+	return nil
 }
 
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {

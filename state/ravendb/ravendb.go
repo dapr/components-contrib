@@ -68,7 +68,7 @@ func NewRavenDB(logger logger.Logger) state.Store {
 	return store
 }
 
-func (r RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error) {
+func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error) {
 	r.metadata, err = getRavenDBMetaData(metadata)
 	if err != nil {
 		return err
@@ -80,28 +80,41 @@ func (r RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error) 
 		return fmt.Errorf("error in creating Raven DB Store")
 	}
 
-	//TODO: Ping
 	r.documentStore = store
 
 	return nil
 }
 
 // Features returns the features available in this state store.
-func (m *RavenDB) Features() []state.Feature {
-	return m.features
+func (r *RavenDB) Features() []state.Feature {
+	return r.features
 }
 
-func (r RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
+func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	session, err := r.documentStore.OpenSession("")
+	if err != nil {
+		return fmt.Errorf("error opening session while deleting")
+	}
+	defer session.Close()
+
+	err = session.DeleteByID(req.Key, "")
+	if err != nil {
+		return fmt.Errorf("error deleting %s", req.Key)
+	}
+	err = session.SaveChanges()
+	if err != nil {
+		return fmt.Errorf("error saving changes")
+	}
+
+	return nil
+}
+
+func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (r RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (r RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
+func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	//TODO implement me
 	panic("implement me")
 }

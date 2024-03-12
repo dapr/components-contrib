@@ -117,6 +117,9 @@ type KafkaMetadata struct {
 // upgradeMetadata updates metadata properties based on deprecated usage.
 func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, error) {
 	authTypeKey, authTypeVal, authTypeOk := metadata.GetMetadataPropertyWithMatchedKey(meta, authType)
+	if authTypeKey == "" {
+		authTypeKey = "authType"
+	}
 	authReqVal, authReqOk := metadata.GetMetadataProperty(meta, "authRequired")
 	saslPassVal, saslPassOk := metadata.GetMetadataProperty(meta, "saslPassword")
 

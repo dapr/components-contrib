@@ -106,7 +106,7 @@ require (
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732
-	github.com/tetratelabs/wazero v1.5.0
+	github.com/tetratelabs/wazero v1.7.0
 	github.com/valyala/fasthttp v1.49.0
 	github.com/vmware/vmware-go-kcl v1.5.1
 	github.com/xdg-go/scram v1.1.2

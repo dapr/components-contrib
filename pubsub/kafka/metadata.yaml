@@ -267,17 +267,17 @@ metadata:
       example: '4'
       default: '1'
     - name: clientConnectionTopicMetadataRefreshInterval
-      type: number
+      type: duration
       description: |
         The interval for the client connection's topic metadata to be refreshed with the broker as a Go duration.
       example: '4m'
       default: '9m'
     - name: clientConnectionKeepAliveInterval
-      type: number
+      type: duration
       description: |
-        The max amount of time for the client connection to be kept alive with the broker, as a Go duration, before closing the connection. Zero defaults to keeping alive indefinitely.
+        The max amount of time for the client connection to be kept alive with the broker, as a Go duration, before closing the connection. A zero value (default) means keeping alive indefinitely.
       example: '4m'
-      default: '0m'
+      default: '0'
     - name: consumerFetchDefault
       type: number
       description: |

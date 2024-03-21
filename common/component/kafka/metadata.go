@@ -58,7 +58,7 @@ const (
 	clientConnectionTopicMetadataRefreshInterval        = "clientConnectionTopicMetadataRefreshInterval"
 	defaultClientConnectionTopicMetadataRefreshInterval = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
 	clientConnectionKeepAliveInterval                   = "clientConnectionKeepAliveInterval"
-	defaultClientConnectionKeepAliveInterval            = 0 * time.Minute // default to keep connection alive
+	defaultClientConnectionKeepAliveInterval            = time.Duration(0) // default to keep connection alive
 )
 
 type KafkaMetadata struct {

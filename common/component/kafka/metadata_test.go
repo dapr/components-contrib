@@ -132,6 +132,8 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
+	require.Equal(t, 8*time.Minute, defaultClientConnectionTopicMetadataRefreshInterval)
+	require.Equal(t, 0*time.Minute, defaultClientConnectionKeepAliveInterval)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -393,6 +395,42 @@ func TestMetadataConsumerFetchValues(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(3), meta.consumerFetchMin)
 	require.Equal(t, int32(2048), meta.consumerFetchDefault)
+}
+
+func TestMetadataProducerValues(t *testing.T) {
+	t.Run("using default producer values", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer values explicitly", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[clientConnectionTopicMetadataRefreshInterval] = "3m0s"
+		m[clientConnectionKeepAliveInterval] = "4m0s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 3*time.Minute, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, 4*time.Minute, meta.ClientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[clientConnectionTopicMetadataRefreshInterval] = "-1h40m0s"
+		m[clientConnectionKeepAliveInterval] = "-1h40m0s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+	})
 }
 
 func TestMetadataChannelBufferSize(t *testing.T) {

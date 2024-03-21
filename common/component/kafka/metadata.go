@@ -86,6 +86,8 @@ type KafkaMetadata struct {
 	TLSClientKey           string              `mapstructure:"clientKey"`
 	ConsumeRetryEnabled    bool                `mapstructure:"consumeRetryEnabled"`
 	ConsumeRetryInterval   time.Duration       `mapstructure:"consumeRetryInterval"`
+	HeartbeatInterval      time.Duration       `mapstructure:"heartbeatInterval"`
+	SessionTimeout         time.Duration       `mapstructure:"sessionTimeout"`
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
@@ -158,6 +160,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		consumerFetchDefault:                         1024 * 1024,
 		ClientConnectionTopicMetadataRefreshInterval: defaultClientConnectionTopicMetadataRefreshInterval,
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
+		HeartbeatInterval:                            3 * time.Second,
+		SessionTimeout:                               10 * time.Second,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)

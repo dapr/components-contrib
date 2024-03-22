@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/IBM/sarama"
 
@@ -58,17 +59,18 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 	}
 
 	for name, value := range metadata {
-		if name == key {
+		switch name {
+		case key, keyMetadataKey:
 			msg.Key = sarama.StringEncoder(value)
-		} else {
-			if msg.Headers == nil {
-				msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
-			}
-			msg.Headers = append(msg.Headers, sarama.RecordHeader{
-				Key:   []byte(name),
-				Value: []byte(value),
-			})
 		}
+
+		if msg.Headers == nil {
+			msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+		}
+		msg.Headers = append(msg.Headers, sarama.RecordHeader{
+			Key:   []byte(name),
+			Value: []byte(value),
+		})
 	}
 
 	partition, offset, err := k.producer.SendMessage(msg)
@@ -109,19 +111,23 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		// the metadata in that field is compared to the entry metadata to generate the right response on partial failures
 		msg.Metadata = entry.EntryId
 
-		for name, value := range metadata {
-			if name == key {
+		maps.Copy(entry.Metadata, metadata)
+
+		for name, value := range entry.Metadata {
+			switch name {
+			case key, keyMetadataKey:
 				msg.Key = sarama.StringEncoder(value)
-			} else {
-				if msg.Headers == nil {
-					msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
-				}
-				msg.Headers = append(msg.Headers, sarama.RecordHeader{
-					Key:   []byte(name),
-					Value: []byte(value),
-				})
 			}
+
+			if msg.Headers == nil {
+				msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+			}
+			msg.Headers = append(msg.Headers, sarama.RecordHeader{
+				Key:   []byte(name),
+				Value: []byte(value),
+			})
 		}
+
 		msgs = append(msgs, msg)
 	}
 

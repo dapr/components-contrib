@@ -249,7 +249,9 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
-		errs[1] = k.cg.Close()
+		if k.cg != nil {
+			errs[1] = k.cg.Close()
+		}
 	}
 
 	return errors.Join(errs...)

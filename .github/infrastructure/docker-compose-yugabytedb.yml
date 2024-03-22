@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  yugabyte:
+    image: yugabytedb/yugabyte:2.19.3.0-b140
+    command: "bin/yugabyted start --daemon=false"
+    ports:
+      - 7000:7000
+      - 9000:9000
+      - 15433:15433
+      - 5433:5433
+      - 9042:9042
+

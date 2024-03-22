@@ -72,12 +72,13 @@ WHERE
 func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check if table '%s' exists: %w", opts.StateTableName, err)
 	}
 
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB state table")
-		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
+		_, err = db.Exec(ctx, fmt.Sprintf(`
+CREATE TABLE %s (
   key text NOT NULL PRIMARY KEY,
   value jsonb NOT NULL,
   isbinary boolean NOT NULL,
@@ -86,9 +87,10 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
   updatedate TIMESTAMP WITH TIME ZONE NULL,
   expiredate TIMESTAMP WITH TIME ZONE NULL,
 	INDEX expiredate_idx (expiredate)
-);`, opts.StateTableName))
+)`,
+			opts.StateTableName))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create state table: %w", err)
 		}
 	}
 
@@ -96,27 +98,29 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
 	_, err = db.Exec(ctx, fmt.Sprintf(
 		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP WITH TIME ZONE NULL;`, opts.StateTableName))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add expiredate column to state table: %w", err)
 	}
 	_, err = db.Exec(ctx, fmt.Sprintf(
 		`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, opts.StateTableName))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create expiredate index on state table: %w", err)
 	}
 
 	exists, err = tableExists(ctx, db, opts.MetadataTableName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check if table '%s' exists: %w", opts.MetadataTableName, err)
 	}
 
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB metadata table")
-		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
-			key text NOT NULL PRIMARY KEY,
-			value text NOT NULL
-);`, opts.MetadataTableName))
+		_, err = db.Exec(ctx, fmt.Sprintf(`
+CREATE TABLE %s (
+  key text NOT NULL PRIMARY KEY,
+  value text NOT NULL
+);`,
+			opts.MetadataTableName))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create metadata table: %w", err)
 		}
 	}
 
@@ -125,6 +129,6 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
 
 func tableExists(ctx context.Context, db pginterfaces.PGXPoolConn, tableName string) (bool, error) {
 	exists := false
-	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables WHERE tablename = $1)", tableName).Scan(&exists)
 	return exists, err
 }

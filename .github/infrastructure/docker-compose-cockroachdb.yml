@@ -1,9 +1,9 @@
 version: '2'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v21.2.3
+    image: cockroachdb/cockroach:v23.1.13
     hostname: cockroachdb
-    command: start-single-node --cluster-name=single-node --logtostderr=WARNING --log-file-verbosity=WARNING --insecure
+    command: start-single-node --cluster-name=single-node --insecure
     restart: always
     ports:
       - "26257:26257"

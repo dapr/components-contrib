@@ -9,11 +9,11 @@ urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cockroachdb/
 capabilities:
+  - actorStateStore
   - crud
   - transactional
   - etag
   - ttl
-  - actorStateStore
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String"

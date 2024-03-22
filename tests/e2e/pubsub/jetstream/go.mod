@@ -1,8 +1,8 @@
 module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 
-go 1.21
+go 1.22
 
-toolchain go1.21.4
+toolchain go1.22.0
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea

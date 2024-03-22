@@ -20,12 +20,20 @@ import (
 	"time"
 
 	v9 "github.com/redis/go-redis/v9"
+
+	"github.com/dapr/kit/logger"
 )
 
 type v9Pipeliner struct {
 	pipeliner    v9.Pipeliner
 	writeTimeout Duration
 }
+
+var v9logger = logger.NewLogger("dapr.components.redisv9")
+
+const (
+	tokenRefreshInterval = 50 * time.Minute
+)
 
 func (p v9Pipeliner) Exec(ctx context.Context) error {
 	_, err := p.pipeliner.Exec(ctx)
@@ -317,7 +325,7 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func newV9FailoverClient(s *Settings) RedisClient {
+func newV9FailoverClient(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -350,24 +358,26 @@ func newV9FailoverClient(s *Settings) RedisClient {
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
-
+		client := v9.NewFailoverClusterClient(opts)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger)
 		return v9Client{
-			client:       v9.NewFailoverClusterClient(opts),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
 		}
 	}
-
+	client := v9.NewFailoverClient(opts)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger)
 	return v9Client{
-		client:       v9.NewFailoverClient(opts),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
 	}
 }
 
-func newV9Client(s *Settings) RedisClient {
+func newV9Client(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -395,9 +405,10 @@ func newV9Client(s *Settings) RedisClient {
 				InsecureSkipVerify: s.EnableTLS,
 			}
 		}
-
+		client := v9.NewClusterClient(options)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger)
 		return v9Client{
-			client:       v9.NewClusterClient(options),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
@@ -429,11 +440,16 @@ func newV9Client(s *Settings) RedisClient {
 			InsecureSkipVerify: s.EnableTLS,
 		}
 	}
-
+	client := v9.NewClient(options)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger)
 	return v9Client{
-		client:       v9.NewClient(options),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
 	}
+}
+
+func ClientFromV9Client(client v9.UniversalClient) RedisClient {
+	return v9Client{client: client}
 }

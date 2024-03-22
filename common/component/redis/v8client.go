@@ -20,12 +20,16 @@ import (
 	"time"
 
 	v8 "github.com/go-redis/redis/v8"
+
+	"github.com/dapr/kit/logger"
 )
 
 type v8Pipeliner struct {
 	pipeliner    v8.Pipeliner
 	writeTimeout Duration
 }
+
+var v8logger = logger.NewLogger("dapr.components.redisv8")
 
 func (p v8Pipeliner) Exec(ctx context.Context) error {
 	_, err := p.pipeliner.Exec(ctx)
@@ -316,7 +320,7 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func newV8FailoverClient(s *Settings) RedisClient {
+func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -349,24 +353,26 @@ func newV8FailoverClient(s *Settings) RedisClient {
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
-
+		client := v8.NewFailoverClusterClient(opts)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 		return v8Client{
-			client:       v8.NewFailoverClusterClient(opts),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
 		}
 	}
-
+	client := v8.NewFailoverClient(opts)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 	return v8Client{
-		client:       v8.NewFailoverClient(opts),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
 	}
 }
 
-func newV8Client(s *Settings) RedisClient {
+func newV8Client(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -394,9 +400,11 @@ func newV8Client(s *Settings) RedisClient {
 				InsecureSkipVerify: s.EnableTLS,
 			}
 		}
+		client := v8.NewClusterClient(options)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 
 		return v8Client{
-			client:       v8.NewClusterClient(options),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
@@ -428,9 +436,10 @@ func newV8Client(s *Settings) RedisClient {
 			InsecureSkipVerify: s.EnableTLS,
 		}
 	}
-
+	client := v8.NewClient(options)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 	return v8Client{
-		client:       v8.NewClient(options),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,

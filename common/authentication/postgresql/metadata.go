@@ -23,7 +23,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/common/authentication/azure"
+	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
@@ -32,9 +35,11 @@ type PostgresAuthMetadata struct {
 	ConnectionMaxIdleTime time.Duration `mapstructure:"connectionMaxIdleTime"`
 	MaxConns              int           `mapstructure:"maxConns"`
 	UseAzureAD            bool          `mapstructure:"useAzureAD"`
+	UseAWSIAM             bool          `mapstructure:"useAWSIAM"`
 	QueryExecMode         string        `mapstructure:"queryExecMode"`
 
 	azureEnv azure.EnvironmentSettings
+	awsEnv   aws.EnvironmentSettings
 }
 
 // Reset the object.
@@ -43,27 +48,38 @@ func (m *PostgresAuthMetadata) Reset() {
 	m.ConnectionMaxIdleTime = 0
 	m.MaxConns = 0
 	m.UseAzureAD = false
+	m.UseAWSIAM = false
 	m.QueryExecMode = ""
+}
+
+type InitWithMetadataOpts struct {
+	AzureADEnabled bool
+	AWSIAMEnabled  bool
 }
 
 // InitWithMetadata inits the object with metadata from the user.
 // Set azureADEnabled to true if the component can support authentication with Azure AD.
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
-func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, azureADEnabled bool) (err error) {
+func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts InitWithMetadataOpts) (err error) {
 	// Validate input
 	if m.ConnectionString == "" {
 		return errors.New("missing connection string")
 	}
-
-	// Populate the Azure environment if using Azure AD
-	if azureADEnabled && m.UseAzureAD {
+	switch {
+	case opts.AzureADEnabled && m.UseAzureAD:
 		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
 		}
-	} else {
-		// Make sure this is false
+	case opts.AWSIAMEnabled && m.UseAWSIAM:
+		m.awsEnv, err = aws.NewEnvironmentSettings(meta)
+		if err != nil {
+			return err
+		}
+	default:
+		// Make sure these are false
 		m.UseAzureAD = false
+		m.UseAWSIAM = false
 	}
 
 	return nil
@@ -112,19 +128,38 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		// This is because tokens expire, and connections can drop and need to be re-established at any time
 		// Fortunately, we can do this with the "BeforeConnect" hook
 		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
-			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+			at, errGetAccessToken := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
 				Scopes: []string{
 					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
 				},
 			})
-			if err != nil {
-				return err
+			if errGetAccessToken != nil {
+				return errGetAccessToken
 			}
 
 			cc.Password = at.Token
 			return nil
 		}
 	}
+	if m.UseAWSIAM {
+		awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
+		if awsRegion == "" {
+			return nil, errors.New("metadata property AWSRegion is missing")
+		}
+		awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+		if awsAccessKey == "" {
+			return nil, errors.New("metadata property AWSAccessKey is missing")
+		}
+		awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
+		if awsSecretKey == "" {
+			return nil, errors.New("metadata property AWSSecretKey is missing")
+		}
 
+		err = awsiam.InitAWSDatabase(context.Background(), config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
+		if err != nil {
+			err = fmt.Errorf("failed to init AWS database: %v", err)
+			return nil, err
+		}
+	}
 	return config, nil
 }

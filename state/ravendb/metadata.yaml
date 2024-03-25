@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: ravendb
+version: v1
+status: development-only
+title: "RavenDB"
+urls:
+  - title: Reference
+    url:
+capabilities:
+  - crud
+authenticationProfiles:
+  - title: "No authentication"
+    description: |
+      No authentication connect via connection string
+    metadata:
+      - name : connectionString
+        required: true
+        description: |
+          Connection string to ravenDB cluster
+        example: '"http://live-test.ravendb.net"'
+metadata:
+  - name: DatabaseName
+    description: |
+      The name of the database to use.
+    default: '"daprStore"'
+    example: '"daprStore"'
+  - name: ServerURL
+    description: |
+      Url to ravendb cluster
+    default: '"127.0.0.1"'
+    example: '"http://live-test.ravendb.net"'

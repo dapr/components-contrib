@@ -97,6 +97,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.8.1
+	github.com/ravendb/ravendb-go-client v0.0.0-20240117082009-80731167bc4b
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.18

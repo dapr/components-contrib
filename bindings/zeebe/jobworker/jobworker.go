@@ -198,6 +198,13 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		return
 	}
 
+	// Make sure to replace the formKey header with a custom header.
+	// The HTTP Client doesn't like the custom header.
+	if headers["io.camunda.zeebe:formKey"] != "" {
+		headers["X-Zeebe-Form-Key"] = headers["io.camunda.zeebe:formKey"]
+		delete(headers, "io.camunda.zeebe:formKey")
+	}
+
 	headers["X-Zeebe-Job-Key"] = strconv.FormatInt(job.Key, 10)
 	headers["X-Zeebe-Job-Type"] = job.Type
 	headers["X-Zeebe-Process-Instance-Key"] = strconv.FormatInt(job.ProcessInstanceKey, 10)

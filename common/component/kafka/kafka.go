@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -265,7 +266,7 @@ func getSchemaSubject(topic string) string {
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
 	// Null Data is valid and a tombstone record. It shouldn't be serialized
 	if message.Value == nil {
-		return message.Value, nil
+		return json.Marshal(nil)
 	}
 
 	switch config.ValueSchemaType {

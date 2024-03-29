@@ -26,7 +26,6 @@ func TestGetValueSchemaType(t *testing.T) {
 		act, err := GetValueSchemaType(make(map[string]string))
 		require.Equal(t, None, act)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("valueSchemaType='AVRO', return AVRO", func(t *testing.T) {
@@ -195,7 +194,6 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 		require.Equal(t, valJSON, act)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("valueSchemaType set to None, leave value as is", func(t *testing.T) {
@@ -205,7 +203,6 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 		require.Equal(t, valJSON, act)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("valueSchemaType invalid, return error", func(t *testing.T) {
@@ -254,7 +251,6 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
 		require.Equal(t, valJSON, act)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("schema found, serialize value as Avro binary", func(t *testing.T) {
@@ -262,7 +258,6 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
-
 	})
 }
 
@@ -293,7 +288,6 @@ func TestLatestSchemaCaching(t *testing.T) {
 		act, err = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("Caching enabled, when cache entry expires, call GetLatestSchema() again", func(t *testing.T) {
@@ -318,7 +312,6 @@ func TestLatestSchemaCaching(t *testing.T) {
 		act, err = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("Caching disabled, call GetLatestSchema() twice", func(t *testing.T) {
@@ -343,6 +336,5 @@ func TestLatestSchemaCaching(t *testing.T) {
 
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
-
 	})
 }

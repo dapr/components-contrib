@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -201,7 +202,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	// Make sure to replace the formKey header with a custom header.
 	// The HTTP Client doesn't like the custom header.
 	if headers["io.camunda.zeebe:formKey"] != "" {
-		headers["X-Zeebe-Form-Key"] = headers["io.camunda.zeebe:formKey"]
+		headers["X-Zeebe-Form-Key"] = strings.Clone(headers["io.camunda.zeebe:formKey"])
 		delete(headers, "io.camunda.zeebe:formKey")
 	}
 

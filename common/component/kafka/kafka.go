@@ -266,7 +266,7 @@ func getSchemaSubject(topic string) string {
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
 	// Null Data is valid and a tombstone record. It shouldn't be serialized
 	if message.Value == nil {
-		return json.Marshal(nil)
+		return []byte("null"), nil;
 	}
 
 	switch config.ValueSchemaType {

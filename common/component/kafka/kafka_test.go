@@ -97,8 +97,7 @@ func TestDeserializeValue(t *testing.T) {
 			Topic: "my-topic",
 		}
 		act, err := k.DeserializeValue(&msg, handlerConfig)
-		exp, _ := json.Marshal(nil)
-		require.Equal(t, exp, act)
+		require.Equal(t, []byte("null"), act)
 		require.NoError(t, err)
 	})
 

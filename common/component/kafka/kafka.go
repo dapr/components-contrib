@@ -263,6 +263,11 @@ func getSchemaSubject(topic string) string {
 }
 
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
+	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	if message.Value == nil {
+		return []byte("null"), nil
+	}
+
 	switch config.ValueSchemaType {
 	case Avro:
 		srClient, err := k.getSchemaRegistyClient()
@@ -349,6 +354,11 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 }
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
+	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	if data == nil {
+		return nil, nil
+	}
+
 	valueSchemaType, err := GetValueSchemaType(metadata)
 	if err != nil {
 		return nil, err

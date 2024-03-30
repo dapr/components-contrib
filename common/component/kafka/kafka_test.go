@@ -90,7 +90,7 @@ func TestDeserializeValue(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Data null, return as Json Null", func(t *testing.T) {
+	t.Run("Data null, return as JSON null", func(t *testing.T) {
 		msg := sarama.ConsumerMessage{
 			Key:   []byte("my_key"),
 			Value: nil,

@@ -22,7 +22,7 @@ require (
 	github.com/dapr/components-contrib v1.13.0-rc.6
 	github.com/dapr/dapr v1.13.0-rc.7
 	github.com/dapr/go-sdk v1.6.1-0.20231102031149-87bbb8cd690a
-	github.com/dapr/kit v0.13.0
+	github.com/dapr/kit v0.13.1-0.20240306152601-e33fbab74548
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-redis/redis/v8 v8.11.5
@@ -30,7 +30,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.2
 	github.com/joho/godotenv v1.4.0
-	github.com/lestrrat-go/jwx/v2 v2.0.19
+	github.com/lestrrat-go/jwx/v2 v2.0.20
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/riferrei/srclient v0.6.0

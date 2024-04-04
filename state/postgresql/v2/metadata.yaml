@@ -34,7 +34,7 @@ builtinAuthenticationProfiles:
         example: |
           "host=mydb.postgres.database.azure.com user=myapplication port=5432 database=dapr_test password=masterpassword sslmode=require"
         type: string
-  - name: "awsiam"
+  - name: "aws"
     metadata:
       - name: useAWSIAM
         required: true

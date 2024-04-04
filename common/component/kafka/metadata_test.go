@@ -61,6 +61,8 @@ func getCompleteMetadata() map[string]string {
 		consumerFetchDefault:   "1048576",
 		consumerFetchMin:       "1",
 		channelBufferSize:      "256",
+		"heartbeatInterval":    "2s",
+		"sessionTimeout":       "30s",
 	}
 }
 
@@ -132,6 +134,10 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
 	require.Equal(t, int32(1), meta.consumerFetchMin)
 	require.Equal(t, 256, meta.channelBufferSize)
+	require.Equal(t, 2*time.Second, meta.HeartbeatInterval)
+	require.Equal(t, 30*time.Second, meta.SessionTimeout)
+	require.Equal(t, 8*time.Minute, defaultClientConnectionTopicMetadataRefreshInterval)
+	require.Equal(t, 0*time.Minute, defaultClientConnectionKeepAliveInterval)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -395,6 +401,42 @@ func TestMetadataConsumerFetchValues(t *testing.T) {
 	require.Equal(t, int32(2048), meta.consumerFetchDefault)
 }
 
+func TestMetadataProducerValues(t *testing.T) {
+	t.Run("using default producer values", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer values explicitly", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[clientConnectionTopicMetadataRefreshInterval] = "3m0s"
+		m[clientConnectionKeepAliveInterval] = "4m0s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 3*time.Minute, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, 4*time.Minute, meta.ClientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[clientConnectionTopicMetadataRefreshInterval] = "-1h40m0s"
+		m[clientConnectionKeepAliveInterval] = "-1h40m0s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
+		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+	})
+}
+
 func TestMetadataChannelBufferSize(t *testing.T) {
 	k := getKafka()
 	m := getCompleteMetadata()
@@ -403,6 +445,64 @@ func TestMetadataChannelBufferSize(t *testing.T) {
 	meta, err := k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	require.Equal(t, 128, meta.channelBufferSize)
+}
+
+func TestMetadataHeartbeartInterval(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default heartbeat interval", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 3*time.Second, meta.HeartbeatInterval)
+	})
+
+	t.Run("with heartbeat interval set", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+		m["heartbeatInterval"] = "1s"
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 1*time.Second, meta.HeartbeatInterval)
+	})
+}
+
+func TestMetadataSessionTimeout(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default session timeout", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 10*time.Second, meta.SessionTimeout)
+	})
+
+	t.Run("with session timeout set", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+		m["sessionTimeout"] = "20s"
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 20*time.Second, meta.SessionTimeout)
+	})
 }
 
 func TestGetEventMetadata(t *testing.T) {

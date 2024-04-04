@@ -85,8 +85,24 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 	return nil
 }
 
+func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, error) {
+	awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
+	if awsRegion == "" {
+		return "", "", "", errors.New("metadata property AWSRegion is missing")
+	}
+	awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+	if awsAccessKey == "" {
+		return "", "", "", errors.New("metadata property AWSAccessKey is missing")
+	}
+	awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
+	if awsSecretKey == "" {
+		return "", "", "", errors.New("metadata property AWSSecretKey is missing")
+	}
+	return awsRegion, awsAccessKey, awsSecretKey, nil
+}
+
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
-func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
+func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.Config, error) {
 	// Get the config from the connection string
 	config, err := pgxpool.ParseConfig(m.ConnectionString)
 	if err != nil {
@@ -142,20 +158,13 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		}
 	}
 	if m.UseAWSIAM {
-		awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
-		if awsRegion == "" {
-			return nil, errors.New("metadata property AWSRegion is missing")
-		}
-		awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
-		if awsAccessKey == "" {
-			return nil, errors.New("metadata property AWSAccessKey is missing")
-		}
-		awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
-		if awsSecretKey == "" {
-			return nil, errors.New("metadata property AWSSecretKey is missing")
+		awsRegion, awsAccessKey, awsSecretKey, err := m.ValidateAwsIamFields()
+		if err != nil {
+			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %v", err)
+			return nil, err
 		}
 
-		err = awsiam.InitAWSDatabase(context.Background(), config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
+		err = awsiam.InitAWSDatabase(ctx, config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
 		if err != nil {
 			err = fmt.Errorf("failed to init AWS database: %v", err)
 			return nil, err

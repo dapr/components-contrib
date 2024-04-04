@@ -52,25 +52,6 @@ builtinAuthenticationProfiles:
         description: |
           The AWS Region where the AWS Relational Database Service is deployed to.
         example: '"us-east-1"'
-      - name: awsAccessKey
-        type: string
-        required: false
-        description: |
-          AWS access key associated with an IAM account.
-        example: '"AKIAIOSFODNN7EXAMPLE"'
-      - name: awsSecretKey
-        type: string
-        required: false
-        sensitive: true
-        description: |
-          The secret key associated with the access key.
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
-      - name: awsSessionToken
-        type: string
-        sensitive: true
-        description: |
-          AWS session token to use. A session token is only required if you are using temporary security credentials.
-        example: '"TOKEN"'
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String."

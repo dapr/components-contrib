@@ -43,9 +43,9 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKe
 		}
 
 		// Set credentials explicitly
-		awsCfg2 := aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
+		awsCfg := aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
 		authenticationToken, err = aws_auth.BuildAuthToken(
-			ctx, dbEndpoint, region, pgCfg.User, awsCfg2)
+			ctx, dbEndpoint, region, pgCfg.User, awsCfg)
 		if err != nil {
 			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
 		}

@@ -102,7 +102,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return err
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig()
+	config, err := p.metadata.GetPgxPoolConfig(ctx)
 	if err != nil {
 		return err
 	}

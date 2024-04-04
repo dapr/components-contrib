@@ -286,7 +286,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 }
 
 func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig()
+	config, err := p.metadata.GetPgxPoolConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
 	}

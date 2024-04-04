@@ -11,8 +11,6 @@ import (
 	aws_auth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/dapr/components-contrib/common/component/postgresql/databases"
 )
 
 type AWSIAM struct {
@@ -44,7 +42,7 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKe
 
 		// Set credentials explicitly
 		awsCfg := aws_credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
-		authenticationToken, err = aws_auth.BuildAuthToken(
+		authenticationToken, err := aws_auth.BuildAuthToken(
 			ctx, dbEndpoint, region, pgCfg.User, awsCfg)
 		if err != nil {
 			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
@@ -62,17 +60,11 @@ func GetAccessToken(ctx context.Context, pgCfg *pgx.ConnConfig, region, accessKe
 	return authenticationToken, nil
 }
 
-func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString string, region string, awsAccessKey, awsSecretKey string) error {
-	const timeout = 15 * time.Second
-
+func InitiateAWSIAMAuth(ctx context.Context, config *pgxpool.Config, connString string, region string, awsAccessKey, awsSecretKey string) error {
 	// Set max connection lifetime to 14 minutes in postgres connection pool configuration.
 	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
 	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
 	config.MaxConnLifetime = time.Minute * 14
-	db, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return fmt.Errorf("failed to get PostgreSQL config: %w", err)
-	}
 
 	// Setup connection pool config needed for AWS IAM authentication
 	config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
@@ -86,17 +78,6 @@ func InitAWSDatabase(ctx context.Context, config *pgxpool.Config, connString str
 		config.ConnConfig.Password = pwd
 
 		return nil
-	}
-
-	// Create database and user with proper iam role if not using an already created iam user
-	err = databases.CreateDatabaseIfNeeded(ctx, timeout, connString, db)
-	if err != nil {
-		return fmt.Errorf("failed create AWS database if needed %w", err)
-	}
-
-	err = databases.CreateUserAndRoleIfNeeded(ctx, timeout, connString, db)
-	if err != nil {
-		return fmt.Errorf("failed create AWS user and grant role if needed %w", err)
 	}
 
 	return nil

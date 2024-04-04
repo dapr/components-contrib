@@ -71,6 +71,13 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 	return NewPostgreSQLStateStoreWithOptions(logger, Options{})
 }
 
+// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store v2 with Azure AD authentication enabled and AWS IAM authentication disabled.
+// The v2 of the component uses a different format for storing data, always in a BYTEA column, which is more efficient than the JSONB column used in v1.
+// Additionally, v2 uses random UUIDs for etags instead of the xmin column, expanding support to all Postgres-compatible databases such as CockroachDB, etc.
+func NewPostgreSQLStateStoreWithAzureAD(logger logger.Logger) state.Store {
+	return NewPostgreSQLStateStoreWithOptions(logger, Options{NoAWSIAM: true, NoAzureAD: false})
+}
+
 // NewPostgreSQLStateStoreWithOptions creates a new instance of PostgreSQL state store with options.
 func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) state.Store {
 	s := &PostgreSQL{

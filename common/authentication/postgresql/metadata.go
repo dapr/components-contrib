@@ -164,9 +164,9 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.C
 			return nil, err
 		}
 
-		err = awsiam.InitAWSDatabase(ctx, config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
+		err = awsiam.InitiateAWSIAMAuth(ctx, config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
 		if err != nil {
-			err = fmt.Errorf("failed to init AWS database: %v", err)
+			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation dynamically: %v", err)
 			return nil, err
 		}
 	}

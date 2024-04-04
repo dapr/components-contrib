@@ -141,7 +141,12 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Offsets.Initial = k.initialOffset
 	config.Consumer.Fetch.Min = meta.consumerFetchMin
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
+	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
+	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
 	config.ChannelBufferSize = meta.channelBufferSize
+
+	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
+	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
@@ -244,7 +249,9 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
-		errs[1] = k.cg.Close()
+		if k.cg != nil {
+			errs[1] = k.cg.Close()
+		}
 	}
 
 	return errors.Join(errs...)
@@ -256,6 +263,11 @@ func getSchemaSubject(topic string) string {
 }
 
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
+	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	if message.Value == nil {
+		return []byte("null"), nil
+	}
+
 	switch config.ValueSchemaType {
 	case Avro:
 		srClient, err := k.getSchemaRegistyClient()
@@ -342,6 +354,11 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 }
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
+	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	if data == nil {
+		return nil, nil
+	}
+
 	valueSchemaType, err := GetValueSchemaType(metadata)
 	if err != nil {
 		return nil, err

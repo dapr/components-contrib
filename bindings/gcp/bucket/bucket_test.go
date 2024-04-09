@@ -40,7 +40,7 @@ func TestParseMetadata(t *testing.T) {
 			"projectID":               "my_project_id",
 			"tokenURI":                "my_token_uri",
 			"type":                    "my_type",
-			"signTTL":				   "15s",
+			"signTTL":                 "15s",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
@@ -58,7 +58,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, "my_project_id", meta.ProjectID)
 			assert.Equal(t, "my_token_uri", meta.TokenURI)
 			assert.Equal(t, "my_type", meta.Type)
-			assert.Equal(t,"15s",meta.SignTTL)
+			assert.Equal(t, "15s", meta.SignTTL)
 		})
 
 		t.Run("Metadata is correctly marshalled to JSON", func(t *testing.T) {

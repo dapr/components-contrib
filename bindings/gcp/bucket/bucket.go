@@ -365,7 +365,6 @@ func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	signURL, err := g.signObject(metadata.Bucket, key, metadata.SignTTL)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error: %w", err)
-
 	}
 
 	jsonResponse, err := json.Marshal(signResponse{
@@ -377,11 +376,9 @@ func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
 	}, nil
-
 }
 
 func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
-
 	d, err := time.ParseDuration(ttl)
 	if err != nil {
 		return "", fmt.Errorf("gcp bucket binding error: error parsing signTTL: %w", err)

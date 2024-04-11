@@ -270,14 +270,7 @@ func (k *Kafka) Close() error {
 		}
 		if k.consumerGroups != nil {
 			for _, cg := range k.consumerGroups {
-				defer cg.consumerWG.Wait()
-				k.subscribeLock.Lock()
-				if cg.consumerCancel != nil {
-					cg.consumerCancel()
-				}
-				k.subscribeLock.Unlock()
-
-				errs = append(errs, cg.cg.Close())
+				errs = append(errs, cg.Close(k))
 			}
 		}
 	}
@@ -419,6 +412,16 @@ func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]st
 	default:
 		return data, nil
 	}
+}
+
+func (cg *ConsumerGroup) Close(k *Kafka) error {
+	defer cg.consumerWG.Wait()
+	k.subscribeLock.Lock()
+	if cg.consumerCancel != nil {
+		cg.consumerCancel()
+	}
+	k.subscribeLock.Unlock()
+	return cg.cg.Close()
 }
 
 // EventHandler is the handler used to handle the subscribed event.

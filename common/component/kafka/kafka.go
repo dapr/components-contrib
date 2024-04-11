@@ -38,6 +38,7 @@ type ConsumerGroup struct {
 	subscribeTopics TopicHandlerConfig
 	cg              sarama.ConsumerGroup
 	consumerCancel  context.CancelFunc
+	consumerWG      sync.WaitGroup
 }
 
 // Kafka allows reading/writing to a Kafka consumer group.
@@ -54,7 +55,6 @@ type Kafka struct {
 
 	consumerGroups map[string]*ConsumerGroup
 	subscribeLock  sync.Mutex
-	consumerWG     sync.WaitGroup
 	closeCh        chan struct{}
 	closed         atomic.Bool
 	wg             sync.WaitGroup
@@ -255,7 +255,6 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 
 func (k *Kafka) Close() error {
 	defer k.wg.Wait()
-	defer k.consumerWG.Wait()
 
 	errs := make([]error, 1)
 	if k.closed.CompareAndSwap(false, true) {
@@ -271,6 +270,7 @@ func (k *Kafka) Close() error {
 		}
 		if k.consumerGroups != nil {
 			for _, cg := range k.consumerGroups {
+				defer cg.consumerWG.Wait()
 				k.subscribeLock.Lock()
 				if cg.consumerCancel != nil {
 					cg.consumerCancel()

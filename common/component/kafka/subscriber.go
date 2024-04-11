@@ -91,7 +91,7 @@ func (k *Kafka) reloadConsumerGroup(consumerGroup *ConsumerGroup) {
 	if consumerGroup.consumerCancel != nil {
 		consumerGroup.consumerCancel()
 		consumerGroup.consumerCancel = nil
-		k.consumerWG.Wait()
+		consumerGroup.consumerWG.Wait()
 	}
 
 	if len(consumerGroup.subscribeTopics) == 0 || k.closed.Load() {
@@ -107,9 +107,9 @@ func (k *Kafka) reloadConsumerGroup(consumerGroup *ConsumerGroup) {
 	ctx, cancel := context.WithCancel(context.Background())
 	consumerGroup.consumerCancel = cancel
 
-	k.consumerWG.Add(1)
+	consumerGroup.consumerWG.Add(1)
 	go func() {
-		defer k.consumerWG.Done()
+		defer consumerGroup.consumerWG.Done()
 		k.consume(ctx, topics, consumer)
 		k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
 	}()

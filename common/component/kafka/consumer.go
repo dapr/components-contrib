@@ -27,15 +27,16 @@ import (
 )
 
 type consumer struct {
-	k     *Kafka
-	mutex sync.Mutex
+	k             *Kafka
+	consumerGroup *ConsumerGroup
+	mutex         sync.Mutex
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
-	isBulkSubscribe := consumer.k.checkBulkSubscribe(claim.Topic())
+	isBulkSubscribe := consumer.k.checkBulkSubscribe(consumer.consumerGroup.groupID, claim.Topic())
 
-	handlerConfig, err := consumer.k.GetTopicHandlerConfig(claim.Topic())
+	handlerConfig, err := consumer.k.GetTopicHandlerConfig(consumer.consumerGroup.groupID, claim.Topic())
 	if err != nil {
 		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
@@ -133,7 +134,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 	for i, message := range messages {
 		if message != nil {
 			metadata := GetEventMetadata(message)
-			handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
+			handlerConfig, err := consumer.k.GetTopicHandlerConfig(consumer.consumerGroup.groupID, message.Topic)
 			if err != nil {
 				return err
 			}
@@ -176,7 +177,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {
 	consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-	handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
+	handlerConfig, err := consumer.k.GetTopicHandlerConfig(consumer.consumerGroup.groupID, message.Topic)
 	if err != nil {
 		return err
 	}
@@ -228,8 +229,12 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 }
 
 // checkBulkSubscribe checks if a bulk handler and config are correctly registered for provided topic
-func (k *Kafka) checkBulkSubscribe(topic string) bool {
-	if bulkHandlerConfig, ok := k.subscribeTopics[topic]; ok &&
+func (k *Kafka) checkBulkSubscribe(consumerGroupID string, topic string) bool {
+	cg, ok := k.consumerGroups[consumerGroupID]
+	if !ok {
+		return false
+	}
+	if bulkHandlerConfig, ok := cg.subscribeTopics[topic]; ok &&
 		bulkHandlerConfig.IsBulkSubscribe &&
 		bulkHandlerConfig.BulkHandler != nil && (bulkHandlerConfig.SubscribeConfig.MaxMessagesCount > 0) &&
 		bulkHandlerConfig.SubscribeConfig.MaxAwaitDurationMs > 0 {
@@ -239,8 +244,13 @@ func (k *Kafka) checkBulkSubscribe(topic string) bool {
 }
 
 // GetTopicBulkHandler returns the handlerConfig for a topic
-func (k *Kafka) GetTopicHandlerConfig(topic string) (SubscriptionHandlerConfig, error) {
-	handlerConfig, ok := k.subscribeTopics[topic]
+func (k *Kafka) GetTopicHandlerConfig(consumerGroupID string, topic string) (SubscriptionHandlerConfig, error) {
+	cg, ok := k.consumerGroups[consumerGroupID]
+	if !ok {
+		return SubscriptionHandlerConfig{},
+			fmt.Errorf("any handler for messages of topic %s not found", topic)
+	}
+	handlerConfig, ok := cg.subscribeTopics[topic]
 	if ok && ((handlerConfig.IsBulkSubscribe && handlerConfig.BulkHandler != nil) ||
 		(!handlerConfig.IsBulkSubscribe && handlerConfig.Handler != nil)) {
 		return handlerConfig, nil

@@ -53,6 +53,7 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		IsBulkSubscribe: false,
 		Handler:         adaptHandler(handler),
 		ValueSchemaType: valueSchemaType,
+		ConsumerGroupID: kafka.GetConsumerGroupOverride(req.Metadata),
 	}
 
 	p.subscribeUtil(ctx, req, handlerConfig)
@@ -79,6 +80,7 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		SubscribeConfig: subConfig,
 		BulkHandler:     adaptBulkHandler(handler),
 		ValueSchemaType: valueSchemaType,
+		ConsumerGroupID: kafka.GetConsumerGroupOverride(req.Metadata),
 	}
 	p.subscribeUtil(ctx, req, handlerConfig)
 	return nil

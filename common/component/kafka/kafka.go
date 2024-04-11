@@ -33,26 +33,31 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
+type ConsumerGroup struct {
+	groupID         string
+	subscribeTopics TopicHandlerConfig
+	cg              sarama.ConsumerGroup
+	consumerCancel  context.CancelFunc
+}
+
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer      sarama.SyncProducer
-	consumerGroup string
-	brokers       []string
-	logger        logger.Logger
-	authType      string
-	saslUsername  string
-	saslPassword  string
-	initialOffset int64
-	config        *sarama.Config
+	producer               sarama.SyncProducer
+	defaultConsumerGroupID string
+	brokers                []string
+	logger                 logger.Logger
+	authType               string
+	saslUsername           string
+	saslPassword           string
+	initialOffset          int64
+	config                 *sarama.Config
 
-	cg              sarama.ConsumerGroup
-	subscribeTopics TopicHandlerConfig
-	subscribeLock   sync.Mutex
-	consumerCancel  context.CancelFunc
-	consumerWG      sync.WaitGroup
-	closeCh         chan struct{}
-	closed          atomic.Bool
-	wg              sync.WaitGroup
+	consumerGroups map[string]*ConsumerGroup
+	subscribeLock  sync.Mutex
+	consumerWG     sync.WaitGroup
+	closeCh        chan struct{}
+	closed         atomic.Bool
+	wg             sync.WaitGroup
 
 	// schema registry settings
 	srClient                   srclient.ISchemaRegistryClient
@@ -108,11 +113,31 @@ func parseSchemaType(sVal string) (SchemaType, error) {
 	}
 }
 
+func GetConsumerGroupOverride(metadata map[string]string) string {
+	cgOverride, ok := kitmd.GetMetadataProperty(metadata, consumerGroupMetadataKey)
+	if ok {
+		return strings.TrimSpace(cgOverride)
+	} else {
+		return ""
+	}
+}
+
+func NewConsumerGroup(brokers []string, groupID string, config *sarama.Config) (*ConsumerGroup, error) {
+	cg, err := sarama.NewConsumerGroup(brokers, groupID, config)
+	if err != nil {
+		return nil, err
+	}
+	return &ConsumerGroup{
+		groupID:         groupID,
+		subscribeTopics: make(TopicHandlerConfig),
+		cg:              cg,
+	}, nil
+}
+
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger:          logger,
-		subscribeTopics: make(TopicHandlerConfig),
-		closeCh:         make(chan struct{}),
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -132,7 +157,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.internalContext, k.internalContextCancel = context.WithCancel(context.Background())
 
 	k.brokers = meta.internalBrokers
-	k.consumerGroup = meta.ConsumerGroup
+	k.defaultConsumerGroupID = meta.ConsumerGroup
 	k.initialOffset = meta.internalInitialOffset
 	k.authType = meta.AuthType
 
@@ -218,11 +243,13 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 	k.logger.Debug("Kafka message bus initialization complete")
 
-	k.cg, err = sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
+	// Register default consumer group
+	cg, err := NewConsumerGroup(k.brokers, k.defaultConsumerGroupID, k.config)
 	if err != nil {
 		return err
 	}
-
+	k.consumerGroups = make(map[string]*ConsumerGroup, 1)
+	k.consumerGroups[k.defaultConsumerGroupID] = cg
 	return nil
 }
 
@@ -230,7 +257,7 @@ func (k *Kafka) Close() error {
 	defer k.wg.Wait()
 	defer k.consumerWG.Wait()
 
-	errs := make([]error, 2)
+	errs := make([]error, 1)
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 
@@ -242,15 +269,16 @@ func (k *Kafka) Close() error {
 		if k.internalContext != nil {
 			k.internalContextCancel()
 		}
+		if k.consumerGroups != nil {
+			for _, cg := range k.consumerGroups {
+				k.subscribeLock.Lock()
+				if cg.consumerCancel != nil {
+					cg.consumerCancel()
+				}
+				k.subscribeLock.Unlock()
 
-		k.subscribeLock.Lock()
-		if k.consumerCancel != nil {
-			k.consumerCancel()
-		}
-		k.subscribeLock.Unlock()
-
-		if k.cg != nil {
-			errs[1] = k.cg.Close()
+				errs = append(errs, cg.cg.Close())
+			}
 		}
 	}
 
@@ -406,6 +434,7 @@ type SubscriptionHandlerConfig struct {
 	BulkHandler     BulkEventHandler
 	Handler         EventHandler
 	ValueSchemaType SchemaType
+	ConsumerGroupID string
 }
 
 // NewEvent is an event arriving from a message bus instance.

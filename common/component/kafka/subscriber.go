@@ -16,21 +16,52 @@ package kafka
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
+func (k *Kafka) GetOrCreateConsumerGroup(handlerConfig SubscriptionHandlerConfig) (*ConsumerGroup, error) {
+	cg, ok := k.consumerGroups[handlerConfig.ConsumerGroupID]
+	if ok {
+		return cg, nil
+	}
+
+	cg, err := NewConsumerGroup(k.brokers, handlerConfig.ConsumerGroupID, k.config)
+	if err != nil {
+		return nil, err
+	}
+	k.consumerGroups[handlerConfig.ConsumerGroupID] = cg
+	return cg, nil
+}
+
 // Subscribe adds a handler and configuration for a topic, and subscribes.
 // Unsubscribes to the topic on context cancel.
-func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandlerConfig, topics ...string) {
+func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandlerConfig, topics ...string) error {
 	k.subscribeLock.Lock()
 	defer k.subscribeLock.Unlock()
+	var cg *ConsumerGroup
+	// If a consumer group override is specified, retrieve group if exists or create it
+	if len(handlerConfig.ConsumerGroupID) > 0 {
+		cgEx, err := k.GetOrCreateConsumerGroup(handlerConfig)
+		if err != nil {
+			return err
+		}
+		cg = cgEx
+		// Otherwise use default consumer group registered on init
+	} else {
+		cgDefault, ok := k.consumerGroups[k.defaultConsumerGroupID]
+		if !ok {
+			return fmt.Errorf("undefined default consumer group: %s", k.defaultConsumerGroupID)
+		}
+		cg = cgDefault
+	}
 	for _, topic := range topics {
-		k.subscribeTopics[topic] = handlerConfig
+		cg.subscribeTopics[topic] = handlerConfig
 	}
 
 	k.logger.Debugf("Subscribing to topic: %v", topics)
 
-	k.reloadConsumerGroup()
+	k.reloadConsumerGroup(cg)
 
 	k.wg.Add(1)
 	go func() {
@@ -46,33 +77,35 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		k.logger.Debugf("Unsubscribing to topic: %v", topics)
 
 		for _, topic := range topics {
-			delete(k.subscribeTopics, topic)
+			delete(cg.subscribeTopics, topic)
 		}
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 	}()
+
+	return nil
 }
 
 // reloadConsumerGroup reloads the consumer group with the new topics.
-func (k *Kafka) reloadConsumerGroup() {
-	if k.consumerCancel != nil {
-		k.consumerCancel()
-		k.consumerCancel = nil
+func (k *Kafka) reloadConsumerGroup(consumerGroup *ConsumerGroup) {
+	if consumerGroup.consumerCancel != nil {
+		consumerGroup.consumerCancel()
+		consumerGroup.consumerCancel = nil
 		k.consumerWG.Wait()
 	}
 
-	if len(k.subscribeTopics) == 0 || k.closed.Load() {
+	if len(consumerGroup.subscribeTopics) == 0 || k.closed.Load() {
 		return
 	}
 
-	topics := k.subscribeTopics.TopicList()
+	topics := consumerGroup.subscribeTopics.TopicList()
 
 	k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
-	consumer := &consumer{k: k}
+	consumer := &consumer{k: k, consumerGroup: consumerGroup}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	k.consumerCancel = cancel
+	consumerGroup.consumerCancel = cancel
 
 	k.consumerWG.Add(1)
 	go func() {
@@ -84,7 +117,7 @@ func (k *Kafka) reloadConsumerGroup() {
 
 func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer) {
 	for {
-		err := k.cg.Consume(ctx, topics, consumer)
+		err := consumer.consumerGroup.cg.Consume(ctx, topics, consumer)
 		if errors.Is(err, context.Canceled) {
 			return
 		}

@@ -55,7 +55,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.13.0
+	github.com/dapr/kit v0.13.1-0.20240306152601-e33fbab74548
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -82,7 +82,7 @@ require (
 	github.com/kubemq-io/kubemq-go v1.7.9
 	github.com/labd/commercetools-go-sdk v1.3.1
 	github.com/lestrrat-go/httprc v1.0.4
-	github.com/lestrrat-go/jwx/v2 v2.0.19
+	github.com/lestrrat-go/jwx/v2 v2.0.20
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/microsoft/go-mssqldb v1.6.0
@@ -114,7 +114,7 @@ require (
 	go.mongodb.org/mongo-driver v1.12.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
-	golang.org/x/crypto v0.18.0
+	golang.org/x/crypto v0.19.0
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
 	golang.org/x/mod v0.14.0
 	golang.org/x/net v0.20.0
@@ -381,8 +381,8 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
@@ -431,3 +431,8 @@ replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday
 
 // this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// Uncomment for local development for testing with changes in the components-contrib && kit repositories.
+// Don't commit with this uncommented!
+//
+// replace github.com/dapr/kit => ../kit

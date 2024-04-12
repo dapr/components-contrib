@@ -258,7 +258,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 func (k *Kafka) Close() error {
 	defer k.wg.Wait()
 
-	errs := make([]error, 1)
+	errs := make([]error, 0, len(k.consumerGroups))
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 

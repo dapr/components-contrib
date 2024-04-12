@@ -616,10 +616,10 @@ func Test_Subscribe(t *testing.T) {
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: "cgOverride"}, "foo")
 
-		assert.Equal(t, 2, len(k.consumerGroups))
+		assert.Len(t, k.consumerGroups, 2)
 		cgAct2, ok := k.consumerGroups["cgOverride"]
 		assert.True(t, ok)
-		assert.Equal(t, cgAct2.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: "cgOverride"}})
+		assert.Equal(t, TopicHandlerConfig{"foo": {ConsumerGroupID: "cgOverride"}}, cgAct2.subscribeTopics)
 		assert.Eventually(t, func() bool {
 			return consumeCalledCg2.Load() == 1
 		}, time.Second, time.Millisecond)
@@ -627,10 +627,9 @@ func Test_Subscribe(t *testing.T) {
 
 		cgActDefault, ok := k.consumerGroups[""]
 		assert.True(t, ok)
-		assert.Equal(t, cgActDefault.subscribeTopics, TopicHandlerConfig{"foo": {}})
+		assert.Equal(t, TopicHandlerConfig{"foo": {}}, cgActDefault.subscribeTopics)
 		assert.Equal(t, int64(0), consumeCalledCg1.Load())
 		assert.Equal(t, int64(0), cancelCalledCg1.Load())
-
 	})
 
 	t.Run("Calling subscribe with consumerGroup override same as default keeps same consumer group", func(t *testing.T) {
@@ -677,10 +676,10 @@ func Test_Subscribe(t *testing.T) {
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: groupID}, "foo")
 
-		assert.Equal(t, 1, len(k.consumerGroups))
+		assert.Len(t, k.consumerGroups, 1)
 		cgAct, ok := k.consumerGroups[groupID]
 		assert.True(t, ok)
-		assert.Equal(t, cgAct.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: groupID}})
+		assert.Equal(t, TopicHandlerConfig{"foo": {ConsumerGroupID: groupID}}, cgAct.subscribeTopics)
 		assert.Eventually(t, func() bool {
 			return consumeCalledCg1.Load() == 1
 		}, time.Second, time.Millisecond)
@@ -692,10 +691,10 @@ func Test_Subscribe(t *testing.T) {
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: "override"}, "foo", "foo2")
 
-		assert.Equal(t, 2, len(k.consumerGroups))
+		assert.Len(t, k.consumerGroups, 2)
 		cgAct2, ok := k.consumerGroups["override"]
 		assert.True(t, ok)
-		assert.Equal(t, cgAct2.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: "override"}, "foo2": {ConsumerGroupID: "override"}})
+		assert.Equal(t, TopicHandlerConfig{"foo": {ConsumerGroupID: "override"}, "foo2": {ConsumerGroupID: "override"}}, cgAct2.subscribeTopics)
 		assert.Eventually(t, func() bool {
 			return consumeCalledCg2.Load() == 1
 		}, time.Second, time.Millisecond)
@@ -704,5 +703,4 @@ func Test_Subscribe(t *testing.T) {
 
 		assert.Equal(t, int64(0), cancelCalledCg2.Load())
 	})
-
 }

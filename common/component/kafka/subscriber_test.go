@@ -573,4 +573,136 @@ func Test_Subscribe(t *testing.T) {
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(199), consumeCalled.Load())
 	})
+
+	t.Run("Calling subscribe with consumerGroup override adds new consumer group", func(t *testing.T) {
+		var consumeCalledCg1 atomic.Int64
+		var cancelCalledCg1 atomic.Int64
+		var consumeCalledCg2 atomic.Int64
+		var cancelCalledCg2 atomic.Int64
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalledCg1.Add(1)
+				<-ctx.Done()
+				cancelCalledCg1.Add(1)
+				return nil
+			}),
+			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			consumerCancel:  nil,
+		}
+
+		var cgFactory ConsumerGroupFactory = func(brokers []string, groupID string, config *sarama.Config) (*ConsumerGroup, error) {
+			return &ConsumerGroup{
+				groupID: groupID,
+				cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+					consumeCalledCg2.Add(1)
+					<-ctx.Done()
+					cancelCalledCg2.Add(1)
+					return nil
+				}),
+				subscribeTopics: make(TopicHandlerConfig),
+				consumerCancel:  nil,
+			}, nil
+		}
+
+		k := &Kafka{
+			logger:               logger.NewLogger("test"),
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
+			closeCh:              make(chan struct{}),
+			consumeRetryInterval: time.Millisecond,
+			consumerGroupFactory: cgFactory,
+		}
+
+		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: "cgOverride"}, "foo")
+
+		assert.Equal(t, 2, len(k.consumerGroups))
+		cgAct2, ok := k.consumerGroups["cgOverride"]
+		assert.True(t, ok)
+		assert.Equal(t, cgAct2.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: "cgOverride"}})
+		assert.Eventually(t, func() bool {
+			return consumeCalledCg2.Load() == 1
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(0), cancelCalledCg2.Load())
+
+		cgActDefault, ok := k.consumerGroups[""]
+		assert.True(t, ok)
+		assert.Equal(t, cgActDefault.subscribeTopics, TopicHandlerConfig{"foo": {}})
+		assert.Equal(t, int64(0), consumeCalledCg1.Load())
+		assert.Equal(t, int64(0), cancelCalledCg1.Load())
+
+	})
+
+	t.Run("Calling subscribe with consumerGroup override same as default keeps same consumer group", func(t *testing.T) {
+		var consumeCalledCg1 atomic.Int64
+		var cancelCalledCg1 atomic.Int64
+		var consumeCalledCg2 atomic.Int64
+		var cancelCalledCg2 atomic.Int64
+		groupID := "default"
+
+		cg := &ConsumerGroup{
+			groupID: groupID,
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalledCg1.Add(1)
+				<-ctx.Done()
+				cancelCalledCg1.Add(1)
+				return nil
+			}),
+			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			consumerCancel:  nil,
+		}
+
+		var cgFactory ConsumerGroupFactory = func(brokers []string, groupID string, config *sarama.Config) (*ConsumerGroup, error) {
+			return &ConsumerGroup{
+				groupID: groupID,
+				cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+					consumeCalledCg2.Add(1)
+					<-ctx.Done()
+					cancelCalledCg2.Add(1)
+					return nil
+				}),
+				subscribeTopics: make(TopicHandlerConfig),
+				consumerCancel:  nil,
+			}, nil
+		}
+
+		k := &Kafka{
+			logger:                 logger.NewLogger("test"),
+			consumerGroups:         map[string]*ConsumerGroup{cg.groupID: cg},
+			closeCh:                make(chan struct{}),
+			consumeRetryInterval:   time.Millisecond,
+			consumerGroupFactory:   cgFactory,
+			defaultConsumerGroupID: groupID,
+		}
+
+		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: groupID}, "foo")
+
+		assert.Equal(t, 1, len(k.consumerGroups))
+		cgAct, ok := k.consumerGroups[groupID]
+		assert.True(t, ok)
+		assert.Equal(t, cgAct.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: groupID}})
+		assert.Eventually(t, func() bool {
+			return consumeCalledCg1.Load() == 1
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(1), consumeCalledCg1.Load())
+		assert.Equal(t, int64(0), cancelCalledCg1.Load())
+
+		assert.Equal(t, int64(0), consumeCalledCg2.Load())
+		assert.Equal(t, int64(0), cancelCalledCg2.Load())
+
+		k.Subscribe(context.Background(), SubscriptionHandlerConfig{ConsumerGroupID: "override"}, "foo", "foo2")
+
+		assert.Equal(t, 2, len(k.consumerGroups))
+		cgAct2, ok := k.consumerGroups["override"]
+		assert.True(t, ok)
+		assert.Equal(t, cgAct2.subscribeTopics, TopicHandlerConfig{"foo": {ConsumerGroupID: "override"}, "foo2": {ConsumerGroupID: "override"}})
+		assert.Eventually(t, func() bool {
+			return consumeCalledCg2.Load() == 1
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(1), consumeCalledCg1.Load())
+		assert.Equal(t, int64(0), cancelCalledCg1.Load())
+
+		assert.Equal(t, int64(0), cancelCalledCg2.Load())
+	})
+
 }

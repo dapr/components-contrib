@@ -26,7 +26,7 @@ func (k *Kafka) GetOrCreateConsumerGroup(handlerConfig SubscriptionHandlerConfig
 		return cg, nil
 	}
 
-	cg, err := NewConsumerGroup(k.brokers, handlerConfig.ConsumerGroupID, k.config)
+	cg, err := k.consumerGroupFactory(k.brokers, handlerConfig.ConsumerGroupID, k.config)
 	if err != nil {
 		return nil, err
 	}

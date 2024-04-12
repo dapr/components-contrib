@@ -53,11 +53,12 @@ type Kafka struct {
 	initialOffset          int64
 	config                 *sarama.Config
 
-	consumerGroups map[string]*ConsumerGroup
-	subscribeLock  sync.Mutex
-	closeCh        chan struct{}
-	closed         atomic.Bool
-	wg             sync.WaitGroup
+	consumerGroups       map[string]*ConsumerGroup
+	subscribeLock        sync.Mutex
+	closeCh              chan struct{}
+	closed               atomic.Bool
+	wg                   sync.WaitGroup
+	consumerGroupFactory ConsumerGroupFactory
 
 	// schema registry settings
 	srClient                   srclient.ISchemaRegistryClient
@@ -136,8 +137,9 @@ func NewConsumerGroup(brokers []string, groupID string, config *sarama.Config) (
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger:  logger,
-		closeCh: make(chan struct{}),
+		logger:               logger,
+		closeCh:              make(chan struct{}),
+		consumerGroupFactory: NewConsumerGroup,
 	}
 }
 
@@ -244,7 +246,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.logger.Debug("Kafka message bus initialization complete")
 
 	// Register default consumer group
-	cg, err := NewConsumerGroup(k.brokers, k.defaultConsumerGroupID, k.config)
+	cg, err := k.consumerGroupFactory(k.brokers, k.defaultConsumerGroupID, k.config)
 	if err != nil {
 		return err
 	}
@@ -429,6 +431,9 @@ type EventHandler func(ctx context.Context, msg *NewEvent) error
 
 // BulkEventHandler is the handler used to handle the subscribed bulk event.
 type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error)
+
+// Consumer Group factory called to create a new consumer group.
+type ConsumerGroupFactory func(brokers []string, groupID string, config *sarama.Config) (*ConsumerGroup, error)
 
 // SubscriptionHandlerConfig is the handler and configuration for subscription.
 type SubscriptionHandlerConfig struct {

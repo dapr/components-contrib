@@ -98,8 +98,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 
 	err := p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
-		err = fmt.Errorf("failed to parse metadata: %w", err)
-		return err
+		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
 	config, err := p.metadata.GetPgxPoolConfig(ctx)
@@ -111,16 +110,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
-		err = fmt.Errorf("failed to connect to the database: %w", err)
-		return err
+		return fmt.Errorf("failed to connect to the database: %w", err)
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
-		err = fmt.Errorf("failed to ping the database: %w", err)
-		return err
+		return fmt.Errorf("failed to ping the database: %w", err)
 	}
 
 	err = p.migrateFn(ctx, p.db, MigrateOptions{

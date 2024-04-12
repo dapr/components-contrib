@@ -17,8 +17,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
@@ -43,7 +43,7 @@ type pgMetadata struct {
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 
-	awsiam.AWSIAM `mapstructure:",squash"`
+	aws.AWSIAM `mapstructure:",squash"`
 }
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {

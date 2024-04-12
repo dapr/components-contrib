@@ -17,7 +17,7 @@ import (
 	"time"
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	kitmd "github.com/dapr/kit/metadata"
 )
 
@@ -27,7 +27,7 @@ const (
 
 type psqlMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
-	awsiam.AWSIAM               `mapstructure:",squash"`
+	aws.AWSIAM                  `mapstructure:",squash"`
 	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 }
 

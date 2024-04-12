@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	kitmd "github.com/dapr/kit/metadata"
 )
 
@@ -31,7 +31,7 @@ type metadata struct {
 	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	ConfigTable                 string        `mapstructure:"table"`
 	MaxIdleTimeoutOld           time.Duration `mapstructure:"connMaxIdleTime"` // Deprecated alias for "connectionMaxIdleTime"
-	awsiam.AWSIAM               `mapstructure:",squash"`
+	aws.AWSIAM                  `mapstructure:",squash"`
 }
 
 func (m *metadata) InitWithMetadata(meta map[string]string) error {

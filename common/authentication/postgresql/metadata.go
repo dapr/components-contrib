@@ -25,7 +25,6 @@ import (
 
 	"github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/common/authentication/azure"
-	awsiam "github.com/dapr/components-contrib/common/component/postgresql/awsIAM"
 	"github.com/dapr/components-contrib/metadata"
 )
 
@@ -164,7 +163,15 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.C
 			return nil, err
 		}
 
-		err = awsiam.InitiateAWSIAMAuth(ctx, config, m.ConnectionString, awsRegion, awsAccessKey, awsSecretKey)
+		awsOpts := aws.AWSIAMAuthOptions{
+			PoolConfig:       config,
+			ConnectionString: m.ConnectionString,
+			Region:           awsRegion,
+			AccessKey:        awsAccessKey,
+			SecretKey:        awsSecretKey,
+		}
+
+		err = awsOpts.InitiateAWSIAMAuth(ctx)
 		if err != nil {
 			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation dynamically: %v", err)
 			return nil, err

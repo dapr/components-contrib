@@ -35,20 +35,23 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
-			consumeCalled.Store(true)
-			return nil
-		})
-
-		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
+				consumeCalled.Store(true)
+				return nil
+			}),
 			subscribeTopics: nil,
-			closeCh:         make(chan struct{}),
 			consumerCancel:  cancel,
 		}
 
-		k.reloadConsumerGroup()
+		k := &Kafka{
+			logger:         logger.NewLogger("test"),
+			consumerGroups: map[string]*ConsumerGroup{cg.groupID: cg},
+			closeCh:        make(chan struct{}),
+		}
+
+		k.reloadConsumerGroup(cg)
 
 		require.Error(t, ctx.Err())
 		assert.False(t, consumeCalled.Load())
@@ -59,21 +62,24 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
-			consumeCalled.Store(true)
-			return nil
-		})
-		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
-			consumerCancel:  cancel,
-			closeCh:         make(chan struct{}),
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
+				consumeCalled.Store(true)
+				return nil
+			}),
 			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			consumerCancel:  cancel,
+		}
+		k := &Kafka{
+			logger:         logger.NewLogger("test"),
+			consumerGroups: map[string]*ConsumerGroup{cg.groupID: cg},
+			closeCh:        make(chan struct{}),
 		}
 
 		k.closed.Store(true)
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 
 		require.Error(t, ctx.Err())
 		assert.False(t, consumeCalled.Load())
@@ -82,119 +88,136 @@ func Test_reloadConsumerGroup(t *testing.T) {
 	t.Run("if reload called with topics, expect Consume to be called. If cancelled return", func(t *testing.T) {
 		var consumeCalled atomic.Bool
 		var consumeCancel atomic.Bool
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Store(true)
-			<-ctx.Done()
-			consumeCancel.Store(true)
-			return nil
-		})
-		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
-			consumerCancel:  nil,
-			closeCh:         make(chan struct{}),
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Store(true)
+				<-ctx.Done()
+				consumeCancel.Store(true)
+				return nil
+			}),
 			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			consumerCancel:  nil,
 		}
 
-		k.reloadConsumerGroup()
+		k := &Kafka{
+			logger:         logger.NewLogger("test"),
+			consumerGroups: map[string]*ConsumerGroup{cg.groupID: cg},
+			closeCh:        make(chan struct{}),
+		}
+
+		k.reloadConsumerGroup(cg)
 
 		assert.Eventually(t, consumeCalled.Load, time.Second, time.Millisecond)
 		assert.False(t, consumeCancel.Load())
-		assert.NotNil(t, k.consumerCancel)
+		assert.NotNil(t, cg.consumerCancel)
 
-		k.consumerCancel()
-		k.consumerWG.Wait()
+		cg.consumerCancel()
+		cg.consumerWG.Wait()
 	})
 
 	t.Run("Consume retries if returns non-context cancel error", func(t *testing.T) {
 		var consumeCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			return errors.New("some error")
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				return errors.New("some error")
+			}),
+			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() > 10
 		}, time.Second, time.Millisecond)
 
-		assert.NotNil(t, k.consumerCancel)
+		assert.NotNil(t, cg.consumerCancel)
 
 		called := consumeCalled.Load()
-		k.consumerCancel()
-		k.consumerWG.Wait()
+		cg.consumerCancel()
+		cg.consumerWG.Wait()
 		assert.InDelta(t, called, consumeCalled.Load(), 1)
 	})
 
 	t.Run("Consume return immediately if returns a context cancelled error", func(t *testing.T) {
 		var consumeCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			if consumeCalled.Load() == 5 {
-				return context.Canceled
-			}
-			return errors.New("some error")
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				if consumeCalled.Load() == 5 {
+					return context.Canceled
+				}
+				return errors.New("some error")
+			}),
+			subscribeTopics: map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 5
 		}, time.Second, time.Millisecond)
 
-		k.consumerWG.Wait()
+		cg.consumerWG.Wait()
 		assert.Equal(t, int64(5), consumeCalled.Load())
 	})
 
 	t.Run("Calling reloadConsumerGroup causes context to be cancelled and Consume called again (close by closed)", func(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 1
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(0), cancelCalled.Load())
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 2
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(1), cancelCalled.Load())
 
 		k.closed.Store(true)
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 		assert.Equal(t, int64(2), cancelCalled.Load())
 		assert.Equal(t, int64(2), consumeCalled.Load())
 	})
@@ -202,35 +225,40 @@ func Test_reloadConsumerGroup(t *testing.T) {
 	t.Run("Calling reloadConsumerGroup causes context to be cancelled and Consume called again (close by no subscriptions)", func(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumerCancel:  nil,
+		}
+
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 1
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(0), cancelCalled.Load())
 
-		k.reloadConsumerGroup()
+		k.reloadConsumerGroup(cg)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 2
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(1), cancelCalled.Load())
 
-		k.subscribeTopics = nil
-		k.reloadConsumerGroup()
+		cg.subscribeTopics = nil
+		k.reloadConsumerGroup(cg)
 		assert.Equal(t, int64(2), cancelCalled.Load())
 		assert.Equal(t, int64(2), consumeCalled.Load())
 	})
@@ -240,24 +268,29 @@ func Test_Subscribe(t *testing.T) {
 	t.Run("Calling subscribe with no topics should not consume", func(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
+
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
-			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{})
 
-		assert.Nil(t, k.consumerCancel)
+		assert.Nil(t, cg.consumerCancel)
 		assert.Equal(t, int64(0), consumeCalled.Load())
 		assert.Equal(t, int64(0), cancelCalled.Load())
 	})
@@ -265,26 +298,31 @@ func Test_Subscribe(t *testing.T) {
 	t.Run("Calling subscribe when closed should not consume", func(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
+
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
-			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
 		k.closed.Store(true)
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{}, "abc")
 
-		assert.Nil(t, k.consumerCancel)
+		assert.Nil(t, cg.consumerCancel)
 		assert.Equal(t, int64(0), consumeCalled.Load())
 		assert.Equal(t, int64(0), cancelCalled.Load())
 	})
@@ -293,20 +331,24 @@ func Test_Subscribe(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
 		var consumeTopics atomic.Value
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
-			consumeTopics.Store(topics)
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
+				consumeTopics.Store(topics)
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
-			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -331,22 +373,25 @@ func Test_Subscribe(t *testing.T) {
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
 		var consumeTopics atomic.Value
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
-			consumeTopics.Store(topics)
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
+				consumeTopics.Store(topics)
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
-			subscribeTopics:      make(TopicHandlerConfig),
 		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		k.Subscribe(ctx, SubscriptionHandlerConfig{}, "abc")
 
@@ -355,13 +400,13 @@ func Test_Subscribe(t *testing.T) {
 		}, time.Second, time.Millisecond)
 		assert.Equal(t, int64(0), cancelCalled.Load())
 		assert.Equal(t, []string{"abc"}, consumeTopics.Load())
-		assert.Equal(t, TopicHandlerConfig{"abc": SubscriptionHandlerConfig{}}, k.subscribeTopics)
+		assert.Equal(t, TopicHandlerConfig{"abc": SubscriptionHandlerConfig{}}, cg.subscribeTopics)
 
 		k.Subscribe(ctx, SubscriptionHandlerConfig{}, "def")
 		assert.Equal(t, TopicHandlerConfig{
 			"abc": SubscriptionHandlerConfig{},
 			"def": SubscriptionHandlerConfig{},
-		}, k.subscribeTopics)
+		}, cg.subscribeTopics)
 
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 2
@@ -376,55 +421,61 @@ func Test_Subscribe(t *testing.T) {
 		assert.Equal(t, int64(3), cancelCalled.Load())
 
 		k.Subscribe(ctx, SubscriptionHandlerConfig{})
-		assert.Nil(t, k.consumerCancel)
-		assert.Empty(t, k.subscribeTopics)
+		assert.Nil(t, cg.consumerCancel)
+		assert.Empty(t, cg.subscribeTopics)
 	})
 
 	t.Run("Consume return immediately if returns a context cancelled error", func(t *testing.T) {
 		var consumeCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			if consumeCalled.Load() == 5 {
-				return context.Canceled
-			}
-			return errors.New("some error")
-		})
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				if consumeCalled.Load() == 5 {
+					return context.Canceled
+				}
+				return errors.New("some error")
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      make(TopicHandlerConfig),
 			consumeRetryInterval: time.Millisecond,
 		}
 
 		k.Subscribe(context.Background(), SubscriptionHandlerConfig{}, "foo")
-		assert.Equal(t, TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}}, k.subscribeTopics)
+		assert.Equal(t, TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}}, cg.subscribeTopics)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 5
 		}, time.Second, time.Millisecond)
-		k.consumerWG.Wait()
+		cg.consumerWG.Wait()
 		assert.Equal(t, int64(5), consumeCalled.Load())
-		assert.Equal(t, TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}}, k.subscribeTopics)
+		assert.Equal(t, TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}}, cg.subscribeTopics)
 	})
 
 	t.Run("Consume dynamically changes topics which are being consumed", func(t *testing.T) {
 		var consumeTopics atomic.Value
 		var consumeCalled atomic.Int64
 		var cancelCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
-			consumeTopics.Store(topics)
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
+				consumeTopics.Store(topics)
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      make(TopicHandlerConfig),
 			consumeRetryInterval: time.Millisecond,
 		}
 
@@ -480,25 +531,28 @@ func Test_Subscribe(t *testing.T) {
 		assert.Eventually(t, func() bool {
 			return cancelCalled.Load() == 7
 		}, time.Second, time.Millisecond)
-		assert.Empty(t, k.subscribeTopics)
+		assert.Empty(t, cg.subscribeTopics)
 		assert.Equal(t, int64(7), consumeCalled.Load())
 	})
 
 	t.Run("Can call Subscribe concurrently", func(t *testing.T) {
 		var cancelCalled atomic.Int64
 		var consumeCalled atomic.Int64
-		cg := mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
-			consumeCalled.Add(1)
-			<-ctx.Done()
-			cancelCalled.Add(1)
-			return nil
-		})
+		cg := &ConsumerGroup{
+			groupID: "",
+			cg: mocks.NewConsumerGroup().WithConsumeFn(func(ctx context.Context, topics []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}),
+			subscribeTopics: make(TopicHandlerConfig),
+			consumerCancel:  nil,
+		}
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
-			consumerCancel:       nil,
+			consumerGroups:       map[string]*ConsumerGroup{cg.groupID: cg},
 			closeCh:              make(chan struct{}),
-			subscribeTopics:      make(TopicHandlerConfig),
 			consumeRetryInterval: time.Millisecond,
 		}
 

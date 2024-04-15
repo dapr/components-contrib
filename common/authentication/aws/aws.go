@@ -108,9 +108,9 @@ func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, erro
 	// Note: in the event of an error with invalid config or failed to load config,
 	// then we fall back to using the access key and secret key.
 	switch {
-	case errors.As(err, config.SharedConfigAssumeRoleError{}.Err),
-		errors.As(err, config.SharedConfigLoadError{}.Err),
-		errors.As(err, config.SharedConfigProfileNotExistError{}.Err):
+	case errors.Is(err, config.SharedConfigAssumeRoleError{}.Err),
+		errors.Is(err, config.SharedConfigLoadError{}.Err),
+		errors.Is(err, config.SharedConfigProfileNotExistError{}.Err):
 		// Validate if access key and secret access key are provided
 		if opts.AccessKey == "" || opts.SecretKey == "" {
 			return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey: %w", err)
@@ -125,7 +125,7 @@ func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, erro
 		}
 
 		return authenticationToken, nil
-	default:
+	case err != nil:
 		return "", fmt.Errorf("failed to load default AWS authentication configuration")
 	}
 

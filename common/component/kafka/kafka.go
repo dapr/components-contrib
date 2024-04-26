@@ -143,6 +143,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
+	config.ClientID = meta.ClientID
+	config.Consumer.Group.InstanceId = meta.ConsumerGroup
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval

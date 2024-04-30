@@ -1,8 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.21
+go 1.22.0
 
-toolchain go1.21.4
+toolchain go1.22.2
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -11,22 +11,22 @@ require (
 	cloud.google.com/go/storage v1.36.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.3
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.2.0
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.1
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.3.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
-	github.com/Azure/go-amqp v1.0.4
+	github.com/Azure/go-amqp v1.0.5
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/IBM/sarama v1.42.1
+	github.com/IBM/sarama v1.42.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
@@ -152,9 +152,9 @@ require (
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.1 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/RoaringBitmap/roaring v1.1.0 // indirect
@@ -195,11 +195,11 @@ require (
 	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/chenzhuoyu/iasm v0.9.0 // indirect
-	github.com/choleraehyq/pid v0.0.17 // indirect
+	github.com/chenzhuoyu/iasm v0.9.1 // indirect
+	github.com/choleraehyq/pid v0.0.18 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.8 // indirect
+	github.com/cloudwego/frugal v0.1.14 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/dubbogo/triple v1.1.8 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
-	github.com/eapache/go-resiliency v1.4.0 // indirect
+	github.com/eapache/go-resiliency v1.5.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
@@ -242,12 +242,12 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
-	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -332,7 +332,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pierrec/lz4 v2.6.0+incompatible // indirect
-	github.com/pierrec/lz4/v4 v4.1.18 // indirect
+	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

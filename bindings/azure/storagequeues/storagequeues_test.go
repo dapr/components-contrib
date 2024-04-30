@@ -109,7 +109,7 @@ func TestWriteQueue(t *testing.T) {
 
 func TestWriteWithTTLInQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Write", mock.AnythingOfTypeArgument("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
 	})).Return(nil)
 
@@ -131,7 +131,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 
 func TestWriteWithTTLInWrite(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Write", mock.AnythingOfTypeArgument("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
 	})).Return(nil)
 

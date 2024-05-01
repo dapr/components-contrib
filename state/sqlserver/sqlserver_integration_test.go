@@ -96,16 +96,16 @@ func getUniqueDBSchema(t *testing.T) string {
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
 	metadata := state.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
-			connectionStringKey: os.Getenv(connectionStringEnvKey),
-			schemaKey:           schema,
-			tableNameKey:        usersTableName,
-			keyTypeKey:          string(kt),
-			databaseNameKey:     "dapr_test",
+			"connectionString": os.Getenv(connectionStringEnvKey),
+			"schema":           schema,
+			"tableName":        usersTableName,
+			"keyType":          string(kt),
+			"databaseName":     "dapr_test",
 		},
 	}}
 
 	if indexedProperties != "" {
-		metadata.Properties[indexedPropertiesKey] = indexedProperties
+		metadata.Properties["indexedProperties"] = indexedProperties
 	}
 
 	return metadata
@@ -170,7 +170,7 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 
 /* #nosec. */
 func assertUserCountIsEqualTo(t *testing.T, store *SQLServer, expected int) {
-	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.metadata.Schema, store.metadata.TableName)
+	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.metadata.SchemaName, store.metadata.TableName)
 	assertDBQuery(t, store, tsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 		var actual int
@@ -289,7 +289,7 @@ func testIndexedProperties(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the database for computed columns
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.metadata.Schema, usersTableName), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.metadata.SchemaName, usersTableName), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -298,7 +298,7 @@ func testIndexedProperties(t *testing.T) {
 	})
 
 	// Ensure we can get by beverage
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.metadata.Schema, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.metadata.SchemaName, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -497,7 +497,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	require.NoError(t, err)
 
 	var originalInsertTime time.Time
-	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.metadata.Schema, store.metadata.TableName, u.ID)
+	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.metadata.SchemaName, store.metadata.TableName, u.ID)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
@@ -593,7 +593,7 @@ func testMultipleInitializations(t *testing.T) {
 				migratorFactory: newMigration,
 			}
 			store2.BulkStore = state.NewDefaultBulkStore(store2)
-			err := store2.Init(context.Background(), createMetadata(store.metadata.Schema, test.kt, test.indexedProperties))
+			err := store2.Init(context.Background(), createMetadata(store.metadata.SchemaName, test.kt, test.indexedProperties))
 			require.NoError(t, err)
 		})
 	}

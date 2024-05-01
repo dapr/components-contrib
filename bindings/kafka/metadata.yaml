@@ -140,7 +140,7 @@ authenticationProfiles:
         allowedValues:
           - "none"
   - title: "AWS IAM"
-    description: "Authenticate using AWS IAM, useful for Serverless AWS MSK"
+    description: "Authenticate using AWS IAM credentials or role for AWS MSK"
     metadata:
       - name: authType
         type: string
@@ -176,6 +176,18 @@ authenticationProfiles:
         description: |
           AWS session token to use. A session token is only required if you are using\ntemporary security credentials.
         example: '"TOKEN"'
+      - name: awsIamRoleArn
+        type: string
+        required: true
+        description: |
+          IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: awsStsSessionName
+        type: string
+        description: |
+          Represents the session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"MSKSASLDefaultSession"'
 metadata:
   - name: topics
     type: string
@@ -210,6 +222,18 @@ metadata:
     example: '"group1"'
     binding:
       input: true
+  - name: clientConnectionTopicMetadataRefreshInterval
+    type: duration
+    description: |
+      The interval for the client connection's topic metadata to be refreshed with the broker as a Go duration.
+    example: '4m'
+    default: '9m'
+  - name: clientConnectionKeepAliveInterval
+    type: duration
+    description: |
+      The max amount of time for the client connection to be kept alive with the broker, as a Go duration, before closing the connection. A zero value (default) means keeping alive indefinitely.
+    example: '4m'
+    default: '0'
   - name: clientID
     type: string
     description: |
@@ -246,6 +270,18 @@ metadata:
       Disables consumer retry by setting this to "false".
     example: '"true"'
     default: '"false"'
+  - name: heartbeatInterval
+    type: duration
+    description: |
+      The interval between heartbeats to the consumer coordinator.
+    example: '"5s"'
+    default: '"3s"'
+  - name: sessionTimeout
+    type: duration
+    description: |
+      The maximum time between heartbeats before the consumer is considered inactive and will timeout.
+    example: '"20s"'
+    default: '"10s"'
   - name: version
     type: string
     description: |
@@ -269,3 +305,30 @@ metadata:
     example: "true"
     default: "false"
     type: bool
+  - name: schemaRegistryURL
+    type: string
+    description: |
+      The Schema Registry URL.
+    example: '"http://localhost:8081"'
+  - name: schemaRegistryAPIKey
+    type: string
+    description: |
+      The Schema Registry credentials API Key.
+    example: '"XYAXXAZ"'
+  - name: schemaRegistryAPISecret
+    type: string
+    description: |
+      The Schema Registry credentials API Secret.
+    example: '"ABCDEFGMEADFF"'
+  - name: schemaCachingEnabled
+    type: bool
+    description: |
+      Enables caching for schemas.
+    example: '"true"'
+    default: '"true"'
+  - name: schemaLatestVersionCacheTTL
+    type: duration
+    description: |
+      The TTL for schema caching when publishing a message with latest schema available.
+    example: '"5m"'
+    default: '"5m"'

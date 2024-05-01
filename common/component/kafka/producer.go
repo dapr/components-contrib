@@ -48,9 +48,13 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 	// k.logger.Debugf("Publishing topic %v with data: %v", topic, string(data))
 	k.logger.Debugf("Publishing on topic %v", topic)
 
+	serializedData, err := k.SerializeValue(topic, data, metadata)
+	if err != nil {
+		return err
+	}
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
-		Value: sarama.ByteEncoder(data),
+		Value: sarama.ByteEncoder(serializedData),
 	}
 
 	for name, value := range metadata {
@@ -87,9 +91,13 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 
 	msgs := []*sarama.ProducerMessage{}
 	for _, entry := range entries {
+		serializedData, err := k.SerializeValue(topic, entry.Event, metadata)
+		if err != nil {
+			return k.mapKafkaProducerErrors(err, entries), err
+		}
 		msg := &sarama.ProducerMessage{
 			Topic: topic,
-			Value: sarama.ByteEncoder(entry.Event),
+			Value: sarama.ByteEncoder(serializedData),
 		}
 		// From Sarama documentation
 		// This field is used to hold arbitrary data you wish to include so it

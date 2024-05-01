@@ -14,7 +14,7 @@ limitations under the License.
 package state
 
 import (
-	"golang.org/x/exp/slices"
+	"github.com/dapr/components-contrib/common/features"
 )
 
 const (
@@ -28,12 +28,9 @@ const (
 	FeatureTTL Feature = "TTL"
 	// FeatureDeleteWithPrefix is the feature that supports deleting with prefix.
 	FeatureDeleteWithPrefix Feature = "DELETE_WITH_PREFIX"
+	// FeaturePartitionKey is the feature that supports the partition
+	FeaturePartitionKey Feature = "PARTITION_KEY"
 )
 
 // Feature names a feature that can be implemented by state store components.
-type Feature string
-
-// IsPresent checks if a given feature is present in the list.
-func (f Feature) IsPresent(features []Feature) bool {
-	return slices.Contains(features, f)
-}
+type Feature = features.Feature[BaseStore]

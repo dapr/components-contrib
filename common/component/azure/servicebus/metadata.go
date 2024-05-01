@@ -204,6 +204,10 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		return m, errors.New("defaultMessageTimeToLiveInSec must be greater than 0")
 	}
 
+	if m.AutoDeleteOnIdleInSec != nil && *m.AutoDeleteOnIdleInSec < 300 {
+		return m, errors.New("autoDeleteOnIdleInSec must be greater than or equal to 300")
+	}
+
 	return m, nil
 }
 

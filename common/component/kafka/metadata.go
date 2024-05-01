@@ -50,6 +50,15 @@ const (
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
 	valueSchemaType      = "valueSchemaType"
+
+	// Kafka client config default values.
+	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
+	// This prevents write: broken pipe err when writer does not know connection was closed,
+	// and continues to publish to closed connection.
+	clientConnectionTopicMetadataRefreshInterval        = "clientConnectionTopicMetadataRefreshInterval"
+	defaultClientConnectionTopicMetadataRefreshInterval = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
+	clientConnectionKeepAliveInterval                   = "clientConnectionKeepAliveInterval"
+	defaultClientConnectionKeepAliveInterval            = time.Duration(0) // default to keep connection alive
 )
 
 type KafkaMetadata struct {
@@ -77,19 +86,28 @@ type KafkaMetadata struct {
 	TLSClientKey           string              `mapstructure:"clientKey"`
 	ConsumeRetryEnabled    bool                `mapstructure:"consumeRetryEnabled"`
 	ConsumeRetryInterval   time.Duration       `mapstructure:"consumeRetryInterval"`
+	HeartbeatInterval      time.Duration       `mapstructure:"heartbeatInterval"`
+	SessionTimeout         time.Duration       `mapstructure:"sessionTimeout"`
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
+
+	// configs for kafka client
+	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
+	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
+
 	// aws iam auth profile
-	AWSAccessKey         string `mapstructure:"awsAccessKey"`
-	AWSSecretKey         string `mapstructure:"awsSecretKey"`
-	AWSSessionToken      string `mapstructure:"awsSessionToken"`
-	AWSIamRoleArn        string `mapstructure:"awsIamRoleArn"`
-	AWSStsSessionName    string `mapstructure:"awsStsSessionName"`
-	AWSRegion            string `mapstructure:"awsRegion"`
-	channelBufferSize    int    `mapstructure:"-"`
-	consumerFetchMin     int32  `mapstructure:"-"`
-	consumerFetchDefault int32  `mapstructure:"-"`
+	AWSAccessKey      string `mapstructure:"awsAccessKey"`
+	AWSSecretKey      string `mapstructure:"awsSecretKey"`
+	AWSSessionToken   string `mapstructure:"awsSessionToken"`
+	AWSIamRoleArn     string `mapstructure:"awsIamRoleArn"`
+	AWSStsSessionName string `mapstructure:"awsStsSessionName"`
+	AWSRegion         string `mapstructure:"awsRegion"`
+	channelBufferSize int    `mapstructure:"-"`
+
+	consumerFetchMin     int32 `mapstructure:"-"`
+	consumerFetchDefault int32 `mapstructure:"-"`
+
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
 	SchemaRegistryAPIKey        string        `mapstructure:"schemaRegistryAPIKey"`
@@ -99,49 +117,51 @@ type KafkaMetadata struct {
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
-func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, error) {
-	authTypeVal, authTypePres := metadata[authType]
-	authReqVal, authReqPres := metadata["authRequired"]
-	saslPassVal, saslPassPres := metadata["saslPassword"]
+func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, error) {
+	authTypeKey, authTypeVal, authTypeOk := metadata.GetMetadataPropertyWithMatchedKey(meta, authType)
+	if authTypeKey == "" {
+		authTypeKey = "authType"
+	}
+	authReqVal, authReqOk := metadata.GetMetadataProperty(meta, "authRequired")
+	saslPassVal, saslPassOk := metadata.GetMetadataProperty(meta, "saslPassword")
 
 	// If authType is not set, derive it from authRequired.
-	if (!authTypePres || authTypeVal == "") && authReqPres && authReqVal != "" {
+	if (!authTypeOk || authTypeVal == "") && authReqOk && authReqVal != "" {
 		k.logger.Warn("AuthRequired is deprecated, use AuthType instead.")
 		validAuthRequired, err := strconv.ParseBool(authReqVal)
 		if err == nil {
 			if validAuthRequired {
 				// If legacy authRequired was used, either SASL username or mtls is the method.
-				if saslPassPres && saslPassVal != "" {
+				if saslPassOk && saslPassVal != "" {
 					// User has specified saslPassword, so intend for password auth.
-					metadata[authType] = passwordAuthType
+					meta[authTypeKey] = passwordAuthType
 				} else {
-					metadata[authType] = mtlsAuthType
+					meta[authTypeKey] = mtlsAuthType
 				}
 			} else {
-				metadata[authType] = noAuthType
+				meta[authTypeKey] = noAuthType
 			}
 		} else {
-			return metadata, errors.New("kafka error: invalid value for 'authRequired' attribute")
+			return meta, errors.New("kafka error: invalid value for 'authRequired' attribute")
 		}
 	}
 
-	// if consumeRetryEnabled is not present, use component default value
-	consumeRetryEnabledVal, consumeRetryEnabledPres := metadata[consumeRetryEnabled]
-	if !consumeRetryEnabledPres || consumeRetryEnabledVal == "" {
-		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
-	}
-
-	return metadata, nil
+	return meta, nil
 }
 
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
-		ConsumeRetryInterval: 100 * time.Millisecond,
-		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
-		channelBufferSize:    256,
-		consumerFetchMin:     1,
-		consumerFetchDefault: 1024 * 1024,
+		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
+		ConsumeRetryInterval:                         100 * time.Millisecond,
+		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
+		channelBufferSize:                            256,
+		consumerFetchMin:                             1,
+		consumerFetchDefault:                         1024 * 1024,
+		ClientConnectionTopicMetadataRefreshInterval: defaultClientConnectionTopicMetadataRefreshInterval,
+		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
+		HeartbeatInterval:                            3 * time.Second,
+		SessionTimeout:                               10 * time.Second,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)
@@ -305,6 +325,15 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 
 		m.consumerFetchMin = int32(v)
+	}
+
+	// confirm client connection fields are valid
+	if m.ClientConnectionTopicMetadataRefreshInterval <= 0 {
+		m.ClientConnectionTopicMetadataRefreshInterval = defaultClientConnectionTopicMetadataRefreshInterval
+	}
+
+	if m.ClientConnectionKeepAliveInterval < 0 {
+		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
 	}
 
 	return &m, nil

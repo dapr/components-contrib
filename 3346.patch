@@ -1,0 +1,76 @@
+From 873c147aef366bdcb9a5049521fedf622fd91340 Mon Sep 17 00:00:00 2001
+From: Bernd Verst <github@bernd.dev>
+Date: Thu, 8 Feb 2024 13:11:56 -0800
+Subject: [PATCH] Recover interrupted eventhubs subscriptions (#3344)
+
+Signed-off-by: Bernd Verst <github@bernd.dev>
+---
+ .../component/azure/eventhubs/eventhubs.go    | 39 +++++++++++++++----
+ 1 file changed, 32 insertions(+), 7 deletions(-)
+
+diff --git a/internal/component/azure/eventhubs/eventhubs.go b/internal/component/azure/eventhubs/eventhubs.go
+index b0e7c47376..854b459cca 100644
+--- a/internal/component/azure/eventhubs/eventhubs.go
++++ b/internal/component/azure/eventhubs/eventhubs.go
+@@ -309,13 +309,16 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
+ 		Handler:                         retryHandler,
+ 	}
+ 
++	subscriptionLoopFinished := make(chan bool, 1)
++
+ 	// Process all partition clients as they come in
+-	go func() {
++	subscriberLoop := func() {
+ 		for {
+ 			// This will block until a new partition client is available
+ 			// It returns nil if processor.Run terminates or if the context is canceled
+ 			partitionClient := processor.NextPartitionClient(subscribeCtx)
+ 			if partitionClient == nil {
++				subscriptionLoopFinished <- true
+ 				return
+ 			}
+ 			aeh.logger.Debugf("Received client for partition %s", partitionClient.PartitionID())
+@@ -329,15 +332,37 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
+ 				}
+ 			}()
+ 		}
+-	}()
++	}
+ 
+ 	// Start the processor
+ 	go func() {
+-		// This is a blocking call that runs until the context is canceled
+-		err = processor.Run(subscribeCtx)
+-		// Do not log context.Canceled which happens at shutdown
+-		if err != nil && !errors.Is(err, context.Canceled) {
+-			aeh.logger.Errorf("Error from event processor: %v", err)
++		for {
++			go subscriberLoop()
++			// This is a blocking call that runs until the context is canceled
++			err = processor.Run(subscribeCtx)
++			// Exit if the context is canceled
++			if err != nil && errors.Is(err, context.Canceled) {
++				return
++			}
++			if err != nil {
++				aeh.logger.Errorf("Error from event processor: %v", err)
++			} else {
++				aeh.logger.Debugf("Event processor terminated without error")
++			}
++			// wait for subscription loop finished signal
++			select {
++			case <-subscribeCtx.Done():
++				return
++			case <-subscriptionLoopFinished:
++				// noop
++			}
++			// Waiting here is not strictly necessary, however, we will wait for a short time to increase the likelihood of transient errors having disappeared
++			select {
++			case <-subscribeCtx.Done():
++				return
++			case <-time.After(5 * time.Second):
++				// noop - continue the for loop
++			}
+ 		}
+ 	}()
+ 

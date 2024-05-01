@@ -35,6 +35,7 @@ type pulsarMetadata struct {
 	PublicKey                  string                    `mapstructure:"publicKey"`
 	PrivateKey                 string                    `mapstructure:"privateKey"`
 	Keys                       string                    `mapstructure:"keys"`
+	MaxConcurrentHandlers      uint                      `mapstructure:"maxConcurrentHandlers"`
 	TLSAllowInsecureConnection bool                      `mapstructure:"tlsAllowInsecureConnection"`
 	TLSValidateHostname        bool                      `mapstructure:"tlsValidateHostname"`
 

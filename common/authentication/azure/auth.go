@@ -143,27 +143,8 @@ func (s EnvironmentSettings) addManagedIdentityProvider(timeout time.Duration, c
 	c := s.GetMSI()
 	msiCred, err := c.GetTokenCredential()
 
-	useTimeout := true
-	if _, ok := os.LookupEnv(identityEndpoint); ok {
-		// App Service, Functions, Service Fabric and Container Apps
-		useTimeout = false
-	} else {
-		if _, ok := os.LookupEnv(arcIMDSEndpoint); ok {
-			// Azure Arc
-			useTimeout = false
-		} else {
-			if _, ok := os.LookupEnv(msiEndpoint); ok {
-				// Cloud Shell
-				useTimeout = false
-			} else if isVirtualMachineWithManagedIdentity() {
-				// Azure VM with MSI enabled
-				useTimeout = false
-			}
-		}
-	}
-
 	// We need to use a timeout for MSI on environments where it is not available because the request for the default IMDS endpoint can hang for several minutes.
-	if useTimeout {
+	if !(isCloudServiceWithManagedIdentity() || isVirtualMachineWithManagedIdentity()) {
 		msiCred = &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: timeout}
 	}
 
@@ -235,7 +216,10 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		s.addManagedIdentityProvider(1*time.Second, &creds, &errs)
 
 		// 5. AzureCLICredential
-		s.addCLIProvider(30*time.Second, &creds, &errs)
+		// We omit this if running in a cloud environment
+		if !isCloudServiceWithManagedIdentity() {
+			s.addCLIProvider(30*time.Second, &creds, &errs)
+		}
 	} else {
 		authMethodIdentifiers := getAzureAuthMethods()
 		authMethods := strings.Split(strings.ToLower(strings.TrimSpace(authMethods)), ",")
@@ -497,6 +481,23 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
 func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
 	return metadata.GetMetadataProperty(s.Metadata, MetadataKeys[key]...)
+}
+
+// Returns true if the application is running on a cloud service with Managed Identity, including: Azure App Service, Azure Functions, Azure Service Fabric, Azure Container Apps, Azure Arc, Azure Cloud Shell.
+func isCloudServiceWithManagedIdentity() bool {
+	switch {
+	case os.Getenv(identityEndpoint) != "":
+		// Azure App Service, Azure Functions, Azure Service Fabric and Azure Container Apps
+		return true
+	case os.Getenv(arcIMDSEndpoint) != "":
+		// Azure Arc
+		return true
+	case os.Getenv(msiEndpoint) != "":
+		// Azure Cloud Shell
+		return true
+	default:
+		return false
+	}
 }
 
 // isVirtualMachineWithManagedIdentity returns true if the code is running on a virtual machine with managed identity enabled.

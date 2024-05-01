@@ -83,6 +83,8 @@ const (
 	defaultMaxBatchSize = 128 * 1024
 	// defaultRedeliveryDelay init default for redelivery delay.
 	defaultRedeliveryDelay = 30 * time.Second
+	// defaultConcurrency controls the number of concurrent messages sent to the app.
+	defaultConcurrency = 100
 
 	subscribeTypeKey = "subscribeType"
 
@@ -127,6 +129,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		BatchingMaxMessages:        defaultMaxMessages,
 		BatchingMaxSize:            defaultMaxBatchSize,
 		RedeliveryDelay:            defaultRedeliveryDelay,
+		MaxConcurrentHandlers:      defaultConcurrency,
 		TLSAllowInsecureConnection: defaultTLSAllowInsecureConnection,
 		TLSValidateHostname:        defaultTLSValidateHostname,
 	}
@@ -401,7 +404,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return errors.New("component is closed")
 	}
 
-	channel := make(chan pulsar.ConsumerMessage, 100)
+	channel := make(chan pulsar.ConsumerMessage, p.metadata.MaxConcurrentHandlers)
 
 	topic := p.formatTopic(req.Topic)
 

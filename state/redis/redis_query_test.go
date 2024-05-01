@@ -24,7 +24,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 )
 
-func TestMongoQuery(t *testing.T) {
+func TestRedisQuery(t *testing.T) {
 	tests := []struct {
 		input string
 		query []interface{}
@@ -44,15 +44,15 @@ func TestMongoQuery(t *testing.T) {
 		},
 		{
 			input: "../../tests/state/query/q6.json",
-			query: []interface{}{"((@id:[123 123])|((@org:(B)) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
+			query: []interface{}{"((@id:[123.000000 123.000000])|((@org:(B)) (((@id:[567.000000 567.000000])|(@id:[890.000000 890.000000])))))", "SORTBY", "id", "LIMIT", "0", "2"},
 		},
 		{
 			input: "../../tests/state/query/q6-notequal.json",
-			query: []interface{}{"((@id:[123 123])|(-(@org:(B)) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
+			query: []interface{}{"((@id:[123.000000 123.000000])|(-(@org:(B)) (((@id:[567.000000 567.000000])|(@id:[890.000000 890.000000])))))", "SORTBY", "id", "LIMIT", "0", "2"},
 		},
 		{
 			input: "../../tests/state/query/q7.json",
-			query: []interface{}{"((@id:[-inf (123])|((@org:[2 +inf]) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
+			query: []interface{}{"((@id:[-inf (123.000000])|((@org:[2.000000 +inf]) (((@id:[567.000000 567.000000])|(@id:[890.000000 890.000000])))))", "SORTBY", "id", "LIMIT", "0", "2"},
 		},
 	}
 	for _, test := range tests {

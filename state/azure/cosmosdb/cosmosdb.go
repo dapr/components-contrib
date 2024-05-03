@@ -683,7 +683,6 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 }
 
 func isNotFoundError(err error) bool {
-	fmt.Printf("Check isNotFoundError: %v\n", err)
 	if err == nil {
 		return false
 	}

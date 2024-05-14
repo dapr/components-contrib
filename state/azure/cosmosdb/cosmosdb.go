@@ -688,7 +688,7 @@ func isNotFoundError(err error) bool {
 	}
 
 	if requestError, ok := err.(*azcore.ResponseError); ok {
-		if requestError.StatusCode == 404 {
+		if requestError.StatusCode == http.StatusNotFound {
 			return true
 		}
 		// we previously checked the error code, but unfortunately this is not stable between API versions

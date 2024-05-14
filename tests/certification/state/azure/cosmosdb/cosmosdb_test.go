@@ -133,13 +133,17 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 				"partitionKey": "mypartition",
 			}
 
-			test := func(setMeta, getMeta map[string]string, expectedValue string) {
+			test := func(setMeta, getMeta map[string]string, expectedValue string, expectedErr bool) {
 				// save state, default options: strong, last-write
 				err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), setMeta)
 				require.NoError(t, err)
 
 				// get state
 				item, err := client.GetState(ctx, statestore, stateKey, getMeta)
+				if expectedErr {
+					require.Error(t, err)
+					return
+				}
 				require.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
 
@@ -149,13 +153,13 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			}
 
 			// Test	with no partition key
-			test(nil, meta1, stateValue)
+			test(nil, meta1, stateValue, false)
 
 			// Test with specific partition key
-			test(meta2, meta2, stateValue)
+			test(meta2, meta2, stateValue, false)
 
 			// Test with incorrect partition key
-			test(meta2, meta1, "")
+			test(meta2, meta1, "", true)
 
 			return nil
 		}

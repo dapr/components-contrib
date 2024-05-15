@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.yugabytedb
+  version: v2
+  metadata:
+    - name: connectionString
+      value: "host=localhost user=yugabyte password=yugabyte port=5433 connect_timeout=10 database=yugabyte"
+    - name: tablePrefix
+      value: "confv2_"

@@ -100,6 +100,8 @@ func loadStateStore(name string) state.Store {
 		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v2.azure":
 		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
+	case "yugabytedb.v2":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		return s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":
@@ -121,7 +123,11 @@ func loadStateStore(name string) state.Store {
 	case "cockroachdb.v2":
 		// v2 of the component is an alias for the PostgreSQL state store
 		// We still have a conformance test to validate that the component works with CockroachDB
-		return s_postgresql_v2.NewPostgreSQLStateStoreWithOptions(testLogger, s_postgresql_v2.Options{NoAzureAD: true})
+		// CockroachDB does not support Azure AD authentication or the DeleteWithPrefix interface
+		return s_postgresql_v2.NewPostgreSQLStateStoreWithOptions(testLogger, s_postgresql_v2.Options{
+			NoAzureAD:          true,
+			NoDeleteWithPrefix: true,
+		})
 	case "memcached":
 		return s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":

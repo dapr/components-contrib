@@ -50,7 +50,7 @@ const (
 	maxConcurrency      = -1
 	enableMTLS          = false
 	sentryAddress       = ""
-	maxRequestBodySize  = 4
+	maxRequestBodySize  = 4 << 20
 
 	daprHTTPPort     = runtime.DefaultDaprHTTPPort
 	daprAPIGRPCPort  = runtime.DefaultDaprAPIGRPCPort
@@ -193,8 +193,8 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		AppMaxConcurrency:            maxConcurrency,
 		EnableMTLS:                   enableMTLS,
 		SentryAddress:                sentryAddress,
-		DaprHTTPMaxRequestSize:       maxRequestBodySize,
-		DaprHTTPReadBufferSize:       runtime.DefaultReadBufferSize,
+		MaxRequestSize:               maxRequestBodySize,
+		ReadBufferSize:               runtime.DefaultReadBufferSize,
 		DaprGracefulShutdownSeconds:  1,
 		EnableAPILogging:             ptr.Of(true),
 		DisableBuiltinK8sSecretStore: false,

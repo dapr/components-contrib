@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
@@ -29,7 +30,8 @@ func TestMetadata(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "connection string")
 	})
@@ -40,7 +42,8 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 	})
 
@@ -50,7 +53,8 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, "state", m.TableName(pgTableState))
 	})
@@ -62,7 +66,8 @@ func TestMetadata(t *testing.T) {
 			"tablePrefix":      "my_",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, "my_state", m.TableName(pgTableState))
 	})
@@ -73,7 +78,8 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 20*time.Second, m.Timeout)
 	})
@@ -85,7 +91,9 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "NaN",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
 
@@ -96,7 +104,8 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "42",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 42*time.Second, m.Timeout)
 	})
@@ -108,7 +117,8 @@ func TestMetadata(t *testing.T) {
 			"timeout":          "0",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
 
@@ -118,7 +128,9 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, time.Hour, *m.CleanupInterval)
@@ -131,7 +143,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "NaN",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.Error(t, err)
 	})
 
@@ -142,7 +155,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "42",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
@@ -155,7 +169,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "42",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
@@ -168,7 +183,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "42m",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
@@ -181,7 +197,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInseconds": "42m",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
@@ -194,7 +211,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "0",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
 	})
@@ -206,7 +224,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "0",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
 	})
@@ -218,7 +237,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupInterval":  "",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
@@ -231,7 +251,8 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
+		opts := postgresql.InitWithMetadataOpts{}
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, opts)
 		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)

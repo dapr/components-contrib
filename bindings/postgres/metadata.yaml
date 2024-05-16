@@ -38,6 +38,40 @@ builtinAuthenticationProfiles:
         example: |
           "host=mydb.postgres.database.azure.com user=myapplication port=5432 database=dapr_test sslmode=require"
         type: string
+  - name: "aws"
+    metadata:
+      - name: useAWSIAM
+        required: true
+        type: bool
+        example: '"true"'
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from AWS IAM.
+          This authentication method only works with AWS Relational Database Service for PostgreSQL databases.
+      - name: awsRegion
+        type: string
+        required: true
+        description: |
+          The AWS Region where the MSK Kafka broker is deployed to.
+        example: '"us-east-1"'
+      - name: awsAccessKey
+        type: string
+        required: true
+        description: |
+          AWS access key associated with an IAM account.
+        example: '"AKIAIOSFODNN7EXAMPLE"'
+      - name: awsSecretKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The secret key associated with the access key.
+        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: awsSessionToken
+        type: string
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using temporary security credentials.
+        example: '"TOKEN"'
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String"
@@ -54,6 +88,12 @@ authenticationProfiles:
           or "postgres://dapr:secret@dapr.example.com:5432/dapr?sslmode=verify-ca"
         type: string
 metadata:
+  - name: timeout
+    required: false
+    description: Timeout for all database operations. 
+    example:  "30s"
+    default: "20s"
+    type: duration
   - name: maxConns
     required: false
     description: |

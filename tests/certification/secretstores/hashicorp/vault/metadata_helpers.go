@@ -19,9 +19,9 @@ import (
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/certification/flow"
-	"github.com/dapr/dapr/pkg/proto/runtime/v1"
 	"github.com/dapr/go-sdk/client"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 //
@@ -74,7 +74,7 @@ func getComponentCapabilities(ctx flow.Context, currentGrpcPort int, targetCompo
 
 	clientCtx := context.Background()
 
-	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, &runtime.GetMetadataRequest{})
+	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, new(emptypb.Empty))
 	assert.NoError(ctx.T, err)
 	assert.NotNil(ctx.T, resp)
 	assert.NotNil(ctx.T, resp.GetRegisteredComponents())

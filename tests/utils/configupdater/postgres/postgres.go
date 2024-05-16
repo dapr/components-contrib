@@ -11,6 +11,7 @@ import (
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/utils"
@@ -84,11 +85,16 @@ func (r *ConfigUpdater) CreateTrigger(channel string) error {
 }
 
 func (r *ConfigUpdater) Init(props map[string]string) error {
+	connString, _ := metadata.GetMetadataProperty(props, "connectionString")
+	useAzureAd, _ := metadata.GetMetadataProperty(props, "useAzureAD")
+	useAwsIam, _ := metadata.GetMetadataProperty(props, "useAWSIAM")
+
 	md := pgauth.PostgresAuthMetadata{
-		ConnectionString: props["connectionString"],
-		UseAzureAD:       utils.IsTruthy(props["useAzureAD"]),
+		ConnectionString: connString,
+		UseAzureAD:       utils.IsTruthy(useAzureAd),
+		UseAWSIAM:        utils.IsTruthy(useAwsIam),
 	}
-	err := md.InitWithMetadata(props, true)
+	err := md.InitWithMetadata(props, pgauth.InitWithMetadataOpts{AzureADEnabled: true, AWSIAMEnabled: true})
 	if err != nil {
 		return err
 	}
@@ -102,7 +108,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
 
-	config, err := md.GetPgxPoolConfig()
+	config, err := md.GetPgxPoolConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error : %w", err)
 	}

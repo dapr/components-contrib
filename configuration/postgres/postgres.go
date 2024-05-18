@@ -80,10 +80,11 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 	}
 
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	p.client, err = p.connectDB(ctx)
+	p.client, err = p.connectDB(ctx, p.metadata.ConnectionString)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%w'", err)
 	}
+
 	err = p.client.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to connect to configuration store: '%w'", err)
@@ -284,19 +285,22 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 }
 
-func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig()
+func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
+	config, err := p.metadata.GetPgxPoolConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
+		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
 	}
+
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
+		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
 	}
+
 	err = pool.Ping(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store ping error : %w", err)
+		return nil, fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
 	}
+
 	return pool, nil
 }
 

@@ -521,7 +521,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 
 			msgs, err = channel.Consume(
 				q.Name,
-				queueName,          // consumerId
+				queueName,          // consumerID
 				r.metadata.AutoAck, // autoAck
 				false,              // exclusive
 				false,              // noLocal

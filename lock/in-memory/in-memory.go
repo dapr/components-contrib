@@ -51,6 +51,12 @@ func newLockStore(log logger.Logger) *inMemoryLockStore {
 }
 
 func (store *inMemoryLockStore) InitLockStore(ctx context.Context, metadata lock.Metadata) error {
+	// start a background go routine to clean expired items
+	store.wg.Add(1)
+	go func() {
+		defer store.wg.Done()
+		store.startCleanThread()
+	}()
 	return nil
 }
 
@@ -90,7 +96,36 @@ func (store *inMemoryLockStore) GetComponentMetadata() (metadataInfo metadata.Me
 	return
 }
 
+func (store *inMemoryLockStore) startCleanThread() {
+	for {
+		select {
+		case <-time.After(time.Second):
+			store.doCleanExpiredItems()
+		case <-store.closeCh:
+			return
+		}
+	}
+}
+
+func (store *inMemoryLockStore) doCleanExpiredItems() {
+	store.lock.Lock()
+	defer store.lock.Unlock()
+
+	for key, item := range store.items {
+		if item.expire != nil && item.isExpired(store.clock.Now()) {
+			delete(store.items, key)
+		}
+	}
+}
+
 type inMemoryLockItem struct {
 	value  string
 	expire *time.Time
+}
+
+func (item *inMemoryLockItem) isExpired(now time.Time) bool {
+	if item == nil || item.expire == nil {
+		return false
+	}
+	return now.After(*item.expire)
 }

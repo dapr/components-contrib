@@ -84,7 +84,7 @@ type WhatNow struct {
 }
 
 type metadata struct {
-    AckDeadline int `mapstructure:"ackDeadline"`
+    AckDeadline time.Duration `mapstructure:"ackDeadline"`
 }
 
 const topicCacheRefreshInterval = 5 * time.Hour

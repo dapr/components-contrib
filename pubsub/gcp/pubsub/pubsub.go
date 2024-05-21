@@ -46,6 +46,7 @@ const (
 	defaultMaxReconnectionAttempts = 30
 	defaultConnectionRecoveryInSec = 2
 	defaultMaxDeliveryAttempts     = 5
+	defaultAckDeadline             = 20
 )
 
 // GCPPubSub type.
@@ -80,6 +81,10 @@ type GCPAuthJSON struct {
 
 type WhatNow struct {
 	Type string `json:"type"`
+}
+
+type metadata struct {
+    AckDeadline int `mapstructure:"ackDeadline"`
 }
 
 const topicCacheRefreshInterval = 5 * time.Hour
@@ -125,6 +130,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		MaxReconnectionAttempts: defaultMaxReconnectionAttempts,
 		ConnectionRecoveryInSec: defaultConnectionRecoveryInSec,
 		MaxDeliveryAttempts:     defaultMaxDeliveryAttempts,
+		AckDeadline:             defaultAckDeadline,
 	}
 
 	err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result)
@@ -441,7 +447,7 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
 		subConfig := gcppubsub.SubscriptionConfig{
-			AckDeadline:           20 * time.Second,
+			AckDeadline:           time.Second * time.Duration(g.metadata.AckDeadline),
 			Topic:                 g.getTopic(topic),
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}

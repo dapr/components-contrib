@@ -101,7 +101,7 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig(ctx)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}

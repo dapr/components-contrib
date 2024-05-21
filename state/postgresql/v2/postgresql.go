@@ -36,7 +36,6 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
 )
 
 // PostgreSQL state store.
@@ -50,8 +49,7 @@ type PostgreSQL struct {
 	gc sqlinternal.GarbageCollector
 
 	enableAzureAD bool
-
-	enableAWSIAM bool
+	enableAWSIAM  bool
 }
 
 type Options struct {
@@ -71,13 +69,6 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 	return NewPostgreSQLStateStoreWithOptions(logger, Options{})
 }
 
-// NewPostgreSQLStateStoreWithTrueOptions creates a new instance of PostgreSQL state store v2 with Azure AD authentication and AWS IAM authentication disabled.
-// The v2 of the component uses a different format for storing data, always in a BYTEA column, which is more efficient than the JSONB column used in v1.
-// Additionally, v2 uses random UUIDs for etags instead of the xmin column, expanding support to all Postgres-compatible databases such as CockroachDB, etc.
-func NewPostgreSQLStateStoreWithTrueOptions(logger logger.Logger) state.Store {
-	return NewPostgreSQLStateStoreWithOptions(logger, Options{NoAWSIAM: true, NoAzureAD: true})
-}
-
 // NewPostgreSQLStateStoreWithOptions creates a new instance of PostgreSQL state store with options.
 func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) state.Store {
 	s := &PostgreSQL{
@@ -90,21 +81,10 @@ func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) stat
 }
 
 // Init sets up Postgres connection and performs migrations
-func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	var (
-		useAWS   bool
-		useAzure bool
-		err      error
-	)
-
-	awsIam, _ := metadata.GetMetadataProperty(meta.Properties, "UseAWSIAM")
-	useAWS = utils.IsTruthy(awsIam)
-	azureAd, _ := metadata.GetMetadataProperty(meta.Properties, "UseAzureAD")
-	useAzure = utils.IsTruthy(azureAd)
-
+func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) {
 	opts := pgauth.InitWithMetadataOpts{
-		AzureADEnabled: useAzure,
-		AWSIAMEnabled:  useAWS,
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
 	}
 
 	err = p.metadata.InitWithMetadata(meta, opts)
@@ -112,14 +92,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		return err
 	}
 
-	config, err := p.metadata.GetPgxPoolConfig(ctx)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
-	defer connCancel()
+	connCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
 		return err

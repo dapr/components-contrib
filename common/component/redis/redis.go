@@ -140,7 +140,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	switch componentType {
 	case metadata.PubSubType:
 		if val, ok := properties[processingTimeoutKey]; ok && val != "" {
-			if processingTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			if processingTimeoutMs, parseErr := strconv.ParseUint(val, 10, 64); parseErr == nil {
 				// because of legacy reasons, we need to interpret a number as milliseconds
 				// the library would default to seconds otherwise
 				settings.ProcessingTimeout = time.Duration(processingTimeoutMs) * time.Millisecond
@@ -149,7 +149,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		}
 
 		if val, ok := properties[redeliverIntervalKey]; ok && val != "" {
-			if redeliverIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			if redeliverIntervalMs, parseErr := strconv.ParseUint(val, 10, 64); parseErr == nil {
 				// because of legacy reasons, we need to interpret a number as milliseconds
 				// the library would default to seconds otherwise
 				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond
@@ -160,9 +160,15 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 
 	var c RedisClient
 	if settings.Failover {
-		c = newV8FailoverClient(settings)
+		c, err = newV8FailoverClient(settings)
+		if err != nil {
+			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		}
 	} else {
-		c = newV8Client(settings)
+		c, err = newV8Client(settings)
+		if err != nil {
+			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		}
 	}
 	version, versionErr := GetServerVersion(c)
 	c.Close() // close the client to avoid leaking connections
@@ -177,14 +183,30 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	}
 	if useNewClient {
 		if settings.Failover {
-			return newV9FailoverClient(settings), settings, nil
+			c, err = newV9FailoverClient(settings)
+			if err != nil {
+				return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+			}
+			return c, settings, nil
 		}
-		return newV9Client(settings), settings, nil
+		c, err = newV9Client(settings)
+		if err != nil {
+			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		}
+		return c, settings, nil
 	} else {
 		if settings.Failover {
-			return newV8FailoverClient(settings), settings, nil
+			c, err = newV8FailoverClient(settings)
+			if err != nil {
+				return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+			}
+			return c, settings, nil
 		}
-		return newV8Client(settings), settings, nil
+		c, err = newV8Client(settings)
+		if err != nil {
+			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		}
+		return c, settings, nil
 	}
 }
 

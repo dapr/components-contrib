@@ -159,17 +159,16 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	}
 
 	var c RedisClient
+	newClientFunc := newV8Client
 	if settings.Failover {
-		c, err = newV8FailoverClient(settings)
-		if err != nil {
-			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-		}
-	} else {
-		c, err = newV8Client(settings)
-		if err != nil {
-			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-		}
+		newClientFunc = newV8FailoverClient
 	}
+
+	c, err = newClientFunc(settings)
+	if err != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+
 	version, versionErr := GetServerVersion(c)
 	c.Close() // close the client to avoid leaking connections
 
@@ -181,33 +180,18 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		// if the server version is >= 7, we will use the v9 client
 		useNewClient = true
 	}
+
 	if useNewClient {
+		newClientFunc = newV9Client
 		if settings.Failover {
-			c, err = newV9FailoverClient(settings)
-			if err != nil {
-				return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-			}
-			return c, settings, nil
+			newClientFunc = newV9FailoverClient
 		}
-		c, err = newV9Client(settings)
-		if err != nil {
-			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-		}
-		return c, settings, nil
-	} else {
-		if settings.Failover {
-			c, err = newV8FailoverClient(settings)
-			if err != nil {
-				return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-			}
-			return c, settings, nil
-		}
-		c, err = newV8Client(settings)
-		if err != nil {
-			return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-		}
-		return c, settings, nil
 	}
+	c, err = newClientFunc(settings)
+	if err != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+	return c, settings, nil
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

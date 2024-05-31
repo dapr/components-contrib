@@ -36,21 +36,3 @@ metadata:
       Do not use this when running against production AWS.
     example: '"http://localhost:4566"'
     type: string
-  - name: accessKey
-    required: true
-    description: |
-      The AWS Access Key to access this resource.
-    example: '"key"'
-    type: string
-  - name: secretKey
-    required: true
-    description: |
-      The AWS Secret Access Key to access this resource.
-    example: '"secretAccessKey"'
-    type: string
-  - name: sessionToken
-    required: false
-    description: |
-      The AWS session token to use.
-    example: '"sessionToken"'
-    type: string

@@ -23,12 +23,6 @@ metadata:
       The SNS topic name.
     example: '"arn:::topicarn"'
     type: string
-  - name: region
-    required: true
-    description: |
-      The specific AWS region where the SNS topic is located.
-    example: '"us-east-1"'
-    type: string
   - name: endpoint
     required: false
     description: |

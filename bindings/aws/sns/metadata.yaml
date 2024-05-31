@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.sns
+version: v1
+status: alpha
+title: "AWS SNS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sns/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create a new subscription"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: topicArn
+    required: true
+    description: |
+      The SNS topic name.
+    example: '"arn:::topicarn"'
+    type: string
+  - name: region
+    required: true
+    description: |
+      The specific AWS region where the SNS topic is located.
+    example: '"us-east-1"'
+    type: string
+  - name: accessKey
+    required: true
+    description: |
+      The AWS Access Key to access this resource.
+    example: '"key"'
+    type: string
+  - name: secretKey
+    required: true
+    description: |
+      The AWS Secret Access Key to access this resource.
+    example: '"secretAccessKey"'
+    type: string
+  - name: sessionToken
+    required: false
+    description: |
+      The AWS session token to use.
+    example: '"sessionToken"'
+    type: string

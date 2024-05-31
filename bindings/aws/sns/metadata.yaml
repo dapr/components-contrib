@@ -29,6 +29,13 @@ metadata:
       The specific AWS region where the SNS topic is located.
     example: '"us-east-1"'
     type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to SNS-compatible services or emulators.
+      Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
   - name: accessKey
     required: true
     description: |

@@ -14,6 +14,7 @@ limitations under the License.
 package redis
 
 import (
+	"crypto/tls"
 	"fmt"
 	"strconv"
 	"time"
@@ -78,6 +79,10 @@ type Settings struct {
 	// A flag to enables TLS by setting InsecureSkipVerify to true
 	EnableTLS bool `mapstructure:"enableTLS"`
 
+	// Client certificate and key
+	ClientCert string `mapstructure:"clientCert"`
+	ClientKey  string `mapstructure:"clientKey"`
+
 	// == state only properties ==
 	TTLInSeconds *int   `mapstructure:"ttlInSeconds" mdonly:"state"`
 	QueryIndexes string `mapstructure:"queryIndexes" mdonly:"state"`
@@ -103,6 +108,18 @@ func (s *Settings) Decode(in interface{}) error {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 
+	return nil
+}
+
+func (s *Settings) SetCertificate(fn func(cert *tls.Certificate)) error {
+	if s.ClientCert == "" || s.ClientKey == "" {
+		return nil
+	}
+	cert, err := tls.X509KeyPair([]byte(s.ClientCert), []byte(s.ClientKey))
+	if err != nil {
+		return err
+	}
+	fn(&cert)
 	return nil
 }
 

@@ -317,9 +317,9 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func newV9FailoverClient(s *Settings) RedisClient {
+func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
-		return nil
+		return nil, nil
 	}
 	opts := &v9.FailoverOptions{
 		DB:                    s.DB,
@@ -346,6 +346,12 @@ func newV9FailoverClient(s *Settings) RedisClient {
 		opts.TLSConfig = &tls.Config{
 			InsecureSkipVerify: s.EnableTLS,
 		}
+		err := s.SetCertificate(func(cert *tls.Certificate) {
+			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if s.RedisType == ClusterType {
@@ -356,7 +362,7 @@ func newV9FailoverClient(s *Settings) RedisClient {
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
-		}
+		}, nil
 	}
 
 	return v9Client{
@@ -364,13 +370,14 @@ func newV9FailoverClient(s *Settings) RedisClient {
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
-	}
+	}, nil
 }
 
-func newV9Client(s *Settings) RedisClient {
+func newV9Client(s *Settings) (RedisClient, error) {
 	if s == nil {
-		return nil
+		return nil, nil
 	}
+
 	if s.RedisType == ClusterType {
 		options := &v9.ClusterOptions{
 			Addrs:                 strings.Split(s.Host, ","),
@@ -391,8 +398,15 @@ func newV9Client(s *Settings) RedisClient {
 		}
 		/* #nosec */
 		if s.EnableTLS {
+			/* #nosec */
 			options.TLSConfig = &tls.Config{
 				InsecureSkipVerify: s.EnableTLS,
+			}
+			err := s.SetCertificate(func(cert *tls.Certificate) {
+				options.TLSConfig.Certificates = []tls.Certificate{*cert}
+			})
+			if err != nil {
+				return nil, err
 			}
 		}
 
@@ -401,7 +415,7 @@ func newV9Client(s *Settings) RedisClient {
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
-		}
+		}, nil
 	}
 
 	options := &v9.Options{
@@ -423,10 +437,16 @@ func newV9Client(s *Settings) RedisClient {
 		ContextTimeoutEnabled: true,
 	}
 
-	/* #nosec */
 	if s.EnableTLS {
+		/* #nosec */
 		options.TLSConfig = &tls.Config{
 			InsecureSkipVerify: s.EnableTLS,
+		}
+		err := s.SetCertificate(func(cert *tls.Certificate) {
+			options.TLSConfig.Certificates = []tls.Certificate{*cert}
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -435,5 +455,5 @@ func newV9Client(s *Settings) RedisClient {
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
-	}
+	}, nil
 }

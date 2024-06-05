@@ -19,10 +19,10 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.13.0-rc.10
-	github.com/dapr/dapr v1.13.0-rc.10
+	github.com/dapr/components-contrib v1.13.1
+	github.com/dapr/dapr v1.13.0-rc.7
 	github.com/dapr/go-sdk v1.10.0
-	github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f
+	github.com/dapr/kit v0.13.1-0.20240415171926-a3f906d60908
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-redis/redis/v8 v8.11.5

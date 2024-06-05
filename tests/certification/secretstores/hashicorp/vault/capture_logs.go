@@ -20,9 +20,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 //

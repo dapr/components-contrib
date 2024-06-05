@@ -122,7 +122,6 @@ func TestKafka(t *testing.T) {
 	// Application logic that tracks messages from a topic.
 	applicationAvro := func(appName string, watcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
-
 			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{

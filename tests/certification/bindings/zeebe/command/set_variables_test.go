@@ -20,6 +20,9 @@ import (
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	bindings_zeebe_command "github.com/dapr/components-contrib/bindings/zeebe/command"
 	zeebe_test "github.com/dapr/components-contrib/tests/certification/bindings/zeebe"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -28,8 +31,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSetVariablesOperation(t *testing.T) {

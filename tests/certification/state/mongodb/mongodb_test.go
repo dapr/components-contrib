@@ -7,10 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/go-sdk/client"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/dapr/go-sdk/client"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	stateMongoDB "github.com/dapr/components-contrib/state/mongodb"
@@ -22,8 +26,6 @@ import (
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (

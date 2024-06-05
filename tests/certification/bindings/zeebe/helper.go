@@ -27,12 +27,13 @@ import (
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+
 	"github.com/dapr/components-contrib/bindings"
 	bindings_zeebe_command "github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	dapr_client "github.com/dapr/go-sdk/client"
-	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 )
 
 const (

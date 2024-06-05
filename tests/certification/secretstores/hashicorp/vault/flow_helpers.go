@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -29,7 +31,6 @@ import (
 	"github.com/dapr/dapr/pkg/runtime/registry"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/require"
 )
 
 const (

@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/phayes/freeport"
+
 	"github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/components/configuration"
 	"github.com/dapr/dapr/pkg/components/middleware/http"
@@ -35,7 +37,6 @@ import (
 	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-	"github.com/phayes/freeport"
 )
 
 const (

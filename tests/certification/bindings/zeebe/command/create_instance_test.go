@@ -20,6 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
+
 	zeebe_test "github.com/dapr/components-contrib/tests/certification/bindings/zeebe"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -30,9 +34,6 @@ import (
 	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/multierr"
 )
 
 func TestCreateInstanceOperation(t *testing.T) {
@@ -55,7 +56,6 @@ func TestCreateInstanceOperation(t *testing.T) {
 		return func(ctx flow.Context, s common.Service) error {
 			return multierr.Combine(
 				s.AddBindingInvocationHandler(zeebe_test.JobworkerTestName, func(_ context.Context, in *common.BindingEvent) (out []byte, err error) {
-
 					time.Sleep(timeout) // To test timeouts
 
 					return in.Data, nil

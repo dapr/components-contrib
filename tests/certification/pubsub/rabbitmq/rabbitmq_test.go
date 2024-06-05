@@ -27,10 +27,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/dapr/go-sdk/service/common"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
+
+	"github.com/dapr/go-sdk/service/common"
 
 	pubsub_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	"github.com/dapr/components-contrib/tests/certification/embedded"

@@ -498,7 +498,6 @@ func TestPostgreSQL(t *testing.T) {
 				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.Nil(t, cleanupInterval)
 			})
-
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
@@ -607,7 +606,7 @@ func TestPostgreSQL(t *testing.T) {
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
 		// No waiting here, as connectStep retries until it's ready (or there's a timeout)
-		//Step("wait for component to start", flow.Sleep(10*time.Second)).
+		// Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("connect to the database", connectStep).
 		Step("run Init test", initTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",

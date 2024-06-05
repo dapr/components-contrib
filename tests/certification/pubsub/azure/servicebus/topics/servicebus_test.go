@@ -69,9 +69,7 @@ const (
 	partition1       = "partition-1"
 )
 
-var (
-	sessionIDRegex = regexp.MustCompile("sessionId: (.*)")
-)
+var sessionIDRegex = regexp.MustCompile("sessionId: (.*)")
 
 func TestServicebus(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
@@ -1153,7 +1151,6 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 
 	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			// assert for messages
 			for _, m := range messageWatchers {
 				t, exp, obs := m.Partial(ctx, timeout)

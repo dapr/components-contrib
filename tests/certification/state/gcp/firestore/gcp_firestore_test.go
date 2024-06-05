@@ -23,14 +23,15 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (

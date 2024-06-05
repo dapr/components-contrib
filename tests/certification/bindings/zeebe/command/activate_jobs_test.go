@@ -18,6 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	zeebe_test "github.com/dapr/components-contrib/tests/certification/bindings/zeebe"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -25,8 +28,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestActivateJobsOperation(t *testing.T) {

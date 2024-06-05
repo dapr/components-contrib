@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/bindings"
 	bindingRedis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -18,9 +22,6 @@ import (
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (

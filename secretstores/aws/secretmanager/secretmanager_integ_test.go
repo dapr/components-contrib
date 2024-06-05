@@ -20,10 +20,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/logger"
 )
 
 // TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,

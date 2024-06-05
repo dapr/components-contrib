@@ -44,6 +44,7 @@ import (
 	"github.com/dapr/dapr/pkg/config/protocol"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
@@ -960,13 +961,11 @@ func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string,
 			tenant, namespace, topic)
 
 		reqBody, err := json.Marshal(partition)
-
 		if err != nil {
 			return fmt.Errorf("createMultiPartitionTopic json.Marshal(%d) err: %s", partition, err.Error())
 		}
 
 		req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewBuffer(reqBody))
-
 		if err != nil {
 			return fmt.Errorf("createMultiPartitionTopic NewRequest(url: %s, body: %s) err:%s",
 				reqURL, reqBody, err.Error())
@@ -988,7 +987,6 @@ func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string,
 		}
 
 		rsp, err := http.DefaultClient.Do(req)
-
 		if err != nil {
 			return fmt.Errorf("createMultiPartitionTopic(url: %s, body: %s) err:%s",
 				reqURL, reqBody, err.Error())

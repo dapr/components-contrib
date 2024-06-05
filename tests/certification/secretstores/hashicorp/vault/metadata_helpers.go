@@ -17,11 +17,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 //

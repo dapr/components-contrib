@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-
 	"testing"
 	"time"
 
@@ -67,8 +66,10 @@ const (
 // The names will be passed in with Env Vars like:
 //
 //	PUBSUB_GCP_CONSUMER_ID_*
-var subscriptions = []string{}
-var topics = []string{}
+var (
+	subscriptions = []string{}
+	topics        = []string{}
+)
 
 var (
 	topicActiveName       = "cert-test-active"
@@ -169,7 +170,6 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 
 // Verify with single publisher / single subscriber
 func GCPPubSubBasic(t *testing.T) {
-
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -335,7 +335,6 @@ func GCPPubSubFIFOMessages(t *testing.T) {
 
 	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, mw *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			// get the sidecar (dapr) client
 			client := sidecar.GetClient(ctx, sidecarName)
 
@@ -495,7 +494,6 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 					}
 					counter += numMsgs
 				}
-
 			}
 		}
 	}
@@ -557,7 +555,7 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 	deadletterApp := prefix + "deadLetterReceiverApp"
 	subApp := prefix + "subscriberApp"
 	subAppSideCar := prefix + sidecarName2
-	msgTimeout := time.Duration(30) //seconds
+	msgTimeout := time.Duration(30) // seconds
 
 	flow.New(t, "GCPPubSubMessageDeadLetter Verify with single publisher / single subscriber and DeadLetter").
 
@@ -795,8 +793,8 @@ func componentRuntimeOptions() []embedded.Option {
 
 func teardown(t *testing.T) {
 	t.Logf("GCP PubSub CertificationTests teardown...")
-	//Dapr runtime automatically creates the following subscriptions, topics
-	//so here they get deleted.
+	// Dapr runtime automatically creates the following subscriptions, topics
+	// so here they get deleted.
 	if err := deleteSubscriptions(projectID, subscriptions); err != nil {
 		t.Log(err)
 	}

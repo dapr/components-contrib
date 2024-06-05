@@ -23,6 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
+
 	"github.com/dapr/components-contrib/bindings"
 	bindings_zeebe_command "github.com/dapr/components-contrib/bindings/zeebe/command"
 	bindings_zeebe_jobworker "github.com/dapr/components-contrib/bindings/zeebe/jobworker"
@@ -41,9 +45,6 @@ import (
 	dapr_client "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/multierr"
 )
 
 type calcVariables struct {

@@ -60,7 +60,6 @@ func getQueueURL(svc *sqs.SQS, queue string) (string, error) {
 	urlResult, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
 		QueueName: aws.String(queue),
 	})
-
 	if err != nil {
 		return "", err
 	}

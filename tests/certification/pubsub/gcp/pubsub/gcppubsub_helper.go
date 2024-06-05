@@ -108,6 +108,7 @@ func (tp *topicManager) GetMessages(topicID string, msgTimeout time.Duration, su
 
 	return numMgs, nil
 }
+
 func extractDataMessage(msg *pubsub.Message) (*DataMessage, error) {
 	dm := DataMessage{}
 	err := json.Unmarshal(msg.Data, &dm)

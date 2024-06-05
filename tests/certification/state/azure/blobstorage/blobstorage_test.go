@@ -31,11 +31,12 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (

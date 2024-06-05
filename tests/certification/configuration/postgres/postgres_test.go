@@ -21,6 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/configuration"
 	config_postgres "github.com/dapr/components-contrib/configuration/postgres"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -35,9 +39,6 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -310,7 +311,6 @@ func TestPostgres(t *testing.T) {
 		}
 		require.Equal(t, item.Value, Val1)
 		return nil
-
 	}
 
 	// Checks if the connection to postgres db is successful
@@ -353,7 +353,7 @@ func TestPostgres(t *testing.T) {
 		Step("wait for postgres to be ready", retry.Do(time.Second*3, 10, checkPostgresConnection)).
 		Step("initialize updater", initUpdater).
 		Step("Init test", initTest).
-		//Running Dapr Sidecar `dapr-1`
+		// Running Dapr Sidecar `dapr-1`
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
@@ -365,7 +365,7 @@ func TestPostgres(t *testing.T) {
 		Step("Test get", testGet).
 		// Creating triggers for subscribers
 		Step("Creating trigger", createTriggers([]string{channel1, channel2})).
-		//Running Dapr Sidecar `dapr-2`
+		// Running Dapr Sidecar `dapr-2`
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
@@ -400,8 +400,8 @@ func TestPostgres(t *testing.T) {
 		// Verify the key is still present after restart
 		Step("run connection test", getAfterRestart).
 		Run()
-
 }
+
 func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 

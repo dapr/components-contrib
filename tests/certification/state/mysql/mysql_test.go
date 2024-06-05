@@ -458,7 +458,6 @@ func TestMySQL(t *testing.T) {
 					cleanupInterval := storeObj.CleanupInterval()
 					_ = assert.Nil(t, cleanupInterval)
 				})
-
 			})
 
 			t.Run("cleanup", func(t *testing.T) {
@@ -583,7 +582,7 @@ func TestMySQL(t *testing.T) {
 		Step("Run TTL test on mariadb", ttlTest(mariadbConnString)).
 		Step("Run SQL injection test on mysql", verifySQLInjectionTest("mysql")).
 		Step("Run SQL injection test on mariadb", verifySQLInjectionTest("mariadb")).
-		//Step("Interrupt network and simulate timeouts", timeoutTest).
+		// Step("Interrupt network and simulate timeouts", timeoutTest).
 		Step("Stop mysql", dockercompose.Stop("db", dockerComposeYAML, "mysql")).
 		Step("Stop mariadb", dockercompose.Stop("db", dockerComposeYAML, "mariadb")).
 		Step("Wait for databases to stop", flow.Sleep(10*time.Second)).

@@ -23,6 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
+
 	bindings_zeebe_command "github.com/dapr/components-contrib/bindings/zeebe/command"
 	zeebe_test "github.com/dapr/components-contrib/tests/certification/bindings/zeebe"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -34,9 +38,6 @@ import (
 	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/multierr"
 )
 
 func deployProcess(t *testing.T, id string, grpcPort int) func(ctx flow.Context) error {

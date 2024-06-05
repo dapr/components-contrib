@@ -15,7 +15,7 @@ package servicebus
 
 import (
 	"encoding/base64"
-	"fmt"
+	"github.com/spf13/cast"
 	"net/http"
 	"strconv"
 
@@ -60,7 +60,7 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 	}
 
 	for key, val := range asbMsg.ApplicationProperties {
-		metadata["metadata."+key] = fmt.Sprintf("%v", val)
+		metadata["metadata."+key] = cast.ToString(val)
 	}
 
 	// We are not concerned about key conflicts here as we do not allow custom properties that match well-known property names

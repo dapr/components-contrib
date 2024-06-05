@@ -129,6 +129,11 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	<-processed
 	assert.Equal(t, 4, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
+
+	// subscribe using single active consumer
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataSingleActiveConsumerKey: "true"}}, handler)
+	require.NoError(t, err)
+
 }
 
 func TestConcurrencyMode(t *testing.T) {

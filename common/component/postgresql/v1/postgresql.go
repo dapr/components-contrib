@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -52,6 +53,7 @@ type PostgreSQL struct {
 	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	etagColumn    string
 	enableAzureAD bool
+	enableAWSIAM  bool
 }
 
 type Options struct {
@@ -59,6 +61,7 @@ type Options struct {
 	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	ETagColumn    string
 	EnableAzureAD bool
+	EnableAWSIAM  bool
 }
 
 type MigrateOptions struct {
@@ -80,6 +83,7 @@ func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 		setQueryFn:    opts.SetQueryFn,
 		etagColumn:    opts.ETagColumn,
 		enableAzureAD: opts.EnableAzureAD,
+		enableAWSIAM:  opts.EnableAWSIAM,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -87,15 +91,18 @@ func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 
 // Init sets up Postgres connection and performs migrations.
 func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
-	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
+	}
+
+	err := p.metadata.InitWithMetadata(meta, opts)
 	if err != nil {
-		p.logger.Errorf("Failed to parse metadata: %v", err)
-		return err
+		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
 	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 
@@ -103,18 +110,14 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
-		err = fmt.Errorf("failed to connect to the database: %w", err)
-		p.logger.Error(err)
-		return err
+		return fmt.Errorf("failed to connect to the database: %w", err)
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
-		err = fmt.Errorf("failed to ping the database: %w", err)
-		p.logger.Error(err)
-		return err
+		return fmt.Errorf("failed to ping the database: %w", err)
 	}
 
 	err = p.migrateFn(ctx, p.db, MigrateOptions{

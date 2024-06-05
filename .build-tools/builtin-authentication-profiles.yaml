@@ -3,6 +3,12 @@ aws:
     description: |
       Authenticate using an Access Key ID and Secret Access Key included in the metadata
     metadata:
+      - name: awsRegion
+        type: string
+        required: true
+        description: |
+          The AWS Region where the AWS Relational Database Service is deployed to.
+        example: '"us-east-1"'
       - name: accessKey
         description: AWS access key associated with an IAM account
         required: true

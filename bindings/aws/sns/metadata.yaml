@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.sns
+version: v1
+status: alpha
+title: "AWS SNS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sns/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create a new subscription"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: topicArn
+    required: true
+    description: |
+      The SNS topic name.
+    example: '"arn:::topicarn"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to SNS-compatible services or emulators.
+      Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string

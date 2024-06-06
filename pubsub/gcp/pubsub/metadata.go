@@ -37,4 +37,6 @@ type metadata struct {
 	OrderingKey             string `mapstructure:"orderingKey"`
 	DeadLetterTopic         string `mapstructure:"deadLetterTopic"`
 	MaxDeliveryAttempts     int    `mapstructure:"maxDeliveryAttempts"`
+	MaxOutstandingMessages  int    `mapstructure:"maxOutstandingMessages"`
+	MaxOutstandingBytes     int    `mapstructure:"maxOutstandingBytes"`
 }

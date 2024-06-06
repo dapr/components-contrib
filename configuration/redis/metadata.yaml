@@ -40,10 +40,19 @@ metadata:
     type: bool
     required: false
     description: | 
-      If the Redis instance supports TLS with public certificates, can be
-      configured to be enabled or disabled.
+      If the Redis instance supports TLS; can be configured to be enabled or disabled.
     example: "true"
     default: "false"
+  - name: clientCert
+    required: false
+    description: Client certificate for Redis host. No Default. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
+  - name: clientKey
+    required: false
+    description: Client key for Redis host. No Default. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
   - name: redisMaxRetries
     type: number
     required: false

@@ -66,7 +66,7 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 
-	poolConfig, err := m.GetPgxPoolConfig(ctx)
+	poolConfig, err := m.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}

@@ -44,6 +44,10 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				ScheduledEnqueueTime: &testSampleTime,
 				PartitionKey:         &testPartitionKey,
 				LockedUntil:          &testSampleTime,
+				ApplicationProperties: map[string]interface{}{
+					"hello":   "world",
+					"numeric": 1,
+				},
 			},
 			expectedMetadata: map[string]string{
 				"metadata." + MessageKeyMessageID:               testMessageID,
@@ -60,6 +64,8 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				"metadata." + MessageKeyScheduledEnqueueTimeUtc: testSampleTimeHTTPFormat,
 				"metadata." + MessageKeyPartitionKey:            testPartitionKey,
 				"metadata." + MessageKeyLockedUntilUtc:          testSampleTimeHTTPFormat,
+				"metadata.hello":                                "world",
+				"metadata.numeric":                              "1",
 			},
 		},
 	}

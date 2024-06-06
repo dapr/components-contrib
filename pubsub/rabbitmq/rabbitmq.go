@@ -31,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -435,15 +436,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	// Applying x-single-active-consumer if defined at subscription level
-	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; val != "" {
-		parsedVal, pErr := strconv.ParseBool(val)
-		if pErr != nil {
-			r.logger.Errorf("%s invalid boolean value for %s on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, reqMetadataSingleActiveConsumerKey, req.Topic, queueName, pErr)
-			return nil, pErr
-		}
-		if parsedVal {
-			args[argSingleActiveConsumer] = parsedVal
-		}
+	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; utils.IsTruthy(val) {
+		args[argSingleActiveConsumer] = true
 	}
 
 	// Applying x-max-length-bytes if defined at subscription level

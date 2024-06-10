@@ -20,9 +20,9 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.13.1
-	github.com/dapr/dapr v1.13.0-rc.7
-	github.com/dapr/go-sdk v1.10.0
-	github.com/dapr/kit v0.13.1-0.20240415171926-a3f906d60908
+	github.com/dapr/dapr v1.13.0
+	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
+	github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-redis/redis/v8 v8.11.5
@@ -39,7 +39,6 @@ require (
 	go.mongodb.org/mongo-driver v1.12.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
-	google.golang.org/protobuf v1.33.0
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	modernc.org/sqlite v1.28.0
 )
@@ -77,7 +76,7 @@ require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
-	github.com/alphadose/haxmap v1.3.1 // indirect
+	github.com/alphadose/haxmap v1.4.0 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
@@ -330,6 +329,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/grpc v1.63.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -356,3 +356,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+replace github.com/dapr/dapr v1.13.0 => github.com/dapr/dapr v1.13.0-rc.1.0.20240606205627-cd2df9098d10

@@ -66,11 +66,13 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 	}
 	switch {
 	case opts.AzureADEnabled && m.UseAzureAD:
+		// Populate the Azure environment if using Azure AD
 		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
 		}
 	case opts.AWSIAMEnabled && m.UseAWSIAM:
+		// Populate the AWS environment if using AWS IAM
 		m.awsEnv, err = aws.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
@@ -101,7 +103,7 @@ func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, e
 }
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
-func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.Config, error) {
+func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 	// Get the config from the connection string
 	config, err := pgxpool.ParseConfig(m.ConnectionString)
 	if err != nil {
@@ -129,8 +131,9 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.C
 		}
 	}
 
-	// Check if we should use Azure AD
-	if m.UseAzureAD {
+	switch {
+	case m.UseAzureAD:
+		// Use Azure AD
 		tokenCred, errToken := m.azureEnv.GetTokenCredential()
 		if errToken != nil {
 			return nil, errToken
@@ -155,11 +158,11 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.C
 			cc.Password = at.Token
 			return nil
 		}
-	}
-	if m.UseAWSIAM {
+	case m.UseAWSIAM:
+		// We should use AWS IAM
 		awsRegion, awsAccessKey, awsSecretKey, err := m.ValidateAwsIamFields()
 		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %v", err)
+			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
 			return nil, err
 		}
 
@@ -171,11 +174,12 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig(ctx context.Context) (*pgxpool.C
 			SecretKey:        awsSecretKey,
 		}
 
-		err = awsOpts.InitiateAWSIAMAuth(ctx)
+		err = awsOpts.InitiateAWSIAMAuth()
 		if err != nil {
-			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation dynamically: %v", err)
+			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation: %w", err)
 			return nil, err
 		}
 	}
+
 	return config, nil
 }

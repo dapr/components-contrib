@@ -80,14 +80,12 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 
 type AWSIAM struct {
 	// Ignored by metadata parser because included in built-in authentication profile
-	// access key to use for accessing postgresql.
+	// Access key to use for accessing PostgreSQL.
 	AWSAccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
-	// secret key to use for accessing postgresql.
+	// Secret key to use for accessing PostgreSQL.
 	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
-	// aws session token to use.
-	AWSSessionToken string `mapstructure:"awsSessionToken"`
-	// aws region in which postgresql should create resources.
-	AWSRegion string `mapstructure:"awsRegion"`
+	// AWS region in which PostgreSQL is deployed.
+	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
 }
 
 type AWSIAMAuthOptions struct {
@@ -138,7 +136,7 @@ func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, erro
 	return authenticationToken, nil
 }
 
-func (opts *AWSIAMAuthOptions) InitiateAWSIAMAuth(ctx context.Context) error {
+func (opts *AWSIAMAuthOptions) InitiateAWSIAMAuth() error {
 	// Set max connection lifetime to 8 minutes in postgres connection pool configuration.
 	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
 	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.

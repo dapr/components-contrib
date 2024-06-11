@@ -40,6 +40,8 @@ const (
 	idleCheckFrequency    = "idleCheckFrequency"
 	maxConnAge            = "maxConnAge"
 	enableTLS             = "enableTLS"
+	clientCert            = "clientCert"
+	clientKey             = "clientKey"
 	failover              = "failover"
 	sentinelMasterName    = "sentinelMasterName"
 )
@@ -51,6 +53,8 @@ func getFakeProperties() map[string]string {
 		username:              "fakeUsername",
 		redisType:             "node",
 		enableTLS:             "true",
+		clientCert:            "fakeCert",
+		clientKey:             "fakeKey",
 		dialTimeout:           "5s",
 		readTimeout:           "5s",
 		writeTimeout:          "50000",
@@ -84,6 +88,8 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[username], m.Username)
 		assert.Equal(t, fakeProperties[redisType], m.RedisType)
 		assert.True(t, m.EnableTLS)
+		assert.Equal(t, fakeProperties[clientCert], m.ClientCert)
+		assert.Equal(t, fakeProperties[clientKey], m.ClientKey)
 		assert.Equal(t, 5*time.Second, time.Duration(m.DialTimeout))
 		assert.Equal(t, 5*time.Second, time.Duration(m.ReadTimeout))
 		assert.Equal(t, 50000*time.Millisecond, time.Duration(m.WriteTimeout))

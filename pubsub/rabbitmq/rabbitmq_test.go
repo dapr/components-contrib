@@ -139,7 +139,6 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	<-processed
 	assert.Equal(t, 5, messageCount)
 	assert.Equal(t, "dummy data", lastMessage)
-
 }
 
 func TestConcurrencyMode(t *testing.T) {

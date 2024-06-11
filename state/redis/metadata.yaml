@@ -22,7 +22,7 @@ metadata:
     example: "redis-master.default.svc.cluster.local:6379"
     type: string
   - name: redisPassword
-    required: false
+    required: true
     sensitive: true
     description: Password for Redis host. No Default. Can be secretKeyRef to use a secret reference
     example:  "KeFg23!"

@@ -18,6 +18,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/spf13/cast"
+
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/google/uuid"
 
@@ -57,6 +59,12 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 	if metadata == nil {
 		metadata = map[string]string{}
 	}
+
+	for key, val := range asbMsg.ApplicationProperties {
+		metadata["metadata."+key] = cast.ToString(val)
+	}
+
+	// We are not concerned about key conflicts here as we do not allow custom properties that match well-known property names
 
 	if asbMsg.MessageID != "" {
 		metadata["metadata."+MessageKeyMessageID] = asbMsg.MessageID

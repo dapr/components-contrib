@@ -17,6 +17,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/metadata"
@@ -41,9 +42,11 @@ type pgMetadata struct {
 	MetadataTableName string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
+
+	aws.AWSIAM `mapstructure:",squash"`
 }
 
-func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
+func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
 	m.TablePrefix = ""
@@ -58,7 +61,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 	}
 
 	// Validate and sanitize input
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, azureADEnabled)
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, opts)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,7 @@
 // Source: /Users/patrick.assuied/go/pkg/mod/github.com/riferrei/srclient@v0.6.0/schemaRegistryClient.go
 
 // Package mock_srclient is a generated GoMock package.
-package mock_srclient
+package mocks
 
 import (
 	reflect "reflect"

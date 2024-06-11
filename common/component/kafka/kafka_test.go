@@ -17,23 +17,27 @@ import (
 
 func TestGetValueSchemaType(t *testing.T) {
 	t.Run("No Metadata, return None", func(t *testing.T) {
-		act, _ := GetValueSchemaType(nil)
+		act, err := GetValueSchemaType(nil)
 		require.Equal(t, None, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("No valueSchemaType, return None", func(t *testing.T) {
-		act, _ := GetValueSchemaType(make(map[string]string))
+		act, err := GetValueSchemaType(make(map[string]string))
 		require.Equal(t, None, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType='AVRO', return AVRO", func(t *testing.T) {
-		act, _ := GetValueSchemaType(map[string]string{"valueSchemaType": "AVRO"})
+		act, err := GetValueSchemaType(map[string]string{"valueSchemaType": "AVRO"})
 		require.Equal(t, Avro, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType='None', return None", func(t *testing.T) {
-		act, _ := GetValueSchemaType(map[string]string{"valueSchemaType": "None"})
+		act, err := GetValueSchemaType(map[string]string{"valueSchemaType": "None"})
 		require.Equal(t, None, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType='XXX', return Error", func(t *testing.T) {
@@ -79,10 +83,22 @@ func TestDeserializeValue(t *testing.T) {
 			Value: recordValue,
 			Topic: "my-topic",
 		}
-		act, _ := k.DeserializeValue(&msg, handlerConfig)
+		act, err := k.DeserializeValue(&msg, handlerConfig)
 		var actMap map[string]any
 		json.Unmarshal(act, &actMap)
 		require.Equal(t, testValue1, actMap)
+		require.NoError(t, err)
+	})
+
+	t.Run("Data null, return as JSON null", func(t *testing.T) {
+		msg := sarama.ConsumerMessage{
+			Key:   []byte("my_key"),
+			Value: nil,
+			Topic: "my-topic",
+		}
+		act, err := k.DeserializeValue(&msg, handlerConfig)
+		require.Equal(t, []byte("null"), act)
+		require.NoError(t, err)
 	})
 
 	t.Run("Invalid too short data, return error", func(t *testing.T) {
@@ -164,25 +180,28 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
 
 		require.Equal(t, valJSON, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType set to None, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "None"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "None"})
 
 		require.Equal(t, valJSON, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType set to None, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "NONE"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "NONE"})
 
 		require.Equal(t, valJSON, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType invalid, return error", func(t *testing.T) {
@@ -195,8 +214,16 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 	t.Run("schema found, serialize value as Avro binary", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
+	})
+
+	t.Run("value published null, no error", func(t *testing.T) {
+		act, err := k.SerializeValue("my-topic", nil, map[string]string{"valueSchemaType": "Avro"})
+
+		require.Nil(t, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid data, return error", func(t *testing.T) {
@@ -220,14 +247,16 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
 		require.Equal(t, valJSON, act)
+		require.NoError(t, err)
 	})
 
 	t.Run("schema found, serialize value as Avro binary", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 	})
 }
 
@@ -250,12 +279,14 @@ func TestLatestSchemaCaching(t *testing.T) {
 
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 
 		// Call a 2nd time within TTL and make sure it's not called again
-		act, _ = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 	})
 
 	t.Run("Caching enabled, when cache entry expires, call GetLatestSchema() again", func(t *testing.T) {
@@ -270,14 +301,16 @@ func TestLatestSchemaCaching(t *testing.T) {
 
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 
 		time.Sleep(2 * time.Second)
 
 		// Call a 2nd time within TTL and make sure it's not called again
-		act, _ = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 	})
 
 	t.Run("Caching disabled, call GetLatestSchema() twice", func(t *testing.T) {
@@ -292,13 +325,15 @@ func TestLatestSchemaCaching(t *testing.T) {
 
 		valJSON, _ := json.Marshal(testValue1)
 
-		act, _ := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 
 		// Call a 2nd time within TTL and make sure it's not called again
-		act, _ = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		act, err = k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
 	})
 }

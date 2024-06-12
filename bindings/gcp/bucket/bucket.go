@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -43,11 +44,13 @@ const (
 	objectURLBase        = "https://storage.googleapis.com/%s/%s"
 	metadataDecodeBase64 = "decodeBase64"
 	metadataEncodeBase64 = "encodeBase64"
+	metadataSignTTL      = "signTTL"
 
 	metadataKey = "key"
 	maxResults  = 1000
 
 	metadataKeyBC = "name"
+	signOperation = "sign"
 )
 
 // GCPStorage allows saving data to GCP bucket storage.
@@ -73,12 +76,16 @@ type gcpMetadata struct {
 	Bucket       string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64 bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
 	EncodeBase64 bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	SignTTL      string `json:"signTTL" mapstructure:"signTTL"  mdignore:"true"`
 }
 
 type listPayload struct {
 	Prefix     string `json:"prefix"`
 	MaxResults int32  `json:"maxResults"`
 	Delimiter  string `json:"delimiter"`
+}
+type signResponse struct {
+	SignURL string `json:"signURL"`
 }
 
 type createResponse struct {
@@ -130,6 +137,7 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		signOperation,
 	}
 }
 
@@ -145,6 +153,8 @@ func (g *GCPStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return g.delete(ctx, req)
 	case bindings.ListOperation:
 		return g.list(ctx, req)
+	case signOperation:
+		return g.sign(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -312,7 +322,9 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
 		merged.EncodeBase64 = utils.IsTruthy(val)
 	}
-
+	if val, ok := req.Metadata[metadataSignTTL]; ok && val != "" {
+		merged.SignTTL = val
+	}
 	return merged, nil
 }
 
@@ -331,4 +343,55 @@ func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadataStruct := gcpMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
+}
+
+func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := g.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("gcp binding error. error merge metadata : %w", err)
+	}
+
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
+	}
+
+	if metadata.SignTTL == "" {
+		return nil, fmt.Errorf("gcp bucket binding error: required metadata '%s' missing", metadataSignTTL)
+	}
+
+	signURL, err := g.signObject(metadata.Bucket, key, metadata.SignTTL)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: %w", err)
+	}
+
+	jsonResponse, err := json.Marshal(signResponse{
+		SignURL: signURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: error marshalling sign response: %w", err)
+	}
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
+func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
+	d, err := time.ParseDuration(ttl)
+	if err != nil {
+		return "", fmt.Errorf("gcp bucket binding error: error parsing signTTL: %w", err)
+	}
+	opts := &storage.SignedURLOptions{
+		Scheme:  storage.SigningSchemeV4,
+		Method:  "GET",
+		Expires: time.Now().Add(d),
+	}
+
+	u, err := g.client.Bucket(g.metadata.Bucket).SignedURL(object, opts)
+	if err != nil {
+		return "", fmt.Errorf("Bucket(%q).SignedURL: %w", bucket, err)
+	}
+	return u, nil
 }

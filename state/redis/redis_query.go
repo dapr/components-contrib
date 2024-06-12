@@ -15,10 +15,15 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
+
+	"github.com/dapr/components-contrib/state/utils"
 
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/state"
@@ -28,11 +33,12 @@ import (
 var ErrMultipleSortBy error = errors.New("multiple SORTBY steps are not allowed. Sort multiple fields in a single step")
 
 type Query struct {
-	schemaName string
-	aliases    map[string]string
-	query      []interface{}
-	limit      int
-	offset     int64
+	schemaName              string
+	aliases                 map[string]string
+	query                   []interface{}
+	limit                   int
+	offset                  int64
+	querySelectedAttributes []utils.Attribute
 }
 
 func NewQuery(schemaName string, aliases map[string]string) *Query {
@@ -302,18 +308,33 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 }
 
 func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) ([]state.QueryItem, string, error) {
-	query := append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
+	var query []interface{}
+	if q.querySelectedAttributes == nil {
+		query = append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
+	} else {
+		version7 := false
+		identifierNumbers := strconv.Itoa((len(q.querySelectedAttributes) + 1))
+		if version, error := rediscomponent.GetServerVersion(client); error == nil && (semver.Compare("v"+version, "v7.0.0") > -1) {
+			version7 = true
+			identifierNumbers = strconv.Itoa((len(q.querySelectedAttributes) * 3) + 1)
+		}
+		query = append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", identifierNumbers)
+		for _, item := range q.parseQuerySelectedAttributes(q.querySelectedAttributes, version7) {
+			query = append(query, item)
+		}
+		query = append(query, "$.version")
+	}
 	ret, err := client.DoRead(ctx, query...)
 	if err != nil {
 		return nil, "", err
 	}
 
-	res, ok, err := parseQueryResponsePost28(ret)
+	res, ok, err := parseQueryResponsePost28(ret, q.querySelectedAttributes)
 	if err != nil {
 		return nil, "", err
 	}
 	if !ok {
-		res, err = parseQueryResponsePre28(ret)
+		res, err = parseQueryResponsePre28(ret, q.querySelectedAttributes)
 		if err != nil {
 			return nil, "", err
 		}
@@ -328,8 +349,20 @@ func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) 
 	return res, token, err
 }
 
+func (q *Query) parseQuerySelectedAttributes(selectedAttributes []utils.Attribute, version7 bool) []string {
+	attributes := make([]string, 0, len(selectedAttributes)*3)
+	for _, item := range selectedAttributes {
+		if version7 {
+			attributes = append(attributes, "$.data."+item.Path, "as", item.Name)
+		} else {
+			attributes = append(attributes, "$.data."+item.Path+" as "+item.Name)
+		}
+	}
+	return attributes
+}
+
 // parseQueryResponsePost28 parses the query Do response from redisearch 2.8+.
-func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
+func parseQueryResponsePost28(ret any, selectedAttributes []utils.Attribute) ([]state.QueryItem, bool, error) {
 	aarr, ok := ret.(map[any]any)
 	if !ok {
 		return nil, false, nil
@@ -352,10 +385,51 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 		item := state.QueryItem{
 			Key: inner["id"].(string),
 		}
-		if data, ok := exattr["$.data"].(string); ok {
-			item.Data = []byte(data)
+		if selectedAttributes != nil {
+			var itemResult map[string]any
+			itemResult = make(map[string]any)
+			for _, itemAttribute := range selectedAttributes {
+				if data, ok := exattr[itemAttribute.Name]; ok {
+					var errorCasting error
+					switch itemAttribute.Type {
+					case utils.Bool:
+						itemResult[itemAttribute.Name], errorCasting = strconv.ParseBool(data.(string))
+					case utils.Numeric:
+						var jsonObject interface{}
+						errorCasting = json.Unmarshal([]byte(data.(string)), &jsonObject)
+						itemResult[itemAttribute.Name] = jsonObject
+					case utils.Object:
+						var jsonObject interface{}
+						errorCasting = json.Unmarshal([]byte(data.(string)), &jsonObject)
+						itemResult[itemAttribute.Name] = jsonObject
+					case utils.Array:
+						var jsonArray []interface{}
+						errorCasting = json.Unmarshal([]byte(data.(string)), &jsonArray)
+						itemResult[itemAttribute.Name] = jsonArray
+					default:
+						itemResult[itemAttribute.Name] = data.(string)
+					}
+
+					if errorCasting != nil {
+						item.Error = fmt.Sprintf("%#v type not valid", itemAttribute.Name)
+						continue
+					}
+				} else {
+					item.Error = fmt.Sprintf("%#v doesn't exist", itemAttribute.Name)
+					continue
+				}
+			}
+			var error error
+			item.Data, error = json.Marshal(itemResult)
+			if error != nil {
+				item.Error = fmt.Sprintf("%#v no json syntax", itemResult)
+			}
 		} else {
-			item.Error = fmt.Sprintf("%#v is not string", exattr["$.data"])
+			if data, ok := exattr["$.data"].(string); ok {
+				item.Data = []byte(data)
+			} else {
+				item.Error = fmt.Sprintf("%#v is not string", exattr["$.data"])
+			}
 		}
 		if etag, ok := exattr["$.version"].(string); ok {
 			item.ETag = &etag
@@ -367,7 +441,7 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 }
 
 // parseQueryResponsePre28 parses the query Do response from redisearch 2.8-.
-func parseQueryResponsePre28(ret any) ([]state.QueryItem, error) {
+func parseQueryResponsePre28(ret any, selectedAttributes []utils.Attribute) ([]state.QueryItem, error) {
 	arr, ok := ret.([]any)
 	if !ok {
 		return nil, errors.New("invalid output")
@@ -388,12 +462,59 @@ func parseQueryResponsePre28(ret any) ([]state.QueryItem, error) {
 		item := state.QueryItem{
 			Key: arr[i].(string),
 		}
-		if data, ok := arr[i+1].([]interface{}); ok && len(data) == 4 && data[0] == "$.data" && data[2] == "$.version" {
-			item.Data = []byte(data[1].(string))
-			etag := data[3].(string)
-			item.ETag = &etag
+		if selectedAttributes != nil {
+			var itemResult map[string]any
+			itemResult = make(map[string]any)
+			if data, ok := arr[i+1].([]interface{}); ok {
+				for idx, itemAttribute := range selectedAttributes {
+					if data[idx*2] == "$.data."+itemAttribute.Path+" as "+itemAttribute.Name {
+						var errorCasting error
+						switch itemAttribute.Type {
+						case utils.Bool:
+							itemResult[itemAttribute.Name], errorCasting = strconv.ParseBool(data[(idx*2)+1].(string))
+						case utils.Numeric:
+							var jsonObject interface{}
+							errorCasting = json.Unmarshal([]byte(data[(idx*2)+1].(string)), &jsonObject)
+							itemResult[itemAttribute.Name] = jsonObject
+						case utils.Object:
+							var jsonObject interface{}
+							errorCasting = json.Unmarshal([]byte(data[(idx*2)+1].(string)), &jsonObject)
+							itemResult[itemAttribute.Name] = jsonObject
+						case utils.Array:
+							var jsonArray []interface{}
+							errorCasting = json.Unmarshal([]byte(data[(idx*2)+1].(string)), &jsonArray)
+							itemResult[itemAttribute.Name] = jsonArray
+						default:
+							itemResult[itemAttribute.Name] = data[(idx*2)+1].(string)
+						}
+
+						if errorCasting != nil {
+							item.Error = fmt.Sprintf("%#v type not valid", itemAttribute.Name)
+							continue
+						}
+					} else {
+						item.Error = fmt.Sprintf("%#v doesn't exist", itemAttribute.Name)
+						continue
+					}
+				}
+				var error error
+				item.Data, error = json.Marshal(itemResult)
+				if error != nil {
+					item.Error = fmt.Sprintf("%#v no json syntax", itemResult)
+				}
+				etag := data[len(selectedAttributes)+1].(string)
+				item.ETag = &etag
+			} else {
+				item.Error = fmt.Sprintf("%#v is not []interface{}", arr[i+1])
+			}
 		} else {
-			item.Error = fmt.Sprintf("%#v is not []interface{}", arr[i+1])
+			if data, ok := arr[i+1].([]interface{}); ok && len(data) == 4 && data[0] == "$.data" && data[2] == "$.version" {
+				item.Data = []byte(data[1].(string))
+				etag := data[3].(string)
+				item.ETag = &etag
+			} else {
+				item.Error = fmt.Sprintf("%#v is not []interface{}", arr[i+1])
+			}
 		}
 		res = append(res, item)
 	}

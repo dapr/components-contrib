@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	utilsState "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/ptr"
@@ -241,6 +242,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			transactionGroup: 3,
 		},
 	}
+	selectedAttribute1, _ := json.Marshal([2]utilsState.Attribute{{Path: "product.value", Name: "value", Type: utilsState.Numeric}, {Path: "status", Name: "Status"}})
+	selectedAttribute2, _ := json.Marshal([1]utilsState.Attribute{{Path: "product", Name: "productItem", Type: utilsState.Object}})
 
 	queryScenarios := []queryScenario{
 		{
@@ -393,6 +396,99 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				},
 			},
 		},
+
+		// For selected attributes in the result
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [ 
+						{ 
+							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
+									"GT": {"product.value": 11.2}
+								},
+								{
+									"EQ": {"status": "INACTIVE"}
+								}
+							]
+						},
+						{ 
+							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
+									"LTE": {"product.value": 0.5}
+								},
+								{
+									"EQ": {"status": "ACTIVE"}
+								}
+							]
+						}
+					]
+				}
+			}
+			`,
+			metadata: map[string]string{
+				metadata.QuerySelectedAttributes: string(selectedAttribute1),
+			},
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
+					Data: []byte(fmt.Sprintf(`{"value":12, "Status":"INACTIVE"}`)),
+				},
+			},
+		},
+
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [ 
+						{ 
+							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
+									"GT": {"product.value": 11.2}
+								},
+								{
+									"EQ": {"status": "INACTIVE"}
+								}
+							]
+						},
+						{ 
+							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
+									"LTE": {"product.value": 0.5}
+								},
+								{
+									"EQ": {"status": "ACTIVE"}
+								}
+							]
+						}
+					]
+				}
+			}
+			`,
+			metadata: map[string]string{
+				metadata.QuerySelectedAttributes: string(selectedAttribute2),
+			},
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
+					Data: []byte(fmt.Sprintf(`{ "productItem": {"value":12}}`)),
+				},
+			},
+		},
 	}
 
 	t.Run("init", func(t *testing.T) {
@@ -462,7 +558,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
 				if (scenario.partitionOnly) && (!state.FeaturePartitionKey.IsPresent(features)) {
-					break
+					continue
 				}
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
@@ -475,6 +571,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				if val, found := scenario.metadata["partitionKey"]; found {
 					req.Metadata["partitionKey"] = val
+				}
+
+				if val, found := scenario.metadata[metadata.QuerySelectedAttributes]; found {
+					req.Metadata[metadata.QuerySelectedAttributes] = val
 				}
 
 				resp, err := querier.Query(context.Background(), &req)
@@ -1301,6 +1401,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			unsupported := []string{
 				"redis.v6",
 				"redis.v7",
+				"redis.v7stack",
 				"etcd.v1",
 			}
 

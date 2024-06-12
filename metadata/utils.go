@@ -42,6 +42,9 @@ const (
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
 
+	// QuerySelectedAttributes defines the metadata key for getting only the selected attributes in the result item (for redis)
+	QuerySelectedAttributes = "querySelectedAttributes"
+
 	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
 	MaxBulkPubBytesKey string = "maxBulkPubBytes"
 )
@@ -124,6 +127,14 @@ func TryGetContentType(props map[string]string) (string, bool) {
 
 func TryGetQueryIndexName(props map[string]string) (string, bool) {
 	if val, ok := props[QueryIndexName]; ok && val != "" {
+		return val, true
+	}
+
+	return "", false
+}
+
+func TryGetQuerySelectedAttributes(props map[string]string) (string, bool) {
+	if val, ok := props[QuerySelectedAttributes]; ok && val != "" {
 		return val, true
 	}
 

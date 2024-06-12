@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  metadata:
+  - name: redisHost
+    value: localhost:6381
+  - name: redisPassword
+    value: ""
+  - name: queryIndexes
+    value: |
+      [
+        {
+          "name": "qIndx",
+          "indexes": [
+            {
+              "key": "message",
+              "type": "TEXT"
+            },
+            {
+              "key": "product.value",
+              "type": "NUMERIC"
+            },
+            {
+              "key": "status",
+              "type": "TEXT"
+            }
+          ]
+        }
+      ]

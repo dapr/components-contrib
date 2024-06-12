@@ -16,9 +16,13 @@ package postgresql
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	daprmetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/state/utils"
 
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
@@ -66,6 +70,13 @@ func (p *PostgreSQLQuery) Query(parentCtx context.Context, req *state.QueryReque
 		etagColumn: p.etagColumn,
 	}
 	qbuilder := query.NewQueryBuilder(q)
+	selectedAttributes, ok := daprmetadata.TryGetQuerySelectedAttributes(req.Metadata)
+	if ok {
+		var err error
+		if q.querySelectedAttributes, err = utils.ParseQuerySelectedAttributes(selectedAttributes); err != nil {
+			return nil, fmt.Errorf("redis store: error parsing selected attributes: %w", err)
+		}
+	}
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
@@ -81,12 +92,13 @@ func (p *PostgreSQLQuery) Query(parentCtx context.Context, req *state.QueryReque
 }
 
 type Query struct {
-	query      string
-	params     []interface{}
-	limit      int
-	skip       *int64
-	tableName  string
-	etagColumn string
+	query                   string
+	params                  []interface{}
+	limit                   int
+	skip                    *int64
+	tableName               string
+	etagColumn              string
+	querySelectedAttributes []utils.Attribute
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
@@ -222,8 +234,19 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = fmt.Sprintf("SELECT key, value, %s as etag FROM "+q.tableName, q.etagColumn)
+	if q.querySelectedAttributes != nil {
+		var columns string
+		for idx, item := range q.querySelectedAttributes {
+			if idx != 0 {
+				columns += ", "
+			}
+			columns += translateFieldToFilter(item.Path) + " as " + item.Name
+		}
 
+		q.query = fmt.Sprintf("SELECT key, %s, %s as etag FROM "+q.tableName, columns, q.etagColumn)
+	} else {
+		q.query = fmt.Sprintf("SELECT key, value, %s as etag FROM "+q.tableName, q.etagColumn)
+	}
 	if filters != "" {
 		q.query += " WHERE " + filters
 	}
@@ -267,14 +290,59 @@ func (q *Query) execute(ctx context.Context, db pginterfaces.DBQuerier) ([]state
 	defer rows.Close()
 
 	ret := []state.QueryItem{}
+
 	for rows.Next() {
 		var (
 			key  string
 			data []byte
 			etag uint32
 		)
-		if err = rows.Scan(&key, &data, &etag); err != nil {
-			return nil, "", err
+		if q.querySelectedAttributes != nil {
+			var values []interface{}
+			if values, err = rows.Values(); err != nil {
+				return nil, "", err
+			}
+			var ok bool
+			key = values[0].(string)
+			etag, ok = values[len(values)-1].(uint32)
+			if !ok {
+				// Cockroachdb the type etag is int64 instead of uint32, necessary the casting
+				etag = uint32(values[len(values)-1].(int64))
+			}
+			result := make(map[string]interface{})
+			for idx, item := range q.querySelectedAttributes {
+				value := values[idx+1]
+				switch item.Type {
+				case utils.Bool:
+					result[item.Name], err = strconv.ParseBool(value.(string))
+				case utils.Numeric:
+					var jsonObject interface{}
+					err = json.Unmarshal([]byte(value.(string)), &jsonObject)
+					result[item.Name] = jsonObject
+				case utils.Object:
+					var jsonObject interface{}
+					err = json.Unmarshal([]byte(value.(string)), &jsonObject)
+					result[item.Name] = jsonObject
+				case utils.Array:
+					var jsonArray []interface{}
+					err = json.Unmarshal([]byte(value.(string)), &jsonArray)
+					result[item.Name] = jsonArray
+				default:
+					result[item.Name] = value.(string)
+				}
+
+				if err != nil {
+					return nil, "", err
+				}
+				data, err = json.Marshal(result)
+				if err != nil {
+					return nil, "", err
+				}
+			}
+		} else {
+			if err = rows.Scan(&key, &data, &etag); err != nil {
+				return nil, "", err
+			}
 		}
 		result := state.QueryItem{
 			Key:  key,

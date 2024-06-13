@@ -137,6 +137,7 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	session, err := r.documentStore.OpenSession("")
+
 	if err != nil {
 		return fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
@@ -149,9 +150,12 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 	err = session.Store(item)
 	if err != nil {
-		return fmt.Errorf("error storing data %s", err)
+		return fmt.Errorf("error storing data: %s", err)
 	}
-
+	err = session.SaveChanges()
+	if err != nil {
+		return fmt.Errorf("error saving changes: %s", err)
+	}
 	return nil
 }
 

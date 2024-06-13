@@ -29,6 +29,8 @@ import (
 
 const (
 	defaultDatabaseName = "daprStore"
+	databaseName        = "databaseName"
+	serverURL           = "serverUrl"
 )
 
 type RavenDB struct {

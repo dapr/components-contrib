@@ -19,11 +19,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	jsoniterator "github.com/json-iterator/go"
 	ravendb "github.com/ravendb/ravendb-go-client"
+	"reflect"
 	"time"
 )
 
@@ -167,6 +169,12 @@ func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 	}
 
 	return jsoniterator.ConfigFastest.MarshalToString(v)
+}
+
+func (m *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := RavenDBMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }
 
 func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {

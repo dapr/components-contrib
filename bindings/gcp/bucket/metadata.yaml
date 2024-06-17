@@ -23,6 +23,12 @@ metadata:
       The bucket name.
     example: '"mybucket"'
     type: string
+  - name: signTTL
+    required: false
+    description: |
+      Specifies the duration that the signed URL should be valid.
+    example: '"15m, 1h"'
+    type: string
   - name: decodeBase64
     type: bool
     required: false

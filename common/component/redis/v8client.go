@@ -316,6 +316,14 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
+func (c v8Client) Auth(ctx context.Context, password string) error {
+	return c.Auth(ctx, password)
+}
+
+func (c v8Client) AuthACL(ctx context.Context, username, password string) error {
+	return c.AuthACL(ctx, username, password)
+}
+
 func newV8FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil

@@ -64,7 +64,7 @@ func NewRedisConfigurationStore(logger logger.Logger) configuration.Store {
 // Init does metadata and connection parsing.
 func (r *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
 	var err error
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.ConfigurationStoreType)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.ConfigurationStoreType, ctx, &r.logger)
 	if err != nil {
 		return err
 	}

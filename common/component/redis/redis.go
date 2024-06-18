@@ -15,15 +15,22 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/cenkalti/backoff/v4"
 	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
+	kitlogger "github.com/dapr/kit/logger"
+	kitretry "github.com/dapr/kit/retry"
 )
 
 const (
@@ -82,6 +89,8 @@ type RedisClient interface {
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
+	Auth(ctx context.Context, password string) error
+	AuthACL(ctx context.Context, username, password string) error
 }
 
 type ConfigurationSubscribeArgs struct {
@@ -94,7 +103,7 @@ type ConfigurationSubscribeArgs struct {
 	Stop                   chan struct{}
 }
 
-func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
+func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType, ctx context.Context, logger *kitlogger.Logger) (client RedisClient, settings *Settings, err error) {
 	settings = &Settings{}
 
 	// upgrade legacy metadata properties and set defaults
@@ -157,6 +166,15 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
 		}
 	}
+	var entraIDErr error
+	var tokenExpires *time.Time
+	var tokenCredential *azcore.TokenCredential
+	if settings.UseEntraID {
+		tokenExpires, tokenCredential, entraIDErr = settings.GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx, &properties)
+		if entraIDErr != nil {
+			return nil, nil, err
+		}
+	}
 
 	var c RedisClient
 	newClientFunc := newV8Client
@@ -170,7 +188,10 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	}
 
 	version, versionErr := GetServerVersion(c)
-	c.Close() // close the client to avoid leaking connections
+	closeErr := c.Close() // close the client to avoid leaking connections
+	if closeErr != nil {
+		return nil, nil, closeErr
+	}
 
 	useNewClient := false
 	if versionErr != nil {
@@ -191,7 +212,106 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
+
+	// start the token refresh goroutine
+
+	if settings.UseEntraID {
+		fmt.Printf("%v", tokenExpires)
+		StartEntraIDTokenRefreshBackgroundRoutine(ctx, c, *tokenExpires, tokenCredential, logger)
+	}
 	return c, settings, nil
+}
+
+func StartEntraIDTokenRefreshBackgroundRoutine(ctx context.Context, client RedisClient, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
+
+	go func(cred *azcore.TokenCredential, logger *kitlogger.Logger) {
+		backoffConfig := kitretry.DefaultConfig()
+		backoffConfig.MaxRetries = 3
+		backoffConfig.Policy = kitretry.PolicyExponential
+
+		var backoffManager backoff.BackOff
+		var refreshGracePeriod time.Duration = 2 * time.Minute
+		var tokenRefreshDuration time.Duration = time.Until(nextExpiration.Add(-refreshGracePeriod))
+
+		for {
+			select {
+			case <-time.After(tokenRefreshDuration):
+
+				// Get a new access token
+				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+				var token azcore.AccessToken
+				tokenErr := kitretry.NotifyRecover(
+					func() error {
+						var innerTokenErr error
+						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{})
+						return innerTokenErr
+					},
+					backoffManager,
+					func(err error, _ time.Duration) {
+						(*logger).Debugf("redis client: entraID token acquisition failed with error: %v. Retrying...", err)
+					},
+					func() {
+						(*logger).Debug("redis client: entraID token acquisition succeeded after error")
+					},
+				)
+				if tokenErr != nil {
+					_ = client.Close()
+					(*logger).Fatalf("redis client: entraID token acquisition failed: %v", tokenErr)
+					return
+				}
+
+				// Use the new access token via the Redis AUTH command
+				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+				authErr := kitretry.NotifyRecover(
+					func() error {
+						var innerAuthErr error
+						innerAuthErr = client.Auth(ctx, token.Token)
+						return innerAuthErr
+					},
+					backoffManager,
+					func(err error, _ time.Duration) {
+						(*logger).Debugf("redis client: entraID auth failed with error: %v. Retrying...", err)
+					},
+					func() {
+						(*logger).Debug("redis client: entraID auth succeeded after error")
+					},
+				)
+				if authErr != nil {
+					_ = client.Close()
+					(*logger).Fatalf("redis client: entraID auth failed: %v", authErr)
+					return
+				}
+				// Since the entraID auth succeeded we are setting the duration to wait for the next iteration of the refresh loop
+				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(cred, logger)
+}
+
+func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
+
+	if len(s.Username) > 0 || len(s.Password) > 0 {
+		return nil, nil, errors.New(
+			"redis client configuration error: username and password must not be specified when using Entra ID authentication")
+	}
+	envSettings, envErr := azure.NewEnvironmentSettings(*properties)
+	if envErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", envErr)
+	}
+	cred, tokenCredErr := envSettings.GetTokenCredential()
+	if tokenCredErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", tokenCredErr)
+	}
+
+	token, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{})
+	if tokenErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", tokenErr)
+	}
+	s.Password = token.Token
+	return &token.ExpiresOn, &cred, nil
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

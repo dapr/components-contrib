@@ -302,7 +302,8 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, got, err := redisComponent.ParseClientFromProperties(tt.args.meta.Properties, contribMetadata.ConfigurationStoreType)
+			ctx := context.Background()
+			_, got, err := redisComponent.ParseClientFromProperties(tt.args.meta.Properties, contribMetadata.ConfigurationStoreType, ctx)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("edisComponent.ParseClientFromProperties error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -321,6 +322,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 }
 
 func setupMiniredis() (*miniredis.Miniredis, redisComponent.RedisClient) {
+	ctx := context.Background()
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -329,7 +331,7 @@ func setupMiniredis() (*miniredis.Miniredis, redisComponent.RedisClient) {
 		"redisHost": s.Addr(),
 		"redisDB":   "0",
 	}
-	redisClient, _, _ := redisComponent.ParseClientFromProperties(props, contribMetadata.ConfigurationStoreType)
+	redisClient, _, _ := redisComponent.ParseClientFromProperties(props, contribMetadata.ConfigurationStoreType, ctx)
 
 	return s, redisClient
 }

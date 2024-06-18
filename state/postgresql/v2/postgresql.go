@@ -165,16 +165,21 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 			p.logger.Infof("Creating state table: '%s'", stateTable)
 			_, err := p.db.Exec(ctx,
 				fmt.Sprintf(`
-CREATE TABLE IF NOT EXISTS %[1]s (
-  key text NOT NULL PRIMARY KEY,
-  value bytea NOT NULL,
-  etag uuid NOT NULL DEFAULT gen_random_uuid(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone,
-  expires_at timestamp with time zone
-);
+DO $$
+BEGIN
+	IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '%[1]s') THEN
+		CREATE TABLE %[1]s (
+			key text NOT NULL PRIMARY KEY,
+			value bytea NOT NULL,
+			etag uuid NOT NULL DEFAULT gen_random_uuid(),
+			created_at timestamp with time zone NOT NULL DEFAULT now(),
+			updated_at timestamp with time zone,
+			expires_at timestamp with time zone
+		);
 
-CREATE INDEX ON %[1]s (expires_at);
+		CREATE INDEX ON %[1]s (expires_at);
+	END IF;
+END $$;
 `, stateTable),
 			)
 			if err != nil {

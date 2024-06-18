@@ -39,15 +39,20 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 			opts.Logger.Infof("Creating state table '%s'", opts.StateTableName)
 			_, err := db.Exec(
 				ctx,
-				fmt.Sprintf(
-					`CREATE TABLE IF NOT EXISTS %s (
-							key text NOT NULL PRIMARY KEY,
-							value jsonb NOT NULL,
-							isbinary boolean NOT NULL,
-							insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-							updatedate TIMESTAMP WITH TIME ZONE NULL
-						)`,
-					opts.StateTableName,
+				fmt.Sprintf(`
+DO $$
+BEGIN
+	IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '%[1]s') THEN
+		CREATE TABLE %[1]s (
+			key text NOT NULL PRIMARY KEY,
+			value jsonb NOT NULL,
+			isbinary boolean NOT NULL,
+			insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+			updatedate TIMESTAMP WITH TIME ZONE NULL
+		);
+	END IF;
+END $$;
+`, opts.StateTableName,
 				),
 			)
 			if err != nil {

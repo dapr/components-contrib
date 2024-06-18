@@ -15,9 +15,10 @@ package servicebus
 
 import (
 	"encoding/base64"
-	"github.com/spf13/cast"
 	"net/http"
 	"strconv"
+
+	"github.com/spf13/cast"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/google/uuid"

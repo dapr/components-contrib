@@ -40,6 +40,7 @@ func TestParseMetadata(t *testing.T) {
 			"projectID":               "my_project_id",
 			"tokenURI":                "my_token_uri",
 			"type":                    "my_type",
+			"signTTL":                 "15s",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
@@ -57,6 +58,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, "my_project_id", meta.ProjectID)
 			assert.Equal(t, "my_token_uri", meta.TokenURI)
 			assert.Equal(t, "my_type", meta.Type)
+			assert.Equal(t, "15s", meta.SignTTL)
 		})
 
 		t.Run("Metadata is correctly marshalled to JSON", func(t *testing.T) {
@@ -67,7 +69,7 @@ func TestParseMetadata(t *testing.T) {
 					"\"private_key\":\"my_private_key\",\"client_email\":\"my_email@mail.dapr\",\"client_id\":\"my_client_id\","+
 					"\"auth_uri\":\"my_auth_uri\",\"token_uri\":\"my_token_uri\",\"auth_provider_x509_cert_url\":\"my_auth_provider_x509\","+
 					"\"client_x509_cert_url\":\"my_client_x509\",\"bucket\":\"my_bucket\",\"decodeBase64\":\"false\","+
-					"\"encodeBase64\":\"false\"}", string(json))
+					"\"encodeBase64\":\"false\",\"signTTL\":\"15s\"}", string(json))
 		})
 	})
 

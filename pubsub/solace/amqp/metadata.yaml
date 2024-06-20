@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: pubsub
-name: "solace.amqp"
+name: solace.amqp
 version: v1
 status: beta
 title: "Solace-AMQP"

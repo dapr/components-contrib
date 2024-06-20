@@ -69,7 +69,7 @@ func (p *PostgreSQLQuery) Query(parentCtx context.Context, req *state.QueryReque
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	data, token, err := q.execute(parentCtx, p.logger, p.db)
+	data, token, err := q.execute(parentCtx, p.db)
 	if err != nil {
 		return &state.QueryResponse{}, err
 	}
@@ -259,7 +259,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, logger logger.Logger, db pginterfaces.DBQuerier) ([]state.QueryItem, string, error) {
+func (q *Query) execute(ctx context.Context, db pginterfaces.DBQuerier) ([]state.QueryItem, string, error) {
 	rows, err := db.Query(ctx, q.query, q.params...)
 	if err != nil {
 		return nil, "", err

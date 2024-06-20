@@ -80,7 +80,7 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 	}
 
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	p.client, err = p.connectDB(ctx, p.metadata.ConnectionString)
+	p.client, err = p.connectDB(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%w'", err)
 	}
@@ -285,8 +285,8 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 }
 
-func (p *ConfigurationStore) connectDB(ctx context.Context, connStr string) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig(ctx)
+func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, error) {
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
 	}

@@ -150,6 +150,11 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 }
 
 func (p *PostgreSQL) performMigrations(ctx context.Context) error {
+	const (
+		postgresUniqueConstraintErrCode = "23505"
+		postgresUniqueConstraintName    = "pg_type_typname_nsp_index"
+	)
+
 	m := pgmigrations.Migrations{
 		DB:                p.db,
 		Logger:            p.logger,
@@ -165,25 +170,31 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 			p.logger.Infof("Creating state table: '%s'", stateTable)
 			_, err := p.db.Exec(ctx,
 				fmt.Sprintf(`
-DO $$
-BEGIN
-	IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '%[1]s') THEN
-		CREATE TABLE %[1]s (
-			key text NOT NULL PRIMARY KEY,
-			value bytea NOT NULL,
-			etag uuid NOT NULL DEFAULT gen_random_uuid(),
-			created_at timestamp with time zone NOT NULL DEFAULT now(),
-			updated_at timestamp with time zone,
-			expires_at timestamp with time zone
-		);
-
-		CREATE INDEX ON %[1]s (expires_at);
-	END IF;
-END $$;
+CREATE TABLE IF NOT EXISTS %[1]s (
+  key text NOT NULL PRIMARY KEY,
+  value bytea NOT NULL,
+  etag uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone,
+  expires_at timestamp with time zone
+);
+	
+CREATE INDEX ON %[1]s (expires_at);
 `, stateTable),
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create state table: %w", err)
+				if pgErr, ok := err.(*pgconn.PgError); ok {
+					// Check if the error is about a duplicate key constraint violation.
+					// Note: This can occur due to a race of multiple sidecars trying to run the table creation within their own transactions.
+					// It's then a race to see who actually gets to create the table, and who gets the unique constraint violation error.
+					if pgErr.Code == postgresUniqueConstraintErrCode && pgErr.ConstraintName == postgresUniqueConstraintName {
+						p.logger.Debugf("ignoring PostgreSQL duplicate key error for table '%s'", stateTable)
+					} else {
+						return fmt.Errorf("failed to create state table: '%s', %v", stateTable, err)
+					}
+				} else {
+					return fmt.Errorf("failed to create state table: '%s', %v", stateTable, err)
+				}
 			}
 			return nil
 		},

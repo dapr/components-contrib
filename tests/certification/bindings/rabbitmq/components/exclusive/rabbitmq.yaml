@@ -9,7 +9,7 @@ spec:
   - name: queueName
     value: exclusiveQueue
   - name: host
-    value: "amqp://test:test@localhost:5672"
+    value: "amqp://test:test@localhost:5673"
   - name: prefetchCount
     value: 0
   - name: exclusive

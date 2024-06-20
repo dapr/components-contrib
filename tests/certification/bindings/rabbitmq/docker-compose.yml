@@ -12,7 +12,18 @@ services:
       RABBITMQ_DEFAULT_USER: test
       RABBITMQ_DEFAULT_PASS: test
     hostname: rmq
-
+  rabbitmq-exclusive:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq-exclusive'
+    ports:
+      - 5673:5672
+      - 15673:15672
+    networks:
+      - rabbitmq_go_net
+    environment:
+      RABBITMQ_DEFAULT_USER: test
+      RABBITMQ_DEFAULT_PASS: test
+    hostname: rmqe
 networks:
   rabbitmq_go_net:
     driver: bridge

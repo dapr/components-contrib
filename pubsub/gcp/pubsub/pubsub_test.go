@@ -222,4 +222,39 @@ func TestInit(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "maxOutstandingBytes")
 	})
+
+	t.Run("valid optional numGoroutines", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":     "test-project",
+			"numGoroutines": "2",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 2, md.NumGoroutines, "NumGoroutines should match the provided configuration")
+	})
+
+	t.Run("missing optional numGoroutines", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 0, md.NumGoroutines)
+	})
+
+	t.Run("invalid optional numGoroutines", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":     "test-project",
+			"numGoroutines": "foobar",
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "numGoroutines")
+	})
 }

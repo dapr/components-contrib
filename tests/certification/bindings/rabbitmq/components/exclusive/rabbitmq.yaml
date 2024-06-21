@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: exclusive-binding
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+  - name: queueName
+    value: exclusiveQueue
+  - name: host
+    value: "amqp://test:test@localhost:5672"
+  - name: prefetchCount
+    value: 0
+  - name: exclusive
+    value: true
+  - name: contentType
+    value: "text/plain"
+  ignoreErrors: true

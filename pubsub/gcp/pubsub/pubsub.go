@@ -319,7 +319,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 
 	readReconnectAttemptsRemaining := func() int { return len(reconnAttempts) }
 
-	// Apply configured limits for MaxOutstandingMessages and MaxOutstandingBytes
+	// Apply configured limits for MaxOutstandingMessages, MaxOutstandingBytes, and NumGoroutines
 	// NOTE: negative MaxOutstandingMessages and MaxOutstaningBytes values are allowed and indicate
 	//  in the GCP pubsub library that no limit should be applied. Zero values result in the package
 	//  default being used: 1000 messages and 1e9 (1G) bytes respectively.
@@ -331,7 +331,8 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 		g.logger.Debugf("Overriding MaxOutstandingBytes: %d to %d", sub.ReceiveSettings.MaxOutstandingBytes, g.metadata.MaxOutstandingBytes)
 		sub.ReceiveSettings.MaxOutstandingBytes = g.metadata.MaxOutstandingBytes
 	}
-	if g.metadata.NumGoroutines != 0 {
+	// NOTE: For NumGoroutines, negative values are not allowed so only override if the value is greater than 0
+	if g.metadata.NumGoroutines > 0 {
 		g.logger.Debugf("Overriding NumGoroutines: %d to %d", sub.ReceiveSettings.NumGoroutines, g.metadata.NumGoroutines)
 		sub.ReceiveSettings.NumGoroutines = g.metadata.NumGoroutines
 	}

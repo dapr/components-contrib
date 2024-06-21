@@ -357,4 +357,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr v1.13.0 => github.com/dapr/dapr v1.13.0-rc.1.0.20240606205627-cd2df9098d10
+replace github.com/dapr/dapr v1.13.0 => github.com/dapr/dapr v1.13.4

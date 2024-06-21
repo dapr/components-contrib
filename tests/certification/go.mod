@@ -359,4 +359,4 @@ replace github.com/dapr/components-contrib => ../../
 
 replace github.com/dapr/dapr v1.13.0 => github.com/dapr/dapr v1.13.4
 
-replace github.com/dapr/kit => github.com/dapr/kit v0.13.0
+replace github.com/dapr/kit => github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f

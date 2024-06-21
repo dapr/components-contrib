@@ -70,8 +70,8 @@ metadata:
       Maximum number of bytes a GCP streaming-pull connection is allowed to have outstanding
     type: number
     example: '1e9'
-  - name: numGoroutines
+  - name: maxConcurrentConnections
     description: |
-      Number of concurrent streaming-pull connections to maintain
+      Max number of concurrent streaming-pull connections to maintain
     type: number
     example: '10'

@@ -223,19 +223,19 @@ func TestInit(t *testing.T) {
 		require.ErrorContains(t, err, "maxOutstandingBytes")
 	})
 
-	t.Run("valid optional numGoroutines", func(t *testing.T) {
+	t.Run("valid optional maxConcurrentConnections", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
-			"projectId":     "test-project",
-			"numGoroutines": "2",
+			"projectId":                "test-project",
+			"maxConcurrentConnections": "2",
 		}
 
 		md, err := createMetadata(m)
 		require.NoError(t, err)
-		assert.Equal(t, 2, md.NumGoroutines, "NumGoroutines should match the provided configuration")
+		assert.Equal(t, 2, md.MaxConcurrentConnections, "MaxConcurrentConnections should match the provided configuration")
 	})
 
-	t.Run("missing optional numGoroutines", func(t *testing.T) {
+	t.Run("missing optional maxConcurrentConnections", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"projectId": "test-project",
@@ -243,18 +243,18 @@ func TestInit(t *testing.T) {
 
 		md, err := createMetadata(m)
 		require.NoError(t, err)
-		assert.Equal(t, 0, md.NumGoroutines)
+		assert.Equal(t, 0, md.MaxConcurrentConnections)
 	})
 
-	t.Run("invalid optional numGoroutines", func(t *testing.T) {
+	t.Run("invalid optional maxConcurrentConnections", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
-			"projectId":     "test-project",
-			"numGoroutines": "foobar",
+			"projectId":                "test-project",
+			"maxConcurrentConnections": "foobar",
 		}
 
 		_, err := createMetadata(m)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "numGoroutines")
+		require.ErrorContains(t, err, "maxConcurrentConnections")
 	})
 }

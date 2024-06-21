@@ -111,6 +111,9 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		// the metadata in that field is compared to the entry metadata to generate the right response on partial failures
 		msg.Metadata = entry.EntryId
 
+		if entry.Metadata == nil {
+			entry.Metadata = make(map[string]string)
+		}
 		maps.Copy(entry.Metadata, metadata)
 
 		for name, value := range entry.Metadata {

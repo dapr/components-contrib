@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: pubsub
-name: Solace-AMQP
+name: solace.amqp
 version: v1
 status: beta
-title: "solace-amqp"
+title: "Solace-AMQP"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-solace-amqp/

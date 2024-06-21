@@ -17,11 +17,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	pgmigrations "github.com/dapr/components-contrib/common/component/sql/migrations/postgres"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Performs the required migrations

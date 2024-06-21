@@ -39,4 +39,5 @@ type metadata struct {
 	MaxDeliveryAttempts     int    `mapstructure:"maxDeliveryAttempts"`
 	MaxOutstandingMessages  int    `mapstructure:"maxOutstandingMessages"`
 	MaxOutstandingBytes     int    `mapstructure:"maxOutstandingBytes"`
+	NumGoroutines           int    `mapstructure:"numGoroutines"`
 }

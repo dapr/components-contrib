@@ -62,11 +62,16 @@ metadata:
     example: '5'
   - name: maxOutstandingMessages
     description: |
-      Maximum number of messages the GCP streaming-pull connection is allowed to have outstanding
+      Maximum number of messages a GCP streaming-pull connection is allowed to have outstanding
     type: number
     example: '1000'
   - name: maxOutstandingBytes
     description: |
-      Maximum number of bytes the GCP streaming-pull connection is allowed to have outstanding
+      Maximum number of bytes a GCP streaming-pull connection is allowed to have outstanding
     type: number
     example: '1e9'
+  - name: numGoroutines
+    description: |
+      Number of concurrent streaming-pull connections to maintain
+    type: number
+    example: '10'

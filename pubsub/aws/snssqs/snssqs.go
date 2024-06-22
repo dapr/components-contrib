@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/puzpuzpuz/xsync/v3"
 
 	"github.com/dapr/kit/retry"
 
@@ -44,7 +45,7 @@ import (
 type snsSqs struct {
 	topicsLocker TopicsLocker
 	// key is the sanitized topic name
-	topicArns map[string]string
+	topicArns *xsync.MapOf[string, string]
 	// key is the topic name, value holds the ARN of the queue and its url.
 	queues map[string]*sqsQueueInfo
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
@@ -171,7 +172,7 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	s.subscriptionManager = NewSubscriptionMgmt(s.logger)
 	s.topicsLocker = NewLockManager()
 
-	s.topicArns = make(map[string]string)
+	s.topicArns = xsync.NewMapOf[string, string]()
 	s.queues = make(map[string]*sqsQueueInfo)
 	s.subscriptions = make(map[string]string)
 
@@ -240,7 +241,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
 	var loadOK bool
-	if topicArn, loadOK = s.topicArns[sanitizedTopic]; loadOK {
+	if topicArn, loadOK = s.topicArns.Load(sanitizedTopic); loadOK {
 		if len(topicArn) > 0 {
 			s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
 
@@ -272,7 +273,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	}
 
 	// record topic ARN.
-	s.topicArns[sanitizedTopic] = topicArn
+	s.topicArns.Store(sanitizedTopic, topicArn)
 
 	return topicArn, sanitizedTopic, err
 }

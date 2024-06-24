@@ -840,6 +840,9 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		return errors.New("component is closed")
 	}
 
+	s.topicsLocker.Lock(req.Topic)
+	defer s.topicsLocker.Unlock(req.Topic)
+
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)

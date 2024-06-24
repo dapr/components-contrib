@@ -234,8 +234,10 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 	return *getTopicOutput.Attributes["TopicArn"], nil
 }
 
-// get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
+// Get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
+// NOTE: This method potentially reads and writes to the topicArns map, which may end up being accessed by multiple goroutines concurrently,
+// therefore it is necessary for its caller to lock the topic.
 func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedTopic string, err error) {
 	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 

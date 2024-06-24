@@ -2,9 +2,9 @@
 
 Thank you for your interest in Dapr!
 
-This project welcomes contributions and suggestions. Most contributions require you to signoff on your commits via 
-the Developer Certificate of Origin (DCO). When you submit a pull request, a DCO-bot will automatically determine 
-whether you need to provide signoff for your commit. Please follow the instructions provided by DCO-bot, as pull 
+This project welcomes contributions and suggestions. Most contributions require you to signoff on your commits via
+the Developer Certificate of Origin (DCO). When you submit a pull request, a DCO-bot will automatically determine
+whether you need to provide signoff for your commit. Please follow the instructions provided by DCO-bot, as pull
 requests cannot be merged until the author(s) have provided signoff to fulfill the DCO requirement.
 You may find more information on the DCO requirements [below](#developer-certificate-of-origin-signing-your-work).
 
@@ -64,7 +64,7 @@ All contributions come through pull requests. To submit a proposed change, we re
 
 #### Use work-in-progress PRs for early feedback
 
-A good way to communicate before investing too much time is to create a "Work-in-progress" PR and share it with your reviewers. The standard way of doing this is to add a "[WIP]" prefix in your PR's title and assign the **do-not-merge** label. This will let people looking at your PR know that it is not well baked yet.
+A good way to communicate before investing too much time is to create a "Work-in-progress" PR and share it with your reviewers. The standard way of doing this is to open your PR as a draft, add a "[WIP]" prefix in your PR's title, and assign the **do-not-merge** label. This will let people looking at your PR know that it is not well baked yet.
 
 ### Developer Certificate of Origin: Signing your work
 

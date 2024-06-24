@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -183,15 +184,12 @@ CREATE INDEX ON %[1]s (expires_at);
 `, stateTable),
 			)
 			if err != nil {
-				if pgErr, ok := err.(*pgconn.PgError); ok {
-					// Check if the error is about a duplicate key constraint violation.
-					// Note: This can occur due to a race of multiple sidecars trying to run the table creation within their own transactions.
-					// It's then a race to see who actually gets to create the table, and who gets the unique constraint violation error.
-					if pgErr.Code == postgresUniqueConstraintErrCode && pgErr.ConstraintName == postgresUniqueConstraintName {
-						p.logger.Debugf("ignoring PostgreSQL duplicate key error for table '%s'", stateTable)
-					} else {
-						return fmt.Errorf("failed to create state table: '%s', %v", stateTable, err)
-					}
+				// Check if the error is about a duplicate key constraint violation.
+				// Note: This can occur due to a race of multiple sidecars trying to run the table creation within their own transactions.
+				// It's then a race to see who actually gets to create the table, and who gets the unique constraint violation error.
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+					p.logger.Debugf("ignoring PostgreSQL duplicate key error for table '%s'", stateTable)
 				} else {
 					return fmt.Errorf("failed to create state table: '%s', %v", stateTable, err)
 				}

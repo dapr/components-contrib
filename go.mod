@@ -1,8 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.22.0
+go 1.21
 
-toolchain go1.22.2
+toolchain go1.21.4
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -14,7 +14,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.7.0
@@ -434,8 +434,3 @@ replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday
 
 // this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-
-// Uncomment for local development for testing with changes in the components-contrib && kit repositories.
-// Don't commit with this uncommented!
-//
-// replace github.com/dapr/kit => ../kit

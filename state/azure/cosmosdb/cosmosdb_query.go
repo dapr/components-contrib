@@ -261,7 +261,7 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 	opts.QueryParameters = append(opts.QueryParameters, q.query.parameters...)
 
 	if len(q.token) != 0 {
-		opts.ContinuationToken = &q.token
+		opts.ContinuationToken = q.token
 	}
 
 	items := []CosmosItem{}
@@ -285,11 +285,8 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 			return nil, "", innerErr
 		}
 
-		if queryResponse.ContinuationToken == nil {
-			token = ""
-		} else {
-			token = *queryResponse.ContinuationToken
-		}
+		token = queryResponse.ContinuationToken
+
 		for _, item := range queryResponse.Items {
 			tempItem := CosmosItem{}
 			err := json.Unmarshal(item, &tempItem)

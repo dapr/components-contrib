@@ -100,12 +100,12 @@ jobs:
       run:
         shell: bash
 
-    needs: 
+    needs:
       - generate-matrix
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix: 
+      matrix:
         include: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
@@ -267,7 +267,7 @@ jobs:
     - name: Run tests
       continue-on-error: true
       run: |
-        set -e 
+        set -e
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
         NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
         KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
@@ -277,7 +277,7 @@ jobs:
         fi
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
-        echo "Source Pacakge: " ${{ matrix.source-pkg }}
+        echo "Source Package: " ${{ matrix.source-pkg }}
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
@@ -335,13 +335,13 @@ jobs:
         name: result_files
         path: tmp/result_files
         retention-days: 1
-    
+
     - name: Prepare coverage report file to upload
       if: github.event_name == 'schedule'
       run: |
         mkdir -p tmp/conf_code_cov
         cp cover.out tmp/conf_code_cov/${{ env.SOURCE_PATH_LINEAR }}.out
-    
+
     - name: Upload coverage report file
       uses: actions/upload-artifact@v3
       if: github.event_name == 'schedule'

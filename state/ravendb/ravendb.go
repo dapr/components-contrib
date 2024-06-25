@@ -163,6 +163,16 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	return nil
 }
 
+func (r *RavenDB) Ping(ctx context.Context) error {
+	session, err := r.documentStore.OpenSession("")
+	defer session.Close()
+	if err != nil {
+		return fmt.Errorf("error opening session while storing data faild with error %s", err)
+	}
+
+	return nil
+}
+
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 	if buf, ok := v.([]byte); ok {
 		return string(buf), nil

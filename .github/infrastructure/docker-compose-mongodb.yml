@@ -1,0 +1,34 @@
+version: '2'
+
+services:
+  mongodb:
+    image : mongo:4.2
+    container_name: mongodb
+    hostname: mongodb
+    restart: always
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - MONGO_INITDB_DATABASE=daprStore
+      - MONGO_REPLICA_SET_NAME=test-rs
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo:/data/db
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "test-rs" ]
+
+  mongosetup:
+    image: mongo:4.2
+    links:
+      - mongodb
+    depends_on:
+      - mongodb
+    volumes:
+      - ./../scripts/components-scripts/conformance-state.mongodb-setup.sh:/scripts/mongo_setup.sh
+    restart: "no"
+    entrypoint: [ "bash", "/scripts/mongo_setup.sh" ]
+
+volumes:
+  mongo:
+
+

@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dapr/components-contrib/state/utils"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,9 +32,10 @@ import (
 )
 
 type Query struct {
-	query  string
-	filter interface{}
-	opts   *options.FindOptions
+	query                   string
+	filter                  interface{}
+	opts                    *options.FindOptions
+	querySelectedAttributes []utils.Attribute
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
@@ -225,7 +228,81 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
+func (q *Query) executeAggregation(ctx context.Context, collection *mongo.Collection) ([]state.QueryItem, string, error) {
+	var (
+		err error
+		cur *mongo.Cursor
+	)
+
+	projection := bson.M{
+		"_etag": 1,
+		"_id":   1,
+	}
+
+	for _, item := range q.querySelectedAttributes {
+		projection[item.Name] = "$value." + item.Path
+	}
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: q.filter}},
+		{{Key: "$project", Value: projection}},
+	}
+	if q.opts.Sort != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: q.opts.Sort}})
+	}
+	if q.opts.Limit != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$limit", Value: q.opts.Limit}})
+	}
+	if q.opts.Skip != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$skip", Value: q.opts.Skip}})
+	}
+
+	cur, err = collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, "", err
+	}
+	defer cur.Close(ctx)
+	ret := []state.QueryItem{}
+	for cur.Next(ctx) {
+		result := state.QueryItem{}
+		var itemBson bson.M
+		if err = cur.Decode(&itemBson); err != nil {
+			return nil, "", err
+		}
+		etag := itemBson["_etag"].(string)
+		result.ETag = &etag
+		result.Key = itemBson["_id"].(string)
+
+		values := make(map[string]interface{})
+		for _, itemAttribute := range q.querySelectedAttributes {
+			values[itemAttribute.Name] = itemBson[itemAttribute.Name]
+		}
+
+		if result.Data, err = json.Marshal(values); err != nil {
+			result.Error = err.Error()
+		}
+		ret = append(ret, result)
+	}
+	if err = cur.Err(); err != nil {
+		return nil, "", err
+	}
+	// set next query token only if limit is specified
+	var token string
+	if q.opts.Limit != nil && *q.opts.Limit != 0 {
+		var skip int64
+		if q.opts.Skip != nil {
+			skip = *q.opts.Skip
+		}
+		token = strconv.FormatInt(skip+int64(len(ret)), 10)
+	}
+
+	return ret, token, nil
+}
+
 func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]state.QueryItem, string, error) {
+	if q.querySelectedAttributes != nil {
+		return q.executeAggregation(ctx, collection)
+	}
 	cur, err := collection.Find(ctx, q.filter, []*options.FindOptions{q.opts}...)
 	if err != nil {
 		return nil, "", err

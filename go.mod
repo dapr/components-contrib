@@ -11,39 +11,39 @@ require (
 	cloud.google.com/go/storage v1.36.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.1
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.3
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.2.0
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.3.2
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.0.1
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
-	github.com/Azure/go-amqp v1.0.5
+	github.com/Azure/go-amqp v1.0.5-0.20240301200753-2dff4b36f85f
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.42.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
 	github.com/alibabacloud-go/oos-20190601 v1.0.4
-	github.com/alibabacloud-go/tea v1.2.1
+	github.com/alibabacloud-go/tea v1.1.19
 	github.com/alibabacloud-go/tea-utils v1.4.5
-	github.com/alicebob/miniredis/v2 v2.30.5
-	github.com/aliyun/aliyun-log-go-sdk v0.1.54
-	github.com/aliyun/aliyun-oss-go-sdk v2.2.9+incompatible
-	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.10
-	github.com/apache/dubbo-go-hessian2 v1.11.5
-	github.com/apache/pulsar-client-go v0.11.0
+	github.com/alicebob/miniredis/v2 v2.33.0
+	github.com/aliyun/aliyun-log-go-sdk v0.1.80
+	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
+	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.15
+	github.com/apache/dubbo-go-hessian2 v1.11.0
+	github.com/apache/pulsar-client-go v0.12.1
 	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.0
-	github.com/aws/aws-sdk-go v1.50.19
-	github.com/aws/aws-sdk-go-v2 v1.25.0
+	github.com/aws/aws-sdk-go v1.45.19
+	github.com/aws/aws-sdk-go-v2 v1.19.0
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
 	github.com/camunda/zeebe/clients/go/v8 v8.2.12
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -159,7 +159,7 @@ require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
-	github.com/alibabacloud-go/openapi-util v0.0.11 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
@@ -249,7 +249,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/flatbuffers v2.0.8+incompatible // indirect
+	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -288,7 +288,7 @@ require (
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.17.7 // indirect
+	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
 	github.com/kubemq-io/protobuf v1.3.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
@@ -368,7 +368,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
-	github.com/yuin/gopher-lua v1.1.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.9 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.9 // indirect

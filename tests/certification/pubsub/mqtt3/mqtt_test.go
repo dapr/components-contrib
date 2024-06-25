@@ -322,7 +322,7 @@ func TestMQTT(t *testing.T) {
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
-				embedded.WithGracefulShutdownDuration(0),
+				embedded.WithGracefulShutdownDuration(10),
 			)...,
 		)).
 		//
@@ -341,7 +341,7 @@ func TestMQTT(t *testing.T) {
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
-				embedded.WithGracefulShutdownDuration(0),
+				embedded.WithGracefulShutdownDuration(10),
 			)...,
 		)).
 		//
@@ -368,7 +368,7 @@ func TestMQTT(t *testing.T) {
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+(portOffset*3))),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+(portOffset*3))),
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+(portOffset*3))),
-				embedded.WithGracefulShutdownDuration(0),
+				embedded.WithGracefulShutdownDuration(10),
 			)...,
 		)).
 		Step("send and wait wildcard", test(wildcardTopicPublish, consumerGroupMultiWildcard)).
@@ -389,7 +389,7 @@ func TestMQTT(t *testing.T) {
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
-				embedded.WithGracefulShutdownDuration(0),
+				embedded.WithGracefulShutdownDuration(10),
 			)...,
 		)).
 		Step("wait 2", flow.Sleep(5*time.Second)).
@@ -399,7 +399,7 @@ func TestMQTT(t *testing.T) {
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
-				embedded.WithGracefulShutdownDuration(0),
+				embedded.WithGracefulShutdownDuration(10),
 			)...,
 		)).
 		Step("wait 3", flow.Sleep(5*time.Second)).

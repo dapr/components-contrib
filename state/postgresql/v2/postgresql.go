@@ -151,11 +151,6 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 }
 
 func (p *PostgreSQL) performMigrations(ctx context.Context) error {
-	const (
-		postgresUniqueConstraintErrCode = "23505"
-		postgresUniqueConstraintName    = "pg_type_typname_nsp_index"
-	)
-
 	m := pgmigrations.Migrations{
 		DB:                p.db,
 		Logger:            p.logger,

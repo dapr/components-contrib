@@ -29,9 +29,6 @@ import (
 
 // Performs the required migrations
 func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {
-	const (
-		postgresUniqueConstraintName = "pg_type_typname_nsp_index"
-	)
 	m := pgmigrations.Migrations{
 		DB:                db,
 		Logger:            opts.Logger,

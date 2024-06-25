@@ -74,7 +74,7 @@ func (p *PostgreSQLQuery) Query(parentCtx context.Context, req *state.QueryReque
 	if ok {
 		var err error
 		if q.querySelectedAttributes, err = utils.ParseQuerySelectedAttributes(selectedAttributes); err != nil {
-			return nil, fmt.Errorf("redis store: error parsing selected attributes: %w", err)
+			return nil, fmt.Errorf("postgresql store: error parsing selected attributes: %w", err)
 		}
 	}
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {

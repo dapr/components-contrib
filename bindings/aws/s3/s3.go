@@ -56,7 +56,9 @@ const (
 	metadataKey           = "key"
 
 	defaultMaxResults = 1000
-	presignOperation  = "presign"
+
+	presignOperation   bindings.OperationKind = "presign"
+	listObjectVersions bindings.OperationKind = "list-object-versions"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
@@ -158,6 +160,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 		bindings.DeleteOperation,
 		bindings.ListOperation,
 		presignOperation,
+		listObjectVersions,
 	}
 }
 
@@ -389,6 +392,32 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	}, nil
 }
 
+func (s *AWSS3) listObjectVersions(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
+	}
+
+	result, err := s.s3Client.ListObjectVersionsWithContext(ctx, &s3.ListObjectVersionsInput{
+		Bucket: ptr.Of(s.metadata.Bucket),
+		Prefix: ptr.Of(key),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: list versions operation failed: %w", err)
+	}
+
+	jsonResponse, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: list versions operation: cannot marshal list to json: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
 func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -401,6 +430,8 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return s.list(ctx, req)
 	case presignOperation:
 		return s.presign(ctx, req)
+	case listObjectVersions:
+		return s.listObjectVersions(ctx, req)
 	default:
 		return nil, fmt.Errorf("s3 binding error: unsupported operation %s", req.Operation)
 	}

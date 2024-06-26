@@ -15,6 +15,7 @@ package pubsub
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -256,5 +257,39 @@ func TestInit(t *testing.T) {
 		_, err := createMetadata(m)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "maxConcurrentConnections")
+	})
+	t.Run("valid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "30s", // Valid custom ack deadline in seconds
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 30*time.Second, md.AckDeadline, "AckDeadline should match the provided configuration")
+	})
+
+	t.Run("invalid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "-10m", // Invalid ack deadline
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err, "Should return an error for invalid ackDeadline")
+		assert.Contains(t, err.Error(), "invalid AckDeadline", "Error message should indicate the invalid ack deadline")
+	})
+
+	t.Run("default ackDeadline when not specified", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project", // No ackDeadline specified
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, defaultAckDeadline, md.AckDeadline, "Should use the default AckDeadline when none is specified")
 	})
 }

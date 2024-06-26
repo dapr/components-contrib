@@ -292,7 +292,7 @@ func TestRedis(t *testing.T) {
 			client := sidecar.GetClient(ctx, sidecarName1)
 			message.Reset()
 			var errSubscribe error
-			subscribeID, errSubscribe = client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
+			errSubscribe = client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
 				updateEvent := &configuration.UpdateEvent{
 					Items: castConfigurationItems(items),
 				}

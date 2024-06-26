@@ -202,7 +202,7 @@ func TestPostgres(t *testing.T) {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName)
 			message.Reset()
-			subscribeID, errSubscribe := client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
+			errSubscribe := client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
 				updateEvent := &configuration.UpdateEvent{
 					Items: castConfigurationItems(items),
 				}
@@ -212,10 +212,6 @@ func TestPostgres(t *testing.T) {
 			}, func(md map[string]string) {
 				md[pgNotifyChannelKey] = channel
 			})
-			if subscribeIDs[sidecarName] == nil {
-				subscribeIDs[sidecarName] = make([]string, 0)
-			}
-			subscribeIDs[sidecarName] = append(subscribeIDs[sidecarName], subscribeID)
 			return errSubscribe
 		}
 	}

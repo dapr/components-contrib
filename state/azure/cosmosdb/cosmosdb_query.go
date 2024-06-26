@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dapr/components-contrib/state/utils"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	jsoniter "github.com/json-iterator/go"
 
@@ -34,10 +36,11 @@ type InternalQuery struct {
 }
 
 type Query struct {
-	query        InternalQuery
-	limit        int
-	token        string
-	partitionKey string
+	query                   InternalQuery
+	limit                   int
+	token                   string
+	partitionKey            string
+	querySelectedAttributes []utils.Attribute
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
@@ -226,7 +229,16 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 		orderBy = " ORDER BY " + strings.Join(order, ", ")
 	}
 
-	q.query.query = "SELECT * FROM c" + filter + orderBy
+	if q.querySelectedAttributes != nil {
+		var columns string
+		columns = "c['id'], c['_etag'] "
+		for _, item := range q.querySelectedAttributes {
+			columns += ", " + replaceKeywords("c.value."+item.Path) + " as '" + item.Name + "' "
+		}
+		q.query.query = "SELECT " + columns + " FROM c" + filter + orderBy
+	} else {
+		q.query.query = "SELECT * FROM c" + filter + orderBy
+	}
 	q.limit = qq.Page.Limit
 	q.token = qq.Page.Token
 
@@ -272,7 +284,6 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 	} else {
 		pk = azcosmos.NewPartitionKeyBool(true)
 	}
-
 	queryPager := client.NewQueryItemsPager(q.query.query, pk, opts)
 
 	token := ""
@@ -291,7 +302,23 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 		}
 		for _, item := range queryResponse.Items {
 			tempItem := CosmosItem{}
-			err := json.Unmarshal(item, &tempItem)
+			var err error
+			if q.querySelectedAttributes != nil {
+				properties := make(map[string]interface{})
+				err = json.Unmarshal(item, &properties)
+				tempItem.ID = properties["id"].(string)
+				tempItem.Etag = properties["_etag"].(string)
+				if err != nil {
+					return nil, "", err
+				}
+				value := make(map[string]interface{})
+				for _, item := range q.querySelectedAttributes {
+					value[item.Name] = properties[item.Name]
+				}
+				tempItem.Value = value
+			} else {
+				err = json.Unmarshal(item, &tempItem)
+			}
 			if err != nil {
 				return nil, "", err
 			}

@@ -42,7 +42,10 @@ require (
 	google.golang.org/protobuf v1.33.0
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	modernc.org/sqlite v1.28.0
-		cloud.google.com/go v0.112.0 // indirect
+)
+
+require (
+	cloud.google.com/go v0.112.0 // indirect
 	cloud.google.com/go/compute v1.23.3 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/datastore v1.15.0 // indirect

@@ -393,7 +393,6 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 }
 
 func (s *AWSS3) listObjectVersions(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	key := req.Metadata[metadataKey]
 	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)

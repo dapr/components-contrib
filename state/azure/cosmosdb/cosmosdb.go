@@ -592,6 +592,15 @@ func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	q := &Query{}
 
 	qbuilder := query.NewQueryBuilder(q)
+
+	selectedAttributes, ok := contribmeta.TryGetQuerySelectedAttributes(req.Metadata)
+	if ok {
+		var err error
+		if q.querySelectedAttributes, err = stateutils.ParseQuerySelectedAttributes(selectedAttributes); err != nil {
+			return nil, fmt.Errorf("postgresql store: error parsing selected attributes: %w", err)
+		}
+	}
+
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}

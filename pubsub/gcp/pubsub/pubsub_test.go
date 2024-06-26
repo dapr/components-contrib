@@ -15,6 +15,7 @@ package pubsub
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,42 +130,39 @@ func TestInit(t *testing.T) {
 		require.ErrorContains(t, err, "connectionRecoveryInSec")
 	})
 
-	    t.Run("valid ackDeadline", func(t *testing.T) {
-        m := pubsub.Metadata{
-            Properties: map[string]string{
-                "projectId":   "test-project",
-                "ackDeadline": "30", // Valid custom ack deadline in seconds
-            },
-        }
+	t.Run("valid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "30s", // Valid custom ack deadline in seconds
+		}
 
-        md, err := createMetadata(m)
-        require.NoError(t, err)
-        assert.Equal(t, 30, md.AckDeadline, "AckDeadline should match the provided configuration")
-    })
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 30*time.Second, md.AckDeadline, "AckDeadline should match the provided configuration")
+	})
 
-    t.Run("invalid ackDeadline", func(t *testing.T) {
-        m := pubsub.Metadata{
-            Properties: map[string]string{
-                "projectId":   "test-project",
-                "ackDeadline": "-10", // Invalid ack deadline
-            },
-        }
+	t.Run("invalid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "-10m", // Invalid ack deadline
+		}
 
-        _, err := createMetadata(m)
-        require.Error(t, err, "Should return an error for invalid ackDeadline")
-        assert.Contains(t, err.Error(), "invalid AckDeadline", "Error message should indicate the invalid ack deadline")
-    })
+		_, err := createMetadata(m)
+		require.Error(t, err, "Should return an error for invalid ackDeadline")
+		assert.Contains(t, err.Error(), "invalid AckDeadline", "Error message should indicate the invalid ack deadline")
+	})
 
-    t.Run("default ackDeadline when not specified", func(t *testing.T) {
-        m := pubsub.Metadata{
-            Properties: map[string]string{
-                "projectId": "test-project", // No ackDeadline specified
-            },
-        }
+	t.Run("default ackDeadline when not specified", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project", // No ackDeadline specified
+		}
 
-        md, err := createMetadata(m)
-        require.NoError(t, err)
-        assert.Equal(t, defaultAckDeadline, md.AckDeadline, "Should use the default AckDeadline when none is specified")
-    })
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, defaultAckDeadline, md.AckDeadline, "Should use the default AckDeadline when none is specified")
+	})
 
 }

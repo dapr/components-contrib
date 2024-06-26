@@ -41,12 +41,13 @@ const (
 	// Metadata keys.
 	metadataProjectIDKey   = "projectId"
 	metedataOrderingKeyKey = "orderingKey"
+	metadataAckDeadlineKey = "ackDeadline"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
 	defaultConnectionRecoveryInSec = 2
 	defaultMaxDeliveryAttempts     = 5
-	defaultAckDeadline             = 20
+	defaultAckDeadline             = 20 * time.Second
 )
 
 // GCPPubSub type.
@@ -81,10 +82,6 @@ type GCPAuthJSON struct {
 
 type WhatNow struct {
 	Type string `json:"type"`
-}
-
-type metadata struct {
-    AckDeadline time.Duration `mapstructure:"ackDeadline"`
 }
 
 const topicCacheRefreshInterval = 5 * time.Hour
@@ -140,6 +137,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if result.ProjectID == "" {
 		return &result, fmt.Errorf("%s missing attribute %s", errorMessagePrefix, metadataProjectIDKey)
+	}
+
+	if result.AckDeadline <= 0 {
+		return nil, fmt.Errorf("%s invalid AckDeadline %s. Value must be a positive Go duration string or integer", errorMessagePrefix, pubSubMetadata.Properties[metadataAckDeadlineKey])
 	}
 
 	return &result, nil
@@ -447,7 +448,7 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
 		subConfig := gcppubsub.SubscriptionConfig{
-			AckDeadline:           time.Second * time.Duration(g.metadata.AckDeadline),
+			AckDeadline:           g.metadata.AckDeadline,
 			Topic:                 g.getTopic(topic),
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}

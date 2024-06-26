@@ -60,3 +60,9 @@ metadata:
     type: number
     default: '5'
     example: '5'
+  - name: ackDeadline
+    description: |
+      Message acknowledgement duration deadline.
+      Allows users to specify a custom message acknowledgment deadline after which a redelivery of the message will be performed if the message was not acknowledged.
+    default: '20s'
+    example: '1m'

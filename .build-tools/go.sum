@@ -1,6 +1,6 @@
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
-github.com/dapr/kit v0.13.1 h1:gEkKkWDfrGGQ0c/GNde9Ha/r46S5nC7RZBadOQ1VH/o=
-github.com/dapr/kit v0.13.1/go.mod h1:9s0sTs1tnK7rB4oeOqunQBLMNoar4m/Au5yU7HlvpzA=
+github.com/dapr/kit v0.13.2 h1:Ne+cWKn+LzEPZHvpsmHCAx5zieMqsC5WBJe8EuEpaBg=
+github.com/dapr/kit v0.13.2/go.mod h1:YI7Pof1HAmMws7D3UCg0xoKwk1F8NmGNJqx5lhB+538=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

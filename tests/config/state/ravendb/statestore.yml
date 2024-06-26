@@ -1,0 +1,9 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.ravendb
+  metadata:
+    - name: serverUrl
+      value: http://127.0.0.1:8080

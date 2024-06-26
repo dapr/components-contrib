@@ -53,7 +53,7 @@ type RavenDBMetadata struct {
 }
 
 type Item struct {
-	Key   string
+	ID    string
 	Value string
 	Etag  string
 	TTL   *time.Time
@@ -115,18 +115,22 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 }
 
 func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	session, err := r.documentStore.OpenSession("")
+	fmt.Println("Get called")
+	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
 	defer session.Close()
+	fmt.Println("Session opened")
+	fmt.Println(req.Key)
 
 	var item *Item
 	err = session.Load(&item, req.Key)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error storing data %s", err)
 	}
-
+	fmt.Println("Item loaded from DB")
+	fmt.Println(item)
 	resp := &state.GetResponse{
 		Data: []byte(item.Value),
 	}
@@ -135,24 +139,24 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 }
 
 func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
+	fmt.Println("RAVENDB: set called")
 	data, err := r.marshalToString(req.Value)
 	if err != nil {
 		return fmt.Errorf("ravendb error: failed to marshal value for key %s: %w", req.Key, err)
 	}
 
-	session, err := r.documentStore.OpenSession("")
-
+	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
 	defer session.Close()
-
-	item := Item{
-		Key:   req.Key,
+	item := &Item{
+		ID:    req.Key,
 		Value: data,
 	}
 
 	err = session.Store(item)
+
 	if err != nil {
 		return fmt.Errorf("error storing data: %s", err)
 	}
@@ -160,6 +164,8 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("error saving changes: %s", err)
 	}
+
+	fmt.Println("saved record")
 	return nil
 }
 
@@ -181,7 +187,7 @@ func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 	return jsoniterator.ConfigFastest.MarshalToString(v)
 }
 
-func (m *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (r *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := RavenDBMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return

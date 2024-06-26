@@ -31,13 +31,16 @@ type metadata struct {
 	AuthProviderCertURL string `mapstructure:"authProviderX509CertUrl" mdignore:"true"`
 	ClientCertURL       string `mapstructure:"clientX509CertUrl"       mdignore:"true"`
 
-	DisableEntityManagement bool          `mapstructure:"disableEntityManagement"`
-	EnableMessageOrdering   bool          `mapstructure:"enableMessageOrdering"`
-	MaxReconnectionAttempts int           `mapstructure:"maxReconnectionAttempts"`
-	ConnectionRecoveryInSec int           `mapstructure:"connectionRecoveryInSec"`
-	ConnectionEndpoint      string        `mapstructure:"endpoint"`
-	OrderingKey             string        `mapstructure:"orderingKey"`
-	DeadLetterTopic         string        `mapstructure:"deadLetterTopic"`
-	MaxDeliveryAttempts     int           `mapstructure:"maxDeliveryAttempts"`
-	AckDeadline             time.Duration `mapstructure:"ackDeadline"`
+	DisableEntityManagement  bool          `mapstructure:"disableEntityManagement"`
+	EnableMessageOrdering    bool          `mapstructure:"enableMessageOrdering"`
+	MaxReconnectionAttempts  int           `mapstructure:"maxReconnectionAttempts"`
+	ConnectionRecoveryInSec  int           `mapstructure:"connectionRecoveryInSec"`
+	ConnectionEndpoint       string        `mapstructure:"endpoint"`
+	OrderingKey              string        `mapstructure:"orderingKey"`
+	DeadLetterTopic          string        `mapstructure:"deadLetterTopic"`
+	MaxDeliveryAttempts      int           `mapstructure:"maxDeliveryAttempts"`
+	MaxOutstandingMessages   int           `mapstructure:"maxOutstandingMessages"`
+	MaxOutstandingBytes      int           `mapstructure:"maxOutstandingBytes"`
+	MaxConcurrentConnections int           `mapstructure:"maxConcurrentConnections"`
+	AckDeadline              time.Duration `mapstructure:"ackDeadline"`
 }

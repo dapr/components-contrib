@@ -326,6 +326,21 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 
 	readReconnectAttemptsRemaining := func() int { return len(reconnAttempts) }
 
+	// Apply configured limits for MaxOutstandingMessages, MaxOutstandingBytes, and MaxConcurrentConnections
+	// NOTE: negative MaxOutstandingMessages and MaxOutstaningBytes values are allowed and indicate
+	//  in the GCP pubsub library that no limit should be applied. Zero values result in the package
+	//  default being used: 1000 messages and 1e9 (1G) bytes respectively.
+	if g.metadata.MaxOutstandingMessages != 0 {
+		sub.ReceiveSettings.MaxOutstandingMessages = g.metadata.MaxOutstandingMessages
+	}
+	if g.metadata.MaxOutstandingBytes != 0 {
+		sub.ReceiveSettings.MaxOutstandingBytes = g.metadata.MaxOutstandingBytes
+	}
+	// NOTE: For MaxConcurrentConnections, negative values are not allowed so only override if the value is greater than 0
+	if g.metadata.MaxConcurrentConnections > 0 {
+		sub.ReceiveSettings.NumGoroutines = g.metadata.MaxConcurrentConnections
+	}
+
 	// Periodically refill the reconnect attempts channel to avoid
 	// exhausting all the refill attempts due to intermittent issues
 	// occurring over a longer period of time.

@@ -15,7 +15,11 @@ package postgresql
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
@@ -35,7 +39,6 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 	return m.Perform(ctx, []commonsql.MigrationFn{
 		// Migration 0: create the state table
 		func(ctx context.Context) error {
-			// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
 			opts.Logger.Infof("Creating state table '%s'", opts.StateTableName)
 			_, err := db.Exec(
 				ctx,
@@ -51,8 +54,18 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 				),
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create state table: %w", err)
+				// Check if the error is about a duplicate key constraint violation.
+				// Note: This can occur due to a race of multiple sidecars trying to run the table creation within their own transactions.
+				// It's then a race to see who actually gets to create the table, and who gets the unique constraint violation error.
+				// If the error is not a UniqueViolation (23505), abort
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+					opts.Logger.Debugf("ignoring PostgreSQL duplicate key error for table '%s'", opts.StateTableName)
+				} else {
+					return fmt.Errorf("failed to create state table: '%s', %v", opts.StateTableName, err)
+				}
 			}
+
 			return nil
 		},
 

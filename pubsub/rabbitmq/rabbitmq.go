@@ -31,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -48,17 +49,19 @@ const (
 	defaultHeartbeat        = 10 * time.Second
 	defaultLocale           = "en_US"
 
-	argQueueMode              = "x-queue-mode"
-	argMaxLength              = "x-max-length"
-	argMaxLengthBytes         = "x-max-length-bytes"
-	argDeadLetterExchange     = "x-dead-letter-exchange"
-	argMaxPriority            = "x-max-priority"
-	propertyClientName        = "connection_name"
-	queueModeLazy             = "lazy"
-	reqMetadataRoutingKey     = "routingKey"
-	reqMetadataQueueTypeKey   = "queueType" // at the moment, only supporting classic and quorum queues
-	reqMetadataMaxLenKey      = "maxLen"
-	reqMetadataMaxLenBytesKey = "maxLenBytes"
+	argQueueMode                       = "x-queue-mode"
+	argMaxLength                       = "x-max-length"
+	argMaxLengthBytes                  = "x-max-length-bytes"
+	argDeadLetterExchange              = "x-dead-letter-exchange"
+	argMaxPriority                     = "x-max-priority"
+	argSingleActiveConsumer            = "x-single-active-consumer"
+	propertyClientName                 = "connection_name"
+	queueModeLazy                      = "lazy"
+	reqMetadataRoutingKey              = "routingKey"
+	reqMetadataQueueTypeKey            = "queueType" // at the moment, only supporting classic and quorum queues
+	reqMetadataSingleActiveConsumerKey = "singleActiveConsumer"
+	reqMetadataMaxLenKey               = "maxLen"
+	reqMetadataMaxLenBytesKey          = "maxLenBytes"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -430,6 +433,11 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	} else {
 		args[amqp.QueueTypeArg] = amqp.QueueTypeClassic
+	}
+
+	// Applying x-single-active-consumer if defined at subscription level
+	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; utils.IsTruthy(val) {
+		args[argSingleActiveConsumer] = true
 	}
 
 	// Applying x-max-length-bytes if defined at subscription level

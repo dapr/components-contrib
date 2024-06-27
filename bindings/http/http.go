@@ -123,7 +123,7 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		Timeout: 15 * time.Second,
 	}
 	netTransport := http.DefaultTransport.(*http.Transport).Clone()
-	netTransport.Dial = dialer.Dial
+	netTransport.DialContext = dialer.DialContext
 	netTransport.TLSHandshakeTimeout = 15 * time.Second
 	netTransport.TLSClientConfig = tlsConfig
 

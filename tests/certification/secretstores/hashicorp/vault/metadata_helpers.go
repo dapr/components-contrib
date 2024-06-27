@@ -74,7 +74,7 @@ func getComponentCapabilities(ctx flow.Context, currentGrpcPort int, targetCompo
 
 	clientCtx := context.Background()
 
-	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, &runtime.GetMetadataRequest{})
+	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, new(runtime.GetMetadataRequest))
 	assert.NoError(ctx.T, err)
 	assert.NotNil(ctx.T, resp)
 	assert.NotNil(ctx.T, resp.GetRegisteredComponents())

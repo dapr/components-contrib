@@ -286,7 +286,6 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 		}
 
 		token = queryResponse.ContinuationToken
-
 		for _, item := range queryResponse.Items {
 			tempItem := CosmosItem{}
 			err := json.Unmarshal(item, &tempItem)

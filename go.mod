@@ -50,7 +50,7 @@ require (
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0
-	github.com/cloudevents/sdk-go/v2 v2.14.0
+	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4

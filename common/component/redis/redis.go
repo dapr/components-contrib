@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"strconv"
 	"strings"
 	"time"
@@ -89,7 +90,6 @@ type RedisClient interface {
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
-	Auth(ctx context.Context, password string) error
 	AuthACL(ctx context.Context, username, password string) error
 }
 
@@ -103,8 +103,8 @@ type ConfigurationSubscribeArgs struct {
 	Stop                   chan struct{}
 }
 
-func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType, ctx context.Context, logger *kitlogger.Logger) (client RedisClient, settings *Settings, err error) {
-	settings = &Settings{}
+func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType, ctx context.Context, logger *kitlogger.Logger) (RedisClient, *Settings, error) {
+	settings := Settings{}
 
 	// upgrade legacy metadata properties and set defaults
 	switch componentType {
@@ -141,9 +141,9 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		settings.Concurrency = 10
 	}
 
-	err = settings.Decode(properties)
-	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	decodeErr := settings.Decode(properties)
+	if decodeErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", decodeErr)
 	}
 
 	switch componentType {
@@ -172,7 +172,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	if settings.UseEntraID {
 		tokenExpires, tokenCredential, entraIDErr = settings.GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx, &properties)
 		if entraIDErr != nil {
-			return nil, nil, err
+			return nil, nil, entraIDErr
 		}
 	}
 
@@ -182,9 +182,10 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		newClientFunc = newV8FailoverClient
 	}
 
-	c, err = newClientFunc(settings)
-	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	var newClientErr error
+	c, newClientErr = newClientFunc(&settings)
+	if newClientErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", newClientErr)
 	}
 
 	version, versionErr := GetServerVersion(c)
@@ -208,23 +209,24 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			newClientFunc = newV9FailoverClient
 		}
 	}
-	c, err = newClientFunc(settings)
-	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	c, newClientErr = newClientFunc(&settings)
+	if newClientErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", newClientErr)
 	}
 
 	// start the token refresh goroutine
 
 	if settings.UseEntraID {
-		fmt.Printf("%v", tokenExpires)
-		StartEntraIDTokenRefreshBackgroundRoutine(ctx, c, *tokenExpires, tokenCredential, logger)
+		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
 	}
-	return c, settings, nil
+	return c, &settings, nil
 }
 
-func StartEntraIDTokenRefreshBackgroundRoutine(ctx context.Context, client RedisClient, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
+func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
 
-	go func(cred *azcore.TokenCredential, logger *kitlogger.Logger) {
+	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		backoffConfig := kitretry.DefaultConfig()
 		backoffConfig.MaxRetries = 3
 		backoffConfig.Policy = kitretry.PolicyExponential
@@ -233,17 +235,25 @@ func StartEntraIDTokenRefreshBackgroundRoutine(ctx context.Context, client Redis
 		var refreshGracePeriod time.Duration = 2 * time.Minute
 		var tokenRefreshDuration time.Duration = time.Until(nextExpiration.Add(-refreshGracePeriod))
 
-		for {
-			select {
-			case <-time.After(tokenRefreshDuration):
+		(*logger).Debugf("redis client: starting entraID token refresh loop")
 
+		for {
+			(*logger).Debugf("redis client: next entraID token refresh: %v", tokenRefreshDuration)
+			select {
+			case <-ctx.Done():
+				(*logger).Infof("redis client: entraID token refresh stopped due to context cancellation")
+				return
+			case <-time.After(tokenRefreshDuration):
+				(*logger).Debug("redis client: refreshing entraID token")
 				// Get a new access token
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				var token azcore.AccessToken
 				tokenErr := kitretry.NotifyRecover(
 					func() error {
 						var innerTokenErr error
-						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{})
+						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{
+							Scopes: []string{"https://redis.azure.com/.default"},
+						})
 						return innerTokenErr
 					},
 					backoffManager,
@@ -265,7 +275,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(ctx context.Context, client Redis
 				authErr := kitretry.NotifyRecover(
 					func() error {
 						var innerAuthErr error
-						innerAuthErr = client.Auth(ctx, token.Token)
+						innerAuthErr = client.AuthACL(ctx, username, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,
@@ -282,20 +292,20 @@ func StartEntraIDTokenRefreshBackgroundRoutine(ctx context.Context, client Redis
 					return
 				}
 				// Since the entraID auth succeeded we are setting the duration to wait for the next iteration of the refresh loop
-				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
 
-			case <-ctx.Done():
-				return
+				(*logger).Debugf("redis client: entraID auth token successfully refreshed with the server")
+
+				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
 			}
 		}
-	}(cred, logger)
+	}(cred, username, logger)
 }
 
 func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
 
-	if len(s.Username) > 0 || len(s.Password) > 0 {
+	if len(s.Password) > 0 || len(s.Username) > 0 {
 		return nil, nil, errors.New(
-			"redis client configuration error: username and password must not be specified when using Entra ID authentication")
+			"redis client configuration error: username or password must not be specified when using Entra ID authentication")
 	}
 	envSettings, envErr := azure.NewEnvironmentSettings(*properties)
 	if envErr != nil {
@@ -306,11 +316,29 @@ func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", tokenCredErr)
 	}
 
-	token, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{})
+	token, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://redis.azure.com/.default"},
+	})
 	if tokenErr != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", tokenErr)
 	}
+
 	s.Password = token.Token
+
+	type CustomClaims struct {
+		Oid string `json:"oid"`
+		jwt.RegisteredClaims
+	}
+
+	parsedToken, _, parseErr := jwt.NewParser().ParseUnverified(token.Token, &CustomClaims{})
+	if parseErr != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", parseErr)
+	}
+	if claims, ok := parsedToken.Claims.(*CustomClaims); ok {
+		s.Username = claims.Oid
+	} else {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", errors.New("could not parse object ID from Auth token"))
+	}
 	return &token.ExpiresOn, &cred, nil
 }
 

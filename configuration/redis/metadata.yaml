@@ -181,3 +181,11 @@ metadata:
       "-1" disables idle timeout check.
     default: "5m"
     example: "10m"
+  - name: useEntraID
+    required: false
+    default: false
+    type: bool
+    description: |
+      If set, enables authentication to Azure Cache for Redis using Azure Managed Identity
+      or Azure CLI Credential. The Redis server must explicitly enable EntraID authentication. Note that
+      Azure Cache for Redis also requires the use of TLS, so `enableTLS` should be set.

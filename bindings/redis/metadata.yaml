@@ -195,7 +195,8 @@ metadata:
     example: "10m"
   - name: useEntraID
     required: false
-    default: false
+    default: "false"
+    example: "true"
     type: bool
     description: |
       If set, enables authentication to Azure Cache for Redis using Azure Managed Identity

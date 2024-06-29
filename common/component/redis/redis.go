@@ -17,13 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang-jwt/jwt/v5"
-	"strconv"
-	"strings"
-	"time"
 
 	"golang.org/x/mod/semver"
 
@@ -223,7 +224,6 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 }
 
 func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
-
 	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -302,7 +302,6 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 }
 
 func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
-
 	if len(s.Password) > 0 || len(s.Username) > 0 {
 		return nil, nil, errors.New(
 			"redis client configuration error: username or password must not be specified when using Entra ID authentication")

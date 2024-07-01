@@ -346,10 +346,9 @@ func newV8FailoverClient(s *Settings) (RedisClient, error) {
 		IdleTimeout:        time.Duration(s.IdleTimeout),
 	}
 
-	/* #nosec */
 	if s.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -403,7 +402,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 		/* #nosec */
 		if s.EnableTLS {
 			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
+				InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 			}
 			err := s.SetCertificate(func(cert *tls.Certificate) {
 				options.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -443,7 +442,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 	/* #nosec */
 	if s.EnableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}

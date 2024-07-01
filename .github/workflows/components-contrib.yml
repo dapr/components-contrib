@@ -33,7 +33,7 @@ jobs:
       GOOS: linux
       GOARCH: amd64
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.55.2"
+      GOLANGCI_LINT_VER: "v1.59.1"
     steps:
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
@@ -62,7 +62,7 @@ jobs:
         run: make check-component-metadata
       - name: Run golangci-lint
         if: steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v3.4.0
+        uses: golangci/golangci-lint-action@v6.0.1
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true

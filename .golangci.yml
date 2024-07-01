@@ -71,9 +71,6 @@ linters-settings:
     statements: 40
 
   govet:
-    # report about shadowed variables
-    check-shadowing: true
-
     # settings per analyzer
     settings:
       printf: # analyzer name, run `go tool vet help` to see all analyzers
@@ -86,6 +83,7 @@ linters-settings:
     # enable or disable analyzers by name
     enable:
       - atomicalign
+      - shadow
     enable-all: false
     disable:
       - shadow
@@ -106,9 +104,6 @@ linters-settings:
   gocognit:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
     min-complexity: 10
-  maligned:
-    # print struct with more effective memory layout or not, false by default
-    suggest-new: true
   dupl:
     # tokens count to trigger issue, 150 by default
     threshold: 100
@@ -121,6 +116,10 @@ linters-settings:
     rules:
       main:
         deny:
+          - pkg: "github.com/golang-jwt/jwt/v5"
+            desc: "must use github.com/lestrrat-go/jwx/v2/jwt"
+          - pkg: "github.com/golang-jwt/jwt/v4"
+            desc: "must use github.com/lestrrat-go/jwx/v2/jwt"
           - pkg: "github.com/Sirupsen/logrus"
             desc: "must use github.com/dapr/kit/logger"
           - pkg: "github.com/agrea/ptr"
@@ -277,28 +276,24 @@ linters:
     - gocyclo
     - gocognit
     - godox
-    - interfacer
     - lll
-    - maligned
-    - scopelint
     - unparam
     - wsl
+    - mnd
     - gomnd
     - testpackage
-    - goerr113
+    - err113
     - nestif
     - nlreturn
     - exhaustive
     - exhaustruct
     - noctx
     - gci
-    - golint
     - tparallel
     - paralleltest
     - wrapcheck
     - tagliatelle
     - ireturn
-    - exhaustivestruct
     - errchkjson
     - contextcheck
     - gomoddirectives
@@ -307,7 +302,6 @@ linters:
     - varnamelen
     - errorlint
     - forcetypeassert
-    - ifshort
     - maintidx
     - nilnil
     - predeclared
@@ -320,10 +314,6 @@ linters:
     - asasalint
     - rowserrcheck
     - sqlclosecheck
-    - structcheck
-    - deadcode
-    - nosnakecase
-    - varcheck
     - goconst
     - tagalign
     - inamedparam

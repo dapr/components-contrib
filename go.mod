@@ -8,14 +8,14 @@ require (
 	cloud.google.com/go/secretmanager v1.11.5
 	cloud.google.com/go/storage v1.36.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.3.0
+	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.3
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.2.1
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.7.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.1.0
@@ -51,7 +51,7 @@ require (
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0
-	github.com/cloudevents/sdk-go/v2 v2.14.0
+	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4
@@ -117,10 +117,10 @@ require (
 	go.mongodb.org/mongo-driver v1.12.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
-	golang.org/x/crypto v0.22.0
+	golang.org/x/crypto v0.24.0
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
-	golang.org/x/mod v0.14.0
-	golang.org/x/net v0.24.0
+	golang.org/x/mod v0.17.0
+	golang.org/x/net v0.26.0
 	golang.org/x/oauth2 v0.17.0
 	google.golang.org/api v0.162.0
 	google.golang.org/grpc v1.63.0
@@ -147,7 +147,7 @@ require (
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.7.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
@@ -383,12 +383,12 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
-	golang.org/x/term v0.19.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.17.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240227224415-6ceb2ff114de // indirect

@@ -169,3 +169,18 @@ metadata:
     description: Maximum number of items inside a stream.The old entries are automatically evicted when the specified length is reached, so that the stream is left at a constant size. Defaults to unlimited.
     example: "10000"
     type: number
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useEntraID
+        required: false
+        default: "false"
+        example: "true"
+        type: bool
+        description: |
+          If set, enables authentication to Azure Cache for Redis using Microsoft EntraID. The Redis server must explicitly enable EntraID authentication. Note that
+          Azure Cache for Redis also requires the use of TLS, so `enableTLS` should be set. No username or password should be set.
+      - name: enableTLS
+        required: true
+        description: Must be set to true if using EntraID
+        example: "true"

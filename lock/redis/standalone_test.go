@@ -42,7 +42,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 
@@ -58,7 +58,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 
@@ -75,7 +75,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["maxRetries"] = "1 "
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 }
@@ -98,12 +98,12 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	cfg.Properties["redisPassword"] = ""
 
 	// Init
-	err = comp.InitLockStore(context.Background(), cfg)
+	err = comp.Init(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// 1. client1 trylock
 	ownerID1 := uuid.New().String()
-	resp, err := comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp, err := comp.TryLock(context.Background(), &lock.LockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       ownerID1,
 		ExpiryInSeconds: 10,
@@ -113,7 +113,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 
 	//	2. Client2 tryLock fail
 	owner2 := uuid.New().String()
-	resp, err = comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp, err = comp.TryLock(context.Background(), &lock.LockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       owner2,
 		ExpiryInSeconds: 10,
@@ -131,7 +131,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 
 	// 4. Client 2 get lock
 	owner2 = uuid.New().String()
-	resp2, err2 := comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp2, err2 := comp.TryLock(context.Background(), &lock.LockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       owner2,
 		ExpiryInSeconds: 10,

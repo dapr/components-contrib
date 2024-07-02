@@ -317,6 +317,12 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
+func (c v9Client) AuthACL(ctx context.Context, username, password string) error {
+	pipeline := c.client.Pipeline()
+	statusCmd := pipeline.AuthACL(ctx, username, password)
+	return statusCmd.Err()
+}
+
 func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil
@@ -344,7 +350,7 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	/* #nosec */
 	if s.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -400,7 +406,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		if s.EnableTLS {
 			/* #nosec */
 			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
+				InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 			}
 			err := s.SetCertificate(func(cert *tls.Certificate) {
 				options.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -440,7 +446,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 	if s.EnableTLS {
 		/* #nosec */
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}

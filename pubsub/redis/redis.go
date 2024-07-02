@@ -76,7 +76,7 @@ func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
 
 func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	var err error
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.PubSubType)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.PubSubType, ctx, &r.logger)
 	if err != nil {
 		return err
 	}

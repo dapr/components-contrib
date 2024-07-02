@@ -9,9 +9,9 @@ import (
 
 func TestParseQuerySelectedAttributes(t *testing.T) {
 	t.Run("Selected attributes no empty ", func(t *testing.T) {
-		selectedAttributes := `[{"name":"test", "path":"data.test"}]`
+		selectedAttributes := `[{"name":"test", "path":"data.test", "type": "Text"}]`
 
-		attributeArray := []Attribute{{Name: "test", Path: "data.test"}}
+		attributeArray := []Attribute{{Name: "test", Path: "data.test", Type: Text}}
 
 		querySelectedAttributes, err := ParseQuerySelectedAttributes(selectedAttributes)
 		require.NoError(t, err)

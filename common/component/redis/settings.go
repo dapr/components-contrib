@@ -101,6 +101,10 @@ type Settings struct {
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
+
+	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
+	// from the official Azure Identity SDK for Go
+	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

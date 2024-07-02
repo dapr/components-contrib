@@ -143,7 +143,7 @@ func TestInvokeDelete(t *testing.T) {
 
 	rgetRep, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
-	assert.Equal(t, nil, rgetRep)
+	assert.Nil(t, rgetRep)
 }
 
 func TestCreateExpire(t *testing.T) {

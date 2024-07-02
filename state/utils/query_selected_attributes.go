@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 type Type int
@@ -17,11 +19,11 @@ const (
 )
 
 var stringToType = map[string]Type{
-	"Text":    Text,
-	"Numeric": Numeric,
-	"Bool":    Bool,
-	"Object":  Object,
-	"Array":   Array,
+	`"Text"`:    Text,
+	`"Numeric"`: Numeric,
+	`"Bool"`:    Bool,
+	`"Object"`:  Object,
+	`"Array"`:   Array,
 }
 
 func ParseType(typeString string) (Type, error) {
@@ -29,6 +31,16 @@ func ParseType(typeString string) (Type, error) {
 		return s, nil
 	}
 	return Text, fmt.Errorf("invalid type, default text: %s", typeString)
+}
+
+func (t *Type) UnmarshalJSON(p []byte) error {
+	elem := string(p)
+	if elem == `null` || elem == `""` {
+		return nil
+	}
+	var err error
+	*t, err = ParseType(strings.Trim(elem, strconv.Itoa(int('"'))))
+	return err
 }
 
 type Attribute struct {

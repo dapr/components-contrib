@@ -231,9 +231,9 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 
 	if q.querySelectedAttributes != nil {
 		var columns string
-		columns = "c['id'], c['_etag'] "
+		columns = "c['id'], c['_etag']"
 		for _, item := range q.querySelectedAttributes {
-			columns += ", " + replaceKeywords("c.value."+item.Path) + " as '" + item.Name + "' "
+			columns += ", " + replaceKeywords("c.value."+item.Path) + " as '" + item.Name + "'"
 		}
 		q.query.query = "SELECT " + columns + " FROM c" + filter + orderBy
 	} else {

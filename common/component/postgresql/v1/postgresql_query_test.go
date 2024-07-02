@@ -18,6 +18,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dapr/components-contrib/state/utils"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,8 +28,9 @@ import (
 
 func TestPostgresqlQueryBuildQuery(t *testing.T) {
 	tests := []struct {
-		input string
-		query string
+		input              string
+		query              string
+		selectedAttributes string
 	}{
 		{
 			input: "../../../../tests/state/query/q1.json",
@@ -61,11 +64,17 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 			input: "../../../../tests/state/query/q8.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'>=$1 OR (value->'person'->>'org'<$2 AND (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
 		},
+		{
+			input:              "../../../../tests/state/query/q8.json",
+			query:              "SELECT key, value->>'person' as Person, value->'person'->>'org' as Organization, xmin as etag FROM state WHERE (value->'person'->>'org'>=$1 OR (value->'person'->>'org'<$2 AND (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
+			selectedAttributes: `[{"name":"Person", "path":"person", "type":"Object"},{"name":"Organization", "path":"person.org", "type":"Text"}]`,
+		},
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)
 		require.NoError(t, err)
 		var qq query.Query
+
 		err = json.Unmarshal(data, &qq)
 		require.NoError(t, err)
 
@@ -73,6 +82,12 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 			tableName:  defaultTableName,
 			etagColumn: "xmin",
 		}
+
+		if len(test.selectedAttributes) > 0 {
+			q.querySelectedAttributes, err = utils.ParseQuerySelectedAttributes(test.selectedAttributes)
+			require.NoError(t, err)
+		}
+
 		qbuilder := query.NewQueryBuilder(q)
 		err = qbuilder.BuildQuery(&qq)
 		require.NoError(t, err)

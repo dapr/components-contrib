@@ -116,7 +116,12 @@ test:
 ################################################################################
 .PHONY: lint
 lint: verify-linter-installed verify-linter-version
+ifdef LINT_BASE
+	@echo "LINT_BASE is set to "$(LINT_BASE)". Linter will only check diff."
+	$(GOLANGCI_LINT) run --timeout=20m --new-from-rev $(shell git rev-parse $(LINT_BASE))
+else
 	$(GOLANGCI_LINT) run --timeout=20m
+endif
 
 ################################################################################
 # Target: modtidy-all                                                          #

@@ -50,7 +50,7 @@ func NewStandaloneRedisLock(logger logger.Logger) lock.Store {
 // Init StandaloneRedisLock.
 func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.Metadata) (err error) {
 	// Create the client
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.LockStoreType)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.LockStoreType, ctx, &r.logger)
 	if err != nil {
 		return err
 	}

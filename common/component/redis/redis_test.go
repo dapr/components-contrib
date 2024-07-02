@@ -105,6 +105,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 1*time.Second, time.Duration(m.IdleCheckFrequency))
 		assert.True(t, m.Failover)
 		assert.Equal(t, "master", m.SentinelMasterName)
+		assert.False(t, m.UseEntraID)
 	})
 
 	// TODO: Refactor shared redis code to throw error for missing properties

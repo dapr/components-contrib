@@ -66,6 +66,7 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true
+          only-new-issues: true
           args: --timeout 15m
       - name: Run go mod tidy check diff
         if: steps.skip_check.outputs.should_skip != 'true'

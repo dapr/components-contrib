@@ -16,12 +16,13 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
@@ -120,10 +121,10 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 
 	if m.APIKey != "" {
 		// use API key authentication
-		var keyCredential azopenai.KeyCredential
-		keyCredential, err = azopenai.NewKeyCredential(m.APIKey)
-		if err != nil {
-			return fmt.Errorf("error getting credentials object: %w", err)
+		var keyCredential *azcore.KeyCredential
+		keyCredential = azcore.NewKeyCredential(m.APIKey)
+		if keyCredential == nil {
+			return errors.New("error getting credentials object")
 		}
 
 		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, nil)
@@ -163,7 +164,7 @@ func (p *AzOpenAI) Operations() []bindings.OperationKind {
 // Invoke handles all invoke operations.
 func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil || len(req.Metadata) == 0 {
-		return nil, fmt.Errorf("invalid request: metadata is required")
+		return nil, errors.New("invalid request: metadata is required")
 	}
 
 	startTime := time.Now().UTC()
@@ -228,7 +229,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	if prompt.Prompt == "" {
-		return nil, fmt.Errorf("prompt is required for completion operation")
+		return nil, errors.New("prompt is required for completion operation")
 	}
 
 	if prompt.DeploymentID == "" {
@@ -240,13 +241,13 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Deployment:  prompt.DeploymentID,
-		Prompt:      []string{prompt.Prompt},
-		MaxTokens:   &prompt.MaxTokens,
-		Temperature: &prompt.Temperature,
-		TopP:        &prompt.TopP,
-		N:           &prompt.N,
-		Stop:        prompt.Stop,
+		DeploymentName: &prompt.DeploymentID,
+		Prompt:         []string{prompt.Prompt},
+		MaxTokens:      &prompt.MaxTokens,
+		Temperature:    &prompt.Temperature,
+		TopP:           &prompt.TopP,
+		N:              &prompt.N,
+		Stop:           prompt.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting completion api: %w", err)
@@ -280,7 +281,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	if len(messages.Messages) == 0 {
-		return nil, fmt.Errorf("messages are required for chat-completion operation")
+		return nil, errors.New("messages are required for chat-completion operation")
 	}
 
 	if messages.DeploymentID == "" {
@@ -291,11 +292,32 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 		messages.Stop = nil
 	}
 
-	messageReq := make([]azopenai.ChatMessage, len(messages.Messages))
+	messageReq := make([]azopenai.ChatRequestMessageClassification, len(messages.Messages))
 	for i, m := range messages.Messages {
-		messageReq[i] = azopenai.ChatMessage{
-			Role:    to.Ptr(azopenai.ChatRole(m.Role)),
-			Content: to.Ptr(m.Message),
+		currentMsg := m.Message
+		switch azopenai.ChatRole(m.Role) {
+		case azopenai.ChatRoleUser:
+			messageReq[i] = &azopenai.ChatRequestUserMessage{
+				Content: azopenai.NewChatRequestUserMessageContent(currentMsg),
+			}
+		case azopenai.ChatRoleAssistant:
+			messageReq[i] = &azopenai.ChatRequestAssistantMessage{
+				Content: &currentMsg,
+			}
+		case azopenai.ChatRoleFunction:
+			messageReq[i] = &azopenai.ChatRequestFunctionMessage{
+				Content: &currentMsg,
+			}
+		case azopenai.ChatRoleSystem:
+			messageReq[i] = &azopenai.ChatRequestSystemMessage{
+				Content: &currentMsg,
+			}
+		case azopenai.ChatRoleTool:
+			messageReq[i] = &azopenai.ChatRequestToolMessage{
+				Content: &currentMsg,
+			}
+		default:
+			return nil, fmt.Errorf("invalid role: %s", m.Role)
 		}
 	}
 
@@ -305,13 +327,13 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
-		Deployment:  messages.DeploymentID,
-		MaxTokens:   maxTokens,
-		Temperature: &messages.Temperature,
-		TopP:        &messages.TopP,
-		N:           &messages.N,
-		Messages:    messageReq,
-		Stop:        messages.Stop,
+		DeploymentName: &messages.DeploymentID,
+		MaxTokens:      maxTokens,
+		Temperature:    &messages.Temperature,
+		TopP:           &messages.TopP,
+		N:              &messages.N,
+		Messages:       messageReq,
+		Stop:           messages.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting chat completion api: %w", err)
@@ -343,8 +365,8 @@ func (p *AzOpenAI) getEmbedding(ctx context.Context, messageRequest []byte, meta
 	}
 
 	res, err := p.client.GetEmbeddings(ctx, azopenai.EmbeddingsOptions{
-		Deployment: message.DeploymentID,
-		Input:      []string{message.Message},
+		DeploymentName: &message.DeploymentID,
+		Input:          []string{message.Message},
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting embedding api: %w", err)

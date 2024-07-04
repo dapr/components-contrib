@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.22.4
+go 1.22.5
 
 require (
 	cloud.google.com/go/pubsub v1.36.1
@@ -18,7 +18,7 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.13.1
-	github.com/dapr/dapr v1.13.0
+	github.com/dapr/dapr v1.14.0-rc.1
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
 	github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f
 	github.com/eclipse/paho.mqtt.golang v1.4.3

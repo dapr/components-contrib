@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	jsoniterator "github.com/json-iterator/go"
@@ -115,22 +116,17 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 }
 
 func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	fmt.Println("Get called")
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
 	defer session.Close()
-	fmt.Println("Session opened")
-	fmt.Println(req.Key)
 
 	var item *Item
 	err = session.Load(&item, req.Key)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error storing data %s", err)
 	}
-	fmt.Println("Item loaded from DB")
-	fmt.Println(item)
 	resp := &state.GetResponse{
 		Data: []byte(item.Value),
 	}
@@ -139,33 +135,20 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 }
 
 func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
-	fmt.Println("RAVENDB: set called")
-	data, err := r.marshalToString(req.Value)
-	if err != nil {
-		return fmt.Errorf("ravendb error: failed to marshal value for key %s: %w", req.Key, err)
-	}
-
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
 	defer session.Close()
-	item := &Item{
-		ID:    req.Key,
-		Value: data,
-	}
-
-	err = session.Store(item)
-
+	err = r.setInternal(ctx, req, session)
 	if err != nil {
-		return fmt.Errorf("error storing data: %s", err)
+		return fmt.Errorf("error processing item %s", err)
 	}
+
 	err = session.SaveChanges()
 	if err != nil {
-		return fmt.Errorf("error saving changes: %s", err)
+		return fmt.Errorf("error saving changes %s", err)
 	}
-
-	fmt.Println("saved record")
 	return nil
 }
 
@@ -191,6 +174,40 @@ func (r *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := RavenDBMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, session *ravendb.DocumentSession) error {
+	data, err := r.marshalToString(req.Value)
+	if err != nil {
+		return fmt.Errorf("ravendb error: failed to marshal value for key %s: %w", req.Key, err)
+	}
+
+	item := &Item{
+		ID:    req.Key,
+		Value: data,
+	}
+
+	err = session.Store(item)
+	if err != nil {
+		return fmt.Errorf("error storing data: %s", err)
+	}
+
+	reqTTL, err := stateutils.ParseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to parse TTL: %w", err)
+	}
+
+	if reqTTL != nil {
+		metaData, err := session.Advanced().GetMetadataFor(item)
+		if err != nil {
+			return fmt.Errorf("Failed to get metadata for item")
+		}
+		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
+		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
+		metaData.Put("@expires", iso8601String)
+	}
+
+	return nil
 }
 
 func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {

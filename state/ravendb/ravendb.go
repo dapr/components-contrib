@@ -103,10 +103,11 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	}
 	defer session.Close()
 
-	err = session.DeleteByID(req.Key, "")
+	err = r.deleteInternal(ctx, req, session)
 	if err != nil {
 		return fmt.Errorf("error deleting %s", req.Key)
 	}
+
 	err = session.SaveChanges()
 	if err != nil {
 		return fmt.Errorf("error saving changes")
@@ -162,6 +163,34 @@ func (r *RavenDB) Ping(ctx context.Context) error {
 	return nil
 }
 
+func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
+	if err != nil {
+		return fmt.Errorf("error opening session while storing data faild with error %s", err)
+	}
+	defer session.Close()
+	for _, o := range request.Operations {
+		var err error
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = r.setInternal(ctx, &req, session)
+		case state.DeleteRequest:
+			err = r.deleteInternal(ctx, &req, session)
+		}
+
+		if err != nil {
+			return fmt.Errorf("error parsing requests: %w", err)
+		}
+	}
+
+	err = session.SaveChanges()
+	if err != nil {
+		return fmt.Errorf("error during transaction, aborting the transaction: %w", err)
+	}
+
+	return nil
+}
+
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 	if buf, ok := v.([]byte); ok {
 		return string(buf), nil
@@ -205,6 +234,15 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
 		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
 		metaData.Put("@expires", iso8601String)
+	}
+
+	return nil
+}
+
+func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, session *ravendb.DocumentSession) error {
+	err := session.DeleteByID(req.Key, "")
+	if err != nil {
+		return fmt.Errorf("error deleting %s", req.Key)
 	}
 
 	return nil

@@ -623,7 +623,6 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		}
 		s.logger.Debugf("%v message(s) received on queue %s", len(messageResponse.Messages), queueInfo.arn)
 
-		var wg sync.WaitGroup
 		for _, message := range messageResponse.Messages {
 			if err := s.validateMessage(ctx, message, queueInfo, deadLettersQueueInfo); err != nil {
 				s.logger.Errorf("message is not valid for further processing by the handler. error is: %v", err)
@@ -631,25 +630,20 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			}
 
 			f := func(message *sqs.Message) {
-				defer wg.Done()
 				if err := s.callHandler(ctx, message, queueInfo); err != nil {
 					s.logger.Errorf("error while handling received message. error is: %v", err)
 				}
 			}
 
-			wg.Add(1)
 			switch s.metadata.ConcurrencyMode {
 			case pubsub.Single:
 				f(message)
 			case pubsub.Parallel:
-				wg.Add(1)
 				go func(message *sqs.Message) {
-					defer wg.Done()
 					f(message)
 				}(message)
 			}
 		}
-		wg.Wait()
 	}
 }
 

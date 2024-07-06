@@ -588,6 +588,13 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		WaitTimeSeconds:     aws.Int64(s.metadata.MessageWaitTimeSeconds),
 	}
 
+	// sem is a semaphore used to control the concurrencyLimit.
+	// It is set only when we are in parallel mode and limit is > 0.
+	var sem chan (struct{}) = nil
+	if (s.metadata.ConcurrencyMode == pubsub.Parallel) && s.metadata.ConcurrencyLimit > 0 {
+		sem = make(chan struct{}, s.metadata.ConcurrencyLimit)
+	}
+
 	for {
 		// If the context is canceled, stop requesting messages
 		if ctx.Err() != nil {
@@ -639,7 +646,17 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			case pubsub.Single:
 				f(message)
 			case pubsub.Parallel:
+				// This is the back pressure mechanism.
+				// It will block until another goroutine frees a slot.
+				if sem != nil {
+					sem <- struct{}{}
+				}
+
 				go func(message *sqs.Message) {
+					if sem != nil {
+						defer func() { <-sem }()
+					}
+
 					f(message)
 				}(message)
 			}

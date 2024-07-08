@@ -17,6 +17,8 @@ package ravendb
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/dapr/components-contrib/metadata"
@@ -27,6 +29,7 @@ import (
 	jsoniterator "github.com/json-iterator/go"
 	ravendb "github.com/ravendb/ravendb-go-client"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -34,6 +37,7 @@ const (
 	defaultDatabaseName = "daprStore"
 	databaseName        = "databaseName"
 	serverURL           = "serverUrl"
+	httpsPrefix         = "https"
 )
 
 type RavenDB struct {
@@ -43,14 +47,15 @@ type RavenDB struct {
 	operationTimeout time.Duration
 	metadata         RavenDBMetadata
 
-	features     []state.Feature
-	logger       logger.Logger
-	isReplicaSet bool
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type RavenDBMetadata struct {
 	DatabaseName string
 	ServerURL    string
+	CertPath     string
+	KeyPath      string
 }
 
 type Item struct {
@@ -262,15 +267,36 @@ func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {
 		return m, errors.New("server url is required")
 	}
 
+	if strings.HasPrefix(m.ServerURL, httpsPrefix) {
+		if m.CertPath == "" || m.KeyPath == "" {
+			return m, errors.New("certificate and key are required for secure connection")
+		}
+	}
+
 	return m, nil
 }
 
 func (r *RavenDB) getRavenDBStore(ctx context.Context) (*ravendb.DocumentStore, error) {
 	serverNodes := []string{r.metadata.ServerURL}
 	store := ravendb.NewDocumentStore(serverNodes, r.metadata.DatabaseName)
+	if strings.HasPrefix(r.metadata.ServerURL, httpsPrefix) {
+		cer, err := tls.LoadX509KeyPair(r.metadata.CertPath, r.metadata.KeyPath)
+		if err != nil {
+			return nil, err
+		}
+		store.Certificate = &cer
+		x509cert, err := x509.ParseCertificate(cer.Certificate[0])
+		if err != nil {
+			return nil, err
+		}
+		store.TrustStore = x509cert
+		if store.TrustStore == nil {
+			panic("nil trust store")
+		}
+	}
+
 	if err := store.Initialize(); err != nil {
 		return nil, err
 	}
-
 	return store, nil
 }

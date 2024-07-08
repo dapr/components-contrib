@@ -132,7 +132,7 @@ metadata:
     required: false
     description: |
       Defines the maximum number of concurrent workers handling messages.
-      This value is ignored when concurrentMode is set to “single“.
+      This value is ignored when "concurrencyMode" is set to “single“.
       To avoid limiting the number of concurrent workers set this to “0“.
     type: number
     default: '0'

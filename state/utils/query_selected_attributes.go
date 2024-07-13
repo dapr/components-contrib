@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,11 +27,34 @@ var stringToType = map[string]Type{
 	`"Array"`:   Array,
 }
 
-func ParseType(typeString string) (Type, error) {
+var typeToString = map[Type]string{
+	Text:    `"Text"`,
+	Numeric: `"Numeric"`,
+	Bool:    `"Bool"`,
+	Object:  `"Object"`,
+	Array:   `"Array"`,
+}
+
+func parseType(typeString string) (Type, error) {
 	if s, ok := stringToType[typeString]; ok {
 		return s, nil
 	}
 	return Text, fmt.Errorf("invalid type, default text: %s", typeString)
+}
+
+func evalType(typeValue Type) (string, error) {
+	if s, ok := typeToString[typeValue]; ok {
+		return s, nil
+	}
+	return "nil", errors.New("invalid type, default text: nil")
+}
+
+func (t Type) MarshalJSON() ([]byte, error) {
+	if s, error := evalType(t); error != nil {
+		return nil, error
+	} else {
+		return []byte(s), nil
+	}
 }
 
 func (t *Type) UnmarshalJSON(p []byte) error {
@@ -39,7 +63,7 @@ func (t *Type) UnmarshalJSON(p []byte) error {
 		return nil
 	}
 	var err error
-	*t, err = ParseType(strings.Trim(elem, strconv.Itoa(int('"'))))
+	*t, err = parseType(strings.Trim(elem, strconv.Itoa(int('"'))))
 	return err
 }
 

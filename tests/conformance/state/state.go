@@ -438,8 +438,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			},
 			results: []state.QueryItem{
 				{
-					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
-					Data: []byte(fmt.Sprintf(`{"value":12, "Status":"INACTIVE"}`)),
+					Key:  key + "-struct-operations-inactive",
+					Data: []byte(`{"value":12, "Status":"INACTIVE"}`),
 				},
 			},
 		},
@@ -484,8 +484,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			},
 			results: []state.QueryItem{
 				{
-					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
-					Data: []byte(fmt.Sprintf(`{ "productItem": {"value":12}}`)),
+					Key:  key + "-struct-operations-inactive",
+					Data: []byte(`{ "productItem": {"value":12}}`),
 				},
 			},
 		},

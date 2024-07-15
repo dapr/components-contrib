@@ -31,3 +31,11 @@ metadata:
       Url to ravendb cluster
     default: '"127.0.0.1"'
     example: '"http://live-test.ravendb.net"'
+  - name: CertPath
+    description: |
+      Path to the certificate for secure connection
+    example: "/path/to/cert"
+  - name: KeyPath
+    description: |
+      Path to the key for secure connection
+    example: "/path/to/key"

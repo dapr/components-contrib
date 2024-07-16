@@ -38,6 +38,8 @@ const (
 	databaseName        = "databaseName"
 	serverURL           = "serverUrl"
 	httpsPrefix         = "https"
+	certPath            = "certPath"
+	keyPath             = "keyPath"
 )
 
 type RavenDB struct {
@@ -99,6 +101,7 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 // Features returns the features available in this state store.
 func (r *RavenDB) Features() []state.Feature {
 	return r.features
+
 }
 
 func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
@@ -194,6 +197,31 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	}
 
 	return nil
+}
+
+func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	// If nothing is being requested, short-circuit
+	if len(req) == 0 {
+		return nil, nil
+	}
+
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+	}
+	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
+	if err != nil {
+		return []state.BulkGetResponse{}, fmt.Errorf("error opening session while storing data faild with error %s", err)
+	}
+	defer session.Close()
+
+	var item *[]Item
+	err = session.LoadMulti(item, keys)
+	if err != nil {
+		return []state.BulkGetResponse{}, fmt.Errorf("faield bulk get with error: %s", err)
+	}
+
+	return nil, nil
 }
 
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {

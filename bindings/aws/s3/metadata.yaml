@@ -29,12 +29,6 @@ metadata:
       The name of the S3 bucket to write to.
     example: '"bucket"'
     type: string
-  - name: region
-    required: true
-    description: |
-      The specific AWS region where the S3 bucket is located.
-    example: '"us-east-1"'
-    type: string
   - name: endpoint
     required: false
     description: |

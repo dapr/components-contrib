@@ -13,16 +13,6 @@ capabilities:
 builtinAuthenticationProfiles:
   - name: "aws"
 metadata:
-  - name: region
-    required: true
-    description: |
-      The AWS region where the SNS/SQS assets are located or be created in. See the `Supported AWS services per region` page.
-      Ensure that SNS and SQS are available in that region.
-    url:
-      title: "Supported AWS services per region"
-      url: "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/?p=ugi&l=na"
-    example: '"us-east-1"'
-    type: string
   - name: endpoint
     required: false
     description: |

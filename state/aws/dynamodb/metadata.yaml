@@ -23,16 +23,6 @@ metadata:
       The name of the DynamoDB table to use.
     example: '"Contracts"'
     type: string
-  - name: region
-    required: false
-    description: |
-      The AWS region to use. Ensure that DynamoDB is available in that region.
-      See the `Amazon DynamoDB endpoints and quotas` documentation.
-    url:
-      title: Amazon DynamoDB endpoints and quotas
-      url: https://docs.aws.amazon.com/general/latest/gr/ddb.html
-    example: '"us-east-1"'
-    type: string
   - name: endpoint
     required: false
     description: |

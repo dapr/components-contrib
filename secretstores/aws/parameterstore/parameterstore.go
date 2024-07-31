@@ -45,11 +45,13 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 type ParameterStoreMetaData struct {
-	Region       string `json:"region"`
+	// Ignored by metadata parser because included in built-in authentication profile
 	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
 	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken string `json:"sessionToken"`
-	Prefix       string `json:"prefix"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+
+	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
+	Prefix string `json:"prefix"`
 }
 
 type ssmSecretStore struct {

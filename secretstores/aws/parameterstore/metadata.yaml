@@ -11,20 +11,6 @@ urls:
 builtinAuthenticationProfiles:
   - name: "aws"
 metadata:
-  - name: region
-    required: true
-    description: |
-      The specific AWS region the AWS SSM Parameter Store instance is deployed in.
-    example: '"us-east-1"'
-    type: string
-  - name: sessionToken
-    required: false
-    sensitive: true
-    description: |
-      AWS session token to use. A session token is only required if you are using 
-      temporary security credentials.
-    example: '"TOKEN"'
-    type: string
   - name: prefix
     required: false
     description: |

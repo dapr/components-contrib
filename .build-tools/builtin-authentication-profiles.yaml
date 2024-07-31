@@ -7,7 +7,7 @@ aws:
         type: string
         required: true
         description: |
-          The AWS Region where the AWS Relational Database Service is deployed to.
+          The AWS Region where the AWS resource is deployed to.
         example: '"us-east-1"'
       - name: accessKey
         description: AWS access key associated with an IAM account

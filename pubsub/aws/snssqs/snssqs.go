@@ -172,6 +172,7 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 	s.queues = make(map[string]*sqsQueueInfo)
 	s.subscriptions = make(map[string]string)
+	s.topicArns = make(map[string]string)
 
 	return nil
 }

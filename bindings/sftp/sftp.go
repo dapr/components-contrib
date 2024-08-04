@@ -40,6 +40,11 @@ type createResponse struct {
 	FileName string `json:"fileName"`
 }
 
+type listResponse struct {
+	FileName    string `json:"fileName"`
+	IsDirectory bool   `json:"isDirectory"`
+}
+
 func NewSftp(logger logger.Logger) bindings.OutputBinding {
 	return &Sftp{logger: logger}
 }
@@ -121,6 +126,9 @@ func (sftp *Sftp) parseMetadata(meta bindings.Metadata) (*sftpMetadata, error) {
 func (sftp *Sftp) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,
+		// bindings.GetOperation,
+		// bindings.DeleteOperation,
+		bindings.ListOperation,
 	}
 }
 
@@ -172,6 +180,43 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 	}, nil
 }
 
+func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := sftp.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
+	}
+
+	rootPath := metadata.RootPath
+	fileName := metadata.FileName
+
+	path := sftp.sftpClient.Join(rootPath, fileName)
+
+	sftp.logger.Infof("Path: %s", path)
+
+	files, err := sftp.sftpClient.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error read dir: %s %w", path, err)
+	}
+
+	var resp []listResponse
+
+	for _, file := range files {
+		resp = append(resp, listResponse{
+			FileName:    file.Name(),
+			IsDirectory: file.IsDir(),
+		})
+	}
+
+	jsonResponse, err := json.Marshal(resp)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: cannot marshal list to json: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
 func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -180,8 +225,8 @@ func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	// 	return sftp.get(ctx, req)
 	// case bindings.DeleteOperation:
 	// 	return sftp.delete(ctx, req)
-	// case bindings.ListOperation:
-	// 	return sftp.list(ctx, req)
+	case bindings.ListOperation:
+		return sftp.list(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

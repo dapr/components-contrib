@@ -128,7 +128,7 @@ func (sftp *Sftp) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,
 		bindings.GetOperation,
-		// bindings.DeleteOperation,
+		bindings.DeleteOperation,
 		bindings.ListOperation,
 	}
 }
@@ -251,14 +251,40 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 	}, nil
 }
 
+func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := sftp.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
+	}
+
+	rootPath := metadata.RootPath
+	fileName := metadata.FileName
+
+	path := sftp.sftpClient.Join(rootPath, fileName)
+
+	sftp.logger.Infof("Path: %s", path)
+
+	dir, fileName := sftpClient.Split(path)
+
+	sftp.logger.Infof("Dir: %s", dir)
+	sftp.logger.Infof("FileName: %s", fileName)
+
+	err = sftp.sftpClient.Remove(path)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error remove file: %s %w", path, err)
+	}
+
+	return nil, nil
+}
+
 func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return sftp.create(ctx, req)
 	case bindings.GetOperation:
 		return sftp.get(ctx, req)
-	// case bindings.DeleteOperation:
-	// 	return sftp.delete(ctx, req)
+	case bindings.DeleteOperation:
+		return sftp.delete(ctx, req)
 	case bindings.ListOperation:
 		return sftp.list(ctx, req)
 	default:

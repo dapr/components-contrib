@@ -28,13 +28,14 @@ type Sftp struct {
 
 // sftpMetadata defines the sftp metadata.
 type sftpMetadata struct {
-	RootPath   string `json:"rootPath"`
-	FileName   string `json:"fileName"`
-	Address    string `json:"address"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	PrivateKey []byte `json:"privateKey"`
-	PublicKey  []byte `json:"publicKey"`
+	RootPath      string `json:"rootPath"`
+	FileName      string `json:"fileName"`
+	Address       string `json:"address"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	PrivateKey    []byte `json:"privateKey"`
+	HostPublicKey []byte `json:"hostPublicKey"`
+	IsInsecureSSL bool   `json:"isInsecureSSL"`
 }
 
 type createResponse struct {
@@ -57,10 +58,22 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 
 	var auth []ssh.AuthMethod
+	var hostKeyCallback ssh.HostKeyCallback
 
-	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+	if m.IsInsecureSSL {
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	} else if len(m.HostPublicKey) > 0 {
+		hostPublicKey, err := ssh.ParsePublicKey(m.HostPublicKey)
+		if err != nil {
+			return fmt.Errorf("sftp binding error: parse host public key error: %w", err)
+		}
 
-	sftp.logger.Infof("PrivateKey len: %d", len(m.PrivateKey))
+		hostKeyCallback = ssh.FixedHostKey(hostPublicKey)
+	}
+
+	if hostKeyCallback == nil {
+		return fmt.Errorf("sftp binding error: no host validation method provided")
+	}
 
 	if len(m.PrivateKey) > 0 {
 		signer, err := ssh.ParsePrivateKey(m.PrivateKey)
@@ -71,25 +84,9 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 		auth = append(auth, ssh.PublicKeys(signer))
 	}
 
-	if len(m.PublicKey) > 0 {
-		sftp.logger.Infof("PublicKey len: %d", len(m.PublicKey))
-
-		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(m.PublicKey)
-		if err != nil {
-			return fmt.Errorf("sftp binding error: parse public key error: %w", err)
-		}
-
-		hostKeyCallback = ssh.FixedHostKey(publicKey)
-	}
-
-	sftp.logger.Infof("Username: %s", m.Username)
-	sftp.logger.Infof("Password: %s", m.Password)
-
 	if len(m.Password) > 0 {
 		auth = append(auth, ssh.Password(m.Password))
 	}
-
-	sftp.logger.Infof("Auth len: %d", len(auth))
 
 	config := &ssh.ClientConfig{
 		User:            m.Username,
@@ -144,12 +141,7 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 
 	path := sftp.sftpClient.Join(rootPath, fileName)
 
-	sftp.logger.Infof("Path: %s", path)
-
 	dir, fileName := sftpClient.Split(path)
-
-	sftp.logger.Infof("Dir: %s", dir)
-	sftp.logger.Infof("FileName: %s", fileName)
 
 	err = sftp.sftpClient.MkdirAll(dir)
 	if err != nil {
@@ -192,8 +184,6 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 
 	path := sftp.sftpClient.Join(rootPath, fileName)
 
-	sftp.logger.Infof("Path: %s", path)
-
 	files, err := sftp.sftpClient.ReadDir(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error read dir: %s %w", path, err)
@@ -229,13 +219,6 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 
 	path := sftp.sftpClient.Join(rootPath, fileName)
 
-	sftp.logger.Infof("Path: %s", path)
-
-	dir, fileName := sftpClient.Split(path)
-
-	sftp.logger.Infof("Dir: %s", dir)
-	sftp.logger.Infof("FileName: %s", fileName)
-
 	file, err := sftp.sftpClient.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error open file: %s %w", path, err)
@@ -261,13 +244,6 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 	fileName := metadata.FileName
 
 	path := sftp.sftpClient.Join(rootPath, fileName)
-
-	sftp.logger.Infof("Path: %s", path)
-
-	dir, fileName := sftpClient.Split(path)
-
-	sftp.logger.Infof("Dir: %s", dir)
-	sftp.logger.Infof("FileName: %s", fileName)
 
 	err = sftp.sftpClient.Remove(path)
 	if err != nil {

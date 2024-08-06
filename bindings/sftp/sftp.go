@@ -8,6 +8,7 @@ import (
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -28,14 +29,15 @@ type Sftp struct {
 
 // sftpMetadata defines the sftp metadata.
 type sftpMetadata struct {
-	RootPath      string `json:"rootPath"`
-	FileName      string `json:"fileName"`
-	Address       string `json:"address"`
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	PrivateKey    []byte `json:"privateKey"`
-	HostPublicKey []byte `json:"hostPublicKey"`
-	IsInsecureSSL bool   `json:"isInsecureSSL"`
+	RootPath       string `json:"rootPath"`
+	FileName       string `json:"fileName"`
+	Address        string `json:"address"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	PrivateKey     []byte `json:"privateKey"`
+	HostPublicKey  []byte `json:"hostPublicKey"`
+	KnownHostsFile string `json:"knownHostsFile"`
+	IsInsecureSSL  bool   `json:"isInsecureSSL"`
 }
 
 type createResponse struct {
@@ -62,8 +64,13 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 
 	if m.IsInsecureSSL {
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	} else if len(m.KnownHostsFile) > 0 {
+		hostKeyCallback, err = knownhosts.New(m.KnownHostsFile)
+		if err != nil {
+			return fmt.Errorf("sftp binding error: read known host file error: %w", err)
+		}
 	} else if len(m.HostPublicKey) > 0 {
-		hostPublicKey, err := ssh.ParsePublicKey(m.HostPublicKey)
+		hostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(m.HostPublicKey)
 		if err != nil {
 			return fmt.Errorf("sftp binding error: parse host public key error: %w", err)
 		}

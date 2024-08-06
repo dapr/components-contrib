@@ -145,10 +145,10 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	rootPath := metadata.RootPath
-	fileName := metadata.FileName
-
-	path := sftp.sftpClient.Join(rootPath, fileName)
+	path, err := metadata.getPath()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: %w", err)
+	}
 
 	dir, fileName := sftpClient.Split(path)
 
@@ -188,10 +188,10 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	rootPath := metadata.RootPath
-	fileName := metadata.FileName
-
-	path := sftp.sftpClient.Join(rootPath, fileName)
+	path, err := metadata.getPath()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: %w", err)
+	}
 
 	files, err := sftp.sftpClient.ReadDir(path)
 	if err != nil {
@@ -223,10 +223,10 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	rootPath := metadata.RootPath
-	fileName := metadata.FileName
-
-	path := sftp.sftpClient.Join(rootPath, fileName)
+	path, err := metadata.getPath()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: %w", err)
+	}
 
 	file, err := sftp.sftpClient.Open(path)
 	if err != nil {
@@ -249,10 +249,10 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	rootPath := metadata.RootPath
-	fileName := metadata.FileName
-
-	path := sftp.sftpClient.Join(rootPath, fileName)
+	path, err := metadata.getPath()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: %w", err)
+	}
 
 	err = sftp.sftpClient.Remove(path)
 	if err != nil {
@@ -279,6 +279,16 @@ func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 
 func (sftp *Sftp) Close() error {
 	return sftp.sftpClient.Close()
+}
+
+func (metadata sftpMetadata) getPath() (path string, err error) {
+	path = sftpClient.Join(metadata.RootPath, metadata.FileName)
+
+	if path == "" {
+		err = fmt.Errorf("required metadata rootPath or fileName missing")
+	}
+
+	return
 }
 
 // Helper to merge config and request metadata.

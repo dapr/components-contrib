@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 )
@@ -37,7 +39,7 @@ type sftpMetadata struct {
 	PrivateKey     []byte `json:"privateKey"`
 	HostPublicKey  []byte `json:"hostPublicKey"`
 	KnownHostsFile string `json:"knownHostsFile"`
-	IsInsecureSSL  bool   `json:"isInsecureSSL"`
+	InsecureSSL    bool   `json:"isInsecureSSL"`
 }
 
 type createResponse struct {
@@ -62,7 +64,7 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	var auth []ssh.AuthMethod
 	var hostKeyCallback ssh.HostKeyCallback
 
-	if m.IsInsecureSSL {
+	if m.InsecureSSL {
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	} else if len(m.KnownHostsFile) > 0 {
 		hostKeyCallback, err = knownhosts.New(m.KnownHostsFile)
@@ -292,4 +294,11 @@ func (metadata sftpMetadata) mergeWithRequestMetadata(req *bindings.InvokeReques
 	}
 
 	return merged, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (sftp *Sftp) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := sftpMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

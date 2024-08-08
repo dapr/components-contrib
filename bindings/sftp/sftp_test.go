@@ -13,15 +13,15 @@ func TestParseMeta(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"rootPath":       "path",
-			"fileName":       "filename",
-			"address":        "address",
-			"username":       "user",
-			"password":       "pass",
-			"privateKey":     "cHJpdmF0ZUtleQ==",
-			"hostPublicKey":  "aG9zdFB1YmxpY0tleQ==",
-			"KnownHostsFile": "/known_hosts",
-			"insecureSSL":    "true",
+			"rootPath":              "path",
+			"fileName":              "filename",
+			"address":               "address",
+			"username":              "user",
+			"password":              "pass",
+			"privateKey":            "cHJpdmF0ZUtleQ==",
+			"hostPublicKey":         "aG9zdFB1YmxpY0tleQ==",
+			"KnownHostsFile":        "/known_hosts",
+			"insecureIgnoreHostKey": "true",
 		}
 		sftp := Sftp{}
 		meta, err := sftp.parseMetadata(m)
@@ -38,22 +38,22 @@ func TestParseMeta(t *testing.T) {
 		assert.Equal(t, privateKeyBytes, meta.PrivateKey)
 		assert.Equal(t, hostPublicKeyBytes, meta.HostPublicKey)
 		assert.Equal(t, "/known_hosts", meta.KnownHostsFile)
-		assert.True(t, meta.InsecureSSL)
+		assert.True(t, meta.InsecureIgnoreHostKey)
 	})
 }
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"rootPath":       "path",
-			"fileName":       "filename",
-			"address":        "address",
-			"username":       "user",
-			"password":       "pass",
-			"privateKey":     "cHJpdmF0ZUtleQ==",
-			"hostPublicKey":  "aG9zdFB1YmxpY0tleQ==",
-			"KnownHostsFile": "/known_hosts",
-			"insecureSSL":    "true",
+			"rootPath":              "path",
+			"fileName":              "filename",
+			"address":               "address",
+			"username":              "user",
+			"password":              "pass",
+			"privateKey":            "cHJpdmF0ZUtleQ==",
+			"hostPublicKey":         "aG9zdFB1YmxpY0tleQ==",
+			"KnownHostsFile":        "/known_hosts",
+			"insecureIgnoreHostKey": "true",
 		}
 		sftp := Sftp{}
 		meta, _ := sftp.parseMetadata(m)
@@ -85,7 +85,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, privateKeyBytes, mergedMeta.PrivateKey)
 		assert.Equal(t, hostPublicKeyBytes, mergedMeta.HostPublicKey)
 		assert.Equal(t, "/known_hosts", mergedMeta.KnownHostsFile)
-		assert.True(t, meta.InsecureSSL)
+		assert.True(t, meta.InsecureIgnoreHostKey)
 	})
 }
 

@@ -31,15 +31,15 @@ type Sftp struct {
 
 // sftpMetadata defines the sftp metadata.
 type sftpMetadata struct {
-	RootPath       string `json:"rootPath"`
-	FileName       string `json:"fileName"`
-	Address        string `json:"address"`
-	Username       string `json:"username"`
-	Password       string `json:"password"`
-	PrivateKey     []byte `json:"privateKey"`
-	HostPublicKey  []byte `json:"hostPublicKey"`
-	KnownHostsFile string `json:"knownHostsFile"`
-	InsecureSSL    bool   `json:"isInsecureSSL"`
+	RootPath              string `json:"rootPath"`
+	FileName              string `json:"fileName"`
+	Address               string `json:"address"`
+	Username              string `json:"username"`
+	Password              string `json:"password"`
+	PrivateKey            []byte `json:"privateKey"`
+	HostPublicKey         []byte `json:"hostPublicKey"`
+	KnownHostsFile        string `json:"knownHostsFile"`
+	InsecureIgnoreHostKey bool   `json:"insecureIgnoreHostKey"`
 }
 
 type createResponse struct {
@@ -64,7 +64,7 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	var auth []ssh.AuthMethod
 	var hostKeyCallback ssh.HostKeyCallback
 
-	if m.InsecureSSL {
+	if m.InsecureIgnoreHostKey {
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	} else if len(m.KnownHostsFile) > 0 {
 		hostKeyCallback, err = knownhosts.New(m.KnownHostsFile)
@@ -120,7 +120,6 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 }
 
 func (sftp *Sftp) parseMetadata(meta bindings.Metadata) (*sftpMetadata, error) {
-
 	var m sftpMetadata
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
@@ -154,12 +153,12 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 
 	err = sftp.sftpClient.MkdirAll(dir)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create dir: %s %w", dir, err)
+		return nil, fmt.Errorf("sftp binding error: error create dir %s: %w", dir, err)
 	}
 
 	file, err := sftp.sftpClient.Create(path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create file: %s %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error create file %s: %w", path, err)
 	}
 
 	_, err = file.Write(req.Data)
@@ -195,7 +194,7 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 
 	files, err := sftp.sftpClient.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error read dir: %s %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error read dir %s: %w", path, err)
 	}
 
 	var resp []listResponse
@@ -230,12 +229,12 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 
 	file, err := sftp.sftpClient.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error open file: %s %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error open file %s: %w", path, err)
 	}
 
 	b, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error read file: %s %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error read file %s: %w", path, err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -256,7 +255,7 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 
 	err = sftp.sftpClient.Remove(path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error remove file: %s %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error remove file %s: %w", path, err)
 	}
 
 	return nil, nil

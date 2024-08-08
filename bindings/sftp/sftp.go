@@ -32,7 +32,6 @@ type Sftp struct {
 // sftpMetadata defines the sftp metadata.
 type sftpMetadata struct {
 	RootPath              string `json:"rootPath"`
-	FileName              string `json:"fileName"`
 	Address               string `json:"address"`
 	Username              string `json:"username"`
 	Password              string `json:"password"`
@@ -144,7 +143,7 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	path, err := metadata.getPath()
+	path, err := metadata.getPath(req.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
@@ -187,7 +186,7 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	path, err := metadata.getPath()
+	path, err := metadata.getPath(req.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
@@ -222,7 +221,7 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	path, err := metadata.getPath()
+	path, err := metadata.getPath(req.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
@@ -248,7 +247,7 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: error merging metadata: %w", err)
 	}
 
-	path, err := metadata.getPath()
+	path, err := metadata.getPath(req.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
@@ -280,8 +279,12 @@ func (sftp *Sftp) Close() error {
 	return sftp.sftpClient.Close()
 }
 
-func (metadata sftpMetadata) getPath() (path string, err error) {
-	path = sftpClient.Join(metadata.RootPath, metadata.FileName)
+func (metadata sftpMetadata) getPath(requestMetadata map[string]string) (path string, err error) {
+	if val, ok := kitmd.GetMetadataProperty(requestMetadata, metadataFileName); ok && val != "" {
+		path = sftpClient.Join(metadata.RootPath, val)
+	} else {
+		path = metadata.RootPath
+	}
 
 	if path == "" {
 		err = fmt.Errorf("required metadata rootPath or fileName missing")
@@ -294,12 +297,8 @@ func (metadata sftpMetadata) getPath() (path string, err error) {
 func (metadata sftpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (sftpMetadata, error) {
 	merged := metadata
 
-	if val, ok := req.Metadata[metadataRootPath]; ok && val != "" {
+	if val, ok := kitmd.GetMetadataProperty(req.Metadata, metadataRootPath); ok && val != "" {
 		merged.RootPath = val
-	}
-
-	if val, ok := req.Metadata[metadataFileName]; ok && val != "" {
-		merged.FileName = val
 	}
 
 	return merged, nil

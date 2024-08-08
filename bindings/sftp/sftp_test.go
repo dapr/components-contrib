@@ -14,7 +14,6 @@ func TestParseMeta(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
 			"rootPath":              "path",
-			"fileName":              "filename",
 			"address":               "address",
 			"username":              "user",
 			"password":              "pass",
@@ -31,7 +30,6 @@ func TestParseMeta(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "path", meta.RootPath)
-		assert.Equal(t, "filename", meta.FileName)
 		assert.Equal(t, "address", meta.Address)
 		assert.Equal(t, "user", meta.Username)
 		assert.Equal(t, "pass", meta.Password)
@@ -46,7 +44,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
 			"rootPath":              "path",
-			"fileName":              "filename",
 			"address":               "address",
 			"username":              "user",
 			"password":              "pass",
@@ -61,7 +58,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
 			"rootPath":       "changedpath",
-			"fileName":       "changedfilename",
 			"address":        "changedaddress",
 			"username":       "changeduser",
 			"password":       "changedpass",
@@ -78,7 +74,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "changedpath", mergedMeta.RootPath)
-		assert.Equal(t, "changedfilename", mergedMeta.FileName)
 		assert.Equal(t, "address", mergedMeta.Address)
 		assert.Equal(t, "user", mergedMeta.Username)
 		assert.Equal(t, "pass", mergedMeta.Password)
@@ -94,13 +89,13 @@ func TestGetPath(t *testing.T) {
 		m := &sftpMetadata{
 			RootPath: "/path",
 		}
-		_, err := m.getPath()
+		_, err := m.getPath(map[string]string{})
 		require.NoError(t, err)
 	})
 
 	t.Run("return if error path is empty", func(t *testing.T) {
 		m := &sftpMetadata{}
-		_, err := m.getPath()
+		_, err := m.getPath(map[string]string{})
 		require.Error(t, err)
 	})
 }

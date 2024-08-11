@@ -36,6 +36,7 @@ type sftpMetadata struct {
 	Username              string `json:"username"`
 	Password              string `json:"password"`
 	PrivateKey            []byte `json:"privateKey"`
+	PrivateKeyPassphrase  []byte `json:"privateKeyPassphrase"`
 	HostPublicKey         []byte `json:"hostPublicKey"`
 	KnownHostsFile        string `json:"knownHostsFile"`
 	InsecureIgnoreHostKey bool   `json:"insecureIgnoreHostKey"`
@@ -84,9 +85,18 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 
 	if len(m.PrivateKey) > 0 {
-		signer, err := ssh.ParsePrivateKey(m.PrivateKey)
-		if err != nil {
-			return fmt.Errorf("sftp binding error: parse private key error: %w", err)
+		var signer ssh.Signer
+
+		if len(m.PrivateKeyPassphrase) > 0 {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase(m.PrivateKey, m.PrivateKeyPassphrase)
+			if err != nil {
+				return fmt.Errorf("sftp binding error: parse private key error: %w", err)
+			}
+		} else {
+			signer, err = ssh.ParsePrivateKey(m.PrivateKey)
+			if err != nil {
+				return fmt.Errorf("sftp binding error: parse private key error: %w", err)
+			}
 		}
 
 		auth = append(auth, ssh.PublicKeys(signer))

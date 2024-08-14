@@ -3,6 +3,7 @@ package sftp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -65,6 +66,7 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	var hostKeyCallback ssh.HostKeyCallback
 
 	if m.InsecureIgnoreHostKey {
+		//nolint:gosec
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	} else if len(m.KnownHostsFile) > 0 {
 		hostKeyCallback, err = knownhosts.New(m.KnownHostsFile)
@@ -72,7 +74,8 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 			return fmt.Errorf("sftp binding error: read known host file error: %w", err)
 		}
 	} else if len(m.HostPublicKey) > 0 {
-		hostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(m.HostPublicKey)
+		var hostPublicKey ssh.PublicKey
+		hostPublicKey, _, _, _, err = ssh.ParseAuthorizedKey(m.HostPublicKey)
 		if err != nil {
 			return fmt.Errorf("sftp binding error: parse host public key error: %w", err)
 		}
@@ -81,7 +84,7 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 
 	if hostKeyCallback == nil {
-		return fmt.Errorf("sftp binding error: no host validation method provided")
+		return errors.New("sftp binding error: no host validation method provided")
 	}
 
 	if len(m.PrivateKey) > 0 {
@@ -206,13 +209,13 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 		return nil, fmt.Errorf("sftp binding error: error read dir %s: %w", path, err)
 	}
 
-	var resp []listResponse
+	resp := make([]listResponse, len(files))
 
-	for _, file := range files {
-		resp = append(resp, listResponse{
+	for i, file := range files {
+		resp[i] = listResponse{
 			FileName:    file.Name(),
 			IsDirectory: file.IsDir(),
-		})
+		}
 	}
 
 	jsonResponse, err := json.Marshal(resp)
@@ -297,7 +300,7 @@ func (metadata sftpMetadata) getPath(requestMetadata map[string]string) (path st
 	}
 
 	if path == "" {
-		err = fmt.Errorf("required metadata rootPath or fileName missing")
+		err = errors.New("required metadata rootPath or fileName missing")
 	}
 
 	return

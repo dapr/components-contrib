@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dapr/components-contrib/metadata"
@@ -40,6 +41,8 @@ const (
 	httpsPrefix         = "https"
 	certPath            = "certPath"
 	keyPath             = "keyPath"
+	enableTTL           = "enableTTL"
+	defaultEnableTTL    = true
 )
 
 type RavenDB struct {
@@ -58,6 +61,7 @@ type RavenDBMetadata struct {
 	ServerURL    string
 	CertPath     string
 	KeyPath      string
+	EnableTTL    bool
 }
 
 type Item struct {
@@ -93,6 +97,19 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return fmt.Errorf("error in creating Raven DB Store")
 	}
 
+	configurationExppiration := ravendb.ExpirationConfiguration{
+		Disabled: !r.metadata.EnableTTL,
+	}
+	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExppiration)
+	if err != nil {
+		return fmt.Errorf("error in creating expiration operation")
+	}
+
+	err = store.Maintenance().Send(operation)
+	if err != nil {
+		return fmt.Errorf("error in sending expiration operation")
+	}
+
 	r.documentStore = store
 
 	return nil
@@ -101,7 +118,6 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 // Features returns the features available in this state store.
 func (r *RavenDB) Features() []state.Feature {
 	return r.features
-
 }
 
 func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
@@ -204,7 +220,6 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 	if len(req) == 0 {
 		return nil, nil
 	}
-
 	keys := make([]string, len(req))
 	for i, r := range req {
 		keys[i] = r.Key
@@ -215,13 +230,32 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 	}
 	defer session.Close()
 
-	var item *[]Item
-	err = session.LoadMulti(item, keys)
+	var items = make(map[string]*Item, len(keys))
+	err = session.LoadMulti(items, keys)
 	if err != nil {
 		return []state.BulkGetResponse{}, fmt.Errorf("faield bulk get with error: %s", err)
 	}
 
-	return nil, nil
+	var resp = make([]state.BulkGetResponse, 0, len(items))
+
+	for _, current := range items {
+		if current == nil {
+			continue
+		}
+		var convert = state.BulkGetResponse{
+			Key:      current.ID,
+			Data:     []byte(current.Value),
+			Metadata: make(map[string]string),
+		}
+		convJson, _ := json.Marshal(convert)
+		itemJson, _ := json.Marshal(current)
+
+		fmt.Println(string(convJson))
+		fmt.Println(string(itemJson))
+		resp = append(resp, convert)
+	}
+
+	return resp, nil
 }
 
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {
@@ -249,9 +283,18 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		Value: data,
 	}
 
-	err = session.Store(item)
-	if err != nil {
-		return fmt.Errorf("error storing data: %s", err)
+	if req.Options.Concurrency == state.FirstWrite {
+		// First write wins, we send empty change vector to check if exists
+		err = session.StoreWithChangeVectorAndID(item, "", req.Key)
+		if err != nil {
+			return fmt.Errorf("error storing data: %s", err)
+		}
+	} else {
+		// Last write wins
+		err = session.Store(item)
+		if err != nil {
+			return fmt.Errorf("error storing data: %s", err)
+		}
 	}
 
 	reqTTL, err := stateutils.ParseTTL(req.Metadata)
@@ -284,6 +327,7 @@ func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, 
 func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {
 	m := RavenDBMetadata{
 		DatabaseName: defaultDatabaseName,
+		EnableTTL:    defaultEnableTTL,
 	}
 
 	err := kitmd.DecodeMetadata(meta.Properties, &m)

@@ -1391,6 +1391,8 @@ github.com/rabbitmq/amqp091-go v1.8.1 h1:RejT1SBUim5doqcL6s7iN6SBmsQqyTgXb1xMlH0
 github.com/rabbitmq/amqp091-go v1.8.1/go.mod h1:+jPrT9iY2eLjRaMSRHUhc3z14E/l85kv/f+6luSD3pc=
 github.com/ravendb/ravendb-go-client v0.0.0-20240117082009-80731167bc4b h1:DQneIyC2gDY13ONh6mmCKBmr4QhOkNPs1JMctPWwkR0=
 github.com/ravendb/ravendb-go-client v0.0.0-20240117082009-80731167bc4b/go.mod h1:Zhu1DOotWGZcjom6CZH+8mJ2AD3fOx0QjVIrbpMxN04=
+github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427 h1:hOnThDlsq0e4M7Sl3A3MnMlazYJsNuuDDqywa5mI7wQ=
+github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427/go.mod h1:Zhu1DOotWGZcjom6CZH+8mJ2AD3fOx0QjVIrbpMxN04=
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 h1:N/ElC8H3+5XpJzTSTfLsJV/mx9Q9g7kxmchpfZyxgzM=
 github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=

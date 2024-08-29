@@ -67,10 +67,10 @@
 1. Test setup is independent of the test run.
 2. Run the service that needs to conformance tested locally or in your own cloud account.
 
-   - For cloud-agnostic components such as Kafka, MQTT etc., there are `docker-compose` definitions under the [/.github/infrastructure](../../.github/infrastructure/) folder you can use to quickly create an instance of the service. For example, to setup Kafka for conformance tests:
+   - For cloud-agnostic components such as Kafka, MQTT etc., there are `docker compose` definitions under the [/.github/infrastructure](../../.github/infrastructure/) folder you can use to quickly create an instance of the service. For example, to setup Kafka for conformance tests:
 
         ```bash
-        docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
+        docker compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
         ```
 
    - For Azure components such as Blob Storage, Key Vault etc., there is an automation script that can help you create the resources under your subscription, and extract the environment variables needed to run the conformance tests. See [/.github/infrastructure/conformance/azure/README.md](../../.github/infrastructure/conformance/azure/README.md) for more details.

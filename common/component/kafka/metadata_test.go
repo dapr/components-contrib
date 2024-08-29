@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -455,5 +456,32 @@ func TestGetEventMetadata(t *testing.T) {
 	t.Run("null message", func(t *testing.T) {
 		act := GetEventMetadata(nil)
 		require.Nil(t, act)
+	})
+
+	t.Run("key with invalid value escaped", func(t *testing.T) {
+		keyValue := "key1\xFF"
+		escapedKeyValue := url.QueryEscape(keyValue)
+
+		m := sarama.ConsumerMessage{
+			Headers: nil, Timestamp: ts, Key: []byte(keyValue), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m)
+		require.Equal(t, escapedKeyValue, act[keyMetadataKey])
+	})
+
+	t.Run("header with invalid value escaped", func(t *testing.T) {
+		headerKey := "key1"
+		headerValue := "value1\xFF"
+		escapedHeaderValue := url.QueryEscape(headerValue)
+
+		headers := []*sarama.RecordHeader{
+			{Key: []byte(headerKey), Value: []byte(headerValue)},
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m)
+		require.Len(t, act, 6)
+		require.Equal(t, escapedHeaderValue, act[headerKey])
 	})
 }

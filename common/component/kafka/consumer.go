@@ -16,6 +16,7 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -205,14 +206,14 @@ func GetEventMetadata(message *sarama.ConsumerMessage) map[string]string {
 	if message != nil {
 		metadata := make(map[string]string, len(message.Headers)+5)
 		if message.Key != nil {
-			metadata[keyMetadataKey] = string(message.Key)
+			metadata[keyMetadataKey] = url.QueryEscape(string(message.Key))
 		}
 		metadata[offsetMetadataKey] = strconv.FormatInt(message.Offset, 10)
 		metadata[topicMetadataKey] = message.Topic
 		metadata[timestampMetadataKey] = strconv.FormatInt(message.Timestamp.UnixMilli(), 10)
 		metadata[partitionMetadataKey] = strconv.FormatInt(int64(message.Partition), 10)
 		for _, header := range message.Headers {
-			metadata[string(header.Key)] = string(header.Value)
+			metadata[string(header.Key)] = url.QueryEscape(string(header.Value))
 		}
 		return metadata
 	}

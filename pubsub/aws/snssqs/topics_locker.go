@@ -39,6 +39,6 @@ func (lm *TopicsLockManager) Unlock(key string) {
 			oldValue.Unlock()
 		}
 		// we return to comply with the Compute signature, but not using the returned values
-		return oldValue, false
+		return oldValue, exists
 	})
 }

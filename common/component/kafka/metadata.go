@@ -89,6 +89,7 @@ type KafkaMetadata struct {
 	HeartbeatInterval      time.Duration       `mapstructure:"heartbeatInterval"`
 	SessionTimeout         time.Duration       `mapstructure:"sessionTimeout"`
 	Version                string              `mapstructure:"version"`
+	EscapeHeaders          bool                `mapstructure:"escapeHeaders"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 
@@ -162,6 +163,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 		HeartbeatInterval:                            3 * time.Second,
 		SessionTimeout:                               10 * time.Second,
+		EscapeHeaders:                                false,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)

@@ -45,6 +45,7 @@ type Kafka struct {
 	saslPassword  string
 	initialOffset int64
 	config        *sarama.Config
+	escapeHeaders bool
 
 	cg              sarama.ConsumerGroup
 	subscribeTopics TopicHandlerConfig
@@ -136,6 +137,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.consumerGroup = meta.ConsumerGroup
 	k.initialOffset = meta.internalInitialOffset
 	k.authType = meta.AuthType
+	k.escapeHeaders = meta.EscapeHeaders
 
 	config := sarama.NewConfig()
 	config.Version = meta.internalVersion

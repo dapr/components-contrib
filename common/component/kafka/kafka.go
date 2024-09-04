@@ -14,6 +14,7 @@ limitations under the License.
 package kafka
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -355,7 +356,7 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
 	// Null Data is valid and a tombstone record. It shouldn't be serialized
-	if data == nil {
+	if bytes.Equal(data, []byte("null")) {
 		return nil, nil
 	}
 

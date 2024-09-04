@@ -356,7 +356,7 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
 	// Null Data is valid and a tombstone record. It shouldn't be serialized
-	if bytes.Equal(data, []byte("null")) {
+	if bytes.Equal(data, []byte("null")) || data == nil {
 		return nil, nil
 	}
 

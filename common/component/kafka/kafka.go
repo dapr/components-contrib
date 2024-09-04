@@ -264,7 +264,9 @@ func getSchemaSubject(topic string) string {
 }
 
 func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config SubscriptionHandlerConfig) ([]byte, error) {
-	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	// Null Data is valid and a tombstone record.
+	// It shouldn't be going through schema validation and decoding
+	// Instead directly convert to JSON `null`
 	if message.Value == nil {
 		return []byte("null"), nil
 	}
@@ -355,7 +357,8 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 }
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {
-	// Null Data is valid and a tombstone record. It shouldn't be serialized
+	// Null Data is valid and a tombstone record.
+	// It should be converted to NULL and not go through schema validation & encoding
 	if bytes.Equal(data, []byte("null")) || data == nil {
 		return nil, nil
 	}

@@ -85,7 +85,7 @@ func (r *StandaloneRedisLock) TryLock(ctx context.Context, req *lock.TryLockRequ
 	// Set a key if doesn't exist with an expiration time
 	nxval, err := r.client.SetNX(ctx, req.ResourceID, req.LockOwner, time.Second*time.Duration(req.ExpiryInSeconds))
 	if nxval == nil {
-		return &lock.TryLockResponse{}, fmt.Errorf("setNX returned a nil response")
+		return &lock.TryLockResponse{}, errors.New("setNX returned a nil response")
 	}
 
 	if err != nil {

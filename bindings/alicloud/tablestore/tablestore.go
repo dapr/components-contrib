@@ -271,7 +271,6 @@ func (s *AliCloudTableStore) create(req *bindings.InvokeRequest, resp *bindings.
 	}
 
 	_, err = s.client.PutRow(putRequest)
-
 	if err != nil {
 		return err
 	}
@@ -302,7 +301,6 @@ func (s *AliCloudTableStore) delete(req *bindings.InvokeRequest, resp *bindings.
 	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 	deleteReq := &tablestore.DeleteRowRequest{DeleteRowChange: change}
 	_, err = s.client.DeleteRow(deleteReq)
-
 	if err != nil {
 		return err
 	}

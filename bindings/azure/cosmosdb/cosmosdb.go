@@ -16,6 +16,7 @@ package cosmosdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -158,7 +159,7 @@ func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (string, er
 	}
 	val, ok := valI.(string)
 	if !ok {
-		return "", fmt.Errorf("partition key is not a string")
+		return "", errors.New("partition key is not a string")
 	}
 
 	if val == "" {
@@ -172,7 +173,7 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 	var ok bool
 
 	if len(ks) == 0 {
-		return nil, fmt.Errorf("needs at least one key")
+		return nil, errors.New("needs at least one key")
 	}
 
 	if val, ok = m[ks[0]]; !ok {

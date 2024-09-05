@@ -219,7 +219,7 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		*metadataMap = MetadataMap{}
 	}
 
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		currentField := t.Field(i)
 		// fields that are not exported cannot be set via the mapstructure metadata decoding mechanism
 		if !currentField.IsExported() {

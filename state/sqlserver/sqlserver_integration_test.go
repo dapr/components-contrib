@@ -81,7 +81,7 @@ func TestIntegrationCases(t *testing.T) {
 
 	// Run concurrent set tests 10 times
 	const executions = 10
-	for i := 0; i < executions; i++ {
+	for i := range executions {
 		t.Run(fmt.Sprintf("Concurrent sets, try #%d", i+1), testConcurrentSets)
 	}
 }
@@ -90,7 +90,7 @@ func getUniqueDBSchema(t *testing.T) string {
 	b := make([]byte, 4)
 	_, err := io.ReadFull(rand.Reader, b)
 	require.NoError(t, err)
-	return fmt.Sprintf("v%s", hex.EncodeToString(b))
+	return "v" + hex.EncodeToString(b)
 }
 
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
@@ -548,7 +548,7 @@ func testConcurrentSets(t *testing.T) {
 	start := make(chan bool, parallelism)
 	totalErrors := int32(0)
 	totalSucceeds := int32(0)
-	for i := 0; i < parallelism; i++ {
+	for range parallelism {
 		wc.Add(1)
 		go func(id, etag string, start <-chan bool, wc *sync.WaitGroup, store *SQLServer) {
 			<-start

@@ -354,7 +354,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 	}
 
 	// Create an error for non-200 status codes unless suppressed.
-	if errorIfNot2XX && resp.StatusCode/100 != 2 {
+	if errorIfNot2XX && resp.StatusCode/100 != 2 { //nolint:usestdlibvars
 		err = fmt.Errorf("received status code %d", resp.StatusCode)
 	}
 

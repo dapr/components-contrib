@@ -88,13 +88,13 @@ func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindin
 		return nil, err
 	}
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("smtp binding error: emailFrom property not supplied in configuration- or request-metadata")
+		return nil, errors.New("smtp binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
-		return nil, fmt.Errorf("smtp binding error: emailTo property not supplied in configuration- or request-metadata")
+		return nil, errors.New("smtp binding error: emailTo property not supplied in configuration- or request-metadata")
 	}
 	if metadata.Subject == "" {
-		return nil, fmt.Errorf("smtp binding error: subject property not supplied in configuration- or request-metadata")
+		return nil, errors.New("smtp binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
 	// Compose message
@@ -168,7 +168,6 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	}
 
 	err = smtpMeta.parsePriority(meta.Properties["priority"])
-
 	if err != nil {
 		return smtpMeta, err
 	}

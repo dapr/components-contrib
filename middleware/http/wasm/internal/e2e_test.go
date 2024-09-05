@@ -97,7 +97,7 @@ func Test_EndToEnd(t *testing.T) {
 			guest: guestWasm[guestWasmOutput],
 			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
 				// Service more requests than one to ensure pooling works properly.
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					r := httptest.NewRequest(http.MethodGet, "/", nil)
 					w := httptest.NewRecorder()
 					handler.ServeHTTP(w, r)

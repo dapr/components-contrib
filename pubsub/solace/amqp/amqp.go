@@ -130,7 +130,6 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		a.logger.Errorf("Unable to create link to %s", req.Topic, err)
 	} else {
 		err = sender.Send(ctx, m, nil)
-
 		// If the publish operation has failed, attempt to republish a maximum number of times
 		// before giving up
 		if err != nil {
@@ -139,7 +138,6 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 
 				// Send message
 				err = sender.Send(ctx, m, nil)
-
 				if err != nil {
 					a.logger.Warnf("Failed to publish a message to the broker", err)
 				}

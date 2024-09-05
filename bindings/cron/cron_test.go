@@ -109,7 +109,7 @@ func TestCronRead(t *testing.T) {
 		return nil, nil
 	})
 	// Check if cron triggers 5 times in 5 seconds
-	for i := int32(0); i < expectedCount; i++ {
+	for range expectedCount {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
 		clk.Step(time.Second)
 		runtime.Gosched()
@@ -143,7 +143,7 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 		return nil, nil
 	})
 	// Check if cron triggers only 5 times in 10 seconds since context should be cancelled after 5 triggers
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
 		clk.Step(time.Second)
 		runtime.Gosched()

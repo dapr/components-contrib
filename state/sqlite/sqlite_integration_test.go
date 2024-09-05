@@ -193,9 +193,9 @@ func deleteItemThatDoesNotExist(t *testing.T, s state.Store) {
 }
 
 func multiWithSetOnly(t *testing.T, s state.Store) {
-	var operations []state.TransactionalStateOperation
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var setRequests []state.SetRequest                 //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),
@@ -216,9 +216,9 @@ func multiWithSetOnly(t *testing.T, s state.Store) {
 }
 
 func multiWithDeleteOnly(t *testing.T, s state.Store) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database.
@@ -242,9 +242,9 @@ func multiWithDeleteOnly(t *testing.T, s state.Store) {
 }
 
 func multiWithDeleteAndSet(t *testing.T, s state.Store) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database.
@@ -258,8 +258,8 @@ func multiWithDeleteAndSet(t *testing.T, s state.Store) {
 	}
 
 	// Create the set requests.
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var setRequests []state.SetRequest //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),

@@ -18,7 +18,6 @@ package dynamodb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -109,7 +108,7 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
+		assert.Equal(t, err, errors.New("missing dynamodb table name"))
 	})
 
 	t.Run("Init with valid table", func(t *testing.T) {
@@ -267,7 +266,7 @@ func TestGet(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
-					return nil, fmt.Errorf("failed to retrieve data")
+					return nil, errors.New("failed to retrieve data")
 				},
 			},
 		}
@@ -606,7 +605,7 @@ func TestSet(t *testing.T) {
 		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				return nil, fmt.Errorf("unable to put item")
+				return nil, errors.New("unable to put item")
 			},
 		}
 		req := &state.SetRequest{
@@ -790,7 +789,7 @@ func TestDelete(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
-					return nil, fmt.Errorf("unable to delete item")
+					return nil, errors.New("unable to delete item")
 				},
 			},
 		}

@@ -134,7 +134,6 @@ func dial(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls
 		}
 	}
 	conn, err = amqp.DialConfig(uri, cfg)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,7 +271,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		// Blocks until the server confirms
 		ok := confirm.Wait()
 		if !ok {
-			err = fmt.Errorf("did not receive confirmation of publishing")
+			err = errors.New("did not receive confirmation of publishing")
 			r.logger.Errorf("%s publishing to %s failed: %v", logMessagePrefix, req.Topic, err)
 		}
 	}
@@ -482,7 +481,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		metadataRoutingKey = val
 	}
 	routingKeys := strings.Split(metadataRoutingKey, ",")
-	for i := 0; i < len(routingKeys); i++ {
+	for i := range len(routingKeys) {
 		routingKey := routingKeys[i]
 		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
 		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
@@ -521,7 +520,6 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 		)
 		for {
 			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
-
 			if err != nil {
 				errFuncName = "ensureSubscription"
 				break

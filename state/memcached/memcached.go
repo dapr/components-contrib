@@ -117,7 +117,7 @@ func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
 	if val, ok := meta.Properties[maxIdleConnections]; ok && val != "" {
 		p, err := strconv.Atoi(val)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing maxIdleConnections")
+			return nil, errors.New("error parsing maxIdleConnections")
 		}
 		m.MaxIdleConnections = p
 	}
@@ -125,7 +125,7 @@ func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
 	if val, ok := meta.Properties[timeout]; ok && val != "" {
 		p, err := strconv.Atoi(val)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing timeout")
+			return nil, errors.New("error parsing timeout")
 		}
 		m.Timeout = p
 	}

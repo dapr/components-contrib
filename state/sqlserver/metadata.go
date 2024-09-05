@@ -77,10 +77,10 @@ func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 
 	// Validate and sanitize more values
 	if !sqlserverAuth.IsValidSQLName(m.TableName) {
-		return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
+		return errors.New("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
 	if !sqlserverAuth.IsValidSQLName(m.MetadataTableName) {
-		return fmt.Errorf("invalid metadata table name, accepted characters are (A-Z, a-z, 0-9, _)")
+		return errors.New("invalid metadata table name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
 
 	err = m.setKeyType()
@@ -174,15 +174,15 @@ func (m *sqlServerMetadata) validateIndexedProperties(indexedProperties []Indexe
 		}
 
 		if !sqlserverAuth.IsValidSQLName(p.ColumnName) {
-			return fmt.Errorf("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
+			return errors.New("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
 		}
 
 		if !isValidIndexedPropertyName(p.Property) {
-			return fmt.Errorf("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
+			return errors.New("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
 		}
 
 		if !isValidIndexedPropertyType(p.Type) {
-			return fmt.Errorf("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
+			return errors.New("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
 		}
 	}
 

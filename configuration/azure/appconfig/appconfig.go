@@ -231,7 +231,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
-		return "", fmt.Errorf("sentinel key is not provided in metadata")
+		return "", errors.New("sentinel key is not provided in metadata")
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {

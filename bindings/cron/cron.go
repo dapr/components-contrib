@@ -76,7 +76,7 @@ func (b *Binding) Init(ctx context.Context, meta bindings.Metadata) error {
 		return err
 	}
 	if m.Schedule == "" {
-		return fmt.Errorf("schedule not set")
+		return errors.New("schedule not set")
 	}
 	_, err = b.parser.Parse(m.Schedule)
 	if err != nil {

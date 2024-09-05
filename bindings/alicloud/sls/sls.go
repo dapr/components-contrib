@@ -3,7 +3,7 @@ package sls
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"reflect"
 	"time"
 
@@ -61,16 +61,16 @@ func NewAliCloudSlsLogstorage(logger logger.Logger) bindings.OutputBinding {
 func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// verify the metadata property
 	if logProject := req.Metadata["project"]; logProject == "" {
-		return nil, fmt.Errorf("SLS binding error: project property not supplied")
+		return nil, errors.New("SLS binding error: project property not supplied")
 	}
 	if logstore := req.Metadata["logstore"]; logstore == "" {
-		return nil, fmt.Errorf("SLS binding error: logstore property not supplied")
+		return nil, errors.New("SLS binding error: logstore property not supplied")
 	}
 	if topic := req.Metadata["topic"]; topic == "" {
-		return nil, fmt.Errorf("SLS binding error: topic property not supplied")
+		return nil, errors.New("SLS binding error: topic property not supplied")
 	}
 	if source := req.Metadata["source"]; source == "" {
-		return nil, fmt.Errorf("SLS binding error: source property not supplied")
+		return nil, errors.New("SLS binding error: source property not supplied")
 	}
 
 	log, err := s.parseLog(req)

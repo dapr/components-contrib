@@ -107,7 +107,7 @@ func (m Migrations) EnsureMetadataTable(ctx context.Context) (err error) {
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
 	// Note that this query can fail with error `23505` on constraint `pg_type_typname_nsp_index` if ran in parallel; we will just retry that up to 3 times
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, err = m.DB.Exec(ctx, fmt.Sprintf(
 			`CREATE TABLE IF NOT EXISTS %s (
 				key text NOT NULL PRIMARY KEY,

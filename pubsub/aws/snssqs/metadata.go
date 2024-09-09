@@ -22,7 +22,7 @@ type snsSqsMetadata struct {
 	// aws endpoint for the component to use.
 	Endpoint string `mapstructure:"endpoint"`
 	// aws region in which SNS/SQS should create resources.
-	Region string `mapstructure:"region"`
+	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	// aws partition in which SNS/SQS should create resources.
 	internalPartition string `mapstructure:"-"`
 	// name of the queue for this application. The is provided by the runtime as "consumerID".

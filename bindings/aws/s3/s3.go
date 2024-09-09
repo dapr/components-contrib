@@ -74,7 +74,7 @@ type s3Metadata struct {
 	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
 
-	Region         string `json:"region" mapstructure:"region"`
+	Region         string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
 	Bucket         string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`

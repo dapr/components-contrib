@@ -49,7 +49,8 @@ func Up(project, filename string) flow.Runnable {
 
 func (c Compose) Up(ctx flow.Context) error {
 	out, err := exec.Command(
-		"docker-compose",
+		"docker",
+		"compose",
 		"-p", c.project,
 		"-f", c.filename,
 		"up", "-d",
@@ -65,7 +66,8 @@ func Down(project, filename string) flow.Runnable {
 
 func (c Compose) Down(ctx flow.Context) error {
 	out, err := exec.Command(
-		"docker-compose",
+		"docker",
+		"compose",
 		"-p", c.project,
 		"-f", c.filename,
 		"down", "-v").CombinedOutput()
@@ -81,12 +83,13 @@ func Start(project, filename string, services ...string) flow.Runnable {
 func (c Compose) Start(services ...string) flow.Runnable {
 	return func(ctx flow.Context) error {
 		args := []string{
+			"compose",
 			"-p", c.project,
 			"-f", c.filename,
 			"start",
 		}
 		args = append(args, services...)
-		out, err := exec.Command("docker-compose", args...).CombinedOutput()
+		out, err := exec.Command("docker", args...).CombinedOutput()
 		ctx.Log(string(out))
 		return err
 	}
@@ -99,12 +102,13 @@ func Stop(project, filename string, services ...string) flow.Runnable {
 func (c Compose) Stop(services ...string) flow.Runnable {
 	return func(ctx flow.Context) error {
 		args := []string{
+			"compose",
 			"-p", c.project,
 			"-f", c.filename,
 			"stop",
 		}
 		args = append(args, services...)
-		out, err := exec.Command("docker-compose", args...).CombinedOutput()
+		out, err := exec.Command("docker", args...).CombinedOutput()
 		ctx.Log(string(out))
 		return err
 	}

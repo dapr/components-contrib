@@ -16,6 +16,7 @@ package state
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/dapr/components-contrib/health"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,6 +40,7 @@ type BaseStore interface {
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
+	io.Closer
 }
 
 // TransactionalStore is an interface for initialization and support multiple transactional requests.

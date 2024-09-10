@@ -15,13 +15,14 @@ package metadataschema
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Built-in authentication profiles
 var BuiltinAuthenticationProfiles map[string][]AuthenticationProfile
 
 // ParseBuiltinAuthenticationProfile returns an AuthenticationProfile(s) from a given BuiltinAuthenticationProfile.
-func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
+func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componentTitle string) ([]AuthenticationProfile, error) {
 	profiles, ok := BuiltinAuthenticationProfiles[bi.Name]
 	if !ok {
 		return nil, fmt.Errorf("built-in authentication profile %s does not exist", bi.Name)
@@ -30,7 +31,14 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 	res := make([]AuthenticationProfile, len(profiles))
 	for i, profile := range profiles {
 		res[i] = profile
+
 		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
+
+		// If component is PostgreSQL, filter out duplicated aws profile fields
+		if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
+			res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
+		}
+
 	}
 	return res, nil
 }
@@ -44,4 +52,30 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 	res = append(res, base...)
 	res = append(res, add...)
 	return res
+}
+
+// filterOutDuplicateFields removes specific duplicated fields from the metadata
+func filterOutDuplicateFields(metadata []Metadata) []Metadata {
+	duplicateFields := map[string]int{
+		"awsRegion": 0,
+		"accessKey": 0,
+		"secretKey": 0,
+	}
+
+	filteredMetadata := []Metadata{}
+
+	for _, field := range metadata {
+		if _, exists := duplicateFields[field.Name]; !exists {
+			filteredMetadata = append(filteredMetadata, field)
+		} else {
+			if field.Name == "awsRegion" && duplicateFields["awsRegion"] == 0 {
+				filteredMetadata = append(filteredMetadata, field)
+				duplicateFields["awsRegion"]++
+			} else if field.Name != "awsRegion" {
+				continue
+			}
+		}
+	}
+
+	return filteredMetadata
 }

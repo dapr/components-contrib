@@ -309,3 +309,7 @@ func (s *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (s *StateStore) Close() error {
+	return nil
+}

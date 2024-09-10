@@ -163,3 +163,7 @@ func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (c *Consul) Close() error {
+	return nil
+}

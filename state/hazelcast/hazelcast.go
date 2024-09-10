@@ -165,3 +165,7 @@ func (store *Hazelcast) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (store *Hazelcast) Close() error {
+	return nil
+}

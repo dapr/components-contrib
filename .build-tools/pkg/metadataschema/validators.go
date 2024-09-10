@@ -67,7 +67,7 @@ func (c *ComponentMetadata) IsValid() error {
 
 	// Append built-in authentication profiles
 	for _, profile := range c.BuiltInAuthenticationProfiles {
-		appendProfiles, err := ParseBuiltinAuthenticationProfile(profile)
+		appendProfiles, err := ParseBuiltinAuthenticationProfile(profile, c.Title)
 		if err != nil {
 			return err
 		}

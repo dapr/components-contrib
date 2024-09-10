@@ -7,7 +7,7 @@ The purpose of this module is to provide tests that certify the CockroachDB Stat
 ## Connection Test
 * Verify the connection is established to CockroachDB.
     * Create component spec.
-    * Run the component with docker-compose
+    * Run the component with docker compose
     * Run dapr application with component.
     * Ensure that you have access to the queue and connection to the queue is established.
 

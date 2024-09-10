@@ -54,7 +54,7 @@ This secret store [supports the following features][features]:
 ### Tests for `vaultToken` and `vaultTokenMountPath`
 
 1. Verify `vaultToken` is used (happy case)
-    * The baseline fo this test is all the previous test are using a known-to-work value that matches what our docker-compose environment sets up.
+    * The baseline fo this test is all the previous test are using a known-to-work value that matches what our docker compose environment sets up.
 1. Verify failure when we use a `vaultToken` value that does not match what our environment sets up
 1. Verify `vaultTokenMountPath` is used (happy case)
 1. Verify failure when `vaultTokenMountPath` points to a broken path
@@ -65,7 +65,7 @@ This secret store [supports the following features][features]:
 ### Tests for vaultAddr
 
 1. Verify `vaultAddr` is used (happy case)
-    * The baseline fo this test is all the previous test are using this flag with a known-to-work value that matches what our docker-compose environment sets up and is **not the default**.
+    * The baseline fo this test is all the previous test are using this flag with a known-to-work value that matches what our docker compose environment sets up and is **not the default**.
 1. Verify initialization and operation success when `vaultAddr` is missing  `skipVerify` is `true`
     * Start a vault instance using a self-signed HTTPS certificate.
     * Component configuration lacks `vaultAddr` and defaults to address `https://127.0.0.1:8200`
@@ -147,12 +147,12 @@ GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn go test -run TestVersioning  -v .
 
 ### Docker-compose
 
-You might need to verify if docker-compose is doing what you think it is doing: seeding the right secrets or even booting up properly.
+You might need to verify if docker compose is doing what you think it is doing: seeding the right secrets or even booting up properly.
 
 Head to the directory hosting the `docker-compose-hashicorp-vault.yml` file and run:
 
 ```shell
-docker-compose -f docker-compose-hashicorp-vault.yml up --remove-orphans
+docker compose -f docker-compose-hashicorp-vault.yml up --remove-orphans
 ```
 
 # References:

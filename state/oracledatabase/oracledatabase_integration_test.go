@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"time"
@@ -69,7 +68,7 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 
 	ods := NewOracleDatabaseStateStore(logger.NewLogger("test"))
 	t.Cleanup(func() {
-		defer ods.(io.Closer).Close()
+		defer ods.Close()
 	})
 
 	if initerror := ods.Init(context.Background(), metadata); initerror != nil {
@@ -672,7 +671,7 @@ func testInitConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewOracleDatabaseStateStore(logger)
-			defer p.(io.Closer).Close()
+			defer p.Close()
 
 			metadata := state.Metadata{
 				Base: metadata.Base{Properties: tt.props},

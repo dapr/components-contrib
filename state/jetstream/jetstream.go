@@ -16,7 +16,6 @@ package jetstream
 import (
 	"context"
 	"errors"
-	"io"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -186,5 +185,3 @@ func (js *StateStore) Close() error {
 	}
 	return nil
 }
-
-var _ io.Closer = (*StateStore)(nil)

@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"testing"
@@ -56,7 +55,7 @@ func TestSqliteIntegration(t *testing.T) {
 
 	s := NewSQLiteStateStore(logger.NewLogger("test"))
 	t.Cleanup(func() {
-		defer s.(io.Closer).Close()
+		defer s.Close()
 	})
 
 	if initerror := s.Init(context.Background(), metadata); initerror != nil {
@@ -693,7 +692,7 @@ func testInitConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewSQLiteStateStore(logger)
-			defer p.(io.Closer).Close()
+			defer p.Close()
 
 			metadata := state.Metadata{
 				Base: metadata.Base{

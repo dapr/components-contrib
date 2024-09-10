@@ -246,6 +246,10 @@ func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return nil
 }
 
+func (aspike *Aerospike) Close() error {
+	return nil
+}
+
 func parseHosts(hostsMeta string) ([]*as.Host, error) {
 	hostPorts := []*as.Host{}
 	for _, hostPort := range strings.Split(hostsMeta, ",") {

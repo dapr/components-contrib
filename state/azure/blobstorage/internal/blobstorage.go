@@ -119,6 +119,10 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 	}, nil
 }
 
+func (r *StateStore) Close() error {
+	return nil
+}
+
 func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error {
 	modifiedAccessConditions := blob.ModifiedAccessConditions{}
 

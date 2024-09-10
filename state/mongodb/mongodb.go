@@ -693,10 +693,12 @@ func (m *MongoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 // Close connection to the database.
-func (m *MongoDB) Close(ctx context.Context) (err error) {
+func (m *MongoDB) Close() error {
 	if m.client == nil {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	return m.client.Disconnect(ctx)
 }

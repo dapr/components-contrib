@@ -139,11 +139,11 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
 
+	m.client = client
+
 	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", m.metadata.Host, err)
 	}
-
-	m.client = client
 
 	// get the write concern
 	wc, err := getWriteConcernObject(m.metadata.Writeconcern)

@@ -99,6 +99,9 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
 		err = h.readMTLSClientCertificates(tlsConfig)
 		if err != nil {
@@ -155,9 +158,6 @@ func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 	cert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
 	if err != nil {
 		return fmt.Errorf("failed to load client certificate: %w", err)
-	}
-	if tlsConfig == nil {
-		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 	tlsConfig.Certificates = []tls.Certificate{cert}
 	return nil

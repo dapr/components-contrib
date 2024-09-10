@@ -164,6 +164,10 @@ func (s *storeBulk) Set(ctx context.Context, req *SetRequest) error {
 	return nil
 }
 
+func (s *storeBulk) Close() error {
+	return nil
+}
+
 func (s *storeBulk) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }

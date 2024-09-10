@@ -623,6 +623,10 @@ func (c *StateStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+func (c *StateStore) Close() error {
+	return nil
+}
+
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]byte)
 	if len(byteArray) == 0 {

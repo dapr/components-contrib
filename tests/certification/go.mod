@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.22.5
+go 1.23
+
+toolchain go1.23.1
 
 require (
 	cloud.google.com/go/pubsub v1.36.1
@@ -17,8 +19,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.13.1
-	github.com/dapr/dapr v1.14.0-rc.1
+	github.com/dapr/components-contrib v1.14.4
+	github.com/dapr/dapr v1.14.4
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
 	github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -105,7 +107,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
-	github.com/choleraehyq/pid v0.0.18 // indirect
+	github.com/choleraehyq/pid v0.0.19 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect

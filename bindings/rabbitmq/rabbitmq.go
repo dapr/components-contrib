@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -561,4 +562,10 @@ func (r *RabbitMQ) reset() (err error) {
 	}
 
 	return err
+}
+
+func (r *RabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := rabbitMQMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

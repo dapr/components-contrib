@@ -103,3 +103,7 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 
 	return res, nil
 }
+
+func (o *OpenAI) Close() error {
+	return nil
+}

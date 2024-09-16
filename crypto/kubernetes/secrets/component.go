@@ -149,3 +149,7 @@ func (kubeSecretsCrypto) GetComponentMetadata() (metadataInfo metadata.MetadataM
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.CryptoType)
 	return
 }
+
+func (kubeSecretsCrypto) Close() error {
+	return nil
+}

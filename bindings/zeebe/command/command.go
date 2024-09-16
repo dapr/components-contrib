@@ -138,3 +138,10 @@ func (z *ZeebeCommand) GetComponentMetadata() (metadataInfo metadata.MetadataMap
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (z *ZeebeCommand) Close() error {
+	if z.client != nil {
+		return z.client.Close()
+	}
+	return nil
+}

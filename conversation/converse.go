@@ -16,6 +16,7 @@ package conversation
 
 import (
 	"context"
+	"io"
 
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -28,6 +29,8 @@ type Conversation interface {
 	Init(ctx context.Context, meta Metadata) error
 
 	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
+
+	io.Closer
 }
 
 type ConversationRequest struct {

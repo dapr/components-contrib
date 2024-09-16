@@ -15,11 +15,13 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -42,11 +44,15 @@ const (
 
 // ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
-	client               rediscomponent.RedisClient
-	clientSettings       *rediscomponent.Settings
-	json                 jsoniter.API
-	replicas             int
-	subscribeStopChanMap sync.Map
+	client         rediscomponent.RedisClient
+	clientSettings *rediscomponent.Settings
+	json           jsoniter.API
+	replicas       int
+
+	cancelMap sync.Map
+	wg        sync.WaitGroup
+	closed    atomic.Bool
+	lock      sync.RWMutex
 
 	logger logger.Logger
 }
@@ -156,13 +162,20 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	if r.closed.Load() {
+		return "", errors.New("configuration store is closed")
+	}
+
 	subscribeID := uuid.New().String()
-	keyStopChanMap := make(map[string]chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+	r.cancelMap.Store(subscribeID, cancel)
+
 	if len(req.Keys) == 0 {
 		// subscribe all keys
-		stop := make(chan struct{})
 		allKeysChannel := internal.GetRedisChannelFromKey("*", r.clientSettings.DB)
-		keyStopChanMap[allKeysChannel] = stop
 		subscribeArgs := &rediscomponent.ConfigurationSubscribeArgs{
 			HandleSubscribedChange: r.handleSubscribedChange,
 			Req:                    req,
@@ -170,18 +183,21 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 			RedisChannel:           allKeysChannel,
 			IsAllKeysChannel:       true,
 			ID:                     subscribeID,
-			Stop:                   stop,
 		}
-		go r.client.ConfigurationSubscribe(ctx, subscribeArgs)
-		r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
+
+		r.wg.Add(1)
+		go func() {
+			r.client.ConfigurationSubscribe(ctx, subscribeArgs)
+			cancel()
+			r.cancelMap.Delete(subscribeID)
+			r.wg.Done()
+		}()
 		return subscribeID, nil
 	}
 
 	for _, k := range req.Keys {
 		// subscribe single key
-		stop := make(chan struct{})
 		redisChannel := internal.GetRedisChannelFromKey(k, r.clientSettings.DB)
-		keyStopChanMap[redisChannel] = stop
 		subscribeArgs := &rediscomponent.ConfigurationSubscribeArgs{
 			HandleSubscribedChange: r.handleSubscribedChange,
 			Req:                    req,
@@ -189,23 +205,33 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 			RedisChannel:           redisChannel,
 			IsAllKeysChannel:       false,
 			ID:                     subscribeID,
-			Stop:                   stop,
 		}
-		go r.client.ConfigurationSubscribe(ctx, subscribeArgs)
+
+		r.wg.Add(1)
+		go func() {
+			r.client.ConfigurationSubscribe(ctx, subscribeArgs)
+			cancel()
+			r.cancelMap.Delete(subscribeID)
+			r.wg.Done()
+		}()
 	}
-	r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
+
 	return subscribeID, nil
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	if keyStopChanMap, ok := r.subscribeStopChanMap.Load(req.ID); ok {
-		// already exist subscription
-		for _, stop := range keyStopChanMap.(map[string]chan struct{}) {
-			close(stop)
-		}
-		r.subscribeStopChanMap.Delete(req.ID)
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	if r.closed.Load() {
+		return errors.New("configuration store is closed")
+	}
+
+	if cancel, ok := r.cancelMap.Load(req.ID); ok {
+		cancel.(context.CancelFunc)()
 		return nil
 	}
+
 	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
@@ -249,4 +275,23 @@ func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadat
 	metadataStruct := rediscomponent.Settings{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
+}
+
+func (r *ConfigurationStore) Close() error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if r.closed.Load() {
+		return nil
+	}
+
+	r.closed.Store(true)
+	r.cancelMap.Range(func(key, value interface{}) bool {
+		value.(context.CancelFunc)()
+		return true
+	})
+
+	r.wg.Wait()
+
+	return r.client.Close()
 }

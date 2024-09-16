@@ -15,6 +15,7 @@ package lock
 
 import (
 	"context"
+	"io"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -30,4 +31,6 @@ type Store interface {
 
 	// Unlock tries to release a lock.
 	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
+
+	io.Closer
 }

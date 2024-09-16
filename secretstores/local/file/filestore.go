@@ -283,3 +283,7 @@ func (j *localSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (j *localSecretStore) Close() error {
+	return nil
+}

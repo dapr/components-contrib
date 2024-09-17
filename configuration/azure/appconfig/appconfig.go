@@ -327,6 +327,7 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 	defer r.lock.Unlock()
 	if cancelContext, ok := r.cancelMap.Load(req.ID); ok {
 		cancelContext.(context.CancelFunc)()
+		r.cancelMap.Delete(req.ID)
 		return nil
 	}
 	return fmt.Errorf("subscription with id %s does not exist", req.ID)

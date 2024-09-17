@@ -226,7 +226,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	defer r.lock.RUnlock()
 
 	if r.closed.Load() {
-		return "", fmt.Errorf("store is closed")
+		return "", errors.New("store is closed")
 	}
 
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)

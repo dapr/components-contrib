@@ -103,14 +103,15 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
-	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
+	github.com/bytedance/gopkg v0.0.0-20240711085056-a03554c296f8 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
 	github.com/choleraehyq/pid v0.0.19 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.16 // indirect
+	github.com/cloudwego/frugal v0.2.0 // indirect
+	github.com/cloudwego/gopkg v0.1.0 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
@@ -243,7 +244,6 @@ require (
 	github.com/mtibben/percent v0.2.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
-	github.com/oleiade/lane v1.0.1 // indirect
 	github.com/open-policy-agent/opa v0.55.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.2 // indirect

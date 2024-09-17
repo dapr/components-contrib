@@ -187,13 +187,14 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/bufbuild/protocompile v0.4.0 // indirect
-	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
+	github.com/bytedance/gopkg v0.0.0-20240711085056-a03554c296f8 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/choleraehyq/pid v0.0.19 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.16 // indirect
+	github.com/cloudwego/frugal v0.2.0 // indirect
+	github.com/cloudwego/gopkg v0.1.0 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
@@ -321,7 +322,6 @@ require (
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/nats-io/jwt/v2 v2.5.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/oleiade/lane v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/panjf2000/ants/v2 v2.8.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect

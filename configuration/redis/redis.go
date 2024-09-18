@@ -210,8 +210,9 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		r.wg.Add(1)
 		go func() {
 			r.client.ConfigurationSubscribe(ctx, subscribeArgs)
-			cancel()
-			r.cancelMap.Delete(subscribeID)
+			// TODO: @joshvanl
+			//cancel()
+			//r.cancelMap.Delete(subscribeID)
 			r.wg.Done()
 		}()
 	}

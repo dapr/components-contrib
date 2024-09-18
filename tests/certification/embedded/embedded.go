@@ -187,6 +187,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		AppProtocol:                  string(protocol.HTTPProtocol),
 		Mode:                         string(mode),
 		ActorsService:                "",
+		Healthz:                      healthz.New(),
 		RemindersService:             "",
 		AllowedOrigins:               allowedOrigins,
 		ResourcesPath:                []string{componentsPath},

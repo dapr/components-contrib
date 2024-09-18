@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/dapr/pkg/runtime/registry"
+	"github.com/dapr/dapr/pkg/security/fake"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 	"github.com/phayes/freeport"
@@ -204,6 +205,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		Registry:                     registry.NewOptions(),
 		Config:                       []string{"config.yaml"},
 		Metrics:                      metricsOpts,
+		Security:                     fake.New(),
 	}
 
 	for _, opt := range opts {

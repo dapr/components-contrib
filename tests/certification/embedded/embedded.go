@@ -175,6 +175,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 	var err error
 	metricsOpts := metrics.DefaultFlagOptions().ToOptions(healthz.New())
 	metricsOpts.Port = "0"
+	metricsOpts.Log = log
 
 	runtimeConfig := &runtime.Config{
 		AppID:                        appID,

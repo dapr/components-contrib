@@ -29,6 +29,7 @@ import (
 	env "github.com/dapr/dapr/pkg/config/env"
 	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/dapr/pkg/cors"
+	"github.com/dapr/dapr/pkg/healthz"
 	"github.com/dapr/dapr/pkg/metrics"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -172,7 +173,7 @@ func WithBindings(reg *bindings.Registry) Option {
 
 func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
-	metricsOpts := metrics.DefaultMetricOptions()
+	metricsOpts := metrics.DefaultFlagOptions().ToOptions(healthz.New())
 	metricsOpts.Port = "0"
 
 	runtimeConfig := &runtime.Config{

@@ -27,6 +27,7 @@ type HuaweiOBSAPI interface {
 	GetObject(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error)
 	DeleteObject(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error)
 	ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error)
+	Close()
 }
 
 // HuaweiOBSService is a service layer which wraps the actual OBS SDK client to provide the API functions
@@ -53,4 +54,8 @@ func (s *HuaweiOBSService) DeleteObject(ctx context.Context, input *obs.DeleteOb
 
 func (s *HuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 	return s.client.ListObjects(input, obs.WithRequestContext(ctx))
+}
+
+func (s *HuaweiOBSService) Close() {
+	s.client.Close()
 }

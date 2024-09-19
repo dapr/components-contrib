@@ -199,3 +199,7 @@ func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataM
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (s *ssmSecretStore) Close() error {
+	return nil
+}

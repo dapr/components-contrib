@@ -370,3 +370,7 @@ func (h *HTTPSource) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (h *HTTPSource) Close() error {
+	return nil
+}

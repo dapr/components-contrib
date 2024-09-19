@@ -100,7 +100,7 @@ verify-linter-version:
 	  echo "[!] Yours:  $(INSTALLED_LINT_VERSION)"; \
 		echo "[!] Theirs: $(GH_LINT_VERSION)"; \
 		echo "[!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GH_LINT_VERSION)"; \
-                GOLANGCI_LINT=$(go env GOPATH)/bin/$(GOLANGCI_LINT)
+                GOLANGCI_LINT=$(go env GOPATH)/bin/$(GOLANGCI_LINT) \
 	  sleep 3; \
 	fi;
 

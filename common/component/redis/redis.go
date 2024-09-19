@@ -100,7 +100,6 @@ type ConfigurationSubscribeArgs struct {
 	RedisChannel           string
 	IsAllKeysChannel       bool
 	ID                     string
-	Stop                   chan struct{}
 }
 
 func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType, ctx context.Context, logger *kitlogger.Logger) (RedisClient, *Settings, error) {

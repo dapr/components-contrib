@@ -16,6 +16,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"io"
 )
 
 var ErrNotImplemented = errors.New("this component doesn't implement the current API operation")
@@ -30,4 +31,5 @@ type Workflow interface {
 	Purge(ctx context.Context, req *PurgeRequest) error
 	Pause(ctx context.Context, req *PauseRequest) error
 	Resume(ctx context.Context, req *ResumeRequest) error
+	io.Closer
 }

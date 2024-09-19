@@ -134,3 +134,11 @@ func (s *AliCloudSlsLogstorage) GetComponentMetadata() (metadataInfo metadata.Me
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (s *AliCloudSlsLogstorage) Close() error {
+	if s.producer != nil {
+		return s.producer.Close(time.Second.Milliseconds() * 5)
+	}
+
+	return nil
+}

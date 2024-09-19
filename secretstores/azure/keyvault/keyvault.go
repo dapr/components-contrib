@@ -212,3 +212,7 @@ func (k *keyvaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Meta
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (k *keyvaultSecretStore) Close() error {
+	return nil
+}

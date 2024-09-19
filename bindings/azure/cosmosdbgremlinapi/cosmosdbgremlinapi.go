@@ -46,7 +46,7 @@ const (
 // CosmosDBGremlinAPI allows performing state operations on collections.
 type CosmosDBGremlinAPI struct {
 	metadata *cosmosDBGremlinAPICredentials
-	client   *gremcos.Cosmos
+	client   gremcos.Cosmos
 	logger   logger.Logger
 }
 
@@ -77,7 +77,7 @@ func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata)
 		return errors.New("CosmosDBGremlinAPI Error: failed to create the Cosmos Graph DB connector")
 	}
 
-	c.client = &client
+	c.client = client
 
 	return nil
 }
@@ -116,7 +116,7 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 			respStartTimeKey: startTime.Format(time.RFC3339Nano),
 		},
 	}
-	d, err := (*c.client).Execute(gq)
+	d, err := c.client.Execute(gq)
 	if err != nil {
 		return nil, errors.New("CosmosDBGremlinAPI Error:error excuting gremlin")
 	}
@@ -135,4 +135,11 @@ func (c *CosmosDBGremlinAPI) GetComponentMetadata() (metadataInfo metadata.Metad
 	metadataStruct := cosmosDBGremlinAPICredentials{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
+}
+
+func (c *CosmosDBGremlinAPI) Close() error {
+	if c.client != nil {
+		return c.client.Stop()
+	}
+	return nil
 }

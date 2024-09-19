@@ -73,3 +73,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	return res, nil
 }
+
+func (e *Echo) Close() error {
+	return nil
+}

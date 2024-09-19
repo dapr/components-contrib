@@ -344,6 +344,7 @@ func (r *ConfigurationStore) Close() error {
 		cancel.(context.CancelFunc)()
 		return true
 	})
+	r.cancelMap.Clear()
 
 	return nil
 }

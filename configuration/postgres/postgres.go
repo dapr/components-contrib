@@ -430,6 +430,7 @@ func (p *ConfigurationStore) Close() error {
 		cancel.(context.CancelFunc)()
 		return true
 	})
+	p.cancelMap.Clear()
 
 	if p.client != nil {
 		p.client.Close()

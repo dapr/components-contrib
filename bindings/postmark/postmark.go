@@ -167,3 +167,7 @@ func (p *Postmark) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (p *Postmark) Close() error {
+	return nil
+}

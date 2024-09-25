@@ -377,3 +377,7 @@ func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
+
+func (a *AzureBlobStorage) Close() error {
+	return nil
+}

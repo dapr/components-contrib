@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -59,9 +60,13 @@ type azAppConfigClient interface {
 
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client                azAppConfigClient
-	metadata              metadata
-	subscribeCancelCtxMap sync.Map
+	client   azAppConfigClient
+	metadata metadata
+
+	cancelMap sync.Map
+	wg        sync.WaitGroup
+	closed    atomic.Bool
+	lock      sync.RWMutex
 
 	logger logger.Logger
 }
@@ -217,6 +222,13 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	if r.closed.Load() {
+		return "", errors.New("store is closed")
+	}
+
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
 		return "", fmt.Errorf("sentinel key is not provided in metadata")
@@ -227,8 +239,13 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	}
 	subscribeID := uuid.String()
 	childContext, cancel := context.WithCancel(ctx)
-	r.subscribeCancelCtxMap.Store(subscribeID, cancel)
-	go r.doSubscribe(childContext, req, handler, sentinelKey, subscribeID)
+	r.cancelMap.Store(subscribeID, cancel)
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		defer r.cancelMap.Delete(subscribeID)
+		r.doSubscribe(childContext, req, handler, sentinelKey, subscribeID)
+	}()
 	return subscribeID, nil
 }
 
@@ -306,13 +323,30 @@ func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]stri
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	if cancelContext, ok := r.subscribeCancelCtxMap.Load(req.ID); ok {
-		// already exist subscription
-		r.subscribeCancelCtxMap.Delete(req.ID)
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if cancelContext, ok := r.cancelMap.Load(req.ID); ok {
 		cancelContext.(context.CancelFunc)()
+		r.cancelMap.Delete(req.ID)
 		return nil
 	}
 	return fmt.Errorf("subscription with id %s does not exist", req.ID)
+}
+
+func (r *ConfigurationStore) Close() error {
+	defer r.wg.Wait()
+	r.closed.Store(true)
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.cancelMap.Range(func(id any, cancel any) bool {
+		cancel.(context.CancelFunc)()
+		return true
+	})
+	r.cancelMap.Clear()
+
+	return nil
 }
 
 // GetComponentMetadata returns the metadata of the component.

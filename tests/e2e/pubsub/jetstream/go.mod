@@ -6,7 +6,7 @@ toolchain go1.23.1
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.13.1-0.20240402103809-0c7cfce53d9e
+	github.com/dapr/kit v0.13.1-0.20240909215017-3823663aa4bb
 )
 
 require (

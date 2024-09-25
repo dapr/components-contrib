@@ -15,6 +15,7 @@ package nameresolution
 
 import (
 	"context"
+	"io"
 	"math/rand"
 	"strconv"
 )
@@ -25,6 +26,8 @@ type Resolver interface {
 	Init(ctx context.Context, metadata Metadata) error
 	// ResolveID resolves name to address.
 	ResolveID(ctx context.Context, req ResolveRequest) (string, error)
+
+	io.Closer
 }
 
 // ResolverMulti is an optional interface for name resolvers that can return multiple addresses.

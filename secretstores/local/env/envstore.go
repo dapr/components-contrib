@@ -132,3 +132,7 @@ func (s *envSecretStore) isKeyAllowed(key string) bool {
 		return true
 	}
 }
+
+func (s *envSecretStore) Close() error {
+	return nil
+}

@@ -271,11 +271,19 @@ func (sg *SendGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
+func (sg *SendGrid) Close() error {
+	return nil
+}
+
 // Function that unmarshals the Dynamic Template Data JSON String into a map[string]any.
 func UnmarshalDynamicTemplateData(jsonString string, result *map[string]any) error {
 	err := json.Unmarshal([]byte(jsonString), &result)
 	if err != nil {
 		return fmt.Errorf("error from SendGrid binding, dynamic template data is not valid JSON: %w", err)
 	}
+	return nil
+}
+
+func Close() error {
 	return nil
 }

@@ -198,3 +198,7 @@ func (c *CosmosDB) GetComponentMetadata() (metadataInfo contribMetadata.Metadata
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
+
+func (c *CosmosDB) Close() error {
+	return nil
+}

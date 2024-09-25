@@ -167,3 +167,7 @@ func (c *csmsSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadata
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (c *csmsSecretStore) Close() error {
+	return nil
+}

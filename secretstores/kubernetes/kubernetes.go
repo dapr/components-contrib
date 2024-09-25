@@ -134,3 +134,7 @@ func (k *kubernetesSecretStore) GetComponentMetadata() (metadataInfo metadata.Me
 	// No component metadata
 	return
 }
+
+func (k *kubernetesSecretStore) Close() error {
+	return nil
+}

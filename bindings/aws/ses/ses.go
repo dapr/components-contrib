@@ -175,3 +175,7 @@ func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMa
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
+
+func (a *AWSSES) Close() error {
+	return nil
+}

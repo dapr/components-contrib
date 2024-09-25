@@ -64,6 +64,10 @@ func (l *localStorageCrypto) Features() []contribCrypto.Feature {
 	return []contribCrypto.Feature{} // No Feature supported.
 }
 
+func (l *localStorageCrypto) Close() error {
+	return nil
+}
+
 // Retrieves a key (public or private or symmetric) from a local file.
 // Parameter "key" must be the name of a file inside the "path"
 func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) (jwk.Key, error) {

@@ -541,3 +541,7 @@ func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (v *vaultSecretStore) Close() error {
+	return nil
+}

@@ -203,3 +203,7 @@ func (o *oosSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataM
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
+
+func (o *oosSecretStore) Close() error {
+	return nil
+}

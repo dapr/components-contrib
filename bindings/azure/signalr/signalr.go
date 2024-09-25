@@ -419,3 +419,7 @@ func (s *SignalR) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (s *SignalR) Close() error {
+	return nil
+}

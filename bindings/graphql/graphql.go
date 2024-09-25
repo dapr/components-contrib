@@ -192,3 +192,7 @@ func (gql *GraphQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (gql *GraphQL) Close() error {
+	return nil
+}

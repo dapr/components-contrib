@@ -353,3 +353,7 @@ func (s *AliCloudTableStore) GetComponentMetadata() (metadataInfo contribMetadat
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
+
+func (s *AliCloudTableStore) Close() error {
+	return nil
+}

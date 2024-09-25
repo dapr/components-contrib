@@ -86,8 +86,6 @@ func (c v8Client) ConfigurationSubscribe(ctx context.Context, args *Configuratio
 	defer p.Close()
 	for {
 		select {
-		case <-args.Stop:
-			return
 		case <-ctx.Done():
 			return
 		case msg := <-p.Channel():

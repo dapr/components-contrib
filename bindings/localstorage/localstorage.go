@@ -342,3 +342,7 @@ func (ls *LocalStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (ls *LocalStorage) Close() error {
+	return nil
+}

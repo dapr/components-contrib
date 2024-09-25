@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -36,12 +37,16 @@ import (
 )
 
 type ConfigurationStore struct {
-	metadata             metadata
-	client               *pgxpool.Pool
-	logger               logger.Logger
-	configLock           sync.Mutex
-	subscribeStopChanMap map[string]chan struct{}
-	ActiveSubscriptions  map[string]*subscription
+	metadata            metadata
+	client              *pgxpool.Pool
+	logger              logger.Logger
+	configLock          sync.RWMutex
+	ActiveSubscriptions map[string]*subscription
+
+	cancelMap sync.Map
+	wg        sync.WaitGroup
+	closed    atomic.Bool
+	lock      sync.RWMutex
 }
 
 type subscription struct {
@@ -67,8 +72,7 @@ var (
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	return &ConfigurationStore{
-		logger:               logger,
-		subscribeStopChanMap: make(map[string]chan struct{}),
+		logger: logger,
 	}
 }
 
@@ -167,6 +171,13 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	if p.closed.Load() {
+		return "", errors.New("configuration store is closed")
+	}
+
 	pgNotifyChannel := ""
 	for k, v := range req.Metadata {
 		if strings.ToLower(k) == "pgnotifychannel" { //nolint:gocritic
@@ -181,16 +192,25 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.closed.Load() {
+		return errors.New("configuration store is closed")
+	}
+
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
+
 	sub := p.ActiveSubscriptions[req.ID]
 	if sub == nil {
 		return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 	}
-	if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
-		delete(p.subscribeStopChanMap, req.ID)
-		close(oldStopChan)
+
+	if cancelContext, ok := p.cancelMap.Load(req.ID); ok {
+		cancelContext.(context.CancelFunc)()
 	}
+
 	pgChannel := "UNLISTEN " + sub.channel
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
@@ -203,11 +223,10 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		p.logger.Error("error un-listening to channel:", err)
 		return fmt.Errorf("error un-listening to channel: %w", err)
 	}
-	delete(p.ActiveSubscriptions, req.ID)
 	return nil
 }
 
-func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, channel string, subscription string, stop chan struct{}) {
+func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, channel string, subscription string) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
 		p.logger.Errorf("error acquiring connection:", err)
@@ -343,6 +362,8 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 }
 
 func (p *ConfigurationStore) isSubscribed(subscriptionID string, channel string, key string) bool {
+	p.configLock.RLock()
+	defer p.configLock.RUnlock()
 	val := p.ActiveSubscriptions[subscriptionID]
 	if val != nil && val.channel == channel && (slices.Contains(val.keys, key) || len(val.keys) == 0) {
 		return true
@@ -362,20 +383,32 @@ func validateInput(keys []string) error {
 func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
+
 	var subscribeID string
 	pgNotifyCmd := "listen " + pgNotifyChannel
-	stop := make(chan struct{})
 	subscribeUID, err := uuid.NewRandom()
 	if err != nil {
 		return "", fmt.Errorf("unable to generate subscription id - %w", err)
 	}
 	subscribeID = subscribeUID.String()
-	p.subscribeStopChanMap[subscribeID] = stop
+
+	childContext, cancel := context.WithCancel(ctx)
+	p.cancelMap.Store(subscribeID, cancel)
+
 	p.ActiveSubscriptions[subscribeID] = &subscription{
 		channel: pgNotifyChannel,
 		keys:    req.Keys,
 	}
-	go p.doSubscribe(ctx, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID, stop)
+
+	p.wg.Add(1)
+	go func() {
+		p.doSubscribe(childContext, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID)
+		p.configLock.Lock()
+		delete(p.ActiveSubscriptions, subscribeID)
+		p.configLock.Unlock()
+		p.cancelMap.Delete(subscribeID)
+		p.wg.Done()
+	}()
 	return subscribeID, nil
 }
 
@@ -384,4 +417,24 @@ func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadat
 	metadataStruct := metadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
+}
+
+func (p *ConfigurationStore) Close() error {
+	defer p.wg.Wait()
+	p.closed.Store(true)
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.cancelMap.Range(func(id any, cancel any) bool {
+		cancel.(context.CancelFunc)()
+		return true
+	})
+	p.cancelMap.Clear()
+
+	if p.client != nil {
+		p.client.Close()
+	}
+
+	return nil
 }

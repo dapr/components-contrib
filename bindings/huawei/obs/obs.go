@@ -338,3 +338,10 @@ func (o *HuaweiOBS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (o *HuaweiOBS) Close() error {
+	if o.service != nil {
+		o.service.Close()
+	}
+	return nil
+}

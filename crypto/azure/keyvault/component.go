@@ -398,6 +398,10 @@ func (k *keyvaultCrypto) getVaultURI() string {
 	return fmt.Sprintf("https://%s.%s", k.md.VaultName, k.md.vaultDNSSuffix)
 }
 
+func (k *keyvaultCrypto) Close() error {
+	return nil
+}
+
 func (keyvaultCrypto) SupportedEncryptionAlgorithms() []string {
 	return encryptionAlgsList
 }

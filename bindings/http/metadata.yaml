@@ -75,3 +75,7 @@ metadata:
     required: false
     description: "The header name on an outgoing HTTP request for a security token"
     example: '"X-Security-Token"'
+  - name: errorIfNot2XX
+    required: false
+    default: 'true'
+    description: "Create an error if a non-2XX status code is returned"

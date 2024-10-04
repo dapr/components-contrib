@@ -114,3 +114,7 @@ func (s *AliCloudOSS) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (s *AliCloudOSS) Close() error {
+	return nil
+}

@@ -15,6 +15,7 @@ package crypto
 
 import (
 	"context"
+	"io"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
@@ -165,6 +166,8 @@ type SubtleCrypto interface {
 		valid bool,
 		err error,
 	)
+
+	io.Closer
 }
 
 // SubtleCryptoAlgorithms is an extension to SubtleCrypto that includes methods to return information on the supported algorithms.

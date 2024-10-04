@@ -16,6 +16,7 @@ package pubsub
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/dapr/components-contrib/health"
 	"github.com/dapr/components-contrib/metadata"
@@ -29,7 +30,7 @@ type PubSub interface {
 	Features() []Feature
 	Publish(ctx context.Context, req *PublishRequest) error
 	Subscribe(ctx context.Context, req SubscribeRequest, handler Handler) error
-	Close() error
+	io.Closer
 }
 
 // BulkPublisher is the interface that wraps the BulkPublish method.

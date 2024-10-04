@@ -130,3 +130,7 @@ func (k *resolver) ResolveIDMulti(ctx context.Context, req nameresolution.Resolv
 	}
 	return res, nil
 }
+
+func (k *resolver) Close() error {
+	return nil
+}

@@ -125,3 +125,7 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (a *AWSSNS) Close() error {
+	return nil
+}

@@ -14,16 +14,20 @@ limitations under the License.
 package mongodb
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.uber.org/goleak"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 func TestGetMongoDBMetadata(t *testing.T) {
@@ -287,5 +291,35 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			"sometime":    timestring,
 		}
 		assert.Contains(t, data3, targetMap)
+	})
+}
+
+func TestGoroutineLeak(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	t.Run("Valid connection", func(t *testing.T) {
+		properties := map[string]string{
+			host:           "127.0.0.1",
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+			username:       "username",
+			password:       "password",
+		}
+		m := state.Metadata{
+			Base: metadata.Base{
+				Name:       "mongo",
+				Properties: properties,
+			},
+		}
+
+		s := NewMongoDB(logger.NewLogger("test"))
+		// ignore errors on init
+		_ = s.Init(context.Background(), m)
+
+		// close the connection
+		closer, ok := s.(io.Closer)
+		require.True(t, ok)
+		err := closer.Close()
+		require.NoError(t, err)
 	})
 }

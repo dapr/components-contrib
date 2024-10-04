@@ -167,6 +167,10 @@ func (r *StateStore) Ping(ctx context.Context) error {
 	return r.pingBucket(ctx)
 }
 
+func (r *StateStore) Close() error {
+	return nil
+}
+
 func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json: jsoniter.ConfigFastest,

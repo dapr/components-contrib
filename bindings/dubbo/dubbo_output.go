@@ -97,3 +97,7 @@ func (out *DubboOutputBinding) Operations() []bindings.OperationKind {
 func (out *DubboOutputBinding) GetComponentMetadata() metadata.MetadataMap {
 	return metadata.MetadataMap{}
 }
+
+func (out *DubboOutputBinding) Close() error {
+	return nil
+}

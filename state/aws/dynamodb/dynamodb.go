@@ -267,6 +267,10 @@ func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	return
 }
 
+func (d *StateStore) Close() error {
+	return nil
+}
+
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {
 	var m dynamoDBMetadata
 	err := kitmd.DecodeMetadata(meta.Properties, &m)

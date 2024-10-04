@@ -453,3 +453,7 @@ func getQueryOptionsConfig(cfg configSpec) *consul.QueryOptions {
 
 	return cfg.QueryOptions
 }
+
+func (r *registry) Close() error {
+	return nil
+}

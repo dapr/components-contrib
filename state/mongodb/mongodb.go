@@ -139,11 +139,11 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
 
+	m.client = client
+
 	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", m.metadata.Host, err)
 	}
-
-	m.client = client
 
 	// get the write concern
 	wc, err := getWriteConcernObject(m.metadata.Writeconcern)
@@ -693,10 +693,12 @@ func (m *MongoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 // Close connection to the database.
-func (m *MongoDB) Close(ctx context.Context) (err error) {
+func (m *MongoDB) Close() error {
 	if m.client == nil {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	return m.client.Disconnect(ctx)
 }

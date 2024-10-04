@@ -199,7 +199,10 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 }
 
 func (s *Store) Close() error {
-	return s.client.Close()
+	if s.client != nil {
+		return s.client.Close()
+	}
+	return nil
 }
 
 // Features returns the features available in this secret store.

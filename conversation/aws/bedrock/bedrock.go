@@ -88,6 +88,7 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 	if m.Model != "" {
 		opts = append(opts, bedrock.WithModel(m.Model))
 	}
+	b.model = m.Model
 
 	llm, err := bedrock.New(
 		opts...,

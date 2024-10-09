@@ -6,7 +6,9 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConverse(t *testing.T) {
@@ -20,7 +22,7 @@ func TestConverse(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, r.Outputs, 1)
 	assert.Equal(t, "hello", r.Outputs[0].Result)
 }

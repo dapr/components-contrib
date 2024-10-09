@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/conversation"
+
 	"github.com/stretchr/testify/assert"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -20,6 +21,6 @@ func TestConvertRole(t *testing.T) {
 
 	for k, v := range roles {
 		r := convertRole(conversation.Role(k))
-		assert.Equal(t, v, string(r))
+		assert.Equal(t, v, r)
 	}
 }

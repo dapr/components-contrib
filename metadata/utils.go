@@ -157,6 +157,7 @@ const (
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	WorkflowType           ComponentType = "workflows"
+	ConversationType       ComponentType = "conversation"
 )
 
 // IsValid returns true if the component type is valid.

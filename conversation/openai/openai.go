@@ -26,8 +26,10 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+const defaultModel = "gpt-4o"
+
 type OpenAI struct {
-	cilent *openai.Client
+	client *openai.Client
 	model  string
 
 	logger logger.Logger
@@ -43,32 +45,68 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	r := &conversation.ConversationRequest{}
-	err := kmeta.DecodeMetadata(meta.Properties, &r)
+	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
 	}
 
-	o.cilent = openai.NewClient(r.Key)
+	o.client = openai.NewClient(r.Key)
 	o.model = r.Model
+
+	if o.model == "" {
+		o.model = defaultModel
+	}
 
 	return nil
 }
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.ConversationRequest{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
+}
+
+func convertRole(role conversation.Role) string {
+	switch role {
+	case conversation.RoleSystem:
+		return string(openai.ChatMessageRoleSystem)
+	case conversation.RoleUser:
+		return string(openai.ChatMessageRoleUser)
+	case conversation.RoleAssistant:
+		return string(openai.ChatMessageRoleAssistant)
+	case conversation.RoleTool:
+		return string(openai.ChatMessageRoleTool)
+	case conversation.RoleFunction:
+		return string(openai.ChatMessageRoleFunction)
+	default:
+		return string(openai.ChatMessageRoleUser)
+	}
 }
 
 func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	// Note: OPENAI does not support load balance
-
 	messages := make([]openai.ChatCompletionMessage, 0, len(r.Inputs))
 
+	var systemPrompt string
+
 	for _, input := range r.Inputs {
+		role := convertRole(input.Role)
+		if role == openai.ChatMessageRoleSystem {
+			systemPrompt = input.Message
+			continue
+		}
+
 		messages = append(messages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleUser,
-			Content: input,
+			Role:    role,
+			Content: input.Message,
+		})
+	}
+
+	// OpenAI needs system prompts to be added last in the array to function properly
+	if systemPrompt != "" {
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: systemPrompt,
 		})
 	}
 
@@ -78,14 +116,11 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 	}
 
 	// TODO: support ConversationContext
-
-	resp, err := o.cilent.CreateChatCompletion(ctx, req)
+	resp, err := o.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		o.logger.Error(err)
 		return nil, err
 	}
-
-	o.logger.Debug(resp)
 
 	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
 

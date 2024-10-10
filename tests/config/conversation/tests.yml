@@ -1,0 +1,4 @@
+componentType: conversation
+components:
+  - component: echo
+    operations: []

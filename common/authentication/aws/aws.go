@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
@@ -35,6 +36,29 @@ import (
 
 type EnvironmentSettings struct {
 	Metadata map[string]string
+}
+
+func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {
+	optFns := []func(*config.LoadOptions) error{}
+	if region != "" {
+		optFns = append(optFns, config.WithRegion(region))
+	}
+
+	if accessKey != "" && secretKey != "" {
+		provider := v2creds.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
+		optFns = append(optFns, config.WithCredentialsProvider(provider))
+	}
+
+	awsCfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
+	if err != nil {
+		return awsv2.Config{}, err
+	}
+
+	if endpoint != "" {
+		awsCfg.BaseEndpoint = &endpoint
+	}
+
+	return awsCfg, nil
 }
 
 func GetClient(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (*session.Session, error) {

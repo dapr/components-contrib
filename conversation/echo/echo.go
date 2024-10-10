@@ -40,7 +40,7 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 	r := &conversation.ConversationRequest{}
-	err := kmeta.DecodeMetadata(meta.Properties, &r)
+	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	for _, input := range r.Inputs {
 		outputs = append(outputs, conversation.ConversationResult{
-			Result:     input,
+			Result:     input.Message,
 			Parameters: r.Parameters,
 		})
 	}

@@ -12,85 +12,73 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package bedrock
+package anthropic
 
 import (
 	"context"
 	"reflect"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/bedrock"
+	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
-type AWSBedrock struct {
-	model string
-	llm   *bedrock.LLM
+type Anthropic struct {
+	llm *anthropic.LLM
 
 	logger logger.Logger
 }
 
-type AWSBedrockMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Model        string `json:"model"`
+type AnthropicMetadata struct {
+	Key   string `json:"key"`
+	Model string `json:"model"`
 }
 
-func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
-	b := &AWSBedrock{
+func NewAnthropic(logger logger.Logger) conversation.Conversation {
+	a := &Anthropic{
 		logger: logger,
 	}
 
-	return b
+	return a
 }
 
-func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error {
-	m := AWSBedrockMetadata{}
+const defaultModel = "claude-3-5-sonnet-20240620"
+
+func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
+	m := AnthropicMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
 
-	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)
-	if err != nil {
-		return err
-	}
-
-	bedrockClient := bedrockruntime.NewFromConfig(awsConfig)
-
-	opts := []bedrock.Option{bedrock.WithClient(bedrockClient)}
+	model := defaultModel
 	if m.Model != "" {
-		opts = append(opts, bedrock.WithModel(m.Model))
+		model = m.Model
 	}
-	b.model = m.Model
 
-	llm, err := bedrock.New(
-		opts...,
+	llm, err := anthropic.New(
+		anthropic.WithModel(model),
+		anthropic.WithToken(m.Key),
 	)
 	if err != nil {
 		return err
 	}
 
-	b.llm = llm
+	a.llm = llm
 	return nil
 }
 
-func (b *AWSBedrock) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := AWSBedrockMetadata{}
+func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := AnthropicMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (b *AWSBedrock) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -104,7 +92,7 @@ func (b *AWSBedrock) Converse(ctx context.Context, r *conversation.ConversationR
 		})
 	}
 
-	resp, err := b.llm.GenerateContent(ctx, messages)
+	resp, err := a.llm.GenerateContent(ctx, messages)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +113,6 @@ func (b *AWSBedrock) Converse(ctx context.Context, r *conversation.ConversationR
 	return res, nil
 }
 
-func (b *AWSBedrock) Close() error {
+func (a *Anthropic) Close() error {
 	return nil
 }

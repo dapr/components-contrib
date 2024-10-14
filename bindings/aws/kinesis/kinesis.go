@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/cenkalti/backoff/v4"
@@ -129,7 +128,7 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 	if m.KinesisConsumerMode == SharedThroughput {
 		kclConfig := config.NewKinesisClientLibConfigWithCredential(m.ConsumerName,
 			m.StreamName, m.Region, m.ConsumerName,
-			credentials.NewStaticCredentials(m.AccessKey, m.SecretKey, ""))
+			client.Config.Credentials)
 		a.workerConfig = kclConfig
 	}
 

@@ -86,8 +86,6 @@ func (c v8Client) ConfigurationSubscribe(ctx context.Context, args *Configuratio
 	defer p.Close()
 	for {
 		select {
-		case <-args.Stop:
-			return
 		case <-ctx.Done():
 			return
 		case msg := <-p.Channel():
@@ -316,6 +314,12 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
+func (c v8Client) AuthACL(ctx context.Context, username, password string) error {
+	pipeline := c.client.Pipeline()
+	statusCmd := pipeline.AuthACL(ctx, username, password)
+	return statusCmd.Err()
+}
+
 func newV8FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil
@@ -340,10 +344,9 @@ func newV8FailoverClient(s *Settings) (RedisClient, error) {
 		IdleTimeout:        time.Duration(s.IdleTimeout),
 	}
 
-	/* #nosec */
 	if s.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -397,7 +400,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 		/* #nosec */
 		if s.EnableTLS {
 			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
+				InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 			}
 			err := s.SetCertificate(func(cert *tls.Certificate) {
 				options.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -437,7 +440,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 	/* #nosec */
 	if s.EnableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}

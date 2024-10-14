@@ -15,6 +15,7 @@ package pubsub
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,5 +128,168 @@ func TestInit(t *testing.T) {
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "connectionRecoveryInSec")
+	})
+
+	t.Run("valid optional maxOutstandingMessages", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":              "test-project",
+			"maxOutstandingMessages": "50",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 50, md.MaxOutstandingMessages, "MaxOutstandingMessages should match the provided configuration")
+	})
+
+	t.Run("missing optional maxOutstandingMessages", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 0, md.MaxOutstandingMessages)
+	})
+
+	t.Run("valid negative optional maxOutstandingMessages", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":              "test-project",
+			"maxOutstandingMessages": "-1",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, -1, md.MaxOutstandingMessages, "MaxOutstandingMessages should match the provided configuration")
+	})
+
+	t.Run("invalid optional maxOutstandingMessages", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":              "test-project",
+			"maxOutstandingMessages": "foobar",
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "maxOutstandingMessages")
+	})
+
+	t.Run("valid optional maxOutstandingBytes", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":           "test-project",
+			"maxOutstandingBytes": "1000000000",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 1000000000, md.MaxOutstandingBytes, "MaxOutstandingBytes should match the provided configuration")
+	})
+
+	t.Run("missing optional maxOutstandingBytes", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 0, md.MaxOutstandingBytes)
+	})
+
+	t.Run("valid negative optional maxOutstandingBytes", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":           "test-project",
+			"maxOutstandingBytes": "-1",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, -1, md.MaxOutstandingBytes, "MaxOutstandingBytes should match the provided configuration")
+	})
+
+	t.Run("invalid optional maxOutstandingBytes", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":           "test-project",
+			"maxOutstandingBytes": "foobar",
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "maxOutstandingBytes")
+	})
+
+	t.Run("valid optional maxConcurrentConnections", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":                "test-project",
+			"maxConcurrentConnections": "2",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 2, md.MaxConcurrentConnections, "MaxConcurrentConnections should match the provided configuration")
+	})
+
+	t.Run("missing optional maxConcurrentConnections", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project",
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 0, md.MaxConcurrentConnections)
+	})
+
+	t.Run("invalid optional maxConcurrentConnections", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":                "test-project",
+			"maxConcurrentConnections": "foobar",
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "maxConcurrentConnections")
+	})
+	t.Run("valid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "30s", // Valid custom ack deadline in seconds
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, 30*time.Second, md.AckDeadline, "AckDeadline should match the provided configuration")
+	})
+
+	t.Run("invalid ackDeadline", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId":   "test-project",
+			"ackDeadline": "-10m", // Invalid ack deadline
+		}
+
+		_, err := createMetadata(m)
+		require.Error(t, err, "Should return an error for invalid ackDeadline")
+		assert.Contains(t, err.Error(), "invalid AckDeadline", "Error message should indicate the invalid ack deadline")
+	})
+
+	t.Run("default ackDeadline when not specified", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "test-project", // No ackDeadline specified
+		}
+
+		md, err := createMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, defaultAckDeadline, md.AckDeadline, "Should use the default AckDeadline when none is specified")
 	})
 }

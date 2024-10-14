@@ -13,32 +13,32 @@ builtinAuthenticationProfiles:
 metadata:
   - name: enableMessageOrdering
     description: |
-      When set to "true", subscribed messages will be received in order, 
+      When set to "true", subscribed messages will be received in order,
       depending on publishing and permissions configuration.
     type: bool
     default: 'false'
     example: '"true", "false"'
   - name: orderingKey
     description: |
-      The key provided in the request. It's used when "enableMessageOrdering" 
+      The key provided in the request. It's used when "enableMessageOrdering"
       is set to true to order messages based on such key.
     type: string
     example: '"my-orderingkey"'
   - name: disableEntityManagement
     description: |
-      When set to true, topics and subscriptions do not get created automatically.  
+      When set to true, topics and subscriptions do not get created automatically.
     type: bool
     default: 'false'
     example: '"true", "false"'
   - name: maxReconnectionAttempts
     description: |
-      Defines the maximum number of reconnect attempts.   
+      Defines the maximum number of reconnect attempts.
     type: number
     default: '30'
     example: '30'
   - name: connectionRecoveryInSec
     description: |
-      Time in seconds to wait between connection recovery attempts.   
+      Time in seconds to wait between connection recovery attempts.
     type: number
     default: '2'
     example: '2'
@@ -60,3 +60,24 @@ metadata:
     type: number
     default: '5'
     example: '5'
+  - name: maxOutstandingMessages
+    description: |
+      Maximum number of messages a GCP streaming-pull connection is allowed to have outstanding
+    type: number
+    example: '1000'
+  - name: maxOutstandingBytes
+    description: |
+      Maximum number of bytes a GCP streaming-pull connection is allowed to have outstanding
+    type: number
+    example: '1e9'
+  - name: maxConcurrentConnections
+    description: |
+      Max number of concurrent streaming-pull connections to maintain
+    type: number
+    example: '10'
+  - name: ackDeadline
+    description: |
+      Message acknowledgement duration deadline.
+      Allows users to specify a custom message acknowledgment deadline after which a redelivery of the message will be performed if the message was not acknowledged.
+    default: '20s'
+    example: '1m'

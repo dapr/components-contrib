@@ -41,11 +41,13 @@ const (
 	// Metadata keys.
 	metadataProjectIDKey   = "projectId"
 	metedataOrderingKeyKey = "orderingKey"
+	metadataAckDeadlineKey = "ackDeadline"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
 	defaultConnectionRecoveryInSec = 2
 	defaultMaxDeliveryAttempts     = 5
+	defaultAckDeadline             = 20 * time.Second
 )
 
 // GCPPubSub type.
@@ -125,6 +127,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		MaxReconnectionAttempts: defaultMaxReconnectionAttempts,
 		ConnectionRecoveryInSec: defaultConnectionRecoveryInSec,
 		MaxDeliveryAttempts:     defaultMaxDeliveryAttempts,
+		AckDeadline:             defaultAckDeadline,
 	}
 
 	err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result)
@@ -134,6 +137,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if result.ProjectID == "" {
 		return &result, fmt.Errorf("%s missing attribute %s", errorMessagePrefix, metadataProjectIDKey)
+	}
+
+	if result.AckDeadline <= 0 {
+		return nil, fmt.Errorf("%s invalid AckDeadline %s. Value must be a positive Go duration string or integer", errorMessagePrefix, pubSubMetadata.Properties[metadataAckDeadlineKey])
 	}
 
 	return &result, nil
@@ -319,6 +326,21 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 
 	readReconnectAttemptsRemaining := func() int { return len(reconnAttempts) }
 
+	// Apply configured limits for MaxOutstandingMessages, MaxOutstandingBytes, and MaxConcurrentConnections
+	// NOTE: negative MaxOutstandingMessages and MaxOutstaningBytes values are allowed and indicate
+	//  in the GCP pubsub library that no limit should be applied. Zero values result in the package
+	//  default being used: 1000 messages and 1e9 (1G) bytes respectively.
+	if g.metadata.MaxOutstandingMessages != 0 {
+		sub.ReceiveSettings.MaxOutstandingMessages = g.metadata.MaxOutstandingMessages
+	}
+	if g.metadata.MaxOutstandingBytes != 0 {
+		sub.ReceiveSettings.MaxOutstandingBytes = g.metadata.MaxOutstandingBytes
+	}
+	// NOTE: For MaxConcurrentConnections, negative values are not allowed so only override if the value is greater than 0
+	if g.metadata.MaxConcurrentConnections > 0 {
+		sub.ReceiveSettings.NumGoroutines = g.metadata.MaxConcurrentConnections
+	}
+
 	// Periodically refill the reconnect attempts channel to avoid
 	// exhausting all the refill attempts due to intermittent issues
 	// occurring over a longer period of time.
@@ -441,7 +463,7 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
 		subConfig := gcppubsub.SubscriptionConfig{
-			AckDeadline:           20 * time.Second,
+			AckDeadline:           g.metadata.AckDeadline,
 			Topic:                 g.getTopic(topic),
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}

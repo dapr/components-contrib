@@ -15,7 +15,6 @@ package parameterstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
-	"github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -45,11 +43,13 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 type ParameterStoreMetaData struct {
-	Region       string `json:"region"`
+	// Ignored by metadata parser because included in built-in authentication profile
 	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
 	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken string `json:"sessionToken"`
-	Prefix       string `json:"prefix"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+
+	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
+	Prefix string `json:"prefix"`
 }
 
 type ssmSecretStore struct {
@@ -65,30 +65,13 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		return err
 	}
 
-	// This check is needed because d.client is set to a mock in tests
-	if s.client == nil {
-		s.client, err = s.getClient(meta)
-		if err != nil {
-			return err
-		}
+	s.client, err = s.getClient(meta)
+	if err != nil {
+		return err
 	}
 	s.prefix = meta.Prefix
 
-	// Validate client connection
-	var notFoundErr *ssm.ParameterNotFound
-	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
-		return fmt.Errorf("error validating access to the aws.parameterstore secret store: %w", err)
-	}
 	return nil
-}
-
-// validateConnection runs a dummy GetParameterWithContext operation
-// to validate the connection credentials
-func (s *ssmSecretStore) validateConnection(ctx context.Context) error {
-	_, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name: ptr.Of(s.prefix + utils.GetRandOrDefaultString("dapr-test-param")),
-	})
-	return err
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -196,4 +179,8 @@ func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataM
 	metadataStruct := ParameterStoreMetaData{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
+}
+
+func (s *ssmSecretStore) Close() error {
+	return nil
 }

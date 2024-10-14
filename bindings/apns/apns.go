@@ -267,3 +267,7 @@ func (a *APNS) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap)
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
+
+func (a *APNS) Close() error {
+	return nil
+}

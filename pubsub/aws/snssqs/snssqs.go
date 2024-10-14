@@ -42,7 +42,7 @@ import (
 )
 
 type snsSqs struct {
-	topicsLocker TopicsLocker
+	topicLock sync.RWMutex
 	// key is the sanitized topic name
 	topicArns map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
@@ -169,11 +169,10 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	}
 	// subscription manager responsible for managing the lifecycle of subscriptions.
 	s.subscriptionManager = NewSubscriptionMgmt(s.logger)
-	s.topicsLocker = NewLockManager()
 
-	s.topicArns = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
 	s.subscriptions = make(map[string]string)
+	s.topicArns = make(map[string]string)
 
 	return nil
 }
@@ -234,22 +233,21 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 	return *getTopicOutput.Attributes["TopicArn"], nil
 }
 
-// get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
+// Get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
+// NOTE: This method potentially reads and writes to the topicArns map, which may end up being accessed by multiple goroutines concurrently,
+// therefore it is necessary for its caller to lock the topic.
 func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedTopic string, err error) {
 	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
-	var loadOK bool
-	if topicArn, loadOK = s.topicArns[sanitizedTopic]; loadOK {
-		if len(topicArn) > 0 {
-			s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
+	var exists bool
+	s.topicLock.RLock()
+	topicArn, exists = s.topicArns[sanitizedTopic]
+	s.topicLock.RUnlock()
 
-			return topicArn, sanitizedTopic, err
-		} else {
-			err = fmt.Errorf("the ARN for (sanitized) topic: %s was empty", sanitizedTopic)
-
-			return topicArn, sanitizedTopic, err
-		}
+	if exists {
+		s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
+		return topicArn, sanitizedTopic, err
 	}
 
 	// creating queues is idempotent, the names serve as unique keys among a given region.
@@ -272,7 +270,9 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	}
 
 	// record topic ARN.
+	s.topicLock.Lock()
 	s.topicArns[sanitizedTopic] = topicArn
+	s.topicLock.Unlock()
 
 	return topicArn, sanitizedTopic, err
 }
@@ -757,9 +757,6 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	if s.closed.Load() {
 		return errors.New("component is closed")
 	}
-
-	s.topicsLocker.Lock(req.Topic)
-	defer s.topicsLocker.Unlock(req.Topic)
 
 	// subscribers declare a topic ARN and declare a SQS queue to use
 	// these should be idempotent - queues should not be created if they exist.

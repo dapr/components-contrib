@@ -53,7 +53,7 @@ type dynamoDBMetadata struct {
 	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken"  mapstructure:"sessionToken" mdignore:"true"`
 
-	Region           string `json:"region"`
+	Region           string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint         string `json:"endpoint"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
@@ -265,6 +265,10 @@ func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadataStruct := dynamoDBMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+func (d *StateStore) Close() error {
+	return nil
 }
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {

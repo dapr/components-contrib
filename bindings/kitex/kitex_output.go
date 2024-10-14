@@ -83,3 +83,7 @@ func (out *kitexOutputBinding) Operations() []bindings.OperationKind {
 func (out *kitexOutputBinding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
+
+func (out *kitexOutputBinding) Close() error {
+	return nil
+}

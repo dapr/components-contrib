@@ -122,11 +122,10 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	dialer := &net.Dialer{
 		Timeout: 15 * time.Second,
 	}
-	netTransport := &http.Transport{
-		Dial:                dialer.Dial,
-		TLSHandshakeTimeout: 15 * time.Second,
-		TLSClientConfig:     tlsConfig,
-	}
+	netTransport := http.DefaultTransport.(*http.Transport).Clone()
+	netTransport.DialContext = dialer.DialContext
+	netTransport.TLSHandshakeTimeout = 15 * time.Second
+	netTransport.TLSClientConfig = tlsConfig
 
 	h.client = &http.Client{
 		Timeout:   0, // no time out here, we use request timeouts instead
@@ -370,4 +369,8 @@ func (h *HTTPSource) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadataStruct := httpMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
+}
+
+func (h *HTTPSource) Close() error {
+	return nil
 }

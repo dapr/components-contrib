@@ -48,7 +48,8 @@ func getRedisValuesFromItems(items map[string]*configuration.Item) []interface{}
 
 func (r *ConfigUpdater) Init(props map[string]string) error {
 	var err error
-	r.Client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, metadata.ConfigurationStoreType)
+	ctx := context.Background()
+	r.Client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, metadata.ConfigurationStoreType, ctx, &r.logger)
 	if err != nil {
 		return err
 	}

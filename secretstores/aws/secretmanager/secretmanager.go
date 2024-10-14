@@ -16,7 +16,6 @@ package secretmanager
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -24,11 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
-	"github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -62,32 +59,12 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	// This check is needed because d.client is set to a mock in tests
-	if s.client == nil {
-		s.client, err = s.getClient(meta)
-		if err != nil {
-			return err
-		}
-	}
+	s.client, err = s.getClient(meta)
 	if err != nil {
 		return err
 	}
 
-	var notFoundErr *secretsmanager.ResourceNotFoundException
-	if err := s.validateConnection(ctx); err != nil && !errors.As(err, &notFoundErr) {
-		return fmt.Errorf("error validating access to the aws.secretmanager secret store: %w", err)
-	}
 	return nil
-}
-
-// validateConnection runs a dummy GetSecretValueWithContext operation
-// to validate the connection credentials
-func (s *smSecretStore) validateConnection(ctx context.Context) error {
-	_, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
-		SecretId: ptr.Of(utils.GetRandOrDefaultString("dapr-test-secret")),
-	})
-
-	return err
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -191,4 +168,8 @@ func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 	metadataStruct := SecretManagerMetaData{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
+}
+
+func (s *smSecretStore) Close() error {
+	return nil
 }

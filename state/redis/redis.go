@@ -131,7 +131,7 @@ func (r *StateStore) Ping(ctx context.Context) error {
 // Init does metadata and connection parsing.
 func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	var err error
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, daprmetadata.StateStoreType)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, daprmetadata.StateStoreType, ctx, &r.logger)
 	if err != nil {
 		return err
 	}

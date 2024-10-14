@@ -211,6 +211,10 @@ func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	return
 }
 
+func (r *StateStore) Close() error {
+	return nil
+}
+
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,

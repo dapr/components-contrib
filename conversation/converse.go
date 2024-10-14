@@ -42,6 +42,7 @@ type ConversationRequest struct {
 	Inputs              []ConversationInput   `json:"inputs"`
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
+	Temperature         float64               `json:"temperature"`
 
 	// from metadata
 	Key       string   `json:"key"`

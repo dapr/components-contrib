@@ -92,7 +92,13 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 		})
 	}
 
-	resp, err := a.llm.GenerateContent(ctx, messages)
+	opts := []llms.CallOption{}
+
+	if r.Temperature > 0 {
+		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
+	}
+
+	resp, err := a.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}

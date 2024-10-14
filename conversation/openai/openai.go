@@ -111,8 +111,9 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 	}
 
 	req := openai.ChatCompletionRequest{
-		Model:    o.model,
-		Messages: messages,
+		Model:       o.model,
+		Messages:    messages,
+		Temperature: float32(r.Temperature),
 	}
 
 	// TODO: support ConversationContext

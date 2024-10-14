@@ -42,6 +42,8 @@ const (
 	certPath            = "certPath"
 	keyPath             = "keyPath"
 	enableTTL           = "enableTTL"
+	changeVector        = "@change-vector"
+	expires             = "@expires"
 	defaultEnableTTL    = true
 )
 
@@ -152,8 +154,34 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error storing data %s", err)
 	}
+	ravenMeta, err := session.GetMetadataFor(item)
+	if err != nil {
+		return &state.GetResponse{}, fmt.Errorf("error getting metadata for %s", req.Key)
+	}
+	var ttlResp string
+	var etagResp string
+	var meta map[string]string
+	var ttl, okTTL = ravenMeta.Get("@Expires")
+	if okTTL {
+		ttlResp = ttl.(string)
+	} else {
+		ttlResp = ""
+	}
+	var eTag, okETag = ravenMeta.Get("@ChangeVector")
+	if okETag {
+		etagResp = eTag.(string)
+	} else {
+		etagResp = ""
+	}
+
+	meta = map[string]string{
+		state.GetRespMetaKeyTTLExpireTime: ttlResp,
+	}
+
 	resp := &state.GetResponse{
-		Data: []byte(item.Value),
+		Data:     []byte(item.Value),
+		ETag:     &etagResp,
+		Metadata: meta,
 	}
 
 	return resp, nil
@@ -291,7 +319,13 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		}
 	} else {
 		// Last write wins
-		err = session.Store(item)
+		if req.HasETag() {
+			eTag := *req.ETag
+			err = session.StoreWithChangeVectorAndID(item, eTag, req.Key)
+		} else {
+			err = session.Store(item)
+		}
+
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}

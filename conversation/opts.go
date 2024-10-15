@@ -14,9 +14,32 @@ limitations under the License.
 */
 package conversation
 
-import "github.com/tmc/langchaingo/llms"
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/cache"
+	"github.com/tmc/langchaingo/llms/cache/inmemory"
+)
 
 // LangchainTemperature returns a langchain compliant LLM temperature
 func LangchainTemperature(temperature float64) llms.CallOption {
 	return llms.WithTemperature(temperature)
+}
+
+// CacheModel creates a prompt query cache with a configured TTL
+func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, error) {
+	d, err := time.ParseDuration(ttl)
+	if err != nil {
+		return model, fmt.Errorf("failed to parse cacheTTL duration: %s", err)
+	}
+
+	mem, err := inmemory.New(ctx, inmemory.WithExpiration(d))
+	if err != nil {
+		return model, fmt.Errorf("failed to create llm cache: %s", err)
+	}
+
+	return cache.New(model, mem), nil
 }

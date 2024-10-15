@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package anthropic
+package mistral
 
 import (
 	"context"
@@ -24,66 +24,65 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/anthropic"
+	"github.com/tmc/langchaingo/llms/mistral"
 )
 
-type Anthropic struct {
+type Mistral struct {
 	llm llms.Model
 
 	logger logger.Logger
 }
 
-func NewAnthropic(logger logger.Logger) conversation.Conversation {
-	a := &Anthropic{
+func NewMistral(logger logger.Logger) conversation.Conversation {
+	m := &Mistral{
 		logger: logger,
 	}
 
-	return a
+	return m
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
+const defaultModel = "open-mistral-7b"
 
-func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
-	m := conversation.LangchainMetadata{}
-	err := kmeta.DecodeMetadata(meta.Properties, &m)
+func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
+	md := conversation.LangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
 	}
 
 	model := defaultModel
-	if m.Model != "" {
-		model = m.Model
+	if md.Model != "" {
+		model = md.Model
 	}
 
-	llm, err := anthropic.New(
-		anthropic.WithModel(model),
-		anthropic.WithToken(m.Key),
+	llm, err := mistral.New(
+		mistral.WithModel(model),
+		mistral.WithAPIKey(md.Key),
 	)
 	if err != nil {
 		return err
 	}
 
-	a.llm = llm
+	m.llm = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.llm)
+	if md.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.llm)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		a.llm = cachedModel
+		m.llm = cachedModel
 	}
-
 	return nil
 }
 
-func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -103,7 +102,7 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	resp, err := a.llm.GenerateContent(ctx, messages, opts...)
+	resp, err := m.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +123,6 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 	return res, nil
 }
 
-func (a *Anthropic) Close() error {
+func (m *Mistral) Close() error {
 	return nil
 }

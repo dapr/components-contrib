@@ -31,7 +31,7 @@ import (
 
 type AWSBedrock struct {
 	model string
-	llm   *bedrock.LLM
+	llm   llms.Model
 
 	logger logger.Logger
 }
@@ -43,6 +43,7 @@ type AWSBedrockMetadata struct {
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
 	Model        string `json:"model"`
+	CacheTTL     string `json:"cacheTTL"`
 }
 
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
@@ -81,6 +82,15 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 	}
 
 	b.llm = llm
+
+	if m.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.llm)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		b.llm = cachedModel
+	}
 	return nil
 }
 

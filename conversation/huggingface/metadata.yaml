@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: conversation
-name: anthropic
+name: huggingface
 version: v1
 status: alpha
-title: "Anthropic"
+title: "Huggingface"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-anthropic/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-huggingface/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"
@@ -17,16 +17,16 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          API key for Anthropic.
+          API key for Huggingface.
         example:  "**********"
         default: ""
 metadata:
   - name: model
     required: false
     description: |
-      The Anthropic LLM to use. Defaults to claude-3-5-sonnet-20240620
+      The Huggingface LLM to use. Defaults to meta-llama/Meta-Llama-3-8B
     type: string
-    example: 'claude-3-5-sonnet-20240620'
+    example: 'meta-llama/Meta-Llama-3-8B'
   - name: cacheTTL
     required: false
     description: |

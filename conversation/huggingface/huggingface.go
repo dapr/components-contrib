@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package anthropic
+package huggingface
 
 import (
 	"context"
@@ -24,26 +24,26 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/anthropic"
+	"github.com/tmc/langchaingo/llms/huggingface"
 )
 
-type Anthropic struct {
+type Huggingface struct {
 	llm llms.Model
 
 	logger logger.Logger
 }
 
-func NewAnthropic(logger logger.Logger) conversation.Conversation {
-	a := &Anthropic{
+func NewHuggingface(logger logger.Logger) conversation.Conversation {
+	h := &Huggingface{
 		logger: logger,
 	}
 
-	return a
+	return h
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
+const defaultModel = "meta-llama/Meta-Llama-3-8B"
 
-func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
+func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
@@ -55,35 +55,35 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		model = m.Model
 	}
 
-	llm, err := anthropic.New(
-		anthropic.WithModel(model),
-		anthropic.WithToken(m.Key),
+	llm, err := huggingface.New(
+		huggingface.WithModel(model),
+		huggingface.WithToken(m.Key),
 	)
 	if err != nil {
 		return err
 	}
 
-	a.llm = llm
+	h.llm = llm
 
 	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.llm)
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.llm)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		a.llm = cachedModel
+		h.llm = cachedModel
 	}
 
 	return nil
 }
 
-func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (h *Huggingface) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (h *Huggingface) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -103,7 +103,7 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	resp, err := a.llm.GenerateContent(ctx, messages, opts...)
+	resp, err := h.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +124,6 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 	return res, nil
 }
 
-func (a *Anthropic) Close() error {
+func (h *Huggingface) Close() error {
 	return nil
 }

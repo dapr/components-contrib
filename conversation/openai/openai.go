@@ -23,14 +23,12 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
-const defaultModel = "gpt-4o"
-
 type OpenAI struct {
-	client *openai.Client
-	model  string
+	llm llms.Model
 
 	logger logger.Logger
 }
@@ -43,83 +41,69 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
+const defaultModel = "gpt-4o"
+
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.ConversationRequest{}
-	err := kmeta.DecodeMetadata(meta.Properties, r)
+	md := conversation.LangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
 	}
 
-	o.client = openai.NewClient(r.Key)
-	o.model = r.Model
-
-	if o.model == "" {
-		o.model = defaultModel
+	model := defaultModel
+	if md.Model != "" {
+		model = md.Model
 	}
 
+	llm, err := openai.New(
+		openai.WithModel(model),
+		openai.WithToken(md.Key),
+	)
+	if err != nil {
+		return err
+	}
+
+	o.llm = llm
+
+	if md.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.llm)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		o.llm = cachedModel
+	}
 	return nil
 }
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.ConversationRequest{}
+	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func convertRole(role conversation.Role) string {
-	switch role {
-	case conversation.RoleSystem:
-		return string(openai.ChatMessageRoleSystem)
-	case conversation.RoleUser:
-		return string(openai.ChatMessageRoleUser)
-	case conversation.RoleAssistant:
-		return string(openai.ChatMessageRoleAssistant)
-	case conversation.RoleTool:
-		return string(openai.ChatMessageRoleTool)
-	case conversation.RoleFunction:
-		return string(openai.ChatMessageRoleFunction)
-	default:
-		return string(openai.ChatMessageRoleUser)
-	}
-}
-
 func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	// Note: OPENAI does not support load balance
-	messages := make([]openai.ChatCompletionMessage, 0, len(r.Inputs))
-
-	var systemPrompt string
+	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
-		role := convertRole(input.Role)
-		if role == openai.ChatMessageRoleSystem {
-			systemPrompt = input.Message
-			continue
-		}
+		role := conversation.ConvertLangchainRole(input.Role)
 
-		messages = append(messages, openai.ChatCompletionMessage{
-			Role:    role,
-			Content: input.Message,
+		messages = append(messages, llms.MessageContent{
+			Role: role,
+			Parts: []llms.ContentPart{
+				llms.TextPart(input.Message),
+			},
 		})
 	}
 
-	// OpenAI needs system prompts to be added last in the array to function properly
-	if systemPrompt != "" {
-		messages = append(messages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: systemPrompt,
-		})
+	opts := []llms.CallOption{}
+
+	if r.Temperature > 0 {
+		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	req := openai.ChatCompletionRequest{
-		Model:       o.model,
-		Messages:    messages,
-		Temperature: float32(r.Temperature),
-	}
-
-	// TODO: support ConversationContext
-	resp, err := o.client.CreateChatCompletion(ctx, req)
+	resp, err := o.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
-		o.logger.Error(err)
 		return nil, err
 	}
 
@@ -127,14 +111,13 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 
 	for i := range resp.Choices {
 		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Message.Content,
+			Result:     resp.Choices[i].Content,
 			Parameters: r.Parameters,
 		})
 	}
 
 	res = &conversation.ConversationResponse{
-		ConversationContext: resp.ID,
-		Outputs:             outputs,
+		Outputs: outputs,
 	}
 
 	return res, nil

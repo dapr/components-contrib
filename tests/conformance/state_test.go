@@ -80,6 +80,8 @@ func loadStateStore(name string) state.Store {
 		return s_redis.NewRedisStateStore(testLogger)
 	case "redis.v7":
 		return s_redis.NewRedisStateStore(testLogger)
+	case "redis.v7stack":
+		return s_redis.NewRedisStateStore(testLogger)
 	case "azure.blobstorage.v1":
 		return s_blobstorage_v1.NewAzureBlobStorageStore(testLogger)
 	case "azure.blobstorage.v2":

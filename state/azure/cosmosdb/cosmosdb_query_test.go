@@ -18,6 +18,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dapr/components-contrib/state/utils"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,8 +62,9 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 
 func TestCosmosDbQuery(t *testing.T) {
 	tests := []struct {
-		input string
-		query InternalQuery
+		input              string
+		query              InternalQuery
+		selectedAttributes string
 	}{
 		{
 			input: "../../../tests/state/query/q1.json",
@@ -174,6 +177,31 @@ func TestCosmosDbQuery(t *testing.T) {
 				},
 			},
 		},
+		{
+			input: "../../../tests/state/query/q8.json",
+			query: InternalQuery{
+				query: "SELECT c['id'], c['_etag'], c['value']['person'] as 'Person', c['value']['person']['org'] as 'Organization' FROM c WHERE c['value']['person']['org'] >= @__param__0__ OR (c['value']['person']['org'] < @__param__1__ AND c['value']['state'] IN (@__param__2__, @__param__3__)) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
+				parameters: []azcosmos.QueryParameter{
+					{
+						Name:  "@__param__0__",
+						Value: 123.0,
+					},
+					{
+						Name:  "@__param__1__",
+						Value: 10.0,
+					},
+					{
+						Name:  "@__param__2__",
+						Value: "CA",
+					},
+					{
+						Name:  "@__param__3__",
+						Value: "WA",
+					},
+				},
+			},
+			selectedAttributes: `[{"name":"Person", "path":"person", "type":"Object"},{"name":"Organization", "path":"person.org", "type":"Text"}]`,
+		},
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)
@@ -183,6 +211,10 @@ func TestCosmosDbQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		q := &Query{}
+		if len(test.selectedAttributes) > 0 {
+			q.querySelectedAttributes, err = utils.ParseQuerySelectedAttributes(test.selectedAttributes)
+			require.NoError(t, err)
+		}
 		qbuilder := query.NewQueryBuilder(q)
 		err = qbuilder.BuildQuery(&qq)
 		require.NoError(t, err)

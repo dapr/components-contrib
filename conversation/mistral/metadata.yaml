@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: conversation
-name: anthropic
+name: mistral
 version: v1
 status: alpha
-title: "Anthropic"
+title: "Mistral"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-anthropic/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-mistral/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"
@@ -17,16 +17,16 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          API key for Anthropic.
+          API key for Mistral.
         example:  "**********"
         default: ""
 metadata:
   - name: model
     required: false
     description: |
-      The Anthropic LLM to use. Defaults to claude-3-5-sonnet-20240620
+      The Mistral LLM to use. Defaults to open-mistral-7b
     type: string
-    example: 'claude-3-5-sonnet-20240620'
+    example: 'open-mistral-7b'
   - name: cacheTTL
     required: false
     description: |

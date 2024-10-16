@@ -91,14 +91,10 @@ func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, e
 	if awsRegion == "" {
 		return "", "", "", errors.New("metadata property AWSRegion is missing")
 	}
+	// Note: access key and secret keys can be optional
+	// in the event users are leveraging the credential files for an access token.
 	awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
-	if awsAccessKey == "" {
-		return "", "", "", errors.New("metadata property AWSAccessKey is missing")
-	}
 	awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
-	if awsSecretKey == "" {
-		return "", "", "", errors.New("metadata property AWSSecretKey is missing")
-	}
 	return awsRegion, awsAccessKey, awsSecretKey, nil
 }
 

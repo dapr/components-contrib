@@ -16,6 +16,7 @@ package bindings
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/dapr/components-contrib/health"
 	"github.com/dapr/components-contrib/metadata"
@@ -28,6 +29,7 @@ type OutputBinding interface {
 	Init(ctx context.Context, metadata Metadata) error
 	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
+	io.Closer
 }
 
 func PingOutBinding(ctx context.Context, outputBinding OutputBinding) error {

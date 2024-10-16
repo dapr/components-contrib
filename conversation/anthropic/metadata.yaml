@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: anthropic
+version: v1
+status: alpha
+title: "Anthropic"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-anthropic/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key for Anthropic.
+        example:  "**********"
+        default: ""
+metadata:
+  - name: model
+    required: false
+    description: |
+      The Anthropic LLM to use. Defaults to claude-3-5-sonnet-20240620
+    type: string
+    example: 'claude-3-5-sonnet-20240620'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

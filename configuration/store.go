@@ -15,6 +15,7 @@ package configuration
 
 import (
 	"context"
+	"io"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -34,6 +35,8 @@ type Store interface {
 
 	// Unsubscribe configuration with keys
 	Unsubscribe(ctx context.Context, req *UnsubscribeRequest) error
+
+	io.Closer
 }
 
 // UpdateHandler is the handler used to send event to daprd.

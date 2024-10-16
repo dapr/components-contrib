@@ -153,7 +153,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 
 	s.client = &MockConfigurationStore{}
 	cancelContext, cancel := context.WithCancel(context.Background())
-	s.subscribeCancelCtxMap.Store("id1", cancel)
+	s.cancelMap.Store("id1", cancel)
 
 	t.Run("call unsubscribe with incorrect subId", func(t *testing.T) {
 		req := configuration.UnsubscribeRequest{
@@ -161,7 +161,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 		}
 		err := s.Unsubscribe(cancelContext, &req)
 		require.Error(t, err)
-		_, ok := s.subscribeCancelCtxMap.Load("id1")
+		_, ok := s.cancelMap.Load("id1")
 		assert.True(t, ok)
 	})
 
@@ -171,7 +171,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 		}
 		err := s.Unsubscribe(cancelContext, &req)
 		require.NoError(t, err)
-		_, ok := s.subscribeCancelCtxMap.Load("id1")
+		_, ok := s.cancelMap.Load("id1")
 		assert.False(t, ok)
 	})
 }

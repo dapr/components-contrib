@@ -141,3 +141,7 @@ func (t *SMS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (t *SMS) Close() error {
+	return nil
+}

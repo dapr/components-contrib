@@ -237,3 +237,7 @@ func (s *Mailer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
+
+func (s *Mailer) Close() error {
+	return nil
+}

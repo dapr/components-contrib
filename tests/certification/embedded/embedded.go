@@ -29,10 +29,12 @@ import (
 	env "github.com/dapr/dapr/pkg/config/env"
 	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/dapr/pkg/cors"
+	"github.com/dapr/dapr/pkg/healthz"
 	"github.com/dapr/dapr/pkg/metrics"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/dapr/pkg/runtime/registry"
+	"github.com/dapr/dapr/pkg/security/fake"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 	"github.com/phayes/freeport"
@@ -172,8 +174,9 @@ func WithBindings(reg *bindings.Registry) Option {
 
 func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
-	metricsOpts := metrics.DefaultMetricOptions()
+	metricsOpts := metrics.DefaultFlagOptions().ToOptions(healthz.New())
 	metricsOpts.Port = "0"
+	metricsOpts.Log = log
 
 	runtimeConfig := &runtime.Config{
 		AppID:                        appID,
@@ -186,6 +189,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		AppProtocol:                  string(protocol.HTTPProtocol),
 		Mode:                         string(mode),
 		ActorsService:                "",
+		Healthz:                      healthz.New(),
 		RemindersService:             "",
 		AllowedOrigins:               allowedOrigins,
 		ResourcesPath:                []string{componentsPath},
@@ -201,6 +205,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		Registry:                     registry.NewOptions(),
 		Config:                       []string{"config.yaml"},
 		Metrics:                      metricsOpts,
+		Security:                     fake.New(),
 	}
 
 	for _, opt := range opts {

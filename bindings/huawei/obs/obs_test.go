@@ -61,6 +61,8 @@ func (m *MockHuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListO
 	return m.ListObjectsFn(ctx, input)
 }
 
+func (m *MockHuaweiOBSService) Close() {}
+
 func TestParseMetadata(t *testing.T) {
 	obs := NewHuaweiOBS(logger.NewLogger("test")).(*HuaweiOBS)
 

@@ -16,6 +16,7 @@ package conversation
 
 import (
 	"context"
+	"io"
 
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -28,12 +29,20 @@ type Conversation interface {
 	Init(ctx context.Context, meta Metadata) error
 
 	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
+
+	io.Closer
+}
+
+type ConversationInput struct {
+	Message string `json:"string"`
+	Role    Role   `json:"role"`
 }
 
 type ConversationRequest struct {
-	Inputs              []string              `json:"inputs"`
+	Inputs              []ConversationInput   `json:"inputs"`
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
+	Temperature         float64               `json:"temperature"`
 
 	// from metadata
 	Key       string   `json:"key"`
@@ -51,3 +60,13 @@ type ConversationResponse struct {
 	ConversationContext string               `json:"conversationContext"`
 	Outputs             []ConversationResult `json:"outputs"`
 }
+
+type Role string
+
+const (
+	RoleSystem    = "system"
+	RoleUser      = "user"
+	RoleAssistant = "assistant"
+	RoleFunction  = "function"
+	RoleTool      = "tool"
+)

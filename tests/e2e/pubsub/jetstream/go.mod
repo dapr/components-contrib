@@ -1,10 +1,12 @@
 module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 
-go 1.22.5
+go 1.23.0
+
+toolchain go1.23.1
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.13.1-0.20240402103809-0c7cfce53d9e
+	github.com/dapr/kit v0.13.1-0.20240909215017-3823663aa4bb
 )
 
 require (
@@ -26,7 +28,7 @@ require (
 	github.com/spf13/cast v1.5.1 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/apimachinery v0.26.10 // indirect
 )

@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dapr/components-contrib/contenttype"
+
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
@@ -528,7 +530,15 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 		var err error
 		switch req := o.(type) {
 		case state.SetRequest:
-			err = m.setInternal(sessCtx, &req)
+			{
+				isJson := (len(req.Metadata) > 0 && req.Metadata[metadata.ContentType] == contenttype.JSONContentType)
+				if isJson {
+					if bytes, ok := req.Value.([]byte); ok {
+						err = json.Unmarshal(bytes, &req.Value)
+					}
+				}
+				err = m.setInternal(sessCtx, &req)
+			}
 		case state.DeleteRequest:
 			err = m.deleteInternal(sessCtx, &req)
 		}

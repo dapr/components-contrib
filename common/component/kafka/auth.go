@@ -43,7 +43,7 @@ func updatePasswordAuthInfo(config *sarama.Config, metadata *KafkaMetadata, sasl
 
 func updateMTLSAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	if metadata.TLSDisable {
-		return fmt.Errorf("kafka: cannot configure mTLS authentication when TLSDisable is 'true'")
+		return errors.New("kafka: cannot configure mTLS authentication when TLSDisable is 'true'")
 	}
 	cert, err := tls.X509KeyPair([]byte(metadata.TLSClientCert), []byte(metadata.TLSClientKey))
 	if err != nil {

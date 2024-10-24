@@ -5,7 +5,7 @@ package objectstorage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -159,7 +159,7 @@ func testSet(t *testing.T, ociProperties map[string]string) {
 		err := statestore.Init(context.Background(), meta)
 		require.NoError(t, err)
 		err = statestore.Set(context.Background(), &state.SetRequest{Value: []byte("test-value")})
-		assert.Equal(t, err, fmt.Errorf("key for value to set was missing from request"), "Lacking Key results in error")
+		assert.Equal(t, err, errors.New("key for value to set was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Regular Set Operation", func(t *testing.T) {
 		testKey := "local-test-key"
@@ -235,7 +235,7 @@ func testDelete(t *testing.T, ociProperties map[string]string) {
 		err := s.Init(context.Background(), m)
 		require.NoError(t, err)
 		err = s.Delete(context.Background(), &state.DeleteRequest{})
-		assert.Equal(t, err, fmt.Errorf("key for value to delete was missing from request"), "Lacking Key results in error")
+		assert.Equal(t, err, errors.New("key for value to delete was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Regular Delete Operation", func(t *testing.T) {
 		testKey := "test-key"

@@ -102,7 +102,7 @@ func TestSqliteNameResolver(t *testing.T) {
 						require.Equal(t, tc.expectOne, res)
 					}
 				} else {
-					for i := 0; i < 20; i++ {
+					for i := range 20 {
 						res, err := nr.ResolveID(context.Background(), nameresolution.ResolveRequest{ID: tc.appID})
 						require.NoErrorf(t, err, "Error on iteration %d", i)
 						require.Contains(t, tc.expectAny, res)

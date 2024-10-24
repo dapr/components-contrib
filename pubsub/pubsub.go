@@ -15,7 +15,7 @@ package pubsub
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 
 	"github.com/dapr/components-contrib/health"
@@ -73,6 +73,6 @@ func Ping(ctx context.Context, pubsub PubSub) error {
 	if pubsubWithPing, ok := pubsub.(health.Pinger); ok {
 		return pubsubWithPing.Ping(ctx)
 	} else {
-		return fmt.Errorf("ping is not implemented by this pubsub")
+		return errors.New("ping is not implemented by this pubsub")
 	}
 }

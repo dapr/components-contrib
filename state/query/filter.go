@@ -14,6 +14,7 @@ limitations under the License.
 package query
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -25,10 +26,10 @@ type Filter interface {
 func ParseFilter(obj interface{}) (Filter, error) {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("filter unit must be a map")
+		return nil, errors.New("filter unit must be a map")
 	}
 	if len(m) != 1 {
-		return nil, fmt.Errorf("filter unit must have a single element")
+		return nil, errors.New("filter unit must have a single element")
 	}
 	for k, v := range m {
 		switch k {
@@ -93,10 +94,10 @@ type EQ struct {
 func (f *EQ) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("EQ filter must be a map")
+		return errors.New("EQ filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("EQ filter must contain a single key/value pair")
+		return errors.New("EQ filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -114,10 +115,10 @@ type NEQ struct {
 func (f *NEQ) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("NEQ filter must be a map")
+		return errors.New("NEQ filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("NEQ filter must contain a single key/value pair")
+		return errors.New("NEQ filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -135,10 +136,10 @@ type GT struct {
 func (f *GT) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("GT filter must be a map")
+		return errors.New("GT filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("GT filter must contain a single key/value pair")
+		return errors.New("GT filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -156,10 +157,10 @@ type GTE struct {
 func (f *GTE) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("GTE filter must be a map")
+		return errors.New("GTE filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("GTE filter must contain a single key/value pair")
+		return errors.New("GTE filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -177,10 +178,10 @@ type LT struct {
 func (f *LT) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("LT filter must be a map")
+		return errors.New("LT filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("LT filter must contain a single key/value pair")
+		return errors.New("LT filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -198,10 +199,10 @@ type LTE struct {
 func (f *LTE) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("LTE filter must be a map")
+		return errors.New("LTE filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("LTE filter must contain a single key/value pair")
+		return errors.New("LTE filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
@@ -219,15 +220,15 @@ type IN struct {
 func (f *IN) Parse(obj interface{}) error {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("IN filter must be a map")
+		return errors.New("IN filter must be a map")
 	}
 	if len(m) != 1 {
-		return fmt.Errorf("IN filter must contain a single key/value pair")
+		return errors.New("IN filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k
 		if f.Vals, ok = v.([]interface{}); !ok {
-			return fmt.Errorf("IN filter value must be an array")
+			return errors.New("IN filter value must be an array")
 		}
 	}
 

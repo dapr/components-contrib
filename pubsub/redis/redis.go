@@ -84,9 +84,9 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
-	r.queue = make(chan redisMessageWrapper, int(r.clientSettings.QueueDepth))
+	r.queue = make(chan redisMessageWrapper, int(r.clientSettings.QueueDepth)) //nolint:gosec
 
-	for i := uint(0); i < r.clientSettings.Concurrency; i++ {
+	for range r.clientSettings.Concurrency {
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()
@@ -268,6 +268,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 		}
 
 		// Read messages
+		//nolint:gosec
 		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), time.Duration(r.clientSettings.ReadTimeout))
 		if err != nil {
 			if !errors.Is(err, r.client.GetNilValueError()) && err != context.Canceled {
@@ -323,7 +324,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			r.clientSettings.ConsumerID,
 			"-",
 			"+",
-			int64(r.clientSettings.QueueDepth),
+			int64(r.clientSettings.QueueDepth), //nolint:gosec
 		)
 		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
 			r.logger.Errorf("error retrieving pending Redis messages: %v", err)

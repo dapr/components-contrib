@@ -220,7 +220,7 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
-		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
+		return nil, errors.New("gcp bucket binding error: can't read key value")
 	}
 
 	var rc io.ReadCloser
@@ -256,7 +256,7 @@ func (g *GCPStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: can't read key value")
+		return nil, errors.New("gcp bucketgcp bucket binding error: can't read key value")
 	}
 
 	object := g.client.Bucket(g.metadata.Bucket).Object(key)
@@ -355,7 +355,7 @@ func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
-		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
+		return nil, errors.New("gcp bucket binding error: can't read key value")
 	}
 
 	if metadata.SignTTL == "" {

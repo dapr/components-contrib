@@ -65,7 +65,7 @@ func TestDeserializeValue(t *testing.T) {
 	}
 
 	schemaIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID()))
+	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID())) //nolint:gosec
 
 	valJSON, _ := json.Marshal(testValue1)
 	codec, _ := goavro.NewCodecForStandardJSONFull(testSchema1)

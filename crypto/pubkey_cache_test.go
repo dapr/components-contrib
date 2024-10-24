@@ -156,7 +156,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 
 		var wg sync.WaitGroup
 		wg.Add(10)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				defer wg.Done()
 				result, err := cache.GetKey(context.Background(), "key")

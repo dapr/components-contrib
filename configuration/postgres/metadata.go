@@ -14,6 +14,7 @@ limitations under the License.
 package postgres
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -53,7 +54,7 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 
 	// Validate and sanitize input
 	if m.ConfigTable == "" {
-		return fmt.Errorf("missing postgreSQL configuration table name")
+		return errors.New("missing postgreSQL configuration table name")
 	}
 	if len(m.ConfigTable) > maxIdentifierLength {
 		return fmt.Errorf("table name is too long - tableName : '%s'. max allowed field length is %d", m.ConfigTable, maxIdentifierLength)

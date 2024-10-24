@@ -16,6 +16,7 @@ package parameterstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -154,7 +155,7 @@ func TestGetSecret(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
 				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
-					return nil, fmt.Errorf("failed due to any reason")
+					return nil, errors.New("failed due to any reason")
 				},
 			},
 		}
@@ -253,7 +254,7 @@ func TestGetBulkSecrets(t *testing.T) {
 					}}, nil
 				},
 				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
-					return nil, fmt.Errorf("failed due to any reason")
+					return nil, errors.New("failed due to any reason")
 				},
 			},
 		}
@@ -268,7 +269,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
 				DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
-					return nil, fmt.Errorf("failed due to any reason")
+					return nil, errors.New("failed due to any reason")
 				},
 			},
 		}

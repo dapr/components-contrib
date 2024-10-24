@@ -261,6 +261,11 @@ linters-settings:
     allow-case-traling-whitespace: true
     # Allow declarations (var) to be cuddled.
     allow-cuddle-declarations: false
+  testifylint:
+    disable:
+      - float-compare
+      - negative-positive
+      - go-require
 
 linters:
   fast: false
@@ -317,3 +322,5 @@ linters:
     - goconst
     - tagalign
     - inamedparam
+    - canonicalheader
+    - fatcontext

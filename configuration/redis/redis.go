@@ -102,7 +102,7 @@ func (r *ConfigurationStore) parseConnectedSlaves(res string) int {
 	for _, info := range infos {
 		if strings.Contains(info, connectedSlavesReplicas) {
 			parsedReplicas, _ := strconv.ParseUint(info[len(connectedSlavesReplicas):], 10, 32)
-			return int(parsedReplicas)
+			return int(parsedReplicas) //nolint:gosec
 		}
 	}
 

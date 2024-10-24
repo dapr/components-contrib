@@ -1,7 +1,7 @@
 package kubemq
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -26,15 +26,15 @@ func parseAddress(address string) (string, int, error) {
 	var err error
 	hostPort := strings.Split(address, ":")
 	if len(hostPort) != 2 {
-		return "", 0, fmt.Errorf("invalid kubeMQ address, address format is invalid")
+		return "", 0, errors.New("invalid kubeMQ address, address format is invalid")
 	}
 	host = hostPort[0]
 	if len(host) == 0 {
-		return "", 0, fmt.Errorf("invalid kubeMQ address, host is empty")
+		return "", 0, errors.New("invalid kubeMQ address, host is empty")
 	}
 	port, err = strconv.Atoi(hostPort[1])
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid kubeMQ address, port is invalid")
+		return "", 0, errors.New("invalid kubeMQ address, port is invalid")
 	}
 	return host, port, nil
 }
@@ -56,7 +56,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*kubemqMetadata, error) {
 			return nil, err
 		}
 	} else {
-		return nil, fmt.Errorf("invalid kubeMQ address, address is empty")
+		return nil, errors.New("invalid kubeMQ address, address is empty")
 	}
 	return result, nil
 }

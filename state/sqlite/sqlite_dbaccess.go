@@ -479,7 +479,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	}
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in delete operation")
+		return errors.New("missing key in delete operation")
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)

@@ -109,7 +109,7 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		config.MaxConnIdleTime = m.ConnectionMaxIdleTime
 	}
 	if m.MaxConns > 1 {
-		config.MaxConns = int32(m.MaxConns)
+		config.MaxConns = int32(m.MaxConns) //nolint:gosec
 	}
 
 	if m.QueryExecMode != "" {

@@ -320,7 +320,7 @@ func BuildSubscriptionID(consumerID, topic string) string {
 func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
 	// Limit the number of attempted reconnects we make.
 	reconnAttempts := make(chan struct{}, g.metadata.MaxReconnectionAttempts)
-	for i := 0; i < g.metadata.MaxReconnectionAttempts; i++ {
+	for range g.metadata.MaxReconnectionAttempts {
 		reconnAttempts <- struct{}{}
 	}
 

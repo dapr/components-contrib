@@ -115,7 +115,7 @@ func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
 	aeh.backOffConfig.MaxRetries = 3
 	err = retry.DecodeConfigWithPrefix(&aeh.backOffConfig, metadata, "backOff")
 	if err != nil {
-		return fmt.Errorf("failed to decode backoff configuration")
+		return errors.New("failed to decode backoff configuration")
 	}
 
 	return nil
@@ -365,15 +365,13 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 
 	// Loop to receive messages
 	var (
-		ctx    context.Context
-		cancel context.CancelFunc
 		events []*azeventhubs.ReceivedEventData
 		err    error
 	)
 	counter := 0
 	for {
 		// Maximum duration to wait till bulk message is sent to app is `maxBulkSubAwaitDurationMs`
-		ctx, cancel = context.WithTimeout(subscribeCtx, time.Duration(config.MaxBulkSubAwaitDurationMs)*time.Millisecond)
+		ctx, cancel := context.WithTimeout(subscribeCtx, time.Duration(config.MaxBulkSubAwaitDurationMs)*time.Millisecond)
 		// Receive events with batchsize of `maxBulkSubCount`
 		events, err = partitionClient.ReceiveEvents(ctx, config.MaxBulkSubCount, nil)
 		cancel()

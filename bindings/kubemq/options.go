@@ -1,7 +1,7 @@
 package kubemq
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -27,15 +27,15 @@ func parseAddress(address string) (string, int, error) {
 	var err error
 	hostPort := strings.Split(address, ":")
 	if len(hostPort) != 2 {
-		return "", 0, fmt.Errorf("invalid kubemq address, address format is invalid")
+		return "", 0, errors.New("invalid kubemq address, address format is invalid")
 	}
 	host = hostPort[0]
 	if len(host) == 0 {
-		return "", 0, fmt.Errorf("invalid kubemq address, host is empty")
+		return "", 0, errors.New("invalid kubemq address, host is empty")
 	}
 	port, err = strconv.Atoi(hostPort[1])
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid kubemq address, port is invalid")
+		return "", 0, errors.New("invalid kubemq address, port is invalid")
 	}
 	return host, port, nil
 }
@@ -64,19 +64,19 @@ func createOptions(md bindings.Metadata) (*options, error) {
 			return nil, err
 		}
 	} else {
-		return nil, fmt.Errorf("invalid kubemq address, address is empty")
+		return nil, errors.New("invalid kubemq address, address is empty")
 	}
 
 	if result.Channel == "" {
-		return nil, fmt.Errorf("invalid kubemq channel, channel is empty")
+		return nil, errors.New("invalid kubemq channel, channel is empty")
 	}
 
 	if result.PollMaxItems < 1 {
-		return nil, fmt.Errorf("invalid kubemq pollMaxItems value, value must be greater than 0")
+		return nil, errors.New("invalid kubemq pollMaxItems value, value must be greater than 0")
 	}
 
 	if result.PollTimeoutSeconds < 1 {
-		return nil, fmt.Errorf("invalid kubemq pollTimeoutSeconds value, value must be greater than 0")
+		return nil, errors.New("invalid kubemq pollTimeoutSeconds value, value must be greater than 0")
 	}
 
 	return result, nil

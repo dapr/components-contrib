@@ -376,7 +376,7 @@ func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
 
 	contenttypes := []string{contribContenttype.CloudEventProtobufContentType, contribContenttype.ProtobufContentType}
 
-	for i := range len(contenttypes) {
+	for i := range contenttypes {
 		envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
 			contenttypes[i], ceProtoBytes, "trace", "")
 

@@ -196,7 +196,7 @@ func (j *localSecretStore) visitPrimitive(context string) error {
 }
 
 func (j *localSecretStore) visitArray(array []interface{}) error {
-	for i := range len(array) {
+	for i := range array {
 		j.enterContext(strconv.Itoa(i))
 		err := j.visitProperty(array[i])
 		if err != nil {

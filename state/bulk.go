@@ -149,7 +149,7 @@ func DoBulkSetDelete[T stateRequestConstraint](ctx context.Context, req []T, met
 	}
 
 	errs := make([]error, len(req))
-	for i := range len(req) {
+	for i := range req {
 		errs[i] = <-errCh
 	}
 

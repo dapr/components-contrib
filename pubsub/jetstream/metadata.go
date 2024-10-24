@@ -95,7 +95,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	if m.StartTime != nil {
-		m.internalStartTime = time.Unix(int64(*m.StartTime), 0)
+		m.internalStartTime = time.Unix(int64(*m.StartTime), 0) //nolint:gosec
 	}
 
 	switch m.DeliverPolicy {

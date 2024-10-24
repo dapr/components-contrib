@@ -298,7 +298,7 @@ watchLoop:
 
 			// generate set of keys
 			serviceKeys := make(map[string]any)
-			for i := range len(services) {
+			for i := range services {
 				serviceKeys[services[i]] = nil
 			}
 

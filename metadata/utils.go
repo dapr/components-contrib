@@ -86,6 +86,7 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
 		}
 
+		//nolint:gosec
 		priority := uint8(intVal)
 		if intVal < 0 {
 			priority = 0

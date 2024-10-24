@@ -290,7 +290,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			if err != nil {
 				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", consumeRetryInterval, err)
 			}
-			m.ConsumeRetryInterval = time.Duration(intVal) * time.Millisecond
+			m.ConsumeRetryInterval = time.Duration(intVal) * time.Millisecond //nolint:gosec
 		}
 	}
 

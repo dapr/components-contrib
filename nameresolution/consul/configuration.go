@@ -140,7 +140,7 @@ func mapChecks(config []*AgentServiceCheck) []*consul.AgentServiceCheck {
 
 	mapped := []*consul.AgentServiceCheck{}
 
-	for i := range len(config) {
+	for i := range config {
 		mapped = append(mapped, mapCheck(config[i]))
 	}
 
@@ -232,7 +232,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 
 		mapped := []consul.Upstream{}
 
-		for i := range len(config) {
+		for i := range config {
 			tmp := consul.Upstream{
 				DestinationType:      consul.UpstreamDestType(config[i].DestinationType),
 				DestinationNamespace: config[i].DestinationNamespace,
@@ -273,7 +273,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 
 		mapped := consul.AgentServiceChecks{}
 
-		for i := range len(config) {
+		for i := range config {
 			mapped = append(mapped, mapCheck(config[i]))
 		}
 

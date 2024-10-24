@@ -829,7 +829,7 @@ func validIdentifier(v string) bool {
 
 	// Loop through the string as byte slice as we only care about ASCII characters
 	b := []byte(v)
-	for i := range len(b) {
+	for i := range b {
 		if (b[i] >= '0' && b[i] <= '9') ||
 			(b[i] >= 'a' && b[i] <= 'z') ||
 			(b[i] >= 'A' && b[i] <= 'Z') ||

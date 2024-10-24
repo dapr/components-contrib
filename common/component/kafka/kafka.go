@@ -387,7 +387,7 @@ func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]st
 			return nil, err
 		}
 		schemaIDBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID()))
+		binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID())) //nolint:gosec
 
 		recordValue := make([]byte, 0, len(schemaIDBytes)+len(valueBytes)+1)
 		recordValue = append(recordValue, byte(0))

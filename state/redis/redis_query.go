@@ -340,7 +340,7 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 	if len(arr) == 0 {
 		return nil, false, errors.New("invalid output")
 	}
-	for i := range len(arr) {
+	for i := range arr {
 		inner, ok := arr[i].(map[any]any)
 		if !ok {
 			return nil, false, errors.New("invalid output")

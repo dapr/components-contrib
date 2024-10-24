@@ -299,7 +299,7 @@ func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
 		bo := m.backOff
 		if m.metadata.BackOffMaxRetries >= 0 {
-			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries))
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries)) //nolint:gosec
 		}
 
 		err := retry.NotifyRecover(

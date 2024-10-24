@@ -93,7 +93,7 @@ func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) 
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 		Retry: policy.RetryOptions{
-			MaxRetries:    int32(r.metadata.MaxRetries),
+			MaxRetries:    int32(r.metadata.MaxRetries), //nolint:gosec
 			RetryDelay:    r.metadata.MaxRetryDelay,
 			MaxRetryDelay: r.metadata.MaxRetryDelay,
 		},

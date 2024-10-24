@@ -189,6 +189,7 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 		if strings.Contains(info, connectedSlavesReplicas) {
 			parsedReplicas, _ := strconv.ParseUint(info[len(connectedSlavesReplicas):], 10, 32)
 
+			//nolint:gosec
 			return int(parsedReplicas)
 		}
 	}

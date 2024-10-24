@@ -481,7 +481,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		metadataRoutingKey = val
 	}
 	routingKeys := strings.Split(metadataRoutingKey, ",")
-	for i := range len(routingKeys) {
+	for i := range routingKeys {
 		routingKey := routingKeys[i]
 		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
 		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)

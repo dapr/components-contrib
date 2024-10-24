@@ -151,7 +151,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			if processingTimeoutMs, parseErr := strconv.ParseUint(val, 10, 64); parseErr == nil {
 				// because of legacy reasons, we need to interpret a number as milliseconds
 				// the library would default to seconds otherwise
-				settings.ProcessingTimeout = time.Duration(processingTimeoutMs) * time.Millisecond
+				settings.ProcessingTimeout = time.Duration(processingTimeoutMs) * time.Millisecond //nolint:gosec
 			}
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
 		}
@@ -160,7 +160,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			if redeliverIntervalMs, parseErr := strconv.ParseUint(val, 10, 64); parseErr == nil {
 				// because of legacy reasons, we need to interpret a number as milliseconds
 				// the library would default to seconds otherwise
-				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond
+				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond //nolint:gosec
 			}
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
 		}

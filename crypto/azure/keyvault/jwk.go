@@ -92,7 +92,7 @@ func (key JSONWebKey) publicRSA() (*rsa.PublicKey, error) {
 	if len(key.E) == 0 {
 		return nil, errors.New("property e is empty")
 	}
-	res.E = int(big.NewInt(0).SetBytes(key.E).Uint64())
+	res.E = int(big.NewInt(0).SetBytes(key.E).Uint64()) //nolint:gosec
 
 	return res, nil
 }

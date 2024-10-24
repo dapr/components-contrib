@@ -96,6 +96,7 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 	if err != nil {
 		return nil, err
 	}
+	//nolint:gosec
 	return producer.GenerateLog(uint32(time.Now().Unix()), logInfo), nil
 }
 

@@ -51,6 +51,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 		"consumerID":               "consumer",
 		"Endpoint":                 "endpoint",
 		"concurrencyMode":          string(pubsub.Single),
+		"concurrencyLimit":         "42",
 		"accessKey":                "a",
 		"secretKey":                "s",
 		"sessionToken":             "t",
@@ -68,6 +69,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r.Equal("consumer", md.SqsQueueName)
 	r.Equal("endpoint", md.Endpoint)
 	r.Equal(pubsub.Single, md.ConcurrencyMode)
+	r.Equal(42, md.ConcurrencyLimit)
 	r.Equal("a", md.AccessKey)
 	r.Equal("s", md.SecretKey)
 	r.Equal("t", md.SessionToken)
@@ -105,6 +107,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal("", md.SessionToken)
 	r.Equal("r", md.Region)
 	r.Equal(pubsub.Parallel, md.ConcurrencyMode)
+	r.Equal(0, md.ConcurrencyLimit)
 	r.Equal(int64(10), md.MessageVisibilityTimeout)
 	r.Equal(int64(10), md.MessageRetryLimit)
 	r.Equal(int64(2), md.MessageWaitTimeSeconds)
@@ -272,6 +275,20 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"concurrencyMode":   "invalid",
 			}}},
 			name: "invalid message concurrencyMode",
+		},
+		// invalid concurrencyLimit
+		{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+				"consumerID":        "consumer",
+				"Endpoint":          "endpoint",
+				"AccessKey":         "acctId",
+				"SecretKey":         "secret",
+				"awsToken":          "token",
+				"Region":            "region",
+				"messageRetryLimit": "10",
+				"concurrencyLimit":  "-1",
+			}}},
+			name: "invalid message concurrencyLimit",
 		},
 	}
 

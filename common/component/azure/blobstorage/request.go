@@ -99,7 +99,7 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 
 		if n != len(key) {
 			nks := string(newKey[:n])
-			log.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
+			log.Debugf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
 			key = nks
 		}
 

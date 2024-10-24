@@ -76,10 +76,10 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("check backward compatibility", func(t *testing.T) {
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 
-		request := bindings.InvokeRequest{}
-		request.Operation = bindings.CreateOperation
-		request.Metadata = map[string]string{
-			"name": "my_file.txt",
+		request := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"name": "my_file.txt",
+			},
 		}
 		result := gs.handleBackwardCompatibilityForMetadata(request.Metadata)
 		assert.NotEmpty(t, result["key"])

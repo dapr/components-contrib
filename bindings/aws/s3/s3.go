@@ -157,6 +157,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		bindings.CopyOperation,
 		presignOperation,
 	}
 }
@@ -240,7 +241,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}, nil
 }
 
-func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) presign(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
@@ -389,6 +390,53 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	}, nil
 }
 
+func (s *AWSS3) copy(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	_, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+
+	source := req.Metadata["source"]
+	if source == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata 'source' missing")
+	}
+
+	destinationBucket := req.Metadata["bucket"]
+	if destinationBucket == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata 'bucket' missing")
+	}
+
+	destinationKey := req.Metadata["destinationKey"]
+	if destinationKey == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata 'destinationKey' missing")
+	}
+
+	_, err = s.s3Client.CopyObject(&s3.CopyObjectInput{
+		// Bucket is the destination bucket.
+		Bucket: ptr.Of(destinationBucket),
+
+		// CopySource is the source bucket and key.
+		CopySource: ptr.Of(source),
+
+		// Key is the key of the destination object.
+		Key: ptr.Of(destinationKey),
+
+		// MetadataDirective is the directive to apply to the metadata of the destination object.
+		MetadataDirective: ptr.Of(s3.MetadataDirectiveCopy),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: copy operation failed: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Metadata: map[string]string{
+			"source":            source,
+			"destinationBucket": destinationBucket,
+			"destinationKey":    destinationKey,
+		},
+	}, nil
+}
+
 func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -399,8 +447,10 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return s.delete(ctx, req)
 	case bindings.ListOperation:
 		return s.list(ctx, req)
+	case bindings.CopyOperation:
+		return s.copy(req)
 	case presignOperation:
-		return s.presign(ctx, req)
+		return s.presign(req)
 	default:
 		return nil, fmt.Errorf("s3 binding error: unsupported operation %s", req.Operation)
 	}

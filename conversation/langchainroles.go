@@ -14,16 +14,21 @@ limitations under the License.
 */
 package conversation
 
-import "github.com/dapr/components-contrib/metadata"
+import "github.com/tmc/langchaingo/llms"
 
-// Metadata represents a set of conversation specific properties.
-type Metadata struct {
-	metadata.Base `json:",inline"`
-}
-
-// LangchainMetadata is a common metadata structure for langchain supported implementations.
-type LangchainMetadata struct {
-	Key      string `json:"key"`
-	Model    string `json:"model"`
-	CacheTTL string `json:"cacheTTL"`
+func ConvertLangchainRole(role Role) llms.ChatMessageType {
+	switch role {
+	case RoleSystem:
+		return llms.ChatMessageTypeSystem
+	case RoleUser:
+		return llms.ChatMessageTypeHuman
+	case RoleAssistant:
+		return llms.ChatMessageTypeAI
+	case RoleTool:
+		return llms.ChatMessageTypeTool
+	case RoleFunction:
+		return llms.ChatMessageTypeFunction
+	default:
+		return llms.ChatMessageTypeHuman
+	}
 }

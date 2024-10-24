@@ -10,24 +10,33 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-redis-pubsub/
 capabilities:
   - ttl
+authenticationProfiles:
+  - title: "Username and password"
+    description: "Authenticate using username and password."
+    metadata:
+      - name: redisUsername
+        type: string
+        required: false
+        description: |
+          Username for Redis host. Defaults to empty. Make sure your Redis server
+          version is 6 or above, and have created ACL rule correctly.
+        example:  "my-username"
+        default: ""
+      - name: redisPassword
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          Password for Redis host. No default. Use secretKeyRef for
+          secret reference
+        example:  "KeFg23!"
+        default: ""
 metadata:
   - name: redisHost
     required: true
     description: |
       Connection-string for the redis host. If "redisType" is "cluster" it can be multiple hosts separated by commas or just a single host
     example: '"redis-master.default.svc.cluster.local:6379"'
-    type: string
-  - name: redisPassword
-    required: true
-    sensitive: true
-    description: |
-      Password for Redis host. No Default. Can be "secretKeyRef" to use a secret reference
-    example: '"KeFg23!"'
-    type: string
-  - name: redisUsername
-    required: false
-    description: Username for Redis host. Defaults to empty. Make sure your redis server version is 6 or above, and have created acl rule correctly.
-    example: "default"
     type: string
   - name: consumerID
     required: false

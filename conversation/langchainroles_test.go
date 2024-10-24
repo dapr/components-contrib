@@ -12,18 +12,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package conversation
 
-import "github.com/dapr/components-contrib/metadata"
+import (
+	"testing"
 
-// Metadata represents a set of conversation specific properties.
-type Metadata struct {
-	metadata.Base `json:",inline"`
-}
+	"github.com/tmc/langchaingo/llms"
 
-// LangchainMetadata is a common metadata structure for langchain supported implementations.
-type LangchainMetadata struct {
-	Key      string `json:"key"`
-	Model    string `json:"model"`
-	CacheTTL string `json:"cacheTTL"`
+	"github.com/stretchr/testify/assert"
+)
+
+func TestConvertLangchainRole(t *testing.T) {
+	roles := map[string]string{
+		RoleSystem:    string(llms.ChatMessageTypeSystem),
+		RoleAssistant: string(llms.ChatMessageTypeAI),
+		RoleFunction:  string(llms.ChatMessageTypeFunction),
+		RoleUser:      string(llms.ChatMessageTypeHuman),
+		RoleTool:      string(llms.ChatMessageTypeTool),
+	}
+
+	for k, v := range roles {
+		r := ConvertLangchainRole(Role(k))
+		assert.Equal(t, v, string(r))
+	}
 }

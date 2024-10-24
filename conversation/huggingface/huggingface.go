@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package openai
+package huggingface
 
 import (
 	"context"
@@ -24,65 +24,66 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/tmc/langchaingo/llms/huggingface"
 )
 
-type OpenAI struct {
+type Huggingface struct {
 	llm llms.Model
 
 	logger logger.Logger
 }
 
-func NewOpenAI(logger logger.Logger) conversation.Conversation {
-	o := &OpenAI{
+func NewHuggingface(logger logger.Logger) conversation.Conversation {
+	h := &Huggingface{
 		logger: logger,
 	}
 
-	return o
+	return h
 }
 
-const defaultModel = "gpt-4o"
+const defaultModel = "meta-llama/Meta-Llama-3-8B"
 
-func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	md := conversation.LangchainMetadata{}
-	err := kmeta.DecodeMetadata(meta.Properties, &md)
+func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) error {
+	m := conversation.LangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
 
 	model := defaultModel
-	if md.Model != "" {
-		model = md.Model
+	if m.Model != "" {
+		model = m.Model
 	}
 
-	llm, err := openai.New(
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
+	llm, err := huggingface.New(
+		huggingface.WithModel(model),
+		huggingface.WithToken(m.Key),
 	)
 	if err != nil {
 		return err
 	}
 
-	o.llm = llm
+	h.llm = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.llm)
+	if m.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.llm)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		o.llm = cachedModel
+		h.llm = cachedModel
 	}
+
 	return nil
 }
 
-func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (h *Huggingface) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (h *Huggingface) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -102,7 +103,7 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	resp, err := o.llm.GenerateContent(ctx, messages, opts...)
+	resp, err := h.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +124,6 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 	return res, nil
 }
 
-func (o *OpenAI) Close() error {
+func (h *Huggingface) Close() error {
 	return nil
 }

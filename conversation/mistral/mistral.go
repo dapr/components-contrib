@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package openai
+package mistral
 
 import (
 	"context"
@@ -24,26 +24,26 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/tmc/langchaingo/llms/mistral"
 )
 
-type OpenAI struct {
+type Mistral struct {
 	llm llms.Model
 
 	logger logger.Logger
 }
 
-func NewOpenAI(logger logger.Logger) conversation.Conversation {
-	o := &OpenAI{
+func NewMistral(logger logger.Logger) conversation.Conversation {
+	m := &Mistral{
 		logger: logger,
 	}
 
-	return o
+	return m
 }
 
-const defaultModel = "gpt-4o"
+const defaultModel = "open-mistral-7b"
 
-func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
+func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
@@ -55,34 +55,34 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		model = md.Model
 	}
 
-	llm, err := openai.New(
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
+	llm, err := mistral.New(
+		mistral.WithModel(model),
+		mistral.WithAPIKey(md.Key),
 	)
 	if err != nil {
 		return err
 	}
 
-	o.llm = llm
+	m.llm = llm
 
 	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.llm)
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.llm)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		o.llm = cachedModel
+		m.llm = cachedModel
 	}
 	return nil
 }
 
-func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -102,7 +102,7 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	resp, err := o.llm.GenerateContent(ctx, messages, opts...)
+	resp, err := m.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +123,6 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 	return res, nil
 }
 
-func (o *OpenAI) Close() error {
+func (m *Mistral) Close() error {
 	return nil
 }

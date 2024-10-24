@@ -12,77 +12,95 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package openai
+package bedrock
 
 import (
 	"context"
 	"reflect"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/tmc/langchaingo/llms/bedrock"
 )
 
-type OpenAI struct {
-	llm llms.Model
+type AWSBedrock struct {
+	model string
+	llm   llms.Model
 
 	logger logger.Logger
 }
 
-func NewOpenAI(logger logger.Logger) conversation.Conversation {
-	o := &OpenAI{
+type AWSBedrockMetadata struct {
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
+	Model        string `json:"model"`
+	CacheTTL     string `json:"cacheTTL"`
+}
+
+func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
+	b := &AWSBedrock{
 		logger: logger,
 	}
 
-	return o
+	return b
 }
 
-const defaultModel = "gpt-4o"
-
-func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	md := conversation.LangchainMetadata{}
-	err := kmeta.DecodeMetadata(meta.Properties, &md)
+func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error {
+	m := AWSBedrockMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
 
-	model := defaultModel
-	if md.Model != "" {
-		model = md.Model
+	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)
+	if err != nil {
+		return err
 	}
 
-	llm, err := openai.New(
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
+	bedrockClient := bedrockruntime.NewFromConfig(awsConfig)
+
+	opts := []bedrock.Option{bedrock.WithClient(bedrockClient)}
+	if m.Model != "" {
+		opts = append(opts, bedrock.WithModel(m.Model))
+	}
+	b.model = m.Model
+
+	llm, err := bedrock.New(
+		opts...,
 	)
 	if err != nil {
 		return err
 	}
 
-	o.llm = llm
+	b.llm = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.llm)
+	if m.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.llm)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		o.llm = cachedModel
+		b.llm = cachedModel
 	}
 	return nil
 }
 
-func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
+func (b *AWSBedrock) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := AWSBedrockMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
-func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+func (b *AWSBedrock) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
@@ -102,7 +120,7 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	resp, err := o.llm.GenerateContent(ctx, messages, opts...)
+	resp, err := b.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +141,6 @@ func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationReque
 	return res, nil
 }
 
-func (o *OpenAI) Close() error {
+func (b *AWSBedrock) Close() error {
 	return nil
 }

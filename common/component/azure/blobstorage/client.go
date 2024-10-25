@@ -109,7 +109,7 @@ func (opts *ContainerClientOpts) GetContainerURL(azEnvSettings azauth.Environmen
 	if opts.customEndpoint != "" {
 		u, err = url.Parse(fmt.Sprintf("%s/%s/%s", opts.customEndpoint, opts.AccountName, opts.ContainerName))
 		if err != nil {
-			return nil, fmt.Errorf("failed to get container's URL with custom endpoint")
+			return nil, errors.New("failed to get container's URL with custom endpoint")
 		}
 	} else {
 		u = opts.getAzureBlobStorageContainerURL(azEnvSettings)

@@ -102,7 +102,7 @@ func DoBulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts, getFn fu
 	}
 
 	// We can detect that all goroutines are done when limitCh is completely empty
-	for i := 0; i < opts.Parallelism; i++ {
+	for range opts.Parallelism {
 		limitCh <- struct{}{}
 	}
 
@@ -149,7 +149,7 @@ func DoBulkSetDelete[T stateRequestConstraint](ctx context.Context, req []T, met
 	}
 
 	errs := make([]error, len(req))
-	for i := 0; i < len(req); i++ {
+	for i := range req {
 		errs[i] = <-errCh
 	}
 

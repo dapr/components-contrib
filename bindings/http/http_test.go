@@ -330,7 +330,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
 	if strings.TrimPrefix(h.Path, "/") == "large" {
 		// Write 5KB
-		for i := 0; i < 1<<10; i++ {
+		for range 1 << 10 {
 			fmt.Fprint(w, "12345")
 		}
 		return

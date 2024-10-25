@@ -170,9 +170,9 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
-	var operations []state.TransactionalStateOperation
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var setRequests []state.SetRequest                 //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),
@@ -193,9 +193,9 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
@@ -219,9 +219,9 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
@@ -235,8 +235,8 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	// Create the set requests
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var setRequests []state.SetRequest //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),

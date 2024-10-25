@@ -261,6 +261,7 @@ func parseHosts(hostsMeta string) ([]*as.Host, error) {
 		if err != nil {
 			return nil, errInvalidHosts
 		}
+		//nolint:gosec
 		hostPorts = append(hostPorts, as.NewHost(host, int(port)))
 	}
 

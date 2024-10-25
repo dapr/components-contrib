@@ -95,7 +95,7 @@ func (m *MQTT) getProducer() (mqtt.Client, error) {
 	}
 
 	// mqtt broker allows only one connection at a given time from a clientID.
-	producerClientID := fmt.Sprintf("%s-producer", m.metadata.ClientID)
+	producerClientID := m.metadata.ClientID + "-producer"
 	p, err := m.connect(producerClientID, false)
 	if err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 	m.readHandler = handler
 
 	// mqtt broker allows only one connection at a given time from a clientID
-	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.ClientID)
+	consumerClientID := m.metadata.ClientID + "-consumer"
 
 	// Establish the connection
 	// This will also create the subscription in the OnConnect handler
@@ -299,7 +299,7 @@ func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
 		bo := m.backOff
 		if m.metadata.BackOffMaxRetries >= 0 {
-			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries))
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries)) //nolint:gosec
 		}
 
 		err := retry.NotifyRecover(

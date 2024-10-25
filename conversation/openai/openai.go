@@ -23,12 +23,12 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 type OpenAI struct {
-	cilent *openai.Client
-	model  string
+	llm llms.Model
 
 	logger logger.Logger
 }
@@ -41,64 +41,83 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
+const defaultModel = "gpt-4o"
+
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.ConversationRequest{}
-	err := kmeta.DecodeMetadata(meta.Properties, &r)
+	md := conversation.LangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
 	}
 
-	o.cilent = openai.NewClient(r.Key)
-	o.model = r.Model
+	model := defaultModel
+	if md.Model != "" {
+		model = md.Model
+	}
 
+	llm, err := openai.New(
+		openai.WithModel(model),
+		openai.WithToken(md.Key),
+	)
+	if err != nil {
+		return err
+	}
+
+	o.llm = llm
+
+	if md.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.llm)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		o.llm = cachedModel
+	}
 	return nil
 }
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.ConversationRequest{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	metadataStruct := conversation.LangchainMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 
 func (o *OpenAI) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	// Note: OPENAI does not support load balance
-
-	messages := make([]openai.ChatCompletionMessage, 0, len(r.Inputs))
+	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
 	for _, input := range r.Inputs {
-		messages = append(messages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleUser,
-			Content: input,
+		role := conversation.ConvertLangchainRole(input.Role)
+
+		messages = append(messages, llms.MessageContent{
+			Role: role,
+			Parts: []llms.ContentPart{
+				llms.TextPart(input.Message),
+			},
 		})
 	}
 
-	req := openai.ChatCompletionRequest{
-		Model:    o.model,
-		Messages: messages,
+	opts := []llms.CallOption{}
+
+	if r.Temperature > 0 {
+		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
 	}
 
-	// TODO: support ConversationContext
-
-	resp, err := o.cilent.CreateChatCompletion(ctx, req)
+	resp, err := o.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
-		o.logger.Error(err)
 		return nil, err
 	}
-
-	o.logger.Debug(resp)
 
 	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
 
 	for i := range resp.Choices {
 		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Message.Content,
+			Result:     resp.Choices[i].Content,
 			Parameters: r.Parameters,
 		})
 	}
 
 	res = &conversation.ConversationResponse{
-		ConversationContext: resp.ID,
-		Outputs:             outputs,
+		Outputs: outputs,
 	}
 
 	return res, nil

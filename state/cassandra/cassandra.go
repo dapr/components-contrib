@@ -196,7 +196,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 	}
 
 	if m.Hosts == nil || len(m.Hosts) == 0 {
-		return nil, fmt.Errorf("missing or empty hosts field from metadata")
+		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
 	if val, ok := meta.Properties[port]; ok && val != "" {

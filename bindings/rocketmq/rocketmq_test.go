@@ -55,7 +55,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Second)
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		if atomic.LoadInt32(&count) > 0 {
 			break
 		}

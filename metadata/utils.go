@@ -86,6 +86,7 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
 		}
 
+		//nolint:gosec
 		priority := uint8(intVal)
 		if intVal < 0 {
 			priority = 0
@@ -157,6 +158,7 @@ const (
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	WorkflowType           ComponentType = "workflows"
+	ConversationType       ComponentType = "conversation"
 )
 
 // IsValid returns true if the component type is valid.
@@ -219,7 +221,7 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		*metadataMap = MetadataMap{}
 	}
 
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		currentField := t.Field(i)
 		// fields that are not exported cannot be set via the mapstructure metadata decoding mechanism
 		if !currentField.IsExported() {

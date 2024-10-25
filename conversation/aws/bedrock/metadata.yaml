@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: aws.bedrock
+version: v1
+status: alpha
+title: "AWS Bedrock"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-aws-bedrock/
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to emulators.
+      Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: model
+    required: false
+    description: |
+      The LLM to use. Defaults to Bedrock's default provider model from Amazon.
+    type: string
+    example: 'amazon.titan-text-express-v1'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

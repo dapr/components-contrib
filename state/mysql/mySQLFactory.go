@@ -17,7 +17,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/go-sql-driver/mysql"
@@ -56,7 +56,7 @@ func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 
 	ok := rootCertPool.AppendCertsFromPEM(pem)
 	if !ok {
-		return fmt.Errorf("failed to append PEM")
+		return errors.New("failed to append PEM")
 	}
 
 	mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})

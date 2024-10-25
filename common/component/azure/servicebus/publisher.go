@@ -191,7 +191,7 @@ func (c *Client) PublishBinding(ctx context.Context, req *bindings.InvokeRequest
 func (c *Client) publishBackOff(ctx context.Context) (bo backoff.BackOff) {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(c.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
-	bo = backoff.WithMaxRetries(ebo, uint64(c.metadata.PublishMaxRetries))
+	bo = backoff.WithMaxRetries(ebo, uint64(c.metadata.PublishMaxRetries)) //nolint:gosec
 	bo = backoff.WithContext(bo, ctx)
 	return bo
 }

@@ -142,7 +142,7 @@ func TestResolver(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
+	assert.Equal(t, localhost+":1234", pt)
 }
 
 func TestResolverClose(t *testing.T) {
@@ -163,7 +163,7 @@ func TestResolverClose(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
+	assert.Equal(t, localhost+":1234", pt)
 
 	// act again
 	err = resolver.Close()
@@ -217,7 +217,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 	// instance A and instance B and we see them each atleast m times.
 	instanceACount := atomic.Uint32{}
 	instanceBCount := atomic.Uint32{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		addr, err := resolver.ResolveID(context.Background(), request)
 		require.NoError(t, err)
 		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
@@ -294,14 +294,14 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	request := nr.ResolveRequest{ID: "testAppID"}
 
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			pt, err := resolver.ResolveID(context.Background(), request)
 			require.NoError(t, err)
-			require.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
+			require.Equal(t, localhost+":1234", pt)
 		}()
 	}
 
@@ -354,7 +354,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 
 	// act...
 	wg := sync.WaitGroup{}
-	for i := 0; i < numConcurrency; i++ {
+	for i := range numConcurrency {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -401,7 +401,7 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 
 	// act...
 	wg := sync.WaitGroup{}
-	for i := 0; i < numConcurrency; i++ {
+	for i := range numConcurrency {
 		idx := i
 		wg.Add(1)
 		go func() {
@@ -509,7 +509,7 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 
 	// assert
 	require.Len(t, addressList.addresses, 2)
-	require.Greater(t, deltaSec, 0) // Ensures expiry has been extended for existing address.
+	require.Positive(t, deltaSec, 0) // Ensures expiry has been extended for existing address.
 }
 
 func TestAddressListNext(t *testing.T) {

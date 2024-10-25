@@ -104,7 +104,7 @@ func (z *ZeebeJobWorker) Init(ctx context.Context, metadata bindings.Metadata) e
 
 func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) error {
 	if z.closed.Load() {
-		return fmt.Errorf("binding is closed")
+		return errors.New("binding is closed")
 	}
 
 	var retryBackOff *time.Duration

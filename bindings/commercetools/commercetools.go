@@ -65,7 +65,7 @@ func (ct *Binding) Init(_ context.Context, metadata bindings.Metadata) error {
 
 	baseURLdomain := fmt.Sprintf("%s.%s.commercetools.com", commercetoolsM.Region, commercetoolsM.Provider)
 	authURL := fmt.Sprintf("https://auth.%s/oauth/token", baseURLdomain)
-	apiURL := fmt.Sprintf("https://api.%s", baseURLdomain)
+	apiURL := "https://api." + baseURLdomain
 
 	// Create the new client. When an empty value is passed it will use the CTP_*
 	// environment variables to get the value. The HTTPClient arg is optional,

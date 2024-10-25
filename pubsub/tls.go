@@ -65,7 +65,7 @@ func ConvertTLSPropertiesToTLSConfig(properties TLSProperties) (*tls.Config, err
 	if properties.CACert != "" {
 		tlsConfig.RootCAs = x509.NewCertPool()
 		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(properties.CACert)); !ok {
-			return tlsConfig, fmt.Errorf("unable to load CA certificate")
+			return tlsConfig, errors.New("unable to load CA certificate")
 		}
 	}
 

@@ -104,7 +104,7 @@ func TestCreateMetadata(t *testing.T) {
 	invalidDeliveryModes := []string{"3", "10", "-1"}
 
 	for _, deliveryMode := range invalidDeliveryModes {
-		t.Run(fmt.Sprintf("deliveryMode value=%s", deliveryMode), func(t *testing.T) {
+		t.Run("deliveryMode value="+deliveryMode, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -317,7 +317,7 @@ func TestCreateMetadata(t *testing.T) {
 	})
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("autoAck value=%s", tt.in), func(t *testing.T) {
+		t.Run("autoAck value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -337,7 +337,7 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("requeueInFailure value=%s", tt.in), func(t *testing.T) {
+		t.Run("requeueInFailure value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -357,7 +357,7 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("deleteWhenUnused value=%s", tt.in), func(t *testing.T) {
+		t.Run("deleteWhenUnused value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -377,7 +377,7 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("durable value=%s", tt.in), func(t *testing.T) {
+		t.Run("durable value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -397,7 +397,7 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("publisherConfirm value=%s", tt.in), func(t *testing.T) {
+		t.Run("publisherConfirm value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -417,7 +417,7 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("enableDeadLetter value=%s", tt.in), func(t *testing.T) {
+		t.Run("enableDeadLetter value="+tt.in, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
@@ -438,7 +438,7 @@ func TestCreateMetadata(t *testing.T) {
 	validExchangeKind := []string{amqp.ExchangeDirect, amqp.ExchangeTopic, amqp.ExchangeFanout, amqp.ExchangeHeaders}
 
 	for _, exchangeKind := range validExchangeKind {
-		t.Run(fmt.Sprintf("exchangeKind value=%s", exchangeKind), func(t *testing.T) {
+		t.Run("exchangeKind value="+exchangeKind, func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{

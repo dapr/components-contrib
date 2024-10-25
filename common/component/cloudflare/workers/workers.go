@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -188,7 +189,7 @@ func (w *Base) getWorkersSubdomain() (string, error) {
 	}
 
 	if data.Result.Subdomain == "" {
-		return "", fmt.Errorf("response does not contain a value for 'subdomain'")
+		return "", errors.New("response does not contain a value for 'subdomain'")
 	}
 
 	return data.Result.Subdomain, nil

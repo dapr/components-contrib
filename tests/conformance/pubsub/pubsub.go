@@ -508,7 +508,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				close(allSentCh)
 			}()
 
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				t.Logf("Starting iteration %d", i)
 				switch i {
 				case 1: // On iteration 1, close the first subscriber

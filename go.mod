@@ -98,6 +98,7 @@ require (
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/pkg/sftp v1.13.6
 	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/redis/go-redis/v9 v9.2.1
@@ -298,6 +299,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kubemq-io/protobuf v1.3.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect

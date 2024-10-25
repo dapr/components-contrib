@@ -15,7 +15,7 @@ package blobstorage
 
 import (
 	b64 "encoding/base64"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
@@ -56,7 +56,7 @@ func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *strin
 	if val, ok := meta[caseMap[contentMD5Key]]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return blob.HTTPHeaders{}, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return blob.HTTPHeaders{}, errors.New("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.BlobContentMD5 = sDec
 		delete(meta, caseMap[contentMD5Key])
@@ -88,7 +88,7 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 		// Keep only letters and digits
 		n := 0
 		newKey := make([]byte, len(key))
-		for i := 0; i < len(key); i++ {
+		for i := range len(key) {
 			if (key[i] >= 'A' && key[i] <= 'Z') ||
 				(key[i] >= 'a' && key[i] <= 'z') ||
 				(key[i] >= '0' && key[i] <= '9') {
@@ -99,14 +99,14 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 
 		if n != len(key) {
 			nks := string(newKey[:n])
-			log.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
+			log.Debugf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
 			key = nks
 		}
 
 		// Remove all non-ascii characters
 		n = 0
 		newVal := make([]byte, len(val))
-		for i := 0; i < len(val); i++ {
+		for i := range len(val) {
 			if val[i] > 127 || val[i] == 0 {
 				continue
 			}

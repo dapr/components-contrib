@@ -212,7 +212,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("could not initialize pulsar lru cache for publisher")
+		return errors.New("could not initialize pulsar lru cache for publisher")
 	}
 	p.cache = c
 	defer p.cache.Purge()
@@ -318,7 +318,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	case jsonProtocol:
 		var obj interface{}
 		err = json.Unmarshal(req.Data, &obj)
-
 		if err != nil {
 			return nil, err
 		}
@@ -332,7 +331,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		}
 
 		err = avro.Unmarshal(avroSchema, req.Data, &obj)
-
 		if err != nil {
 			return nil, err
 		}

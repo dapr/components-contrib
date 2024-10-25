@@ -149,7 +149,6 @@ func (f *Firestore) Set(ctx context.Context, req *state.SetRequest) error {
 	key := datastore.NameKey(f.entityKind, req.Key, nil)
 
 	_, err = f.client.Put(ctx, key, entity)
-
 	if err != nil {
 		return err
 	}

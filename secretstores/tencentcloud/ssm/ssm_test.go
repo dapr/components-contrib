@@ -15,7 +15,7 @@ package ssm
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,17 +77,17 @@ func (m *mockedSsmSecretStoreReturnError) ListSecretsWithContext(ctx context.Con
 }
 
 func (m *mockedSsmSecretStoreReturnError) GetSecretValueWithContext(ctx context.Context, request *ssm.GetSecretValueRequest) (*ssm.GetSecretValueResponse, error) {
-	return nil, fmt.Errorf("mocked error")
+	return nil, errors.New("mocked error")
 }
 
 type mockedSsmSecretStoreBothReturnError struct{}
 
 func (m *mockedSsmSecretStoreBothReturnError) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
-	return nil, fmt.Errorf("mocked error")
+	return nil, errors.New("mocked error")
 }
 
 func (m *mockedSsmSecretStoreBothReturnError) GetSecretValueWithContext(ctx context.Context, request *ssm.GetSecretValueRequest) (*ssm.GetSecretValueResponse, error) {
-	return nil, fmt.Errorf("mocked error")
+	return nil, errors.New("mocked error")
 }
 
 func TestGetSecret(t *testing.T) {

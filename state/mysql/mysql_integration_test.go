@@ -454,7 +454,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		var operations []state.TransactionalStateOperation
 		var deleteRequests []state.DeleteRequest
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := state.DeleteRequest{Key: randomKey()}
 
 			// Add the item to the database
@@ -469,7 +469,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		// Create the set requests
 		var setRequests []state.SetRequest
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := state.SetRequest{
 				Key:   randomKey(),
 				Value: randomJSON(),
@@ -498,7 +498,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		var operations []state.TransactionalStateOperation
 		var deleteRequests []state.DeleteRequest
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := state.DeleteRequest{Key: randomKey()}
 
 			// Add the item to the database
@@ -526,7 +526,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		var operations []state.TransactionalStateOperation
 		var setRequests []state.SetRequest
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := state.SetRequest{
 				Key:   randomKey(),
 				Value: randomJSON(),

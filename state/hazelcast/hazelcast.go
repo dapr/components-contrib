@@ -86,7 +86,6 @@ func (store *Hazelcast) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 	store.hzMap, err = client.GetMap(meta.HazelcastMap)
-
 	if err != nil {
 		return err
 	}
@@ -117,7 +116,6 @@ func (store *Hazelcast) Set(ctx context.Context, req *state.SetRequest) error {
 		}
 	}
 	_, err = store.hzMap.Put(req.Key, value)
-
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %w", req.Key, err)
 	}

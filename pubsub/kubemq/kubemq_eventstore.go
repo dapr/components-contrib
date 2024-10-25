@@ -3,6 +3,7 @@ package kubemq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -108,7 +109,7 @@ func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 		return err
 	}
 	if req.Topic == "" {
-		return fmt.Errorf("kubemq pub/sub error: topic is required")
+		return errors.New("kubemq pub/sub error: topic is required")
 	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	metadata := ""
@@ -143,7 +144,7 @@ func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 			return res.Err
 		}
 	case <-time.After(k.waitForResultTimeout):
-		return fmt.Errorf("kubemq pub/sub error: timeout waiting for response")
+		return errors.New("kubemq pub/sub error: timeout waiting for response")
 	}
 	return nil
 }

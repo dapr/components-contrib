@@ -168,7 +168,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 			return "", err
 		}
 		vals := make([]string, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			vals[i] = f.Vals[i].(string)
 		}
 		str := fmt.Sprintf("@%s:(%s)", alias, strings.Join(vals, "|"))
@@ -179,7 +179,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 		or := &query.OR{
 			Filters: make([]query.Filter, n),
 		}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			or.Filters[i] = &query.EQ{
 				Key: f.Key,
 				Val: f.Vals[i],
@@ -335,19 +335,19 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 		return nil, false, nil
 	}
 
-	var res []state.QueryItem
+	var res []state.QueryItem //nolint:prealloc
 	arr := aarr["results"].([]any)
 	if len(arr) == 0 {
 		return nil, false, errors.New("invalid output")
 	}
-	for i := 0; i < len(arr); i++ {
+	for i := range arr {
 		inner, ok := arr[i].(map[any]any)
 		if !ok {
-			return nil, false, fmt.Errorf("invalid output")
+			return nil, false, errors.New("invalid output")
 		}
 		exattr, ok := inner["extra_attributes"].(map[any]any)
 		if !ok {
-			return nil, false, fmt.Errorf("invalid output")
+			return nil, false, errors.New("invalid output")
 		}
 		item := state.QueryItem{
 			Key: inner["id"].(string),
@@ -380,7 +380,7 @@ func parseQueryResponsePre28(ret any) ([]state.QueryItem, error) {
 	// arr[2n+1][2] = "$.version"
 	// arr[2n+1][3] = etag
 	if len(arr)%2 != 1 {
-		return nil, fmt.Errorf("invalid output")
+		return nil, errors.New("invalid output")
 	}
 
 	var res []state.QueryItem

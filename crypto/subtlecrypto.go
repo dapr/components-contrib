@@ -23,6 +23,8 @@ import (
 )
 
 // SubtleCrypto offers an interface to perform low-level ("subtle") cryptographic operations with keys stored in a vault.
+//
+//nolint:interfacebloat
 type SubtleCrypto interface {
 	metadata.ComponentWithMetadata
 

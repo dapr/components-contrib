@@ -141,6 +141,6 @@ func newFakeWalltime() sys.Walltime {
 	t := time.Now().Unix() * int64(time.Second)
 	return func() (sec int64, nsec int32) {
 		wt := atomic.AddInt64(&t, int64(time.Millisecond))
-		return wt / 1e9, int32(wt % 1e9)
+		return wt / 1e9, int32(wt % 1e9) //nolint:gosec
 	}
 }

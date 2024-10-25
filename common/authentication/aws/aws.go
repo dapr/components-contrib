@@ -148,7 +148,7 @@ func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, erro
 
 		return authenticationToken, nil
 	case err != nil:
-		return "", fmt.Errorf("failed to load default AWS authentication configuration")
+		return "", errors.New("failed to load default AWS authentication configuration")
 	}
 
 	authenticationToken, err = auth.BuildAuthToken(

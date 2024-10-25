@@ -15,7 +15,7 @@ package internal
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +37,6 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
+		assert.Equal(t, err, errors.New("missing or empty accountName field from metadata"))
 	})
 }

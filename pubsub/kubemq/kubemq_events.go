@@ -3,6 +3,7 @@ package kubemq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -104,7 +105,7 @@ func (k *kubeMQEvents) Publish(req *pubsub.PublishRequest) error {
 		return err
 	}
 	if req.Topic == "" {
-		return fmt.Errorf("kubemq pub/sub error: topic is required")
+		return errors.New("kubemq pub/sub error: topic is required")
 	}
 	metadata := ""
 	if req.Metadata != nil {

@@ -93,7 +93,7 @@ func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) 
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 		Retry: policy.RetryOptions{
-			MaxRetries:    int32(r.metadata.MaxRetries),
+			MaxRetries:    int32(r.metadata.MaxRetries), //nolint:gosec
 			RetryDelay:    r.metadata.MaxRetryDelay,
 			MaxRetryDelay: r.metadata.MaxRetryDelay,
 		},
@@ -231,7 +231,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
-		return "", fmt.Errorf("sentinel key is not provided in metadata")
+		return "", errors.New("sentinel key is not provided in metadata")
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {

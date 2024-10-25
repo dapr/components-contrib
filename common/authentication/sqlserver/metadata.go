@@ -51,10 +51,10 @@ func (m *SQLServerAuthMetadata) Validate(meta map[string]string) (err error) {
 		return errors.New("missing connection string")
 	}
 	if !IsValidSQLName(m.DatabaseName) {
-		return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
+		return errors.New("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
 	if !IsValidSQLName(m.SchemaName) {
-		return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
+		return errors.New("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
 
 	// If using Azure AD

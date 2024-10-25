@@ -199,7 +199,7 @@ func testCreateTable(t *testing.T, dba *oracleDatabaseAccess) {
 }
 
 func dropTable(t *testing.T, db *sql.DB, tableName string) {
-	_, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName))
+	_, err := db.Exec("DROP TABLE " + tableName)
 	require.NoError(t, err)
 }
 
@@ -213,9 +213,9 @@ func deleteItemThatDoesNotExist(t *testing.T, ods state.Store) {
 }
 
 func multiWithSetOnly(t *testing.T, ods state.Store) {
-	var operations []state.TransactionalStateOperation
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var setRequests []state.SetRequest                 //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),
@@ -238,9 +238,9 @@ func multiWithSetOnly(t *testing.T, ods state.Store) {
 }
 
 func multiWithDeleteOnly(t *testing.T, ods state.Store) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database.
@@ -265,9 +265,9 @@ func multiWithDeleteOnly(t *testing.T, ods state.Store) {
 }
 
 func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
-	var operations []state.TransactionalStateOperation
-	var deleteRequests []state.DeleteRequest
-	for i := 0; i < 3; i++ {
+	var operations []state.TransactionalStateOperation //nolint:prealloc
+	var deleteRequests []state.DeleteRequest           //nolint:prealloc
+	for range 3 {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database.
@@ -281,8 +281,8 @@ func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
 	}
 
 	// Create the set requests.
-	var setRequests []state.SetRequest
-	for i := 0; i < 3; i++ {
+	var setRequests []state.SetRequest //nolint:prealloc
+	for range 3 {
 		req := state.SetRequest{
 			Key:   randomKey(),
 			Value: randomJSON(),

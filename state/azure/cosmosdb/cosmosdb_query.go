@@ -277,9 +277,8 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 
 	token := ""
 	for queryPager.More() {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultTimeout)
-		queryResponse, innerErr := queryPager.NextPage(ctx)
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, defaultTimeout)
+		queryResponse, innerErr := queryPager.NextPage(ctxWithTimeout)
 		cancel()
 		if innerErr != nil {
 			return nil, "", innerErr

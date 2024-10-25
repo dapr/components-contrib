@@ -219,7 +219,7 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	if r.metadata.PullBatchSize > 0 {
 		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
 	} else if r.metadata.ConsumerBatchSize > 0 {
-		r.metadata.PullBatchSize = int32(r.metadata.ConsumerBatchSize)
+		r.metadata.PullBatchSize = int32(r.metadata.ConsumerBatchSize) //nolint:gosec
 		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
 		r.logger.Warn("set the number of msg pulled from the broker at a time, " +
 			"please use pullBatchSize instead of consumerBatchSize")

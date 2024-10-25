@@ -156,7 +156,7 @@ func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 					s.accessKey = connectionValue[i+1:]
 				case "AuthType":
 					if connectionValue[i+1:] != "aad" {
-						return fmt.Errorf("invalid value for AuthType in the connection string; only 'aad' is supported")
+						return errors.New("invalid value for AuthType in the connection string; only 'aad' is supported")
 					}
 					useAAD = true
 				case "ClientId", "ClientSecret", "TenantId":
@@ -171,14 +171,14 @@ func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 					}
 				}
 			} else if len(connectionValue) != 0 {
-				return fmt.Errorf("the connection string is invalid or malformed")
+				return errors.New("the connection string is invalid or malformed")
 			}
 		}
 
 		// Check here because if we use a connection string, we'd have an explicit "AuthType=aad" option
 		// We would otherwise catch this issue later, but here we can be more explicit with the error
 		if s.accessKey == "" && !useAAD {
-			return fmt.Errorf("missing AccessKey in the connection string")
+			return errors.New("missing AccessKey in the connection string")
 		}
 	}
 
@@ -198,7 +198,7 @@ func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 
 	// Check for required values
 	if s.endpoint == "" {
-		return fmt.Errorf("missing endpoint in the metadata or connection string")
+		return errors.New("missing endpoint in the metadata or connection string")
 	}
 
 	return nil
@@ -333,7 +333,7 @@ func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, user 
 
 	u := fmt.Sprintf("%s/api/hubs/%s/:generateToken?api-version=%s", s.endpoint, hub, apiVersion)
 	if user != "" {
-		u += fmt.Sprintf("&userId=%s", url.QueryEscape(user))
+		u += "&userId=" + url.QueryEscape(user)
 	}
 
 	body, err := s.sendRequestToSignalR(ctx, u, aadToken, nil)

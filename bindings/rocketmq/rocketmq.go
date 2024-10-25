@@ -89,7 +89,7 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	}
 
 	if len(a.settings.Topics) == 0 {
-		return fmt.Errorf("binding-rocketmq error: must configure topics")
+		return errors.New("binding-rocketmq error: must configure topics")
 	}
 
 	for _, topicStr := range a.settings.Topics {

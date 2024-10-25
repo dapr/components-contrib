@@ -234,7 +234,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 						break
 					} else {
 						// If authMethod is "none", we don't add any provider and return an error
-						return nil, fmt.Errorf("all Azure auth methods have been disabled with auth method 'None'")
+						return nil, errors.New("all Azure auth methods have been disabled with auth method 'None'")
 					}
 				}
 			}
@@ -412,7 +412,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 		parsedKey any
 		ok        bool
 	)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		block, data = pem.Decode(data)
 		if block == nil {
 			break

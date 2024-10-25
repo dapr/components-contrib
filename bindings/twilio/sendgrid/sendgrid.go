@@ -136,7 +136,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		fromAddress = mail.NewEmail(fromName, req.Metadata["emailFrom"])
 	}
 	if fromAddress == nil {
-		return nil, fmt.Errorf("error SendGrid from email not supplied")
+		return nil, errors.New("error SendGrid from email not supplied")
 	}
 
 	// Build email to address, this is required
@@ -160,7 +160,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		toAddress = mail.NewEmail(toName, req.Metadata["emailTo"])
 	}
 	if toAddress == nil {
-		return nil, fmt.Errorf("error SendGrid to email not supplied")
+		return nil, errors.New("error SendGrid to email not supplied")
 	}
 
 	// Build email subject, this is required
@@ -172,7 +172,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		subject = req.Metadata["subject"]
 	}
 	if subject == "" {
-		return nil, fmt.Errorf("error SendGrid subject not supplied")
+		return nil, errors.New("error SendGrid subject not supplied")
 	}
 
 	// Build email cc address, this is optional

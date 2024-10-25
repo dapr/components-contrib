@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -65,7 +64,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	expectedErr := fmt.Errorf("existsError")
+	expectedErr := errors.New("existsError")
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnError(expectedErr)
 
 	// Act
@@ -84,7 +83,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"exists"}).AddRow(0)
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 
-	expectedErr := fmt.Errorf("createDatabaseError")
+	expectedErr := errors.New("createDatabaseError")
 	m.mock1.ExpectExec("CREATE DATABASE").WillReturnError(expectedErr)
 
 	// Act
@@ -108,7 +107,7 @@ func TestFinishInitHandlesPingError(t *testing.T) {
 
 	m.mock1.ExpectClose()
 
-	expectedErr := fmt.Errorf("pingError")
+	expectedErr := errors.New("pingError")
 	m.mock2.ExpectPing().WillReturnError(expectedErr)
 
 	// Act
@@ -137,7 +136,7 @@ func TestFinishInitHandlesTableExistsError(t *testing.T) {
 
 	// Execute use command
 	m.mock2.ExpectPing()
-	m.mock2.ExpectQuery("SELECT EXISTS").WillReturnError(fmt.Errorf("tableExistsError"))
+	m.mock2.ExpectQuery("SELECT EXISTS").WillReturnError(errors.New("tableExistsError"))
 
 	// Act
 	err := m.mySQL.finishInit(context.Background(), m.mySQL.db)
@@ -391,7 +390,7 @@ func TestGetHandlesGenericError(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	m.mock1.ExpectQuery("").WillReturnError(fmt.Errorf("generic error"))
+	m.mock1.ExpectQuery("").WillReturnError(errors.New("generic error"))
 
 	request := &state.GetRequest{
 		Key: "UnitTest",
@@ -479,7 +478,7 @@ func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"exists"}).AddRow(0)
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
-	m.mock1.ExpectExec("CREATE TABLE").WillReturnError(fmt.Errorf("CreateTableError"))
+	m.mock1.ExpectExec("CREATE TABLE").WillReturnError(errors.New("CreateTableError"))
 
 	// Act
 	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
@@ -550,7 +549,7 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	// Arrange
 	t.Parallel()
 	m, _ := mockDatabase(t)
-	m.factory.registerErr = fmt.Errorf("registerTLSConfigError")
+	m.factory.registerErr = errors.New("registerTLSConfigError")
 
 	metadata := &state.Metadata{
 		Base: metadata.Base{

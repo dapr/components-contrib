@@ -15,6 +15,7 @@ package consul
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -246,7 +247,6 @@ func TestInit(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			tt.test(t, tt.metadata)
 		})
@@ -589,7 +589,7 @@ func TestResolveID(t *testing.T) {
 					LastIndex: 0,
 				}
 
-				err := fmt.Errorf("oh no")
+				err := errors.New("oh no")
 
 				serviceEntries := []*consul.ServiceEntry{
 					{
@@ -909,7 +909,7 @@ func TestResolveID(t *testing.T) {
 
 				total1 := 0
 				total2 := 0
-				for i := 0; i < 100; i++ {
+				for range 100 {
 					addr, _ := resolver.ResolveID(context.Background(), req)
 
 					if addr == "10.3.245.137:50005" {
@@ -1026,7 +1026,6 @@ func TestResolveID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			tt.test(t, tt.req)
 		})
@@ -1111,7 +1110,6 @@ func TestClose(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			t.Parallel()
 			tt.test(t, tt.metadata)
@@ -1265,7 +1263,6 @@ func TestRegistry(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			t.Parallel()
 			tt.test(t)
@@ -1356,7 +1353,6 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			actual, err := parseConfig(tt.input)
 
@@ -1727,7 +1723,6 @@ func TestGetConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			tt.test(t, tt.metadata)
 		})
@@ -2015,7 +2010,7 @@ func TestMapConfig(t *testing.T) {
 		compareRegistration(t, expected.AdvancedRegistration, actual.AdvancedRegistration)
 		compareClientConfig(t, expected.Client, actual.Client)
 
-		for i := 0; i < len(expected.Checks); i++ {
+		for i := range len(expected.Checks) {
 			compareCheck(t, expected.Checks[i], actual.Checks[i])
 		}
 
@@ -2102,7 +2097,7 @@ func compareRegistration(t *testing.T, expected *AgentServiceRegistration, actua
 
 	compareCheck(t, expected.Check, actual.Check)
 
-	for i := 0; i < len(expected.Checks); i++ {
+	for i := range len(expected.Checks) {
 		compareCheck(t, expected.Checks[i], actual.Checks[i])
 	}
 
@@ -2113,7 +2108,7 @@ func compareRegistration(t *testing.T, expected *AgentServiceRegistration, actua
 		assert.Equal(t, expected.Proxy.LocalServicePort, actual.Proxy.LocalServicePort)
 		assert.Equal(t, expected.Proxy.Config, actual.Proxy.Config)
 
-		for i := 0; i < len(expected.Proxy.Upstreams); i++ {
+		for i := range len(expected.Proxy.Upstreams) {
 			assert.Equal(t, string(expected.Proxy.Upstreams[i].DestinationType), string(actual.Proxy.Upstreams[i].DestinationType))
 			assert.Equal(t, expected.Proxy.Upstreams[i].DestinationNamespace, actual.Proxy.Upstreams[i].DestinationNamespace)
 			assert.Equal(t, expected.Proxy.Upstreams[i].DestinationName, actual.Proxy.Upstreams[i].DestinationName)
@@ -2128,7 +2123,7 @@ func compareRegistration(t *testing.T, expected *AgentServiceRegistration, actua
 
 		assert.Equal(t, expected.Proxy.Expose.Checks, actual.Proxy.Expose.Checks)
 
-		for i := 0; i < len(expected.Proxy.Expose.Paths); i++ {
+		for i := range len(expected.Proxy.Expose.Paths) {
 			assert.Equal(t, expected.Proxy.Expose.Paths[i].ListenerPort, actual.Proxy.Expose.Paths[i].ListenerPort)
 			assert.Equal(t, expected.Proxy.Expose.Paths[i].LocalPathPort, actual.Proxy.Expose.Paths[i].LocalPathPort)
 			assert.Equal(t, expected.Proxy.Expose.Paths[i].ParsedFromCheck, actual.Proxy.Expose.Paths[i].ParsedFromCheck)
@@ -2192,7 +2187,7 @@ func getInstanceInfoWithoutKey(removeKey string) nr.Instance {
 }
 
 func waitTillTrueOrTimeout(d time.Duration, condition func() bool) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if condition() {
 			return
 		}

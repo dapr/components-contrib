@@ -220,7 +220,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		}
 		return nil
 	} else {
-		return fmt.Errorf("could not delete message from queue: message ID or pop receipt is nil")
+		return errors.New("could not delete message from queue: message ID or pop receipt is nil")
 	}
 }
 

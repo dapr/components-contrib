@@ -113,6 +113,7 @@ func (a *addressList) next() *string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
+	//nolint:gosec
 	l := uint32(len(a.addresses))
 	if l == 0 {
 		return nil
@@ -299,14 +300,14 @@ func (m *Resolver) getZeroconfResolver() (resolver *zeroconf.Resolver, err error
 		zeroconf.SelectIPTraffic(zeroconf.IPv4),
 		zeroconf.SelectIPTraffic(zeroconf.IPv6),
 	}
-	for i := 0; i < len(opts); i++ {
+	for i := range opts {
 		resolver, err = zeroconf.NewResolver(opts[i])
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize resolver after attempting IPv4+IPv6, IPv4-only, and IPv6-only")
+		return nil, errors.New("failed to initialize resolver after attempting IPv4+IPv6, IPv4-only, and IPv6-only")
 	}
 	return resolver, nil
 }

@@ -33,6 +33,7 @@ import (
 	s_cockroachdb_v1 "github.com/dapr/components-contrib/state/cockroachdb"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
 	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
+	s_immudb "github.com/dapr/components-contrib/state/immudb"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
@@ -140,6 +141,8 @@ func loadStateStore(name string) state.Store {
 		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	case "gcp.firestore.cloud":
 		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "immudb":
+		return s_immudb.NewImmudbStateStore(testLogger)
 	default:
 		return nil
 	}

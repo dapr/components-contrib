@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.immudb
+  version: v1
+  metadata:
+  - name: host
+    value: localhost
+  - name: port
+    value: "3322"
+  - name: username
+    value: "immudb"
+  - name: password
+    value: "immudb1"
+  - name: database
+    value: "defaultdb"

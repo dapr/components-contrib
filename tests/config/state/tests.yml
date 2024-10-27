@@ -104,3 +104,5 @@ components:
     operations: []
   - component: gcp.firestore.cloud
     operations: []
+  - component: immudb
+    operations: []

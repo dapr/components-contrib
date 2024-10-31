@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
+	ss_aws "github.com/dapr/components-contrib/secretstores/aws/secretmanager"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
@@ -71,6 +72,8 @@ func loadSecretStore(name string) secretstores.SecretStore {
 		return ss_local_file.NewLocalSecretStore(testLogger)
 	case "hashicorp.vault":
 		return ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
+	case "aws.secretsmanager.docker":
+		return ss_aws.NewSecretManager(testLogger)
 	default:
 		return nil
 	}

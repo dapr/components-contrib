@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
@@ -113,7 +114,8 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 	}
 
 	if a.client == nil {
-		awsA, err := awsAuth.New(awsAuth.Options{
+		var awsA *awsAuth.AWS
+		awsA, err = awsAuth.New(awsAuth.Options{
 			Logger:       a.logger,
 			Properties:   metadata.Properties,
 			Region:       m.Region,
@@ -126,7 +128,8 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 			return err
 		}
 
-		sess, err := awsA.GetClient(ctx)
+		var sess *session.Session
+		sess, err = awsA.GetClient(ctx)
 		if err != nil {
 			return err
 		}

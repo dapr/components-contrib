@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -81,7 +82,8 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 			return err
 		}
 
-		sess, err := awsA.GetClient(ctx)
+		var sess *session.Session
+		sess, err = awsA.GetClient(ctx)
 		if err != nil {
 			return err
 		}

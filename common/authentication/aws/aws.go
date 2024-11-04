@@ -145,7 +145,7 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 		return nil, err
 	}
 
-	var ints = make([]x509.Certificate, len(certs)-1)
+	ints := make([]x509.Certificate, len(certs)-1)
 	for i := range certs[1:] {
 		ints = append(ints, *certs[i+1])
 	}
@@ -275,18 +275,18 @@ type x509Auth struct {
 }
 
 func New(opts Options) (*AWS, error) {
-	var x509Auth x509Auth
-	if err := kitmd.DecodeMetadata(opts.Properties, &x509Auth); err != nil {
+	var x509AuthConfig x509Auth
+	if err := kitmd.DecodeMetadata(opts.Properties, &x509AuthConfig); err != nil {
 		return nil, err
 	}
-	if x509Auth.AssumeRoleArn != nil {
-		opts.Logger.Infof("sam x509 fields %s %s ", *x509Auth.AssumeRoleArn, *x509Auth.TrustAnchorArn)
+	if x509AuthConfig.AssumeRoleArn != nil {
+		opts.Logger.Infof("sam x509 fields %s %s ", *x509AuthConfig.AssumeRoleArn, *x509AuthConfig.TrustAnchorArn)
 	} else {
 		opts.Logger.Infof("sam still nil somehow...")
 	}
 
 	return &AWS{
-		x509Auth:     &x509Auth,
+		x509Auth:     &x509AuthConfig,
 		logger:       opts.Logger,
 		region:       opts.Region,
 		accessKey:    opts.AccessKey,

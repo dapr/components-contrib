@@ -56,26 +56,27 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	if d.client == nil {
+		aws, err := awsAuth.New(awsAuth.Options{
+			Logger:       d.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+			Endpoint:     meta.Endpoint,
+		})
+		if err != nil {
+			return err
+		}
 
-	aws, err := awsAuth.New(awsAuth.Options{
-		Logger:       d.logger,
-		Properties:   metadata.Properties,
-		Region:       meta.Region,
-		AccessKey:    meta.AccessKey,
-		SecretKey:    meta.SecretKey,
-		SessionToken: meta.SessionToken,
-		Endpoint:     meta.Endpoint,
-	})
-	if err != nil {
-		return err
+		sess, err := aws.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		d.client = dynamodb.New(sess)
 	}
-
-	sess, err := aws.GetClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	d.client = dynamodb.New(sess)
 	d.table = meta.Table
 
 	return nil

@@ -68,27 +68,30 @@ func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	aws, err := awsAuth.New(awsAuth.Options{
-		Logger:       a.logger,
-		Properties:   metadata.Properties,
-		Region:       meta.Region,
-		AccessKey:    meta.AccessKey,
-		SecretKey:    meta.SecretKey,
-		SessionToken: meta.SessionToken,
-	})
-	if err != nil {
-		return err
+	if a.svc.Client == nil {
+		aws, err := awsAuth.New(awsAuth.Options{
+			Logger:       a.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+		})
+		if err != nil {
+			return err
+		}
+
+		sess, err := aws.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Create an SES instance
+		svc := ses.New(sess)
+		a.svc = svc
 	}
 
-	sess, err := aws.GetClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Create an SES instance
-	svc := ses.New(sess)
 	a.metadata = meta
-	a.svc = svc
 
 	return nil
 }

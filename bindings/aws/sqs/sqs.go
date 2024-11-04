@@ -66,24 +66,26 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	awsA, err := awsAuth.New(awsAuth.Options{
-		Logger:       a.logger,
-		Properties:   metadata.Properties,
-		Region:       m.Region,
-		AccessKey:    m.AccessKey,
-		SecretKey:    m.SecretKey,
-		SessionToken: m.SessionToken,
-		Endpoint:     m.Endpoint,
-	})
-	if err != nil {
-		return err
-	}
+	if a.Client == nil {
+		awsA, err := awsAuth.New(awsAuth.Options{
+			Logger:       a.logger,
+			Properties:   metadata.Properties,
+			Region:       m.Region,
+			AccessKey:    m.AccessKey,
+			SecretKey:    m.SecretKey,
+			SessionToken: m.SessionToken,
+			Endpoint:     m.Endpoint,
+		})
+		if err != nil {
+			return err
+		}
 
-	sess, err := awsA.GetClient(ctx)
-	if err != nil {
-		return err
+		sess, err := awsA.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+		a.Client = sqs.New(sess)
 	}
-	a.Client = sqs.New(sess)
 
 	queueName := m.QueueName
 	resultURL, err := a.Client.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{

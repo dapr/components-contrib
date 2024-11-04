@@ -64,25 +64,27 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	aws, err := awsAuth.New(awsAuth.Options{
-		Logger:       a.logger,
-		Properties:   metadata.Properties,
-		Region:       m.Region,
-		AccessKey:    m.AccessKey,
-		SecretKey:    m.SecretKey,
-		SessionToken: m.SessionToken,
-		Endpoint:     m.Endpoint,
-	})
-	if err != nil {
-		return err
-	}
+	if a.client == nil {
+		aws, err := awsAuth.New(awsAuth.Options{
+			Logger:       a.logger,
+			Properties:   metadata.Properties,
+			Region:       m.Region,
+			AccessKey:    m.AccessKey,
+			SecretKey:    m.SecretKey,
+			SessionToken: m.SessionToken,
+			Endpoint:     m.Endpoint,
+		})
+		if err != nil {
+			return err
+		}
 
-	sess, err := aws.GetClient(ctx)
-	if err != nil {
-		return err
-	}
+		sess, err := aws.GetClient(ctx)
+		if err != nil {
+			return err
+		}
 
-	a.client = sns.New(sess)
+		a.client = sns.New(sess)
+	}
 
 	a.topicARN = m.TopicArn
 

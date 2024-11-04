@@ -115,47 +115,50 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	awsA, err := awsAuth.New(awsAuth.Options{
-		Logger:       s.logger,
-		Properties:   metadata.Properties,
-		Region:       m.Region,
-		AccessKey:    m.AccessKey,
-		SecretKey:    m.SecretKey,
-		SessionToken: m.SessionToken,
-		Endpoint:     m.Endpoint,
-	})
-	if err != nil {
-		return err
-	}
-
-	session, err := awsA.GetClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	cfg := aws.NewConfig().
-		WithS3ForcePathStyle(m.ForcePathStyle).
-		WithDisableSSL(m.DisableSSL)
-
-	// Use a custom HTTP client to allow self-signed certs
-	if m.InsecureSSL {
-		customTransport := http.DefaultTransport.(*http.Transport).Clone()
-		customTransport.TLSClientConfig = &tls.Config{
-			//nolint:gosec
-			InsecureSkipVerify: true,
+	if s.s3Client == nil {
+		awsA, err := awsAuth.New(awsAuth.Options{
+			Logger:       s.logger,
+			Properties:   metadata.Properties,
+			Region:       m.Region,
+			AccessKey:    m.AccessKey,
+			SecretKey:    m.SecretKey,
+			SessionToken: m.SessionToken,
+			Endpoint:     m.Endpoint,
+		})
+		if err != nil {
+			return err
 		}
-		client := &http.Client{
-			Transport: customTransport,
-		}
-		cfg = cfg.WithHTTPClient(client)
 
-		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+		session, err := awsA.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		cfg := aws.NewConfig().
+			WithS3ForcePathStyle(m.ForcePathStyle).
+			WithDisableSSL(m.DisableSSL)
+
+		// Use a custom HTTP client to allow self-signed certs
+		if m.InsecureSSL {
+			customTransport := http.DefaultTransport.(*http.Transport).Clone()
+			customTransport.TLSClientConfig = &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			}
+			client := &http.Client{
+				Transport: customTransport,
+			}
+			cfg = cfg.WithHTTPClient(client)
+
+			s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+		}
+
+		s.s3Client = s3.New(session, cfg)
+		s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
+		s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
 	}
 
 	s.metadata = m
-	s.s3Client = s3.New(session, cfg)
-	s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
-	s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
 
 	return nil
 }

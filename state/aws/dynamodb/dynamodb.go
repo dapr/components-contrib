@@ -41,6 +41,7 @@ import (
 type StateStore struct {
 	state.BulkStore
 
+	logger           logger.Logger
 	client           dynamodbiface.DynamoDBAPI
 	table            string
 	ttlAttributeName string
@@ -83,10 +84,25 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 
 	// This check is needed because d.client is set to a mock in tests
 	if d.client == nil {
-		d.client, err = d.getClient(meta)
+		aws, err := awsAuth.New(awsAuth.Options{
+			Logger:       d.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+			Endpoint:     meta.Endpoint,
+		})
 		if err != nil {
 			return err
 		}
+
+		sess, err := aws.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		d.client = dynamodb.New(sess)
 	}
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
@@ -279,16 +295,6 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	}
 	m.PartitionKey = populatePartitionMetadata(meta.Properties, defaultPartitionKeyName)
 	return &m, err
-}
-
-func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := dynamodb.New(sess)
-
-	return c, nil
 }
 
 // getItemFromReq converts a dapr state.SetRequest into an dynamodb item

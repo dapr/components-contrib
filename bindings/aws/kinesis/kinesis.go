@@ -112,24 +112,26 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 		return fmt.Errorf("%s invalid \"mode\" field %s", "aws.kinesis", m.KinesisConsumerMode)
 	}
 
-	awsA, err := awsAuth.New(awsAuth.Options{
-		Logger:       a.logger,
-		Properties:   metadata.Properties,
-		Region:       m.Region,
-		AccessKey:    m.AccessKey,
-		SecretKey:    m.SecretKey,
-		SessionToken: m.SessionToken,
-		Endpoint:     m.Endpoint,
-	})
-	if err != nil {
-		return err
-	}
+	if a.client == nil {
+		awsA, err := awsAuth.New(awsAuth.Options{
+			Logger:       a.logger,
+			Properties:   metadata.Properties,
+			Region:       m.Region,
+			AccessKey:    m.AccessKey,
+			SecretKey:    m.SecretKey,
+			SessionToken: m.SessionToken,
+			Endpoint:     m.Endpoint,
+		})
+		if err != nil {
+			return err
+		}
 
-	sess, err := awsA.GetClient(ctx)
-	if err != nil {
-		return err
+		sess, err := awsA.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+		a.client = kinesis.New(sess)
 	}
-	a.client = kinesis.New(sess)
 
 	streamName := aws.String(m.StreamName)
 	stream, err := a.client.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{

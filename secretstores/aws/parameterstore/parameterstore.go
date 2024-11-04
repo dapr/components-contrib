@@ -65,23 +65,26 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		return err
 	}
 
-	awsA, err := awsAuth.New(awsAuth.Options{
-		Logger:       s.logger,
-		Properties:   metadata.Properties,
-		Region:       meta.Region,
-		AccessKey:    meta.AccessKey,
-		SecretKey:    meta.SecretKey,
-		SessionToken: meta.SessionToken,
-	})
-	if err != nil {
-		return err
+	if s.client == nil {
+		awsA, err := awsAuth.New(awsAuth.Options{
+			Logger:       s.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+		})
+		if err != nil {
+			return err
+		}
+
+		session, err := awsA.GetClient(ctx)
+		if err != nil {
+			return err
+		}
+		s.client = ssm.New(session)
 	}
 
-	session, err := awsA.GetClient(ctx)
-	if err != nil {
-		return err
-	}
-	s.client = ssm.New(session)
 	s.prefix = meta.Prefix
 
 	return nil

@@ -67,7 +67,8 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	if a.Client == nil {
-		awsA, err := awsAuth.New(awsAuth.Options{
+		var awsA *awsAuth.AWS
+		awsA, err = awsAuth.New(awsAuth.Options{
 			Logger:       a.logger,
 			Properties:   metadata.Properties,
 			Region:       m.Region,

@@ -37,13 +37,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	awssh "github.com/aws/rolesanywhere-credential-helper/aws_signing_helper"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type EnvironmentSettings struct {
@@ -106,7 +107,11 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 		return nil, fmt.Errorf("failed to marshal SVID: %w", err)
 	}
 
-	var trustAnchor arn.ARN
+	var (
+		trustAnchor arn.ARN
+		profile     arn.ARN
+	)
+
 	if a.x509Auth.TrustAnchorArn != nil {
 		trustAnchor, err = arn.Parse(*a.x509Auth.TrustAnchorArn)
 		if err != nil {
@@ -116,7 +121,7 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 	}
 
 	if a.x509Auth.TrustProfileArn != nil {
-		profile, err := arn.Parse(*a.x509Auth.TrustProfileArn)
+		profile, err = arn.Parse(*a.x509Auth.TrustProfileArn)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +145,7 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 		return nil, err
 	}
 
-	var ints []x509.Certificate
+	var ints = make([]x509.Certificate, len(certs)-1)
 	for i := range certs[1:] {
 		ints = append(ints, *certs[i+1])
 	}
@@ -248,9 +253,6 @@ type AWSIAM struct {
 	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
 	// AWS region in which PostgreSQL is deployed.
 	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
-
-	// AWS IAM Roles anywhere related fields
-	x509Auth *x509Auth
 }
 
 type Options struct {

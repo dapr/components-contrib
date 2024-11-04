@@ -162,7 +162,7 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 			return nil, err
 		}
 
-		awsOpts := aws.AWSIAMAuthOptions{
+		awsOpts := aws.Options{
 			PoolConfig:       config,
 			ConnectionString: m.ConnectionString,
 			Region:           awsRegion,

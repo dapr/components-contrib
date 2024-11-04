@@ -61,17 +61,32 @@ func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSES) Init(_ context.Context, metadata bindings.Metadata) error {
+func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	svc, err := a.getClient(meta)
+	aws, err := awsAuth.New(awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
+	})
 	if err != nil {
 		return err
 	}
+
+	sess, err := aws.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Create an SES instance
+	svc := ses.New(sess)
 	a.metadata = meta
 	a.svc = svc
 
@@ -156,18 +171,6 @@ func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	merged := metadata
 	kitmd.DecodeMetadata(req.Metadata, &merged)
 	return merged
-}
-
-func (a *AWSSES) getClient(metadata *sesMetadata) (*ses.SES, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
-	if err != nil {
-		return nil, fmt.Errorf("SES binding error: error creating AWS session %w", err)
-	}
-
-	// Create an SES instance
-	svc := ses.New(sess)
-
-	return svc, nil
 }
 
 // GetComponentMetadata returns the metadata of the component.

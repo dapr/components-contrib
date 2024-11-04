@@ -65,10 +65,23 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		return err
 	}
 
-	s.client, err = s.getClient(meta)
+	awsA, err := awsAuth.New(awsAuth.Options{
+		Logger:       s.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
+	})
 	if err != nil {
 		return err
 	}
+
+	session, err := awsA.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+	s.client = ssm.New(session)
 	s.prefix = meta.Prefix
 
 	return nil
@@ -153,15 +166,6 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	}
 
 	return resp, nil
-}
-
-func (s *ssmSecretStore) getClient(metadata *ParameterStoreMetaData) (*ssm.SSM, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
-	if err != nil {
-		return nil, err
-	}
-
-	return ssm.New(sess), nil
 }
 
 func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {

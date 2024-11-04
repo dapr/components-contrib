@@ -6,7 +6,7 @@ set -e
 echo "AWS_REGION=us-east-1" >> $GITHUB_ENV
 
 # Navigate to the Terraform directory
-cd ".github/infrastructure/terraform/conformance/bindings/aws/secretsmanager"
+cd ".github/infrastructure/terraform/conformance/secretstores/aws/secretsmanager"
 
 # Run Terraform
 terraform init

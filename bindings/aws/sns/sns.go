@@ -71,6 +71,7 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
+		Endpoint:     m.Endpoint,
 	})
 	if err != nil {
 		return err

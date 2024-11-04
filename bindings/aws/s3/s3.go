@@ -122,6 +122,7 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
+		Endpoint:     m.Endpoint,
 	})
 	if err != nil {
 		return err

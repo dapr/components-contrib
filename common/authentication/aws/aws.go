@@ -197,6 +197,10 @@ func (a *AWS) getSessionClient() (*session.Session, error) {
 		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(a.accessKey, a.secretKey, a.sessionToken))
 	}
 
+	if a.endpoint != "" {
+		awsConfig = awsConfig.WithEndpoint(a.endpoint)
+	}
+
 	awsSession, err := session.NewSessionWithOptions(session.Options{
 		Config:            *awsConfig,
 		SharedConfigState: session.SharedConfigEnable,
@@ -259,6 +263,7 @@ type Options struct {
 	AccessKey        string          `json:"accessKey" mapstructure:"accessKey"`
 	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
 	SessionToken     string          `json:"sessionToken" mapstructure:"sessionToken"`
+	Endpoint         string          `json:"endpoint" mapstructure:"endpoint"`
 }
 
 type x509Auth struct {
@@ -285,6 +290,7 @@ func New(opts Options) (*AWS, error) {
 		accessKey:    opts.AccessKey,
 		secretKey:    opts.SecretKey,
 		sessionToken: opts.SessionToken,
+		endpoint:     opts.Endpoint,
 	}, nil
 }
 

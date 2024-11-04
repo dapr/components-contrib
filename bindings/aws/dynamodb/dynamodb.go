@@ -64,6 +64,7 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 		AccessKey:    meta.AccessKey,
 		SecretKey:    meta.SecretKey,
 		SessionToken: meta.SessionToken,
+		Endpoint:     meta.Endpoint,
 	})
 	if err != nil {
 		return err

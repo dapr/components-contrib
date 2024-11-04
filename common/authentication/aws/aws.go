@@ -93,7 +93,7 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 	// retrieve svid from spiffe context
 	svid, ok := spiffecontext.From(ctx)
 	if !ok {
-		return nil, fmt.Errorf("no SVID found in context")
+		return nil, errors.New("no SVID found in context")
 	}
 	// get x.509 svid
 	svidx, err := svid.GetX509SVID()
@@ -147,7 +147,7 @@ func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
 
 	ints := make([]x509.Certificate, len(certs)-1)
 	for i := range certs[1:] {
-		ints = append(ints, *certs[i+1])
+		ints[i] = *certs[i+1]
 	}
 
 	key, err := cryptopem.DecodePEMPrivateKey(keyPEM)

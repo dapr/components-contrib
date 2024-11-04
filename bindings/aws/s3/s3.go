@@ -29,7 +29,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -110,12 +109,25 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
+func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
-	session, err := s.getSession(m)
+
+	awsA, err := awsAuth.New(awsAuth.Options{
+		Logger:       s.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
+	})
+	if err != nil {
+		return err
+	}
+
+	session, err := awsA.GetClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -413,15 +425,6 @@ func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 		return nil, err
 	}
 	return &m, nil
-}
-
-func (s *AWSS3) getSession(metadata *s3Metadata) (*session.Session, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	return sess, nil
 }
 
 // Helper to merge config and request metadata.

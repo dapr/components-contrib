@@ -51,18 +51,30 @@ func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing for DynamoDB.
-func (d *DynamoDB) Init(_ context.Context, metadata bindings.Metadata) error {
+func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	client, err := d.getClient(meta)
+	aws, err := awsAuth.New(awsAuth.Options{
+		Logger:       d.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
+	})
 	if err != nil {
 		return err
 	}
 
-	d.client = client
+	sess, err := aws.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	d.client = dynamodb.New(sess)
 	d.table = meta.Table
 
 	return nil
@@ -103,16 +115,6 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 	}
 
 	return &meta, nil
-}
-
-func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := dynamodb.New(sess)
-
-	return c, nil
 }
 
 // GetComponentMetadata returns the metadata of the component.

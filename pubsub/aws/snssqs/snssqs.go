@@ -145,10 +145,23 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 	s.metadata = md
 
-	sess, err := awsAuth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
+	aws, err := awsAuth.New(awsAuth.Options{
+		Logger:       s.logger,
+		Properties:   metadata.Properties,
+		Region:       md.Region,
+		AccessKey:    md.AccessKey,
+		SecretKey:    md.SecretKey,
+		SessionToken: md.SessionToken,
+	})
 	if err != nil {
-		return fmt.Errorf("error creating an AWS client: %w", err)
+		return err
 	}
+
+	sess, err := aws.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
 	// AWS sns,sqs,sts client.
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)

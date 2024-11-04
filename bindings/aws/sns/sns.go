@@ -58,16 +58,31 @@ func NewAWSSNS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSNS) Init(_ context.Context, metadata bindings.Metadata) error {
+func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
-	client, err := a.getClient(m)
+
+	aws, err := awsAuth.New(awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
+	})
 	if err != nil {
 		return err
 	}
-	a.client = client
+
+	sess, err := aws.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	a.client = sns.New(sess)
+
 	a.topicARN = m.TopicArn
 
 	return nil
@@ -81,16 +96,6 @@ func (a *AWSSNS) parseMetadata(meta bindings.Metadata) (*snsMetadata, error) {
 	}
 
 	return &m, nil
-}
-
-func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := sns.New(sess)
-
-	return c, nil
 }
 
 func (a *AWSSNS) Operations() []bindings.OperationKind {

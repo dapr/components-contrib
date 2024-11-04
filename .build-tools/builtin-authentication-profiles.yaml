@@ -29,6 +29,24 @@ aws:
         type: string
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
+  - title: "AWS: IAM Roles Anywhere"
+    description: Use x.509 certificates to establish trust between AWS and a trusted Certificate Authority using AWS IAM Roles Anywhere.
+    metadata:
+      - name: trustAnchorArn
+        description: |
+          ARN of the AWS Trust Anchor in the AWS account granting trust to a Certificate Authority.
+        example: arn:aws:rolesanywhere:us-west-1:012345678910:trust-anchor/01234568-0123-0123-0123-012345678901
+        required: true
+      - name: trustProfileArn
+        description: |
+          ARN of the AWS IAM Profile in the trusting AWS account.
+        example: arn:aws:rolesanywhere:us-west-1:012345678910:profile/01234568-0123-0123-0123-012345678901
+        required: true
+      - name: assumeRoleArn
+        description: |
+          ARN of the AWS IAM role to assume in the trusting AWS account.
+        example: arn:aws:iam:012345678910:role/exampleIAMRoleName
+        required: true
 
 azuread:
   - title: "Azure AD: Managed identity"

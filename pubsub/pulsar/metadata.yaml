@@ -177,3 +177,10 @@ metadata:
       Sets the maximum number of concurrent messages sent to the application. Default is 100.
     default: '"100"'
     example: '"100"'
+  - name: receiverQueueSize
+    type: number
+    description: |
+      Sets the size of the consumer receive queue.
+      Controls how many messages can be accumulated by the consumer before it is explicitly called to read messages by Dapr.
+    default: '"1000"'
+    example: '"1000"'

@@ -107,7 +107,7 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 		n = 0
 		newVal := make([]byte, len(val))
 		for i := range len(val) {
-			if val[i] > 127 || val[i] == 0 {
+			if val[i] > 127 || (isCTL(val[i]) && !isLWS(val[i])) {
 				continue
 			}
 			newVal[n] = val[i]
@@ -117,4 +117,11 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 	}
 
 	return res
+}
+
+func isLWS(b byte) bool { return b == ' ' || b == '\t' }
+
+func isCTL(b byte) bool {
+	const del = 0x7f // a CTL
+	return b < ' ' || b == del
 }

@@ -125,5 +125,3 @@ func isCTL(b byte) bool {
 	const del = 0x7f // a CTL
 	return b < ' ' || b == del
 }
-
-

@@ -60,6 +60,7 @@ func TestSanitizeRequestMetadata(t *testing.T) {
 			"somecustomfield": "some-custom-value",
 			"specialfield":    "special:valueÜ",
 			"not-allowed:":    "not-allowed",
+			"ctr-characters":  string([]byte{72, 20, 1, 0, 101, 120}),
 		}
 		meta := SanitizeMetadata(log, m)
 		_ = assert.NotNil(t, meta["somecustomfield"]) &&
@@ -68,5 +69,52 @@ func TestSanitizeRequestMetadata(t *testing.T) {
 			assert.Equal(t, "special:value", *meta["specialfield"])
 		_ = assert.NotNil(t, meta["notallowed"]) &&
 			assert.Equal(t, "not-allowed", *meta["notallowed"])
+		_ = assert.NotNil(t, meta["ctrcharacters"]) &&
+			assert.Equal(t, string([]byte{72, 101, 120}), *meta["ctrcharacters"])
 	})
+}
+
+func TestIsLWS(t *testing.T) {
+	// Test cases for isLWS
+	tests := []struct {
+		input    byte
+		expected bool
+	}{
+		{' ', true},   // Space character, should return true
+		{'\t', true},  // Tab character, should return true
+		{'A', false},  // Non-LWS character, should return false
+		{'1', false},  // Non-LWS character, should return false
+		{'\n', false}, // Newline, a CTL but not LWS, should return false
+		{0x7F, false}, // DEL character, a CTL but not LWS, should return false
+	}
+
+	for _, tt := range tests {
+		t.Run("Testing for LWS", func(t *testing.T) {
+			result := isLWS(tt.input)
+			assert.Equal(t, tt.expected, result, "input: %v", tt.input)
+		})
+	}
+}
+
+func TestIsCTL(t *testing.T) {
+	// Test cases for isCTL
+	tests := []struct {
+		input    byte
+		expected bool
+	}{
+		{0x00, true}, // NUL, a control character
+		{0x1F, true}, // US (Unit Separator), a control character
+		{'\n', true}, // Newline, a control character
+		{0x7F, true}, // DEL, a control character
+		{'A', false}, // Non-CTL character
+		{'1', false}, // Non-CTL character
+		{' ', false}, // Space is not a CTL (although LWS)
+	}
+
+	for _, tt := range tests {
+		t.Run("Testing for CTL characters", func(t *testing.T) {
+			result := isCTL(tt.input)
+			assert.Equal(t, tt.expected, result, "input: %v", tt.input)
+		})
+	}
 }

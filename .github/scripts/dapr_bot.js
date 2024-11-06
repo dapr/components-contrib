@@ -7,6 +7,7 @@ const owners = [
     'berndverst',
     'daixiang0',
     'DeepanshuA',
+    'elena-kolevska',
     'halspang',
     'ItalyPaleAle',
     'jjcollinge',

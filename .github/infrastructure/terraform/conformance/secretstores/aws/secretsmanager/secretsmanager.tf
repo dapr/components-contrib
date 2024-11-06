@@ -31,8 +31,9 @@ provider "aws" {
 
 # Create the first secret in AWS Secrets Manager
 resource "aws_secretsmanager_secret" "conftestsecret" {
-  name = "conftestsecret-${var.UNIQUE_ID}"
+  name = "conftestsecret"
   description = "Secret for conformance test"
+  force_delete_without_recovery = true
 }
 
 resource "aws_secretsmanager_secret_version" "conftestsecret_value" {
@@ -42,11 +43,12 @@ resource "aws_secretsmanager_secret_version" "conftestsecret_value" {
 
 # Create the second secret in AWS Secrets Manager
 resource "aws_secretsmanager_secret" "secondsecret" {
-  name = "secondsecret-${var.UNIQUE_ID}"
+  name = "secondsecret"
   description = "Another secret for conformance test"
+  force_delete_without_recovery = true
 }
 
 resource "aws_secretsmanager_secret_version" "secondsecret_value" {
   secret_id     = aws_secretsmanager_secret.secondsecret.id
-  secret_string = "efgh" # Value for the secret
+  secret_string = "efgh"
 }

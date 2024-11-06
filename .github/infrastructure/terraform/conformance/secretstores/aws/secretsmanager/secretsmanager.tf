@@ -33,7 +33,7 @@ provider "aws" {
 resource "aws_secretsmanager_secret" "conftestsecret" {
   name = "conftestsecret"
   description = "Secret for conformance test"
-  force_delete_without_recovery = true
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "conftestsecret_value" {
@@ -45,7 +45,7 @@ resource "aws_secretsmanager_secret_version" "conftestsecret_value" {
 resource "aws_secretsmanager_secret" "secondsecret" {
   name = "secondsecret"
   description = "Another secret for conformance test"
-  force_delete_without_recovery = true
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "secondsecret_value" {

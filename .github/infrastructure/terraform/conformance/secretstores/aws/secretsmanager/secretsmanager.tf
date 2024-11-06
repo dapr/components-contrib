@@ -38,7 +38,7 @@ resource "aws_secretsmanager_secret" "conftestsecret" {
 
 resource "aws_secretsmanager_secret_version" "conftestsecret_value" {
   secret_id     = aws_secretsmanager_secret.conftestsecret.id
-  secret_string = "abcd" # Value for the secret
+  secret_string = "abcd"
 }
 
 # Create the second secret in AWS Secrets Manager

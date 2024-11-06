@@ -47,6 +47,14 @@ aws:
           ARN of the AWS IAM role to assume in the trusting AWS account.
         example: arn:aws:iam:012345678910:role/exampleIAMRoleName
         required: true
+      - name: sessionDuration
+        type: duration
+        description: |
+          Duration of the session using AWS IAM Roles Anywhere. 
+          If set to 0m, temporary credentials will automatically rotate.
+        default: '15m'
+        example: '0m'
+        required: true
 
 azuread:
   - title: "Azure AD: Managed identity"

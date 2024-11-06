@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -108,6 +109,26 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
+func (s *AWSS3) getAWSConfig(awsA *awsAuth.AWS) *aws.Config {
+	cfg := awsA.GetConfig().WithS3ForcePathStyle(s.metadata.ForcePathStyle).WithDisableSSL(s.metadata.DisableSSL)
+
+	// Use a custom HTTP client to allow self-signed certs
+	if s.metadata.InsecureSSL {
+		customTransport := http.DefaultTransport.(*http.Transport).Clone()
+		customTransport.TLSClientConfig = &tls.Config{
+			//nolint:gosec
+			InsecureSkipVerify: true,
+		}
+		client := &http.Client{
+			Transport: customTransport,
+		}
+		cfg = cfg.WithHTTPClient(client)
+
+		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+	}
+	return cfg
+}
+
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -116,51 +137,51 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	if s.s3Client == nil {
+
 		awsA, err := awsAuth.New(awsAuth.Options{
 			Logger:       s.logger,
 			Properties:   metadata.Properties,
 			Region:       m.Region,
+			Endpoint:     m.Endpoint,
 			AccessKey:    m.AccessKey,
 			SecretKey:    m.SecretKey,
 			SessionToken: m.SessionToken,
-			Endpoint:     m.Endpoint,
 		})
 		if err != nil {
 			return err
 		}
-
-		session, err := awsA.GetClient(ctx)
+		// initiate clients, before refreshing if needed
+		sess, err := awsA.GetClient(ctx)
 		if err != nil {
 			return err
 		}
 
-		cfg := aws.NewConfig().
-			WithS3ForcePathStyle(m.ForcePathStyle).
-			WithDisableSSL(m.DisableSSL)
-
-		// Use a custom HTTP client to allow self-signed certs
-		if m.InsecureSSL {
-			customTransport := http.DefaultTransport.(*http.Transport).Clone()
-			customTransport.TLSClientConfig = &tls.Config{
-				//nolint:gosec
-				InsecureSkipVerify: true,
-			}
-			client := &http.Client{
-				Transport: customTransport,
-			}
-			cfg = cfg.WithHTTPClient(client)
-
-			s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
-		}
-
-		s.s3Client = s3.New(session, cfg)
+		s.metadata = m
+		s.s3Client = s3.New(sess, s.getAWSConfig(awsA))
 		s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
 		s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
+
+		go func() {
+			for {
+				select {
+				case refreshSession := <-awsA.GetSessionUpdateChannel():
+					s.updateAWSClients(refreshSession, s.getAWSConfig(awsA))
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
 	s.metadata = m
 
 	return nil
+}
+
+func (s *AWSS3) updateAWSClients(session *session.Session, cfgs *aws.Config) {
+	s.s3Client = s3.New(session, cfgs)
+	s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
+	s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
 }
 
 func (s *AWSS3) Close() error {

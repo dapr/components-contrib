@@ -37,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	awssh "github.com/aws/rolesanywhere-credential-helper/aws_signing_helper"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
+	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere/rolesanywhereiface"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -51,189 +52,8 @@ type EnvironmentSettings struct {
 	Metadata map[string]string
 }
 
-func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {
-	optFns := []func(*config.LoadOptions) error{}
-	if region != "" {
-		optFns = append(optFns, config.WithRegion(region))
-	}
-
-	if accessKey != "" && secretKey != "" {
-		provider := v2creds.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
-		optFns = append(optFns, config.WithCredentialsProvider(provider))
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
-	if err != nil {
-		return awsv2.Config{}, err
-	}
-
-	if endpoint != "" {
-		awsCfg.BaseEndpoint = &endpoint
-	}
-
-	return awsCfg, nil
-}
-
-func (a *AWS) GetClient(ctx context.Context) (*session.Session, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	switch {
-	// IAM Roles Anywhere option
-	case a.x509Auth.TrustAnchorArn != nil && a.x509Auth.AssumeRoleArn != nil:
-		a.logger.Debug("using X.509 RolesAnywhere authentication using Dapr SVID")
-		return a.getX509Client(ctx)
-	default:
-		a.logger.Debugf("using AWS session client...")
-		return a.getSessionClient()
-	}
-}
-
-func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
-	// retrieve svid from spiffe context
-	svid, ok := spiffecontext.From(ctx)
-	if !ok {
-		return nil, errors.New("no SVID found in context")
-	}
-	// get x.509 svid
-	svidx, err := svid.GetX509SVID()
-	if err != nil {
-		return nil, err
-	}
-
-	// marshal x.509 svid to pem format
-	chainPEM, keyPEM, err := svidx.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal SVID: %w", err)
-	}
-
-	var (
-		trustAnchor arn.ARN
-		profile     arn.ARN
-	)
-
-	if a.x509Auth.TrustAnchorArn != nil {
-		trustAnchor, err = arn.Parse(*a.x509Auth.TrustAnchorArn)
-		if err != nil {
-			return nil, err
-		}
-		a.region = trustAnchor.Region
-	}
-
-	if a.x509Auth.TrustProfileArn != nil {
-		profile, err = arn.Parse(*a.x509Auth.TrustProfileArn)
-		if err != nil {
-			return nil, err
-		}
-		if profile.Region != "" && trustAnchor.Region != profile.Region {
-			return nil, fmt.Errorf("trust anchor and profile must be in the same region: trustAnchor=%s, profile=%s",
-				trustAnchor.Region, profile.Region)
-		}
-	}
-
-	mySession, err := session.NewSession()
-	if err != nil {
-		return nil, err
-	}
-	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
-	}}
-	config := aws.NewConfig().WithRegion(trustAnchor.Region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
-	rolesAnywhereClient := rolesanywhere.New(mySession, config)
-	certs, err := cryptopem.DecodePEMCertificatesChain(chainPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	ints := make([]x509.Certificate, len(certs)-1)
-	for i := range certs[1:] {
-		ints[i] = *certs[i+1]
-	}
-
-	key, err := cryptopem.DecodePEMPrivateKey(keyPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	keyECDSA := key.(*ecdsa.PrivateKey)
-	signFunc := awssh.CreateSignFunction(*keyECDSA, *certs[0], ints)
-	agentHandlerFunc := request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion, runtime.Version(), runtime.GOOS, runtime.GOARCH)
-
-	rolesAnywhereClient.Handlers.Build.RemoveByName("core.SDKVersionUserAgentHandler")
-	rolesAnywhereClient.Handlers.Build.PushBackNamed(request.NamedHandler{Name: "v4x509.CredHelperUserAgentHandler", Fn: agentHandlerFunc})
-	rolesAnywhereClient.Handlers.Sign.Clear()
-	rolesAnywhereClient.Handlers.Sign.PushBackNamed(request.NamedHandler{Name: "v4x509.SignRequestHandler", Fn: signFunc})
-
-	// TODO: make metadata field?
-	var duration int64 = 10000
-	createSessionRequest := rolesanywhere.CreateSessionInput{
-		Cert:               ptr.Of(string(chainPEM)),
-		ProfileArn:         a.x509Auth.TrustProfileArn,
-		TrustAnchorArn:     a.x509Auth.TrustAnchorArn,
-		RoleArn:            a.x509Auth.AssumeRoleArn,
-		DurationSeconds:    &duration,
-		InstanceProperties: nil,
-		SessionName:        nil,
-	}
-	output, err := rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session using dapr app dentity: %w", err)
-	}
-
-	if len(output.CredentialSet) != 1 {
-		return nil, fmt.Errorf("expected 1 credential set from X.509 rolesanyway response, got %d", len(output.CredentialSet))
-	}
-
-	a.accessKey = *output.CredentialSet[0].Credentials.AccessKeyId
-	a.secretKey = *output.CredentialSet[0].Credentials.SecretAccessKey
-	a.sessionToken = *output.CredentialSet[0].Credentials.SessionToken
-
-	return a.getSessionClient()
-}
-
-func (a *AWS) getSessionClient() (*session.Session, error) {
-	awsConfig := aws.NewConfig()
-
-	if a.region != "" {
-		awsConfig = awsConfig.WithRegion(a.region)
-	}
-
-	if a.accessKey != "" && a.secretKey != "" {
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(a.accessKey, a.secretKey, a.sessionToken))
-	}
-
-	if a.endpoint != "" {
-		awsConfig = awsConfig.WithEndpoint(a.endpoint)
-	}
-
-	awsSession, err := session.NewSessionWithOptions(session.Options{
-		Config:            *awsConfig,
-		SharedConfigState: session.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	userAgentHandler := request.NamedHandler{
-		Name: "UserAgentHandler",
-		Fn:   request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion),
-	}
-	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
-
-	return awsSession, nil
-}
-
-// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.
-func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
-	es := EnvironmentSettings{
-		Metadata: md,
-	}
-
-	return es, nil
-}
-
 type AWS struct {
-	lock   sync.RWMutex
+	mu     sync.RWMutex
 	logger logger.Logger
 
 	x509Auth *x509Auth
@@ -269,20 +89,24 @@ type Options struct {
 }
 
 type x509Auth struct {
-	TrustProfileArn *string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
-	TrustAnchorArn  *string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
-	AssumeRoleArn   *string `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
+	TrustProfileArn   *string        `json:"trustProfileArn" mapstructure:"trustProfileArn"`
+	TrustAnchorArn    *string        `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
+	AssumeRoleArn     *string        `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
+	SessionDuration   *time.Duration `json:"sessionDuration" mapstructure:"sessionDuration"`
+	sessionExpiration time.Time
+
+	chainPEM []byte
+	keyPEM   []byte
+
+	sessionUpdateChannel chan *session.Session
+
+	rolesAnywhereClient rolesanywhereiface.RolesAnywhereAPI
 }
 
 func New(opts Options) (*AWS, error) {
 	var x509AuthConfig x509Auth
 	if err := kitmd.DecodeMetadata(opts.Properties, &x509AuthConfig); err != nil {
 		return nil, err
-	}
-	if x509AuthConfig.AssumeRoleArn != nil {
-		opts.Logger.Infof("sam x509 fields %s %s ", *x509AuthConfig.AssumeRoleArn, *x509AuthConfig.TrustAnchorArn)
-	} else {
-		opts.Logger.Infof("sam still nil somehow...")
 	}
 
 	return &AWS{
@@ -294,6 +118,344 @@ func New(opts Options) (*AWS, error) {
 		sessionToken: opts.SessionToken,
 		endpoint:     opts.Endpoint,
 	}, nil
+}
+
+func (a *AWS) GetConfig() *aws.Config {
+	cfg := aws.NewConfig()
+
+	if a.region != "" {
+		cfg.WithRegion(a.region)
+	}
+
+	return cfg
+}
+
+func (a *AWS) GetSessionUpdateChannel() chan *session.Session {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.x509Auth.sessionUpdateChannel
+}
+
+func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {
+	optFns := []func(*config.LoadOptions) error{}
+	if region != "" {
+		optFns = append(optFns, config.WithRegion(region))
+	}
+
+	if accessKey != "" && secretKey != "" {
+		provider := v2creds.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
+		optFns = append(optFns, config.WithCredentialsProvider(provider))
+	}
+
+	awsCfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
+	if err != nil {
+		return awsv2.Config{}, err
+	}
+
+	if endpoint != "" {
+		awsCfg.BaseEndpoint = &endpoint
+	}
+
+	return awsCfg, nil
+}
+
+func (a *AWS) GetClient(ctx context.Context) (*session.Session, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	switch {
+	// IAM Roles Anywhere option
+	case a.x509Auth.TrustAnchorArn != nil && a.x509Auth.AssumeRoleArn != nil:
+		a.logger.Debug("using X.509 RolesAnywhere authentication using Dapr SVID")
+		session, err := a.getX509Client(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create X.509 RolesAnywhere client")
+		}
+		// start a session refresher background goroutine to keep rotating the temporary creds
+		// use background context to keep alive
+		go a.startSessionRefresher(context.Background())
+
+		return session, nil
+	default:
+		a.logger.Debugf("using AWS session client...")
+		return a.getTokenClient()
+	}
+}
+
+func (a *AWS) getTokenClient() (*session.Session, error) {
+	awsConfig := aws.NewConfig()
+
+	if a.region != "" {
+		awsConfig = awsConfig.WithRegion(a.region)
+	}
+
+	if a.accessKey != "" && a.secretKey != "" {
+		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(a.accessKey, a.secretKey, a.sessionToken))
+	}
+
+	if a.endpoint != "" {
+		awsConfig = awsConfig.WithEndpoint(a.endpoint)
+	}
+
+	awsSession, err := session.NewSessionWithOptions(session.Options{
+		Config:            *awsConfig,
+		SharedConfigState: session.SharedConfigEnable,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	userAgentHandler := request.NamedHandler{
+		Name: "UserAgentHandler",
+		Fn:   request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion),
+	}
+	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
+
+	return awsSession, nil
+}
+
+func (a *AWS) getCertPEM(ctx context.Context) error {
+	// retrieve svid from spiffe context
+	svid, ok := spiffecontext.From(ctx)
+	if !ok {
+		return errors.New("no SVID found in context")
+	}
+	// get x.509 svid
+	svidx, err := svid.GetX509SVID()
+	if err != nil {
+		return err
+	}
+
+	// marshal x.509 svid to pem format
+	chainPEM, keyPEM, err := svidx.Marshal()
+	if err != nil {
+		return fmt.Errorf("failed to marshal SVID: %w", err)
+	}
+
+	a.x509Auth.chainPEM = chainPEM
+	a.x509Auth.keyPEM = keyPEM
+	return nil
+}
+
+func (a *AWS) getX509Client(ctx context.Context) (*session.Session, error) {
+	// retrieve svid from spiffe context
+	err := a.getCertPEM(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get x.509 credentials: %v", err)
+	}
+
+	if err := a.initializeTrustAnchors(); err != nil {
+		return nil, err
+	}
+
+	if err := a.initializeRolesAnywhereClient(); err != nil {
+		return nil, err
+	}
+
+	err = a.createOrRefreshSession(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh token for new session client")
+	}
+
+	return a.getTokenClient()
+}
+
+func (a *AWS) initializeTrustAnchors() error {
+	var (
+		trustAnchor arn.ARN
+		profile     arn.ARN
+		err         error
+	)
+	if a.x509Auth.TrustAnchorArn != nil {
+		trustAnchor, err = arn.Parse(*a.x509Auth.TrustAnchorArn)
+		if err != nil {
+			return err
+		}
+		a.region = trustAnchor.Region
+	}
+
+	if a.x509Auth.TrustProfileArn != nil {
+		profile, err = arn.Parse(*a.x509Auth.TrustProfileArn)
+		if err != nil {
+			return err
+		}
+
+		if profile.Region != "" && trustAnchor.Region != profile.Region {
+			return fmt.Errorf("trust anchor and profile must be in the same region: trustAnchor=%s, profile=%s",
+				trustAnchor.Region, profile.Region)
+		}
+	}
+	return nil
+}
+
+func (a *AWS) initializeRolesAnywhereClient() error {
+	if a.x509Auth.rolesAnywhereClient == nil {
+		client := &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		}}
+		mySession, err := session.NewSession()
+		if err != nil {
+			return err
+		}
+		config := aws.NewConfig().WithRegion(a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+		rolesAnywhereClient := rolesanywhere.New(mySession, config)
+
+		// Set up signing function and handlers
+		if err := a.setSigningFunction(rolesAnywhereClient); err != nil {
+			return err
+		}
+		a.x509Auth.rolesAnywhereClient = rolesAnywhereClient
+	}
+	return nil
+
+}
+
+func (a *AWS) setSigningFunction(rolesAnywhereClient *rolesanywhere.RolesAnywhere) error {
+	certs, err := cryptopem.DecodePEMCertificatesChain(a.x509Auth.chainPEM)
+	if err != nil {
+		return err
+	}
+
+	var ints []x509.Certificate
+	for i := range certs[1:] {
+		ints = append(ints, *certs[i+1])
+	}
+
+	key, err := cryptopem.DecodePEMPrivateKey(a.x509Auth.keyPEM)
+	if err != nil {
+		return err
+	}
+
+	keyECDSA := key.(*ecdsa.PrivateKey)
+	signFunc := awssh.CreateSignFunction(*keyECDSA, *certs[0], ints)
+
+	agentHandlerFunc := request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	rolesAnywhereClient.Handlers.Build.RemoveByName("core.SDKVersionUserAgentHandler")
+	rolesAnywhereClient.Handlers.Build.PushBackNamed(request.NamedHandler{Name: "v4x509.CredHelperUserAgentHandler", Fn: agentHandlerFunc})
+	rolesAnywhereClient.Handlers.Sign.Clear()
+	rolesAnywhereClient.Handlers.Sign.PushBackNamed(request.NamedHandler{Name: "v4x509.SignRequestHandler", Fn: signFunc})
+
+	return nil
+}
+
+func (a *AWS) createOrRefreshSession(ctx context.Context) error {
+	var (
+		duration             int64
+		createSessionRequest rolesanywhere.CreateSessionInput
+	)
+
+	if *a.x509Auth.SessionDuration != 0 {
+		duration = int64(a.x509Auth.SessionDuration.Seconds())
+
+		createSessionRequest = rolesanywhere.CreateSessionInput{
+			Cert:               ptr.Of(string(a.x509Auth.chainPEM)),
+			ProfileArn:         a.x509Auth.TrustProfileArn,
+			TrustAnchorArn:     a.x509Auth.TrustAnchorArn,
+			RoleArn:            a.x509Auth.AssumeRoleArn,
+			DurationSeconds:    aws.Int64(duration),
+			InstanceProperties: nil,
+			SessionName:        nil,
+		}
+	} else {
+		duration = 900 // 15 minutes in seconds by default and be autorefreshed
+
+		createSessionRequest = rolesanywhere.CreateSessionInput{
+			Cert:               ptr.Of(string(a.x509Auth.chainPEM)),
+			ProfileArn:         a.x509Auth.TrustProfileArn,
+			TrustAnchorArn:     a.x509Auth.TrustAnchorArn,
+			RoleArn:            a.x509Auth.AssumeRoleArn,
+			DurationSeconds:    aws.Int64(duration),
+			InstanceProperties: nil,
+			SessionName:        nil,
+		}
+	}
+
+	output, err := a.x509Auth.rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
+	if err != nil {
+		return fmt.Errorf("failed to create session using dapr app identity: %w", err)
+	}
+	if len(output.CredentialSet) != 1 {
+		return fmt.Errorf("expected 1 credential set from X.509 rolesanyway response, got %d", len(output.CredentialSet))
+	}
+
+	a.accessKey = *output.CredentialSet[0].Credentials.AccessKeyId
+	a.secretKey = *output.CredentialSet[0].Credentials.SecretAccessKey
+	a.sessionToken = *output.CredentialSet[0].Credentials.SessionToken
+
+	// convert expiration time from *string to time.Time
+	expirationStr := output.CredentialSet[0].Credentials.Expiration
+	if expirationStr == nil {
+		return fmt.Errorf("expiration time is nil")
+	}
+
+	expirationTime, err := time.Parse(time.RFC3339, *expirationStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse expiration time: %w", err)
+	}
+
+	a.x509Auth.sessionExpiration = expirationTime
+
+	return nil
+}
+
+func (a *AWS) startSessionRefresher(ctx context.Context) error {
+	a.logger.Debugf("starting session refresher for x509 auth")
+	// if there is a set session duration, then exit bc we will not auto refresh the session.
+	if *a.x509Auth.SessionDuration != 0 {
+		return nil
+	}
+
+	errChan := make(chan error, 1)
+	go func() {
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				remaining := time.Until(a.x509Auth.sessionExpiration)
+				if remaining <= 8*time.Minute {
+					a.logger.Infof("Refreshing session as expiration is within %v", remaining)
+
+					// Refresh the session
+					err := a.createOrRefreshSession(ctx)
+					if err != nil {
+						errChan <- fmt.Errorf("failed to refresh session: %w", err)
+						return
+					}
+
+					a.logger.Debugf("AWS IAM Roles Anywhere session refreshed successfully")
+					refreshedSession, err := a.getTokenClient()
+					if err != nil {
+						errChan <- fmt.Errorf("failed to get token client with refreshed credentials: %v", err)
+						return
+					}
+					a.x509Auth.sessionUpdateChannel <- refreshedSession
+
+				}
+			case <-ctx.Done():
+				a.logger.Infof("Session refresher stopped due to context cancellation")
+				errChan <- nil
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
+	es := EnvironmentSettings{
+		Metadata: md,
+	}
+
+	return es, nil
 }
 
 func (opts *Options) GetAccessToken(ctx context.Context) (string, error) {

@@ -406,3 +406,13 @@ func (r *RavenDB) getRavenDBStore(ctx context.Context) (*ravendb.DocumentStore, 
 	}
 	return store, nil
 }
+
+func (r *RavenDB) Close() error {
+	if r.documentStore == nil {
+		return nil
+	}
+
+	r.documentStore.Close()
+
+	return nil
+}

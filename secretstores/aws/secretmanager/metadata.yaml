@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: aws.secretsmanager
+version: v1
+status: beta
+title: "AWS Secrets manager"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/aws-secret-manager/
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: endpoint
+    required: false
+    description: |
+      The Secrets manager endpoint. The AWS SDK will generate a default endpoint if not specified. Useful for local testing with AWS LocalStack
+    example: '"http://localhost:4566"'
+    type: string

@@ -15,7 +15,6 @@ package zookeeper
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ func TestNewConfig(t *testing.T) {
 			"sessionTimeout": "5s",
 		}
 		cp, err := newConfig(properties)
-		require.NoError(t, err, fmt.Sprintf("Unexpected error: %v", err))
+		require.NoError(t, err, "Unexpected error: %v", err)
 		assert.NotNil(t, cp, "failed to respond to missing data field")
 		assert.Equal(t, []string{
 			"127.0.0.1:3000", "127.0.0.1:3001", "127.0.0.1:3002",

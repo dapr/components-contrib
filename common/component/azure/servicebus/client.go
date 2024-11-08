@@ -185,7 +185,7 @@ func (c *Client) CloseAllSenders(log logger.Logger) {
 			<-workersCh
 		}(k, t)
 	}
-	for i := 0; i < cap(workersCh); i++ {
+	for range cap(workersCh) {
 		// Wait for all workers to be done
 		workersCh <- true
 	}

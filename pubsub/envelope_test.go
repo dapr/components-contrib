@@ -213,7 +213,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		ApplyMetadata(envelope, []Feature{FeatureMessageTTL}, map[string]string{
 			"ttlInSeconds": "10000",
 		})
-		assert.Equal(t, nil, envelope[ExpirationField])
+		assert.Nil(t, envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
 	})
 
@@ -376,7 +376,7 @@ func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
 
 	contenttypes := []string{contribContenttype.CloudEventProtobufContentType, contribContenttype.ProtobufContentType}
 
-	for i := 0; i < len(contenttypes); i++ {
+	for i := range contenttypes {
 		envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
 			contenttypes[i], ceProtoBytes, "trace", "")
 

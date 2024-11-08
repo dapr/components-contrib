@@ -20,3 +20,10 @@ import "github.com/dapr/components-contrib/metadata"
 type Metadata struct {
 	metadata.Base `json:",inline"`
 }
+
+// LangchainMetadata is a common metadata structure for langchain supported implementations.
+type LangchainMetadata struct {
+	Key      string `json:"key"`
+	Model    string `json:"model"`
+	CacheTTL string `json:"cacheTTL"`
+}

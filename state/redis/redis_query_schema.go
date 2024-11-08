@@ -15,6 +15,7 @@ package redis
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -48,7 +49,7 @@ func parseQuerySchemas(content string) (querySchemas, error) {
 	ret := querySchemas{}
 	for _, schema := range schemas {
 		if len(schema.Name) == 0 {
-			return nil, fmt.Errorf("empty query schema name")
+			return nil, errors.New("empty query schema name")
 		}
 		if _, ok := ret[schema.Name]; ok {
 			return nil, fmt.Errorf("duplicate schema name %s", schema.Name)
@@ -63,7 +64,7 @@ func parseQuerySchemas(content string) (querySchemas, error) {
 			}
 			alias := fmt.Sprintf("var%d", id)
 			elem.keys[indx.Key] = alias
-			elem.schema = append(elem.schema, fmt.Sprintf("$.data.%s", indx.Key), "AS", alias, indx.Type, "SORTABLE")
+			elem.schema = append(elem.schema, "$.data."+indx.Key, "AS", alias, indx.Type, "SORTABLE")
 		}
 		ret[schema.Name] = elem
 	}

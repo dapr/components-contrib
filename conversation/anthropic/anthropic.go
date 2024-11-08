@@ -28,14 +28,9 @@ import (
 )
 
 type Anthropic struct {
-	llm *anthropic.LLM
+	llm llms.Model
 
 	logger logger.Logger
-}
-
-type AnthropicMetadata struct {
-	Key   string `json:"key"`
-	Model string `json:"model"`
 }
 
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
@@ -49,7 +44,7 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 const defaultModel = "claude-3-5-sonnet-20240620"
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
-	m := AnthropicMetadata{}
+	m := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
@@ -69,11 +64,21 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	}
 
 	a.llm = llm
+
+	if m.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.llm)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		a.llm = cachedModel
+	}
+
 	return nil
 }
 
 func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := AnthropicMetadata{}
+	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
@@ -92,7 +97,13 @@ func (a *Anthropic) Converse(ctx context.Context, r *conversation.ConversationRe
 		})
 	}
 
-	resp, err := a.llm.GenerateContent(ctx, messages)
+	opts := []llms.CallOption{}
+
+	if r.Temperature > 0 {
+		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
+	}
+
+	resp, err := a.llm.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}

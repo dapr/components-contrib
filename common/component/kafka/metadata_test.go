@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -512,7 +513,7 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m)
+		act := GetEventMetadata(&m, false)
 		require.Len(t, act, 5)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "MyKey", act["__key"])
@@ -529,7 +530,7 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m)
+		act := GetEventMetadata(&m, false)
 		require.Len(t, act, 7)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "MyKey", act["__key"])
@@ -544,7 +545,7 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: nil, Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m)
+		act := GetEventMetadata(&m, false)
 		require.Len(t, act, 4)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "0", act["__partition"])
@@ -553,7 +554,59 @@ func TestGetEventMetadata(t *testing.T) {
 	})
 
 	t.Run("null message", func(t *testing.T) {
-		act := GetEventMetadata(nil)
+		act := GetEventMetadata(nil, false)
 		require.Nil(t, act)
+	})
+
+	t.Run("key with invalid value escapeHeaders true", func(t *testing.T) {
+		keyValue := "key1\xFF"
+		escapedKeyValue := url.QueryEscape(keyValue)
+
+		m := sarama.ConsumerMessage{
+			Headers: nil, Timestamp: ts, Key: []byte(keyValue), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, true)
+		require.Equal(t, escapedKeyValue, act[keyMetadataKey])
+	})
+
+	t.Run("key with invalid value escapeHeaders false", func(t *testing.T) {
+		keyValue := "key1\xFF"
+
+		m := sarama.ConsumerMessage{
+			Headers: nil, Timestamp: ts, Key: []byte(keyValue), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, false)
+		require.Equal(t, keyValue, act[keyMetadataKey])
+	})
+
+	t.Run("header with invalid value escapeHeaders true", func(t *testing.T) {
+		headerKey := "key1"
+		headerValue := "value1\xFF"
+		escapedHeaderValue := url.QueryEscape(headerValue)
+
+		headers := []*sarama.RecordHeader{
+			{Key: []byte(headerKey), Value: []byte(headerValue)},
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, true)
+		require.Len(t, act, 6)
+		require.Equal(t, escapedHeaderValue, act[headerKey])
+	})
+
+	t.Run("header with invalid value escapeHeaders false", func(t *testing.T) {
+		headerKey := "key1"
+		headerValue := "value1\xFF"
+
+		headers := []*sarama.RecordHeader{
+			{Key: []byte(headerKey), Value: []byte(headerValue)},
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, false)
+		require.Len(t, act, 6)
+		require.Equal(t, headerValue, act[headerKey])
 	})
 }

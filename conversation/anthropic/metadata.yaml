@@ -27,3 +27,9 @@ metadata:
       The Anthropic LLM to use. Defaults to claude-3-5-sonnet-20240620
     type: string
     example: 'claude-3-5-sonnet-20240620'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

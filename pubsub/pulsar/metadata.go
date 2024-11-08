@@ -36,6 +36,7 @@ type pulsarMetadata struct {
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
 	MaxConcurrentHandlers   uint                      `mapstructure:"maxConcurrentHandlers"`
+	ReceiverQueueSize       int                       `mapstructure:"receiverQueueSize"`
 
 	Token                            string `mapstructure:"token"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`

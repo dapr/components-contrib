@@ -323,3 +323,11 @@ metadata:
         The TTL for schema caching when publishing a message with latest schema available.
       example: '"5m"'
       default: '"5m"'
+    - name: escapeHeaders
+      type: bool
+      required: false
+      description: |
+        Enables URL escaping of the message header values. 
+        It allows sending headers with special characters that are usually not allowed in HTTP headers.
+      example: "true"
+      default: "false"

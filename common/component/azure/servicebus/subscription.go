@@ -331,7 +331,7 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 			err     error
 			errored int
 		)
-		for i := 0; i < len(msgs); i++ {
+		for range len(msgs) {
 			// This is a nop if the received error is nil
 			if multierr.AppendInto(&err, <-errCh) {
 				errored++
@@ -548,7 +548,7 @@ func (s *Subscription) CompleteMessage(ctx context.Context, receiver Receiver, m
 
 func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 	if m.SequenceNumber == nil {
-		return fmt.Errorf("message sequence number is nil")
+		return errors.New("message sequence number is nil")
 	}
 
 	var logSuffix string

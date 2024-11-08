@@ -56,7 +56,7 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/nodeapp/healthz", nil)
 
 	counter := &counter{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		w := httptest.NewRecorder()
 		handler(http.HandlerFunc(counter.handle)).ServeHTTP(w, r)
 	}
@@ -126,7 +126,6 @@ func TestLoadRules(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			sentinel, _ := NewMiddleware(nil).(*Middleware)
 			err := sentinel.loadSentinelRules(&c.meta)

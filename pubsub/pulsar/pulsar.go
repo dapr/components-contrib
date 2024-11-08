@@ -80,6 +80,8 @@ const (
 	defaultRedeliveryDelay = 30 * time.Second
 	// defaultConcurrency controls the number of concurrent messages sent to the app.
 	defaultConcurrency = 100
+	// defaultReceiverQueueSize controls the number of messages the pulsar sdk pulls before dapr explicitly consumes the messages.
+	defaultReceiverQueueSize = 1000
 
 	subscribeTypeKey = "subscribeType"
 
@@ -125,6 +127,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		BatchingMaxSize:         defaultMaxBatchSize,
 		RedeliveryDelay:         defaultRedeliveryDelay,
 		MaxConcurrentHandlers:   defaultConcurrency,
+		ReceiverQueueSize:       defaultReceiverQueueSize,
 	}
 
 	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
@@ -212,7 +215,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("could not initialize pulsar lru cache for publisher")
+		return errors.New("could not initialize pulsar lru cache for publisher")
 	}
 	p.cache = c
 	defer p.cache.Purge()
@@ -318,7 +321,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	case jsonProtocol:
 		var obj interface{}
 		err = json.Unmarshal(req.Data, &obj)
-
 		if err != nil {
 			return nil, err
 		}
@@ -332,7 +334,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		}
 
 		err = avro.Unmarshal(avroSchema, req.Data, &obj)
-
 		if err != nil {
 			return nil, err
 		}
@@ -405,6 +406,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		Type:                getSubscribeType(req.Metadata),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
+		ReceiverQueueSize:   p.metadata.ReceiverQueueSize,
 	}
 
 	if p.useConsumerEncryption() {

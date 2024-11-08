@@ -24,3 +24,9 @@ metadata:
       The LLM to use. Defaults to Bedrock's default provider model from Amazon.
     type: string
     example: 'amazon.titan-text-express-v1'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

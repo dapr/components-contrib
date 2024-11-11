@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
@@ -48,8 +48,8 @@ type SecretManagerMetaData struct {
 }
 
 type smSecretStore struct {
-	client secretsmanageriface.SecretsManagerAPI
-	logger logger.Logger
+	authProvider awsAuth.Provider
+	logger       logger.Logger
 }
 
 // Init creates an AWS secret manager client.
@@ -59,25 +59,20 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	if s.client == nil {
-		awsA, err := awsAuth.New(awsAuth.Options{
+	if s.authProvider == nil {
+		opts := awsAuth.Options{
 			Logger:       s.logger,
-			Properties:   metadata.Properties,
 			Region:       meta.Region,
 			AccessKey:    meta.AccessKey,
 			SecretKey:    meta.SecretKey,
-			SessionToken: meta.SessionToken,
-		})
+			SessionToken: "",
+		}
+
+		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}
-
-		session, err := awsA.GetClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		s.client = secretsmanager.New(session)
+		s.authProvider = provider
 	}
 
 	return nil
@@ -94,7 +89,7 @@ func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecre
 		versionStage = &value
 	}
 
-	output, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	output, err := s.authProvider.SecretManager(ctx).Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId:     &req.Name,
 		VersionId:    versionID,
 		VersionStage: versionStage,
@@ -123,7 +118,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.client.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
+		output, err := s.authProvider.SecretManager(ctx).Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -132,7 +127,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 		}
 
 		for _, entry := range output.SecretList {
-			secrets, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+			secrets, err := s.authProvider.SecretManager(ctx).Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
 			})
 			if err != nil {

@@ -31,9 +31,9 @@ import (
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
 type DynamoDB struct {
-	client *dynamodb.DynamoDB
-	table  string
-	logger logger.Logger
+	authProvider awsAuth.Provider
+	table        string
+	logger       logger.Logger
 }
 
 type dynamoDBMetadata struct {
@@ -56,26 +56,22 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if d.client == nil {
-		aws, err := awsAuth.New(awsAuth.Options{
+	if d.authProvider == nil {
+		opts := awsAuth.Options{
 			Logger:       d.logger,
 			Properties:   metadata.Properties,
 			Region:       meta.Region,
+			Endpoint:     meta.Endpoint,
 			AccessKey:    meta.AccessKey,
 			SecretKey:    meta.SecretKey,
 			SessionToken: meta.SessionToken,
-			Endpoint:     meta.Endpoint,
-		})
+		}
+
+		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}
-
-		sess, err := aws.GetClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		d.client = dynamodb.New(sess)
+		d.authProvider = provider
 	}
 	d.table = meta.Table
 
@@ -98,7 +94,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	_, err = d.client.PutItemWithContext(ctx, &dynamodb.PutItemInput{
+	_, err = d.authProvider.DynamoDB(ctx).DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(d.table),
 	})

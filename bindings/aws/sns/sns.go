@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sns"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -30,8 +31,8 @@ import (
 
 // AWSSNS is an AWS SNS binding.
 type AWSSNS struct {
-	client   *sns.SNS
-	topicARN string
+	authProvider awsAuth.Provider
+	topicARN     string
 
 	logger logger.Logger
 }
@@ -64,26 +65,22 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	if a.client == nil {
-		aws, err := awsAuth.New(awsAuth.Options{
+	if a.authProvider == nil {
+		opts := awsAuth.Options{
 			Logger:       a.logger,
 			Properties:   metadata.Properties,
 			Region:       m.Region,
+			Endpoint:     m.Endpoint,
 			AccessKey:    m.AccessKey,
 			SecretKey:    m.SecretKey,
 			SessionToken: m.SessionToken,
-			Endpoint:     m.Endpoint,
-		})
+		}
+		// extra configs needed per component type
+		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}
-
-		sess, err := aws.GetClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		a.client = sns.New(sess)
+		a.authProvider = provider
 	}
 
 	a.topicARN = m.TopicArn
@@ -115,7 +112,7 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	_, err = a.client.PublishWithContext(ctx, &sns.PublishInput{
+	_, err = a.authProvider.Sns(ctx).Sns.PublishWithContext(ctx, &sns.PublishInput{
 		Message:  &msg,
 		Subject:  &subject,
 		TopicArn: &a.topicARN,
@@ -135,5 +132,5 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (a *AWSSNS) Close() error {
-	return nil
+	return a.authProvider.Close()
 }

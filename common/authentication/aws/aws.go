@@ -18,39 +18,19 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/dapr/kit/logger"
-	kitmd "github.com/dapr/kit/metadata"
 )
 
 type EnvironmentSettings struct {
 	Metadata map[string]string
-}
-
-type AWS struct {
-	mu     sync.RWMutex
-	logger logger.Logger
-
-	x509Auth *x509Auth
-
-	region       string
-	endpoint     string
-	accessKey    string
-	secretKey    string
-	sessionToken string
 }
 
 type AWSIAM struct {
@@ -63,122 +43,83 @@ type AWSIAM struct {
 	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
 }
 
+type AWSIAMAuthOptions struct {
+	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
+	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
+	Region           string          `json:"region" mapstructure:"region"`
+	AccessKey        string          `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
+}
+
 type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string
 
 	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
 	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
-	Region           string          `json:"region" mapstructure:"region"`
-	AccessKey        string          `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken     string          `json:"sessionToken" mapstructure:"sessionToken"`
-	Endpoint         string          `json:"endpoint" mapstructure:"endpoint"`
+
+	Region    string `json:"region" mapstructure:"region"`
+	AccessKey string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey string `json:"secretKey" mapstructure:"secretKey"`
+
+	Endpoint     string
+	SessionToken string
 }
 
-func New(opts Options) (*AWS, error) {
-	var x509AuthConfig x509Auth
-	if err := kitmd.DecodeMetadata(opts.Properties, &x509AuthConfig); err != nil {
-		return nil, err
-	}
-
-	return &AWS{
-		x509Auth:     &x509AuthConfig,
-		logger:       opts.Logger,
-		region:       opts.Region,
-		accessKey:    opts.AccessKey,
-		secretKey:    opts.SecretKey,
-		sessionToken: opts.SessionToken,
-		endpoint:     opts.Endpoint,
-	}, nil
-}
-
-func (a *AWS) GetConfig() *aws.Config {
+func GetConfig(opts Options) *aws.Config {
 	cfg := aws.NewConfig()
 
-	if a.region != "" {
-		cfg.WithRegion(a.region)
+	switch {
+	case opts.Region != "":
+		cfg.WithRegion(opts.Region)
+	case opts.Endpoint != "":
+		cfg.WithEndpoint(opts.Endpoint)
 	}
 
 	return cfg
 }
 
-func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {
-	optFns := []func(*config.LoadOptions) error{}
-	if region != "" {
-		optFns = append(optFns, config.WithRegion(region))
-	}
+type Provider interface {
+	Initialize(ctx context.Context, opts Options, cfg *aws.Config) error
 
-	if accessKey != "" && secretKey != "" {
-		provider := v2creds.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
-		optFns = append(optFns, config.WithCredentialsProvider(provider))
-	}
+	S3(ctx context.Context) *S3Clients
+	DynamoDB(ctx context.Context) *DynamoDBClients
+	DynamoDBI(ctx context.Context) *DynamoDBClientsI
+	Sqs(ctx context.Context) *SqsClients
+	Sns(ctx context.Context) *SnsClients
+	SnsSqs(ctx context.Context) *SnsSqsClients
+	SecretManager(ctx context.Context) *SecretManagerClients
+	ParameterStore(ctx context.Context) *ParameterStoreClients
+	Kinesis(ctx context.Context) *KinesisClients
+	Ses(ctx context.Context) *SesClients
 
-	awsCfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
-	if err != nil {
-		return awsv2.Config{}, err
-	}
-
-	if endpoint != "" {
-		awsCfg.BaseEndpoint = &endpoint
-	}
-
-	return awsCfg, nil
+	Close() error
 }
 
-func (a *AWS) GetClient(ctx context.Context) (*session.Session, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+func isX509Auth(m map[string]string) bool {
+	tp, _ := m["trustProfileArn"]
+	ta, _ := m["trustAnchorArn"]
+	ar, _ := m["assumeRoleArn"]
+	return tp != "" && ta != "" && ar != ""
+}
 
-	switch {
-	// IAM Roles Anywhere option
-	case a.x509Auth.TrustAnchorArn != nil && a.x509Auth.AssumeRoleArn != nil:
-		a.logger.Debug("using X.509 RolesAnywhere authentication using Dapr SVID")
-		session, err := a.getX509Client(ctx)
+func NewProvider(ctx context.Context, opts Options, cfg *aws.Config) (Provider, error) {
+	if isX509Auth(opts.Properties) {
+		provider := &x509TempAuth{}
+		err := provider.Initialize(ctx, opts, cfg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create X.509 RolesAnywhere client")
+			return nil, fmt.Errorf("failed to initialize AWS Roles Anywhere authentication: %v", err)
 		}
-		// start a session refresher background goroutine to keep rotating the temporary creds
-		// use background context to keep alive
-		go a.startSessionRefresher(context.Background())
-
-		return session, nil
-	default:
-		a.logger.Debugf("using AWS session client...")
-		return a.getTokenClient()
-	}
-}
-
-func (a *AWS) getTokenClient() (*session.Session, error) {
-	awsConfig := aws.NewConfig()
-
-	if a.region != "" {
-		awsConfig = awsConfig.WithRegion(a.region)
+		return provider, nil
 	}
 
-	if a.accessKey != "" && a.secretKey != "" {
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(a.accessKey, a.secretKey, a.sessionToken))
-	}
-
-	if a.endpoint != "" {
-		awsConfig = awsConfig.WithEndpoint(a.endpoint)
-	}
-
-	awsSession, err := session.NewSessionWithOptions(session.Options{
-		Config:            *awsConfig,
-		SharedConfigState: session.SharedConfigEnable,
-	})
+	provider := &StaticAuth{}
+	err := provider.Initialize(ctx, opts, cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize AWS IAM authentication: %v", err)
 	}
+	return provider, nil
 
-	userAgentHandler := request.NamedHandler{
-		Name: "UserAgentHandler",
-		Fn:   request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion),
-	}
-	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
-
-	return awsSession, nil
 }
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.

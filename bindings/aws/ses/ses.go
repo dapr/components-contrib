@@ -38,9 +38,9 @@ const (
 
 // AWSSES is an AWS SNS binding.
 type AWSSES struct {
-	metadata *sesMetadata
-	logger   logger.Logger
-	svc      *ses.SES
+	authProvider awsAuth.Provider
+	metadata     *sesMetadata
+	logger       logger.Logger
 }
 
 type sesMetadata struct {
@@ -63,35 +63,31 @@ func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 // Init does metadata parsing.
 func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
-	meta, err := a.parseMetadata(metadata)
+	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	if a.svc.Client == nil {
-		aws, err := awsAuth.New(awsAuth.Options{
+	a.metadata = m
+
+	if a.authProvider == nil {
+		a.metadata = m
+
+		opts := awsAuth.Options{
 			Logger:       a.logger,
 			Properties:   metadata.Properties,
-			Region:       meta.Region,
-			AccessKey:    meta.AccessKey,
-			SecretKey:    meta.SecretKey,
-			SessionToken: meta.SessionToken,
-		})
+			Region:       m.Region,
+			AccessKey:    m.AccessKey,
+			SecretKey:    m.SecretKey,
+			SessionToken: "",
+		}
+		// extra configs needed per component type
+		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}
-
-		sess, err := aws.GetClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		// Create an SES instance
-		svc := ses.New(sess)
-		a.svc = svc
+		a.authProvider = provider
 	}
-
-	a.metadata = meta
 
 	return nil
 }
@@ -159,7 +155,7 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	}
 
 	// Attempt to send the email.
-	result, err := a.svc.SendEmail(input)
+	result, err := a.authProvider.Ses(ctx).Ses.SendEmail(input)
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error. Sending email failed: %w", err)
 	}

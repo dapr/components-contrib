@@ -23,9 +23,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	jsoniterator "github.com/json-iterator/go"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -42,7 +42,7 @@ type StateStore struct {
 	state.BulkStore
 
 	logger           logger.Logger
-	client           dynamodbiface.DynamoDBAPI
+	authProvider     awsAuth.Provider
 	table            string
 	ttlAttributeName string
 	partitionKey     string
@@ -83,26 +83,21 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 
 	// This check is needed because d.client is set to a mock in tests
-	if d.client == nil {
-		aws, err := awsAuth.New(awsAuth.Options{
+	if d.authProvider == nil {
+		opts := awsAuth.Options{
 			Logger:       d.logger,
 			Properties:   metadata.Properties,
 			Region:       meta.Region,
+			Endpoint:     meta.Endpoint,
 			AccessKey:    meta.AccessKey,
 			SecretKey:    meta.SecretKey,
 			SessionToken: meta.SessionToken,
-			Endpoint:     meta.Endpoint,
-		})
+		}
+		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}
-
-		sess, err := aws.GetClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		d.client = dynamodb.New(sess)
+		d.authProvider = provider
 	}
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
@@ -128,7 +123,7 @@ func (d *StateStore) validateTableAccess(ctx context.Context) error {
 		},
 	}
 
-	_, err := d.client.GetItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.GetItemWithContext(ctx, input)
 	return err
 }
 
@@ -161,7 +156,7 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		},
 	}
 
-	result, err := d.client.GetItemWithContext(ctx, input)
+	result, err := d.authProvider.DynamoDBI(ctx).DynamoDB.GetItemWithContext(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +229,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		input.ConditionExpression = &condExpr
 	}
 
-	_, err = d.client.PutItemWithContext(ctx, input)
+	_, err = d.authProvider.DynamoDBI(ctx).DynamoDB.PutItemWithContext(ctx, input)
 	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -266,7 +261,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		input.ExpressionAttributeValues = exprAttrValues
 	}
 
-	_, err := d.client.DeleteItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.DeleteItemWithContext(ctx, input)
 	if err != nil {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -438,7 +433,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
 
-	_, err := d.client.TransactWriteItemsWithContext(ctx, twinput)
+	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
 
 	return err
 }

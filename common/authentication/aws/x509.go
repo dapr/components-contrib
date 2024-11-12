@@ -485,7 +485,6 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	} else {
-		a.logger.Infof("sam setting 15min default for session duration")
 		duration = 900 // 15 minutes in seconds by default and be autorefreshed
 
 		createSessionRequest = rolesanywhere.CreateSessionInput{
@@ -498,7 +497,6 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	}
-	a.logger.Infof("sam session time %v", *createSessionRequest.DurationSeconds)
 
 	output, err := a.rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
 	if err != nil {
@@ -508,28 +506,23 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	if output == nil || len(output.CredentialSet) != 1 {
 		return nil, fmt.Errorf("expected 1 credential set from X.509 rolesanyway response, got %d", len(output.CredentialSet))
 	}
-	a.logger.Infof("sam successfully created new session with iam roles anywhere client!")
 
 	accessKey := output.CredentialSet[0].Credentials.AccessKeyId
 	secretKey := output.CredentialSet[0].Credentials.SecretAccessKey
 	sessionToken := output.CredentialSet[0].Credentials.SessionToken
-
-	a.logger.Infof("the ak %v sk %v st %v", accessKey, secretKey, sessionToken)
-	a.logger.Infof("sam the len of credentials set %v", len(output.CredentialSet))
 	awsCreds := credentials.NewStaticCredentials(*accessKey, *secretKey, *sessionToken)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: awsCreds,
 	}, config))
 	if sess == nil {
-		return nil, fmt.Errorf("sam session is nil somehow %v", sess)
+		return nil, errors.New("session is nil")
 	}
-	a.logger.Infof("sam just set session in refreshorcreate func %v", a.session)
 
 	return sess, nil
 }
 
 func (a *x509) startSessionRefresher() {
-	a.logger.Infof("starting session refresher for x509 auth")
+	a.logger.Debugf("starting session refresher for x509 auth")
 	// if there is a set session duration, then exit bc we will not auto refresh the session.
 	if *a.SessionDuration != 0 {
 		a.logger.Debugf("session duration was set, so there is no authentication refreshing")
@@ -555,13 +548,12 @@ func (a *x509) startSessionRefresher() {
 		for {
 			select {
 			case <-ticker.C:
-				a.logger.Infof("Refreshing session as expiration is near")
+				a.logger.Debugf("Refreshing session as expiration is near")
 				newSession, err := a.createOrRefreshSession(a.internalContext)
 				if err != nil {
 					a.logger.Errorf("failed to refresh session: %w", err)
 					return
 				}
-				a.logger.Infof("sam in ticker after created refreshed session %v", newSession)
 
 				a.Clients.refresh(newSession)
 

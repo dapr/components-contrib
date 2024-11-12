@@ -122,12 +122,7 @@ func (d *StateStore) validateTableAccess(ctx context.Context) error {
 			},
 		},
 	}
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %v", err)
-	}
-
-	_, err = clients.DynamoDB.GetItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDB().DynamoDB.GetItemWithContext(ctx, input)
 	return err
 }
 
@@ -159,11 +154,7 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 			},
 		},
 	}
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %v", err)
-	}
-	result, err := clients.DynamoDB.GetItemWithContext(ctx, input)
+	result, err := d.authProvider.DynamoDB().DynamoDB.GetItemWithContext(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -235,11 +226,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		condExpr := "attribute_not_exists(etag)"
 		input.ConditionExpression = &condExpr
 	}
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %v", err)
-	}
-	_, err = clients.DynamoDB.PutItemWithContext(ctx, input)
+	_, err = d.authProvider.DynamoDB().DynamoDB.PutItemWithContext(ctx, input)
 	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -270,11 +257,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		}
 		input.ExpressionAttributeValues = exprAttrValues
 	}
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %v", err)
-	}
-	_, err = clients.DynamoDB.DeleteItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDB().DynamoDB.DeleteItemWithContext(ctx, input)
 	if err != nil {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -445,11 +428,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		}
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %v", err)
-	}
-	_, err = clients.DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
+	_, err := d.authProvider.DynamoDB().DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
 
 	return err
 }

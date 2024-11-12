@@ -151,11 +151,7 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	}
 
 	// Attempt to send the email.
-	clients, err := a.authProvider.Ses(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %v", err)
-	}
-	result, err := clients.Ses.SendEmail(input)
+	result, err := a.authProvider.Ses().Ses.SendEmail(input)
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error. Sending email failed: %w", err)
 	}

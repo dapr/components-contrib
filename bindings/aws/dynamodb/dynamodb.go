@@ -16,7 +16,6 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -94,11 +93,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	clients, err := d.authProvider.DynamoDB(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %v", err)
-	}
-	_, err = clients.DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
+	_, err = d.authProvider.DynamoDB().DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(d.table),
 	})

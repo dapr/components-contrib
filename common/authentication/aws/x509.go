@@ -44,10 +44,8 @@ import (
 type x509 struct {
 	mu sync.RWMutex
 
-	wg sync.WaitGroup
-	// used for background session refresh logic that cannot use the context passed to the newx509 function
-	internalContext       context.Context
-	internalContextCancel func()
+	wg      sync.WaitGroup
+	closeCh chan struct{}
 
 	logger              logger.Logger
 	Clients             *Clients
@@ -109,18 +107,13 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		return nil, fmt.Errorf("failed to create the initial session: %v", err)
 	}
 	auth.session = initialSession
-
-	// This is needed to keep the session refresher on the background context, but still cancellable.
-	auth.internalContext, auth.internalContextCancel = context.WithCancel(context.Background())
 	auth.startSessionRefresher()
 
 	return auth, nil
 }
 
 func (a *x509) Close() error {
-	if a.internalContextCancel != nil {
-		a.internalContextCancel()
-	}
+	close(a.closeCh)
 	a.wg.Wait()
 	return nil
 }
@@ -148,239 +141,132 @@ func (a *x509) getCertPEM(ctx context.Context) error {
 	return nil
 }
 
-func (a *x509) S3(ctx context.Context) (*S3Clients, error) {
+func (a *x509) S3() *S3Clients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.s3 != nil {
-		return a.Clients.s3, nil
+		return a.Clients.s3
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		s3Clients := S3Clients{}
-		a.Clients.s3 = &s3Clients
-		a.logger.Debugf("Initializing S3 clients with session %v", a.session)
-		a.Clients.s3.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.s3, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	s3Clients := S3Clients{}
+	a.Clients.s3 = &s3Clients
+	a.Clients.s3.New(a.session)
+	return a.Clients.s3
 }
 
-func (a *x509) DynamoDB(ctx context.Context) (*DynamoDBClients, error) {
+func (a *x509) DynamoDB() *DynamoDBClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.Dynamo != nil {
-		return a.Clients.Dynamo, nil
+		return a.Clients.Dynamo
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := DynamoDBClients{}
-		a.Clients.Dynamo = &clients
-		a.Clients.Dynamo.New(a.session)
-	}()
+	clients := DynamoDBClients{}
+	a.Clients.Dynamo = &clients
+	a.Clients.Dynamo.New(a.session)
 
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.Dynamo, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return a.Clients.Dynamo
 }
 
-func (a *x509) Sqs(ctx context.Context) (*SqsClients, error) {
+func (a *x509) Sqs() *SqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.sqs != nil {
-		return a.Clients.sqs, nil
+		return a.Clients.sqs
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SqsClients{}
-		a.Clients.sqs = &clients
-		a.Clients.sqs.New(a.session)
-	}()
+	clients := SqsClients{}
+	a.Clients.sqs = &clients
+	a.Clients.sqs.New(a.session)
 
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.sqs, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return a.Clients.sqs
 }
 
-func (a *x509) Sns(ctx context.Context) (*SnsClients, error) {
+func (a *x509) Sns() *SnsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.sns != nil {
-		return a.Clients.sns, nil
+		return a.Clients.sns
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SnsClients{}
-		a.Clients.sns = &clients
-		a.Clients.sns.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.sns, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SnsClients{}
+	a.Clients.sns = &clients
+	a.Clients.sns.New(a.session)
+	return a.Clients.sns
 }
 
-func (a *x509) SnsSqs(ctx context.Context) (*SnsSqsClients, error) {
+func (a *x509) SnsSqs() *SnsSqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.snssqs != nil {
-		return a.Clients.snssqs, nil
+		return a.Clients.snssqs
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SnsSqsClients{}
-		a.Clients.snssqs = &clients
-		a.Clients.snssqs.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.snssqs, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SnsSqsClients{}
+	a.Clients.snssqs = &clients
+	a.Clients.snssqs.New(a.session)
+	return a.Clients.snssqs
 }
 
-func (a *x509) SecretManager(ctx context.Context) (*SecretManagerClients, error) {
+func (a *x509) SecretManager() *SecretManagerClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.Secret != nil {
-		return a.Clients.Secret, nil
+		return a.Clients.Secret
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SecretManagerClients{}
-		a.Clients.Secret = &clients
-		a.Clients.Secret.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.Secret, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SecretManagerClients{}
+	a.Clients.Secret = &clients
+	a.Clients.Secret.New(a.session)
+	return a.Clients.Secret
 }
 
-func (a *x509) ParameterStore(ctx context.Context) (*ParameterStoreClients, error) {
+func (a *x509) ParameterStore() *ParameterStoreClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.ParameterStore != nil {
-		return a.Clients.ParameterStore, nil
+		return a.Clients.ParameterStore
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := ParameterStoreClients{}
-		a.Clients.ParameterStore = &clients
-		a.Clients.ParameterStore.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.ParameterStore, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := ParameterStoreClients{}
+	a.Clients.ParameterStore = &clients
+	a.Clients.ParameterStore.New(a.session)
+	return a.Clients.ParameterStore
 }
 
-func (a *x509) Kinesis(ctx context.Context) (*KinesisClients, error) {
+func (a *x509) Kinesis() *KinesisClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.kinesis != nil {
-		return a.Clients.kinesis, nil
+		return a.Clients.kinesis
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := KinesisClients{}
-		a.Clients.kinesis = &clients
-		a.Clients.kinesis.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.kinesis, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := KinesisClients{}
+	a.Clients.kinesis = &clients
+	a.Clients.kinesis.New(a.session)
+	return a.Clients.kinesis
 }
 
-func (a *x509) Ses(ctx context.Context) (*SesClients, error) {
+func (a *x509) Ses() *SesClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.ses != nil {
-		return a.Clients.ses, nil
+		return a.Clients.ses
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SesClients{}
-		a.Clients.ses = &clients
-		a.Clients.ses.New(a.session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.ses, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SesClients{}
+	a.Clients.ses = &clients
+	a.Clients.ses.New(a.session)
+	return a.Clients.ses
 }
 
 func (a *x509) initializeTrustAnchors() error {
@@ -529,7 +415,7 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 }
 
 func (a *x509) startSessionRefresher() {
-	a.logger.Debugf("starting session refresher for x509 auth")
+	a.logger.Infof("starting session refresher for x509 auth")
 	// if there is a set session duration, then exit bc we will not auto refresh the session.
 	if *a.SessionDuration != 0 {
 		a.logger.Debugf("session duration was set, so there is no authentication refreshing")
@@ -539,36 +425,39 @@ func (a *x509) startSessionRefresher() {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-
-		// renew at ~half the lifespan
-		expiration, err := a.session.Config.Credentials.ExpiresAt()
-		if err != nil {
-			a.logger.Errorf("failed to retrieve session expiration time: %w", err)
-			return
-		}
-
-		timeUntilExpiration := time.Until(expiration)
-		refreshInterval := timeUntilExpiration / 2
-		ticker := time.NewTicker(refreshInterval)
-		defer ticker.Stop()
-
 		for {
+			// renew at ~half the lifespan
+			expiration, err := a.session.Config.Credentials.ExpiresAt()
+			if err != nil {
+				a.logger.Errorf("Failed to retrieve session expiration time, using 30 minute interval: %w", err)
+				expiration = time.Now().Add(time.Hour)
+			}
+			timeUntilExpiration := time.Until(expiration)
+			refreshInterval := timeUntilExpiration / 2
 			select {
-			case <-ticker.C:
-				a.logger.Debugf("Refreshing session as expiration is near")
-				newSession, err := a.createOrRefreshSession(a.internalContext)
-				if err != nil {
-					a.logger.Errorf("failed to refresh session: %w", err)
-					return
-				}
-
-				a.Clients.refresh(newSession)
-
-				a.logger.Debugf("AWS IAM Roles Anywhere session credentials refreshed successfully")
-			case <-a.internalContext.Done():
-				a.logger.Debugf("Session refresher stopped due to context cancellation")
+			case <-time.After(refreshInterval):
+				a.refreshClient()
+			case <-a.closeCh:
+				a.logger.Debugf("Session refresher is stopped")
 				return
 			}
 		}
 	}()
+}
+
+func (a *x509) refreshClient() {
+	for {
+		newSession, err := a.createOrRefreshSession(context.Background())
+		if err == nil {
+			a.Clients.refresh(newSession)
+			a.logger.Debugf("AWS IAM Roles Anywhere session credentials refreshed successfully")
+			return
+		}
+		a.logger.Errorf("Failed to refresh session: %w", err)
+		select {
+		case <-time.After(time.Second * 5):
+		case <-a.closeCh:
+			return
+		}
+	}
 }

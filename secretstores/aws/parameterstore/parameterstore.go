@@ -92,11 +92,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 		versionID = value
 		name = fmt.Sprintf("%s:%s", req.Name, versionID)
 	}
-	clients, err := s.authProvider.ParameterStore(ctx)
-	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
-	}
-	output, err := clients.Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+
+	output, err := s.authProvider.ParameterStore().Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 		Name:           ptr.Of(s.prefix + name),
 		WithDecryption: ptr.Of(true),
 	})
@@ -136,11 +133,7 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	}
 
 	for search {
-		clients, err := s.authProvider.ParameterStore(ctx)
-		if err != nil {
-			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
-		}
-		output, err := clients.Store.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
+		output, err := s.authProvider.ParameterStore().Store.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
 			MaxResults:       nil,
 			NextToken:        nextToken,
 			ParameterFilters: filters,
@@ -150,11 +143,7 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 		}
 
 		for _, entry := range output.Parameters {
-			clients, err = s.authProvider.ParameterStore(ctx)
-			if err != nil {
-				return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
-			}
-			params, err := clients.Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+			params, err := s.authProvider.ParameterStore().Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 				Name:           entry.Name,
 				WithDecryption: aws.Bool(true),
 			})

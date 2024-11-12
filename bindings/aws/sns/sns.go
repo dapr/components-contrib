@@ -109,11 +109,7 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	clients, err := a.authProvider.Sns(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %v", err)
-	}
-	_, err = clients.Sns.PublishWithContext(ctx, &sns.PublishInput{
+	_, err = a.authProvider.Sns().Sns.PublishWithContext(ctx, &sns.PublishInput{
 		Message:  &msg,
 		Subject:  &subject,
 		TopicArn: &a.topicARN,

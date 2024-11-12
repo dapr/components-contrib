@@ -91,16 +91,12 @@ func (a *AWSSQS) Operations() []bindings.OperationKind {
 
 func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msgBody := string(req.Data)
-	clients, err := a.authProvider.Sqs(ctx)
-	if err != nil {
-		a.logger.Errorf("failed to get client: %v", err)
-	}
-	url, err := clients.QueueURL(ctx, a.queueName)
+	url, err := a.authProvider.Sqs().QueueURL(ctx, a.queueName)
 	if err != nil {
 		a.logger.Errorf("failed to get queue url: %v", err)
 	}
 
-	_, err = clients.Sqs.SendMessageWithContext(ctx, &sqs.SendMessageInput{
+	_, err = a.authProvider.Sqs().Sqs.SendMessageWithContext(ctx, &sqs.SendMessageInput{
 		MessageBody: &msgBody,
 		QueueUrl:    url,
 	})
@@ -122,16 +118,12 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 			if ctx.Err() != nil || a.closed.Load() {
 				return
 			}
-			clients, err := a.authProvider.Sqs(ctx)
-			if err != nil {
-				a.logger.Errorf("failed to get client: %v", err)
-			}
-			url, err := clients.QueueURL(ctx, a.queueName)
+			url, err := a.authProvider.Sqs().QueueURL(ctx, a.queueName)
 			if err != nil {
 				a.logger.Errorf("failed to get queue url: %v", err)
 			}
 
-			result, err := clients.Sqs.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
+			result, err := a.authProvider.Sqs().Sqs.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
 				QueueUrl: url,
 				AttributeNames: aws.StringSlice([]string{
 					"SentTimestamp",
@@ -157,7 +149,7 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 						msgHandle := m.ReceiptHandle
 
 						// Use a background context here because ctx may be canceled already
-						clients.Sqs.DeleteMessageWithContext(context.Background(), &sqs.DeleteMessageInput{
+						a.authProvider.Sqs().Sqs.DeleteMessageWithContext(context.Background(), &sqs.DeleteMessageInput{
 							QueueUrl:      url,
 							ReceiptHandle: msgHandle,
 						})

@@ -207,12 +207,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if metadata.StorageClass != "" {
 		storageClass = aws.String(metadata.StorageClass)
 	}
-
-	clients, err := s.authProvider.S3(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
-	}
-	resultUpload, err := clients.Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+	resultUpload, err := s.authProvider.S3().Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket:       ptr.Of(metadata.Bucket),
 		Key:          ptr.Of(key),
 		Body:         r,
@@ -287,11 +282,7 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
-	clients, err := s.authProvider.S3(ctx)
-	if err != nil {
-		return "", fmt.Errorf("s3 binding error: failed to get client: %v", err)
-	}
-	objReq, _ := clients.S3.GetObjectRequest(&s3.GetObjectInput{
+	objReq, _ := s.authProvider.S3().S3.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: ptr.Of(bucket),
 		Key:    ptr.Of(key),
 	})
@@ -315,12 +306,7 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 	}
 
 	buff := &aws.WriteAtBuffer{}
-
-	clients, err := s.authProvider.S3(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
-	}
-	_, err = clients.Downloader.DownloadWithContext(ctx,
+	_, err = s.authProvider.S3().Downloader.DownloadWithContext(ctx,
 		buff,
 		&s3.GetObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
@@ -354,13 +340,7 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
-
-	clients, err := s.authProvider.S3(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
-	}
-
-	_, err = clients.S3.DeleteObjectWithContext(
+	_, err := s.authProvider.S3().S3.DeleteObjectWithContext(
 		ctx,
 		&s3.DeleteObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
@@ -389,13 +369,7 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if payload.MaxResults < 1 {
 		payload.MaxResults = defaultMaxResults
 	}
-
-	clients, err := s.authProvider.S3(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
-	}
-
-	result, err := clients.S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+	result, err := s.authProvider.S3().S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
 		Bucket:    ptr.Of(s.metadata.Bucket),
 		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
 		Marker:    ptr.Of(payload.Marker),

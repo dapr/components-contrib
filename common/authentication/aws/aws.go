@@ -81,15 +81,15 @@ func GetConfig(opts Options) *aws.Config {
 }
 
 type Provider interface {
-	S3(ctx context.Context) (*S3Clients, error)
-	DynamoDB(ctx context.Context) (*DynamoDBClients, error)
-	Sqs(ctx context.Context) (*SqsClients, error)
-	Sns(ctx context.Context) (*SnsClients, error)
-	SnsSqs(ctx context.Context) (*SnsSqsClients, error)
-	SecretManager(ctx context.Context) (*SecretManagerClients, error)
-	ParameterStore(ctx context.Context) (*ParameterStoreClients, error)
-	Kinesis(ctx context.Context) (*KinesisClients, error)
-	Ses(ctx context.Context) (*SesClients, error)
+	S3() *S3Clients
+	DynamoDB() *DynamoDBClients
+	Sqs() *SqsClients
+	Sns() *SnsClients
+	SnsSqs() *SnsSqsClients
+	SecretManager() *SecretManagerClients
+	ParameterStore() *ParameterStoreClients
+	Kinesis() *KinesisClients
+	Ses() *SesClients
 
 	Close() error
 }

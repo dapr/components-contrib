@@ -44,7 +44,7 @@ type StaticAuth struct {
 	Cfg     *aws.Config
 }
 
-func newStaticIAM(ctx context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
+func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
 		Logger:       opts.Logger,
 		Region:       opts.Region,
@@ -66,240 +66,132 @@ func newStaticIAM(ctx context.Context, opts Options, cfg *aws.Config) (*StaticAu
 	return auth, nil
 }
 
-func (a *StaticAuth) S3(ctx context.Context) (*S3Clients, error) {
+func (a *StaticAuth) S3() *S3Clients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.s3 != nil {
-		return a.Clients.s3, nil
+		return a.Clients.s3
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		s3Clients := S3Clients{}
-		a.Clients.s3 = &s3Clients
-		a.Logger.Debugf("Initializing S3 clients with session %v", a.Session)
-		a.Clients.s3.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.s3, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	s3Clients := S3Clients{}
+	a.Clients.s3 = &s3Clients
+	a.Clients.s3.New(a.Session)
+	return a.Clients.s3
 }
 
-func (a *StaticAuth) DynamoDB(ctx context.Context) (*DynamoDBClients, error) {
+func (a *StaticAuth) DynamoDB() *DynamoDBClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	fmt.Printf("ready sam")
+
 	if a.Clients.Dynamo != nil {
-		fmt.Printf("sam it is not nil so it's injected fine")
-		return a.Clients.Dynamo, nil
+		return a.Clients.Dynamo
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := DynamoDBClients{}
-		a.Clients.Dynamo = &clients
-		a.Clients.Dynamo.New(a.Session)
-	}()
+	clients := DynamoDBClients{}
+	a.Clients.Dynamo = &clients
+	a.Clients.Dynamo.New(a.Session)
 
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.Dynamo, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return a.Clients.Dynamo
 }
 
-func (a *StaticAuth) Sqs(ctx context.Context) (*SqsClients, error) {
+func (a *StaticAuth) Sqs() *SqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.sqs != nil {
-		return a.Clients.sqs, nil
+		return a.Clients.sqs
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SqsClients{}
-		a.Clients.sqs = &clients
-		a.Clients.sqs.New(a.Session)
-	}()
+	clients := SqsClients{}
+	a.Clients.sqs = &clients
+	a.Clients.sqs.New(a.Session)
 
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.sqs, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return a.Clients.sqs
 }
 
-func (a *StaticAuth) Sns(ctx context.Context) (*SnsClients, error) {
+func (a *StaticAuth) Sns() *SnsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.sns != nil {
-		return a.Clients.sns, nil
+		return a.Clients.sns
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SnsClients{}
-		a.Clients.sns = &clients
-		a.Clients.sns.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.sns, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SnsClients{}
+	a.Clients.sns = &clients
+	a.Clients.sns.New(a.Session)
+	return a.Clients.sns
 }
 
-func (a *StaticAuth) SnsSqs(ctx context.Context) (*SnsSqsClients, error) {
+func (a *StaticAuth) SnsSqs() *SnsSqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.snssqs != nil {
-		return a.Clients.snssqs, nil
+		return a.Clients.snssqs
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SnsSqsClients{}
-		a.Clients.snssqs = &clients
-		a.Clients.snssqs.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.snssqs, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SnsSqsClients{}
+	a.Clients.snssqs = &clients
+	a.Clients.snssqs.New(a.Session)
+	return a.Clients.snssqs
 }
 
-func (a *StaticAuth) SecretManager(ctx context.Context) (*SecretManagerClients, error) {
+func (a *StaticAuth) SecretManager() *SecretManagerClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.Secret != nil {
-		return a.Clients.Secret, nil
+		return a.Clients.Secret
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SecretManagerClients{}
-		a.Clients.Secret = &clients
-		a.Clients.Secret.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.Secret, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SecretManagerClients{}
+	a.Clients.Secret = &clients
+	a.Clients.Secret.New(a.Session)
+	return a.Clients.Secret
 }
 
-func (a *StaticAuth) ParameterStore(ctx context.Context) (*ParameterStoreClients, error) {
+func (a *StaticAuth) ParameterStore() *ParameterStoreClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.ParameterStore != nil {
-		return a.Clients.ParameterStore, nil
+		return a.Clients.ParameterStore
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := ParameterStoreClients{}
-		a.Clients.ParameterStore = &clients
-		a.Clients.ParameterStore.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.ParameterStore, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := ParameterStoreClients{}
+	a.Clients.ParameterStore = &clients
+	a.Clients.ParameterStore.New(a.Session)
+	return a.Clients.ParameterStore
 }
 
-func (a *StaticAuth) Kinesis(ctx context.Context) (*KinesisClients, error) {
+func (a *StaticAuth) Kinesis() *KinesisClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.kinesis != nil {
-		return a.Clients.kinesis, nil
+		return a.Clients.kinesis
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := KinesisClients{}
-		a.Clients.kinesis = &clients
-		a.Clients.kinesis.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.kinesis, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := KinesisClients{}
+	a.Clients.kinesis = &clients
+	a.Clients.kinesis.New(a.Session)
+	return a.Clients.kinesis
 }
 
-func (a *StaticAuth) Ses(ctx context.Context) (*SesClients, error) {
+func (a *StaticAuth) Ses() *SesClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.Clients.ses != nil {
-		return a.Clients.ses, nil
+		return a.Clients.ses
 	}
 
-	// respect context cancellation while initializing client
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		clients := SesClients{}
-		a.Clients.ses = &clients
-		a.Clients.ses.New(a.Session)
-	}()
-
-	// wait for new client or context to be canceled
-	select {
-	case <-done:
-		return a.Clients.ses, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	clients := SesClients{}
+	a.Clients.ses = &clients
+	a.Clients.ses.New(a.Session)
+	return a.Clients.ses
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {

@@ -74,15 +74,15 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	// This context doesn't control the lifetime of the connection pool, and is
 	// only scoped to postgres creating resources at init.
 	connCtx, connCancel := context.WithTimeout(ctx, m.Timeout)
+	defer connCancel()
 	p.db, err = pgxpool.NewWithConfig(connCtx, poolConfig)
-	connCancel()
 	if err != nil {
 		return fmt.Errorf("unable to connect to the DB: %w", err)
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, m.Timeout)
+	defer pingCancel()
 	err = p.db.Ping(pingCtx)
-	pingCancel()
 	if err != nil {
 		return fmt.Errorf("failed to ping the DB: %w", err)
 	}

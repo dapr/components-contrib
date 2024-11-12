@@ -46,11 +46,11 @@ func TestGetTokenClient(t *testing.T) {
 		{
 			name: "valid token client",
 			awsInstance: &StaticAuth{
-				accessKey:    aws.String("testAccessKey"),
-				secretKey:    aws.String("testSecretKey"),
-				sessionToken: aws.String("testSessionToken"),
-				region:       "us-west-2",
-				endpoint:     aws.String("https://test.endpoint.com"),
+				AccessKey:    aws.String("testAccessKey"),
+				SecretKey:    aws.String("testSecretKey"),
+				SessionToken: aws.String("testSessionToken"),
+				Region:       "us-west-2",
+				Endpoint:     aws.String("https://test.endpoint.com"),
 			},
 		},
 	}
@@ -60,7 +60,7 @@ func TestGetTokenClient(t *testing.T) {
 			session, err := tt.awsInstance.getTokenClient()
 			require.NotNil(t, session)
 			require.NoError(t, err)
-			assert.Equal(t, tt.awsInstance.region, *session.Config.Region)
+			assert.Equal(t, tt.awsInstance.Region, *session.Config.Region)
 		})
 	}
 }

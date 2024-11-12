@@ -64,7 +64,7 @@ func TestGetX509Client(t *testing.T) {
 				CreateSessionOutput: tt.mockOutput,
 				CreateSessionError:  tt.mockError,
 			}
-			mockAWS := &x509{
+			mockAWS := x509{
 				logger:              logger.NewLogger("testLogger"),
 				AssumeRoleArn:       ptr.Of("arn:aws:iam:012345678910:role/exampleIAMRoleName"),
 				TrustAnchorArn:      ptr.Of("arn:aws:rolesanywhere:us-west-1:012345678910:trust-anchor/01234568-0123-0123-0123-012345678901"),

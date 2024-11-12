@@ -31,28 +31,28 @@ import (
 
 type StaticAuth struct {
 	mu     sync.RWMutex
-	logger logger.Logger
+	Logger logger.Logger
 
-	region       string
-	endpoint     *string
-	accessKey    *string
-	secretKey    *string
-	sessionToken *string
+	Region       string
+	Endpoint     *string
+	AccessKey    *string
+	SecretKey    *string
+	SessionToken *string
 
 	Clients *Clients
-	session *session.Session
-	cfg     *aws.Config
+	Session *session.Session
+	Cfg     *aws.Config
 }
 
 func newStaticIAM(ctx context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
-		logger:       opts.Logger,
-		region:       opts.Region,
-		endpoint:     &opts.Endpoint,
-		accessKey:    &opts.AccessKey,
-		secretKey:    &opts.SecretKey,
-		sessionToken: &opts.SessionToken,
-		cfg:          cfg,
+		Logger:       opts.Logger,
+		Region:       opts.Region,
+		Endpoint:     &opts.Endpoint,
+		AccessKey:    &opts.AccessKey,
+		SecretKey:    &opts.SecretKey,
+		SessionToken: &opts.SessionToken,
+		Cfg:          cfg,
 		Clients:      newClients(),
 	}
 
@@ -61,7 +61,7 @@ func newStaticIAM(ctx context.Context, opts Options, cfg *aws.Config) (*StaticAu
 		return nil, fmt.Errorf("failed to get token client: %v", err)
 	}
 
-	auth.session = initialSession
+	auth.Session = initialSession
 
 	return auth, nil
 }
@@ -80,8 +80,8 @@ func (a *StaticAuth) S3(ctx context.Context) (*S3Clients, error) {
 		defer close(done)
 		s3Clients := S3Clients{}
 		a.Clients.s3 = &s3Clients
-		a.logger.Debugf("Initializing S3 clients with session %v", a.session)
-		a.Clients.s3.New(a.session)
+		a.Logger.Debugf("Initializing S3 clients with session %v", a.Session)
+		a.Clients.s3.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -96,8 +96,9 @@ func (a *StaticAuth) S3(ctx context.Context) (*S3Clients, error) {
 func (a *StaticAuth) DynamoDB(ctx context.Context) (*DynamoDBClients, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
+	fmt.Printf("ready sam")
 	if a.Clients.Dynamo != nil {
+		fmt.Printf("sam it is not nil so it's injected fine")
 		return a.Clients.Dynamo, nil
 	}
 
@@ -107,7 +108,7 @@ func (a *StaticAuth) DynamoDB(ctx context.Context) (*DynamoDBClients, error) {
 		defer close(done)
 		clients := DynamoDBClients{}
 		a.Clients.Dynamo = &clients
-		a.Clients.Dynamo.New(a.session)
+		a.Clients.Dynamo.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -133,7 +134,7 @@ func (a *StaticAuth) Sqs(ctx context.Context) (*SqsClients, error) {
 		defer close(done)
 		clients := SqsClients{}
 		a.Clients.sqs = &clients
-		a.Clients.sqs.New(a.session)
+		a.Clients.sqs.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -159,7 +160,7 @@ func (a *StaticAuth) Sns(ctx context.Context) (*SnsClients, error) {
 		defer close(done)
 		clients := SnsClients{}
 		a.Clients.sns = &clients
-		a.Clients.sns.New(a.session)
+		a.Clients.sns.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -185,7 +186,7 @@ func (a *StaticAuth) SnsSqs(ctx context.Context) (*SnsSqsClients, error) {
 		defer close(done)
 		clients := SnsSqsClients{}
 		a.Clients.snssqs = &clients
-		a.Clients.snssqs.New(a.session)
+		a.Clients.snssqs.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -211,7 +212,7 @@ func (a *StaticAuth) SecretManager(ctx context.Context) (*SecretManagerClients, 
 		defer close(done)
 		clients := SecretManagerClients{}
 		a.Clients.Secret = &clients
-		a.Clients.Secret.New(a.session)
+		a.Clients.Secret.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -237,7 +238,7 @@ func (a *StaticAuth) ParameterStore(ctx context.Context) (*ParameterStoreClients
 		defer close(done)
 		clients := ParameterStoreClients{}
 		a.Clients.ParameterStore = &clients
-		a.Clients.ParameterStore.New(a.session)
+		a.Clients.ParameterStore.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -263,7 +264,7 @@ func (a *StaticAuth) Kinesis(ctx context.Context) (*KinesisClients, error) {
 		defer close(done)
 		clients := KinesisClients{}
 		a.Clients.kinesis = &clients
-		a.Clients.kinesis.New(a.session)
+		a.Clients.kinesis.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -289,7 +290,7 @@ func (a *StaticAuth) Ses(ctx context.Context) (*SesClients, error) {
 		defer close(done)
 		clients := SesClients{}
 		a.Clients.ses = &clients
-		a.Clients.ses.New(a.session)
+		a.Clients.ses.New(a.Session)
 	}()
 
 	// wait for new client or context to be canceled
@@ -304,17 +305,17 @@ func (a *StaticAuth) Ses(ctx context.Context) (*SesClients, error) {
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 	awsConfig := aws.NewConfig()
 
-	if a.region != "" {
-		awsConfig = awsConfig.WithRegion(a.region)
+	if a.Region != "" {
+		awsConfig = awsConfig.WithRegion(a.Region)
 	}
 
-	if a.accessKey != nil && a.secretKey != nil {
+	if a.AccessKey != nil && a.SecretKey != nil {
 		// session token is an option field
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.accessKey, *a.secretKey, *a.sessionToken))
+		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.AccessKey, *a.SecretKey, *a.SessionToken))
 	}
 
-	if a.endpoint != nil {
-		awsConfig = awsConfig.WithEndpoint(*a.endpoint)
+	if a.Endpoint != nil {
+		awsConfig = awsConfig.WithEndpoint(*a.Endpoint)
 	}
 
 	awsSession, err := session.NewSessionWithOptions(session.Options{

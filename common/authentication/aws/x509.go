@@ -53,7 +53,7 @@ type x509 struct {
 	Clients             *Clients
 	rolesAnywhereClient rolesanywhereiface.RolesAnywhereAPI // this is so we can mock it in tests
 	session             *session.Session
-	cfg                 *aws.Config
+	Cfg                 *aws.Config
 
 	chainPEM []byte
 	keyPEM   []byte
@@ -78,11 +78,6 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		return nil, errors.New("trustAnchorArn is required")
 	case x509Auth.AssumeRoleArn == nil:
 		return nil, errors.New("assumeRoleArn is required")
-
-		// https://aws.amazon.com/about-aws/whats-new/2024/03/iam-roles-anywhere-credentials-valid-12-hours/#:~:text=The%20duration%20can%20range%20from,and%20applications%2C%20to%20use%20X.
-	case x509Auth.SessionDuration == nil:
-		awsDefaultDuration := time.Hour // default 1 hour from AWS
-		x509Auth.SessionDuration = &awsDefaultDuration
 	case *x509Auth.SessionDuration != 0 && (*x509Auth.SessionDuration < time.Minute*15 || *x509Auth.SessionDuration > time.Hour*12):
 		return nil, errors.New("sessionDuration must be greater than 15 minutes, and less than 12 hours")
 	}
@@ -94,7 +89,7 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		TrustAnchorArn:  x509Auth.TrustAnchorArn,
 		AssumeRoleArn:   x509Auth.AssumeRoleArn,
 		SessionDuration: x509Auth.SessionDuration,
-		cfg:             GetConfig(opts),
+		Cfg:             GetConfig(opts),
 		Clients:         newClients(),
 	}
 
@@ -454,8 +449,8 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	var mySession *session.Session
 
 	var config *aws.Config
-	if a.cfg != nil {
-		config = a.cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+	if a.Cfg != nil {
+		config = a.Cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	}
 
 	// this is needed for testing purposes to mock the client,
@@ -488,7 +483,7 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	} else {
-		duration = int64(time.Hour)
+		duration = int64(time.Hour.Seconds())
 
 		createSessionRequest = rolesanywhere.CreateSessionInput{
 			Cert:               ptr.Of(string(a.chainPEM)),
@@ -500,10 +495,19 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	}
-
-	output, err := rolesClient.CreateSessionWithContext(ctx, &createSessionRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session using dapr app identity: %w", err)
+	var output *rolesanywhere.CreateSessionOutput
+	if a.rolesAnywhereClient != nil {
+		var err error
+		output, err = a.rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session using dapr app identity: %w", err)
+		}
+	} else {
+		var err error
+		output, err = rolesClient.CreateSessionWithContext(ctx, &createSessionRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session using dapr app identity: %w", err)
+		}
 	}
 
 	if output == nil || len(output.CredentialSet) != 1 {

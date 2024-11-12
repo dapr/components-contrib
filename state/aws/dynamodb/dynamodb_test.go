@@ -22,9 +22,12 @@ import (
 	"time"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/dapr/kit/logger"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
@@ -148,9 +151,9 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("Init with bad table name or permissions", func(t *testing.T) {
+		table := "does-not-exist"
 		m.Properties = map[string]string{
-			"Table":  "does-not-exist",
-			"Region": "eu-west-1",
+			"Table": table,
 		}
 
 		mockedDB := &mockedDynamoDB{
@@ -166,17 +169,33 @@ func TestInit(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			Dynamo: &dynamo,
 		}
-
+		mockedSession, err := session.NewSession(&aws.Config{
+			Region:      aws.String("us-west-1"),
+			Credentials: credentials.AnonymousCredentials,
+		})
+		require.NoError(t, err)
 		mockAuthProvider := &awsAuth.StaticAuth{
+			Logger:  logger.NewLogger("test"),
 			Clients: &mockedClients,
+			// mock client creds so we don't get the error -> access: EmptyStaticCreds: static credentials are empty"
+			Cfg: &aws.Config{
+				Credentials: credentials.AnonymousCredentials,
+			},
+			Region:       "us-west-1",
+			AccessKey:    aws.String("mocked"),
+			SecretKey:    aws.String("mocked"),
+			SessionToken: aws.String("mocked"),
+			Endpoint:     aws.String("mocked"),
+			Session:      mockedSession,
 		}
 
 		s := StateStore{
 			authProvider: mockAuthProvider,
 			partitionKey: defaultPartitionKeyName,
+			table:        table,
 		}
 
-		err := s.Init(context.Background(), m)
+		err = s.Init(context.Background(), m)
 		require.Error(t, err)
 		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})

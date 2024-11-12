@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	jsoniterator "github.com/json-iterator/go"
@@ -82,20 +81,24 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	opts := awsAuth.Options{
-		Logger:       d.logger,
-		Properties:   metadata.Properties,
-		Region:       meta.Region,
-		Endpoint:     meta.Endpoint,
-		AccessKey:    meta.AccessKey,
-		SecretKey:    meta.SecretKey,
-		SessionToken: meta.SessionToken,
+	if d.authProvider == nil {
+		opts := awsAuth.Options{
+			Logger:       d.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			Endpoint:     meta.Endpoint,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+		}
+		cfg := awsAuth.GetConfig(opts)
+		provider, err := awsAuth.NewProvider(ctx, opts, cfg)
+		if err != nil {
+			return err
+		}
+		d.authProvider = provider
 	}
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-	if err != nil {
-		return err
-	}
-	d.authProvider = provider
+
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
@@ -123,6 +126,7 @@ func (d *StateStore) validateTableAccess(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get client: %v", err)
 	}
+
 	_, err = clients.DynamoDB.GetItemWithContext(ctx, input)
 	return err
 }

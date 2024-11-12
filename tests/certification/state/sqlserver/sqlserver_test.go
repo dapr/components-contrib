@@ -60,6 +60,20 @@ const (
 )
 
 func TestSqlServer(t *testing.T) {
+	// The default certificate created by the docker container sometimes contains a negative serial number.
+	// A TLS certificate with a negative serial number is invalid, although it was tolerated until 1.22
+	// Since Go 1.23 the default behavior has changed and the certificate is rejected.
+	// This environment variable is used to revert to the old behavior.
+	// Ref: https://github.com/microsoft/mssql-docker/issues/895
+	oldDebugValue := os.Getenv("GODEBUG")
+	err := os.Setenv("GODEBUG", "x509negativeserial=1")
+	if err != nil {
+		t.Fatalf("Failed to set GODEBUG environment variable: %v", err)
+	}
+	defer func() {
+		os.Setenv("GODEBUG", oldDebugValue)
+	}()
+
 	ports, err := dapr_testing.GetFreePorts(2)
 	require.NoError(t, err)
 

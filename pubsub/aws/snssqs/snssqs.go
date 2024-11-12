@@ -154,7 +154,8 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 			SessionToken: m.SessionToken,
 		}
 		// extra configs needed per component type
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, aws.NewConfig())
 		if err != nil {
 			return err
 		}

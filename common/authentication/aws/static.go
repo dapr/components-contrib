@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -200,8 +201,8 @@ func (a *StaticAuth) SecretManager(ctx context.Context) (*SecretManagerClients, 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.secret != nil {
-		return a.Clients.secret, nil
+	if a.Clients.Secret != nil {
+		return a.Clients.Secret, nil
 	}
 
 	// respect context cancellation while initializing client
@@ -209,14 +210,14 @@ func (a *StaticAuth) SecretManager(ctx context.Context) (*SecretManagerClients, 
 	go func() {
 		defer close(done)
 		clients := SecretManagerClients{}
-		a.Clients.secret = &clients
-		a.Clients.secret.New(a.session)
+		a.Clients.Secret = &clients
+		a.Clients.Secret.New(a.session)
 	}()
 
 	// wait for new client or context to be canceled
 	select {
 	case <-done:
-		return a.Clients.secret, nil
+		return a.Clients.Secret, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

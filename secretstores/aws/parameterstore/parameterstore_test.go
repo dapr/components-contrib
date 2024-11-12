@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/aws/request"

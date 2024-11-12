@@ -168,7 +168,6 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)

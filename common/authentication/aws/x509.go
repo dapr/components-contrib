@@ -33,6 +33,7 @@ import (
 	awssh "github.com/aws/rolesanywhere-credential-helper/aws_signing_helper"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere/rolesanywhereiface"
+
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
@@ -97,17 +98,16 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		Clients:         newClients(),
 	}
 
-	err := auth.getCertPEM(ctx)
+	var err error
+	err = auth.getCertPEM(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get x.509 credentials: %v", err)
 	}
-	auth.logger.Infof("sam here 1")
 
 	// Parse trust anchor and profile ARNs
-	if err := auth.initializeTrustAnchors(); err != nil {
+	if err = auth.initializeTrustAnchors(); err != nil {
 		return nil, err
 	}
-	auth.logger.Infof("sam here 2")
 
 	initialSession, err := auth.createOrRefreshSession(ctx)
 	if err != nil {
@@ -134,7 +134,7 @@ func (a *x509) getCertPEM(ctx context.Context) error {
 	// retrieve svid from spiffe context
 	svid, ok := spiffecontext.From(ctx)
 	if !ok {
-		return fmt.Errorf("no SVID found in context")
+		return errors.New("no SVID found in context")
 	}
 	// get x.509 svid
 	svidx, err := svid.GetX509SVID()
@@ -288,8 +288,8 @@ func (a *x509) SecretManager(ctx context.Context) (*SecretManagerClients, error)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.secret != nil {
-		return a.Clients.secret, nil
+	if a.Clients.Secret != nil {
+		return a.Clients.Secret, nil
 	}
 
 	// respect context cancellation while initializing client
@@ -297,14 +297,14 @@ func (a *x509) SecretManager(ctx context.Context) (*SecretManagerClients, error)
 	go func() {
 		defer close(done)
 		clients := SecretManagerClients{}
-		a.Clients.secret = &clients
-		a.Clients.secret.New(a.session)
+		a.Clients.Secret = &clients
+		a.Clients.Secret.New(a.session)
 	}()
 
 	// wait for new client or context to be canceled
 	select {
 	case <-done:
-		return a.Clients.secret, nil
+		return a.Clients.Secret, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -422,7 +422,7 @@ func (a *x509) setSigningFunction(rolesAnywhereClient *rolesanywhere.RolesAnywhe
 		return err
 	}
 
-	var ints []cryptoX509.Certificate
+	ints := make([]cryptoX509.Certificate, 0, len(certs)-1)
 	for i := range certs[1:] {
 		ints = append(ints, *certs[i+1])
 	}

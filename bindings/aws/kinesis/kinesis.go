@@ -197,7 +197,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		if a.metadata.KinesisConsumerMode == SharedThroughput {
 			a.worker.Shutdown()
 		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
-			a.deregisterConsumer(stream, a.consumerARN)
+			a.deregisterConsumer(ctx, stream, a.consumerARN)
 		}
 	}()
 
@@ -325,14 +325,14 @@ func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*
 	return consumer.Consumer.ConsumerARN, nil
 }
 
-func (a *AWSKinesis) deregisterConsumer(streamARN *string, consumerARN *string) error {
+func (a *AWSKinesis) deregisterConsumer(ctx context.Context, streamARN *string, consumerARN *string) error {
 	if a.consumerARN != nil {
 		// Use a background context because the running context may have been canceled already
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		clients, err := a.authProvider.Kinesis(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get client: %v", err)
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		_, err = clients.Kinesis.DeregisterStreamConsumerWithContext(ctx, &kinesis.DeregisterStreamConsumerInput{
 			ConsumerARN:  consumerARN,
 			StreamARN:    streamARN,

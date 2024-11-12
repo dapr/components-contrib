@@ -24,9 +24,10 @@ import (
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/dapr/kit/logger"
 )
 
 type EnvironmentSettings struct {
@@ -105,7 +106,6 @@ func NewProvider(ctx context.Context, opts Options, cfg *aws.Config) (Provider, 
 		return newX509(ctx, opts, cfg)
 	}
 	return newStaticIAM(ctx, opts, cfg)
-
 }
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.

@@ -3,10 +3,6 @@ package aws
 import (
 	"context"
 	cryptoX509 "crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
-	"math/big"
-	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,45 +11,16 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere/rolesanywhereiface"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/kit/crypto/spiffe"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/crypto/test"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func mockRequestSVIDFn() ([]*cryptoX509.Certificate, error) {
-	spiffeID, err := url.Parse("spiffe://example.org/test") // create tester SPIFFE ID
-	if err != nil {
-		return nil, err
-	}
-
-	// encode the URI as a SAN extension
-	uriSAN, err := asn1.Marshal(spiffeID.String())
-	if err != nil {
-		return nil, err
-	}
-
-	// create dummy certificate with the required URI SAN
-	cert := &cryptoX509.Certificate{
-		Subject:      pkix.Name{CommonName: "test-cert"},
-		SerialNumber: big.NewInt(1),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour),
-		ExtraExtensions: []pkix.Extension{
-			{
-				Id:       asn1.ObjectIdentifier{2, 5, 29, 17}, // OID for subject alternative name
-				Critical: false,
-				Value:    uriSAN,
-			},
-		},
-	}
-
-	return []*cryptoX509.Certificate{cert}, nil
-}
 
 type mockRolesAnywhereClient struct {
 	rolesanywhereiface.RolesAnywhereAPI
@@ -135,13 +102,13 @@ func TestGetX509Client(t *testing.T) {
 			}
 
 			err := s.Ready(ctx)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// inject the SVID source into the context
 			ctx = spiffecontext.With(ctx, s)
 			session, err := mockAWS.createOrRefreshSession(ctx)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, session)
 		})
 	}

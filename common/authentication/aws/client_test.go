@@ -20,11 +20,11 @@ import (
 
 type mockedSQS struct {
 	sqsiface.SQSAPI
-	GetQueueUrlFn func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
+	GetQueueURLFn func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
 }
 
-func (m *mockedSQS) GetQueueUrlWithContext(ctx context.Context, input *sqs.GetQueueUrlInput, opts ...request.Option) (*sqs.GetQueueUrlOutput, error) {
-	return m.GetQueueUrlFn(ctx, input)
+func (m *mockedSQS) GetQueueURLWithContext(ctx context.Context, input *sqs.GetQueueUrlInput, opts ...request.Option) (*sqs.GetQueueUrlOutput, error) {
+	return m.GetQueueURLFn(ctx, input)
 }
 
 type mockedKinesis struct {
@@ -67,7 +67,7 @@ func TestSqsClients_QueueURL(t *testing.T) {
 			name: "returns queue URL successfully",
 			mockFn: func() *mockedSQS {
 				return &mockedSQS{
-					GetQueueUrlFn: func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
+					GetQueueURLFn: func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
 						return &sqs.GetQueueUrlOutput{
 							QueueUrl: aws.String("https://sqs.aws.com/123456789012/queue"),
 						}, nil
@@ -82,7 +82,7 @@ func TestSqsClients_QueueURL(t *testing.T) {
 			name: "returns error when queue URL not found",
 			mockFn: func() *mockedSQS {
 				return &mockedSQS{
-					GetQueueUrlFn: func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
+					GetQueueURLFn: func(ctx context.Context, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
 						return nil, errors.New("unable to get stream arn due to empty client")
 					},
 				}

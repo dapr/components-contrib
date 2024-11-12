@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetConfigV2(t *testing.T) {
@@ -29,7 +30,7 @@ func TestGetConfigV2(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			awsCfg, err := GetConfigV2(tt.accessKey, tt.secretKey, tt.sessionToken, tt.region, tt.endpoint)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, awsCfg)
 			assert.Equal(t, tt.region, awsCfg.Region)
 			assert.Equal(t, tt.endpoint, *awsCfg.BaseEndpoint)
@@ -57,8 +58,8 @@ func TestGetTokenClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			session, err := tt.awsInstance.getTokenClient()
-			assert.NotNil(t, session)
-			assert.NoError(t, err)
+			require.NotNil(t, session)
+			require.NoError(t, err)
 			assert.Equal(t, tt.awsInstance.region, *session.Config.Region)
 		})
 	}

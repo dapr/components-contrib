@@ -23,11 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/dapr/kit/logger"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 )
-
-var log logger.Logger
 
 type Clients struct {
 	mu sync.RWMutex
@@ -37,7 +34,7 @@ type Clients struct {
 	sns            *SnsClients
 	sqs            *SqsClients
 	snssqs         *SnsSqsClients
-	secret         *SecretManagerClients
+	Secret         *SecretManagerClients
 	ParameterStore *ParameterStoreClients
 	kinesis        *KinesisClients
 	ses            *SesClients
@@ -61,8 +58,8 @@ func (c *Clients) refresh(session *session.Session) {
 		c.sqs.New(session)
 	case c.snssqs != nil:
 		c.snssqs.New(session)
-	case c.secret != nil:
-		c.secret.New(session)
+	case c.Secret != nil:
+		c.Secret.New(session)
 	case c.ParameterStore != nil:
 		c.ParameterStore.New(session)
 	case c.kinesis != nil:
@@ -93,8 +90,7 @@ type SnsClients struct {
 }
 
 type SqsClients struct {
-	Sqs      sqsiface.SQSAPI
-	queueURL *string
+	Sqs sqsiface.SQSAPI
 }
 
 type SecretManagerClients struct {
@@ -189,11 +185,9 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode s
 				return kclConfig
 			}
 		}
-
 	}
 
 	return nil
-
 }
 
 func (c *SesClients) New(session *session.Session) {

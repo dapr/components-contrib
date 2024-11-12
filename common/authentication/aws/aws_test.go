@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewEnvironmentSettings(t *testing.T) {
@@ -23,7 +24,7 @@ func TestNewEnvironmentSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := NewEnvironmentSettings(tt.metadata)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 		})
 	}

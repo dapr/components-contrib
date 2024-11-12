@@ -488,7 +488,7 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	} else {
-		duration = 900 // 15 minutes in seconds by default and be autorefreshed
+		duration = int64(time.Hour)
 
 		createSessionRequest = rolesanywhere.CreateSessionInput{
 			Cert:               ptr.Of(string(a.chainPEM)),

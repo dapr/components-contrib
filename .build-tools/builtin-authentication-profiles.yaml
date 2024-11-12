@@ -52,7 +52,7 @@ aws:
         description: |
           Duration of the session using AWS IAM Roles Anywhere. 
           If set to 0m, temporary credentials will automatically rotate.
-        default: '15m'
+        default: '1h'
         example: '0m'
         required: true
 

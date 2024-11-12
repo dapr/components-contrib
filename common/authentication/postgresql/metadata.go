@@ -86,16 +86,33 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 	return nil
 }
 
-func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, error) {
+func (m *PostgresAuthMetadata) GetAWSIAMAuthOptions() (*aws.AWSIAMAuthOptions, error) {
 	awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
 	if awsRegion == "" {
-		return "", "", "", errors.New("metadata property AWSRegion is missing")
+		return nil, errors.New("metadata property AWSRegion is missing")
 	}
-	// Note: access key and secret keys can be optional
-	// in the event users are leveraging the credential files for an access token.
+	// only region is mandatory
+
 	awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
 	awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
-	return awsRegion, awsAccessKey, awsSecretKey, nil
+	awsSessionToken, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSessionToken")
+
+	awsIamRoleArn, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "awsIamRoleArn")
+	awsStsSessionName, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "awsStsSessionName")
+	if awsStsSessionName == "" {
+		awsStsSessionName = "PGDefaultSession"
+	}
+
+	return &aws.AWSIAMAuthOptions{
+		Region: awsRegion,
+
+		AccessKey:    awsAccessKey,
+		SecretKey:    awsSecretKey,
+		SessionToken: awsSessionToken,
+
+		AssumeIamRoleArn:         awsIamRoleArn,
+		AssumeIamRoleSessionName: awsStsSessionName,
+	}, nil
 }
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
@@ -156,19 +173,13 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		}
 	case m.UseAWSIAM:
 		// We should use AWS IAM
-		awsRegion, awsAccessKey, awsSecretKey, err := m.ValidateAwsIamFields()
+		awsOpts, err := m.GetAWSIAMAuthOptions()
 		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
 		}
 
-		awsOpts := aws.AWSIAMAuthOptions{
-			PoolConfig:       config,
-			ConnectionString: m.ConnectionString,
-			Region:           awsRegion,
-			AccessKey:        awsAccessKey,
-			SecretKey:        awsSecretKey,
-		}
+		awsOpts.PoolConfig = config
+		awsOpts.ConnectionString = m.ConnectionString
 
 		err = awsOpts.InitiateAWSIAMAuth()
 		if err != nil {

@@ -15,7 +15,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -23,7 +22,9 @@ import (
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -108,8 +109,14 @@ type AWSIAM struct {
 	AWSAccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
 	// Secret key to use for accessing PostgreSQL.
 	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
+	// Optional session token to use when using access key and secret key
+	AWSSessionToken string `json:"awsSessionToken" mapstructure:"awsSessionToken"`
 	// AWS region in which PostgreSQL is deployed.
 	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
+	// Optional role to assume
+	AWSIamRoleArn string `json:"awsIamRoleArn" mapstructure:"awsIamRoleArn"`
+	// Optional session name to use when assuming a role
+	AWSStsSessionName string `json:"awsStsSessionName" mapstructure:"awsStsSessionName"`
 }
 
 type AWSIAMAuthOptions struct {
@@ -118,40 +125,66 @@ type AWSIAMAuthOptions struct {
 	Region           string          `json:"region" mapstructure:"region"`
 	AccessKey        string          `json:"accessKey" mapstructure:"accessKey"`
 	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken     string          `json:"sessionToken" mapstructure:"sessionToken"`
+
+	AssumeIamRoleArn         string `json:"assumeIamRoleArn" mapstructure:"assumeIamRoleArn"`
+	AssumeIamRoleSessionName string `json:"assumeIamRoleSessionName" mapstructure:"assumeIamRoleSessionName"`
 }
 
 func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, error) {
 	dbEndpoint := opts.PoolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(opts.PoolConfig.ConnConfig.Port))
-	var authenticationToken string
 
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
-	// Default to load default config through aws credentials file (~/.aws/credentials)
-	awsCfg, err := config.LoadDefaultConfig(ctx)
-	// Note: in the event of an error with invalid config or failed to load config,
-	// then we fall back to using the access key and secret key.
-	switch {
-	case errors.Is(err, config.SharedConfigAssumeRoleError{}.Err),
-		errors.Is(err, config.SharedConfigLoadError{}.Err),
-		errors.Is(err, config.SharedConfigProfileNotExistError{}.Err):
-		// Validate if access key and secret access key are provided
-		if opts.AccessKey == "" || opts.SecretKey == "" {
-			return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey: %w", err)
-		}
 
+	if opts.AccessKey != "" && opts.SecretKey != "" {
 		// Set credentials explicitly
-		awsCfg := v2creds.NewStaticCredentialsProvider(opts.AccessKey, opts.SecretKey, "")
-		authenticationToken, err = auth.BuildAuthToken(
+		awsCfg := v2creds.NewStaticCredentialsProvider(opts.AccessKey, opts.SecretKey, opts.SessionToken)
+		authenticationToken, err := auth.BuildAuthToken(
 			ctx, dbEndpoint, opts.Region, opts.PoolConfig.ConnConfig.User, awsCfg)
 		if err != nil {
 			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
 		}
 
 		return authenticationToken, nil
-	case err != nil:
-		return "", errors.New("failed to load default AWS authentication configuration")
 	}
 
-	authenticationToken, err = auth.BuildAuthToken(
+	if opts.AssumeIamRoleArn != "" {
+		awsCfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
+		}
+		stsClient := sts.NewFromConfig(awsCfg)
+
+		assumeRoleCfg, err := config.LoadDefaultConfig(ctx,
+			config.WithRegion(opts.Region),
+			config.WithCredentialsProvider(
+				awsv2.NewCredentialsCache(
+					stscreds.NewAssumeRoleProvider(stsClient, opts.AssumeIamRoleArn, func(aro *stscreds.AssumeRoleOptions) {
+						if opts.AssumeIamRoleSessionName != "" {
+							aro.RoleSessionName = opts.AssumeIamRoleSessionName
+						}
+					}),
+				),
+			),
+		)
+		if err != nil {
+			return "", fmt.Errorf("failed to assume aws role %w", err)
+		}
+
+		authenticationToken, err := auth.BuildAuthToken(
+			ctx, dbEndpoint, opts.Region, opts.PoolConfig.ConnConfig.User, assumeRoleCfg.Credentials)
+		if err != nil {
+			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
+		}
+		return authenticationToken, nil
+	}
+
+	awsCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
+	}
+
+	authenticationToken, err := auth.BuildAuthToken(
 		ctx, dbEndpoint, opts.Region, opts.PoolConfig.ConnConfig.User, awsCfg.Credentials)
 	if err != nil {
 		return "", fmt.Errorf("failed to create AWS authentication token: %w", err)

@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	awssh "github.com/aws/rolesanywhere-credential-helper/aws_signing_helper"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
+	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere/rolesanywhereiface"
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
@@ -47,10 +48,11 @@ type x509 struct {
 	internalContext       context.Context
 	internalContextCancel func()
 
-	logger  logger.Logger
-	Clients *Clients
-	session *session.Session
-	cfg     *aws.Config
+	logger              logger.Logger
+	Clients             *Clients
+	rolesAnywhereClient rolesanywhereiface.RolesAnywhereAPI // this is so we can mock it in tests
+	session             *session.Session
+	cfg                 *aws.Config
 
 	chainPEM []byte
 	keyPEM   []byte
@@ -80,7 +82,7 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 	case x509Auth.SessionDuration == nil:
 		awsDefaultDuration := time.Hour // default 1 hour from AWS
 		x509Auth.SessionDuration = &awsDefaultDuration
-	case *x509Auth.SessionDuration < time.Minute*15 || *x509Auth.SessionDuration > time.Hour*12:
+	case *x509Auth.SessionDuration != 0 && (*x509Auth.SessionDuration < time.Minute*15 || *x509Auth.SessionDuration > time.Hour*12):
 		return nil, errors.New("sessionDuration must be greater than 15 minutes, and less than 12 hours")
 	}
 
@@ -99,11 +101,13 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get x.509 credentials: %v", err)
 	}
+	auth.logger.Infof("sam here 1")
 
 	// Parse trust anchor and profile ARNs
 	if err := auth.initializeTrustAnchors(); err != nil {
 		return nil, err
 	}
+	auth.logger.Infof("sam here 2")
 
 	initialSession, err := auth.createOrRefreshSession(ctx)
 	if err != nil {
@@ -448,15 +452,20 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 	}}
 	var mySession *session.Session
-	var err error
 
-	config := a.cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
-	mySession = session.Must(session.NewSession(config))
-	rolesAnywhereClient := rolesanywhere.New(mySession, config)
+	var config *aws.Config
+	if a.cfg != nil {
+		config = a.cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+	}
 
-	// Set up signing function and handlers
-	if err := a.setSigningFunction(rolesAnywhereClient); err != nil {
-		return nil, err
+	if a.rolesAnywhereClient == nil {
+		mySession = session.Must(session.NewSession(config))
+		rolesAnywhereClient := rolesanywhere.New(mySession, config)
+		// Set up signing function and handlers
+		if err := a.setSigningFunction(rolesAnywhereClient); err != nil {
+			return nil, err
+		}
+		a.rolesAnywhereClient = rolesAnywhereClient
 	}
 
 	var (
@@ -476,6 +485,7 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	} else {
+		a.logger.Infof("sam setting 15min default for session duration")
 		duration = 900 // 15 minutes in seconds by default and be autorefreshed
 
 		createSessionRequest = rolesanywhere.CreateSessionInput{
@@ -488,8 +498,9 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 			SessionName:        nil,
 		}
 	}
+	a.logger.Infof("sam session time %v", *createSessionRequest.DurationSeconds)
 
-	output, err := rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
+	output, err := a.rolesAnywhereClient.CreateSessionWithContext(ctx, &createSessionRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session using dapr app identity: %w", err)
 	}
@@ -497,17 +508,22 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	if output == nil || len(output.CredentialSet) != 1 {
 		return nil, fmt.Errorf("expected 1 credential set from X.509 rolesanyway response, got %d", len(output.CredentialSet))
 	}
+	a.logger.Infof("sam successfully created new session with iam roles anywhere client!")
 
 	accessKey := output.CredentialSet[0].Credentials.AccessKeyId
 	secretKey := output.CredentialSet[0].Credentials.SecretAccessKey
 	sessionToken := output.CredentialSet[0].Credentials.SessionToken
+
+	a.logger.Infof("the ak %v sk %v st %v", accessKey, secretKey, sessionToken)
+	a.logger.Infof("sam the len of credentials set %v", len(output.CredentialSet))
 	awsCreds := credentials.NewStaticCredentials(*accessKey, *secretKey, *sessionToken)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: awsCreds,
 	}, config))
 	if sess == nil {
-		return nil, fmt.Errorf("session is nil: %v", sess)
+		return nil, fmt.Errorf("sam session is nil somehow %v", sess)
 	}
+	a.logger.Infof("sam just set session in refreshorcreate func %v", a.session)
 
 	return sess, nil
 }
@@ -539,12 +555,13 @@ func (a *x509) startSessionRefresher() {
 		for {
 			select {
 			case <-ticker.C:
-				a.logger.Debugf("Refreshing session as expiration is near")
+				a.logger.Infof("Refreshing session as expiration is near")
 				newSession, err := a.createOrRefreshSession(a.internalContext)
 				if err != nil {
 					a.logger.Errorf("failed to refresh session: %w", err)
 					return
 				}
+				a.logger.Infof("sam in ticker after created refreshed session %v", newSession)
 
 				a.Clients.refresh(newSession)
 

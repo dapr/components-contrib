@@ -6,10 +6,12 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go/service/kinesis/kinesisiface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -17,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -90,7 +93,7 @@ type SnsClients struct {
 }
 
 type SqsClients struct {
-	Sqs      *sqs.SQS
+	Sqs      sqsiface.SQSAPI
 	queueURL *string
 }
 
@@ -103,7 +106,9 @@ type ParameterStoreClients struct {
 }
 
 type KinesisClients struct {
-	Kinesis *kinesis.Kinesis
+	Kinesis     kinesisiface.KinesisAPI
+	Region      string
+	Credentials *credentials.Credentials
 }
 
 type SesClients struct {
@@ -139,9 +144,10 @@ func (c *SqsClients) QueueURL(ctx context.Context, queueName string) (*string, e
 		resultURL, err := c.Sqs.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{
 			QueueName: aws.String(queueName),
 		})
-		return resultURL.QueueUrl, err
+		if resultURL != nil {
+			return resultURL.QueueUrl, err
+		}
 	}
-
 	return nil, errors.New("unable to get queue url due to empty client")
 }
 
@@ -155,6 +161,8 @@ func (c *ParameterStoreClients) New(session *session.Session) {
 
 func (c *KinesisClients) New(session *session.Session) {
 	c.Kinesis = kinesis.New(session, session.Config)
+	c.Region = *session.Config.Region
+	c.Credentials = session.Config.Credentials
 }
 
 func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
@@ -162,7 +170,9 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-		return stream.StreamDescription.StreamARN, err
+		if stream != nil {
+			return stream.StreamDescription.StreamARN, err
+		}
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")
@@ -172,16 +182,18 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode s
 	const sharedMode = "shared"
 	if c.Kinesis != nil {
 		if mode == sharedMode {
-			kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
-				stream, *c.Kinesis.Config.Region, consumer,
-				c.Kinesis.Config.Credentials)
-
-			return kclConfig
+			if c.Credentials != nil {
+				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
+					stream, c.Region, consumer,
+					c.Credentials)
+				return kclConfig
+			}
 		}
 
 	}
 
 	return nil
+
 }
 
 func (c *SesClients) New(session *session.Session) {

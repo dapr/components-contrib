@@ -58,7 +58,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 	t.Run("ping", func(t *testing.T) {
 		err := secretstores.Ping(context.Background(), store)
-		// TODO: Ideally, all stable components should implenment ping function,
+		// TODO: Ideally, all stable components should implement a ping function,
 		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {

@@ -41,8 +41,8 @@ import (
 type StateStore struct {
 	state.BulkStore
 
-	logger           logger.Logger
 	authProvider     awsAuth.Provider
+	logger           logger.Logger
 	table            string
 	ttlAttributeName string
 	partitionKey     string
@@ -67,9 +67,10 @@ const (
 )
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
-func NewDynamoDBStateStore(_ logger.Logger) state.Store {
+func NewDynamoDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		partitionKey: defaultPartitionKeyName,
+		logger:       logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -81,24 +82,20 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-
-	// This check is needed because d.client is set to a mock in tests
-	if d.authProvider == nil {
-		opts := awsAuth.Options{
-			Logger:       d.logger,
-			Properties:   metadata.Properties,
-			Region:       meta.Region,
-			Endpoint:     meta.Endpoint,
-			AccessKey:    meta.AccessKey,
-			SecretKey:    meta.SecretKey,
-			SessionToken: meta.SessionToken,
-		}
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		d.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       d.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		Endpoint:     meta.Endpoint,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
 	}
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	d.authProvider = provider
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
@@ -122,8 +119,11 @@ func (d *StateStore) validateTableAccess(ctx context.Context) error {
 			},
 		},
 	}
-
-	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.GetItemWithContext(ctx, input)
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.DynamoDB.GetItemWithContext(ctx, input)
 	return err
 }
 
@@ -155,8 +155,11 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 			},
 		},
 	}
-
-	result, err := d.authProvider.DynamoDBI(ctx).DynamoDB.GetItemWithContext(ctx, input)
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+	result, err := clients.DynamoDB.GetItemWithContext(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -228,8 +231,11 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		condExpr := "attribute_not_exists(etag)"
 		input.ConditionExpression = &condExpr
 	}
-
-	_, err = d.authProvider.DynamoDBI(ctx).DynamoDB.PutItemWithContext(ctx, input)
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.DynamoDB.PutItemWithContext(ctx, input)
 	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -260,8 +266,11 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		}
 		input.ExpressionAttributeValues = exprAttrValues
 	}
-
-	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.DeleteItemWithContext(ctx, input)
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.DynamoDB.DeleteItemWithContext(ctx, input)
 	if err != nil {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -432,8 +441,11 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		}
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
-
-	_, err := d.authProvider.DynamoDBI(ctx).DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
 
 	return err
 }

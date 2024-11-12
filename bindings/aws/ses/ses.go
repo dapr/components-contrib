@@ -70,24 +70,20 @@ func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	a.metadata = m
 
-	if a.authProvider == nil {
-		a.metadata = m
-
-		opts := awsAuth.Options{
-			Logger:       a.logger,
-			Properties:   metadata.Properties,
-			Region:       m.Region,
-			AccessKey:    m.AccessKey,
-			SecretKey:    m.SecretKey,
-			SessionToken: "",
-		}
-		// extra configs needed per component type
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		a.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: "",
 	}
+	// extra configs needed per component type
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	a.authProvider = provider
 
 	return nil
 }
@@ -155,7 +151,11 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	}
 
 	// Attempt to send the email.
-	result, err := a.authProvider.Ses(ctx).Ses.SendEmail(input)
+	clients, err := a.authProvider.Ses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+	result, err := clients.Ses.SendEmail(input)
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error. Sending email failed: %w", err)
 	}
@@ -180,5 +180,5 @@ func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMa
 }
 
 func (a *AWSSES) Close() error {
-	return nil
+	return a.authProvider.Close()
 }

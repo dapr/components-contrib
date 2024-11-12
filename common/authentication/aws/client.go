@@ -1,16 +1,3 @@
-/*
-Copyright 2021 The Dapr Authors
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package aws
 
 import (
@@ -43,22 +30,18 @@ type Clients struct {
 	mu sync.RWMutex
 
 	s3             *S3Clients
-	dynamo         *DynamoDBClients
-	dynamoI        *DynamoDBClientsI
+	Dynamo         *DynamoDBClients
 	sns            *SnsClients
 	sqs            *SqsClients
 	snssqs         *SnsSqsClients
 	secret         *SecretManagerClients
-	parameterStore *ParameterStoreClients
+	ParameterStore *ParameterStoreClients
 	kinesis        *KinesisClients
 	ses            *SesClients
 }
 
 func newClients() *Clients {
-	clients := &Clients{
-		mu: sync.RWMutex{},
-	}
-	return clients
+	return new(Clients)
 }
 
 func (c *Clients) refresh(session *session.Session) {
@@ -67,10 +50,8 @@ func (c *Clients) refresh(session *session.Session) {
 	switch {
 	case c.s3 != nil:
 		c.s3.New(session)
-	case c.dynamo != nil:
-		c.dynamo.New(session)
-	case c.dynamoI != nil:
-		c.dynamoI.New(session)
+	case c.Dynamo != nil:
+		c.Dynamo.New(session)
 	case c.sns != nil:
 		c.sns.New(session)
 	case c.sqs != nil:
@@ -79,8 +60,8 @@ func (c *Clients) refresh(session *session.Session) {
 		c.snssqs.New(session)
 	case c.secret != nil:
 		c.secret.New(session)
-	case c.parameterStore != nil:
-		c.parameterStore.New(session)
+	case c.ParameterStore != nil:
+		c.ParameterStore.New(session)
 	case c.kinesis != nil:
 		c.kinesis.New(session)
 	case c.ses != nil:
@@ -95,10 +76,6 @@ type S3Clients struct {
 }
 
 type DynamoDBClients struct {
-	DynamoDB *dynamodb.DynamoDB
-}
-
-type DynamoDBClientsI struct {
 	DynamoDB dynamodbiface.DynamoDBAPI
 }
 
@@ -141,10 +118,6 @@ func (c *S3Clients) New(session *session.Session) {
 }
 
 func (c *DynamoDBClients) New(session *session.Session) {
-	c.DynamoDB = dynamodb.New(session, session.Config)
-}
-
-func (c *DynamoDBClientsI) New(session *session.Session) {
 	c.DynamoDB = dynamodb.New(session, session.Config)
 }
 
@@ -205,6 +178,7 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode s
 
 			return kclConfig
 		}
+
 	}
 
 	return nil

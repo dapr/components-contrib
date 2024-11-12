@@ -80,18 +80,15 @@ func GetConfig(opts Options) *aws.Config {
 }
 
 type Provider interface {
-	Initialize(ctx context.Context, opts Options, cfg *aws.Config) error
-
-	S3(ctx context.Context) *S3Clients
-	DynamoDB(ctx context.Context) *DynamoDBClients
-	DynamoDBI(ctx context.Context) *DynamoDBClientsI
-	Sqs(ctx context.Context) *SqsClients
-	Sns(ctx context.Context) *SnsClients
-	SnsSqs(ctx context.Context) *SnsSqsClients
-	SecretManager(ctx context.Context) *SecretManagerClients
-	ParameterStore(ctx context.Context) *ParameterStoreClients
-	Kinesis(ctx context.Context) *KinesisClients
-	Ses(ctx context.Context) *SesClients
+	S3(ctx context.Context) (*S3Clients, error)
+	DynamoDB(ctx context.Context) (*DynamoDBClients, error)
+	Sqs(ctx context.Context) (*SqsClients, error)
+	Sns(ctx context.Context) (*SnsClients, error)
+	SnsSqs(ctx context.Context) (*SnsSqsClients, error)
+	SecretManager(ctx context.Context) (*SecretManagerClients, error)
+	ParameterStore(ctx context.Context) (*ParameterStoreClients, error)
+	Kinesis(ctx context.Context) (*KinesisClients, error)
+	Ses(ctx context.Context) (*SesClients, error)
 
 	Close() error
 }
@@ -105,20 +102,9 @@ func isX509Auth(m map[string]string) bool {
 
 func NewProvider(ctx context.Context, opts Options, cfg *aws.Config) (Provider, error) {
 	if isX509Auth(opts.Properties) {
-		provider := &x509TempAuth{}
-		err := provider.Initialize(ctx, opts, cfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize AWS Roles Anywhere authentication: %v", err)
-		}
-		return provider, nil
+		return newX509(ctx, opts, cfg)
 	}
-
-	provider := &StaticAuth{}
-	err := provider.Initialize(ctx, opts, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize AWS IAM authentication: %v", err)
-	}
-	return provider, nil
+	return newStaticIAM(ctx, opts, cfg)
 
 }
 

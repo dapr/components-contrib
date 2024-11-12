@@ -30,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
@@ -132,27 +131,24 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	s.metadata = m
 
-	if s.authProvider == nil {
-		s.metadata = m
-
-		opts := awsAuth.Options{
-			Logger:       s.logger,
-			Properties:   metadata.Properties,
-			Region:       m.Region,
-			Endpoint:     m.Endpoint,
-			AccessKey:    m.AccessKey,
-			SecretKey:    m.SecretKey,
-			SessionToken: m.SessionToken,
-		}
-		// extra configs needed per component type
-		cfg := s.getAWSConfig(opts)
-		provider, err := awsAuth.NewProvider(ctx, opts, cfg)
-		if err != nil {
-			return err
-		}
-		s.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       s.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		Endpoint:     m.Endpoint,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
 	}
+	// extra configs needed per component type
+	cfg := s.getAWSConfig(opts)
+	provider, err := awsAuth.NewProvider(ctx, opts, cfg)
+	if err != nil {
+		return err
+	}
+	s.authProvider = provider
 
 	return nil
 }
@@ -172,6 +168,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
@@ -212,7 +209,11 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		storageClass = aws.String(metadata.StorageClass)
 	}
 
-	resultUpload, err := s.authProvider.S3(ctx).Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+	clients, err := s.authProvider.S3(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
+	}
+	resultUpload, err := clients.Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket:       ptr.Of(metadata.Bucket),
 		Key:          ptr.Of(key),
 		Body:         r,
@@ -287,8 +288,11 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
-
-	objReq, _ := s.authProvider.S3(ctx).S3.GetObjectRequest(&s3.GetObjectInput{
+	clients, err := s.authProvider.S3(ctx)
+	if err != nil {
+		return "", fmt.Errorf("s3 binding error: failed to get client: %v", err)
+	}
+	objReq, _ := clients.S3.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: ptr.Of(bucket),
 		Key:    ptr.Of(key),
 	})
@@ -313,7 +317,11 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 
 	buff := &aws.WriteAtBuffer{}
 
-	_, err = s.authProvider.S3(ctx).Downloader.DownloadWithContext(ctx,
+	clients, err := s.authProvider.S3(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
+	}
+	_, err = clients.Downloader.DownloadWithContext(ctx,
 		buff,
 		&s3.GetObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
@@ -348,7 +356,12 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	_, err := s.authProvider.S3(ctx).S3.DeleteObjectWithContext(
+	clients, err := s.authProvider.S3(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
+	}
+
+	_, err = clients.S3.DeleteObjectWithContext(
 		ctx,
 		&s3.DeleteObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
@@ -378,7 +391,12 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		payload.MaxResults = defaultMaxResults
 	}
 
-	result, err := s.authProvider.S3(ctx).S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+	clients, err := s.authProvider.S3(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: failed to get client: %v", err)
+	}
+
+	result, err := clients.S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
 		Bucket:    ptr.Of(s.metadata.Bucket),
 		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
 		Marker:    ptr.Of(payload.Marker),

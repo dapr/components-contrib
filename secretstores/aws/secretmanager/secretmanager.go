@@ -59,22 +59,19 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	if s.authProvider == nil {
-		opts := awsAuth.Options{
-			Logger:       s.logger,
-			Region:       meta.Region,
-			AccessKey:    meta.AccessKey,
-			SecretKey:    meta.SecretKey,
-			SessionToken: "",
-		}
-
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		s.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       s.logger,
+		Region:       meta.Region,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: "",
 	}
 
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	s.authProvider = provider
 	return nil
 }
 
@@ -88,8 +85,11 @@ func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecre
 	if value, ok := req.Metadata[VersionStage]; ok {
 		versionStage = &value
 	}
-
-	output, err := s.authProvider.SecretManager(ctx).Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	clients, err := s.authProvider.SecretManager(ctx)
+	if err != nil {
+		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
+	}
+	output, err := clients.Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId:     &req.Name,
 		VersionId:    versionID,
 		VersionStage: versionStage,
@@ -118,7 +118,11 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.authProvider.SecretManager(ctx).Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
+		clients, err := s.authProvider.SecretManager(ctx)
+		if err != nil {
+			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
+		}
+		output, err := clients.Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -127,7 +131,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 		}
 
 		for _, entry := range output.SecretList {
-			secrets, err := s.authProvider.SecretManager(ctx).Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+			secrets, err := clients.Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
 			})
 			if err != nil {
@@ -173,5 +177,5 @@ func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 }
 
 func (s *smSecretStore) Close() error {
-	return nil
+	return s.authProvider.Close()
 }

@@ -64,23 +64,20 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		return err
 	}
 
-	if s.authProvider == nil {
-		opts := awsAuth.Options{
-			Logger:       s.logger,
-			Properties:   metadata.Properties,
-			Region:       m.Region,
-			AccessKey:    m.AccessKey,
-			SecretKey:    m.SecretKey,
-			SessionToken: "",
-		}
-		// extra configs needed per component type
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		s.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       s.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: "",
 	}
-
+	// extra configs needed per component type
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	s.authProvider = provider
 	s.prefix = m.Prefix
 
 	return nil
@@ -95,8 +92,11 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 		versionID = value
 		name = fmt.Sprintf("%s:%s", req.Name, versionID)
 	}
-
-	output, err := s.authProvider.ParameterStore(ctx).Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+	clients, err := s.authProvider.ParameterStore(ctx)
+	if err != nil {
+		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
+	}
+	output, err := clients.Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 		Name:           ptr.Of(s.prefix + name),
 		WithDecryption: ptr.Of(true),
 	})
@@ -136,7 +136,11 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	}
 
 	for search {
-		output, err := s.authProvider.ParameterStore(ctx).Store.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
+		clients, err := s.authProvider.ParameterStore(ctx)
+		if err != nil {
+			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
+		}
+		output, err := clients.Store.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
 			MaxResults:       nil,
 			NextToken:        nextToken,
 			ParameterFilters: filters,
@@ -146,7 +150,11 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 		}
 
 		for _, entry := range output.Parameters {
-			params, err := s.authProvider.ParameterStore(ctx).Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
+			clients, err = s.authProvider.ParameterStore(ctx)
+			if err != nil {
+				return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to get client: %v", err)
+			}
+			params, err := clients.Store.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 				Name:           entry.Name,
 				WithDecryption: aws.Bool(true),
 			})
@@ -185,5 +193,5 @@ func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataM
 }
 
 func (s *ssmSecretStore) Close() error {
-	return nil
+	return s.authProvider.Close()
 }

@@ -136,7 +136,7 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 }
 
 func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
-	m, err := s.getSnsSqsMetatdata(metadata)
+	m, err := s.getSnsSqsMetadata(metadata)
 	if err != nil {
 		return err
 	}
@@ -189,8 +189,13 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 		return nil
 	}
 
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
-	callerIDOutput, err := s.authProvider.SnsSqs(ctx).Sts.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
+	callerIDOutput, err := clients.Sts.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
 	cancelFn()
 	if err != nil {
 		return fmt.Errorf("error fetching sts caller ID: %w", err)
@@ -215,9 +220,13 @@ func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, e
 		attributes := map[string]*string{"FifoTopic": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
 		snsCreateTopicInput.SetAttributes(attributes)
 	}
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get client: %v", err)
+	}
 
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
-	createTopicResponse, err := s.authProvider.SnsSqs(ctx).Sns.CreateTopicWithContext(ctx, snsCreateTopicInput)
+	createTopicResponse, err := clients.Sns.CreateTopicWithContext(ctx, snsCreateTopicInput)
 	cancelFn()
 	if err != nil {
 		return "", fmt.Errorf("error while creating an SNS topic: %w", err)
@@ -227,9 +236,13 @@ func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, e
 }
 
 func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, error) {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get client: %v", err)
+	}
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
 	arn := s.buildARN("sns", topic)
-	getTopicOutput, err := s.authProvider.SnsSqs(ctx).Sns.GetTopicAttributesWithContext(ctx, &sns.GetTopicAttributesInput{
+	getTopicOutput, err := clients.Sns.GetTopicAttributesWithContext(ctx, &sns.GetTopicAttributesInput{
 		TopicArn: &arn,
 	})
 	cancelFn()
@@ -295,15 +308,21 @@ func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQ
 		attributes := map[string]*string{"FifoQueue": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
 		sqsCreateQueueInput.SetAttributes(attributes)
 	}
+
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	createQueueResponse, err := s.authProvider.SnsSqs(ctx).Sqs.CreateQueueWithContext(ctx, sqsCreateQueueInput)
+	createQueueResponse, err := clients.Sqs.CreateQueueWithContext(ctx, sqsCreateQueueInput)
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error creaing an SQS queue: %w", err)
 	}
 
 	ctx, cancel = context.WithTimeout(parentCtx, s.opsTimeout)
-	queueAttributesResponse, err := s.authProvider.SnsSqs(ctx).Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{
+	queueAttributesResponse, err := clients.Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{
 		AttributeNames: []*string{aws.String("QueueArn")},
 		QueueUrl:       createQueueResponse.QueueUrl,
 	})
@@ -319,8 +338,13 @@ func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQ
 }
 
 func (s *snsSqs) getQueueArn(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	queueURLOutput, err := s.authProvider.SnsSqs(ctx).Sqs.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.AccountID)})
+	queueURLOutput, err := clients.Sqs.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.AccountID)})
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting url of queue: %s", err, queueName)
@@ -328,7 +352,7 @@ func (s *snsSqs) getQueueArn(parentCtx context.Context, queueName string) (*sqsQ
 	url := queueURLOutput.QueueUrl
 
 	ctx, cancel = context.WithTimeout(parentCtx, s.opsTimeout)
-	getQueueOutput, err := s.authProvider.SnsSqs(ctx).Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{QueueUrl: url, AttributeNames: []*string{aws.String("QueueArn")}})
+	getQueueOutput, err := clients.Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{QueueUrl: url, AttributeNames: []*string{aws.String("QueueArn")}})
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting information for queue: %s, with url: %s", err, queueName, *url)
@@ -388,8 +412,13 @@ func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
 }
 
 func (s *snsSqs) createSnsSqsSubscription(parentCtx context.Context, queueArn, topicArn string) (string, error) {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	subscribeOutput, err := s.authProvider.SnsSqs(ctx).Sns.SubscribeWithContext(ctx, &sns.SubscribeInput{
+	subscribeOutput, err := clients.Sns.SubscribeWithContext(ctx, &sns.SubscribeInput{
 		Attributes:            nil,
 		Endpoint:              aws.String(queueArn), // create SQS queue per subscription.
 		Protocol:              aws.String("sqs"),
@@ -408,8 +437,12 @@ func (s *snsSqs) createSnsSqsSubscription(parentCtx context.Context, queueArn, t
 }
 
 func (s *snsSqs) getSnsSqsSubscriptionArn(parentCtx context.Context, topicArn string) (string, error) {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get client: %v", err)
+	}
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	listSubscriptionsOutput, err := s.authProvider.SnsSqs(ctx).Sns.ListSubscriptionsByTopicWithContext(ctx, &sns.ListSubscriptionsByTopicInput{TopicArn: aws.String(topicArn)})
+	listSubscriptionsOutput, err := clients.Sns.ListSubscriptionsByTopicWithContext(ctx, &sns.ListSubscriptionsByTopicInput{TopicArn: aws.String(topicArn)})
 	cancel()
 	if err != nil {
 		return "", fmt.Errorf("error listing subsriptions for topic arn: %v: %w", topicArn, err)
@@ -457,8 +490,12 @@ func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, to
 }
 
 func (s *snsSqs) acknowledgeMessage(parentCtx context.Context, queueURL string, receiptHandle *string) error {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
 	ctx, cancelFn := context.WithCancel(parentCtx)
-	_, err := s.authProvider.SnsSqs(ctx).Sqs.DeleteMessageWithContext(ctx, &sqs.DeleteMessageInput{
+	_, err = clients.Sqs.DeleteMessageWithContext(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(queueURL),
 		ReceiptHandle: receiptHandle,
 	})
@@ -471,9 +508,14 @@ func (s *snsSqs) acknowledgeMessage(parentCtx context.Context, queueURL string, 
 }
 
 func (s *snsSqs) resetMessageVisibilityTimeout(parentCtx context.Context, queueURL string, receiptHandle *string) error {
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancelFn := context.WithCancel(parentCtx)
 	// reset the timeout to its initial value so that the remaining timeout would be overridden by the initial value for other consumer to attempt processing.
-	_, err := s.authProvider.SnsSqs(ctx).Sqs.ChangeMessageVisibilityWithContext(ctx, &sqs.ChangeMessageVisibilityInput{
+	_, err = clients.Sqs.ChangeMessageVisibilityWithContext(ctx, &sqs.ChangeMessageVisibilityInput{
 		QueueUrl:          aws.String(queueURL),
 		ReceiptHandle:     receiptHandle,
 		VisibilityTimeout: aws.Int64(0),
@@ -601,11 +643,16 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			break
 		}
 
-		// Internally, by default, aws go sdk performs 3 retires with exponential backoff to contact
+		clients, err := s.authProvider.SnsSqs(ctx)
+		if err != nil {
+			s.logger.Errorf("failed to get client: %v", err)
+		}
+
+		// Internally, by default, aws go sdk performs 3 retries with exponential backoff to contact
 		// sqs and try pull messages. Since we are iteratively short polling (based on the defined
 		// s.metadata.messageWaitTimeSeconds) the sdk backoff is not effective as it gets reset per each polling
 		// iteration. Therefore, a global backoff (to the internal backoff) is used (sqsPullExponentialBackoff).
-		messageResponse, err := s.authProvider.SnsSqs(ctx).Sqs.ReceiveMessageWithContext(ctx, receiveMessageInput)
+		messageResponse, err := clients.Sqs.ReceiveMessageWithContext(ctx, receiveMessageInput)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
@@ -698,8 +745,13 @@ func (s *snsSqs) setDeadLettersQueueAttributes(parentCtx context.Context, queueI
 		return wrappedErr
 	}
 
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		s.logger.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
-	_, derr = s.authProvider.SnsSqs(ctx).Sqs.SetQueueAttributesWithContext(ctx, sqsSetQueueAttributesInput)
+	_, derr = clients.Sqs.SetQueueAttributesWithContext(ctx, sqsSetQueueAttributesInput)
 	cancelFn()
 	if derr != nil {
 		wrappedErr := fmt.Errorf("error updating queue attributes with dead-letter queue: %w", derr)
@@ -717,9 +769,14 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 		return nil
 	}
 
+	clients, err := s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
 	// only permit SNS to send messages to SQS using the created subscription.
-	getQueueAttributesOutput, err := s.authProvider.SnsSqs(ctx).Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{
+	getQueueAttributesOutput, err := clients.Sqs.GetQueueAttributesWithContext(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl:       &sqsQueueInfo.url,
 		AttributeNames: []*string{aws.String(sqs.QueueAttributeNamePolicy)},
 	})
@@ -745,8 +802,13 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 		return fmt.Errorf("failed serializing new sqs policy: %w", uerr)
 	}
 
+	clients, err = s.authProvider.SnsSqs(parentCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+
 	ctx, cancelFn = context.WithTimeout(parentCtx, s.opsTimeout)
-	_, err = s.authProvider.SnsSqs(ctx).Sqs.SetQueueAttributesWithContext(ctx, &(sqs.SetQueueAttributesInput{
+	_, err = clients.Sqs.SetQueueAttributesWithContext(ctx, &(sqs.SetQueueAttributesInput{
 		Attributes: map[string]*string{
 			"Policy": aws.String(string(b)),
 		},
@@ -858,8 +920,13 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		snsPublishInput.MessageGroupId = s.getMessageGroupID(req)
 	}
 
+	clients, err := s.authProvider.SnsSqs(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %v", err)
+	}
+
 	// sns client has internal exponential backoffs.
-	_, err = s.authProvider.SnsSqs(ctx).Sns.PublishWithContext(ctx, snsPublishInput)
+	_, err = clients.Sns.PublishWithContext(ctx, snsPublishInput)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)

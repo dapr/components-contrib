@@ -65,24 +65,21 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	if a.authProvider == nil {
-		opts := awsAuth.Options{
-			Logger:       a.logger,
-			Properties:   metadata.Properties,
-			Region:       m.Region,
-			Endpoint:     m.Endpoint,
-			AccessKey:    m.AccessKey,
-			SecretKey:    m.SecretKey,
-			SessionToken: m.SessionToken,
-		}
-		// extra configs needed per component type
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		a.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		Endpoint:     m.Endpoint,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
 	}
-
+	// extra configs needed per component type
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	a.authProvider = provider
 	a.topicARN = m.TopicArn
 
 	return nil
@@ -112,7 +109,11 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	_, err = a.authProvider.Sns(ctx).Sns.PublishWithContext(ctx, &sns.PublishInput{
+	clients, err := a.authProvider.Sns(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.Sns.PublishWithContext(ctx, &sns.PublishInput{
 		Message:  &msg,
 		Subject:  &subject,
 		TopicArn: &a.topicARN,

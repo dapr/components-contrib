@@ -30,7 +30,7 @@ aws:
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
   - title: "AWS: IAM Roles Anywhere"
-    description: Use x.509 certificates to establish trust between AWS and your AWS account and the Dapr cluster using AWS IAM Roles Anywhere.
+    description: Use X.509 certificates to establish trust between AWS and your AWS account and the Dapr cluster using AWS IAM Roles Anywhere.
     metadata:
       - name: trustAnchorArn
         description: |

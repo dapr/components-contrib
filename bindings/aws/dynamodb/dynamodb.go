@@ -16,6 +16,7 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -56,23 +57,22 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if d.authProvider == nil {
-		opts := awsAuth.Options{
-			Logger:       d.logger,
-			Properties:   metadata.Properties,
-			Region:       meta.Region,
-			Endpoint:     meta.Endpoint,
-			AccessKey:    meta.AccessKey,
-			SecretKey:    meta.SecretKey,
-			SessionToken: meta.SessionToken,
-		}
 
-		provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
-		if err != nil {
-			return err
-		}
-		d.authProvider = provider
+	opts := awsAuth.Options{
+		Logger:       d.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		Endpoint:     meta.Endpoint,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
 	}
+
+	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	if err != nil {
+		return err
+	}
+	d.authProvider = provider
 	d.table = meta.Table
 
 	return nil
@@ -94,7 +94,11 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	_, err = d.authProvider.DynamoDB(ctx).DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
+	clients, err := d.authProvider.DynamoDB(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %v", err)
+	}
+	_, err = clients.DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(d.table),
 	})
@@ -123,5 +127,5 @@ func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (d *DynamoDB) Close() error {
-	return nil
+	return d.authProvider.Close()
 }

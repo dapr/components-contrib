@@ -49,7 +49,7 @@ type SecretManagerMetaData struct {
 }
 
 type smSecretStore struct {
-	authProvider awsAuth.Provider
+	AuthProvider awsAuth.Provider
 	logger       logger.Logger
 }
 
@@ -72,7 +72,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 	if err != nil {
 		return err
 	}
-	s.authProvider = provider
+	s.AuthProvider = provider
 	return nil
 }
 
@@ -86,7 +86,7 @@ func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecre
 	if value, ok := req.Metadata[VersionStage]; ok {
 		versionStage = &value
 	}
-	output, err := s.authProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	output, err := s.AuthProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId:     &req.Name,
 		VersionId:    versionID,
 		VersionStage: versionStage,
@@ -115,7 +115,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.authProvider.SecretManager().Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
+		output, err := s.AuthProvider.SecretManager().Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -124,7 +124,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 		}
 
 		for _, entry := range output.SecretList {
-			secrets, err := s.authProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+			secrets, err := s.AuthProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
 			})
 			if err != nil {
@@ -170,5 +170,5 @@ func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 }
 
 func (s *smSecretStore) Close() error {
-	return s.authProvider.Close()
+	return s.AuthProvider.Close()
 }

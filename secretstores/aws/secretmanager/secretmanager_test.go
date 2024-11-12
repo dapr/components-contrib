@@ -88,7 +88,7 @@ func TestGetSecret(t *testing.T) {
 			}
 
 			s := smSecretStore{
-				authProvider: mockAuthProvider,
+				AuthProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -126,7 +126,7 @@ func TestGetSecret(t *testing.T) {
 			}
 
 			s := smSecretStore{
-				authProvider: mockAuthProvider,
+				AuthProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -166,7 +166,7 @@ func TestGetSecret(t *testing.T) {
 			}
 
 			s := smSecretStore{
-				authProvider: mockAuthProvider,
+				AuthProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -201,7 +201,7 @@ func TestGetSecret(t *testing.T) {
 		}
 
 		s := smSecretStore{
-			authProvider: mockAuthProvider,
+			AuthProvider: mockAuthProvider,
 		}
 
 		req := secretstores.GetSecretRequest{

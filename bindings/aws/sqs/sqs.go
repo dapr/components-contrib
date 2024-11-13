@@ -75,7 +75,7 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SessionToken: m.SessionToken,
 	}
 	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}

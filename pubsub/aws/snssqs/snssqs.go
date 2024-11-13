@@ -155,7 +155,7 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		}
 		// extra configs needed per component type
 		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}

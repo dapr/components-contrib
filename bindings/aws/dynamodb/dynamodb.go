@@ -67,7 +67,7 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SessionToken: meta.SessionToken,
 	}
 
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}

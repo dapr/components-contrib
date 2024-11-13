@@ -73,7 +73,7 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		SessionToken: "",
 	}
 	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}

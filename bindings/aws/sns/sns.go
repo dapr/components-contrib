@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sns"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -75,7 +74,7 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SessionToken: m.SessionToken,
 	}
 	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}

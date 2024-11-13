@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -69,7 +68,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		Endpoint:     meta.Endpoint,
 	}
 
-	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}

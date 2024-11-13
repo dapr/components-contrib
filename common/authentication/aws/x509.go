@@ -80,9 +80,6 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		return nil, errors.New("sessionDuration must be greater than 15 minutes, and less than 12 hours")
 	}
 
-	if cfg == nil {
-		cfg = aws.NewConfig()
-	}
 	auth := &x509{
 		wg:              sync.WaitGroup{},
 		logger:          opts.Logger,
@@ -90,8 +87,15 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		TrustAnchorArn:  x509Auth.TrustAnchorArn,
 		AssumeRoleArn:   x509Auth.AssumeRoleArn,
 		SessionDuration: x509Auth.SessionDuration,
-		Cfg:             GetConfig(opts),
-		Clients:         newClients(),
+		Cfg: func() *aws.Config {
+			// if nil is passed or it's just a default cfg,
+			// then we use the options to build the aws cfg.
+			if cfg != nil && cfg != aws.NewConfig() {
+				return cfg
+			}
+			return GetConfig(opts)
+		}(),
+		Clients: newClients(),
 	}
 
 	var err error

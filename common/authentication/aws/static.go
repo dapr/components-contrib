@@ -45,9 +45,6 @@ type StaticAuth struct {
 }
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
-	if cfg == nil {
-		cfg = aws.NewConfig()
-	}
 	auth := &StaticAuth{
 		Logger:       opts.Logger,
 		Region:       opts.Region,
@@ -55,8 +52,15 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 		AccessKey:    &opts.AccessKey,
 		SecretKey:    &opts.SecretKey,
 		SessionToken: &opts.SessionToken,
-		Cfg:          cfg,
-		Clients:      newClients(),
+		Cfg: func() *aws.Config {
+			// if nil is passed or it's just a default cfg,
+			// then we use the options to build the aws cfg.
+			if cfg != nil && cfg != aws.NewConfig() {
+				return cfg
+			}
+			return GetConfig(opts)
+		}(),
+		Clients: newClients(),
 	}
 
 	initialSession, err := auth.getTokenClient()

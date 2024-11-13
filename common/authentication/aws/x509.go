@@ -334,17 +334,19 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	}}
 	var mySession *session.Session
 
-	var config *aws.Config
-	if a.Cfg != nil {
-		config = a.Cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+	awsConfig := a.Cfg
+	if awsConfig != nil {
+		awsConfig = a.Cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+	} else {
+		awsConfig = aws.NewConfig().WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	}
 
 	// this is needed for testing purposes to mock the client,
 	// so code never sets the client, but tests do.
 	var rolesClient *rolesanywhere.RolesAnywhere
 	if a.rolesAnywhereClient == nil {
-		mySession = session.Must(session.NewSession(config))
-		rolesAnywhereClient := rolesanywhere.New(mySession, config)
+		mySession = session.Must(session.NewSession(awsConfig))
+		rolesAnywhereClient := rolesanywhere.New(mySession, awsConfig)
 		// Set up signing function and handlers
 		if err := a.setSigningFunction(rolesAnywhereClient); err != nil {
 			return nil, err
@@ -406,7 +408,7 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	awsCreds := credentials.NewStaticCredentials(*accessKey, *secretKey, *sessionToken)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: awsCreds,
-	}, config))
+	}, awsConfig))
 	if sess == nil {
 		return nil, errors.New("session is nil")
 	}

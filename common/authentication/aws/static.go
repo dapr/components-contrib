@@ -195,7 +195,10 @@ func (a *StaticAuth) Ses() *SesClients {
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
-	awsConfig := aws.NewConfig()
+	awsConfig := a.Cfg
+	if awsConfig != nil {
+		awsConfig = aws.NewConfig()
+	}
 
 	if a.Region != "" {
 		awsConfig = awsConfig.WithRegion(a.Region)

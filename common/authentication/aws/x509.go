@@ -345,13 +345,15 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	}}
 	var mySession *session.Session
 
-	awsConfig := a.Cfg
-	if awsConfig != nil {
-		awsConfig = a.Cfg.WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+	var awsConfig *aws.Config
+	if a.Cfg == nil {
+		awsConfig = aws.NewConfig().WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	} else {
-		awsConfig = aws.NewConfig().WithRegion(*a.region).WithHTTPClient(client).WithLogLevel(aws.LogOff)
+		awsConfig = a.Cfg.WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	}
-
+	if a.region != nil {
+		awsConfig.WithRegion(*a.region)
+	}
 	// this is needed for testing purposes to mock the client,
 	// so code never sets the client, but tests do.
 	var rolesClient *rolesanywhere.RolesAnywhere

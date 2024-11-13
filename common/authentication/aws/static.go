@@ -45,6 +45,9 @@ type StaticAuth struct {
 }
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
+	if cfg == nil {
+		cfg = aws.NewConfig()
+	}
 	auth := &StaticAuth{
 		Logger:       opts.Logger,
 		Region:       opts.Region,
@@ -196,7 +199,7 @@ func (a *StaticAuth) Ses() *SesClients {
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 	awsConfig := a.Cfg
-	if awsConfig != nil {
+	if a.Cfg == nil {
 		awsConfig = aws.NewConfig()
 	}
 

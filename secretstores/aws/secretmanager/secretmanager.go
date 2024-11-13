@@ -66,6 +66,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		AccessKey:    meta.AccessKey,
 		SecretKey:    meta.SecretKey,
 		SessionToken: meta.SessionToken,
+		Endpoint:     meta.Endpoint,
 	}
 
 	provider, err := awsAuth.NewProvider(ctx, opts, aws.NewConfig())

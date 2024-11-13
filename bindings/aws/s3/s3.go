@@ -143,8 +143,7 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SessionToken: m.SessionToken,
 	}
 	// extra configs needed per component type
-	cfg := s.getAWSConfig(opts)
-	provider, err := awsAuth.NewProvider(ctx, opts, cfg)
+	provider, err := awsAuth.NewProvider(ctx, opts, s.getAWSConfig(opts))
 	if err != nil {
 		return err
 	}

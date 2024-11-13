@@ -129,6 +129,7 @@ func (c *SnsClients) New(session *session.Session) {
 func (c *SnsSqsClients) New(session *session.Session) {
 	c.Sns = sns.New(session, session.Config)
 	c.Sqs = sqs.New(session, session.Config)
+	c.Sts = sts.New(session, session.Config)
 }
 
 func (c *SqsClients) New(session *session.Session) {

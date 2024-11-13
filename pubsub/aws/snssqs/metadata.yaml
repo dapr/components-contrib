@@ -128,7 +128,7 @@ metadata:
     default: '"parallel"'
     example: '"single", "parallel"'
     type: string
-  - name: accountID
+  - name: accountId
     required: false
     description: |
       The AWS account ID. Resolved automatically if not provided.

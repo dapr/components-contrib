@@ -54,7 +54,7 @@ aws:
           If set to 0m, temporary credentials will automatically rotate.
         default: '1h'
         example: '0m'
-        required: true
+        required: false
 
 azuread:
   - title: "Azure AD: Managed identity"

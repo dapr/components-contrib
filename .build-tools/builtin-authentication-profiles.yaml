@@ -51,10 +51,10 @@ aws:
         type: duration
         description: |
           Duration of the session using AWS IAM Roles Anywhere. 
-          If set to 0m, temporary credentials will automatically rotate.
+          If set to 0m, temporary credentials will be created and automatically rotated.
         default: '1h'
         example: '0m'
-        required: true
+        required: false
 
 azuread:
   - title: "Azure AD: Managed identity"

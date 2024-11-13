@@ -70,7 +70,8 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 	}
 
 	if x509Auth.SessionDuration == nil {
-		x509Auth.SessionDuration = new(time.Duration)
+		defaultDuration := time.Hour
+		x509Auth.SessionDuration = &defaultDuration
 	}
 
 	switch {

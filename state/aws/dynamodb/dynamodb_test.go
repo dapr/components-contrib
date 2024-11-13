@@ -767,6 +767,7 @@ func TestSet(t *testing.T) {
 		s := StateStore{
 			authProvider:     mockAuthProvider,
 			ttlAttributeName: "testAttributeName",
+			partitionKey:     defaultPartitionKeyName,
 		}
 
 		req := &state.SetRequest{

@@ -1,0 +1,35 @@
+schemaVersion: v1
+type: state
+name: immudb
+version: v1
+status: alpha
+title: ImmuDB
+description: State store using ImmuDB
+capabilities:
+    - crud
+metadata:
+    - name: host
+      description: ImmuDB server host
+      example: 'localhost'
+      required: true
+      type: string
+    - name: port
+      description: ImmuDB server port
+      example: '3322'
+      required: false
+      type: number
+    - name: username
+      description: Username for ImmuDB authentication
+      example: 'immudb'
+      required: true
+      type: string
+    - name: password
+      description: Password for ImmuDB authentication
+      example: 'immudb'
+      required: true
+      type: string
+    - name: database
+      description: ImmuDB database name
+      example: 'defaultdb'
+      required: false
+      type: string

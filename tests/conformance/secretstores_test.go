@@ -77,10 +77,10 @@ func loadSecretStore(name string) secretstores.SecretStore {
 		return ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
 	case "aws.secretsmanager.docker":
 		ss := ss_aws.NewSecretManager(testLogger)
-		mockedSession, err := session.NewSession(&aws.Config{
+		mockedSession := session.Must(session.NewSession(&aws.Config{
 			Region:      aws.String("us-west-1"),
 			Credentials: credentials.AnonymousCredentials,
-		})
+		}))
 		ss.AuthProvider.Session = mockedSession
 		return ss
 	case "aws.secretsmanager.terraform":

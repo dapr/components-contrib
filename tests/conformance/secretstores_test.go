@@ -20,9 +20,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
@@ -76,13 +73,7 @@ func loadSecretStore(name string) secretstores.SecretStore {
 	case "hashicorp.vault":
 		return ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
 	case "aws.secretsmanager.docker":
-		ss := ss_aws.NewSecretManager(testLogger)
-		mockedSession := session.Must(session.NewSession(&aws.Config{
-			Region:      aws.String("us-west-1"),
-			Credentials: credentials.AnonymousCredentials,
-		}))
-		ss.AuthProvider.Session = mockedSession
-		return ss
+		return ss_aws.NewSecretManager(testLogger)
 	case "aws.secretsmanager.terraform":
 		return ss_aws.NewSecretManager(testLogger)
 	default:

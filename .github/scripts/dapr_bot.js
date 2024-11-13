@@ -21,12 +21,12 @@ const owners = [
     'RyanLettieri',
     'shivamkm07',
     'shubham1172',
+    'sicoyle',
     'skyao',
     'Taction',
     'tmacam',
     'yaron2',
     'yash-nisar',
-    'sicoyle',
 ]
 
 const docsIssueBodyTpl = (

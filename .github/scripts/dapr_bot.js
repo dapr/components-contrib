@@ -26,6 +26,7 @@ const owners = [
     'tmacam',
     'yaron2',
     'yash-nisar',
+    'sicoyle',
 ]
 
 const docsIssueBodyTpl = (

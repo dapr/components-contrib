@@ -3,6 +3,7 @@ package aws
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,11 +46,11 @@ func TestGetTokenClient(t *testing.T) {
 		{
 			name: "valid token client",
 			awsInstance: &StaticAuth{
-				accessKey:    "testAccessKey",
-				secretKey:    "testSecretKey",
-				sessionToken: "testSessionToken",
-				region:       "us-west-2",
-				endpoint:     "https://test.endpoint.com",
+				accessKey:    aws.String("testAccessKey"),
+				secretKey:    aws.String("testSecretKey"),
+				sessionToken: aws.String("testSessionToken"),
+				region:       aws.String("us-west-2"),
+				endpoint:     aws.String("https://test.endpoint.com"),
 			},
 		},
 	}
@@ -59,7 +60,7 @@ func TestGetTokenClient(t *testing.T) {
 			session, err := tt.awsInstance.getTokenClient()
 			require.NotNil(t, session)
 			require.NoError(t, err)
-			assert.Equal(t, tt.awsInstance.region, *session.Config.Region)
+			assert.Equal(t, tt.awsInstance.region, session.Config.Region)
 		})
 	}
 }

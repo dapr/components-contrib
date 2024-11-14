@@ -27,7 +27,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,20 +35,6 @@ import (
 )
 
 const secretValue = "secret"
-
-type mockedSSM struct {
-	GetParameterFn       func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)
-	DescribeParametersFn func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error)
-	ssmiface.SSMAPI
-}
-
-func (m *mockedSSM) GetParameterWithContext(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
-	return m.GetParameterFn(ctx, input, option...)
-}
-
-func (m *mockedSSM) DescribeParametersWithContext(ctx context.Context, input *ssm.DescribeParametersInput, option ...request.Option) (*ssm.DescribeParametersOutput, error) {
-	return m.DescribeParametersFn(ctx, input, option...)
-}
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
@@ -71,7 +56,7 @@ func TestInit(t *testing.T) {
 func TestGetSecret(t *testing.T) {
 	t.Run("successfully retrieve secret", func(t *testing.T) {
 		t.Run("with valid path", func(t *testing.T) {
-			mockSSM := &mockedSSM{
+			mockSSM := &awsAuth.MockParameterStore{
 				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					secret := secretValue
 					return &ssm.GetParameterOutput{
@@ -90,10 +75,8 @@ func TestGetSecret(t *testing.T) {
 			mockedClients := awsAuth.Clients{
 				ParameterStore: &paramStore,
 			}
-
-			mockAuthProvider := &awsAuth.StaticAuth{
-				Clients: &mockedClients,
-			}
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
 
 			s := ssmSecretStore{
 				authProvider: mockAuthProvider,
@@ -109,7 +92,7 @@ func TestGetSecret(t *testing.T) {
 		})
 
 		t.Run("with version id", func(t *testing.T) {
-			mockSSM := &mockedSSM{
+			mockSSM := &awsAuth.MockParameterStore{
 				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					secret := secretValue
 					keys := strings.Split(*input.Name, ":")
@@ -133,11 +116,8 @@ func TestGetSecret(t *testing.T) {
 			mockedClients := awsAuth.Clients{
 				ParameterStore: &paramStore,
 			}
-
-			mockAuthProvider := &awsAuth.StaticAuth{
-				Clients: &mockedClients,
-			}
-
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
 			s := ssmSecretStore{
 				authProvider: mockAuthProvider,
 			}
@@ -154,7 +134,7 @@ func TestGetSecret(t *testing.T) {
 		})
 
 		t.Run("with prefix", func(t *testing.T) {
-			mockSSM := &mockedSSM{
+			mockSSM := &awsAuth.MockParameterStore{
 				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					assert.Equal(t, "/prefix/aws/dev/secret", *input.Name)
 					secret := secretValue
@@ -175,10 +155,8 @@ func TestGetSecret(t *testing.T) {
 			mockedClients := awsAuth.Clients{
 				ParameterStore: &paramStore,
 			}
-
-			mockAuthProvider := &awsAuth.StaticAuth{
-				Clients: &mockedClients,
-			}
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
 
 			s := ssmSecretStore{
 				authProvider: mockAuthProvider,
@@ -196,7 +174,7 @@ func TestGetSecret(t *testing.T) {
 	})
 
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {
-		mockSSM := &mockedSSM{
+		mockSSM := &awsAuth.MockParameterStore{
 			GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 				return nil, errors.New("failed due to any reason")
 			},
@@ -209,10 +187,8 @@ func TestGetSecret(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			ParameterStore: &paramStore,
 		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{
-			Clients: &mockedClients,
-		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
 
 		s := ssmSecretStore{
 			authProvider: mockAuthProvider,
@@ -230,7 +206,7 @@ func TestGetSecret(t *testing.T) {
 
 func TestGetBulkSecrets(t *testing.T) {
 	t.Run("successfully retrieve bulk secrets", func(t *testing.T) {
-		mockSSM := &mockedSSM{
+		mockSSM := &awsAuth.MockParameterStore{
 			DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 					{
@@ -260,10 +236,8 @@ func TestGetBulkSecrets(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			ParameterStore: &paramStore,
 		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{
-			Clients: &mockedClients,
-		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
 		s := ssmSecretStore{
 			authProvider: mockAuthProvider,
 		}
@@ -278,7 +252,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	})
 
 	t.Run("successfully retrieve bulk secrets with prefix", func(t *testing.T) {
-		mockSSM := &mockedSSM{
+		mockSSM := &awsAuth.MockParameterStore{
 			DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 					{
@@ -308,10 +282,8 @@ func TestGetBulkSecrets(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			ParameterStore: &paramStore,
 		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{
-			Clients: &mockedClients,
-		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
 		s := ssmSecretStore{
 			authProvider: mockAuthProvider,
 			prefix:       "/prefix",
@@ -327,7 +299,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	})
 
 	t.Run("unsuccessfully retrieve bulk secrets on get parameter", func(t *testing.T) {
-		mockSSM := &mockedSSM{
+		mockSSM := &awsAuth.MockParameterStore{
 			DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 					{
@@ -350,10 +322,8 @@ func TestGetBulkSecrets(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			ParameterStore: &paramStore,
 		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{
-			Clients: &mockedClients,
-		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
 		s := ssmSecretStore{
 			authProvider: mockAuthProvider,
 		}
@@ -366,7 +336,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	})
 
 	t.Run("unsuccessfully retrieve bulk secrets on describe parameter", func(t *testing.T) {
-		mockSSM := &mockedSSM{
+		mockSSM := &awsAuth.MockParameterStore{
 			DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 				return nil, errors.New("failed due to any reason")
 			},
@@ -379,10 +349,8 @@ func TestGetBulkSecrets(t *testing.T) {
 		mockedClients := awsAuth.Clients{
 			ParameterStore: &paramStore,
 		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{
-			Clients: &mockedClients,
-		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
 		s := ssmSecretStore{
 			authProvider: mockAuthProvider,
 		}

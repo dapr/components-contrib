@@ -41,7 +41,7 @@ type StaticAuth struct {
 
 	session *session.Session
 	cfg     *aws.Config
-	Clients *Clients // exported to mock clients in unit tests
+	clients *Clients
 }
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
@@ -60,7 +60,7 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 			}
 			return GetConfig(opts)
 		}(),
-		Clients: newClients(),
+		clients: newClients(),
 	}
 
 	initialSession, err := auth.getTokenClient()
@@ -73,132 +73,137 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 	return auth, nil
 }
 
+// This is to be used only for test purposes to inject mocked clients
+func (a *StaticAuth) WithMockClients(clients *Clients) {
+	a.clients = clients
+}
+
 func (a *StaticAuth) S3() *S3Clients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.s3 != nil {
-		return a.Clients.s3
+	if a.clients.s3 != nil {
+		return a.clients.s3
 	}
 
 	s3Clients := S3Clients{}
-	a.Clients.s3 = &s3Clients
-	a.Clients.s3.New(a.session)
-	return a.Clients.s3
+	a.clients.s3 = &s3Clients
+	a.clients.s3.New(a.session)
+	return a.clients.s3
 }
 
 func (a *StaticAuth) DynamoDB() *DynamoDBClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.Dynamo != nil {
-		return a.Clients.Dynamo
+	if a.clients.Dynamo != nil {
+		return a.clients.Dynamo
 	}
 
 	clients := DynamoDBClients{}
-	a.Clients.Dynamo = &clients
-	a.Clients.Dynamo.New(a.session)
+	a.clients.Dynamo = &clients
+	a.clients.Dynamo.New(a.session)
 
-	return a.Clients.Dynamo
+	return a.clients.Dynamo
 }
 
 func (a *StaticAuth) Sqs() *SqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.sqs != nil {
-		return a.Clients.sqs
+	if a.clients.sqs != nil {
+		return a.clients.sqs
 	}
 
 	clients := SqsClients{}
-	a.Clients.sqs = &clients
-	a.Clients.sqs.New(a.session)
+	a.clients.sqs = &clients
+	a.clients.sqs.New(a.session)
 
-	return a.Clients.sqs
+	return a.clients.sqs
 }
 
 func (a *StaticAuth) Sns() *SnsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.sns != nil {
-		return a.Clients.sns
+	if a.clients.sns != nil {
+		return a.clients.sns
 	}
 
 	clients := SnsClients{}
-	a.Clients.sns = &clients
-	a.Clients.sns.New(a.session)
-	return a.Clients.sns
+	a.clients.sns = &clients
+	a.clients.sns.New(a.session)
+	return a.clients.sns
 }
 
 func (a *StaticAuth) SnsSqs() *SnsSqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.snssqs != nil {
-		return a.Clients.snssqs
+	if a.clients.snssqs != nil {
+		return a.clients.snssqs
 	}
 
 	clients := SnsSqsClients{}
-	a.Clients.snssqs = &clients
-	a.Clients.snssqs.New(a.session)
-	return a.Clients.snssqs
+	a.clients.snssqs = &clients
+	a.clients.snssqs.New(a.session)
+	return a.clients.snssqs
 }
 
 func (a *StaticAuth) SecretManager() *SecretManagerClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.Secret != nil {
-		return a.Clients.Secret
+	if a.clients.Secret != nil {
+		return a.clients.Secret
 	}
 
 	clients := SecretManagerClients{}
-	a.Clients.Secret = &clients
-	a.Clients.Secret.New(a.session)
-	return a.Clients.Secret
+	a.clients.Secret = &clients
+	a.clients.Secret.New(a.session)
+	return a.clients.Secret
 }
 
 func (a *StaticAuth) ParameterStore() *ParameterStoreClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.ParameterStore != nil {
-		return a.Clients.ParameterStore
+	if a.clients.ParameterStore != nil {
+		return a.clients.ParameterStore
 	}
 
 	clients := ParameterStoreClients{}
-	a.Clients.ParameterStore = &clients
-	a.Clients.ParameterStore.New(a.session)
-	return a.Clients.ParameterStore
+	a.clients.ParameterStore = &clients
+	a.clients.ParameterStore.New(a.session)
+	return a.clients.ParameterStore
 }
 
 func (a *StaticAuth) Kinesis() *KinesisClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.kinesis != nil {
-		return a.Clients.kinesis
+	if a.clients.kinesis != nil {
+		return a.clients.kinesis
 	}
 
 	clients := KinesisClients{}
-	a.Clients.kinesis = &clients
-	a.Clients.kinesis.New(a.session)
-	return a.Clients.kinesis
+	a.clients.kinesis = &clients
+	a.clients.kinesis.New(a.session)
+	return a.clients.kinesis
 }
 
 func (a *StaticAuth) Ses() *SesClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.ses != nil {
-		return a.Clients.ses
+	if a.clients.ses != nil {
+		return a.clients.ses
 	}
 
 	clients := SesClients{}
-	a.Clients.ses = &clients
-	a.Clients.ses.New(a.session)
-	return a.Clients.ses
+	a.clients.ses = &clients
+	a.clients.ses.New(a.session)
+	return a.clients.ses
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {

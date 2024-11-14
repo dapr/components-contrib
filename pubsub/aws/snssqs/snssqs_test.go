@@ -38,7 +38,7 @@ func Test_parseTopicArn(t *testing.T) {
 }
 
 // Verify that all metadata ends up in the correct spot.
-func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
+func Test_getSnsSqsMetadata_AllConfiguration(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
@@ -47,7 +47,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID":               "consumer",
 		"Endpoint":                 "endpoint",
 		"concurrencyMode":          string(pubsub.Single),
@@ -80,7 +80,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r.Equal(int64(6), md.MessageReceiveLimit)
 }
 
-func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
+func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
@@ -89,7 +89,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
@@ -114,7 +114,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.False(md.DisableDeleteOnRetryLimit)
 }
 
-func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
+func Test_getSnsSqsMetadata_legacyaliases(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
@@ -123,7 +123,7 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID":   "consumer",
 		"awsAccountID": "acctId",
 		"awsSecret":    "secret",
@@ -151,13 +151,13 @@ func testMetadataParsingShouldFail(t *testing.T, metadata pubsub.Metadata, l log
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(metadata)
+	md, err := ps.getSnsSqsMetadata(metadata)
 
 	r.Error(err)
 	r.Nil(md)
 }
 
-func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
+func Test_getSnsSqsMetadata_invalidMetadataSetup(t *testing.T) {
 	t.Parallel()
 
 	fixtures := []testUnitFixture{
@@ -432,7 +432,7 @@ func Test_buildARN_DefaultPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
@@ -455,7 +455,7 @@ func Test_buildARN_StandardPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
@@ -478,7 +478,7 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",

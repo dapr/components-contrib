@@ -21,24 +21,16 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
 const secretValue = "secret"
-
-type mockedSM struct {
-	GetSecretValueFn func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
-	secretsmanageriface.SecretsManagerAPI
-}
-
-func (m *mockedSM) GetSecretValueWithContext(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-	return m.GetSecretValueFn(ctx, input, option...)
-}
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
@@ -60,19 +52,30 @@ func TestInit(t *testing.T) {
 func TestGetSecret(t *testing.T) {
 	t.Run("successfully retrieve secret", func(t *testing.T) {
 		t.Run("without version id and version stage", func(t *testing.T) {
-			s := smSecretStore{
-				client: &mockedSM{
-					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-						assert.Nil(t, input.VersionId)
-						assert.Nil(t, input.VersionStage)
-						secret := secretValue
+			mockSSM := &awsAuth.MockSecretManager{
+				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+					assert.Nil(t, input.VersionId)
+					assert.Nil(t, input.VersionStage)
+					secret := secretValue
 
-						return &secretsmanager.GetSecretValueOutput{
-							Name:         input.SecretId,
-							SecretString: &secret,
-						}, nil
-					},
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secret,
+					}, nil
 				},
+			}
+
+			secret := awsAuth.SecretManagerClients{
+				Manager: mockSSM,
+			}
+
+			mockedClients := awsAuth.Clients{
+				Secret: &secret,
+			}
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
+			s := smSecretStore{
+				authProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -85,18 +88,30 @@ func TestGetSecret(t *testing.T) {
 		})
 
 		t.Run("with version id", func(t *testing.T) {
-			s := smSecretStore{
-				client: &mockedSM{
-					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-						assert.NotNil(t, input.VersionId)
-						secret := secretValue
+			mockSSM := &awsAuth.MockSecretManager{
+				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+					assert.NotNil(t, input.VersionId)
+					secret := secretValue
 
-						return &secretsmanager.GetSecretValueOutput{
-							Name:         input.SecretId,
-							SecretString: &secret,
-						}, nil
-					},
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secret,
+					}, nil
 				},
+			}
+
+			secret := awsAuth.SecretManagerClients{
+				Manager: mockSSM,
+			}
+
+			mockedClients := awsAuth.Clients{
+				Secret: &secret,
+			}
+
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
+			s := smSecretStore{
+				authProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -111,18 +126,30 @@ func TestGetSecret(t *testing.T) {
 		})
 
 		t.Run("with version stage", func(t *testing.T) {
-			s := smSecretStore{
-				client: &mockedSM{
-					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-						assert.NotNil(t, input.VersionStage)
-						secret := secretValue
+			mockSSM := &awsAuth.MockSecretManager{
+				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+					assert.NotNil(t, input.VersionStage)
+					secret := secretValue
 
-						return &secretsmanager.GetSecretValueOutput{
-							Name:         input.SecretId,
-							SecretString: &secret,
-						}, nil
-					},
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secret,
+					}, nil
 				},
+			}
+
+			secret := awsAuth.SecretManagerClients{
+				Manager: mockSSM,
+			}
+
+			mockedClients := awsAuth.Clients{
+				Secret: &secret,
+			}
+
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
+			s := smSecretStore{
+				authProvider: mockAuthProvider,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -138,13 +165,26 @@ func TestGetSecret(t *testing.T) {
 	})
 
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {
-		s := smSecretStore{
-			client: &mockedSM{
-				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-					return nil, errors.New("failed due to any reason")
-				},
+		mockSSM := &awsAuth.MockSecretManager{
+			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+				return nil, errors.New("failed due to any reason")
 			},
 		}
+
+		secret := awsAuth.SecretManagerClients{
+			Manager: mockSSM,
+		}
+
+		mockedClients := awsAuth.Clients{
+			Secret: &secret,
+		}
+
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
+		s := smSecretStore{
+			authProvider: mockAuthProvider,
+		}
+
 		req := secretstores.GetSecretRequest{
 			Name:     "/aws/secret/testing",
 			Metadata: map[string]string{},

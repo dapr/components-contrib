@@ -30,8 +30,8 @@ import (
 
 // AWSSNS is an AWS SNS binding.
 type AWSSNS struct {
-	client   *sns.SNS
-	topicARN string
+	authProvider awsAuth.Provider
+	topicARN     string
 
 	logger logger.Logger
 }
@@ -58,16 +58,27 @@ func NewAWSSNS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSNS) Init(_ context.Context, metadata bindings.Metadata) error {
+func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
-	client, err := a.getClient(m)
+
+	opts := awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		Endpoint:     m.Endpoint,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
+	}
+	// extra configs needed per component type
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}
-	a.client = client
+	a.authProvider = provider
 	a.topicARN = m.TopicArn
 
 	return nil
@@ -81,16 +92,6 @@ func (a *AWSSNS) parseMetadata(meta bindings.Metadata) (*snsMetadata, error) {
 	}
 
 	return &m, nil
-}
-
-func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := sns.New(sess)
-
-	return c, nil
 }
 
 func (a *AWSSNS) Operations() []bindings.OperationKind {
@@ -107,7 +108,7 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	_, err = a.client.PublishWithContext(ctx, &sns.PublishInput{
+	_, err = a.authProvider.Sns().Sns.PublishWithContext(ctx, &sns.PublishInput{
 		Message:  &msg,
 		Subject:  &subject,
 		TopicArn: &a.topicARN,
@@ -127,5 +128,5 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (a *AWSSNS) Close() error {
-	return nil
+	return a.authProvider.Close()
 }

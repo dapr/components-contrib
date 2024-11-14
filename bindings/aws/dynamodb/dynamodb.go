@@ -31,9 +31,9 @@ import (
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
 type DynamoDB struct {
-	client *dynamodb.DynamoDB
-	table  string
-	logger logger.Logger
+	authProvider awsAuth.Provider
+	table        string
+	logger       logger.Logger
 }
 
 type dynamoDBMetadata struct {
@@ -51,18 +51,27 @@ func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing for DynamoDB.
-func (d *DynamoDB) Init(_ context.Context, metadata bindings.Metadata) error {
+func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	client, err := d.getClient(meta)
+	opts := awsAuth.Options{
+		Logger:       d.logger,
+		Properties:   metadata.Properties,
+		Region:       meta.Region,
+		Endpoint:     meta.Endpoint,
+		AccessKey:    meta.AccessKey,
+		SecretKey:    meta.SecretKey,
+		SessionToken: meta.SessionToken,
+	}
+
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
 		return err
 	}
-
-	d.client = client
+	d.authProvider = provider
 	d.table = meta.Table
 
 	return nil
@@ -84,7 +93,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	_, err = d.client.PutItemWithContext(ctx, &dynamodb.PutItemInput{
+	_, err = d.authProvider.DynamoDB().DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(d.table),
 	})
@@ -105,16 +114,6 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 	return &meta, nil
 }
 
-func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := dynamodb.New(sess)
-
-	return c, nil
-}
-
 // GetComponentMetadata returns the metadata of the component.
 func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := dynamoDBMetadata{}
@@ -123,5 +122,5 @@ func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (d *DynamoDB) Close() error {
-	return nil
+	return d.authProvider.Close()
 }

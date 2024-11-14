@@ -31,28 +31,28 @@ import (
 
 type StaticAuth struct {
 	mu     sync.RWMutex
-	Logger logger.Logger
+	logger logger.Logger
 
-	Region       string
-	Endpoint     *string
-	AccessKey    *string
-	SecretKey    *string
-	SessionToken *string
+	region       *string
+	endpoint     *string
+	accessKey    *string
+	secretKey    *string
+	sessionToken *string
 
-	Clients *Clients
-	Session *session.Session
-	Cfg     *aws.Config
+	session *session.Session
+	cfg     *aws.Config
+	Clients *Clients // exported to mock clients in unit tests
 }
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
-		Logger:       opts.Logger,
-		Region:       opts.Region,
-		Endpoint:     &opts.Endpoint,
-		AccessKey:    &opts.AccessKey,
-		SecretKey:    &opts.SecretKey,
-		SessionToken: &opts.SessionToken,
-		Cfg: func() *aws.Config {
+		logger:       opts.Logger,
+		region:       &opts.Region,
+		endpoint:     &opts.Endpoint,
+		accessKey:    &opts.AccessKey,
+		secretKey:    &opts.SecretKey,
+		sessionToken: &opts.SessionToken,
+		cfg: func() *aws.Config {
 			// if nil is passed or it's just a default cfg,
 			// then we use the options to build the aws cfg.
 			if cfg != nil && cfg != aws.NewConfig() {
@@ -68,7 +68,7 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 		return nil, fmt.Errorf("failed to get token client: %v", err)
 	}
 
-	auth.Session = initialSession
+	auth.session = initialSession
 
 	return auth, nil
 }
@@ -83,7 +83,7 @@ func (a *StaticAuth) S3() *S3Clients {
 
 	s3Clients := S3Clients{}
 	a.Clients.s3 = &s3Clients
-	a.Clients.s3.New(a.Session)
+	a.Clients.s3.New(a.session)
 	return a.Clients.s3
 }
 
@@ -97,7 +97,7 @@ func (a *StaticAuth) DynamoDB() *DynamoDBClients {
 
 	clients := DynamoDBClients{}
 	a.Clients.Dynamo = &clients
-	a.Clients.Dynamo.New(a.Session)
+	a.Clients.Dynamo.New(a.session)
 
 	return a.Clients.Dynamo
 }
@@ -112,7 +112,7 @@ func (a *StaticAuth) Sqs() *SqsClients {
 
 	clients := SqsClients{}
 	a.Clients.sqs = &clients
-	a.Clients.sqs.New(a.Session)
+	a.Clients.sqs.New(a.session)
 
 	return a.Clients.sqs
 }
@@ -127,7 +127,7 @@ func (a *StaticAuth) Sns() *SnsClients {
 
 	clients := SnsClients{}
 	a.Clients.sns = &clients
-	a.Clients.sns.New(a.Session)
+	a.Clients.sns.New(a.session)
 	return a.Clients.sns
 }
 
@@ -141,7 +141,7 @@ func (a *StaticAuth) SnsSqs() *SnsSqsClients {
 
 	clients := SnsSqsClients{}
 	a.Clients.snssqs = &clients
-	a.Clients.snssqs.New(a.Session)
+	a.Clients.snssqs.New(a.session)
 	return a.Clients.snssqs
 }
 
@@ -155,7 +155,7 @@ func (a *StaticAuth) SecretManager() *SecretManagerClients {
 
 	clients := SecretManagerClients{}
 	a.Clients.Secret = &clients
-	a.Clients.Secret.New(a.Session)
+	a.Clients.Secret.New(a.session)
 	return a.Clients.Secret
 }
 
@@ -169,7 +169,7 @@ func (a *StaticAuth) ParameterStore() *ParameterStoreClients {
 
 	clients := ParameterStoreClients{}
 	a.Clients.ParameterStore = &clients
-	a.Clients.ParameterStore.New(a.Session)
+	a.Clients.ParameterStore.New(a.session)
 	return a.Clients.ParameterStore
 }
 
@@ -183,7 +183,7 @@ func (a *StaticAuth) Kinesis() *KinesisClients {
 
 	clients := KinesisClients{}
 	a.Clients.kinesis = &clients
-	a.Clients.kinesis.New(a.Session)
+	a.Clients.kinesis.New(a.session)
 	return a.Clients.kinesis
 }
 
@@ -197,29 +197,29 @@ func (a *StaticAuth) Ses() *SesClients {
 
 	clients := SesClients{}
 	a.Clients.ses = &clients
-	a.Clients.ses.New(a.Session)
+	a.Clients.ses.New(a.session)
 	return a.Clients.ses
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 	var awsConfig *aws.Config
-	if a.Cfg == nil {
+	if a.cfg == nil {
 		awsConfig = aws.NewConfig()
 	} else {
-		awsConfig = a.Cfg
+		awsConfig = a.cfg
 	}
 
-	if a.Region != "" {
-		awsConfig = awsConfig.WithRegion(a.Region)
+	if a.region != nil {
+		awsConfig = awsConfig.WithRegion(*a.region)
 	}
 
-	if a.AccessKey != nil && a.SecretKey != nil {
+	if a.accessKey != nil && a.secretKey != nil {
 		// session token is an option field
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.AccessKey, *a.SecretKey, *a.SessionToken))
+		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.accessKey, *a.secretKey, *a.sessionToken))
 	}
 
-	if a.Endpoint != nil {
-		awsConfig = awsConfig.WithEndpoint(*a.Endpoint)
+	if a.endpoint != nil {
+		awsConfig = awsConfig.WithEndpoint(*a.endpoint)
 	}
 
 	awsSession, err := session.NewSessionWithOptions(session.Options{

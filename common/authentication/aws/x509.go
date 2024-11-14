@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -41,37 +41,36 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type x509 struct {
-	mu sync.RWMutex
+type x509Options struct {
+	TrustProfileArn *string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
+	TrustAnchorArn  *string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
+	AssumeRoleArn   *string `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
+}
 
+type x509 struct {
+	mu      sync.RWMutex
 	wg      sync.WaitGroup
 	closeCh chan struct{}
 
 	logger              logger.Logger
-	Clients             *Clients
+	clients             *Clients
 	rolesAnywhereClient rolesanywhereiface.RolesAnywhereAPI // this is so we can mock it in tests
 	session             *session.Session
-	Cfg                 *aws.Config
+	cfg                 *aws.Config
 
 	chainPEM []byte
 	keyPEM   []byte
 
 	region          *string
-	TrustProfileArn *string        `json:"trustProfileArn" mapstructure:"trustProfileArn"`
-	TrustAnchorArn  *string        `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
-	AssumeRoleArn   *string        `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
-	SessionDuration *time.Duration `json:"sessionDuration" mapstructure:"sessionDuration"`
+	trustProfileArn *string
+	trustAnchorArn  *string
+	assumeRoleArn   *string
 }
 
 func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) {
-	var x509Auth x509
+	var x509Auth x509Options
 	if err := kitmd.DecodeMetadata(opts.Properties, &x509Auth); err != nil {
 		return nil, err
-	}
-
-	if x509Auth.SessionDuration == nil {
-		defaultDuration := time.Hour
-		x509Auth.SessionDuration = &defaultDuration
 	}
 
 	switch {
@@ -81,18 +80,14 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 		return nil, errors.New("trustAnchorArn is required")
 	case x509Auth.AssumeRoleArn == nil:
 		return nil, errors.New("assumeRoleArn is required")
-	case *x509Auth.SessionDuration != 0 && (*x509Auth.SessionDuration < time.Minute*15 || *x509Auth.SessionDuration > time.Hour*12):
-		return nil, errors.New("sessionDuration must be greater than 15 minutes, and less than 12 hours")
 	}
 
 	auth := &x509{
-		wg:              sync.WaitGroup{},
 		logger:          opts.Logger,
-		TrustProfileArn: x509Auth.TrustProfileArn,
-		TrustAnchorArn:  x509Auth.TrustAnchorArn,
-		AssumeRoleArn:   x509Auth.AssumeRoleArn,
-		SessionDuration: x509Auth.SessionDuration,
-		Cfg: func() *aws.Config {
+		trustProfileArn: x509Auth.TrustProfileArn,
+		trustAnchorArn:  x509Auth.TrustAnchorArn,
+		assumeRoleArn:   x509Auth.AssumeRoleArn,
+		cfg: func() *aws.Config {
 			// if nil is passed or it's just a default cfg,
 			// then we use the options to build the aws cfg.
 			if cfg != nil && cfg != aws.NewConfig() {
@@ -100,17 +95,15 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 			}
 			return GetConfig(opts)
 		}(),
-		Clients: newClients(),
+		clients: newClients(),
 	}
 
-	var err error
-	err = auth.getCertPEM(ctx)
-	if err != nil {
+	if err := auth.getCertPEM(ctx); err != nil {
 		return nil, fmt.Errorf("failed to get x.509 credentials: %v", err)
 	}
 
 	// Parse trust anchor and profile ARNs
-	if err = auth.initializeTrustAnchors(); err != nil {
+	if err := auth.initializeTrustAnchors(); err != nil {
 		return nil, err
 	}
 
@@ -157,128 +150,128 @@ func (a *x509) S3() *S3Clients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.s3 != nil {
-		return a.Clients.s3
+	if a.clients.s3 != nil {
+		return a.clients.s3
 	}
 
 	s3Clients := S3Clients{}
-	a.Clients.s3 = &s3Clients
-	a.Clients.s3.New(a.session)
-	return a.Clients.s3
+	a.clients.s3 = &s3Clients
+	a.clients.s3.New(a.session)
+	return a.clients.s3
 }
 
 func (a *x509) DynamoDB() *DynamoDBClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.Dynamo != nil {
-		return a.Clients.Dynamo
+	if a.clients.Dynamo != nil {
+		return a.clients.Dynamo
 	}
 
 	clients := DynamoDBClients{}
-	a.Clients.Dynamo = &clients
-	a.Clients.Dynamo.New(a.session)
+	a.clients.Dynamo = &clients
+	a.clients.Dynamo.New(a.session)
 
-	return a.Clients.Dynamo
+	return a.clients.Dynamo
 }
 
 func (a *x509) Sqs() *SqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.sqs != nil {
-		return a.Clients.sqs
+	if a.clients.sqs != nil {
+		return a.clients.sqs
 	}
 
 	clients := SqsClients{}
-	a.Clients.sqs = &clients
-	a.Clients.sqs.New(a.session)
+	a.clients.sqs = &clients
+	a.clients.sqs.New(a.session)
 
-	return a.Clients.sqs
+	return a.clients.sqs
 }
 
 func (a *x509) Sns() *SnsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.sns != nil {
-		return a.Clients.sns
+	if a.clients.sns != nil {
+		return a.clients.sns
 	}
 
 	clients := SnsClients{}
-	a.Clients.sns = &clients
-	a.Clients.sns.New(a.session)
-	return a.Clients.sns
+	a.clients.sns = &clients
+	a.clients.sns.New(a.session)
+	return a.clients.sns
 }
 
 func (a *x509) SnsSqs() *SnsSqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.snssqs != nil {
-		return a.Clients.snssqs
+	if a.clients.snssqs != nil {
+		return a.clients.snssqs
 	}
 
 	clients := SnsSqsClients{}
-	a.Clients.snssqs = &clients
-	a.Clients.snssqs.New(a.session)
-	return a.Clients.snssqs
+	a.clients.snssqs = &clients
+	a.clients.snssqs.New(a.session)
+	return a.clients.snssqs
 }
 
 func (a *x509) SecretManager() *SecretManagerClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.Secret != nil {
-		return a.Clients.Secret
+	if a.clients.Secret != nil {
+		return a.clients.Secret
 	}
 
 	clients := SecretManagerClients{}
-	a.Clients.Secret = &clients
-	a.Clients.Secret.New(a.session)
-	return a.Clients.Secret
+	a.clients.Secret = &clients
+	a.clients.Secret.New(a.session)
+	return a.clients.Secret
 }
 
 func (a *x509) ParameterStore() *ParameterStoreClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.ParameterStore != nil {
-		return a.Clients.ParameterStore
+	if a.clients.ParameterStore != nil {
+		return a.clients.ParameterStore
 	}
 
 	clients := ParameterStoreClients{}
-	a.Clients.ParameterStore = &clients
-	a.Clients.ParameterStore.New(a.session)
-	return a.Clients.ParameterStore
+	a.clients.ParameterStore = &clients
+	a.clients.ParameterStore.New(a.session)
+	return a.clients.ParameterStore
 }
 
 func (a *x509) Kinesis() *KinesisClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.kinesis != nil {
-		return a.Clients.kinesis
+	if a.clients.kinesis != nil {
+		return a.clients.kinesis
 	}
 
 	clients := KinesisClients{}
-	a.Clients.kinesis = &clients
-	a.Clients.kinesis.New(a.session)
-	return a.Clients.kinesis
+	a.clients.kinesis = &clients
+	a.clients.kinesis.New(a.session)
+	return a.clients.kinesis
 }
 
 func (a *x509) Ses() *SesClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.Clients.ses != nil {
-		return a.Clients.ses
+	if a.clients.ses != nil {
+		return a.clients.ses
 	}
 
 	clients := SesClients{}
-	a.Clients.ses = &clients
-	a.Clients.ses.New(a.session)
-	return a.Clients.ses
+	a.clients.ses = &clients
+	a.clients.ses.New(a.session)
+	return a.clients.ses
 }
 
 func (a *x509) initializeTrustAnchors() error {
@@ -287,16 +280,16 @@ func (a *x509) initializeTrustAnchors() error {
 		profile     arn.ARN
 		err         error
 	)
-	if a.TrustAnchorArn != nil {
-		trustAnchor, err = arn.Parse(*a.TrustAnchorArn)
+	if a.trustAnchorArn != nil {
+		trustAnchor, err = arn.Parse(*a.trustAnchorArn)
 		if err != nil {
 			return err
 		}
 		a.region = &trustAnchor.Region
 	}
 
-	if a.TrustProfileArn != nil {
-		profile, err = arn.Parse(*a.TrustProfileArn)
+	if a.trustProfileArn != nil {
+		profile, err = arn.Parse(*a.trustProfileArn)
 		if err != nil {
 			return err
 		}
@@ -347,10 +340,10 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	var mySession *session.Session
 
 	var awsConfig *aws.Config
-	if a.Cfg == nil {
+	if a.cfg == nil {
 		awsConfig = aws.NewConfig().WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	} else {
-		awsConfig = a.Cfg.WithHTTPClient(client).WithLogLevel(aws.LogOff)
+		awsConfig = a.cfg.WithHTTPClient(client).WithLogLevel(aws.LogOff)
 	}
 	if a.region != nil {
 		awsConfig.WithRegion(*a.region)
@@ -368,35 +361,17 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 		rolesClient = rolesAnywhereClient
 	}
 
-	var (
-		duration             int64
-		createSessionRequest rolesanywhere.CreateSessionInput
-	)
-	if *a.SessionDuration != 0 {
-		duration = int64(a.SessionDuration.Seconds())
-
-		createSessionRequest = rolesanywhere.CreateSessionInput{
-			Cert:               ptr.Of(string(a.chainPEM)),
-			ProfileArn:         a.TrustProfileArn,
-			TrustAnchorArn:     a.TrustAnchorArn,
-			RoleArn:            a.AssumeRoleArn,
-			DurationSeconds:    aws.Int64(duration),
-			InstanceProperties: nil,
-			SessionName:        nil,
-		}
-	} else {
-		duration = int64(time.Hour.Seconds())
-
-		createSessionRequest = rolesanywhere.CreateSessionInput{
-			Cert:               ptr.Of(string(a.chainPEM)),
-			ProfileArn:         a.TrustProfileArn,
-			TrustAnchorArn:     a.TrustAnchorArn,
-			RoleArn:            a.AssumeRoleArn,
-			DurationSeconds:    aws.Int64(duration),
-			InstanceProperties: nil,
-			SessionName:        nil,
-		}
+	createSessionRequest := rolesanywhere.CreateSessionInput{
+		Cert:           ptr.Of(string(a.chainPEM)),
+		ProfileArn:     a.trustProfileArn,
+		TrustAnchorArn: a.trustAnchorArn,
+		RoleArn:        a.assumeRoleArn,
+		// https://aws.amazon.com/about-aws/whats-new/2024/03/iam-roles-anywhere-credentials-valid-12-hours/#:~:text=The%20duration%20can%20range%20from,and%20applications%2C%20to%20use%20X.
+		DurationSeconds:    aws.Int64(int64(time.Hour.Seconds())), // AWS default is 1hr timeout
+		InstanceProperties: nil,
+		SessionName:        nil,
 	}
+
 	var output *rolesanywhere.CreateSessionOutput
 	if a.rolesAnywhereClient != nil {
 		var err error
@@ -432,11 +407,6 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 
 func (a *x509) startSessionRefresher() {
 	a.logger.Infof("starting session refresher for x509 auth")
-	// if there is a set session duration, then exit bc we will not auto refresh the session.
-	if *a.SessionDuration != 0 {
-		a.logger.Debugf("session duration was set, so there is no authentication refreshing")
-		return
-	}
 
 	a.wg.Add(1)
 	go func() {
@@ -465,11 +435,11 @@ func (a *x509) refreshClient() {
 	for {
 		newSession, err := a.createOrRefreshSession(context.Background())
 		if err == nil {
-			a.Clients.refresh(newSession)
+			a.clients.refresh(newSession)
 			a.logger.Debugf("AWS IAM Roles Anywhere session credentials refreshed successfully")
 			return
 		}
-		a.logger.Errorf("Failed to refresh session: %w", err)
+		a.logger.Errorf("Failed to refresh session, retrying in 5 seconds: %w", err)
 		select {
 		case <-time.After(time.Second * 5):
 		case <-a.closeCh:

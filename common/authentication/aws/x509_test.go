@@ -1,3 +1,16 @@
+/*
+Copyright 2024 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package aws
 
 import (
@@ -19,7 +32,6 @@ import (
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/crypto/test"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 type mockRolesAnywhereClient struct {
@@ -59,17 +71,15 @@ func TestGetX509Client(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			duration := time.Duration(800)
 			mockSvc := &mockRolesAnywhereClient{
 				CreateSessionOutput: tt.mockOutput,
 				CreateSessionError:  tt.mockError,
 			}
 			mockAWS := x509{
 				logger:              logger.NewLogger("testLogger"),
-				AssumeRoleArn:       ptr.Of("arn:aws:iam:012345678910:role/exampleIAMRoleName"),
-				TrustAnchorArn:      ptr.Of("arn:aws:rolesanywhere:us-west-1:012345678910:trust-anchor/01234568-0123-0123-0123-012345678901"),
-				TrustProfileArn:     ptr.Of("arn:aws:rolesanywhere:us-west-1:012345678910:profile/01234568-0123-0123-0123-012345678901"),
-				SessionDuration:     &duration,
+				assumeRoleArn:       aws.String("arn:aws:iam:012345678910:role/exampleIAMRoleName"),
+				trustAnchorArn:      aws.String("arn:aws:rolesanywhere:us-west-1:012345678910:trust-anchor/01234568-0123-0123-0123-012345678901"),
+				trustProfileArn:     aws.String("arn:aws:rolesanywhere:us-west-1:012345678910:profile/01234568-0123-0123-0123-012345678901"),
 				rolesAnywhereClient: mockSvc,
 			}
 			pki := test.GenPKI(t, test.PKIOptions{

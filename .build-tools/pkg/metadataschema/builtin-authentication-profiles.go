@@ -34,9 +34,17 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 
 		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
 
-		// If component is PostgreSQL, filter out duplicated aws profile fields
-		if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
-			res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
+		// We only need to transition this change on this AWS profile,
+		// as secret keys and access keys are irrelevant on the other AWS profiles.
+		if profile.Title == "AWS: Access Key ID and Secret Access Key" {
+			// If component is PostgreSQL, handle deprecation of aws profile fields that we will remove in Dapr 1.17
+			if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
+				res[i].Metadata = removeRequiredOnPostgresAWSFields(res[i].Metadata)
+			}
+		} else {
+			if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
+				res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
+			}
 		}
 
 	}
@@ -54,12 +62,44 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 	return res
 }
 
-// filterOutDuplicateFields removes specific duplicated fields from the metadata
-func filterOutDuplicateFields(metadata []Metadata) []Metadata {
+// removeRequiredOnPostgresAWSFields needs to be removed in Dapr 1.17 as duplicated AWS IAM fields get removed,
+// and we standardize on these fields.
+// Currently, there are: awsAccessKey, accessKey and awsSecretKey, secretKey fields.
+// We normally have accessKey and secretKey fields marked required as it is part of the builtin AWS auth profile fields.
+// However, as we rm the aws prefixed ones, we need to then mark the normally required ones as not required only for postgres.
+// This way we do not break existing users.
+func removeRequiredOnPostgresAWSFields(metadata []Metadata) []Metadata {
 	duplicateFields := map[string]int{
-		"awsRegion": 0,
 		"accessKey": 0,
 		"secretKey": 0,
+	}
+
+	filteredMetadata := []Metadata{}
+
+	for _, field := range metadata {
+		if _, exists := duplicateFields[field.Name]; !exists {
+			filteredMetadata = append(filteredMetadata, field)
+		} else {
+			if field.Name == "accessKey" && duplicateFields["accessKey"] == 0 {
+				field.Required = false
+				filteredMetadata = append(filteredMetadata, field)
+			} else if field.Name == "secretKey" && duplicateFields["secretKey"] == 0 {
+				field.Required = false
+				filteredMetadata = append(filteredMetadata, field)
+			}
+		}
+	}
+
+	return filteredMetadata
+}
+
+// filterOutDuplicateFields removes specific duplicated fields from the metadata
+// TODO: This must be removed in Dapr 1.17 as we move away from the custom postgres fields for AWS auth with the aws prefix.
+func filterOutDuplicateFields(metadata []Metadata) []Metadata {
+	duplicateFields := map[string]int{
+		"awsRegion":    0,
+		"awsAccessKey": 0,
+		"awsSecretKey": 0,
 	}
 
 	filteredMetadata := []Metadata{}

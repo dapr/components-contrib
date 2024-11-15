@@ -430,10 +430,15 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 	topic := p.formatTopic(req.Topic)
 
+	subscribeType := p.metadata.SubscriptionType
+	if s, exists := req.Metadata["subscribeType"]; exists {
+		subscribeType = s
+	}
+
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                getSubscribeType(p.metadata.SubscriptionType),
+		Type:                getSubscribeType(subscribeType),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:   p.metadata.ReceiverQueueSize,

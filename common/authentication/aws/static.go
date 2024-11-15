@@ -16,15 +16,20 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/kit/logger"
 )
@@ -204,6 +209,61 @@ func (a *StaticAuth) Ses() *SesClients {
 	a.clients.ses = &clients
 	a.clients.ses.New(a.session)
 	return a.clients.ses
+}
+
+func (a *StaticAuth) UpdatePostgres(ctx context.Context, poolConfig *pgxpool.Config) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Set max connection lifetime to 8 minutes in postgres connection pool configuration.
+	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
+	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
+	poolConfig.MaxConnLifetime = time.Minute * 8
+
+	// Setup connection pool config needed for AWS IAM authentication
+	poolConfig.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
+		// Manually reset auth token with aws and reset the config password using the new iam token
+		pwd, err := a.getDatabaseToken(ctx, poolConfig)
+		if err != nil {
+			return fmt.Errorf("failed to get database token: %w", err)
+		}
+		pgConfig.Password = pwd
+		poolConfig.ConnConfig.Password = pwd
+
+		return nil
+	}
+}
+
+// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
+func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config) (string, error) {
+	dbEndpoint := poolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(poolConfig.ConnConfig.Port))
+	switch {
+	case a.accessKey != nil && a.secretKey != nil:
+		// Set credentials explicitly with access key and secret key
+		awsCfg := v2creds.NewStaticCredentialsProvider(*a.accessKey, *a.secretKey, *a.sessionToken)
+		authenticationToken, err := auth.BuildAuthToken(
+			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg)
+		if err != nil {
+			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
+		}
+
+		return authenticationToken, nil
+
+	default:
+	}
+
+	awsCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
+	}
+
+	authenticationToken, err := auth.BuildAuthToken(
+		ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg.Credentials)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
+	}
+
+	return authenticationToken, nil
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {

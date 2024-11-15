@@ -15,16 +15,8 @@ package aws
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strconv"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/kit/logger"
@@ -34,37 +26,26 @@ type EnvironmentSettings struct {
 	Metadata map[string]string
 }
 
-type AWSIAM struct {
-	// Ignored by metadata parser because included in built-in authentication profile
-	// Access key to use for accessing PostgreSQL.
-	AWSAccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
-	// Secret key to use for accessing PostgreSQL.
-	AWSSecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
-	// AWS region in which PostgreSQL is deployed.
-	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
-}
-
-type AWSIAMAuthOptions struct {
-	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
-	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
-	Region           string          `json:"region" mapstructure:"region"`
-	AccessKey        string          `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
-}
-
 type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string
-
-	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
-	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
-
-	Region    string `json:"region" mapstructure:"region"`
-	AccessKey string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey string `json:"secretKey" mapstructure:"secretKey"`
+	Region     string `json:"region" mapstructure:"region"`
+	AccessKey  string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey  string `json:"secretKey" mapstructure:"secretKey"`
 
 	Endpoint     string
 	SessionToken string
+}
+
+// TODO: Delete in Dapr 1.17 so we can move all IAM fields to use the defaults of:
+// accessKey and secretKey and region as noted in the docs, and Options struct above.
+type DeprecatedPostgresIAM struct {
+	// Access key to use for accessing PostgreSQL.
+	AccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
+	// Secret key to use for accessing PostgreSQL.
+	SecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
+	// AWS region in which PostgreSQL is deployed.
+	Region string `json:"awsRegion" mapstructure:"awsRegion"`
 }
 
 func GetConfig(opts Options) *aws.Config {
@@ -91,6 +72,8 @@ type Provider interface {
 	Kinesis() *KinesisClients
 	Ses() *SesClients
 
+	UpdatePostgres(context.Context, *pgxpool.Config)
+
 	Close() error
 }
 
@@ -115,67 +98,4 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	}
 
 	return es, nil
-}
-
-func (opts *Options) GetAccessToken(ctx context.Context) (string, error) {
-	dbEndpoint := opts.PoolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(opts.PoolConfig.ConnConfig.Port))
-	var authenticationToken string
-
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
-	// Default to load default config through aws credentials file (~/.aws/credentials)
-	awsCfg, err := config.LoadDefaultConfig(ctx)
-	// Note: in the event of an error with invalid config or failed to load config,
-	// then we fall back to using the access key and secret key.
-	switch {
-	case errors.Is(err, config.SharedConfigAssumeRoleError{}.Err),
-		errors.Is(err, config.SharedConfigLoadError{}.Err),
-		errors.Is(err, config.SharedConfigProfileNotExistError{}.Err):
-		// Validate if access key and secret access key are provided
-		if opts.AccessKey == "" || opts.SecretKey == "" {
-			return "", fmt.Errorf("failed to load default configuration for AWS using accessKey and secretKey: %w", err)
-		}
-
-		// Set credentials explicitly
-		awsCfg := v2creds.NewStaticCredentialsProvider(opts.AccessKey, opts.SecretKey, "")
-		authenticationToken, err = auth.BuildAuthToken(
-			ctx, dbEndpoint, opts.Region, opts.PoolConfig.ConnConfig.User, awsCfg)
-		if err != nil {
-			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
-		}
-
-		return authenticationToken, nil
-	case err != nil:
-		return "", errors.New("failed to load default AWS authentication configuration")
-	}
-
-	authenticationToken, err = auth.BuildAuthToken(
-		ctx, dbEndpoint, opts.Region, opts.PoolConfig.ConnConfig.User, awsCfg.Credentials)
-	if err != nil {
-		return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
-	}
-
-	return authenticationToken, nil
-}
-
-func (opts *Options) InitiateAWSIAMAuth() error {
-	// Set max connection lifetime to 8 minutes in postgres connection pool configuration.
-	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
-	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.
-	opts.PoolConfig.MaxConnLifetime = time.Minute * 8
-
-	// Setup connection pool config needed for AWS IAM authentication
-	opts.PoolConfig.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
-		// Manually reset auth token with aws and reset the config password using the new iam token
-		pwd, errGetAccessToken := opts.GetAccessToken(ctx)
-		if errGetAccessToken != nil {
-			return fmt.Errorf("failed to refresh access token for iam authentication with PostgreSQL: %w", errGetAccessToken)
-		}
-
-		pgConfig.Password = pwd
-		opts.PoolConfig.ConnConfig.Password = pwd
-
-		return nil
-	}
-
-	return nil
 }

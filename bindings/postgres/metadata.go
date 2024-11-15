@@ -27,7 +27,7 @@ const (
 
 type psqlMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
-	aws.AWSIAM                  `mapstructure:",squash"`
+	aws.DeprecatedPostgresIAM   `mapstructure:",squash"`
 	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 }
 

@@ -91,10 +91,21 @@ func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, e
 	if awsRegion == "" {
 		return "", "", "", errors.New("metadata property AWSRegion is missing")
 	}
+
 	// Note: access key and secret keys can be optional
 	// in the event users are leveraging the credential files for an access token.
 	awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+	// This is needed as we remove the awsAccessKey field to use the builtin AWS profile 'accessKey' field instead.
+	accessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AccessKey")
+	if awsAccessKey == "" || accessKey != "" {
+		awsAccessKey = accessKey
+	}
 	awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
+	// This is needed as we remove the awsSecretKey field to use the builtin AWS profile 'secretKey' field instead.
+	secretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "SecretKey")
+	if awsSecretKey == "" || secretKey != "" {
+		awsSecretKey = secretKey
+	}
 	return awsRegion, awsAccessKey, awsSecretKey, nil
 }
 
@@ -153,27 +164,6 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 
 			cc.Password = at.Token
 			return nil
-		}
-	case m.UseAWSIAM:
-		// We should use AWS IAM
-		awsRegion, awsAccessKey, awsSecretKey, err := m.ValidateAwsIamFields()
-		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return nil, err
-		}
-
-		awsOpts := aws.Options{
-			PoolConfig:       config,
-			ConnectionString: m.ConnectionString,
-			Region:           awsRegion,
-			AccessKey:        awsAccessKey,
-			SecretKey:        awsSecretKey,
-		}
-
-		err = awsOpts.InitiateAWSIAMAuth()
-		if err != nil {
-			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation: %w", err)
-			return nil, err
 		}
 	}
 

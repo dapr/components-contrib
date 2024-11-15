@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
@@ -51,6 +52,8 @@ type PostgreSQL struct {
 
 	enableAzureAD bool
 	enableAWSIAM  bool
+
+	awsAuthProvider awsAuth.Provider
 }
 
 type Options struct {
@@ -96,6 +99,29 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return err
+	}
+
+	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
+		region, accessKey, secretKey, err := p.metadata.ValidateAwsIamFields()
+		if err != nil {
+			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
+			return err
+		}
+		opts := awsAuth.Options{
+			Logger:       p.logger,
+			Properties:   meta.Properties,
+			Region:       region,
+			Endpoint:     "",
+			AccessKey:    accessKey,
+			SecretKey:    secretKey,
+			SessionToken: "",
+		}
+		provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		if err != nil {
+			return err
+		}
+		p.awsAuthProvider = provider
+		p.awsAuthProvider.UpdatePostgres(ctx, config)
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
@@ -538,7 +564,7 @@ func (p *PostgreSQL) Close() error {
 		return p.gc.Close()
 	}
 
-	return nil
+	return p.awsAuthProvider.Close()
 }
 
 // GetCleanupInterval returns the cleanupInterval property.

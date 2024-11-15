@@ -472,7 +472,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
 		return err
 	}
-	p.logger.Debugf("Subscribed to %s(%s) with type %s", req.Topic, topic, subscribeType)
+	p.logger.Debugf("Subscribed to '%s'(%s) with type '%s'", req.Topic, topic, subscribeType)
 
 	p.wg.Add(2)
 	listenCtx, cancel := context.WithCancel(ctx)

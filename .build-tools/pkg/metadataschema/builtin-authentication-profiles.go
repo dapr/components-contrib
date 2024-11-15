@@ -97,7 +97,6 @@ func removeRequiredOnPostgresAWSFields(metadata []Metadata) []Metadata {
 // TODO: This must be removed in Dapr 1.17 as we move away from the custom postgres fields for AWS auth with the aws prefix.
 func filterOutDuplicateFields(metadata []Metadata) []Metadata {
 	duplicateFields := map[string]int{
-		"awsRegion":    0,
 		"awsAccessKey": 0,
 		"awsSecretKey": 0,
 	}
@@ -107,13 +106,6 @@ func filterOutDuplicateFields(metadata []Metadata) []Metadata {
 	for _, field := range metadata {
 		if _, exists := duplicateFields[field.Name]; !exists {
 			filteredMetadata = append(filteredMetadata, field)
-		} else {
-			if field.Name == "awsRegion" && duplicateFields["awsRegion"] == 0 {
-				filteredMetadata = append(filteredMetadata, field)
-				duplicateFields["awsRegion"]++
-			} else if field.Name != "awsRegion" {
-				continue
-			}
 		}
 	}
 

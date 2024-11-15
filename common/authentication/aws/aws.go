@@ -44,8 +44,6 @@ type DeprecatedPostgresIAM struct {
 	AccessKey string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
 	// Secret key to use for accessing PostgreSQL.
 	SecretKey string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
-	// AWS region in which PostgreSQL is deployed.
-	Region string `json:"awsRegion" mapstructure:"awsRegion"`
 }
 
 func GetConfig(opts Options) *aws.Config {

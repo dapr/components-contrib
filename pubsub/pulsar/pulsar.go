@@ -138,6 +138,12 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		return nil, errors.New("pulsar error: missing pulsar host")
 	}
 
+	var err error
+	m.SubscriptionType, err = parseSubscriptionType(meta.Properties[subscribeTypeKey])
+	if err != nil {
+		return nil, errors.New("invalid subscription type. Accepted values are `exclusive`, `shared`, `failover` and `key_shared`")
+	}
+
 	for k, v := range meta.Properties {
 		switch {
 		case strings.HasSuffix(k, topicJSONSchemaIdentifier):
@@ -170,10 +176,8 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		return err
 	}
 	pulsarURL := m.Host
-	if !strings.HasPrefix(m.Host, "http://") &&
-		!strings.HasPrefix(m.Host, "https://") {
-		pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, m.Host)
-	}
+
+	pulsarURL = sanitiseURL(pulsarURL)
 	options := pulsar.ClientOptions{
 		URL:                        pulsarURL,
 		OperationTimeout:           30 * time.Second,
@@ -224,6 +228,23 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	p.metadata = *m
 
 	return nil
+}
+
+func sanitiseURL(pulsarURL string) string {
+	prefixes := []string{"pulsar+ssl://", "pulsar://", "http://", "https://"}
+
+	hasPrefix := false
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(pulsarURL, prefix) {
+			hasPrefix = true
+			break
+		}
+	}
+
+	if !hasPrefix {
+		pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, pulsarURL)
+	}
+	return pulsarURL
 }
 
 func (p *Pulsar) useProducerEncryption() bool {
@@ -370,11 +391,22 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	return msg, nil
 }
 
-// default: shared
-func getSubscribeType(metadata map[string]string) pulsar.SubscriptionType {
+func parseSubscriptionType(in string) (string, error) {
+	subsType := strings.ToLower(in)
+	switch subsType {
+	case subscribeTypeExclusive, subscribeTypeFailover, subscribeTypeShared, subscribeTypeKeyShared:
+		return subsType, nil
+	case "":
+		return subscribeTypeShared, nil
+	default:
+		return "", fmt.Errorf("invalid subscription type: %s", subsType)
+	}
+}
+
+// getSubscribeType doesn't do extra validations, because they were done in parseSubscriptionType.
+func getSubscribeType(subsTypeStr string) pulsar.SubscriptionType {
 	var subsType pulsar.SubscriptionType
 
-	subsTypeStr := strings.ToLower(metadata[subscribeTypeKey])
 	switch subsTypeStr {
 	case subscribeTypeExclusive:
 		subsType = pulsar.Exclusive
@@ -384,8 +416,6 @@ func getSubscribeType(metadata map[string]string) pulsar.SubscriptionType {
 		subsType = pulsar.Shared
 	case subscribeTypeKeyShared:
 		subsType = pulsar.KeyShared
-	default:
-		subsType = pulsar.Shared
 	}
 
 	return subsType
@@ -403,10 +433,17 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                getSubscribeType(req.Metadata),
+		Type:                getSubscribeType(p.metadata.SubscriptionType),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:   p.metadata.ReceiverQueueSize,
+	}
+
+	// Handle KeySharedPolicy for key_shared subscription type
+	if options.Type == pulsar.KeyShared {
+		options.KeySharedPolicy = &pulsar.KeySharedPolicy{
+			Mode: pulsar.KeySharedPolicyModeAutoSplit,
+		}
 	}
 
 	if p.useConsumerEncryption() {

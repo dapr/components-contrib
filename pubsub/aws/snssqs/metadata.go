@@ -67,7 +67,7 @@ func maskLeft(s string) string {
 	return string(rs)
 }
 
-func (s *snsSqs) getSnsSqsMetatdata(meta pubsub.Metadata) (*snsSqsMetadata, error) {
+func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := &snsSqsMetadata{
 		AssetsManagementTimeoutSeconds: assetsManagementDefaultTimeoutSeconds,
 		MessageVisibilityTimeout:       10,

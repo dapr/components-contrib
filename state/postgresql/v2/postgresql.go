@@ -102,10 +102,9 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 	}
 
 	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
-		region, accessKey, secretKey, err := p.metadata.ValidateAwsIamFields()
-		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return err
+		region, accessKey, secretKey, validateErr := p.metadata.ValidateAwsIamFields()
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 		opts := awsAuth.Options{
 			Logger:       p.logger,
@@ -116,7 +115,8 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 			SecretKey:    secretKey,
 			SessionToken: "",
 		}
-		provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}
@@ -564,7 +564,11 @@ func (p *PostgreSQL) Close() error {
 		return p.gc.Close()
 	}
 
-	return p.awsAuthProvider.Close()
+	if p.awsAuthProvider != nil {
+		p.awsAuthProvider.Close()
+	}
+
+	return nil
 }
 
 // GetCleanupInterval returns the cleanupInterval property.

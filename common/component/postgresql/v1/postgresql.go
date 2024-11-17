@@ -23,6 +23,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
@@ -33,10 +38,6 @@ import (
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgreSQL state store.
@@ -98,21 +99,20 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 		AWSIAMEnabled:  p.enableAWSIAM,
 	}
 
-	err := p.metadata.InitWithMetadata(meta, opts)
-	if err != nil {
+	if err := p.metadata.InitWithMetadata(meta, opts); err != nil {
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
+	var err error
 	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}
 
 	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
-		region, accessKey, secretKey, err := p.metadata.ValidateAwsIamFields()
-		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return err
+		region, accessKey, secretKey, validateErr := p.metadata.ValidateAwsIamFields()
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 		opts := awsAuth.Options{
 			Logger:       p.logger,
@@ -123,7 +123,8 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 			SecretKey:    secretKey,
 			SessionToken: "",
 		}
-		provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}

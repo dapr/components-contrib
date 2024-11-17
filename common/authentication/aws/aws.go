@@ -59,6 +59,7 @@ func GetConfig(opts Options) *aws.Config {
 	return cfg
 }
 
+//nolint:interfacebloat
 type Provider interface {
 	S3() *S3Clients
 	DynamoDB() *DynamoDBClients

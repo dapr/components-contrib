@@ -38,13 +38,14 @@ import (
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere"
 	"github.com/aws/rolesanywhere-credential-helper/rolesanywhere/rolesanywhereiface"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type x509Options struct {

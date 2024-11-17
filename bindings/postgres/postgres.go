@@ -23,12 +23,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // List of operations.
@@ -70,21 +71,20 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 		AWSIAMEnabled:  p.enableAWSIAM,
 	}
 	m := psqlMetadata{}
-	err := m.InitWithMetadata(meta.Properties)
-	if err != nil {
+	if err := m.InitWithMetadata(meta.Properties); err != nil {
 		return err
 	}
 
+	var err error
 	poolConfig, err := m.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}
 
 	if opts.AWSIAMEnabled && m.UseAWSIAM {
-		region, accessKey, secretKey, err := m.ValidateAwsIamFields()
-		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return err
+		region, accessKey, secretKey, validateErr := m.ValidateAwsIamFields()
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 		opts := awsAuth.Options{
 			Logger:       p.logger,
@@ -95,7 +95,8 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 			SecretKey:    secretKey,
 			SessionToken: "",
 		}
-		provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}
@@ -209,7 +210,11 @@ func (p *Postgres) Close() error {
 	}
 	p.db = nil
 
-	return p.awsAuthProvider.Close()
+	if p.awsAuthProvider != nil {
+		p.awsAuthProvider.Close()
+	}
+
+	return nil
 }
 
 func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result []byte, err error) {

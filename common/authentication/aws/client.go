@@ -17,7 +17,11 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/IBM/sarama"
+	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -206,4 +210,41 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode s
 
 func (c *SesClients) New(session *session.Session) {
 	c.Ses = ses.New(session, session.Config)
+}
+
+// Kafka specific
+type mskTokenProvider struct {
+	generateTokenTimeout time.Duration
+	accessKey            string
+	secretKey            string
+	sessionToken         string
+	awsIamRoleArn        string
+	awsStsSessionName    string
+	region               string
+}
+
+func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
+	// this function can't use the context passed on Init because that context would be cancelled right after Init
+	ctx, cancel := context.WithTimeout(context.Background(), m.generateTokenTimeout)
+	defer cancel()
+
+	switch {
+	// we must first check if we are using the assume role auth profile
+	case m.awsIamRoleArn != "" && m.awsStsSessionName != "":
+		token, _, err := signer.GenerateAuthTokenFromRole(ctx, m.region, m.awsIamRoleArn, m.awsStsSessionName)
+		return &sarama.AccessToken{Token: token}, err
+	case m.accessKey != "" && m.secretKey != "":
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+			return aws2.Credentials{
+				AccessKeyID:     m.accessKey,
+				SecretAccessKey: m.secretKey,
+				SessionToken:    m.sessionToken,
+			}, nil
+		}))
+		return &sarama.AccessToken{Token: token}, err
+
+	default: // load default aws creds
+		token, _, err := signer.GenerateAuthToken(ctx, m.region)
+		return &sarama.AccessToken{Token: token}, err
+	}
 }

@@ -34,9 +34,25 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 
 		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
 
-		// If component is PostgreSQL, filter out duplicated aws profile fields
-		if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
-			res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
+		switch profile.Title {
+		case "AWS: Access Key ID and Secret Access Key":
+			// If component is PostgreSQL, handle deprecation of aws profile fields that we will remove in Dapr 1.17
+			// Postgres has awsAccessKey and accessKey and awsSecretKey and secretKey.
+			// Therefore, we mark the non aws prefixed ones as not required as we deprecate the aws prefixed ones.
+			if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
+				res[i].Metadata = removeRequiredOnSomeAWSFields(res[i].Metadata)
+			}
+			// If component is Kafka, handle deprecation of aws profile fields with aws prefix that we will remove in Dapr 1.17
+			if strings.ToLower(componentTitle) == "Apache Kafka" {
+				res[i].Metadata = removeRequiredOnSomeAWSFields(res[i].Metadata)
+			}
+
+		case "AWS: Credentials from Environment Variables", "AWS: IAM Roles Anywhere":
+			// These two auth profiles do not use the fields that we are deprecated, so we can manually remove the unrelated fields
+			res[i].Metadata = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(res[i].Metadata)
+		case "AWS: Assume specific IAM Role":
+			// This is needed bc to assume a specific IAM role, we must allow for the field of awsStsSessionName to deprecate to sessionName
+			res[i].Metadata = removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(res[i].Metadata)
 		}
 
 	}
@@ -54,10 +70,14 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 	return res
 }
 
-// filterOutDuplicateFields removes specific duplicated fields from the metadata
-func filterOutDuplicateFields(metadata []Metadata) []Metadata {
+// removeRequiredOnSomeAWSFields needs to be removed in Dapr 1.17 as duplicated AWS IAM fields get removed,
+// and we standardize on these fields.
+// Currently, there are: awsAccessKey, accessKey and awsSecretKey, secretKey fields.
+// We normally have accessKey and secretKey fields marked required as it is part of the builtin AWS auth profile fields.
+// However, as we rm the aws prefixed ones, we need to then mark the normally required ones as not required only for postgres and kafka.
+// This way we do not break existing users, and transition them to the standardized fields.
+func removeRequiredOnSomeAWSFields(metadata []Metadata) []Metadata {
 	duplicateFields := map[string]int{
-		"awsRegion": 0,
 		"accessKey": 0,
 		"secretKey": 0,
 	}
@@ -65,16 +85,45 @@ func filterOutDuplicateFields(metadata []Metadata) []Metadata {
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
-		if _, exists := duplicateFields[field.Name]; !exists {
+		if field.Name == "accessKey" && duplicateFields["accessKey"] == 0 {
+			field.Required = false
 			filteredMetadata = append(filteredMetadata, field)
-		} else {
-			if field.Name == "awsRegion" && duplicateFields["awsRegion"] == 0 {
-				filteredMetadata = append(filteredMetadata, field)
-				duplicateFields["awsRegion"]++
-			} else if field.Name != "awsRegion" {
-				continue
-			}
+		} else if field.Name == "secretKey" && duplicateFields["secretKey"] == 0 {
+			field.Required = false
+			filteredMetadata = append(filteredMetadata, field)
 		}
+	}
+
+	return filteredMetadata
+}
+
+func removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Metadata {
+	filteredMetadata := []Metadata{}
+
+	for _, field := range metadata {
+		switch field.Name {
+		case "awsAccessKey", "awsSecretKey", "awsSessionToken", "awsIamRoleArn", "awsStsSessionName":
+			continue
+		default:
+			filteredMetadata = append(filteredMetadata, field)
+		}
+
+	}
+
+	return filteredMetadata
+}
+
+func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Metadata {
+	filteredMetadata := []Metadata{}
+
+	for _, field := range metadata {
+		switch field.Name {
+		case "awsAccessKey", "awsSecretKey", "awsSessionToken":
+			continue
+		default:
+			filteredMetadata = append(filteredMetadata, field)
+		}
+
 	}
 
 	return filteredMetadata

@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -65,6 +66,11 @@ type x509 struct {
 	trustProfileArn *string
 	trustAnchorArn  *string
 	assumeRoleArn   *string
+	sessionName     *string
+
+	accessKey    *string
+	secretKey    *string
+	sessionToken *string
 }
 
 func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) {
@@ -274,6 +280,27 @@ func (a *x509) Ses() *SesClients {
 	return a.clients.ses
 }
 
+func (a *x509) UpdateKafka(config *sarama.Config) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	config.Net.SASL.TokenProvider = &mskTokenProvider{
+		generateTokenTimeout: 10 * time.Second,
+		region:               *a.region,
+		accessKey:            *a.accessKey,
+		secretKey:            *a.secretKey,
+		sessionToken:         *a.sessionToken,
+	}
+
+	_, err := config.Net.SASL.TokenProvider.Token()
+	if err != nil {
+		return fmt.Errorf("error validating iam credentials %v", err)
+	}
+	return nil
+}
+
 func (a *x509) initializeTrustAnchors() error {
 	var (
 		trustAnchor arn.ARN
@@ -401,6 +428,9 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	if sess == nil {
 		return nil, errors.New("session is nil")
 	}
+	a.accessKey = accessKey
+	a.secretKey = secretKey
+	a.sessionToken = sessionToken
 
 	return sess, nil
 }

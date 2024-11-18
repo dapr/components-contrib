@@ -25,8 +25,31 @@ aws:
         description: |
           AWS session token to use. A session token is only required if you are using
           temporary security credentials.
+  - title: "AWS: Assume specific IAM Role"
+    description: |
+      Assume a specific IAM role. Note: This is only supported on Kafka and PostgreSQL components.
+    metadata:
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using
+          temporary security credentials.
         example: '"TOKEN"'
         type: string
+      - name: assumeRoleArn
+        type: string
+        required: false
+        description: |
+          IAM role that has access to AWS resource.
+          This is another option to authenticate with MSK and RDS Aurora aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: sessionName
+        type: string
+        description: |
+          The session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"MSKSASLDefaultSession"'
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
   - title: "AWS: IAM Roles Anywhere"

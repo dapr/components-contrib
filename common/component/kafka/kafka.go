@@ -28,6 +28,7 @@ import (
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -36,16 +37,17 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer      sarama.SyncProducer
-	consumerGroup string
-	brokers       []string
-	logger        logger.Logger
-	authType      string
-	saslUsername  string
-	saslPassword  string
-	initialOffset int64
-	config        *sarama.Config
-	escapeHeaders bool
+	producer        sarama.SyncProducer
+	consumerGroup   string
+	brokers         []string
+	logger          logger.Logger
+	authType        string
+	saslUsername    string
+	saslPassword    string
+	initialOffset   int64
+	config          *sarama.Config
+	escapeHeaders   bool
+	awsAuthProvider awsAuth.Provider
 
 	cg              sarama.ConsumerGroup
 	subscribeTopics TopicHandlerConfig
@@ -182,10 +184,28 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentication")
-		err = updateAWSIAMAuthInfo(k.internalContext, config, meta)
+		region, accessKey, secretKey, assumeRole, sessionName, validateErr := k.ValidateAWS(metadata)
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
+		}
+		opts := awsAuth.Options{
+			Logger:        k.logger,
+			Properties:    metadata,
+			Region:        region,
+			Endpoint:      "",
+			AccessKey:     accessKey,
+			SecretKey:     secretKey,
+			SessionToken:  "",
+			AssumeRoleARN: assumeRole,
+			SessionName:   sessionName,
+		}
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}
+		k.awsAuthProvider = provider
+		k.awsAuthProvider.UpdateKafka(config)
 	}
 
 	k.config = config
@@ -227,6 +247,43 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 
 	return nil
+}
+
+func (k *Kafka) ValidateAWS(metadata map[string]string) (string, string, string, string, string, error) {
+	awsRegion, _ := metadata["awsRegion"]
+	if awsRegion == "" {
+		return "", "", "", "", "", errors.New("metadata property AWSRegion is missing")
+	}
+
+	// Note: access key and secret keys can be optional
+	// in the event users are leveraging the credential files for an access token.
+	awsAccessKey, _ := metadata["awsAccessKey"]
+	// This is needed as we remove the awsAccessKey field to use the builtin AWS profile 'accessKey' field instead.
+	accessKey, _ := metadata["accessKey"]
+	if awsAccessKey == "" || accessKey != "" {
+		awsAccessKey = accessKey
+	}
+	awsSecretKey, _ := metadata["awsSecretKey"]
+	// This is needed as we remove the awsSecretKey field to use the builtin AWS profile 'secretKey' field instead.
+	secretKey, _ := metadata["secretKey"]
+	if awsSecretKey == "" || secretKey != "" {
+		awsSecretKey = secretKey
+	}
+
+	awsRole, _ := metadata["awsIamRoleArn"]
+	// This is needed as we remove the awsIamRoleArn field to use the builtin AWS profile 'assumeRoleArn' field instead.
+	role, _ := metadata["assumeRoleArn"]
+	if awsRole == "" || role != "" {
+		awsRole = role
+	}
+
+	awsSession, _ := metadata["awsStsSessionName"]
+	// This is needed as we remove the awsStsSessionName field to use the builtin AWS profile 'sessionName' field instead.
+	session, _ := metadata["sessionName"]
+	if awsSession == "" || session != "" {
+		awsSession = session
+	}
+	return awsRegion, awsAccessKey, awsSecretKey, awsRole, awsSession, nil
 }
 
 func (k *Kafka) Close() error {

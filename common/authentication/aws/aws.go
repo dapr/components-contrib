@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
@@ -59,9 +60,11 @@ type Options struct {
 	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
 	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
 
-	Region    string `json:"region" mapstructure:"region"`
-	AccessKey string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey string `json:"secretKey" mapstructure:"secretKey"`
+	Region        string `json:"region" mapstructure:"region"`
+	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey     string `json:"secretKey" mapstructure:"secretKey"`
+	SessionName   string `mapstructure:"sessionName"`
+	AssumeRoleARN string `mapstructure:"assumeRoleArn"`
 
 	Endpoint     string
 	SessionToken string
@@ -90,6 +93,8 @@ type Provider interface {
 	ParameterStore() *ParameterStoreClients
 	Kinesis() *KinesisClients
 	Ses() *SesClients
+
+	UpdateKafka(*sarama.Config) error
 
 	Close() error
 }

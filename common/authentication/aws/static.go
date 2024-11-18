@@ -17,7 +17,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/IBM/sarama"
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
@@ -39,6 +41,9 @@ type StaticAuth struct {
 	secretKey    *string
 	sessionToken *string
 
+	assumeRoleARN *string
+	sessionName   *string
+
 	session *session.Session
 	cfg     *aws.Config
 	clients *Clients
@@ -46,12 +51,15 @@ type StaticAuth struct {
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
-		logger:       opts.Logger,
-		region:       &opts.Region,
-		endpoint:     &opts.Endpoint,
-		accessKey:    &opts.AccessKey,
-		secretKey:    &opts.SecretKey,
-		sessionToken: &opts.SessionToken,
+		logger:        opts.Logger,
+		region:        &opts.Region,
+		endpoint:      &opts.Endpoint,
+		accessKey:     &opts.AccessKey,
+		secretKey:     &opts.SecretKey,
+		sessionToken:  &opts.SessionToken,
+		assumeRoleARN: &opts.AssumeRoleARN,
+		sessionName:   &opts.SessionName,
+
 		cfg: func() *aws.Config {
 			// if nil is passed or it's just a default cfg,
 			// then we use the options to build the aws cfg.
@@ -204,6 +212,62 @@ func (a *StaticAuth) Ses() *SesClients {
 	a.clients.ses = &clients
 	a.clients.ses.New(a.session)
 	return a.clients.ses
+}
+
+func (a *StaticAuth) UpdateKafka(config *sarama.Config) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	var (
+		accessKey, secretKey, sessionToken string
+	)
+	creds, err := a.session.Config.Credentials.Get()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials from session: %w", err)
+	}
+	if a.accessKey == nil {
+		accessKey = creds.AccessKeyID
+	} else {
+		accessKey = *a.accessKey
+	}
+
+	if a.secretKey == nil {
+		secretKey = creds.SecretAccessKey
+	} else {
+		secretKey = *a.secretKey
+	}
+
+	if a.sessionToken == nil {
+		secretKey = creds.SessionToken
+	} else {
+		sessionToken = *a.sessionToken
+	}
+
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	tokenProvider := mskTokenProvider{
+		generateTokenTimeout: 10 * time.Second,
+		region:               *a.region,
+		accessKey:            accessKey,
+		secretKey:            secretKey,
+		sessionToken:         sessionToken,
+	}
+
+	if a.assumeRoleARN != nil {
+		tokenProvider.awsIamRoleArn = *a.assumeRoleARN
+	}
+
+	if a.sessionName != nil {
+		tokenProvider.awsStsSessionName = *a.sessionName
+	}
+
+	config.Net.SASL.TokenProvider = &tokenProvider
+
+	_, err = config.Net.SASL.TokenProvider.Token()
+	if err != nil {
+		return fmt.Errorf("error validating iam credentials %v", err)
+	}
+	return nil
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {

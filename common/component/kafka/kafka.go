@@ -312,6 +312,10 @@ func (k *Kafka) Close() error {
 		if k.cg != nil {
 			errs[1] = k.cg.Close()
 		}
+
+		if k.awsAuthProvider != nil {
+			errs[2] = k.awsAuthProvider.Close()
+		}
 	}
 
 	return errors.Join(errs...)

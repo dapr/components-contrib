@@ -98,13 +98,15 @@ type KafkaMetadata struct {
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
 	// aws iam auth profile
+	// Note: these custom AWS specific fields will become deprecated and deleted in Dapr 1.17.
+	// This will move Kafka to leverage all of the common AWS options using the builtin AWS profile for authentication.
 	AWSAccessKey      string `mapstructure:"awsAccessKey"`
 	AWSSecretKey      string `mapstructure:"awsSecretKey"`
 	AWSSessionToken   string `mapstructure:"awsSessionToken"`
 	AWSIamRoleArn     string `mapstructure:"awsIamRoleArn"`
 	AWSStsSessionName string `mapstructure:"awsStsSessionName"`
-	AWSRegion         string `mapstructure:"awsRegion"`
-	channelBufferSize int    `mapstructure:"-"`
+
+	channelBufferSize int `mapstructure:"-"`
 
 	consumerFetchMin     int32 `mapstructure:"-"`
 	consumerFetchDefault int32 `mapstructure:"-"`
@@ -264,11 +266,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("missing CA certificate property 'caCert' for authType 'certificate'")
 		}
 		k.logger.Debug("Configuring root certificate authentication.")
-	case awsIAMAuthType:
-		if m.AWSRegion == "" {
-			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
-		}
-		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}

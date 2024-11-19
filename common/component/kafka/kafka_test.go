@@ -3,6 +3,7 @@ package kafka
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,8 +11,10 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	mock_srclient "github.com/dapr/components-contrib/common/component/kafka/mocks"
 )
 
@@ -343,4 +346,82 @@ func TestLatestSchemaCaching(t *testing.T) {
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
 	})
+}
+
+func TestValidateAWS(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata map[string]string
+		expected *awsAuth.DeprecatedKafkaIAM
+		err      error
+	}{
+		{
+			name: "Valid metadata with all fields without aws prefix",
+			metadata: map[string]string{
+				"region":        "us-east-1",
+				"accessKey":     "testAccessKey",
+				"secretKey":     "testSecretKey",
+				"assumeRoleArn": "testRoleArn",
+				"sessionName":   "testSessionName",
+				"sessionToken":  "testSessionToken",
+			},
+			expected: &awsAuth.DeprecatedKafkaIAM{
+				Region:         "us-east-1",
+				AccessKey:      "testAccessKey",
+				SecretKey:      "testSecretKey",
+				IamRoleArn:     "testRoleArn",
+				StsSessionName: "testSessionName",
+				SessionToken:   "testSessionToken",
+			},
+			err: nil,
+		},
+		{
+			name: "Fallback to aws-prefixed fields with aws prefix",
+			metadata: map[string]string{
+				"awsRegion":         "us-west-2",
+				"awsAccessKey":      "awsAccessKey",
+				"awsSecretKey":      "awsSecretKey",
+				"awsIamRoleArn":     "awsRoleArn",
+				"awsStsSessionName": "awsSessionName",
+				"awsSessionToken":   "awsSessionToken",
+			},
+			expected: &awsAuth.DeprecatedKafkaIAM{
+				Region:         "us-west-2",
+				AccessKey:      "awsAccessKey",
+				SecretKey:      "awsSecretKey",
+				IamRoleArn:     "awsRoleArn",
+				StsSessionName: "awsSessionName",
+				SessionToken:   "awsSessionToken",
+			},
+			err: nil,
+		},
+		{
+			name: "Missing region field",
+			metadata: map[string]string{
+				"accessKey": "key",
+				"secretKey": "secret",
+			},
+			expected: nil,
+			err:      errors.New("metadata property AWSRegion is missing"),
+		},
+		{
+			name:     "Empty metadata",
+			metadata: map[string]string{},
+			expected: nil,
+			err:      errors.New("metadata property AWSRegion is missing"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &Kafka{}
+			result, err := k.ValidateAWS(tt.metadata)
+			if tt.err != nil {
+				require.EqualError(t, err, tt.err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, result, tt.expected)
+		})
+	}
 }

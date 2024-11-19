@@ -45,6 +45,17 @@ type AWSIAM struct {
 	AWSRegion string `json:"awsRegion" mapstructure:"awsRegion"`
 }
 
+// TODO: Delete in Dapr 1.17 so we can move all IAM fields to use the defaults of:
+// accessKey and secretKey and region as noted in the docs, and Options struct above.
+type DeprecatedKafkaIAM struct {
+	Region         string `json:"awsRegion" mapstructure:"awsRegion"`
+	AccessKey      string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
+	SecretKey      string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
+	SessionToken   string `json:"awsSessionToken" mapstructure:"awsSessionToken"`
+	IamRoleArn     string `json:"awsIamRoleArn" mapstructure:"awsIamRoleArn"`
+	StsSessionName string `json:"awsStsSessionName" mapstructure:"awsStsSessionName"`
+}
+
 type AWSIAMAuthOptions struct {
 	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
 	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
@@ -60,7 +71,9 @@ type Options struct {
 	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
 	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
 
-	Region        string `json:"region" mapstructure:"region"`
+	// TODO: in Dapr 1.17 rm the alias on regions as we rm the aws prefixed one.
+	// Docs have it just as region, but most metadata fields show the aws prefix...
+	Region        string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion"`
 	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
 	SecretKey     string `json:"secretKey" mapstructure:"secretKey"`
 	SessionName   string `mapstructure:"sessionName"`
@@ -184,4 +197,15 @@ func (opts *Options) InitiateAWSIAMAuth() error {
 	}
 
 	return nil
+}
+
+// Coalesce is a helper function to return the first non-empty string from the inputs
+// This helps us to migrate away from the deprecated duplicate aws auth profile metadata fields in Dapr 1.17.
+func Coalesce(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

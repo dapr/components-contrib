@@ -8,6 +8,9 @@ title: "Apache Kafka"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
+# This auth profile has duplicate fields intentionally as we maintain backwards compatibility,
+# but also move Kafka to utilize the noramlized AWS fields in the builtin auth profiles.
+# TODO: rm the duplicate aws prefixed fields in Dapr 1.17.
 builtinAuthenticationProfiles:
   - name: "aws"
     metadata:
@@ -20,11 +23,20 @@ builtinAuthenticationProfiles:
         example: '"awsiam"'
         allowedValues:
           - "awsiam"
+      - name: awsRegion
+        type: string
+        required: false
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'region' instead.
+          The AWS Region where the AWS Relational Database Service is deployed to.
+        example: '"us-east-1"'
       - name: awsAccessKey
         type: string
         required: false
         description: |
-          Deprecated as of Dapr 1.17. Use 'accessKey' instead.
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'accessKey' instead.
           If both fields are set, then 'accessKey' value will be used.
           AWS access key associated with an IAM account.
         example: '"AKIAIOSFODNN7EXAMPLE"'
@@ -33,7 +45,8 @@ builtinAuthenticationProfiles:
         required: false
         sensitive: true
         description: |
-          Deprecated as of Dapr 1.17. Use 'secretKey' instead.
+         This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'secretKey' instead.
           If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.
         example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
@@ -41,7 +54,8 @@ builtinAuthenticationProfiles:
         type: string
         sensitive: true
         description: |
-          Deprecated as of Dapr 1.17. Use 'sessionToken' instead.
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'sessionToken' instead.
           If both fields are set, then 'sessionToken' value will be used.
           AWS session token to use. A session token is only required if you are using temporary security credentials.
         example: '"TOKEN"'
@@ -49,14 +63,16 @@ builtinAuthenticationProfiles:
         type: string
         required: false
         description: |
-          Deprecated as of Dapr 1.17. Use 'assumeRoleArn' instead.
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'assumeRoleArn' instead.
           If both fields are set, then 'assumeRoleArn' value will be used.
           IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
         example: '"arn:aws:iam::123456789:role/mskRole"'
       - name: awsStsSessionName
         type: string
         description: |
-          Deprecated as of Dapr 1.17. Use 'sessionName' instead.
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'sessionName' instead.
           If both fields are set, then 'sessionName' value will be used.
           Represents the session name for assuming a role.
         example: '"MyAppSession"'

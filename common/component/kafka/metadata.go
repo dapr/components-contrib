@@ -97,15 +97,6 @@ type KafkaMetadata struct {
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
-	// aws iam auth profile
-	// Note: these custom AWS specific fields will become deprecated and deleted in Dapr 1.17.
-	// This will move Kafka to leverage all of the common AWS options using the builtin AWS profile for authentication.
-	AWSAccessKey      string `mapstructure:"awsAccessKey"`
-	AWSSecretKey      string `mapstructure:"awsSecretKey"`
-	AWSSessionToken   string `mapstructure:"awsSessionToken"`
-	AWSIamRoleArn     string `mapstructure:"awsIamRoleArn"`
-	AWSStsSessionName string `mapstructure:"awsStsSessionName"`
-
 	channelBufferSize int `mapstructure:"-"`
 
 	consumerFetchMin     int32 `mapstructure:"-"`

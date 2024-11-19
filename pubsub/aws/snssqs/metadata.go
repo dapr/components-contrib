@@ -22,6 +22,7 @@ type snsSqsMetadata struct {
 	// aws endpoint for the component to use.
 	Endpoint string `mapstructure:"endpoint"`
 	// aws region in which SNS/SQS should create resources.
+	// TODO: rm the alias on region in Dapr 1.17.
 	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	// aws partition in which SNS/SQS should create resources.
 	internalPartition string `mapstructure:"-"`

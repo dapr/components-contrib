@@ -184,20 +184,20 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentication")
-		region, accessKey, secretKey, assumeRole, sessionName, validateErr := k.ValidateAWS(metadata)
+		kafkaIAM, validateErr := k.ValidateAWS(metadata)
 		if validateErr != nil {
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 		opts := awsAuth.Options{
 			Logger:        k.logger,
 			Properties:    metadata,
-			Region:        region,
+			Region:        kafkaIAM.Region,
 			Endpoint:      "",
-			AccessKey:     accessKey,
-			SecretKey:     secretKey,
-			SessionToken:  "",
-			AssumeRoleARN: assumeRole,
-			SessionName:   sessionName,
+			AccessKey:     kafkaIAM.AccessKey,
+			SecretKey:     kafkaIAM.SecretKey,
+			SessionToken:  kafkaIAM.SessionToken,
+			AssumeRoleARN: kafkaIAM.IamRoleArn,
+			SessionName:   kafkaIAM.StsSessionName,
 		}
 		var provider awsAuth.Provider
 		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
@@ -249,41 +249,27 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	return nil
 }
 
-func (k *Kafka) ValidateAWS(metadata map[string]string) (string, string, string, string, string, error) {
-	awsRegion, _ := metadata["awsRegion"]
-	if awsRegion == "" {
-		return "", "", "", "", "", errors.New("metadata property AWSRegion is missing")
+func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {
+	// This is needed as we remove the aws prefixed fields to use the builtin AWS profile fields instead.
+	region := awsAuth.Coalesce(metadata["region"], metadata["awsRegion"])
+	accessKey := awsAuth.Coalesce(metadata["accessKey"], metadata["awsAccessKey"])
+	secretKey := awsAuth.Coalesce(metadata["secretKey"], metadata["awsSecretKey"])
+	role := awsAuth.Coalesce(metadata["assumeRoleArn"], metadata["awsIamRoleArn"])
+	session := awsAuth.Coalesce(metadata["sessionName"], metadata["awsStsSessionName"])
+	token := awsAuth.Coalesce(metadata["sessionToken"], metadata["awsSessionToken"])
+
+	if region == "" {
+		return nil, errors.New("metadata property AWSRegion is missing")
 	}
 
-	// Note: access key and secret keys can be optional
-	// in the event users are leveraging the credential files for an access token.
-	awsAccessKey, _ := metadata["awsAccessKey"]
-	// This is needed as we remove the awsAccessKey field to use the builtin AWS profile 'accessKey' field instead.
-	accessKey, _ := metadata["accessKey"]
-	if awsAccessKey == "" || accessKey != "" {
-		awsAccessKey = accessKey
-	}
-	awsSecretKey, _ := metadata["awsSecretKey"]
-	// This is needed as we remove the awsSecretKey field to use the builtin AWS profile 'secretKey' field instead.
-	secretKey, _ := metadata["secretKey"]
-	if awsSecretKey == "" || secretKey != "" {
-		awsSecretKey = secretKey
-	}
-
-	awsRole, _ := metadata["awsIamRoleArn"]
-	// This is needed as we remove the awsIamRoleArn field to use the builtin AWS profile 'assumeRoleArn' field instead.
-	role, _ := metadata["assumeRoleArn"]
-	if awsRole == "" || role != "" {
-		awsRole = role
-	}
-
-	awsSession, _ := metadata["awsStsSessionName"]
-	// This is needed as we remove the awsStsSessionName field to use the builtin AWS profile 'sessionName' field instead.
-	session, _ := metadata["sessionName"]
-	if awsSession == "" || session != "" {
-		awsSession = session
-	}
-	return awsRegion, awsAccessKey, awsSecretKey, awsRole, awsSession, nil
+	return &awsAuth.DeprecatedKafkaIAM{
+		Region:         region,
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		IamRoleArn:     role,
+		StsSessionName: session,
+		SessionToken:   token,
+	}, nil
 }
 
 func (k *Kafka) Close() error {

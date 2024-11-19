@@ -393,7 +393,11 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 
 		if len(events) != 0 {
 			// Handle received message
-			go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			if aeh.metadata.EnableInOrderMessageDelivery {
+				aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			} else {
+				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			}
 
 			// Checkpointing disabled for CheckPointFrequencyPerPartition == 0
 			if config.CheckPointFrequencyPerPartition > 0 {

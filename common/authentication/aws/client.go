@@ -16,6 +16,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -55,13 +56,14 @@ type Clients struct {
 	ParameterStore *ParameterStoreClients
 	kinesis        *KinesisClients
 	ses            *SesClients
+	kafka          *KafkaClients
 }
 
 func newClients() *Clients {
 	return new(Clients)
 }
 
-func (c *Clients) refresh(session *session.Session) {
+func (c *Clients) refresh(session *session.Session) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
@@ -83,7 +85,16 @@ func (c *Clients) refresh(session *session.Session) {
 		c.kinesis.New(session)
 	case c.ses != nil:
 		c.ses.New(session)
+	case c.kafka != nil:
+		// Note: we pass in nil for token provider
+		// as there are no special fields for x509 auth for it.
+		// Only static auth passes it in.
+		err := c.kafka.New(session, nil)
+		if err != nil {
+			return fmt.Errorf("failed to refresh Kafka AWS IAM Config: %w", err)
+		}
 	}
+	return nil
 }
 
 type S3Clients struct {
@@ -126,6 +137,16 @@ type KinesisClients struct {
 
 type SesClients struct {
 	Ses *ses.SES
+}
+
+type KafkaClients struct {
+	config          *sarama.Config
+	consumerGroup   *string
+	brokers         *[]string
+	maxMessageBytes *int
+
+	ConsumerGroup sarama.ConsumerGroup
+	Producer      sarama.SyncProducer
 }
 
 func (c *S3Clients) New(session *session.Session) {
@@ -212,6 +233,63 @@ func (c *SesClients) New(session *session.Session) {
 	c.Ses = ses.New(session, session.Config)
 }
 
+type KafkaOptions struct {
+	Config          *sarama.Config
+	ConsumerGroup   string
+	Brokers         []string
+	MaxMessageBytes int
+}
+
+func initKafkaClients(opts KafkaOptions) *KafkaClients {
+	return &KafkaClients{
+		config:          opts.Config,
+		consumerGroup:   &opts.ConsumerGroup,
+		brokers:         &opts.Brokers,
+		maxMessageBytes: &opts.MaxMessageBytes,
+	}
+}
+
+func (c *KafkaClients) New(session *session.Session, tokenProvider *mskTokenProvider) error {
+	const timeout = 10 * time.Second
+	creds, err := session.Config.Credentials.Get()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials from session: %w", err)
+	}
+
+	// fill in token provider common fields across x509 and static auth
+	if tokenProvider == nil {
+		tokenProvider = &mskTokenProvider{}
+	}
+	tokenProvider.generateTokenTimeout = timeout
+	tokenProvider.region = *session.Config.Region
+	tokenProvider.accessKey = creds.AccessKeyID
+	tokenProvider.secretKey = creds.SecretAccessKey
+	tokenProvider.sessionToken = creds.SessionToken
+
+	c.config.Net.SASL.Enable = true
+	c.config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	c.config.Net.SASL.TokenProvider = tokenProvider
+
+	_, err = c.config.Net.SASL.TokenProvider.Token()
+	if err != nil {
+		return fmt.Errorf("error validating iam credentials %v", err)
+	}
+
+	consumerGroup, err := sarama.NewConsumerGroup(*c.brokers, *c.consumerGroup, c.config)
+	if err != nil {
+		return err
+	}
+	c.ConsumerGroup = consumerGroup
+
+	producer, err := c.getSyncProducer()
+	if err != nil {
+		return err
+	}
+	c.Producer = producer
+
+	return nil
+}
+
 // Kafka specific
 type mskTokenProvider struct {
 	generateTokenTimeout time.Duration
@@ -247,4 +325,17 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 		token, _, err := signer.GenerateAuthToken(ctx, m.region)
 		return &sarama.AccessToken{Token: token}, err
 	}
+}
+
+func (c *KafkaClients) getSyncProducer() (sarama.SyncProducer, error) {
+	// Add SyncProducer specific properties to copy of base config
+	c.config.Producer.RequiredAcks = sarama.WaitForAll
+	c.config.Producer.Retry.Max = 5
+	c.config.Producer.Return.Successes = true
+
+	if *c.maxMessageBytes > 0 {
+		c.config.Producer.MaxMessageBytes = *c.maxMessageBytes
+	}
+
+	return sarama.NewSyncProducer(*c.brokers, c.config)
 }

@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -66,10 +65,6 @@ type x509 struct {
 	trustProfileArn *string
 	trustAnchorArn  *string
 	assumeRoleArn   *string
-
-	accessKey    *string
-	secretKey    *string
-	sessionToken *string
 }
 
 func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) {
@@ -123,9 +118,17 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 }
 
 func (a *x509) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	close(a.closeCh)
 	a.wg.Wait()
-	return nil
+
+	errs := make([]error, 2)
+	if a.clients.kafka != nil {
+		errs[0] = a.clients.kafka.Producer.Close()
+		errs[1] = a.clients.kafka.ConsumerGroup.Close()
+	}
+	return errors.Join(errs...)
 }
 
 func (a *x509) getCertPEM(ctx context.Context) error {
@@ -279,25 +282,24 @@ func (a *x509) Ses() *SesClients {
 	return a.clients.ses
 }
 
-func (a *x509) UpdateKafka(config *sarama.Config) error {
+func (a *x509) Kafka(opts KafkaOptions) (*KafkaClients, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	config.Net.SASL.Enable = true
-	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-	config.Net.SASL.TokenProvider = &mskTokenProvider{
-		generateTokenTimeout: 10 * time.Second,
-		region:               *a.region,
-		accessKey:            *a.accessKey,
-		secretKey:            *a.secretKey,
-		sessionToken:         *a.sessionToken,
+	// This means we've already set the config in our New function
+	// to use the SASL token provider.
+	if a.clients.kafka != nil {
+		return a.clients.kafka, nil
 	}
 
-	_, err := config.Net.SASL.TokenProvider.Token()
+	a.clients.kafka = initKafkaClients(opts)
+	// Note: we pass in nil for token provider,
+	// as there are no special fields for x509 auth for it.
+	err := a.clients.kafka.New(a.session, nil)
 	if err != nil {
-		return fmt.Errorf("error validating iam credentials %v", err)
+		return nil, fmt.Errorf("failed to create AWS IAM Kafka config: %w", err)
 	}
-	return nil
+	return a.clients.kafka, nil
 }
 
 func (a *x509) initializeTrustAnchors() error {
@@ -427,9 +429,6 @@ func (a *x509) createOrRefreshSession(ctx context.Context) (*session.Session, er
 	if sess == nil {
 		return nil, errors.New("session is nil")
 	}
-	a.accessKey = accessKey
-	a.secretKey = secretKey
-	a.sessionToken = sessionToken
 
 	return sess, nil
 }
@@ -464,7 +463,10 @@ func (a *x509) refreshClient() {
 	for {
 		newSession, err := a.createOrRefreshSession(context.Background())
 		if err == nil {
-			a.clients.refresh(newSession)
+			err := a.clients.refresh(newSession)
+			if err != nil {
+				a.logger.Errorf("Failed to refresh client, retrying in 5 seconds: %w", err)
+			}
 			a.logger.Debugf("AWS IAM Roles Anywhere session credentials refreshed successfully")
 			return
 		}

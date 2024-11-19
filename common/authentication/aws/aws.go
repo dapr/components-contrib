@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
@@ -108,7 +107,7 @@ type Provider interface {
 	Kinesis() *KinesisClients
 	Ses() *SesClients
 
-	UpdateKafka(*sarama.Config) error
+	Kafka(KafkaOptions) (*KafkaClients, error)
 
 	Close() error
 }

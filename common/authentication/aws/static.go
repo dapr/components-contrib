@@ -15,11 +15,10 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
-	"time"
 
-	"github.com/IBM/sarama"
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
@@ -214,58 +213,34 @@ func (a *StaticAuth) Ses() *SesClients {
 	return a.clients.ses
 }
 
-func (a *StaticAuth) UpdateKafka(config *sarama.Config) error {
+func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	var accessKey, secretKey, sessionToken string
-	creds, err := a.session.Config.Credentials.Get()
-	if err != nil {
-		return fmt.Errorf("failed to get credentials from session: %w", err)
-	}
-	if a.accessKey == nil {
-		accessKey = creds.AccessKeyID
-	} else {
-		accessKey = *a.accessKey
+	// This means we've already set the config in our New function
+	// to use the SASL token provider.
+	if a.clients.kafka != nil {
+		return a.clients.kafka, nil
 	}
 
-	if a.secretKey == nil {
-		secretKey = creds.SecretAccessKey
-	} else {
-		secretKey = *a.secretKey
-	}
-
-	if a.sessionToken == nil {
-		secretKey = creds.SessionToken
-	} else {
-		sessionToken = *a.sessionToken
-	}
-
-	config.Net.SASL.Enable = true
-	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-	tokenProvider := mskTokenProvider{
-		generateTokenTimeout: 10 * time.Second,
-		region:               *a.region,
-		accessKey:            accessKey,
-		secretKey:            secretKey,
-		sessionToken:         sessionToken,
-	}
-
+	a.clients.kafka = initKafkaClients(opts)
+	// static auth has additional fields we need added,
+	// so we add those static auth specific fields here,
+	// and the rest of the token provider fields are added in New()
+	tokenProvider := mskTokenProvider{}
 	if a.assumeRoleARN != nil {
 		tokenProvider.awsIamRoleArn = *a.assumeRoleARN
 	}
-
 	if a.sessionName != nil {
 		tokenProvider.awsStsSessionName = *a.sessionName
 	}
 
-	config.Net.SASL.TokenProvider = &tokenProvider
-
-	_, err = config.Net.SASL.TokenProvider.Token()
+	err := a.clients.kafka.New(a.session, &tokenProvider)
 	if err != nil {
-		return fmt.Errorf("error validating iam credentials %v", err)
+		return nil, fmt.Errorf("failed to create AWS IAM Kafka config: %w", err)
 	}
-	return nil
+
+	return a.clients.kafka, nil
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
@@ -307,7 +282,15 @@ func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 }
 
 func (a *StaticAuth) Close() error {
-	return nil
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	errs := make([]error, 2)
+	if a.clients.kafka != nil {
+		errs[0] = a.clients.kafka.Producer.Close()
+		errs[1] = a.clients.kafka.ConsumerGroup.Close()
+	}
+	return errors.Join(errs...)
 }
 
 func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {

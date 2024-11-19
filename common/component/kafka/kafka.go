@@ -37,7 +37,12 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer        sarama.SyncProducer
+	// These are used to inject mocked clients for tests
+	mockConsumerGroup sarama.ConsumerGroup
+	mockProducer      sarama.SyncProducer
+	clients           *clients
+
+	maxMessageBytes int
 	consumerGroup   string
 	brokers         []string
 	logger          logger.Logger
@@ -49,7 +54,6 @@ type Kafka struct {
 	escapeHeaders   bool
 	awsAuthProvider awsAuth.Provider
 
-	cg              sarama.ConsumerGroup
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 	consumerCancel  context.CancelFunc
@@ -119,6 +123,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 		closeCh:         make(chan struct{}),
 	}
 }
+
 
 // Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
@@ -205,16 +210,11 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 			return err
 		}
 		k.awsAuthProvider = provider
-		k.awsAuthProvider.UpdateKafka(config)
 	}
 
 	k.config = config
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
-
-	k.producer, err = getSyncProducer(*k.config, k.brokers, meta.MaxMessageBytes)
-	if err != nil {
-		return err
-	}
+	k.maxMessageBytes = meta.MaxMessageBytes
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
@@ -240,11 +240,6 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		}
 	}
 	k.logger.Debug("Kafka message bus initialization complete")
-
-	k.cg, err = sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -279,12 +274,6 @@ func (k *Kafka) Close() error {
 	errs := make([]error, 3)
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
-
-		if k.producer != nil {
-			errs[0] = k.producer.Close()
-			k.producer = nil
-		}
-
 		if k.internalContext != nil {
 			k.internalContextCancel()
 		}
@@ -295,10 +284,10 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
-		if k.cg != nil {
-			errs[1] = k.cg.Close()
+		if k.clients != nil {
+			errs[0] = k.clients.producer.Close()
+			errs[1] = k.clients.consumerGroup.Close()
 		}
-
 		if k.awsAuthProvider != nil {
 			errs[2] = k.awsAuthProvider.Close()
 		}

@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 
 	"github.com/IBM/sarama"
@@ -23,7 +24,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
+func GetSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
 	// Add SyncProducer specific properties to copy of base config
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
@@ -43,9 +44,14 @@ func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
-	if k.producer == nil {
+	clients, err := k.latestClients()
+	if err != nil || clients == nil {
+		return fmt.Errorf("failed to get latest Kafka clients: %w", err)
+	}
+	if clients.producer == nil {
 		return errors.New("component is closed")
 	}
+
 	// k.logger.Debugf("Publishing topic %v with data: %v", topic, string(data))
 	k.logger.Debugf("Publishing on topic %v", topic)
 
@@ -73,7 +79,7 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		})
 	}
 
-	partition, offset, err := k.producer.SendMessage(msg)
+	partition, offset, err := clients.producer.SendMessage(msg)
 
 	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 
@@ -85,7 +91,12 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 }
 
 func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
-	if k.producer == nil {
+	clients, err := k.latestClients()
+	if err != nil || clients == nil {
+		err := fmt.Errorf("failed to get latest Kafka clients: %w", err)
+		return pubsub.NewBulkPublishResponse(entries, err), err
+	}
+	if clients.producer == nil {
 		err := errors.New("component is closed")
 		return pubsub.NewBulkPublishResponse(entries, err), err
 	}
@@ -134,7 +145,7 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		msgs = append(msgs, msg)
 	}
 
-	if err := k.producer.SendMessages(msgs); err != nil {
+	if err := clients.producer.SendMessages(msgs); err != nil {
 		// map the returned error to different entries
 		return k.mapKafkaProducerErrors(err, entries), err
 	}

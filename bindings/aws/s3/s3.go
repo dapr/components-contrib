@@ -153,7 +153,10 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 }
 
 func (s *AWSS3) Close() error {
-	return s.authProvider.Close()
+	if s.authProvider != nil {
+		return s.authProvider.Close()
+	}
+	return nil
 }
 
 func (s *AWSS3) Operations() []bindings.OperationKind {

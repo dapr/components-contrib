@@ -560,15 +560,15 @@ func (p *PostgreSQL) Close() error {
 		p.db = nil
 	}
 
+	errs := make([]error, 2)
 	if p.gc != nil {
-		return p.gc.Close()
+		errs[0] = p.gc.Close()
 	}
 
 	if p.awsAuthProvider != nil {
-		p.awsAuthProvider.Close()
+		errs[1] = p.awsAuthProvider.Close()
 	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 // GetCleanupInterval returns the cleanupInterval property.

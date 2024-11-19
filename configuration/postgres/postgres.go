@@ -461,9 +461,9 @@ func (p *ConfigurationStore) Close() error {
 		p.client.Close()
 	}
 
+	errs := make([]error, 1)
 	if p.awsAuthProvider != nil {
-		p.awsAuthProvider.Close()
+		errs[0] = p.awsAuthProvider.Close()
 	}
-
-	return nil
+	return errors.Join(errs...)
 }

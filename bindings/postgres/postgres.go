@@ -210,11 +210,11 @@ func (p *Postgres) Close() error {
 	}
 	p.db = nil
 
+	errs := make([]error, 1)
 	if p.awsAuthProvider != nil {
-		p.awsAuthProvider.Close()
+		errs[0] = p.awsAuthProvider.Close()
 	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result []byte, err error) {

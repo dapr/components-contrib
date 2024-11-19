@@ -290,7 +290,7 @@ func (k *Kafka) Close() error {
 	defer k.wg.Wait()
 	defer k.consumerWG.Wait()
 
-	errs := make([]error, 2)
+	errs := make([]error, 3)
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 

@@ -218,9 +218,7 @@ func (a *StaticAuth) UpdateKafka(config *sarama.Config) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	var (
-		accessKey, secretKey, sessionToken string
-	)
+	var accessKey, secretKey, sessionToken string
 	creds, err := a.session.Config.Credentials.Get()
 	if err != nil {
 		return fmt.Errorf("failed to get credentials from session: %w", err)

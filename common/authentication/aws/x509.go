@@ -66,7 +66,6 @@ type x509 struct {
 	trustProfileArn *string
 	trustAnchorArn  *string
 	assumeRoleArn   *string
-	sessionName     *string
 
 	accessKey    *string
 	secretKey    *string

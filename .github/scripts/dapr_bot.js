@@ -21,6 +21,7 @@ const owners = [
     'RyanLettieri',
     'shivamkm07',
     'shubham1172',
+    'sicoyle',
     'skyao',
     'Taction',
     'tmacam',

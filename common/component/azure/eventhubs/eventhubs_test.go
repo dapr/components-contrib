@@ -72,6 +72,18 @@ func TestParseEventHubsMetadata(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "one of connectionString or eventHubNamespace is required")
 	})
+
+	t.Run("test in order delivery", func(t *testing.T) {
+		metadata := map[string]string{
+			"enableInOrderMessageDelivery": "true",
+			"connectionString":             "fake",
+		}
+
+		m, err := parseEventHubsMetadata(metadata, false, testLogger)
+
+		require.NoError(t, err)
+		require.True(t, m.EnableInOrderMessageDelivery)
+	})
 }
 
 func TestConstructConnectionStringFromTopic(t *testing.T) {

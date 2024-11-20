@@ -173,7 +173,10 @@ func (a *AWSSQS) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
-	return a.authProvider.Close()
+	if a.authProvider != nil {
+		return a.authProvider.Close()
+	}
+	return nil
 }
 
 func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) {

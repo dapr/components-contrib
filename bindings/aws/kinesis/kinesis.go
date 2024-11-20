@@ -266,7 +266,10 @@ func (a *AWSKinesis) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
-	return a.authProvider.Close()
+	if a.authProvider != nil {
+		return a.authProvider.Close()
+	}
+	return nil
 }
 
 func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*string, error) {

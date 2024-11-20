@@ -176,5 +176,8 @@ func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMa
 }
 
 func (a *AWSSES) Close() error {
-	return a.authProvider.Close()
+	if a.authProvider != nil {
+		return a.authProvider.Close()
+	}
+	return nil
 }

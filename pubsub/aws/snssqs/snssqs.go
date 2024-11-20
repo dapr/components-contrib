@@ -875,7 +875,10 @@ func (s *snsSqs) Close() error {
 		s.subscriptionManager.Close()
 	}
 
-	return s.authProvider.Close()
+	if s.authProvider != nil {
+		return s.authProvider.Close()
+	}
+	return nil
 }
 
 func (s *snsSqs) Features() []pubsub.Feature {

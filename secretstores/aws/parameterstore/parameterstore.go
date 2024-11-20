@@ -182,5 +182,8 @@ func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataM
 }
 
 func (s *ssmSecretStore) Close() error {
-	return s.authProvider.Close()
+	if s.authProvider != nil {
+		return s.authProvider.Close()
+	}
+	return nil
 }

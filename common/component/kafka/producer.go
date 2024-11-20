@@ -93,7 +93,7 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
 	clients, err := k.latestClients()
 	if err != nil || clients == nil {
-		err := fmt.Errorf("failed to get latest Kafka clients: %w", err)
+		err = fmt.Errorf("failed to get latest Kafka clients: %w", err)
 		return pubsub.NewBulkPublishResponse(entries, err), err
 	}
 	if clients.producer == nil {

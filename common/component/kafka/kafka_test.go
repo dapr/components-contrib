@@ -421,7 +421,7 @@ func TestValidateAWS(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, result, tt.expected)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

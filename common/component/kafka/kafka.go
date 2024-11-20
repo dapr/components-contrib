@@ -124,7 +124,6 @@ func NewKafka(logger logger.Logger) *Kafka {
 	}
 }
 
-
 // Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	upgradedMetadata, err := k.upgradeMetadata(metadata)

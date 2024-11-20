@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
+
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 )
 

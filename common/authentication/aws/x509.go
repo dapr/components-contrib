@@ -463,7 +463,7 @@ func (a *x509) refreshClient() {
 	for {
 		newSession, err := a.createOrRefreshSession(context.Background())
 		if err == nil {
-			err := a.clients.refresh(newSession)
+			err = a.clients.refresh(newSession)
 			if err != nil {
 				a.logger.Errorf("Failed to refresh client, retrying in 5 seconds: %w", err)
 			}

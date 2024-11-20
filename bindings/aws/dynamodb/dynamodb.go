@@ -122,5 +122,8 @@ func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (d *DynamoDB) Close() error {
-	return d.authProvider.Close()
+	if d.authProvider != nil {
+		return d.authProvider.Close()
+	}
+	return nil
 }

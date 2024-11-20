@@ -129,5 +129,8 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (a *AWSSNS) Close() error {
-	return a.authProvider.Close()
+	if a.authProvider != nil {
+		return a.authProvider.Close()
+	}
+	return nil
 }

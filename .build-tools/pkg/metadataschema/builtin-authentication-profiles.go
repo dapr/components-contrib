@@ -32,30 +32,46 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 	for i, profile := range profiles {
 		res[i] = profile
 
-		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
-
-		switch profile.Title {
-		case "AWS: Access Key ID and Secret Access Key":
-			// If component is PostgreSQL, handle deprecation of aws profile fields that we will remove in Dapr 1.17
-			// Postgres has awsAccessKey and accessKey and awsSecretKey and secretKey.
-			// Therefore, we mark the non aws prefixed ones as not required as we deprecate the aws prefixed ones.
-			if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
-				res[i].Metadata = removeRequiredOnSomeAWSFields(res[i].Metadata)
-			}
-			// If component is Kafka, handle deprecation of aws profile fields with aws prefix that we will remove in Dapr 1.17
-			if strings.ToLower(componentTitle) == "Apache Kafka" {
-				res[i].Metadata = removeRequiredOnSomeAWSFields(res[i].Metadata)
-			}
-
-		case "AWS: Credentials from Environment Variables", "AWS: IAM Roles Anywhere":
-			// These two auth profiles do not use the fields that we are deprecated, so we can manually remove the unrelated fields
-			res[i].Metadata = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(res[i].Metadata)
-		case "AWS: Assume specific IAM Role":
-			// This is needed bc to assume a specific IAM role, we must allow for the field of awsStsSessionName to deprecate to sessionName
-			res[i].Metadata = removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(res[i].Metadata)
+		// convert slice to a slice of pointers to update in place for required -> non-required fields
+		metadataPtr := make([]*Metadata, len(profile.Metadata))
+		for j := range profile.Metadata {
+			metadataPtr[j] = &profile.Metadata[j]
 		}
 
+		if componentTitle == "Apache Kafka" {
+			removeRequiredOnSomeAWSFields(&metadataPtr)
+		}
+
+		// convert back to value slices for merging
+		updatedMetadata := make([]Metadata, 0, len(metadataPtr))
+		for _, ptr := range metadataPtr {
+			if ptr != nil {
+				updatedMetadata = append(updatedMetadata, *ptr)
+			}
+		}
+
+		merged := mergedMetadata(bi.Metadata, updatedMetadata...)
+
+		// Note: We must apply the removal of deprecated fields after the merge!!
+
+		// Here, we remove some deprecated fields as we support the transition to a new auth profile
+		if profile.Title == "AWS: Assume specific IAM Role" && componentTitle == "Apache Kafka" {
+			merged = removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		// Here, there are no metadata fields that need deprecating
+		if profile.Title == "AWS: Credentials from Environment Variables" && componentTitle == "Apache Kafka" {
+			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		// Here, this is a new auth profile, so rm all deprecating fields as unrelated.
+		if profile.Title == "AWS: IAM Roles Anywhere" && componentTitle == "Apache Kafka" {
+			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		res[i].Metadata = merged
 	}
+
 	return res, nil
 }
 
@@ -72,42 +88,34 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 
 // removeRequiredOnSomeAWSFields needs to be removed in Dapr 1.17 as duplicated AWS IAM fields get removed,
 // and we standardize on these fields.
-// Currently, there are: awsAccessKey, accessKey and awsSecretKey, secretKey fields.
-// We normally have accessKey and secretKey fields marked required as it is part of the builtin AWS auth profile fields.
+// Currently, there are: awsAccessKey, accessKey and awsSecretKey, secretKey, and awsRegion and region fields.
+// We normally have accessKey, secretKey, and region fields marked required as it is part of the builtin AWS auth profile fields.
 // However, as we rm the aws prefixed ones, we need to then mark the normally required ones as not required only for postgres and kafka.
 // This way we do not break existing users, and transition them to the standardized fields.
-func removeRequiredOnSomeAWSFields(metadata []Metadata) []Metadata {
-	duplicateFields := map[string]int{
-		"accessKey": 0,
-		"secretKey": 0,
+func removeRequiredOnSomeAWSFields(metadata *[]*Metadata) {
+	if metadata == nil {
+		return
 	}
 
-	filteredMetadata := []Metadata{}
+	for _, field := range *metadata {
+		if field == nil {
+			continue
+		}
 
-	for _, field := range metadata {
-		if field.Name == "accessKey" && duplicateFields["accessKey"] == 0 {
+		if field.Name == "accessKey" || field.Name == "secretKey" || field.Name == "region" {
 			field.Required = false
-			filteredMetadata = append(filteredMetadata, field)
-		} else if field.Name == "secretKey" && duplicateFields["secretKey"] == 0 {
-			field.Required = false
-			filteredMetadata = append(filteredMetadata, field)
 		}
 	}
-
-	return filteredMetadata
 }
 
 func removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Metadata {
 	filteredMetadata := []Metadata{}
-
 	for _, field := range metadata {
-		switch field.Name {
-		case "awsAccessKey", "awsSecretKey", "awsSessionToken", "awsIamRoleArn", "awsStsSessionName":
+		if strings.HasPrefix(field.Name, "aws") {
 			continue
-		default:
+		} else {
 			filteredMetadata = append(filteredMetadata, field)
 		}
-
 	}
 
 	return filteredMetadata
@@ -117,13 +125,11 @@ func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Me
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
-		switch field.Name {
-		case "awsAccessKey", "awsSecretKey", "awsSessionToken":
+		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" {
 			continue
-		default:
+		} else {
 			filteredMetadata = append(filteredMetadata, field)
 		}
-
 	}
 
 	return filteredMetadata

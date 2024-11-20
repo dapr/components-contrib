@@ -14,6 +14,7 @@ limitations under the License.
 package postgres
 
 import (
+	"errors"
 	"time"
 
 	"github.com/dapr/components-contrib/common/authentication/aws"
@@ -51,6 +52,10 @@ func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	err = m.PostgresAuthMetadata.InitWithMetadata(meta, opts)
 	if err != nil {
 		return err
+	}
+
+	if m.Timeout < 1*time.Second {
+		return errors.New("invalid value for 'timeout': must be greater than 1s")
 	}
 
 	return nil

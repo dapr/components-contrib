@@ -85,5 +85,4 @@ func TestMetadata(t *testing.T) {
 		err := m.InitWithMetadata(props)
 		require.Error(t, err)
 	})
-
 }

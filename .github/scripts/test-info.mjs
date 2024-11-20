@@ -492,6 +492,17 @@ const components = {
         conformance: true,
         certification: true,
     },
+    'secretstores.aws.secretsmanager.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
+        conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
+    },
+    'secretstores.aws.secretsmanager.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh secrets-manager',
+    },
     'state.aws.dynamodb': {
         certification: true,
         requireAWSCredentials: true,

@@ -20,14 +20,10 @@ import (
 	"strconv"
 	"time"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -36,70 +32,6 @@ import (
 
 type EnvironmentSettings struct {
 	Metadata map[string]string
-}
-
-func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {
-	optFns := []func(*config.LoadOptions) error{}
-	if region != "" {
-		optFns = append(optFns, config.WithRegion(region))
-	}
-
-	if accessKey != "" && secretKey != "" {
-		provider := v2creds.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
-		optFns = append(optFns, config.WithCredentialsProvider(provider))
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
-	if err != nil {
-		return awsv2.Config{}, err
-	}
-
-	if endpoint != "" {
-		awsCfg.BaseEndpoint = &endpoint
-	}
-
-	return awsCfg, nil
-}
-
-func GetClient(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (*session.Session, error) {
-	awsConfig := aws.NewConfig()
-
-	if region != "" {
-		awsConfig = awsConfig.WithRegion(region)
-	}
-
-	if accessKey != "" && secretKey != "" {
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(accessKey, secretKey, sessionToken))
-	}
-
-	if endpoint != "" {
-		awsConfig = awsConfig.WithEndpoint(endpoint)
-	}
-
-	awsSession, err := session.NewSessionWithOptions(session.Options{
-		Config:            *awsConfig,
-		SharedConfigState: session.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	userAgentHandler := request.NamedHandler{
-		Name: "UserAgentHandler",
-		Fn:   request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion),
-	}
-	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
-
-	return awsSession, nil
-}
-
-// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.
-func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
-	es := EnvironmentSettings{
-		Metadata: md,
-	}
-
-	return es, nil
 }
 
 type AWSIAM struct {
@@ -120,7 +52,72 @@ type AWSIAMAuthOptions struct {
 	SecretKey        string          `json:"secretKey" mapstructure:"secretKey"`
 }
 
-func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, error) {
+type Options struct {
+	Logger     logger.Logger
+	Properties map[string]string
+
+	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
+	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
+
+	Region    string `json:"region" mapstructure:"region"`
+	AccessKey string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey string `json:"secretKey" mapstructure:"secretKey"`
+
+	Endpoint     string
+	SessionToken string
+}
+
+func GetConfig(opts Options) *aws.Config {
+	cfg := aws.NewConfig()
+
+	switch {
+	case opts.Region != "":
+		cfg.WithRegion(opts.Region)
+	case opts.Endpoint != "":
+		cfg.WithEndpoint(opts.Endpoint)
+	}
+
+	return cfg
+}
+
+type Provider interface {
+	S3() *S3Clients
+	DynamoDB() *DynamoDBClients
+	Sqs() *SqsClients
+	Sns() *SnsClients
+	SnsSqs() *SnsSqsClients
+	SecretManager() *SecretManagerClients
+	ParameterStore() *ParameterStoreClients
+	Kinesis() *KinesisClients
+	Ses() *SesClients
+
+	Close() error
+}
+
+func isX509Auth(m map[string]string) bool {
+	tp, _ := m["trustProfileArn"]
+	ta, _ := m["trustAnchorArn"]
+	ar, _ := m["assumeRoleArn"]
+	return tp != "" && ta != "" && ar != ""
+}
+
+func NewProvider(ctx context.Context, opts Options, cfg *aws.Config) (Provider, error) {
+	if isX509Auth(opts.Properties) {
+		return newX509(ctx, opts, cfg)
+	}
+	return newStaticIAM(ctx, opts, cfg)
+}
+
+// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given AWS resource.
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
+	es := EnvironmentSettings{
+		Metadata: md,
+	}
+
+	return es, nil
+}
+
+func (opts *Options) GetAccessToken(ctx context.Context) (string, error) {
 	dbEndpoint := opts.PoolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(opts.PoolConfig.ConnConfig.Port))
 	var authenticationToken string
 
@@ -160,7 +157,7 @@ func (opts *AWSIAMAuthOptions) GetAccessToken(ctx context.Context) (string, erro
 	return authenticationToken, nil
 }
 
-func (opts *AWSIAMAuthOptions) InitiateAWSIAMAuth() error {
+func (opts *Options) InitiateAWSIAMAuth() error {
 	// Set max connection lifetime to 8 minutes in postgres connection pool configuration.
 	// Note: this will refresh connections before the 15 min expiration on the IAM AWS auth token,
 	// while leveraging the BeforeConnect hook to recreate the token in time dynamically.

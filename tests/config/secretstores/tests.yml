@@ -5,6 +5,10 @@ components:
     operations: []
   - component: local.file
     operations: []
+  - component: aws.secretsmanager.docker
+    operations: []
+  - component: aws.secretsmanager.terraform
+    operations: []
   - component: azure.keyvault.certificate
     operations: []
   - component: azure.keyvault.serviceprincipal

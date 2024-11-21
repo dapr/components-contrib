@@ -99,16 +99,16 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) (err error) 
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer connCancel()
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
-	connCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to connect to the database: %w", err)
 		return err
 	}
 
 	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer pingCancel()
 	err = p.db.Ping(pingCtx)
-	pingCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to ping the database: %w", err)
 		return err

@@ -275,7 +275,10 @@ func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 }
 
 func (d *StateStore) Close() error {
-	return d.authProvider.Close()
+	if d.authProvider != nil {
+		return d.authProvider.Close()
+	}
+	return nil
 }
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {

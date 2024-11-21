@@ -15,6 +15,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -61,6 +62,10 @@ func TestPostgresIntegration(t *testing.T) {
 	if url == "" {
 		t.SkipNow()
 	}
+
+	t.Run("Test init configurations", func(t *testing.T) {
+		testInitConfiguration(t, url)
+	})
 
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test")).(*Postgres)
@@ -129,6 +134,46 @@ func TestPostgresIntegration(t *testing.T) {
 		err := b.Close()
 		require.NoError(t, err, "expected no error closing output binding")
 	})
+}
+
+// testInitConfiguration tests valid and invalid config settings.
+func testInitConfiguration(t *testing.T, connectionString string) {
+	logger := logger.NewLogger("test")
+	tests := []struct {
+		name        string
+		props       map[string]string
+		expectedErr error
+	}{
+		{
+			name:        "Empty",
+			props:       map[string]string{},
+			expectedErr: errors.New("missing connection string"),
+		},
+		{
+			name:        "Valid connection string",
+			props:       map[string]string{"connectionString": connectionString},
+			expectedErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPostgres(logger).(*Postgres)
+			defer p.Close()
+
+			metadata := bindings.Metadata{
+				Base: metadata.Base{Properties: tt.props},
+			}
+
+			err := p.Init(context.Background(), metadata)
+			if tt.expectedErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr, err)
+			}
+		})
+	}
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {

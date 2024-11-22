@@ -20,25 +20,25 @@ import (
 )
 
 type pulsarMetadata struct {
-	Host                    string                    `mapstructure:"host"`
-	ConsumerID              string                    `mapstructure:"consumerID"`
-	EnableTLS               bool                      `mapstructure:"enableTLS"`
-	DisableBatching         bool                      `mapstructure:"disableBatching"`
-	BatchingMaxPublishDelay time.Duration             `mapstructure:"batchingMaxPublishDelay"`
-	BatchingMaxSize         uint                      `mapstructure:"batchingMaxSize"`
-	BatchingMaxMessages     uint                      `mapstructure:"batchingMaxMessages"`
-	Tenant                  string                    `mapstructure:"tenant"`
-	Namespace               string                    `mapstructure:"namespace"`
-	Persistent              bool                      `mapstructure:"persistent"`
-	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
-	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
-	PublicKey               string                    `mapstructure:"publicKey"`
-	PrivateKey              string                    `mapstructure:"privateKey"`
-	Keys                    string                    `mapstructure:"keys"`
-	MaxConcurrentHandlers   uint                      `mapstructure:"maxConcurrentHandlers"`
-	ReceiverQueueSize       int                       `mapstructure:"receiverQueueSize"`
-
-	Token                            string `mapstructure:"token"`
+	Host                             string                    `mapstructure:"host"`
+	ConsumerID                       string                    `mapstructure:"consumerID"`
+	EnableTLS                        bool                      `mapstructure:"enableTLS"`
+	DisableBatching                  bool                      `mapstructure:"disableBatching"`
+	BatchingMaxPublishDelay          time.Duration             `mapstructure:"batchingMaxPublishDelay"`
+	BatchingMaxSize                  uint                      `mapstructure:"batchingMaxSize"`
+	BatchingMaxMessages              uint                      `mapstructure:"batchingMaxMessages"`
+	Tenant                           string                    `mapstructure:"tenant"`
+	Namespace                        string                    `mapstructure:"namespace"`
+	Persistent                       bool                      `mapstructure:"persistent"`
+	RedeliveryDelay                  time.Duration             `mapstructure:"redeliveryDelay"`
+	internalTopicSchemas             map[string]schemaMetadata `mapstructure:"-"`
+	PublicKey                        string                    `mapstructure:"publicKey"`
+	PrivateKey                       string                    `mapstructure:"privateKey"`
+	Keys                             string                    `mapstructure:"keys"`
+	MaxConcurrentHandlers            uint                      `mapstructure:"maxConcurrentHandlers"`
+	ReceiverQueueSize                int                       `mapstructure:"receiverQueueSize"`
+	SubscriptionType                 string                    `mapstructure:"subscribeType"`
+	Token                            string                    `mapstructure:"token"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }
 

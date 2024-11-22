@@ -184,3 +184,12 @@ metadata:
       Controls how many messages can be accumulated by the consumer before it is explicitly called to read messages by Dapr.
     default: '"1000"'
     example: '"1000"'
+  - name: subscribeType
+    type: string
+    description: |
+      Pulsar supports four subscription types:"shared", "exclusive", "failover", "key_shared".
+    default: '"shared"'
+    example: '"exclusive"'
+    url:
+      title: "Pulsar Subscription Types"
+      url: "https://pulsar.apache.org/docs/3.0.x/concepts-messaging/#subscription-types"

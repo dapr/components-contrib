@@ -91,6 +91,8 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 						consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 					}); err != nil {
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+						// Once reached here, exit the loop to avoid processing more messages and potentially skipping the poison pill message.
+						return nil
 					}
 				} else {
 					err := consumer.doCallback(session, message)

@@ -208,13 +208,13 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
 
 	if meta.SchemaRegistryURL != "" {
-		k.logger.Debugf("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
+		k.logger.Infof("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {
 			k.srClient.SetCredentials(meta.SchemaRegistryAPIKey, meta.SchemaRegistryAPISecret)
 		}
-		k.logger.Debugf("Schema caching enabled: %v", meta.SchemaCachingEnabled)
+		k.logger.Infof("Schema caching enabled: %v", meta.SchemaCachingEnabled)
 		k.srClient.CachingEnabled(meta.SchemaCachingEnabled)
 		if meta.SchemaCachingEnabled {
 			k.latestSchemaCache = make(map[string]SchemaCacheEntry)
@@ -330,7 +330,6 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 
 		// Cache present and not expired
 		if ok && cacheEntry.expirationTime.After(time.Now()) {
-			k.logger.Debugf("Schema cache hit for subject %s", subject)
 			return cacheEntry.schema, cacheEntry.codec, nil
 		}
 		k.logger.Debugf("Cache not found or expired for subject %s. Fetching from registry...", subject)

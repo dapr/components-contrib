@@ -52,6 +52,8 @@ func notifyRecover(consumer *consumer, message *sarama.ConsumerMessage, session 
 			}
 			return err
 		}
+		return nil
+
 	}
 }
 

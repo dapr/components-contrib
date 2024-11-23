@@ -14,6 +14,7 @@ limitations under the License.
 package kafka
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -30,6 +31,28 @@ import (
 type consumer struct {
 	k     *Kafka
 	mutex sync.Mutex
+}
+
+func notifyRecover(consumer *consumer, message *sarama.ConsumerMessage, session sarama.ConsumerGroupSession, b backoff.BackOff) error {
+	for {
+		if err := retry.NotifyRecover(func() error {
+			return consumer.doCallback(session, message)
+		}, b, func(err error, d time.Duration) {
+			consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+		}, func() {
+			consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}); err != nil {
+			// If the retry policy got interrupted, it could mean that either
+			// the policy has reached its maximum number of attempts or the context has been cancelled.
+			// There is a weird edge case where the error returned is a 'context canceled' error but the session.Context is not done.
+			// This is a workaround to handle that edge case and reprocess the current message.
+			if err == context.Canceled && session.Context().Err() == nil {
+				consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. The error returned is 'context canceled' but the session context is not done. Retrying...")
+				continue
+			}
+			return err
+		}
+	}
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
@@ -83,16 +106,8 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				}
 
 				if consumer.k.consumeRetryEnabled {
-					if err := retry.NotifyRecover(func() error {
-						return consumer.doCallback(session, message)
-					}, b, func(err error, d time.Duration) {
-						consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-					}, func() {
-						consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-					}); err != nil {
+					if err := notifyRecover(consumer, message, session, b); err != nil {
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-						// Once reached here, exit the loop to avoid processing more messages and potentially skipping the poison pill message.
-						return nil
 					}
 				} else {
 					err := consumer.doCallback(session, message)

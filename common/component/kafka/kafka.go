@@ -238,6 +238,18 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 			k.latestSchemaCacheTTL = meta.SchemaLatestVersionCacheTTL
 		}
 	}
+
+	clients, err := k.latestClients()
+	if err != nil || clients == nil {
+		return fmt.Errorf("failed to get latest Kafka clients for initialization: %w", err)
+	}
+	if clients.producer == nil {
+		return errors.New("component is closed")
+	}
+	if clients.consumerGroup == nil {
+		return errors.New("component is closed")
+	}
+
 	k.logger.Debug("Kafka message bus initialization complete")
 
 	return nil
@@ -284,8 +296,15 @@ func (k *Kafka) Close() error {
 		k.subscribeLock.Unlock()
 
 		if k.clients != nil {
-			errs[0] = k.clients.producer.Close()
-			errs[1] = k.clients.consumerGroup.Close()
+			if k.clients.producer != nil {
+				errs[0] = k.clients.producer.Close()
+				k.clients.producer = nil
+			}
+			if k.clients.consumerGroup != nil {
+				errs[1] = k.clients.consumerGroup.Close()
+				k.clients.consumerGroup = nil
+			}
+
 		}
 		if k.awsAuthProvider != nil {
 			errs[2] = k.awsAuthProvider.Close()

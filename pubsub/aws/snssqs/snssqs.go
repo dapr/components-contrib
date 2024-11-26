@@ -595,6 +595,13 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		WaitTimeSeconds:     aws.Int64(s.metadata.MessageWaitTimeSeconds),
 	}
 
+	// sem is a semaphore used to control the concurrencyLimit.
+	// It is set only when we are in parallel mode and limit is > 0.
+	var sem chan (struct{}) = nil
+	if (s.metadata.ConcurrencyMode == pubsub.Parallel) && s.metadata.ConcurrencyLimit > 0 {
+		sem = make(chan struct{}, s.metadata.ConcurrencyLimit)
+	}
+
 	for {
 		// If the context is canceled, stop requesting messages
 		if ctx.Err() != nil {
@@ -629,7 +636,6 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		}
 		s.logger.Debugf("%v message(s) received on queue %s", len(messageResponse.Messages), queueInfo.arn)
 
-		var wg sync.WaitGroup
 		for _, message := range messageResponse.Messages {
 			if err := s.validateMessage(ctx, message, queueInfo, deadLettersQueueInfo); err != nil {
 				s.logger.Errorf("message is not valid for further processing by the handler. error is: %v", err)
@@ -637,25 +643,30 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			}
 
 			f := func(message *sqs.Message) {
-				defer wg.Done()
 				if err := s.callHandler(ctx, message, queueInfo); err != nil {
 					s.logger.Errorf("error while handling received message. error is: %v", err)
 				}
 			}
 
-			wg.Add(1)
 			switch s.metadata.ConcurrencyMode {
 			case pubsub.Single:
 				f(message)
 			case pubsub.Parallel:
-				wg.Add(1)
+				// This is the back pressure mechanism.
+				// It will block until another goroutine frees a slot.
+				if sem != nil {
+					sem <- struct{}{}
+				}
+
 				go func(message *sqs.Message) {
-					defer wg.Done()
+					if sem != nil {
+						defer func() { <-sem }()
+					}
+
 					f(message)
 				}(message)
 			}
 		}
-		wg.Wait()
 	}
 }
 

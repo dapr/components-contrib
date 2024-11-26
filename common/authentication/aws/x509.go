@@ -103,6 +103,7 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 			return GetConfig(opts)
 		}(),
 		clients: newClients(),
+		closeCh: make(chan struct{}),
 	}
 
 	if err := auth.getCertPEM(ctx); err != nil {

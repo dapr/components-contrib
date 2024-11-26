@@ -39,6 +39,7 @@ type AzureEventHubsMetadata struct {
 	SubscriptionID               string `json:"subscriptionID" mapstructure:"subscriptionID"`
 	ResourceGroupName            string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 	EnableInOrderMessageDelivery bool   `json:"enableInOrderMessageDelivery,string" mapstructure:"enableInOrderMessageDelivery"`
+	GetAllMessageProperties      bool   `json:"getAllMessageProperties,string" mapstructure:"getAllMessageProperties"`
 
 	// Binding only
 	EventHub      string `json:"eventHub" mapstructure:"eventHub" mdonly:"bindings"`

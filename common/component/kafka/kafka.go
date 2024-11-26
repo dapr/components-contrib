@@ -316,12 +316,6 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 		return nil, nil, err
 	}
 
-	// measure the time taken to get the schema
-	start := time.Now()
-	defer func() {
-		k.logger.Debugf("Time taken to get latest schema for topic %s: %v", topic, time.Since(start))
-	}()
-
 	subject := getSchemaSubject(topic)
 	if k.schemaCachingEnabled {
 		k.latestSchemaCacheReadLock.Lock()

@@ -16,6 +16,7 @@ import (
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	mock_srclient "github.com/dapr/components-contrib/common/component/kafka/mocks"
+	"github.com/dapr/kit/logger"
 )
 
 func TestGetValueSchemaType(t *testing.T) {
@@ -65,6 +66,7 @@ func TestDeserializeValue(t *testing.T) {
 	k := Kafka{
 		srClient:             registry,
 		schemaCachingEnabled: true,
+		logger:               logger.NewLogger("kafka_test"),
 	}
 
 	schemaIDBytes := make([]byte, 4)
@@ -178,6 +180,7 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 	k := Kafka{
 		srClient:             registry,
 		schemaCachingEnabled: false,
+		logger:               logger.NewLogger("kafka_test"),
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
@@ -253,6 +256,7 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		schemaCachingEnabled: true,
 		latestSchemaCache:    make(map[string]SchemaCacheEntry),
 		latestSchemaCacheTTL: time.Minute * 5,
+		logger:               logger.NewLogger("kafka_test"),
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
@@ -283,6 +287,7 @@ func TestLatestSchemaCaching(t *testing.T) {
 			schemaCachingEnabled: true,
 			latestSchemaCache:    make(map[string]SchemaCacheEntry),
 			latestSchemaCacheTTL: time.Second * 10,
+			logger:               logger.NewLogger("kafka_test"),
 		}
 
 		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(1)
@@ -305,6 +310,7 @@ func TestLatestSchemaCaching(t *testing.T) {
 			schemaCachingEnabled: true,
 			latestSchemaCache:    make(map[string]SchemaCacheEntry),
 			latestSchemaCacheTTL: time.Second * 1,
+			logger:               logger.NewLogger("kafka_test"),
 		}
 
 		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(2)
@@ -329,6 +335,7 @@ func TestLatestSchemaCaching(t *testing.T) {
 			schemaCachingEnabled: false,
 			latestSchemaCache:    make(map[string]SchemaCacheEntry),
 			latestSchemaCacheTTL: 0,
+			logger:               logger.NewLogger("kafka_test"),
 		}
 
 		m.EXPECT().GetLatestSchema(gomock.Eq("my-topic-value")).Return(schema, nil).Times(2)

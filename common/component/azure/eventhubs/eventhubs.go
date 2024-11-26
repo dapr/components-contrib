@@ -165,7 +165,7 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
 		}
 
-		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, getAllProperties)
+		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, aeh.metadata.GetAllMessageProperties)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %w", err)
 		}

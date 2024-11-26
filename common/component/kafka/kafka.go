@@ -304,7 +304,6 @@ func (k *Kafka) Close() error {
 				errs[1] = k.clients.consumerGroup.Close()
 				k.clients.consumerGroup = nil
 			}
-
 		}
 		if k.awsAuthProvider != nil {
 			errs[2] = k.awsAuthProvider.Close()

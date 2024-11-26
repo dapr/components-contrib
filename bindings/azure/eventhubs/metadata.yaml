@@ -161,3 +161,12 @@ metadata:
     description: |
       Storage container name.
     example: '"myeventhubstoragecontainer"'
+  - name: getAllMessageProperties
+    required: false
+    default: "false"
+    example: "false"
+    binding:
+      input: true
+      output: false
+    description: |
+      When set to true, will retrieve all message properties and include them in the returned event metadata

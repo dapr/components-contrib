@@ -58,6 +58,8 @@ type snsSqsMetadata struct {
 	AccountID string `mapstructure:"accountID"`
 	// processing concurrency mode
 	ConcurrencyMode pubsub.ConcurrencyMode `mapstructure:"concurrencyMode"`
+	// limits the number of concurrent goroutines
+	ConcurrencyLimit int `mapstructure:"concurrencyLimit"`
 }
 
 func maskLeft(s string) string {
@@ -129,6 +131,10 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 
 	if err := md.setConcurrencyMode(meta.Properties); err != nil {
 		return nil, err
+	}
+
+	if md.ConcurrencyLimit < 0 {
+		return nil, errors.New("concurrencyLimit must be greater than or equal to 0")
 	}
 
 	s.logger.Debug(md.hideDebugPrintedCredentials())

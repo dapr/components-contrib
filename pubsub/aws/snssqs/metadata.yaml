@@ -128,6 +128,15 @@ metadata:
     default: '"parallel"'
     example: '"single", "parallel"'
     type: string
+  - name: concurrencyLimit
+    required: false
+    description: |
+      Defines the maximum number of concurrent workers handling messages.
+      This value is ignored when "concurrencyMode" is set to “single“.
+      To avoid limiting the number of concurrent workers set this to “0“.
+    type: number
+    default: '0'
+    example: '100'
   - name: accountId
     required: false
     description: |

@@ -126,8 +126,14 @@ func (a *x509) Close() error {
 
 	errs := make([]error, 2)
 	if a.clients.kafka != nil {
-		errs[0] = a.clients.kafka.Producer.Close()
-		errs[1] = a.clients.kafka.ConsumerGroup.Close()
+		if a.clients.kafka.Producer != nil {
+			errs[0] = a.clients.kafka.Producer.Close()
+			a.clients.kafka.Producer = nil
+		}
+		if a.clients.kafka.ConsumerGroup != nil {
+			errs[1] = a.clients.kafka.ConsumerGroup.Close()
+			a.clients.kafka.ConsumerGroup = nil
+		}
 	}
 	return errors.Join(errs...)
 }

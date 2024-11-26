@@ -127,6 +127,11 @@ func (aeh *AzureEventHubs) EventHubName() string {
 	return aeh.metadata.hubName
 }
 
+// GetAllMessageProperties returns a boolean to indicate whether to return all properties for an event hubs message.
+func (aeh *AzureEventHubs) GetAllMessageProperties() bool {
+	return aeh.metadata.GetAllMessageProperties
+}
+
 // Publish a batch of messages.
 func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages []*azeventhubs.EventData, batchOpts *azeventhubs.EventDataBatchOptions) error {
 	// Get the producer client
@@ -165,7 +170,7 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
 		}
 
-		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, aeh.metadata.GetAllMessageProperties)
+		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, aeh.GetAllMessageProperties())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %w", err)
 		}

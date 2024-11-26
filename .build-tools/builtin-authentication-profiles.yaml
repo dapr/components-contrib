@@ -47,7 +47,7 @@ aws:
         description: |
           The session name for assuming a role.
         example: '"MyAppSession"'
-        default: '"MSKSASLDefaultSession"'
+        default: '"DaprDefaultSession"'
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
   - title: "AWS: IAM Roles Anywhere"

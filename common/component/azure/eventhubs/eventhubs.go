@@ -282,7 +282,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 			// Get the processor client
 			processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
 			if err != nil {
-				aeh.logger.Errorf("error trying to establish a connection: %w", ßerr)
+				aeh.logger.Errorf("error trying to establish a connection: %w", err)
 			} else {
 				// Process all partition clients as they come in
 				subscriberLoop := func() {

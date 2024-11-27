@@ -13,17 +13,15 @@ import (
 )
 
 func arrangeKafkaWithAssertions(t *testing.T, msgCheckers ...saramamocks.MessageChecker) *Kafka {
-	cfg := saramamocks.NewTestConfig()
-	mockProducer := saramamocks.NewSyncProducer(t, cfg)
+	mockP := saramamocks.NewSyncProducer(t, saramamocks.NewTestConfig())
 
 	for _, msgChecker := range msgCheckers {
-		mockProducer.ExpectSendMessageWithMessageCheckerFunctionAndSucceed(msgChecker)
+		mockP.ExpectSendMessageWithMessageCheckerFunctionAndSucceed(msgChecker)
 	}
 
 	return &Kafka{
-		producer: mockProducer,
-		config:   cfg,
-		logger:   logger.NewLogger("kafka_test"),
+		mockProducer: mockP,
+		logger:       logger.NewLogger("kafka_test"),
 	}
 }
 

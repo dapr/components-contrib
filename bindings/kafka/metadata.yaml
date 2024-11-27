@@ -14,6 +14,75 @@ binding:
   operations:
     - name: create
       description: "Publish a new message in the topic."
+# This auth profile has duplicate fields intentionally as we maintain backwards compatibility,
+# but also move Kafka to utilize the noramlized AWS fields in the builtin auth profiles.
+# TODO: rm the duplicate aws prefixed fields in Dapr 1.17.
+builtinAuthenticationProfiles:
+  - name: "aws"
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "awsiam" for this authentication profile.
+        example: '"awsiam"'
+        allowedValues:
+          - "awsiam"
+      - name: awsRegion
+        type: string
+        required: false
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'region' instead.
+          The AWS Region where the AWS Relational Database Service is deployed to.
+        example: '"us-east-1"'
+      - name: awsAccessKey
+        type: string
+        required: false
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'accessKey' instead.
+          If both fields are set, then 'accessKey' value will be used.
+          AWS access key associated with an IAM account.
+        example: '"AKIAIOSFODNN7EXAMPLE"'
+      - name: awsSecretKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'secretKey' instead.
+          If both fields are set, then 'secretKey' value will be used.
+          The secret key associated with the access key.
+        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: awsSessionToken
+        type: string
+        sensitive: true
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'sessionToken' instead.
+          If both fields are set, then 'sessionToken' value will be used.
+          AWS session token to use. A session token is only required if you are using temporary security credentials.
+        example: '"TOKEN"'
+      - name: awsIamRoleArn
+        type: string
+        required: false
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'assumeRoleArn' instead.
+          If both fields are set, then 'assumeRoleArn' value will be used.
+          IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: awsStsSessionName
+        type: string
+        description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'sessionName' instead.
+          If both fields are set, then 'sessionName' value will be used.
+          Represents the session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"MSKSASLDefaultSession"'
 authenticationProfiles:
   - title: "OIDC Authentication"
     description: |
@@ -139,55 +208,6 @@ authenticationProfiles:
         example: '"none"'
         allowedValues:
           - "none"
-  - title: "AWS IAM"
-    description: "Authenticate using AWS IAM credentials or role for AWS MSK"
-    metadata:
-      - name: authType
-        type: string
-        required: true
-        description: |
-          Authentication type.
-          This must be set to "awsiam" for this authentication profile.
-        example: '"awsiam"'
-        allowedValues:
-          - "awsiam"
-      - name: awsRegion
-        type: string
-        required: true
-        description: |
-          The AWS Region where the MSK Kafka broker is deployed to.
-        example: '"us-east-1"'
-      - name: awsAccessKey
-        type: string
-        required: true
-        description: |
-          AWS access key associated with an IAM account.
-        example: '"AKIAIOSFODNN7EXAMPLE"'
-      - name: awsSecretKey
-        type: string
-        required: true
-        sensitive: true
-        description: |
-          The secret key associated with the access key.
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
-      - name: awsSessionToken
-        type: string
-        sensitive: true
-        description: |
-          AWS session token to use. A session token is only required if you are using temporary security credentials.
-        example: '"TOKEN"'
-      - name: awsIamRoleArn
-        type: string
-        required: true
-        description: |
-          IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
-        example: '"arn:aws:iam::123456789:role/mskRole"'
-      - name: awsStsSessionName
-        type: string
-        description: |
-          Represents the session name for assuming a role.
-        example: '"MyAppSession"'
-        default: '"MSKSASLDefaultSession"'
 metadata:
   - name: topics
     type: string

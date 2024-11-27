@@ -84,7 +84,14 @@ func (k *Kafka) reloadConsumerGroup() {
 
 func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer) {
 	for {
-		err := k.cg.Consume(ctx, topics, consumer)
+		clients, err := k.latestClients()
+		if err != nil || clients == nil {
+			k.logger.Errorf("failed to get latest Kafka clients: %w", err)
+		}
+		if clients.consumerGroup == nil {
+			k.logger.Errorf("component is closed")
+		}
+		err = clients.consumerGroup.Consume(ctx, topics, consumer)
 		if errors.Is(err, context.Canceled) {
 			return
 		}

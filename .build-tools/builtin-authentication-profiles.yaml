@@ -3,7 +3,7 @@ aws:
     description: |
       Authenticate using an Access Key ID and Secret Access Key included in the metadata
     metadata:
-      - name: awsRegion
+      - name: region
         type: string
         required: true
         description: |
@@ -25,8 +25,29 @@ aws:
         description: |
           AWS session token to use. A session token is only required if you are using
           temporary security credentials.
-        example: '"TOKEN"'
+  - title: "AWS: Assume IAM Role"
+    description: |
+      Assume a specific IAM role. Note: This is only supported for Kafka and PostgreSQL.
+    metadata:
+      - name: region
         type: string
+        required: true
+        description: |
+          The AWS Region where the AWS resource is deployed to.
+        example: '"us-east-1"'
+      - name: assumeRoleArn
+        type: string
+        required: false
+        description: |
+          IAM role that has access to AWS resource.
+          This is another option to authenticate with MSK and RDS Aurora aside from the AWS Credentials.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: sessionName
+        type: string
+        description: |
+          The session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"DaprDefaultSession"'
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
   - title: "AWS: IAM Roles Anywhere"

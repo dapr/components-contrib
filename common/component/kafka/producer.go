@@ -34,7 +34,12 @@ func GetSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 		config.Producer.MaxMessageBytes = maxMessageBytes
 	}
 
-	producer, err := sarama.NewSyncProducer(brokers, &config)
+	saramaClient, err := sarama.NewClient(brokers, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	producer, err := sarama.NewSyncProducerFromClient(saramaClient)
 	if err != nil {
 		return nil, err
 	}

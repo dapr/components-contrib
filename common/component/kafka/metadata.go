@@ -259,6 +259,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("missing CA certificate property 'caCert' for authType 'certificate'")
 		}
 		k.logger.Debug("Configuring root certificate authentication.")
+	case awsIAMAuthType:
+		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}

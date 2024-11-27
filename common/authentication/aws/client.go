@@ -337,5 +337,15 @@ func (c *KafkaClients) getSyncProducer() (sarama.SyncProducer, error) {
 		c.config.Producer.MaxMessageBytes = *c.maxMessageBytes
 	}
 
-	return sarama.NewSyncProducer(*c.brokers, c.config)
+	saramaClient, err := sarama.NewClient(*c.brokers, c.config)
+	if err != nil {
+		return nil, err
+	}
+
+	producer, err := sarama.NewSyncProducerFromClient(saramaClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return producer, nil
 }

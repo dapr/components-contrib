@@ -259,12 +259,13 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 }
 
 func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {
+	const defaultSessionName = "DaprDefaultSession"
 	// This is needed as we remove the aws prefixed fields to use the builtin AWS profile fields instead.
 	region := awsAuth.Coalesce(metadata["region"], metadata["awsRegion"])
 	accessKey := awsAuth.Coalesce(metadata["accessKey"], metadata["awsAccessKey"])
 	secretKey := awsAuth.Coalesce(metadata["secretKey"], metadata["awsSecretKey"])
 	role := awsAuth.Coalesce(metadata["assumeRoleArn"], metadata["awsIamRoleArn"])
-	session := awsAuth.Coalesce(metadata["sessionName"], metadata["awsStsSessionName"])
+	session := awsAuth.Coalesce(metadata["sessionName"], metadata["awsStsSessionName"], defaultSessionName) // set default if no value is provided
 	token := awsAuth.Coalesce(metadata["sessionToken"], metadata["awsSessionToken"])
 
 	if region == "" {
@@ -287,7 +288,9 @@ func (k *Kafka) Close() error {
 
 	errs := make([]error, 3)
 	if k.closed.CompareAndSwap(false, true) {
-		close(k.closeCh)
+		if k.closeCh != nil {
+			close(k.closeCh)
+		}
 		if k.internalContext != nil {
 			k.internalContextCancel()
 		}
@@ -310,6 +313,7 @@ func (k *Kafka) Close() error {
 		}
 		if k.awsAuthProvider != nil {
 			errs[2] = k.awsAuthProvider.Close()
+			k.awsAuthProvider = nil
 		}
 	}
 

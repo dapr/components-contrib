@@ -25,9 +25,9 @@ aws:
         description: |
           AWS session token to use. A session token is only required if you are using
           temporary security credentials.
-  - title: "AWS: Assume specific IAM Role"
+  - title: "AWS: Assume IAM Role"
     description: |
-      Assume a specific IAM role. Note: This is only supported on Kafka and PostgreSQL components.
+      Assume a specific IAM role. Note: This is only supported for Kafka and PostgreSQL.
     metadata:
       - name: region
         type: string

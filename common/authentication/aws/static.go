@@ -50,15 +50,7 @@ type StaticAuth struct {
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
-		logger:        opts.Logger,
-		region:        &opts.Region,
-		endpoint:      &opts.Endpoint,
-		accessKey:     &opts.AccessKey,
-		secretKey:     &opts.SecretKey,
-		sessionToken:  &opts.SessionToken,
-		assumeRoleARN: &opts.AssumeRoleARN,
-		sessionName:   &opts.SessionName,
-
+		logger: opts.Logger,
 		cfg: func() *aws.Config {
 			// if nil is passed or it's just a default cfg,
 			// then we use the options to build the aws cfg.
@@ -70,7 +62,29 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 		clients: newClients(),
 	}
 
-	initialSession, err := auth.getTokenClient()
+	if opts.Region != "" {
+		auth.region = &opts.Region
+	}
+	if opts.Endpoint != "" {
+		auth.endpoint = &opts.Endpoint
+	}
+	if opts.AccessKey != "" {
+		auth.accessKey = &opts.AccessKey
+	}
+	if opts.SecretKey != "" {
+		auth.secretKey = &opts.SecretKey
+	}
+	if opts.SessionToken != "" {
+		auth.sessionToken = &opts.SessionToken
+	}
+	if opts.AssumeRoleARN != "" {
+		auth.assumeRoleARN = &opts.AssumeRoleARN
+	}
+	if opts.SessionName != "" {
+		auth.sessionName = &opts.SessionName
+	}
+
+	initialSession, err := auth.createSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token client: %v", err)
 	}
@@ -243,7 +257,7 @@ func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
 	return a.clients.kafka, nil
 }
 
-func (a *StaticAuth) getTokenClient() (*session.Session, error) {
+func (a *StaticAuth) createSession() (*session.Session, error) {
 	var awsConfig *aws.Config
 	if a.cfg == nil {
 		awsConfig = aws.NewConfig()
@@ -263,6 +277,8 @@ func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 	if a.endpoint != nil {
 		awsConfig = awsConfig.WithEndpoint(*a.endpoint)
 	}
+
+	// TODO support assume role for all aws components
 
 	awsSession, err := session.NewSessionWithOptions(session.Options{
 		Config:            *awsConfig,

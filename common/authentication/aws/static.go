@@ -271,6 +271,7 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 	}
 
 	return authenticationToken, nil
+}
 func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

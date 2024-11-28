@@ -48,7 +48,7 @@ func TestGetTokenClient(t *testing.T) {
 			awsInstance: &StaticAuth{
 				accessKey:    aws.String("testAccessKey"),
 				secretKey:    aws.String("testSecretKey"),
-				sessionToken: aws.String("testSessionToken"),
+				sessionToken: "testSessionToken",
 				region:       aws.String("us-west-2"),
 				endpoint:     aws.String("https://test.endpoint.com"),
 			},

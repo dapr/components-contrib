@@ -38,10 +38,10 @@ type StaticAuth struct {
 	endpoint     *string
 	accessKey    *string
 	secretKey    *string
-	sessionToken *string
+	sessionToken string
 
 	assumeRoleARN *string
-	sessionName   *string
+	sessionName   string
 
 	session *session.Session
 	cfg     *aws.Config
@@ -75,13 +75,13 @@ func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth
 		auth.secretKey = &opts.SecretKey
 	}
 	if opts.SessionToken != "" {
-		auth.sessionToken = &opts.SessionToken
+		auth.sessionToken = opts.SessionToken
 	}
 	if opts.AssumeRoleARN != "" {
 		auth.assumeRoleARN = &opts.AssumeRoleARN
 	}
 	if opts.SessionName != "" {
-		auth.sessionName = &opts.SessionName
+		auth.sessionName = opts.SessionName
 	}
 
 	initialSession, err := auth.createSession()
@@ -245,8 +245,8 @@ func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
 	if a.assumeRoleARN != nil {
 		tokenProvider.awsIamRoleArn = *a.assumeRoleARN
 	}
-	if a.sessionName != nil {
-		tokenProvider.awsStsSessionName = *a.sessionName
+	if a.sessionName != "" {
+		tokenProvider.awsStsSessionName = a.sessionName
 	}
 
 	err := a.clients.kafka.New(a.session, &tokenProvider)
@@ -271,7 +271,7 @@ func (a *StaticAuth) createSession() (*session.Session, error) {
 
 	if a.accessKey != nil && a.secretKey != nil {
 		// session token is an option field
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.accessKey, *a.secretKey, *a.sessionToken))
+		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(*a.accessKey, *a.secretKey, a.sessionToken))
 	}
 
 	if a.endpoint != nil {

@@ -26,12 +26,31 @@ type EnvironmentSettings struct {
 	Metadata map[string]string
 }
 
+// TODO: Delete in Dapr 1.17 so we can move all IAM fields to use the defaults of:
+// accessKey and secretKey and region as noted in the docs, and Options struct above.
+type DeprecatedKafkaIAM struct {
+	Region         string `json:"awsRegion" mapstructure:"awsRegion"`
+	AccessKey      string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
+	SecretKey      string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
+	SessionToken   string `json:"awsSessionToken" mapstructure:"awsSessionToken"`
+	IamRoleArn     string `json:"awsIamRoleArn" mapstructure:"awsIamRoleArn"`
+	StsSessionName string `json:"awsStsSessionName" mapstructure:"awsStsSessionName"`
+}
+
 type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string
-	Region     string `json:"region" mapstructure:"region"`
-	AccessKey  string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey  string `json:"secretKey" mapstructure:"secretKey"`
+
+	PoolConfig       *pgxpool.Config `json:"poolConfig" mapstructure:"poolConfig"`
+	ConnectionString string          `json:"connectionString" mapstructure:"connectionString"`
+
+	// TODO: in Dapr 1.17 rm the alias on regions as we rm the aws prefixed one.
+	// Docs have it just as region, but most metadata fields show the aws prefix...
+	Region        string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion"`
+	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey     string `json:"secretKey" mapstructure:"secretKey"`
+	SessionName   string `mapstructure:"sessionName"`
+	AssumeRoleARN string `mapstructure:"assumeRoleArn"`
 
 	Endpoint     string
 	SessionToken string
@@ -70,7 +89,12 @@ type Provider interface {
 	ParameterStore() *ParameterStoreClients
 	Kinesis() *KinesisClients
 	Ses() *SesClients
+	Kafka(KafkaOptions) (*KafkaClients, error)
 
+	// Postgres is an outlier to the others in the sense that we can update only it's config, 
+	// as we use a max connection time of 8 minutes.
+	// This means that we can just update the config session credentials,
+	// and then in 8 minutes it will update to a new session automatically for us.
 	UpdatePostgres(context.Context, *pgxpool.Config)
 
 	Close() error
@@ -97,4 +121,15 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	}
 
 	return es, nil
+}
+
+// Coalesce is a helper function to return the first non-empty string from the inputs
+// This helps us to migrate away from the deprecated duplicate aws auth profile metadata fields in Dapr 1.17.
+func Coalesce(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

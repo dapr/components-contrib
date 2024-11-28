@@ -97,14 +97,7 @@ type KafkaMetadata struct {
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
-	// aws iam auth profile
-	AWSAccessKey      string `mapstructure:"awsAccessKey"`
-	AWSSecretKey      string `mapstructure:"awsSecretKey"`
-	AWSSessionToken   string `mapstructure:"awsSessionToken"`
-	AWSIamRoleArn     string `mapstructure:"awsIamRoleArn"`
-	AWSStsSessionName string `mapstructure:"awsStsSessionName"`
-	AWSRegion         string `mapstructure:"awsRegion"`
-	channelBufferSize int    `mapstructure:"-"`
+	channelBufferSize int `mapstructure:"-"`
 
 	consumerFetchMin     int32 `mapstructure:"-"`
 	consumerFetchDefault int32 `mapstructure:"-"`
@@ -163,6 +156,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 		HeartbeatInterval:                            3 * time.Second,
 		SessionTimeout:                               10 * time.Second,
+		SchemaCachingEnabled:                         true,
+		SchemaLatestVersionCacheTTL:                  5 * time.Minute,
 		EscapeHeaders:                                false,
 	}
 
@@ -265,9 +260,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 		k.logger.Debug("Configuring root certificate authentication.")
 	case awsIAMAuthType:
-		if m.AWSRegion == "" {
-			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsiam'")
-		}
 		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")

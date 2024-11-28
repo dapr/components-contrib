@@ -15,6 +15,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -44,6 +45,9 @@ type StaticAuth struct {
 	secretKey    *string
 	sessionToken *string
 
+	assumeRoleARN *string
+	sessionName   *string
+
 	session *session.Session
 	cfg     *aws.Config
 	clients *Clients
@@ -51,12 +55,15 @@ type StaticAuth struct {
 
 func newStaticIAM(_ context.Context, opts Options, cfg *aws.Config) (*StaticAuth, error) {
 	auth := &StaticAuth{
-		logger:       opts.Logger,
-		region:       &opts.Region,
-		endpoint:     &opts.Endpoint,
-		accessKey:    &opts.AccessKey,
-		secretKey:    &opts.SecretKey,
-		sessionToken: &opts.SessionToken,
+		logger:        opts.Logger,
+		region:        &opts.Region,
+		endpoint:      &opts.Endpoint,
+		accessKey:     &opts.AccessKey,
+		secretKey:     &opts.SecretKey,
+		sessionToken:  &opts.SessionToken,
+		assumeRoleARN: &opts.AssumeRoleARN,
+		sessionName:   &opts.SessionName,
+
 		cfg: func() *aws.Config {
 			// if nil is passed or it's just a default cfg,
 			// then we use the options to build the aws cfg.
@@ -264,6 +271,34 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 	}
 
 	return authenticationToken, nil
+func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// This means we've already set the config in our New function
+	// to use the SASL token provider.
+	if a.clients.kafka != nil {
+		return a.clients.kafka, nil
+	}
+
+	a.clients.kafka = initKafkaClients(opts)
+	// static auth has additional fields we need added,
+	// so we add those static auth specific fields here,
+	// and the rest of the token provider fields are added in New()
+	tokenProvider := mskTokenProvider{}
+	if a.assumeRoleARN != nil {
+		tokenProvider.awsIamRoleArn = *a.assumeRoleARN
+	}
+	if a.sessionName != nil {
+		tokenProvider.awsStsSessionName = *a.sessionName
+	}
+
+	err := a.clients.kafka.New(a.session, &tokenProvider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AWS IAM Kafka config: %w", err)
+	}
+
+	return a.clients.kafka, nil
 }
 
 func (a *StaticAuth) getTokenClient() (*session.Session, error) {
@@ -305,7 +340,21 @@ func (a *StaticAuth) getTokenClient() (*session.Session, error) {
 }
 
 func (a *StaticAuth) Close() error {
-	return nil
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	errs := make([]error, 2)
+	if a.clients.kafka != nil {
+		if a.clients.kafka.Producer != nil {
+			errs[0] = a.clients.kafka.Producer.Close()
+			a.clients.kafka.Producer = nil
+		}
+		if a.clients.kafka.ConsumerGroup != nil {
+			errs[1] = a.clients.kafka.ConsumerGroup.Close()
+			a.clients.kafka.ConsumerGroup = nil
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {

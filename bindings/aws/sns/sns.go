@@ -43,6 +43,7 @@ type snsMetadata struct {
 	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
 
 	TopicArn string `json:"topicArn"`
+	// TODO: in Dapr 1.17 rm the alias on region as we remove the aws prefix on these fields
 	Region   string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint string `json:"endpoint"`
 }

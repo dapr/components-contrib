@@ -28,6 +28,7 @@ import (
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -36,18 +37,23 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer      sarama.SyncProducer
-	consumerGroup string
-	brokers       []string
-	logger        logger.Logger
-	authType      string
-	saslUsername  string
-	saslPassword  string
-	initialOffset int64
-	config        *sarama.Config
-	escapeHeaders bool
+	// These are used to inject mocked clients for tests
+	mockConsumerGroup sarama.ConsumerGroup
+	mockProducer      sarama.SyncProducer
+	clients           *clients
 
-	cg              sarama.ConsumerGroup
+	maxMessageBytes int
+	consumerGroup   string
+	brokers         []string
+	logger          logger.Logger
+	authType        string
+	saslUsername    string
+	saslPassword    string
+	initialOffset   int64
+	config          *sarama.Config
+	escapeHeaders   bool
+	awsAuthProvider awsAuth.Provider
+
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 	consumerCancel  context.CancelFunc
@@ -182,19 +188,32 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentication")
-		err = updateAWSIAMAuthInfo(k.internalContext, config, meta)
+		kafkaIAM, validateErr := k.ValidateAWS(metadata)
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
+		}
+		opts := awsAuth.Options{
+			Logger:        k.logger,
+			Properties:    metadata,
+			Region:        kafkaIAM.Region,
+			Endpoint:      "",
+			AccessKey:     kafkaIAM.AccessKey,
+			SecretKey:     kafkaIAM.SecretKey,
+			SessionToken:  kafkaIAM.SessionToken,
+			AssumeRoleARN: kafkaIAM.IamRoleArn,
+			SessionName:   kafkaIAM.StsSessionName,
+		}
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 		if err != nil {
 			return err
 		}
+		k.awsAuthProvider = provider
 	}
 
 	k.config = config
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
-
-	k.producer, err = getSyncProducer(*k.config, k.brokers, meta.MaxMessageBytes)
-	if err != nil {
-		return err
-	}
+	k.maxMessageBytes = meta.MaxMessageBytes
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
@@ -222,29 +241,56 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 			k.latestSchemaCacheTTL = meta.SchemaLatestVersionCacheTTL
 		}
 	}
-	k.logger.Debug("Kafka message bus initialization complete")
 
-	k.cg, err = sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-	if err != nil {
-		return err
+	clients, err := k.latestClients()
+	if err != nil || clients == nil {
+		return fmt.Errorf("failed to get latest Kafka clients for initialization: %w", err)
+	}
+	if clients.producer == nil {
+		return errors.New("component is closed")
+	}
+	if clients.consumerGroup == nil {
+		return errors.New("component is closed")
 	}
 
+	k.logger.Debug("Kafka message bus initialization complete")
+
 	return nil
+}
+
+func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {
+	const defaultSessionName = "DaprDefaultSession"
+	// This is needed as we remove the aws prefixed fields to use the builtin AWS profile fields instead.
+	region := awsAuth.Coalesce(metadata["region"], metadata["awsRegion"])
+	accessKey := awsAuth.Coalesce(metadata["accessKey"], metadata["awsAccessKey"])
+	secretKey := awsAuth.Coalesce(metadata["secretKey"], metadata["awsSecretKey"])
+	role := awsAuth.Coalesce(metadata["assumeRoleArn"], metadata["awsIamRoleArn"])
+	session := awsAuth.Coalesce(metadata["sessionName"], metadata["awsStsSessionName"], defaultSessionName) // set default if no value is provided
+	token := awsAuth.Coalesce(metadata["sessionToken"], metadata["awsSessionToken"])
+
+	if region == "" {
+		return nil, errors.New("metadata property AWSRegion is missing")
+	}
+
+	return &awsAuth.DeprecatedKafkaIAM{
+		Region:         region,
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		IamRoleArn:     role,
+		StsSessionName: session,
+		SessionToken:   token,
+	}, nil
 }
 
 func (k *Kafka) Close() error {
 	defer k.wg.Wait()
 	defer k.consumerWG.Wait()
 
-	errs := make([]error, 2)
+	errs := make([]error, 3)
 	if k.closed.CompareAndSwap(false, true) {
-		close(k.closeCh)
-
-		if k.producer != nil {
-			errs[0] = k.producer.Close()
-			k.producer = nil
+		if k.closeCh != nil {
+			close(k.closeCh)
 		}
-
 		if k.internalContext != nil {
 			k.internalContextCancel()
 		}
@@ -255,8 +301,19 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
-		if k.cg != nil {
-			errs[1] = k.cg.Close()
+		if k.clients != nil {
+			if k.clients.producer != nil {
+				errs[0] = k.clients.producer.Close()
+				k.clients.producer = nil
+			}
+			if k.clients.consumerGroup != nil {
+				errs[1] = k.clients.consumerGroup.Close()
+				k.clients.consumerGroup = nil
+			}
+		}
+		if k.awsAuthProvider != nil {
+			errs[2] = k.awsAuthProvider.Close()
+			k.awsAuthProvider = nil
 		}
 	}
 

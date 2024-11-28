@@ -41,11 +41,11 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		})
 
 		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
-			subscribeTopics: nil,
-			closeCh:         make(chan struct{}),
-			consumerCancel:  cancel,
+			logger:            logger.NewLogger("test"),
+			mockConsumerGroup: cg,
+			subscribeTopics:   nil,
+			closeCh:           make(chan struct{}),
+			consumerCancel:    cancel,
 		}
 
 		k.reloadConsumerGroup()
@@ -64,11 +64,11 @@ func Test_reloadConsumerGroup(t *testing.T) {
 			return nil
 		})
 		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
-			consumerCancel:  cancel,
-			closeCh:         make(chan struct{}),
-			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			logger:            logger.NewLogger("test"),
+			mockConsumerGroup: cg,
+			consumerCancel:    cancel,
+			closeCh:           make(chan struct{}),
+			subscribeTopics:   TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
 		}
 
 		k.closed.Store(true)
@@ -89,11 +89,11 @@ func Test_reloadConsumerGroup(t *testing.T) {
 			return nil
 		})
 		k := &Kafka{
-			logger:          logger.NewLogger("test"),
-			cg:              cg,
-			consumerCancel:  nil,
-			closeCh:         make(chan struct{}),
-			subscribeTopics: TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
+			logger:            logger.NewLogger("test"),
+			mockConsumerGroup: cg,
+			consumerCancel:    nil,
+			closeCh:           make(chan struct{}),
+			subscribeTopics:   TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
 		}
 
 		k.reloadConsumerGroup()
@@ -114,7 +114,7 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}},
@@ -146,7 +146,7 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
@@ -174,7 +174,7 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
@@ -210,7 +210,7 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
@@ -248,7 +248,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
@@ -273,7 +273,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
@@ -302,7 +302,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
@@ -340,7 +340,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			consumeRetryInterval: time.Millisecond,
@@ -391,7 +391,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      make(TopicHandlerConfig),
@@ -421,7 +421,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      make(TopicHandlerConfig),
@@ -495,7 +495,7 @@ func Test_Subscribe(t *testing.T) {
 		})
 		k := &Kafka{
 			logger:               logger.NewLogger("test"),
-			cg:                   cg,
+			mockConsumerGroup:    cg,
 			consumerCancel:       nil,
 			closeCh:              make(chan struct{}),
 			subscribeTopics:      make(TopicHandlerConfig),

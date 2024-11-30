@@ -80,6 +80,10 @@ type mysqlMetadata struct {
 	// PemPath is the path to the pem file to connect to MySQL over SSL.
 	PemPath string `mapstructure:"pemPath"`
 
+	// PemContents is the contents of the pem file to connect to MySQL over SSL.
+	// PemContents supersedes PemPath if both are provided.
+	PemContents string `mapstructure:"pemContents"`
+
 	// MaxIdleConns is the maximum number of connections in the idle connection pool.
 	MaxIdleConns int `mapstructure:"maxIdleConns"`
 
@@ -117,7 +121,19 @@ func (m *Mysql) Init(ctx context.Context, md bindings.Metadata) error {
 		return errors.New("missing MySql connection string")
 	}
 
-	m.db, err = initDB(meta.URL, meta.PemPath)
+	var pemContents []byte
+
+	// meta.PemContents supersedes meta.PemPath if both are provided.
+	if meta.PemContents != "" {
+		pemContents = []byte(meta.PemContents)
+	} else if meta.PemPath != "" {
+		pemContents, err = os.ReadFile(meta.PemPath)
+		if err != nil {
+			return fmt.Errorf("unable to read pem file: %w", err)
+		}
+	}
+
+	m.db, err = initDB(meta.URL, pemContents)
 	if err != nil {
 		return err
 	}
@@ -234,7 +250,9 @@ func (m *Mysql) Close() error {
 	}
 
 	if m.db != nil {
-		m.db.Close()
+		if err := m.db.Close(); err != nil {
+			m.logger.Warnf("error closing DB: %v", err)
+		}
 		m.db = nil
 	}
 
@@ -246,7 +264,12 @@ func (m *Mysql) query(ctx context.Context, sql string, params ...any) ([]byte, e
 	if err != nil {
 		return nil, fmt.Errorf("error executing query: %w", err)
 	}
-	defer rows.Close()
+
+	defer func() {
+		if err = rows.Close(); err != nil {
+			m.logger.Warnf("error closing rows: %v", err)
+		}
+	}()
 
 	result, err := m.jsonify(rows)
 	if err != nil {
@@ -265,21 +288,15 @@ func (m *Mysql) exec(ctx context.Context, sql string, params ...any) (int64, err
 	return res.RowsAffected()
 }
 
-func initDB(url, pemPath string) (*sql.DB, error) {
+func initDB(url string, pemContents []byte) (*sql.DB, error) {
 	conf, err := mysql.ParseDSN(url)
 	if err != nil {
 		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
 	}
 
-	if pemPath != "" {
-		var pem []byte
+	if len(pemContents) != 0 {
 		rootCertPool := x509.NewCertPool()
-		pem, err = os.ReadFile(pemPath)
-		if err != nil {
-			return nil, fmt.Errorf("error reading PEM file from %s: %w", pemPath, err)
-		}
-
-		ok := rootCertPool.AppendCertsFromPEM(pem)
+		ok := rootCertPool.AppendCertsFromPEM(pemContents)
 		if !ok {
 			return nil, errors.New("failed to append PEM")
 		}
@@ -373,6 +390,9 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []any) map[string]
 // GetComponentMetadata returns the metadata of the component.
 func (m *Mysql) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mysqlMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType); err != nil {
+		m.logger.Warnf("error retrieving metadata info: %v", err)
+	}
+
 	return
 }

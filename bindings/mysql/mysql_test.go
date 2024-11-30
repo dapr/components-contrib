@@ -30,7 +30,12 @@ import (
 
 func TestQuery(t *testing.T) {
 	m, mock, _ := mockDatabase(t)
-	defer m.Close()
+
+	defer func() {
+		if err := m.Close(); err != nil {
+			t.Errorf("failed to close database: %s", err)
+		}
+	}()
 
 	t.Run("no dbType provided", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{"id", "value", "timestamp"}).
@@ -83,7 +88,13 @@ func TestQuery(t *testing.T) {
 
 func TestExec(t *testing.T) {
 	m, mock, _ := mockDatabase(t)
-	defer m.Close()
+
+	defer func() {
+		if err := m.Close(); err != nil {
+			t.Errorf("failed to close database: %s", err)
+		}
+	}()
+
 	mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
 	i, err := m.exec(context.Background(), "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')")
 	assert.Equal(t, int64(1), i)
@@ -92,7 +103,12 @@ func TestExec(t *testing.T) {
 
 func TestInvoke(t *testing.T) {
 	m, mock, _ := mockDatabase(t)
-	defer m.Close()
+
+	defer func() {
+		if err := m.Close(); err != nil {
+			t.Errorf("failed to close database: %s", err)
+		}
+	}()
 
 	t.Run("exec operation succeeds", func(t *testing.T) {
 		mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))

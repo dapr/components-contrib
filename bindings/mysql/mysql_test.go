@@ -349,9 +349,6 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 
 		b := NewMysql(logger.NewLogger("test")).(*Mysql)
 		if err := b.Init(context.Background(), sqlMeta); err != nil {
-			// We expect this to fail because we do not have a running MySQL instance, but we
-			// want to make sure the error message is not about the SSL cert or parsing the
-			// DSN.
 			if !strings.Contains(err.Error(), "unable to ping the DB") {
 				t.Errorf("failed to init database: %s", err)
 			}

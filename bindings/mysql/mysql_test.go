@@ -17,6 +17,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/dapr/components-contrib/metadata"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,10 +115,10 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("exec operation succeeds", func(t *testing.T) {
 		mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
-		metadata := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
+		md := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
 		req := &bindings.InvokeRequest{
 			Data:      nil,
-			Metadata:  metadata,
+			Metadata:  md,
 			Operation: execOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
@@ -125,10 +128,10 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("exec operation fails", func(t *testing.T) {
 		mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnError(errors.New("insert failed"))
-		metadata := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
+		md := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
 		req := &bindings.InvokeRequest{
 			Data:      nil,
-			Metadata:  metadata,
+			Metadata:  md,
 			Operation: execOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
@@ -143,10 +146,10 @@ func TestInvoke(t *testing.T) {
 		rows := sqlmock.NewRowsWithColumnDefinition(col1, col2, col3).AddRow(1, 1.1, time.Now())
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < \\d+").WillReturnRows(rows)
 
-		metadata := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
+		md := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
 		req := &bindings.InvokeRequest{
 			Data:      nil,
-			Metadata:  metadata,
+			Metadata:  md,
 			Operation: queryOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
@@ -159,10 +162,10 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("query operation fails", func(t *testing.T) {
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < \\d+").WillReturnError(errors.New("query failed"))
-		metadata := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
+		md := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
 		req := &bindings.InvokeRequest{
 			Data:      nil,
-			Metadata:  metadata,
+			Metadata:  md,
 			Operation: queryOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
@@ -201,4 +204,194 @@ func mockDatabase(t *testing.T) (*Mysql, sqlmock.Sqlmock, error) {
 	m.db = db
 
 	return m, mock, err
+}
+
+func TestInit(t *testing.T) {
+	// We expect Init to return an error because we do not have a running MySQL
+	// instance, but we want to make sure the error message is not about the SSL cert
+	// or parsing the DSN.
+
+	// This is a publicly available SSL cert for Azure MySQL.
+	// https://dl.cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem
+	validPem := `-----BEGIN CERTIFICATE-----
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
+QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
+CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
+nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
+43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
+T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
+gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
+BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
+TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
+DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
+hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
+06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
+PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
+YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
+CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
+-----END CERTIFICATE-----`
+
+	invalidPem := `-----BEGIN CERTIFICATE--
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
+QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
+CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
+nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
+43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
+T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
+gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
+BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
+TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
+DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
+hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
+06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
+PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
+YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
+CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
+-----END CERTIFICATE--`
+
+	t.Run("init with no pemFile or pemContents", func(t *testing.T) {
+		url := "user:secret@tcp(localhost:3306)/test"
+		sqlMeta := createMetaData(url, "", "")
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err != nil {
+			if !strings.Contains(err.Error(), "unable to ping the DB") {
+				t.Errorf("failed to init database: %s", err)
+			}
+		}
+	})
+
+	t.Run("init with pemFile", func(t *testing.T) {
+		// Copy the valid PEM file to a temporary location.
+		tempFile := "cert.pem"
+		if err := os.WriteFile(tempFile, []byte(validPem), 0400); err != nil {
+			t.Fatalf("failed to write to %s: %s", tempFile, err)
+		}
+
+		defer func() {
+			if err := os.Remove(tempFile); err != nil {
+				t.Fatalf("failed to remove %s: %s", tempFile, err)
+			}
+		}()
+
+		url := "user:secret@tcp(localhost:3306)/test?tls=custom"
+		sqlMeta := createMetaData(url, tempFile, "")
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err == nil {
+			t.Errorf("expected unable to ping the DB, got nil")
+		} else if !strings.Contains(err.Error(), "unable to ping the DB") {
+			t.Errorf("expected unable to ping the DB, got %s", err)
+		}
+	})
+
+	t.Run("init with corrupted pemFile", func(t *testing.T) {
+		// Copy the invalid PEM file to a temporary location.
+		tempFile := "cert.pem"
+		if err := os.WriteFile(tempFile, []byte(invalidPem), 0400); err != nil {
+			t.Fatalf("failed to write to %s: %s", tempFile, err)
+		}
+
+		defer func() {
+			if err := os.Remove(tempFile); err != nil {
+				t.Fatalf("failed to remove %s: %s", tempFile, err)
+			}
+		}()
+
+		url := "user:secret@tcp(localhost:3306)/test?tls=custom"
+		sqlMeta := createMetaData(url, tempFile, "")
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err == nil {
+			t.Errorf("expected failed to decode PEM error, got nil")
+		} else if !strings.Contains(err.Error(), "failed to decode PEM") {
+			t.Errorf("failed to init database: %s", err)
+		}
+	})
+
+	t.Run("init with valid pemContents and corrupt pemFile", func(t *testing.T) {
+		// Copy the invalid PEM file to a temporary location.
+		tempFile := "cert.pem"
+		if err := os.WriteFile(tempFile, []byte(invalidPem), 0400); err != nil {
+			t.Fatalf("failed to write to %s: %s", tempFile, err)
+		}
+
+		defer func() {
+			if err := os.Remove(tempFile); err != nil {
+				t.Fatalf("failed to remove %s: %s", tempFile, err)
+			}
+		}()
+
+		url := "user:secret@tcp(localhost:3306)/test?tls=custom"
+		sqlMeta := createMetaData(url, tempFile, validPem)
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err == nil {
+			t.Errorf("expected unable to ping the DB, got nil")
+		} else if !strings.Contains(err.Error(), "unable to ping the DB") {
+			t.Errorf("expected unable to ping the DB, got %s", err)
+		}
+	})
+
+	t.Run("init with pemContents", func(t *testing.T) {
+		url := "user:secret@tcp(localhost:3306)/test?tls=custom"
+		sqlMeta := createMetaData(url, "", validPem)
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err != nil {
+			// We expect this to fail because we do not have a running MySQL instance, but we
+			// want to make sure the error message is not about the SSL cert or parsing the
+			// DSN.
+			if !strings.Contains(err.Error(), "unable to ping the DB") {
+				t.Errorf("failed to init database: %s", err)
+			}
+
+		}
+	})
+
+	t.Run("init with corrupted pemContents", func(t *testing.T) {
+		url := "user:secret@tcp(localhost:3306)/test?tls=custom"
+		sqlMeta := createMetaData(url, "", invalidPem)
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err == nil {
+			t.Errorf("expected failed to decode PEM error, got nil")
+		} else if !strings.Contains(err.Error(), "failed to decode PEM") {
+			t.Errorf("failed to init database: %s", err)
+		}
+	})
+
+	t.Run("init with valid pem and non-custom tls", func(t *testing.T) {
+		url := "user:secret@tcp(localhost:3306)/test?tls=noncustom"
+		sqlMeta := createMetaData(url, "", validPem)
+
+		b := NewMysql(logger.NewLogger("test")).(*Mysql)
+		if err := b.Init(context.Background(), sqlMeta); err == nil {
+			t.Errorf("expected illegal Data Source Name (DSN) error, got nil")
+		} else if !strings.Contains(err.Error(), "illegal Data Source Name (DSN)") {
+			t.Errorf("expected illegal Data Source Name (DSN) error, got %s", err)
+		}
+	})
+}
+
+func createMetaData(url, pemPath, pemContents string) bindings.Metadata {
+	return bindings.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"url":         url,
+				"pemPath":     pemPath,
+				"pemContents": pemContents,
+			},
+		},
+	}
 }

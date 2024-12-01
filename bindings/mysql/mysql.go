@@ -306,12 +306,11 @@ func (m *Mysql) exec(ctx context.Context, sql string, params ...any) (int64, err
 }
 
 func initDB(url string, pemContents []byte) (*sql.DB, error) {
-	conf, err := mysql.ParseDSN(url)
-	if err != nil {
-		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
-	}
-
+	// We need to register the custom TLS config before parsing the DSN if the user
+	// has provided a PEM file. DSN parsing will fail if the user has provided a PEM
+	// file, but the custom TLS config requested (i.e., "custom") is not registered.
 	if len(pemContents) != 0 {
+		// Create an empty root cert pool. We will append the PEM contents to this pool.
 		rootCertPool := x509.NewCertPool()
 
 		ok := rootCertPool.AppendCertsFromPEM(pemContents)
@@ -319,13 +318,21 @@ func initDB(url string, pemContents []byte) (*sql.DB, error) {
 			return nil, errors.New("failed to append PEM")
 		}
 
-		err = mysql.RegisterTLSConfig("custom", &tls.Config{
+		// Register TLS config with the name "custom". The url must end with &tls=custom
+		// to use this custom TLS config.
+		err := mysql.RegisterTLSConfig("custom", &tls.Config{
 			RootCAs:    rootCertPool,
 			MinVersion: tls.VersionTLS12,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("error register TLS config: %w", err)
 		}
+	}
+
+	// Parse the DSN to get the connection configuration.
+	conf, err := mysql.ParseDSN(url)
+	if err != nil {
+		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
 	}
 
 	// Required to correctly parse time columns

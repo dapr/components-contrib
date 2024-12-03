@@ -261,7 +261,7 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 	switch {
 	case a.accessKey != nil && a.secretKey != nil:
 		// Set credentials explicitly with access key and secret key
-		awsCfg := v2creds.NewStaticCredentialsProvider(*a.accessKey, *a.secretKey, *a.sessionToken)
+		awsCfg := v2creds.NewStaticCredentialsProvider(*a.accessKey, *a.secretKey, a.sessionToken)
 		authenticationToken, err := auth.BuildAuthToken(
 			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg)
 		if err != nil {

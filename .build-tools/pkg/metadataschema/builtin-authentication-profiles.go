@@ -32,12 +32,6 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 	for i, profile := range profiles {
 		res[i] = profile
 
-		// We only need to transition this change on this AWS profile,
-		// as secret keys and access keys are irrelevant on the other AWS profiles.
-
-		// if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
-		// 	res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
-		// }
 		// convert slice to a slice of pointers to update in place for required -> non-required fields
 		metadataPtr := make([]*Metadata, len(profile.Metadata))
 		for j := range profile.Metadata {
@@ -131,7 +125,7 @@ func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Me
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
-		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" {
+		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" || field.Name == "awsRegion" {
 			continue
 		} else {
 			filteredMetadata = append(filteredMetadata, field)

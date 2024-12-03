@@ -35,7 +35,7 @@ builtinAuthenticationProfiles:
         description: |
           This maintains backwards compatibility with existing fields. 
           It will be deprecated as of Dapr 1.17. Use 'region' instead.
-          The AWS Region where the AWS Relational Database Service is deployed to.
+          The AWS Region where the AWS service is deployed to.
         example: '"us-east-1"'
       - name: awsAccessKey
         type: string

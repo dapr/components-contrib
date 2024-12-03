@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
@@ -41,6 +42,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
@@ -334,7 +337,7 @@ func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config)
 	}
 
 	// Second, check if we are assuming a role instead
-	if a.assumeRoleARN != nil {
+	if a.assumeRoleArn != nil {
 		awsCfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
@@ -345,7 +348,7 @@ func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config)
 			config.WithRegion(*a.region),
 			config.WithCredentialsProvider(
 				awsv2.NewCredentialsCache(
-					stscreds.NewAssumeRoleProvider(stsClient, *a.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
+					stscreds.NewAssumeRoleProvider(stsClient, *a.assumeRoleArn, func(aro *stscreds.AssumeRoleOptions) {
 						if a.sessionName != "" {
 							aro.RoleSessionName = a.sessionName
 						}
@@ -356,6 +359,14 @@ func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config)
 		if err != nil {
 			return "", fmt.Errorf("failed to assume aws role %w", err)
 		}
+
+		authenticationToken, err := auth.BuildAuthToken(
+			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, assumeRoleCfg.Credentials)
+		if err != nil {
+			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
+		}
+		return authenticationToken, nil
+	}
 
 	// Lastly, and by default, just use the default aws configuration
 	awsCfg, err := config.LoadDefaultConfig(ctx)

@@ -43,7 +43,7 @@ type pgMetadata struct {
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 
-	aws.AWSIAM `mapstructure:",squash"`
+	aws.DeprecatedPostgresIAM `mapstructure:",squash"`
 }
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
@@ -60,7 +60,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithM
 		return err
 	}
 
-	// Validate and sanitize input
+	// Validate and sanitize inputq
 	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, opts)
 	if err != nil {
 		return err

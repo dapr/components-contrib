@@ -76,7 +76,7 @@ builtinAuthenticationProfiles:
           If both fields are set, then 'sessionName' value will be used.
           Represents the session name for assuming a role.
         example: '"MyAppSession"'
-        default: '"MSKSASLDefaultSession"'
+        default: '"DaprDefaultSession"'
 authenticationProfiles:
   - title: "OIDC Authentication"
     description: |

@@ -48,6 +48,13 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
+func isX509Auth(m map[string]string) bool {
+	tp := m["trustProfileArn"]
+	ta := m["trustAnchorArn"]
+	ar := m["assumeRoleArn"]
+	return tp != "" && ta != "" && ar != ""
+}
+
 type x509Options struct {
 	TrustProfileArn *string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
 	TrustAnchorArn  *string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`

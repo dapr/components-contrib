@@ -100,13 +100,6 @@ type Provider interface {
 	Close() error
 }
 
-func isX509Auth(m map[string]string) bool {
-	tp, _ := m["trustProfileArn"]
-	ta, _ := m["trustAnchorArn"]
-	ar, _ := m["assumeRoleArn"]
-	return tp != "" && ta != "" && ar != ""
-}
-
 func NewProvider(ctx context.Context, opts Options, cfg *aws.Config) (Provider, error) {
 	if isX509Auth(opts.Properties) {
 		return newX509(ctx, opts, cfg)

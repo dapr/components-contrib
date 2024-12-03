@@ -48,16 +48,22 @@ func TestGetTokenClient(t *testing.T) {
 			awsInstance: &StaticAuth{
 				accessKey:    aws.String("testAccessKey"),
 				secretKey:    aws.String("testSecretKey"),
-				sessionToken: aws.String("testSessionToken"),
+				sessionToken: "testSessionToken",
 				region:       aws.String("us-west-2"),
 				endpoint:     aws.String("https://test.endpoint.com"),
+			},
+		},
+		{
+			name: "creds from environment",
+			awsInstance: &StaticAuth{
+				region: aws.String("us-west-2"),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			session, err := tt.awsInstance.getTokenClient()
+			session, err := tt.awsInstance.createSession()
 			require.NotNil(t, session)
 			require.NoError(t, err)
 			assert.Equal(t, tt.awsInstance.region, session.Config.Region)

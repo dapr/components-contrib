@@ -49,11 +49,11 @@ type Options struct {
 	Region        string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion"`
 	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
 	SecretKey     string `json:"secretKey" mapstructure:"secretKey"`
-	SessionName   string `mapstructure:"sessionName"`
-	AssumeRoleARN string `mapstructure:"assumeRoleArn"`
+	SessionName   string `json:"sessionName" mapstructure:"sessionName"`
+	AssumeRoleARN string `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
+	SessionToken  string `json:"sessionToken" mapstructure:"sessionToken"`
 
-	Endpoint     string
-	SessionToken string
+	Endpoint string
 }
 
 // TODO: Delete in Dapr 1.17 so we can move all IAM fields to use the defaults of:
@@ -91,7 +91,7 @@ type Provider interface {
 	Ses() *SesClients
 	Kafka(KafkaOptions) (*KafkaClients, error)
 
-	// Postgres is an outlier to the others in the sense that we can update only it's config, 
+	// Postgres is an outlier to the others in the sense that we can update only it's config,
 	// as we use a max connection time of 8 minutes.
 	// This means that we can just update the config session credentials,
 	// and then in 8 minutes it will update to a new session automatically for us.

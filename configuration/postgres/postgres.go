@@ -100,21 +100,13 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 	}
 
 	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
-		region, accessKey, secretKey, validateErr := p.metadata.ValidateAwsIamFields()
+		opts, validateErr := p.metadata.BuildAwsIamOptions(p.logger, metadata.Properties)
 		if validateErr != nil {
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
-		opts := awsAuth.Options{
-			Logger:       p.logger,
-			Properties:   metadata.Properties,
-			Region:       region,
-			Endpoint:     "",
-			AccessKey:    accessKey,
-			SecretKey:    secretKey,
-			SessionToken: "",
-		}
+
 		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
 		if err != nil {
 			return err
 		}

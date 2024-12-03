@@ -24,7 +24,9 @@ import (
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -258,10 +260,23 @@ func (a *StaticAuth) UpdatePostgres(ctx context.Context, poolConfig *pgxpool.Con
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Connecting.Go.html
 func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config) (string, error) {
 	dbEndpoint := poolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(poolConfig.ConnConfig.Port))
-	switch {
-	case a.accessKey != nil && a.secretKey != nil:
-		// Set credentials explicitly with access key and secret key
-		awsCfg := v2creds.NewStaticCredentialsProvider(*a.accessKey, *a.secretKey, a.sessionToken)
+
+	// First, check if there are credentials set explicitly with accesskey and secretkey
+	var creds credentials.Value
+	if a.session != nil {
+		var err error
+		creds, err = a.session.Config.Credentials.Get()
+		if err != nil {
+			a.logger.Infof("failed to get access key and secret key, will fallback to reading the default AWS credentials file: %w", err)
+		}
+	}
+
+	if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
+		creds, err := a.session.Config.Credentials.Get()
+		if err != nil {
+			return "", fmt.Errorf("failed to retrieve session credentials: %w", err)
+		}
+		awsCfg := v2creds.NewStaticCredentialsProvider(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken)
 		authenticationToken, err := auth.BuildAuthToken(
 			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg)
 		if err != nil {
@@ -269,17 +284,47 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 		}
 
 		return authenticationToken, nil
-
-	default:
 	}
 
+	// Second, check if we are assuming a role instead
+	if a.assumeRoleARN != nil {
+		awsCfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
+		}
+		stsClient := sts.NewFromConfig(awsCfg)
+
+		assumeRoleCfg, err := config.LoadDefaultConfig(ctx,
+			config.WithRegion(*a.region),
+			config.WithCredentialsProvider(
+				awsv2.NewCredentialsCache(
+					stscreds.NewAssumeRoleProvider(stsClient, *a.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
+						if a.sessionName != "" {
+							aro.RoleSessionName = a.sessionName
+						}
+					}),
+				),
+			),
+		)
+		if err != nil {
+			return "", fmt.Errorf("failed to assume aws role %w", err)
+		}
+
+		authenticationToken, err := auth.BuildAuthToken(
+			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, assumeRoleCfg.Credentials)
+		if err != nil {
+			return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
+		}
+		return authenticationToken, nil
+	}
+
+	// Lastly, and by default, just use the default aws configuration
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
 	}
 
-	authenticationToken, err := auth.BuildAuthToken(
-		ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg.Credentials)
+	authenticationToken, err := auth.BuildAuthToken(ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg.Credentials)
 	if err != nil {
 		return "", fmt.Errorf("failed to create AWS authentication token: %w", err)
 	}

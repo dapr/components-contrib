@@ -79,6 +79,7 @@ type x509 struct {
 	trustProfileArn *string
 	trustAnchorArn  *string
 	assumeRoleArn   *string
+	sessionName     string
 }
 
 func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) {
@@ -307,7 +308,7 @@ func (a *x509) Ses() *SesClients {
 func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config) (string, error) {
 	dbEndpoint := poolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(poolConfig.ConnConfig.Port))
 
-	// Set credentials explicitly
+	// First, check if there are credentials set explicitly with accesskey and secretkey
 	var creds credentials.Value
 	if a.session != nil {
 		var err error
@@ -332,6 +333,31 @@ func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config)
 		return authenticationToken, nil
 	}
 
+	// Second, check if we are assuming a role instead
+	if a.assumeRoleARN != nil {
+		awsCfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)
+		}
+		stsClient := sts.NewFromConfig(awsCfg)
+
+		assumeRoleCfg, err := config.LoadDefaultConfig(ctx,
+			config.WithRegion(*a.region),
+			config.WithCredentialsProvider(
+				awsv2.NewCredentialsCache(
+					stscreds.NewAssumeRoleProvider(stsClient, *a.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
+						if a.sessionName != "" {
+							aro.RoleSessionName = a.sessionName
+						}
+					}),
+				),
+			),
+		)
+		if err != nil {
+			return "", fmt.Errorf("failed to assume aws role %w", err)
+		}
+
+	// Lastly, and by default, just use the default aws configuration
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to load default AWS authentication configuration %w", err)

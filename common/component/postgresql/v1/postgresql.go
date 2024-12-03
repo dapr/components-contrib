@@ -110,21 +110,13 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
-		region, accessKey, secretKey, validateErr := p.metadata.ValidateAwsIamFields()
+		opts, validateErr := p.metadata.BuildAwsIamOptions(p.logger, meta.Properties)
 		if validateErr != nil {
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
-		opts := awsAuth.Options{
-			Logger:       p.logger,
-			Properties:   meta.Properties,
-			Region:       region,
-			Endpoint:     "",
-			AccessKey:    accessKey,
-			SecretKey:    secretKey,
-			SessionToken: "",
-		}
+
 		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
 		if err != nil {
 			return err
 		}

@@ -26,6 +26,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/bindings"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -45,6 +47,11 @@ type Postgres struct {
 	logger logger.Logger
 	db     *pgxpool.Pool
 	closed atomic.Bool
+
+	enableAzureAD bool
+	enableAWSIAM  bool
+
+	awsAuthProvider awsAuth.Provider
 }
 
 // NewPostgres returns a new PostgreSQL output binding.
@@ -59,16 +66,34 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	if p.closed.Load() {
 		return errors.New("cannot initialize a previously-closed component")
 	}
-
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
+	}
 	m := psqlMetadata{}
-	err := m.InitWithMetadata(meta.Properties)
+	if err := m.InitWithMetadata(meta.Properties); err != nil {
+		return err
+	}
+
+	var err error
+	poolConfig, err := m.GetPgxPoolConfig()
 	if err != nil {
 		return err
 	}
 
-	poolConfig, err := m.GetPgxPoolConfig()
-	if err != nil {
-		return err
+	if opts.AWSIAMEnabled && m.UseAWSIAM {
+		opts, validateErr := m.BuildAwsIamOptions(p.logger, meta.Properties)
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
+		}
+
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
+		if err != nil {
+			return err
+		}
+		p.awsAuthProvider = provider
+		p.awsAuthProvider.UpdatePostgres(ctx, poolConfig)
 	}
 
 	// This context doesn't control the lifetime of the connection pool, and is
@@ -186,7 +211,11 @@ func (p *Postgres) Close() error {
 	}
 	p.db = nil
 
-	return nil
+	errs := make([]error, 1)
+	if p.awsAuthProvider != nil {
+		errs[0] = p.awsAuthProvider.Close()
+	}
+	return errors.Join(errs...)
 }
 
 func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result []byte, err error) {

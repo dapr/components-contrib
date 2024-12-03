@@ -39,7 +39,7 @@ type pgMetadata struct {
 	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 
-	aws.AWSIAM `mapstructure:",squash"`
+	aws.DeprecatedPostgresIAM `mapstructure:",squash"`
 }
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {

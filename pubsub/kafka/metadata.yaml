@@ -45,7 +45,7 @@ builtinAuthenticationProfiles:
         required: false
         sensitive: true
         description: |
-         This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields. 
           It will be deprecated as of Dapr 1.17. Use 'secretKey' instead.
           If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.

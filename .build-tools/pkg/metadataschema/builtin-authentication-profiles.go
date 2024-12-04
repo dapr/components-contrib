@@ -38,7 +38,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 			metadataPtr[j] = &profile.Metadata[j]
 		}
 
-		if componentTitle == "Apache Kafka" {
+		if componentTitle == "Apache Kafka" || strings.ToLower(componentTitle) == "postgresql" {
 			removeRequiredOnSomeAWSFields(&metadataPtr)
 		}
 
@@ -55,17 +55,17 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 		// Note: We must apply the removal of deprecated fields after the merge!!
 
 		// Here, we remove some deprecated fields as we support the transition to a new auth profile
-		if profile.Title == "AWS: Assume specific IAM Role" && componentTitle == "Apache Kafka" {
+		if profile.Title == "AWS: Assume IAM Role" && componentTitle == "Apache Kafka" || profile.Title == "AWS: Assume IAM Role" && strings.ToLower(componentTitle) == "postgresql" {
 			merged = removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
 		}
 
 		// Here, there are no metadata fields that need deprecating
-		if profile.Title == "AWS: Credentials from Environment Variables" && componentTitle == "Apache Kafka" {
+		if profile.Title == "AWS: Credentials from Environment Variables" && componentTitle == "Apache Kafka" || profile.Title == "AWS: Credentials from Environment Variables" && strings.ToLower(componentTitle) == "postgresql" {
 			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
 		}
 
 		// Here, this is a new auth profile, so rm all deprecating fields as unrelated.
-		if profile.Title == "AWS: IAM Roles Anywhere" && componentTitle == "Apache Kafka" {
+		if profile.Title == "AWS: IAM Roles Anywhere" && componentTitle == "Apache Kafka" || profile.Title == "AWS: IAM Roles Anywhere" && strings.ToLower(componentTitle) == "postgresql" {
 			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
 		}
 
@@ -125,7 +125,7 @@ func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Me
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
-		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" {
+		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" || field.Name == "awsRegion" {
 			continue
 		} else {
 			filteredMetadata = append(filteredMetadata, field)

@@ -262,21 +262,8 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 	dbEndpoint := poolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(poolConfig.ConnConfig.Port))
 
 	// First, check if there are credentials set explicitly with accesskey and secretkey
-	var creds credentials.Value
-	if a.session != nil {
-		var err error
-		creds, err = a.session.Config.Credentials.Get()
-		if err != nil {
-			a.logger.Infof("failed to get access key and secret key, will fallback to reading the default AWS credentials file: %w", err)
-		}
-	}
-
-	if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
-		creds, err := a.session.Config.Credentials.Get()
-		if err != nil {
-			return "", fmt.Errorf("failed to retrieve session credentials: %w", err)
-		}
-		awsCfg := v2creds.NewStaticCredentialsProvider(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken)
+	if a.accessKey != nil && a.secretKey != nil {
+		awsCfg := v2creds.NewStaticCredentialsProvider(*a.accessKey, *a.secretKey, a.sessionToken)
 		authenticationToken, err := auth.BuildAuthToken(
 			ctx, dbEndpoint, *a.region, poolConfig.ConnConfig.User, awsCfg)
 		if err != nil {

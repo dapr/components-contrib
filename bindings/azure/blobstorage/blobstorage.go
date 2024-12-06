@@ -22,17 +22,19 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -57,8 +59,9 @@ const (
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults  int32 = 5000
-	endpointKey       = "endpoint"
+	maxResults       int32 = 5000
+	endpointKey            = "endpoint"
+	presignOperation       = "presign"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -74,6 +77,10 @@ type AzureBlobStorage struct {
 type createResponse struct {
 	BlobURL  string `json:"blobURL"`
 	BlobName string `json:"blobName"`
+}
+
+type presignResponse struct {
+	PresignURL string `json:"presignURL"`
 }
 
 type listInclude struct {
@@ -112,6 +119,7 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		bindings.CopyOperation,
 	}
 }
 
@@ -344,6 +352,102 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}, nil
 }
 
+func (a *AzureBlobStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	sourceBlobName := req.Metadata["sourceBlobName"]
+	if sourceBlobName == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata 'sourceBlobName' missing")
+	}
+
+	destinationBlobName := req.Metadata["destinationBlobName"]
+	if destinationBlobName == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata 'destinationBlobName' missing")
+	}
+
+	sourceContainerName := req.Metadata["sourceContainerName"]
+	if sourceContainerName == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata 'sourceContainerName' missing")
+	}
+
+	destinationContainerName := req.Metadata["destinationContainerName"]
+	if destinationContainerName == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata 'destinationContainerName' missing")
+	}
+
+	sourceBlobClient := a.containerClient.NewBlockBlobClient(fmt.Sprintf("%s/%s", sourceContainerName, sourceBlobName))
+	destinationBlobClient := a.containerClient.NewBlockBlobClient(fmt.Sprintf("%s/%s", destinationContainerName, destinationBlobName))
+
+	copyURL := sourceBlobClient.URL()
+	_, err := destinationBlobClient.StartCopyFromURL(ctx, copyURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure blob storage error: copy operation failed: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Metadata: map[string]string{
+			"sourceBlobName":      sourceBlobName,
+			"destinationBlobName": destinationBlobName,
+		},
+	}, nil
+}
+
+func (a *AzureBlobStorage) presign(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	blobName := req.Metadata[metadataKeyBlobName]
+	if blobName == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata '%s' missing", metadataKeyBlobName)
+	}
+
+	presignTTL := req.Metadata["presignTTL"]
+	if presignTTL == "" {
+		return nil, fmt.Errorf("azure blob storage error: required metadata 'presignTTL' missing")
+	}
+
+	ttl, err := time.ParseDuration(presignTTL)
+	if err != nil {
+		return nil, fmt.Errorf("azure blob storage error: cannot parse duration %s: %w", presignTTL, err)
+	}
+
+	blobClient := a.containerClient.NewBlockBlobClient(blobName)
+	sasURL, err := a.generateSASURL(blobClient, ttl)
+	if err != nil {
+		return nil, fmt.Errorf("azure blob storage error: %w", err)
+	}
+
+	jsonResponse, err := json.Marshal(presignResponse{
+		PresignURL: sasURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error marshalling presign response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
+func (a *AzureBlobStorage) generateSASURL(blobClient *blockblob.Client, ttl time.Duration) (string, error) {
+	permissions := sas.AccountPermissions{
+		Read: true,
+	}
+
+	sasValues := sas.AccountSignatureValues{
+		Protocol:    sas.ProtocolHTTPS,
+		ExpiryTime:  time.Now().UTC().Add(ttl),
+		Permissions: permissions.String(),
+	}
+
+	credential, err := azblob.NewSharedKeyCredential(a.metadata.AccountName, a.metadata.AccountKey)
+	if err != nil {
+		return "", fmt.Errorf("error creating shared key credential: %w", err)
+	}
+
+	sasQueryParams, err := sasValues.SignWithSharedKey(credential)
+	if err != nil {
+		return "", fmt.Errorf("error generating SAS query parameters: %w", err)
+	}
+
+	return fmt.Sprintf("%s?%s", blobClient.URL(), sasQueryParams.Encode()), nil
+}
+
 func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -354,6 +458,10 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 		return a.delete(ctx, req)
 	case bindings.ListOperation:
 		return a.list(ctx, req)
+	case bindings.CopyOperation:
+		return a.copy(ctx, req)
+	case presignOperation:
+		return a.presign(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -371,9 +479,9 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribmetadata.MetadataMap) {
 	metadataStruct := storagecommon.BlobStorageMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	contribmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribmetadata.BindingType)
 	return
 }
 

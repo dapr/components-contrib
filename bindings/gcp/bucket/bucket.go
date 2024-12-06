@@ -137,6 +137,7 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		bindings.CopyOperation,
 		signOperation,
 	}
 }
@@ -153,8 +154,10 @@ func (g *GCPStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return g.delete(ctx, req)
 	case bindings.ListOperation:
 		return g.list(ctx, req)
+	case bindings.CopyOperation:
+		return g.copy(ctx, req)
 	case signOperation:
-		return g.sign(ctx, req)
+		return g.sign(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -307,6 +310,33 @@ func (g *GCPStorage) list(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}, nil
 }
 
+func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	sourceKey := req.Metadata["sourceKey"]
+	if sourceKey == "" {
+		return nil, fmt.Errorf("gcp bucket binding error: required metadata 'sourceKey' missing")
+	}
+
+	destinationKey := req.Metadata["destinationKey"]
+	if destinationKey == "" {
+		return nil, fmt.Errorf("gcp bucket binding error: required metadata 'destinationKey' missing")
+	}
+
+	src := g.client.Bucket(g.metadata.Bucket).Object(sourceKey)
+	dst := g.client.Bucket(g.metadata.Bucket).Object(destinationKey)
+
+	_, err := dst.CopierFrom(src).Run(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: copy operation failed: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Metadata: map[string]string{
+			"sourceKey":      sourceKey,
+			"destinationKey": destinationKey,
+		},
+	}, nil
+}
+
 func (g *GCPStorage) Close() error {
 	return g.client.Close()
 }
@@ -345,7 +375,7 @@ func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	return
 }
 
-func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) sign(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("gcp binding error. error merge metadata : %w", err)

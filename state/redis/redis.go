@@ -101,8 +101,7 @@ type StateStore struct {
 	replicas                       int
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
-
-	logger logger.Logger
+	logger                         logger.Logger
 }
 
 // NewRedisStateStore returns a new redis state store.
@@ -519,6 +518,7 @@ func (r *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	if !r.clientHasJSON {
 		return nil, errors.New("redis-json server support is required for query capability")
 	}
+	var err error
 	indexName, ok := daprmetadata.TryGetQueryIndexName(req.Metadata)
 	if !ok {
 		return nil, errors.New("query index not found")
@@ -529,8 +529,14 @@ func (r *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	}
 
 	q := NewQuery(indexName, elem.keys)
+	selectedAttributes, ok := daprmetadata.TryGetQuerySelectedAttributes(req.Metadata)
+	if ok {
+		if q.querySelectedAttributes, err = utils.ParseQuerySelectedAttributes(selectedAttributes); err != nil {
+			return nil, fmt.Errorf("redis store: error parsing selected attributes: %w", err)
+		}
+	}
 	qbuilder := query.NewQueryBuilder(q)
-	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+	if err = qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
 	data, token, err := q.execute(ctx, r.client)

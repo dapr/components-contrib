@@ -14,6 +14,11 @@ components:
     config:
       # This component requires etags to be numeric
       badEtag: "9999999"
+  - component: redis.v7stack
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: mongodb
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
   - component: memcached

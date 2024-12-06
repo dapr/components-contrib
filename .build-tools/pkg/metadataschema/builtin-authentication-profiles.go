@@ -119,6 +119,10 @@ func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Me
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
+		// region is required in Assume Role auth profile, so this is needed for now.
+		if field.Name == "region" {
+			field.Required = true
+		}
 		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" || field.Name == "awsRegion" {
 			continue
 		} else {

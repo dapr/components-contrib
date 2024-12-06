@@ -32,25 +32,17 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 	for i, profile := range profiles {
 		res[i] = profile
 
-		// convert slice to a slice of pointers to update in place for required -> non-required fields
-		metadataPtr := make([]*Metadata, len(profile.Metadata))
-		for j := range profile.Metadata {
-			metadataPtr[j] = &profile.Metadata[j]
-		}
+		// deep copy the metadata slice to avoid side effects when manually updating some req -> non-req fields to deprecate some fields for kafka/postgres
+		// TODO: rm all of this manipulation in Dapr 1.17!!
+		originalMetadata := profile.Metadata
+		metadataCopy := make([]Metadata, len(originalMetadata))
+		copy(metadataCopy, originalMetadata)
 
 		if componentTitle == "Apache Kafka" || strings.ToLower(componentTitle) == "postgresql" {
-			removeRequiredOnSomeAWSFields(&metadataPtr)
+			removeRequiredOnSomeAWSFields(&metadataCopy)
 		}
 
-		// convert back to value slices for merging
-		updatedMetadata := make([]Metadata, 0, len(metadataPtr))
-		for _, ptr := range metadataPtr {
-			if ptr != nil {
-				updatedMetadata = append(updatedMetadata, *ptr)
-			}
-		}
-
-		merged := mergedMetadata(bi.Metadata, updatedMetadata...)
+		merged := mergedMetadata(bi.Metadata, metadataCopy...)
 
 		// Note: We must apply the removal of deprecated fields after the merge!!
 
@@ -92,12 +84,14 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 // We normally have accessKey, secretKey, and region fields marked required as it is part of the builtin AWS auth profile fields.
 // However, as we rm the aws prefixed ones, we need to then mark the normally required ones as not required only for postgres and kafka.
 // This way we do not break existing users, and transition them to the standardized fields.
-func removeRequiredOnSomeAWSFields(metadata *[]*Metadata) {
+func removeRequiredOnSomeAWSFields(metadata *[]Metadata) {
 	if metadata == nil {
 		return
 	}
 
-	for _, field := range *metadata {
+	for i := range *metadata {
+		field := &(*metadata)[i]
+
 		if field == nil {
 			continue
 		}
@@ -125,6 +119,10 @@ func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Me
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
+		// region is required in Assume Role auth profile, so this is needed for now.
+		if field.Name == "region" {
+			field.Required = true
+		}
 		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" || field.Name == "awsRegion" {
 			continue
 		} else {

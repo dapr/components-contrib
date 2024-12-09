@@ -89,8 +89,12 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 
 func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properties map[string]string) (*aws.Options, error) {
 	awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
-	if awsRegion == "" {
-		return nil, errors.New("metadata property AWSRegion is missing")
+	region, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "region")
+	if region == "" {
+		region = awsRegion
+	}
+	if region == "" {
+		return nil, errors.New("metadata properties 'region' or 'AWSRegion' is missing")
 	}
 
 	// Note: access key and secret keys can be optional
@@ -114,7 +118,7 @@ func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properti
 		sessionName = "DaprDefaultSession"
 	}
 	return &aws.Options{
-		Region:        awsRegion,
+		Region:        region,
 		AccessKey:     awsAccessKey,
 		SecretKey:     awsSecretKey,
 		SessionToken:  sessionToken,

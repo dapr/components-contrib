@@ -1,11 +1,13 @@
 package workflows
 
+import "google.golang.org/protobuf/types/known/wrapperspb"
+
 // StartRequest is the struct describing a start workflow request.
 type StartRequest struct {
-	InstanceID    string            `json:"instanceID"`
-	Options       map[string]string `json:"options"`
-	WorkflowName  string            `json:"workflowName"`
-	WorkflowInput []byte            `json:"workflowInput"`
+	InstanceID    *string                 `json:"instanceID"`
+	Options       map[string]string       `json:"options"`
+	WorkflowName  string                  `json:"workflowName"`
+	WorkflowInput *wrapperspb.StringValue `json:"workflowInput"`
 }
 
 // GetRequest is the struct describing a get workflow state request.
@@ -16,14 +18,14 @@ type GetRequest struct {
 // TerminateRequest is the struct describing a terminate workflow request.
 type TerminateRequest struct {
 	InstanceID string `json:"instanceID"`
-	Recursive  bool   `json:"recursive"`
+	Recursive  *bool  `json:"recursive"`
 }
 
 // RaiseEventRequest is the struct describing a raise workflow event request.
 type RaiseEventRequest struct {
-	InstanceID string `json:"instanceID"`
-	EventName  string `json:"name"`
-	EventData  []byte `json:"data"`
+	InstanceID string                  `json:"instanceID"`
+	EventName  string                  `json:"name"`
+	EventData  *wrapperspb.StringValue `json:"data"`
 }
 
 // PauseRequest is the struct describing a pause workflow request.
@@ -39,5 +41,5 @@ type ResumeRequest struct {
 // PurgeRequest is the object describing a Purge request.
 type PurgeRequest struct {
 	InstanceID string `json:"instanceID"`
-	Recursive  bool   `json:"recursive"`
+	Recursive  *bool  `json:"recursive"`
 }

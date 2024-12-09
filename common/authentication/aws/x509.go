@@ -312,7 +312,9 @@ func (a *x509) Ses() *SesClients {
 func (a *x509) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.Config) (string, error) {
 	dbEndpoint := poolConfig.ConnConfig.Host + ":" + strconv.Itoa(int(poolConfig.ConnConfig.Port))
 
-	// First, check if there are credentials set explicitly with accesskey and secretkey
+	// First, check session credentials.
+	// This should always be what we use to generate the x509 auth credentials for postgres.
+	// However, we can leave the Second and Lastly checks as backup for now.
 	var creds credentials.Value
 	if a.session != nil {
 		var err error

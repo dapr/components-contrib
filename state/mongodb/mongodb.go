@@ -559,6 +559,13 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 func (m *MongoDB) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{}
 	qbuilder := query.NewQueryBuilder(q)
+	selectedAttributes, ok := metadata.TryGetQuerySelectedAttributes(req.Metadata)
+	if ok {
+		var err error
+		if q.querySelectedAttributes, err = stateutils.ParseQuerySelectedAttributes(selectedAttributes); err != nil {
+			return nil, fmt.Errorf("mongo store: error parsing selected attributes: %w", err)
+		}
+	}
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}

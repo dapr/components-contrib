@@ -33,12 +33,12 @@ import (
 
 	"github.com/dapr/kit/retry"
 
-	gonanoid "github.com/matoous/go-nanoid/v2"
-
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type snsSqs struct {
@@ -162,6 +162,14 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		s.authProvider = provider
 	}
 
+	if s.authProvider.SnsSqs().Region() != "" {
+		if partition, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), s.authProvider.SnsSqs().Region()); ok {
+			m.internalPartition = partition.ID()
+		} else {
+			m.internalPartition = "aws"
+		}
+	}
+
 	s.opsTimeout = time.Duration(m.AssetsManagementTimeoutSeconds * float64(time.Second))
 
 	err = s.setAwsAccountIDIfNotProvided(ctx)
@@ -201,7 +209,7 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 }
 
 func (s *snsSqs) buildARN(serviceName, entityName string) string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.internalPartition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.internalPartition, serviceName, s.authProvider.SnsSqs().Region(), s.metadata.AccountID, entityName)
 }
 
 func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, error) {
@@ -257,9 +265,8 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	}
 
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("No SNS topic ARN found for topic: %s. creating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
-
 	if !s.metadata.DisableEntityManagement {
+		s.logger.Debugf("No SNS topic ARN found for topic: %s. creating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
 		topicArn, err = s.createTopic(ctx, sanitizedTopic)
 		if err != nil {
 			err = fmt.Errorf("error creating new (sanitized) topic '%s': %w", topic, err)
@@ -267,10 +274,14 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 			return topicArn, sanitizedTopic, err
 		}
 	} else {
+		s.logger.Debugf("No SNS topic ARN found for topic: %s. Checking AWS SNS for if (sanitized) topic exists: %s", topic, sanitizedTopic)
 		topicArn, err = s.getTopicArn(ctx, sanitizedTopic)
 		if err != nil {
+			var awsErr awserr.Error
+			if errors.As(err, &awsErr) && awsErr.Code() == sns.ErrCodeNotFoundException {
+				return topicArn, sanitizedTopic, errors.New("topic not found")
+			}
 			err = fmt.Errorf("error fetching info for (sanitized) topic: %s. wrapped error is: %w", topic, err)
-
 			return topicArn, sanitizedTopic, err
 		}
 	}
@@ -855,7 +866,9 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
-		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
+		wrappedErr := fmt.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	message := string(req.Data)

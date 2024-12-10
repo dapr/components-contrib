@@ -250,6 +250,9 @@ func (a *StaticAuth) UpdatePostgres(ctx context.Context, poolConfig *pgxpool.Con
 		if err != nil {
 			return fmt.Errorf("failed to get database token: %w", err)
 		}
+		if pwd == "" {
+			return errors.New("failed to get a valid password for the database token for AWS IAM authentication")
+		}
 		pgConfig.Password = pwd
 		poolConfig.ConnConfig.Password = pwd
 

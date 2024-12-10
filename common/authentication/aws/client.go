@@ -111,6 +111,12 @@ type SnsSqsClients struct {
 	Sns *sns.SNS
 	Sqs *sqs.SQS
 	Sts *sts.STS
+
+	region string
+}
+
+func (c *SnsSqsClients) Region() string {
+	return c.region
 }
 
 type SnsClients struct {
@@ -168,6 +174,7 @@ func (c *SnsSqsClients) New(session *session.Session) {
 	c.Sns = sns.New(session, session.Config)
 	c.Sqs = sqs.New(session, session.Config)
 	c.Sts = sts.New(session, session.Config)
+	c.region = *session.Config.Region
 }
 
 func (c *SqsClients) New(session *session.Session) {

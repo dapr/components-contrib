@@ -34,11 +34,12 @@ import (
 	"github.com/dapr/kit/retry"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	gonanoid "github.com/matoous/go-nanoid/v2"
+
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type snsSqs struct {

@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -445,8 +447,17 @@ func Test_buildARN_DefaultPartition(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
+	mockAuthProvider := &awsAuth.StaticAuth{}
+	mockedSnssqs := &awsAuth.SnsSqsClients{}
+	mockedSnssqs.SetRegion("r")
+	mockedClients := awsAuth.Clients{
+		Snssqs: mockedSnssqs,
+	}
+	mockAuthProvider.WithMockClients(&mockedClients)
+
 	ps := snsSqs{
-		logger: l,
+		logger:       l,
+		authProvider: mockAuthProvider,
 	}
 
 	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{

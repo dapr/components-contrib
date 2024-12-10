@@ -51,7 +51,7 @@ type Clients struct {
 	Dynamo         *DynamoDBClients
 	sns            *SnsClients
 	sqs            *SqsClients
-	snssqs         *SnsSqsClients
+	Snssqs         *SnsSqsClients
 	Secret         *SecretManagerClients
 	ParameterStore *ParameterStoreClients
 	kinesis        *KinesisClients
@@ -75,8 +75,8 @@ func (c *Clients) refresh(session *session.Session) error {
 		c.sns.New(session)
 	case c.sqs != nil:
 		c.sqs.New(session)
-	case c.snssqs != nil:
-		c.snssqs.New(session)
+	case c.Snssqs != nil:
+		c.Snssqs.New(session)
 	case c.Secret != nil:
 		c.Secret.New(session)
 	case c.ParameterStore != nil:
@@ -170,11 +170,18 @@ func (c *SnsClients) New(session *session.Session) {
 	c.Sns = sns.New(session, session.Config)
 }
 
+func (c *SnsSqsClients) SetRegion(region string) {
+	c.region = region
+}
+
 func (c *SnsSqsClients) New(session *session.Session) {
 	c.Sns = sns.New(session, session.Config)
 	c.Sqs = sqs.New(session, session.Config)
 	c.Sts = sts.New(session, session.Config)
-	c.region = *session.Config.Region
+	// the empty string check is added to allow for this to be injected by tests
+	if c.region != "" {
+		c.SetRegion(*session.Config.Region)
+	}
 }
 
 func (c *SqsClients) New(session *session.Session) {

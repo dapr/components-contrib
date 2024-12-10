@@ -168,14 +168,14 @@ func (a *StaticAuth) SnsSqs() *SnsSqsClients {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.clients.snssqs != nil {
-		return a.clients.snssqs
+	if a.clients.Snssqs != nil {
+		return a.clients.Snssqs
 	}
 
 	clients := SnsSqsClients{}
-	a.clients.snssqs = &clients
-	a.clients.snssqs.New(a.session)
-	return a.clients.snssqs
+	a.clients.Snssqs = &clients
+	a.clients.Snssqs.New(a.session)
+	return a.clients.Snssqs
 }
 
 func (a *StaticAuth) SecretManager() *SecretManagerClients {

@@ -82,11 +82,6 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 		return nil, err
 	}
 
-	// set an initial default that we will override if an aws region is found after we init the snssqs via the aws auth provider in Init()
-	if md.internalPartition == "" {
-		md.internalPartition = "aws"
-	}
-
 	if md.SqsQueueName == "" {
 		return nil, errors.New("consumerID must be set")
 	}

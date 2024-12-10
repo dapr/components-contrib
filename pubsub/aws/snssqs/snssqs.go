@@ -141,7 +141,6 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-
 	s.metadata = m
 
 	if s.authProvider == nil {
@@ -165,12 +164,11 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 	if s.authProvider.SnsSqs().Region() != "" {
 		if partition, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), s.authProvider.SnsSqs().Region()); ok {
-			m.internalPartition = partition.ID()
+			s.metadata.internalPartition = partition.ID()
 		} else {
-			m.internalPartition = "aws"
+			s.metadata.internalPartition = "aws"
 		}
 	}
-
 	s.opsTimeout = time.Duration(m.AssetsManagementTimeoutSeconds * float64(time.Second))
 
 	err = s.setAwsAccountIDIfNotProvided(ctx)

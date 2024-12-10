@@ -470,6 +470,9 @@ func Test_buildARN_DefaultPartition(t *testing.T) {
 	md.AccountID = "123456789012"
 	ps.metadata = md
 
+	// This is now set in the Init func, so we must set it in test to have the value to build the arn with
+	ps.metadata.internalPartition = "aws"
+
 	arn := ps.buildARN("sns", "myTopic")
 	r.Equal("arn:aws:sns:r:123456789012:myTopic", arn)
 }
@@ -479,8 +482,17 @@ func Test_buildARN_StandardPartition(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
+	mockAuthProvider := &awsAuth.StaticAuth{}
+	mockedSnssqs := &awsAuth.SnsSqsClients{}
+	mockedSnssqs.SetRegion("us-west-2")
+	mockedClients := awsAuth.Clients{
+		Snssqs: mockedSnssqs,
+	}
+	mockAuthProvider.WithMockClients(&mockedClients)
+
 	ps := snsSqs{
-		logger: l,
+		logger:       l,
+		authProvider: mockAuthProvider,
 	}
 
 	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
@@ -493,6 +505,9 @@ func Test_buildARN_StandardPartition(t *testing.T) {
 	md.AccountID = "123456789012"
 	ps.metadata = md
 
+	// This is now set in the Init func, so we must set it in test to have the value to build the arn with
+	ps.metadata.internalPartition = "aws"
+
 	arn := ps.buildARN("sns", "myTopic")
 	r.Equal("arn:aws:sns:us-west-2:123456789012:myTopic", arn)
 }
@@ -502,8 +517,17 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
+	mockAuthProvider := &awsAuth.StaticAuth{}
+	mockedSnssqs := &awsAuth.SnsSqsClients{}
+	mockedSnssqs.SetRegion("cn-northwest-1")
+	mockedClients := awsAuth.Clients{
+		Snssqs: mockedSnssqs,
+	}
+	mockAuthProvider.WithMockClients(&mockedClients)
+
 	ps := snsSqs{
-		logger: l,
+		logger:       l,
+		authProvider: mockAuthProvider,
 	}
 
 	md, err := ps.getSnsSqsMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
@@ -515,6 +539,9 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 	r.NoError(err)
 	md.AccountID = "123456789012"
 	ps.metadata = md
+
+	// This is now set in the Init func, so we must set it in test to have the value to build the arn with
+	ps.metadata.internalPartition = "aws-cn"
 
 	arn := ps.buildARN("sns", "myTopic")
 	r.Equal("arn:aws-cn:sns:cn-northwest-1:123456789012:myTopic", arn)

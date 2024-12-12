@@ -62,9 +62,9 @@ type InitWithMetadataOpts struct {
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
 func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts InitWithMetadataOpts) (err error) {
 	// Validate input
-	if m.ConnectionString == "" {
-		return errors.New("missing connection string")
-	}
+        if m.ConnectionString == "" {
+                m.ConnectionString = fmt.Sprintf("user=%v password=%v host=%v port=%v database=%v sslmode=%v pool_min_conns=%v pool_max_conns=%v",m.POSTGRES_USER, m.POSTGRES_PASSWORD , m.POSTGRES_HOST , m.POSTGRES_PORT, m.POSTGRES_DB,m.SSL_MODE, m.MIN_CONNS , m.MAX_CONNS)
+        }
 	switch {
 	case opts.AzureADEnabled && m.UseAzureAD:
 		// Populate the Azure environment if using Azure AD

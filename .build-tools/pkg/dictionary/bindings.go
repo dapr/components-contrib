@@ -174,13 +174,24 @@ var bindingsCosmosGremlin = metadataschema.ComponentMetadata{
 }
 
 var bindingsEventGrid = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameEventGrid,
-	Version:      v1,
-	Status:       beta,
-	Title:        titleEventGrid,
-	Description:  "", // TODO
-	Capabilities: []string{},
+	Type:                          binding,
+	Name:                          nameEventGrid,
+	Version:                       v1,
+	Status:                        beta,
+	Title:                         titleEventGrid,
+	Description:                   "", // TODO
+	Capabilities:                  []string{},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  true,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create an event subscription",
+			},
+		},
+	},
 }
 
 var bindingsEventHub = metadataschema.ComponentMetadata{

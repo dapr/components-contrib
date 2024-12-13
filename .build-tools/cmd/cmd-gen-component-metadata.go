@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/bindings/aws/sns"
 	"github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	"github.com/dapr/components-contrib/bindings/azure/cosmosdb/gremlinapi"
+	"github.com/dapr/components-contrib/bindings/azure/eventgrid"
 	"github.com/dapr/components-contrib/build-tools/pkg/componentmetadata"
 	"github.com/dapr/components-contrib/build-tools/pkg/dictionary"
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
@@ -252,6 +253,7 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 
 				fieldName := field.Names[0].Name
 				// edge case: do not add authentication profile metadata fields
+				// TODO(@Sam): go back and rm my AP prefix and use tag instead
 				if strings.HasPrefix(fieldName, "AP") {
 					continue
 				}
@@ -268,6 +270,8 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 				required := true
 				var jsonTag string
 				// var defaultValue, exampleValue string
+				var bindingsMeta metadataschema.MetadataBinding
+
 				if field.Tag != nil {
 					tag := field.Tag.Value
 					jsonTag = parseJSONTag(tag)
@@ -276,6 +280,22 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 					}
 					if strings.Contains(tag, "mdignore") {
 						continue
+					}
+					if strings.Contains(tag, "-") {
+						continue
+					}
+					// edge case: do not add authentication profile metadata fields
+					// TODO(@Sam): go back and rm my AP prefix and use tag instead
+					// if strings.HasPrefix(tag, "authenticationProfile") {
+					// 	continue
+					// }
+
+					// bindings edge case
+					if strings.Contains(tag, `binding:"input"`) {
+						bindingsMeta.Input = true
+					}
+					if strings.Contains(tag, `binding:"output"`) {
+						bindingsMeta.Output = true
 					}
 				}
 				defaultValue := getDefaultValueForField(underlyingComponentName, fieldName)
@@ -292,7 +312,7 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 					Default:       defaultValue,
 					Example:       exampleValue,
 					AllowedValues: []string{}, // TODO
-					Binding:       nil,
+					Binding:       &bindingsMeta,
 					Deprecated:    false,
 				})
 			}
@@ -326,6 +346,10 @@ func getDefaultValueForField(underlyingComponentName, fieldName string) string {
 		return defaultsMap[fieldName]
 	case "gremlinapi":
 		meta := gremlinapi.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "eventgrid":
+		meta := eventgrid.Defaults()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types
@@ -362,6 +386,10 @@ func getExampleValueForField(underlyingComponentName, fieldName string) string {
 		meta := gremlinapi.Examples()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
+	case "eventgrid":
+		meta := eventgrid.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types
 	default:
 		return "Sam TODO need to add the call for defaults/examples" // Fallback default
@@ -385,10 +413,15 @@ func getStructDefaultValue(meta interface{}) map[string]string {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldName := typ.Field(i).Name
-		// Directly use the field's value (which was initialized by New) for the default value
-		defaultValue := fmt.Sprintf("%v", field.Interface())
-		// Store the default value for this field
-		defaultValues[fieldName] = defaultValue
+
+		// only process exported fields
+		// Only process exported fields (fields whose names start with an uppercase letter)
+		if fieldName[0] >= 'A' && fieldName[0] <= 'Z' {
+			// Directly use the field's value (which was initialized by New) for the default value
+			defaultValue := fmt.Sprintf("%v", field.Interface())
+			// Store the default value for this field
+			defaultValues[fieldName] = defaultValue
+		}
 	}
 
 	return defaultValues

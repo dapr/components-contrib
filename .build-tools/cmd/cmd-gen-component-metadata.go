@@ -24,7 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dapr/components-contrib/bindings/aws/dynamodb"
 	"github.com/dapr/components-contrib/bindings/aws/s3"
+	"github.com/dapr/components-contrib/bindings/aws/sns"
+	"github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	"github.com/dapr/components-contrib/build-tools/pkg/componentmetadata"
 	"github.com/dapr/components-contrib/build-tools/pkg/dictionary"
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
@@ -97,9 +100,18 @@ var generateComponentMetadataCmd = &cobra.Command{
 			metadataFile := fmt.Sprintf("%s/metadata.go", metadataFilePath)
 			compNoPrefix := strings.SplitAfter(component.Name, ".")
 			component.Metadata, err = generateMetadataFromStructs(metadataFile, compNoPrefix[1]+"Metadata", compNoPrefix[1])
+			fmt.Printf("sam the metadata: \n", component.Metadata)
 			if err != nil {
 				fmt.Printf("sam error: %v", err)
 			}
+
+			authProfileFile := fmt.Sprintf("%s/authentication-profiles.yaml", metadataFilePath)
+			authProfiles, err := generateAuthProfiles(authProfileFile)
+			if err != nil {
+				fmt.Printf("sam error: %v", err)
+			}
+			component.AuthenticationProfiles = authProfiles
+			fmt.Printf("sam the auth profiles %v\n", authProfiles)
 			// step 1.5. auto-generate any other missing fields (e.g., auth profile)
 			// TODO: Add logic for other fields if necessary
 
@@ -118,7 +130,7 @@ var generateComponentMetadataCmd = &cobra.Command{
 			}
 
 			// Append built-in metadata properties
-			err := component.AppendBuiltin()
+			err = component.AppendBuiltin()
 			if err != nil {
 				fmt.Printf("sam error from AppendBuildin %v", err)
 			}
@@ -146,6 +158,26 @@ var generateComponentMetadataCmd = &cobra.Command{
 	},
 }
 
+func generateAuthProfiles(filePath string) ([]metadataschema.AuthenticationProfile, error) {
+	// Read the file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Parse the YAML content into a slice of AuthenticationProfile structs
+	var authProfiles []metadataschema.AuthenticationProfile
+	err = yaml.Unmarshal(data, &authProfiles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	return authProfiles, nil
+}
+
 func convertPrefixToPath(componentName string) string {
 	return strings.ReplaceAll(componentName, ".", "/")
 }
@@ -166,6 +198,7 @@ func parseJSONTag(tag string) string {
 	}
 	return ""
 }
+
 func generateMetadataFromStructs(filePath, structName, underlyingComponentName string) ([]metadataschema.Metadata, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
@@ -208,6 +241,10 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 				}
 
 				fieldName := field.Names[0].Name
+				// edge case: do not add authentication profile metadata fields
+				if strings.HasPrefix(fieldName, "AP") {
+					continue
+				}
 				fieldType := fmt.Sprintf("%s", field.Type)
 				var description string
 				// Extract comments
@@ -219,10 +256,11 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 
 				// Extract JSON tag and check for omitempty
 				required := true
+				var jsonTag string
 				// var defaultValue, exampleValue string
 				if field.Tag != nil {
 					tag := field.Tag.Value
-					// jsonTag := parseJSONTag(tag)
+					jsonTag = parseJSONTag(tag)
 					if strings.Contains(tag, "omitempty") {
 						required = false
 					}
@@ -236,7 +274,7 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 
 				// Create a Metadata entry
 				metadataEntries = append(metadataEntries, metadataschema.Metadata{
-					Name:          fieldName,
+					Name:          jsonTag, // TODO: this doesn't really make sense. What is the point of the name field if it is just the jsontag...
 					Description:   description,
 					Required:      required,
 					Sensitive:     isFieldSensitive(fieldName),
@@ -261,14 +299,24 @@ func isFieldSensitive(field string) bool {
 func getDefaultValueForField(underlyingComponentName, fieldName string) string {
 	switch underlyingComponentName {
 	case "s3":
-		meta := s3.Defaults() // type of S3Metadata
+		meta := s3.Defaults()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
 	case "sns":
-		fallthrough
+		meta := sns.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "dynamodb":
+		meta := dynamodb.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "cosmosdb":
+		meta := cosmosdb.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types
 	default:
-		return "TODO" // Fallback default
+		return "Sam TODO need to add the call for defaults/examples" // Fallback default
 	}
 }
 
@@ -279,9 +327,26 @@ func getExampleValueForField(underlyingComponentName, fieldName string) string {
 		meta := s3.Examples()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
+	case "sns":
+		meta := sns.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	// TODO: skipping blobstorage bc it needs a lot of rework to add here
+	// case "blobstorage":
+	// 	meta := blobstorage.Examples()
+	// 	defaultsMap := getStructDefaultValue(meta)
+	// return defaultsMap[fieldName]
+	case "dynamodb":
+		meta := dynamodb.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "cosmosdb":
+		meta := cosmosdb.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types
 	default:
-		return "TODO" // Fallback default
+		return "Sam TODO need to add the call for defaults/examples" // Fallback default
 	}
 }
 

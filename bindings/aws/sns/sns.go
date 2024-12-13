@@ -36,18 +36,6 @@ type AWSSNS struct {
 	logger logger.Logger
 }
 
-type snsMetadata struct {
-	// Ignored by metadata parser because included in built-in authentication profile
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
-
-	TopicArn string `json:"topicArn"`
-	// TODO: in Dapr 1.17 rm the alias on region as we remove the aws prefix on these fields
-	Region   string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
-	Endpoint string `json:"endpoint"`
-}
-
 type dataPayload struct {
 	Message interface{} `json:"message"`
 	Subject interface{} `json:"subject"`

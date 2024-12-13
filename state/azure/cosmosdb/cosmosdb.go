@@ -50,15 +50,6 @@ type StateStore struct {
 	contentType string
 	logger      logger.Logger
 }
-
-type metadata struct {
-	URL         string `json:"url"`
-	MasterKey   string `json:"masterKey"`
-	Database    string `json:"database"`
-	Collection  string `json:"collection"`
-	ContentType string `json:"contentType"`
-}
-
 type cosmosOperationType string
 
 // CosmosOperation is a wrapper around a CosmosDB operation.

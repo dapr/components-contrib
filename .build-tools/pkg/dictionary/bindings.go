@@ -18,7 +18,7 @@ func GetAllBindings() []*metadataschema.ComponentMetadata {
 	return []*metadataschema.ComponentMetadata{
 		&bindingsS3,
 		&bindingsSns,
-		&bindingsBlob,
+		// &bindingsBlob, // TODO: need to refactor to add to automation
 		&bindingsCosmosSQL,
 		&bindingsCosmosGremlin,
 		&bindingsEventGrid,
@@ -42,7 +42,7 @@ func GetAllBindings() []*metadataschema.ComponentMetadata {
 }
 
 var awsAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "aws"}
-var azureAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "azure"}
+var azureAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "azuread"}
 
 var bindingsS3 = metadataschema.ComponentMetadata{
 	Type:                          binding,
@@ -78,43 +78,99 @@ var bindingsS3 = metadataschema.ComponentMetadata{
 }
 
 var bindingsSns = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameSns,
-	Version:      v1,
-	Status:       alpha,
-	Title:        titleSns,
-	Description:  "", // TODO
-	Capabilities: []string{},
+	Type:                          binding,
+	Name:                          nameSns,
+	Version:                       v1,
+	Status:                        alpha,
+	Title:                         titleSns,
+	Description:                   "", // TODO
+	Capabilities:                  []string{},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create a new subscription",
+			},
+		},
+	},
 }
 
 var bindingsBlob = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameBlob,
-	Version:      v1,
-	Status:       stable,
-	Title:        titleBlob,
-	Description:  "", // TODO
-	Capabilities: []string{},
+	Type:                          binding,
+	Name:                          nameBlob,
+	Version:                       v1,
+	Status:                        stable,
+	Title:                         titleBlob,
+	Description:                   "", // TODO
+	Capabilities:                  []string{},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create blob",
+			},
+			{
+				Name:        "get",
+				Description: "Get blob",
+			},
+			{
+				Name:        "delete",
+				Description: "Delete blob",
+			},
+			{
+				Name:        "list",
+				Description: "List blob",
+			},
+		},
+	},
 }
 
 var bindingsCosmosSQL = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameCosmosSql,
-	Version:      v1,
-	Status:       stable,
-	Title:        titleCosmosSql,
-	Description:  "", // TODO
-	Capabilities: []string{},
+	Type:                          binding,
+	Name:                          nameCosmosSql,
+	Version:                       v1,
+	Status:                        stable,
+	Title:                         titleCosmosSql,
+	Description:                   "", // TODO
+	Capabilities:                  []string{},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create an item",
+			},
+		},
+	},
 }
 
 var bindingsCosmosGremlin = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameCosmosGremlin,
-	Version:      v1,
-	Status:       alpha,
-	Title:        titleCosmosGremlim,
-	Description:  "", // TODO
-	Capabilities: []string{},
+	Type:                          binding,
+	Name:                          nameCosmosGremlin,
+	Version:                       v1,
+	Status:                        alpha,
+	Title:                         titleCosmosGremlim,
+	Description:                   "", // TODO
+	Capabilities:                  []string{},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "query",
+				Description: "Perform a query",
+			},
+		},
+	},
 }
 
 var bindingsEventGrid = metadataschema.ComponentMetadata{

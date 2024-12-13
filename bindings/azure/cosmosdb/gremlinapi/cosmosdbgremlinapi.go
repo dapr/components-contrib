@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cosmosdbgremlinapi
+package gremlinapi
 
 import (
 	"context"
@@ -45,15 +45,9 @@ const (
 
 // CosmosDBGremlinAPI allows performing state operations on collections.
 type CosmosDBGremlinAPI struct {
-	metadata *cosmosDBGremlinAPICredentials
+	metadata *gremlinapiMetadata
 	client   gremcos.Cosmos
 	logger   logger.Logger
-}
-
-type cosmosDBGremlinAPICredentials struct {
-	URL       string `json:"url"`
-	MasterKey string `json:"masterKey"`
-	Username  string `json:"username"`
 }
 
 // NewCosmosDBGremlinAPI returns a new CosmosDBGremlinAPI instance.
@@ -71,7 +65,7 @@ func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata)
 	}
 	c.metadata = m
 	client, err := gremcos.New(c.metadata.URL,
-		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
+		gremcos.WithAuth(c.metadata.APUsername, c.metadata.APMasterKey),
 	)
 	if err != nil {
 		return errors.New("CosmosDBGremlinAPI Error: failed to create the Cosmos Graph DB connector")
@@ -82,8 +76,8 @@ func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata)
 	return nil
 }
 
-func (c *CosmosDBGremlinAPI) parseMetadata(meta bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
-	creds := cosmosDBGremlinAPICredentials{}
+func (c *CosmosDBGremlinAPI) parseMetadata(meta bindings.Metadata) (*gremlinapiMetadata, error) {
+	creds := gremlinapiMetadata{}
 	err := kitmd.DecodeMetadata(meta.Properties, &creds)
 	if err != nil {
 		return nil, err
@@ -132,7 +126,7 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 
 // GetComponentMetadata returns the metadata of the component.
 func (c *CosmosDBGremlinAPI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := cosmosDBGremlinAPICredentials{}
+	metadataStruct := gremlinapiMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

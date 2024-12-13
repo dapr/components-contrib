@@ -64,24 +64,6 @@ type AWSS3 struct {
 	logger       logger.Logger
 }
 
-type s3Metadata struct {
-	// Ignored by metadata parser because included in built-in authentication profile
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
-
-	Region         string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
-	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
-	Bucket         string `json:"bucket" mapstructure:"bucket"`
-	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
-	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
-	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
-	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
-	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
-	FilePath       string `json:"filePath" mapstructure:"filePath"   mdignore:"true"`
-	PresignTTL     string `json:"presignTTL" mapstructure:"presignTTL"  mdignore:"true"`
-	StorageClass   string `json:"storageClass" mapstructure:"storageClass"  mdignore:"true"`
-}
 
 type createResponse struct {
 	Location   string  `json:"location"`

@@ -67,13 +67,6 @@ type APNS struct {
 	authorizationBuilder *authorizationBuilder
 }
 
-type APNSmetadata struct {
-	Development bool   `mapstructure:"development"`
-	KeyID       string `mapstructure:"key-id"`
-	TeamID      string `mapstructure:"team-id"`
-	PrivateKey  string `mapstructure:"private-key"`
-}
-
 // NewAPNS will create a new APNS output binding.
 func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 	return &APNS{

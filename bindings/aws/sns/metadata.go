@@ -29,7 +29,7 @@ type snsMetadata struct {
 }
 
 // Set the default values here.
-// This unifies the setup across all componets,
+// This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
 func Defaults() snsMetadata {

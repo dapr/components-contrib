@@ -90,20 +90,6 @@ type MongoDB struct {
 	isReplicaSet bool
 }
 
-type mongoDBMetadata struct {
-	Host             string
-	Username         string
-	Password         string
-	DatabaseName     string
-	CollectionName   string
-	Server           string
-	Writeconcern     string
-	Readconcern      string
-	Params           string
-	ConnectionString string
-	OperationTimeout time.Duration
-}
-
 // Item is Mongodb document wrapper.
 type Item struct {
 	Key   string      `bson:"_id"`

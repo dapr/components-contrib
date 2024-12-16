@@ -214,21 +214,21 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	// start the token refresh goroutine
 
 	if settings.UseEntraID {
-		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, ctx, logger)
+		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
 	}
 	return c, &settings, nil
 }
 
-func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, parentCtx context.Context, logger *kitlogger.Logger) {
+func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
 	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
-		ctx, cancel := context.WithCancel(parentCtx)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		backoffConfig := kitretry.DefaultConfig()
 		backoffConfig.MaxRetries = 3
 		backoffConfig.Policy = kitretry.PolicyExponential
 
 		var backoffManager backoff.BackOff
-		const refreshGracePeriod = 2 * time.Minute
+		const refreshGracePeriod = 5 * time.Minute
 		tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
 
 		(*logger).Debugf("redis client: starting entraID token refresh loop")

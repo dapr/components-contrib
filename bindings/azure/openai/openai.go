@@ -57,13 +57,6 @@ type AzOpenAI struct {
 	client *azopenai.Client
 }
 
-type openAIMetadata struct {
-	// APIKey is the API key for the Azure OpenAI API.
-	APIKey string `mapstructure:"apiKey"`
-	// Endpoint is the endpoint for the Azure OpenAI API.
-	Endpoint string `mapstructure:"endpoint"`
-}
-
 // ChatMessages type for chat completion API.
 type ChatMessages struct {
 	DeploymentID     string    `json:"deploymentID"`
@@ -110,7 +103,7 @@ func NewOpenAI(logger logger.Logger) bindings.OutputBinding {
 
 // Init initializes the OpenAI binding.
 func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
-	m := openAIMetadata{}
+	m := openaiMetadata{}
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return fmt.Errorf("error decoding metadata: %w", err)
@@ -390,7 +383,7 @@ func (p *AzOpenAI) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (p *AzOpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := openAIMetadata{}
+	metadataStruct := openaiMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

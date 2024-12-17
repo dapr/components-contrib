@@ -36,14 +36,6 @@ type DynamoDB struct {
 	logger       logger.Logger
 }
 
-type dynamoDBMetadata struct {
-	Region       string `json:"region" mapstructure:"region"`
-	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken"`
-	Table        string `json:"table" mapstructure:"table"`
-}
 
 // NewDynamoDB returns a new DynamoDB instance.
 func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {

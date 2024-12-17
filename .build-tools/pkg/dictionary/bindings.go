@@ -22,9 +22,9 @@ func GetAllBindings() []*metadataschema.ComponentMetadata {
 		&bindingsCosmosSQL,
 		&bindingsCosmosGremlin,
 		&bindingsEventGrid,
-		&bindingsEventHub,
+		// &bindingsEventHub, // TODO: need to refactor metadata setup to support
 		&bindingsOpenAI,
-		&bindingsServiceBusQueues,
+		// &bindingsServiceBusQueues, // TODO: need to refactor metadata setup to support
 		&bindingsStorageQueues,
 		&bindingsSignalR,
 		&bindingsCron,
@@ -194,15 +194,16 @@ var bindingsEventGrid = metadataschema.ComponentMetadata{
 	},
 }
 
-var bindingsEventHub = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameEventHub,
-	Version:      v1,
-	Status:       stable,
-	Title:        titleEventHub,
-	Description:  "", // TODO
-	Capabilities: []string{},
-}
+// TODO(@Sam): I need to move the metadata.go file or create cust struct with field on location of metadata go file.
+// var bindingsEventHub = metadataschema.ComponentMetadata{
+// 	Type:         binding,
+// 	Name:         nameEventHub,
+// 	Version:      v1,
+// 	Status:       stable,
+// 	Title:        titleEventHub,
+// 	Description:  "", // TODO
+// 	Capabilities: []string{},
+// }
 
 var bindingsOpenAI = metadataschema.ComponentMetadata{
 	Type:         binding,
@@ -212,17 +213,39 @@ var bindingsOpenAI = metadataschema.ComponentMetadata{
 	Title:        titleOpenAI,
 	Description:  "", // TODO
 	Capabilities: []string{},
+	AuthenticationProfiles: []metadataschema.AuthenticationProfile{
+		{
+			Title:       "API Key",
+			Description: "Authenticate using an API key",
+		},
+	},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "completion",
+				Description: "Text completion",
+			},
+			{
+				Name:        "chat-completion",
+				Description: "Chat completion",
+			},
+		},
+	},
 }
 
-var bindingsServiceBusQueues = metadataschema.ComponentMetadata{
-	Type:         binding,
-	Name:         nameServiceBusQueues,
-	Version:      v1,
-	Status:       stable,
-	Title:        titleServiceBusQueues,
-	Description:  "", // TODO
-	Capabilities: []string{},
-}
+// TODO: metadata is map[string]string so this needs to be refactored later to be incorporated
+// var bindingsServiceBusQueues = metadataschema.ComponentMetadata{
+// 	Type:         binding,
+// 	Name:         nameServiceBusQueues,
+// 	Version:      v1,
+// 	Status:       stable,
+// 	Title:        titleServiceBusQueues,
+// 	Description:  "", // TODO
+// 	Capabilities: []string{},
+// }
 
 var bindingsStorageQueues = metadataschema.ComponentMetadata{
 	Type:         binding,
@@ -232,6 +255,23 @@ var bindingsStorageQueues = metadataschema.ComponentMetadata{
 	Title:        titleStorageQueues,
 	Description:  "", // TODO
 	Capabilities: []string{},
+	AuthenticationProfiles: []metadataschema.AuthenticationProfile{
+		{
+			Title:       "Account Key",
+			Description: "Authenticate using a pre-shared account key",
+		},
+	},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{azureAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  true,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Publish a new message in the queue.",
+			},
+		},
+	},
 }
 
 var bindingsSignalR = metadataschema.ComponentMetadata{

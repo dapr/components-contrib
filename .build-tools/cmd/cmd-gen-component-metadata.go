@@ -14,7 +14,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -30,6 +29,8 @@ import (
 	"github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	"github.com/dapr/components-contrib/bindings/azure/cosmosdb/gremlinapi"
 	"github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	"github.com/dapr/components-contrib/bindings/azure/openai"
+	"github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	"github.com/dapr/components-contrib/build-tools/pkg/componentmetadata"
 	"github.com/dapr/components-contrib/build-tools/pkg/dictionary"
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
@@ -102,19 +103,21 @@ var generateComponentMetadataCmd = &cobra.Command{
 			metadataFile := fmt.Sprintf("%s/metadata.go", metadataFilePath)
 			finalCompName := getFinalComponentName(component.Name)
 			fmt.Printf("sam finalCompName %s", finalCompName)
-			component.Metadata, err = generateMetadataFromStructs(metadataFile, finalCompName+"Metadata", finalCompName)
+			var authProfileMetadataMap map[string][]metadataschema.Metadata
+			component.Metadata, authProfileMetadataMap, err = generateMetadataFromStructs(metadataFile, finalCompName+"Metadata", finalCompName)
 			fmt.Printf("sam the metadata: \n", component.Metadata)
 			if err != nil {
 				fmt.Printf("sam error: %v", err)
 			}
 
-			authProfileFile := fmt.Sprintf("%s/authentication-profiles.yaml", metadataFilePath)
-			authProfiles, err := generateAuthProfiles(authProfileFile)
-			if err != nil {
-				fmt.Printf("sam error: %v", err)
-			}
-			component.AuthenticationProfiles = authProfiles
-			fmt.Printf("sam the auth profiles %v\n", authProfiles)
+			// authProfileFile := fmt.Sprintf("%s/authentication-profiles.yaml", metadataFilePath)
+			// authProfiles, err := generateAuthProfiles(authProfileFile)
+			// if err != nil {
+			// 	fmt.Printf("sam error: %v", err)
+			// }
+			ap := transformToAuthProfileMetadata(component, authProfileMetadataMap)
+			component.AuthenticationProfiles = ap
+			// fmt.Printf("sam the auth profiles %v\n", authProfiles)
 			// step 1.5. auto-generate any other missing fields (e.g., auth profile)
 			// TODO: Add logic for other fields if necessary
 
@@ -151,14 +154,43 @@ var generateComponentMetadataCmd = &cobra.Command{
 
 		}
 
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		err = enc.Encode(bundle.Components)
-		if err != nil {
-			panic(fmt.Errorf("failed to encode bundle to JSON: %w", err))
-		}
+		// print everything out if i want
+		// enc := json.NewEncoder(os.Stdout)
+		// enc.SetEscapeHTML(false)
+		// enc.SetIndent("", "  ")
+		// err = enc.Encode(bundle.Components)
+		// if err != nil {
+		// 	panic(fmt.Errorf("failed to encode bundle to JSON: %w", err))
+		// }
 	},
+}
+
+func transformToAuthProfileMetadata(component *metadataschema.ComponentMetadata, authProfileMetadataFieldsMap map[string][]metadataschema.Metadata) []metadataschema.AuthenticationProfile {
+	fmt.Printf("Processing authProfileMetadataFieldsMap: %v\n", authProfileMetadataFieldsMap)
+	if len(component.AuthenticationProfiles) == 0 {
+		return nil
+	}
+
+	var finalAP []metadataschema.AuthenticationProfile
+	for _, authProfile := range component.AuthenticationProfiles {
+		// Normalize the title for map lookup
+		normalizedTitle := strings.ToLower(authProfile.Title)
+		normalizedTitle = strings.ReplaceAll(normalizedTitle, "'", "")
+		normalizedTitle = strings.ReplaceAll(normalizedTitle, " ", "") // Remove spaces
+		normalizedTitle = strings.TrimSpace(normalizedTitle)           // Remove leading/trailing spaces if any
+		fmt.Printf("Normalized title for lookup: '%s'\n", normalizedTitle)
+
+		if metadataFields, exists := authProfileMetadataFieldsMap[normalizedTitle]; exists && metadataFields != nil {
+			fmt.Printf("Found metadata for profile '%s'\n", authProfile.Title)
+			authProfile.Metadata = metadataFields
+			finalAP = append(finalAP, authProfile)
+		} else {
+			fmt.Printf("No metadata found for normalized title: '%s'\n", normalizedTitle)
+		}
+	}
+
+	fmt.Printf("Final Authentication Profiles: %v\n", finalAP)
+	return finalAP
 }
 
 func getFinalComponentName(longName string) string {
@@ -170,6 +202,7 @@ func getFinalComponentName(longName string) string {
 }
 
 func generateAuthProfiles(filePath string) ([]metadataschema.AuthenticationProfile, error) {
+
 	// Read the file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -210,22 +243,39 @@ func parseJSONTag(tag string) string {
 	return ""
 }
 
-func generateMetadataFromStructs(filePath, structName, underlyingComponentName string) ([]metadataschema.Metadata, error) {
+type FieldInfo struct {
+	Name                     string
+	JSONTag                  string
+	Description              string
+	Required                 bool
+	Sensitive                bool
+	Type                     string
+	Default                  string
+	Example                  string
+	AllowedValues            []string
+	Binding                  *metadataschema.MetadataBinding
+	Deprecated               bool
+	AuthenticationProfileKey string
+}
+
+// generateMetadataFromStructs processes a Go struct to extract metadata and authentication profile data
+func generateMetadataFromStructs(filePath, structName, underlyingComponentName string) ([]metadataschema.Metadata, map[string][]metadataschema.Metadata, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
-		fmt.Printf("Failed to open file: %s\n", err)
-		os.Exit(1)
+		return nil, nil, fmt.Errorf("failed to read file: %w", err)
 	}
+
 	fmt.Printf("sam the structName %v\n", structName)
 
-	// Create a new Go parser
+	// Parse the Go source file
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, src, parser.AllErrors|parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse Go file: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse Go file: %w", err)
 	}
 
 	var metadataEntries []metadataschema.Metadata
+	authProfileMetadataMap := make(map[string][]metadataschema.Metadata)
 
 	// Traverse the AST to locate the struct
 	for _, decl := range node.Decls {
@@ -247,79 +297,105 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 
 			// Process each field in the struct
 			for _, field := range structType.Fields.List {
-				if len(field.Names) == 0 {
+				fieldInfo := extractFieldInfo(field, underlyingComponentName)
+				if fieldInfo == nil {
 					continue
 				}
 
-				fieldName := field.Names[0].Name
-				// edge case: do not add authentication profile metadata fields
-				// TODO(@Sam): go back and rm my AP prefix and use tag instead
-				if strings.HasPrefix(fieldName, "AP") {
-					continue
-				}
-				fieldType := fmt.Sprintf("%s", field.Type)
-				var description string
-				// Extract comments
-				if field.Comment != nil {
-					description = strings.TrimSpace(field.Comment.Text())
-				} else if field.Doc != nil {
-					description = strings.TrimSpace(field.Doc.Text())
+				metadata := metadataschema.Metadata{
+					Name:          fieldInfo.JSONTag,
+					Description:   fieldInfo.Description,
+					Required:      fieldInfo.Required,
+					Sensitive:     fieldInfo.Sensitive,
+					Type:          fieldInfo.Type,
+					Default:       fieldInfo.Default,
+					Example:       fieldInfo.Example,
+					AllowedValues: fieldInfo.AllowedValues,
+					Binding:       fieldInfo.Binding,
+					Deprecated:    fieldInfo.Deprecated,
 				}
 
-				// Extract JSON tag and check for omitempty
-				required := true
-				var jsonTag string
-				// var defaultValue, exampleValue string
-				var bindingsMeta metadataschema.MetadataBinding
-
-				if field.Tag != nil {
-					tag := field.Tag.Value
-					jsonTag = parseJSONTag(tag)
-					if strings.Contains(tag, "omitempty") {
-						required = false
-					}
-					if strings.Contains(tag, "mdignore") {
-						continue
-					}
-					if strings.Contains(tag, "-") {
-						continue
-					}
-					// edge case: do not add authentication profile metadata fields
-					// TODO(@Sam): go back and rm my AP prefix and use tag instead
-					// if strings.HasPrefix(tag, "authenticationProfile") {
-					// 	continue
-					// }
-
-					// bindings edge case
-					if strings.Contains(tag, `binding:"input"`) {
-						bindingsMeta.Input = true
-					}
-					if strings.Contains(tag, `binding:"output"`) {
-						bindingsMeta.Output = true
-					}
+				if fieldInfo.AuthenticationProfileKey != "" {
+					authProfileMetadataMap[fieldInfo.AuthenticationProfileKey] = append(authProfileMetadataMap[fieldInfo.AuthenticationProfileKey], metadata)
+				} else {
+					metadataEntries = append(metadataEntries, metadata)
 				}
-				defaultValue := getDefaultValueForField(underlyingComponentName, fieldName)
-
-				exampleValue := getExampleValueForField(underlyingComponentName, fieldName)
-
-				// Create a Metadata entry
-				metadataEntries = append(metadataEntries, metadataschema.Metadata{
-					Name:          jsonTag, // TODO: this doesn't really make sense. What is the point of the name field if it is just the jsontag...
-					Description:   description,
-					Required:      required,
-					Sensitive:     isFieldSensitive(fieldName),
-					Type:          fieldType,
-					Default:       defaultValue,
-					Example:       exampleValue,
-					AllowedValues: []string{}, // TODO
-					Binding:       &bindingsMeta,
-					Deprecated:    false,
-				})
 			}
 		}
 	}
-	fmt.Printf("sam metadataEntriees %v\n", metadataEntries)
-	return metadataEntries, nil
+
+	return metadataEntries, authProfileMetadataMap, nil
+}
+
+func parseAuthProfileTag(tag string) string {
+	tagParts := strings.Split(tag, " ")
+	for _, part := range tagParts {
+		if strings.HasPrefix(part, "authenticationProfile:") {
+			return strings.Trim(part[len("authenticationProfile:"):], "\"`")
+		}
+	}
+	return ""
+}
+
+// extractFieldInfo extracts metadata for a struct field
+func extractFieldInfo(field *ast.Field, componentName string) *FieldInfo {
+	if len(field.Names) == 0 {
+		return nil
+	}
+
+	fieldName := field.Names[0].Name
+	fieldType := fmt.Sprintf("%s", field.Type)
+
+	// Extract comments
+	description := ""
+	if field.Comment != nil {
+		description = strings.TrimSpace(field.Comment.Text())
+	} else if field.Doc != nil {
+		description = strings.TrimSpace(field.Doc.Text())
+	}
+
+	// Extract JSON tag and metadata
+	var jsonTag string
+	required := true
+	authProfileKey := ""
+	bindingsMeta := metadataschema.MetadataBinding{}
+
+	if field.Tag != nil {
+		tag := field.Tag.Value
+		jsonTag = parseJSONTag(tag)
+
+		if strings.Contains(tag, "omitempty") {
+			required = false
+		}
+		if strings.Contains(tag, "mdignore") || strings.Contains(tag, "-") {
+			return nil
+		}
+		if strings.Contains(tag, "authenticationProfile:") {
+			authProfileKey = parseAuthProfileTag(tag)
+		}
+		if strings.Contains(tag, `binding:"input"`) {
+			bindingsMeta.Input = true
+		}
+		if strings.Contains(tag, `binding:"output"`) {
+			bindingsMeta.Output = true
+		}
+	}
+
+	// Populate field info
+	return &FieldInfo{
+		Name:                     fieldName,
+		JSONTag:                  jsonTag,
+		Description:              description,
+		Required:                 required,
+		Sensitive:                isFieldSensitive(fieldName),
+		Type:                     fieldType,
+		Default:                  getDefaultValueForField(componentName, fieldName),
+		Example:                  getExampleValueForField(componentName, fieldName),
+		AllowedValues:            []string{}, // TODO: Populate as needed
+		Binding:                  &bindingsMeta,
+		Deprecated:               false,
+		AuthenticationProfileKey: strings.TrimSpace(strings.ToLower(authProfileKey)),
+	}
 }
 
 func isFieldSensitive(field string) bool {
@@ -350,6 +426,14 @@ func getDefaultValueForField(underlyingComponentName, fieldName string) string {
 		return defaultsMap[fieldName]
 	case "eventgrid":
 		meta := eventgrid.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "openai":
+		meta := openai.Defaults()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "storagequeues":
+		meta := storagequeues.Defaults()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types
@@ -388,6 +472,14 @@ func getExampleValueForField(underlyingComponentName, fieldName string) string {
 		return defaultsMap[fieldName]
 	case "eventgrid":
 		meta := eventgrid.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "openai":
+		meta := openai.Examples()
+		defaultsMap := getStructDefaultValue(meta)
+		return defaultsMap[fieldName]
+	case "storagequeues":
+		meta := storagequeues.Examples()
 		defaultsMap := getStructDefaultValue(meta)
 		return defaultsMap[fieldName]
 	// Add more cases as needed for other field types

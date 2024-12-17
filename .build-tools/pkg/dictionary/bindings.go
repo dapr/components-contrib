@@ -38,6 +38,8 @@ func GetAllBindings() []*metadataschema.ComponentMetadata {
 		&bindingsZeebeCommand,
 		&bindingsZeebeWorker,
 		&bindingsAppConfig,
+		&bindingsKinesis,
+		&bindingsDynamo,
 	}
 }
 
@@ -274,6 +276,7 @@ var bindingsStorageQueues = metadataschema.ComponentMetadata{
 	},
 }
 
+// TODO(@Sam): here and below
 var bindingsSignalR = metadataschema.ComponentMetadata{
 	Type:         binding,
 	Name:         nameSignalR,
@@ -392,4 +395,45 @@ var bindingsAppConfig = metadataschema.ComponentMetadata{
 	Title:        titleAppConfig,
 	Description:  "",         // TODO
 	Capabilities: []string{}, // explicit bc it's diff than other pg components
+}
+
+var bindingsKinesis = metadataschema.ComponentMetadata{
+	Type:                          binding,
+	Name:                          nameKinesis,
+	Version:                       v1,
+	Status:                        alpha,
+	Title:                         titleKinesis,
+	Description:                   "", // TODO
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  true,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create a stream",
+			},
+		},
+	},
+}
+
+var bindingsDynamo = metadataschema.ComponentMetadata{
+	Type:                          binding,
+	Name:                          nameDynamo,
+	Version:                       v1,
+	Status:                        stable,
+	Title:                         titleDynamo,
+	Description:                   "", // TODO
+	Capabilities:                  []string{capabilitiesActorState, capabilitiesCrud, capabilitiesTransaction, capabilitiesEtag, capabilitiesTtl},
+	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile},
+	Binding: &metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create a table",
+			},
+		},
+	},
 }

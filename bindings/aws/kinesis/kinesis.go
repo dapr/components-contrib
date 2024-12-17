@@ -55,17 +55,6 @@ type AWSKinesis struct {
 	wg      sync.WaitGroup
 }
 
-type kinesisMetadata struct {
-	StreamName          string `json:"streamName" mapstructure:"streamName"`
-	ConsumerName        string `json:"consumerName" mapstructure:"consumerName"`
-	Region              string `json:"region" mapstructure:"region"`
-	Endpoint            string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKey           string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey           string `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken        string `json:"sessionToken" mapstructure:"sessionToken"`
-	KinesisConsumerMode string `json:"mode" mapstructure:"mode"`
-}
-
 const (
 	// ExtendedFanout - dedicated throughput through data stream api.
 	ExtendedFanout = "extended"

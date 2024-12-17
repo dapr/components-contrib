@@ -778,6 +778,11 @@ const components = {
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: ['state/redis', 'common/component/redis'],
     },
+    'state.redis.v7stack': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh redis7stack redis',
+        sourcePkg: ['state/redis', 'common/component/redis'],
+    },
     'state.rethinkdb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh rethinkdb',

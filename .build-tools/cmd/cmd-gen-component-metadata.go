@@ -14,6 +14,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -33,36 +34,41 @@ import (
 	"github.com/dapr/components-contrib/bindings/azure/openai"
 	"github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	"github.com/dapr/components-contrib/build-tools/pkg/componentmetadata"
-	"github.com/dapr/components-contrib/build-tools/pkg/dictionary"
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	//go:embed builtin-authentication-profiles.yaml
-	builtinAuthenticationProfilesYAML []byte
-)
-
 // generateComponentMetadataCmd represents the command to generate the yaml manifest for each component
-var generateComponentMetadataCmd = &cobra.Command{
-	Use:   "generate-component-metadata",
+var generateComponentMetadataNewCmd = &cobra.Command{
+	Use:   "generate-component-metadata-new",
 	Short: "Generates the component metadata yaml file per component",
 	Long:  `Generates the component metadata yaml file per component so we don't have to rely on community to manually create it.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("sam running new cmd")
 		// Navigate to the root of the repo
 		err := cwdToRepoRoot()
 		if err != nil {
 			panic(err)
 		}
 
+		// Get flag values
+		componentType, _ := cmd.Flags().GetString("type")
+		builtinAuth, _ := cmd.Flags().GetStringSlice("builtinAuth")
+		status, _ := cmd.Flags().GetString("status")
+		version, _ := cmd.Flags().GetString("version")
+		direction, _ := cmd.Flags().GetString("direction")
+		origin, _ := cmd.Flags().GetString("origin")
+		title, _ := cmd.Flags().GetString("title")
+
+		fmt.Printf("sam origin %v", origin)
+
 		// Find all components
 		list, err := componentmetadata.FindValidComponents(ComponentFolders, ExcludeFolders)
-		fmt.Println("sam list %v", list)
+		// fmt.Println("sam list %v", list)
 		if err != nil {
 			panic(err)
 		}
-
 		// Load the metadata for all components
 		bundle := metadataschema.Bundle{
 			SchemaVersion: "v1",
@@ -70,170 +76,269 @@ var generateComponentMetadataCmd = &cobra.Command{
 			Components:    make([]*metadataschema.ComponentMetadata, 0, len(list)),
 		}
 
-		// step 0. gather all components initial data for static info we hard code.
-		var components []*metadataschema.ComponentMetadata
-		// bindings
-		bindings := dictionary.GetAllBindings()
-		components = append(components, bindings...)
+		_ = bundle
+		fmt.Printf("sam componentType %s builtinAuth %s status %s version %s direction %s", componentType, builtinAuth, status, version, direction)
+		filepath := origin //os.Getenv("DOLLAR")
+		metadataFile := filepath + "/metadata.go"
+		componentPkg := os.Getenv("GOPACKAGE")
+		metadata, _, err := generateMetadataFromStructs(metadataFile, componentPkg+"Metadata", componentPkg)
+		if err != nil {
+			fmt.Printf("sam error: %v", err)
+		}
 
-		// state
-		state := dictionary.GetAllStateStores()
-		components = append(components, state...)
-
-		// configuration
-		configs := dictionary.GetAllConfiguration()
-		components = append(components, configs...)
-
-		// conversation
-		convo := dictionary.GetAllConversation()
-		components = append(components, convo...)
-
-		// middleware
-		mid := dictionary.GetAllMiddleware()
-		components = append(components, mid...)
-
-		// pubsub
-		ps := dictionary.GetAllPubsubs()
-		components = append(components, ps...)
-
-		// secretstores
-		secrets := dictionary.GetAllSecretStores()
-		components = append(components, secrets...)
-
-		// create a map for components based on their names
-		componentMap := make(map[string]*metadataschema.ComponentMetadata)
-		for _, component := range components {
-			// step 1. auto-generate metadata based on struct tags
-			fmt.Printf("sam component type %s and name %s\n", component.Type, component.Name)
-			metadataFilePath := fmt.Sprintf("%s/%s", component.Type, convertPrefixToPath(component.Name))
-			metadataFile := fmt.Sprintf("%s/metadata.go", metadataFilePath)
-			finalCompName := getFinalComponentName(component.Name)
-			fmt.Printf("sam finalCompName %s", finalCompName)
-			var authProfileMetadataMap map[string][]metadataschema.Metadata
-			component.Metadata, authProfileMetadataMap, err = generateMetadataFromStructs(metadataFile, finalCompName+"Metadata", finalCompName)
-			fmt.Printf("sam the metadata: \n", component.Metadata)
-			if err != nil {
-				fmt.Printf("sam error: %v", err)
-			}
-
-			// authProfileFile := fmt.Sprintf("%s/authentication-profiles.yaml", metadataFilePath)
-			// authProfiles, err := generateAuthProfiles(authProfileFile)
-			// if err != nil {
-			// 	fmt.Printf("sam error: %v", err)
-			// }
-			ap := transformToAuthProfileMetadata(component, authProfileMetadataMap)
-			component.AuthenticationProfiles = ap
-			// fmt.Printf("sam the auth profiles %v\n", authProfiles)
-			// step 1.5. auto-generate any other missing fields (e.g., auth profile)
-			// TODO: Add logic for other fields if necessary
-
-			// add component to the map
-			componentMap[component.Name] = component
-
-			component.SchemaVersion = "v2" // TODO: is this okay bc it's technically the same content, just autogenerated now.
-			component.URLs = supportedComponentURL(component.Type, finalCompName)
-			fmt.Printf("URLs set for %s: %+v\n", component.Name, component.URLs)
-
-			fmt.Printf("sam the urls %v\n", component.URLs)
-
-			// Append built-in metadata properties
-			err = component.AppendBuiltin()
-			if err != nil {
-				fmt.Printf("sam error from AppendBuildin %v", err)
-			}
-
-			// // Parse builtin-authentication-profiles.yaml
-			// var builtinAuthProfiles map[string][]metadataschema.AuthenticationProfile
-			// err = yaml.Unmarshal(builtinAuthenticationProfilesYAML, &metadataschema.BuiltinAuthenticationProfiles)
-			// if err != nil {
-			// 	panic(err)
-			// }
-
-			// Append built-in authentication profiles metadata fields
-			for _, profile := range component.BuiltInAuthenticationProfiles {
-				appendProfiles, err := metadataschema.ParseBuiltinAuthenticationProfile(profile, component.Title)
-				if err != nil {
-					fmt.Printf("sam error from ParseBuiltinAuthenticationProfile %v", err)
+		var componentName string
+		const (
+			awsPrefix   = "aws"
+			azurePrefix = "azure"
+		)
+		switch {
+		case strings.Contains(origin, awsPrefix):
+			componentName = awsPrefix + "." + componentPkg
+		case strings.Contains(origin, azurePrefix):
+			componentName = azurePrefix + "." + componentPkg
+		default:
+			componentName = componentPkg
+		}
+		bindingSpecification, err := generateComponentOperations(metadataFile, componentPkg+"Binding")
+		fmt.Printf("\nsam the binding spec %v\n", bindingSpecification)
+		if err != nil {
+			panic(err)
+		}
+		component := metadataschema.ComponentMetadata{
+			SchemaVersion: "v2",
+			Type:          componentType,
+			Name:          componentName,
+			Version:       version,
+			Status:        status,
+			Title:         title,
+			Metadata:      metadata,
+			URLs:          supportedComponentURL(componentType, componentPkg),
+			Binding:       bindingSpecification,
+		}
+		var awsAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "aws"}
+		var azureAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "azuread"}
+		var gcpAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "gcp"}
+		var allBuiltinProfiles = []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile, azureAuthProfile, gcpAuthProfile}
+		for _, compProfiles := range builtinAuth {
+			for _, options := range allBuiltinProfiles {
+				if strings.ToLower(compProfiles) == strings.ToLower(options.Name) {
+					component.BuiltInAuthenticationProfiles = append(component.BuiltInAuthenticationProfiles, options)
 				}
+			}
+		}
 
-				component.AuthenticationProfiles = append(component.AuthenticationProfiles, appendProfiles...)
+		// Append built-in metadata properties
+		err = component.AppendBuiltin()
+		if err != nil {
+			fmt.Printf("sam error from AppendBuildin %v", err)
+		}
+
+		for _, profile := range component.BuiltInAuthenticationProfiles {
+			appendProfiles, err := metadataschema.ParseBuiltinAuthenticationProfile(profile, component.Title)
+			if err != nil {
+				fmt.Printf("sam error from ParseBuiltinAuthenticationProfile %v", err)
 			}
 
-			bundle.Components = append(bundle.Components, component)
+			component.AuthenticationProfiles = append(component.AuthenticationProfiles, appendProfiles...)
+		}
 
-			//  write file for components
-			fileName := fmt.Sprintf("%s.yaml", component.Name)
-			if err := writeYAMLFile(metadataFilePath, *component); err != nil {
-				fmt.Printf("Failed to write %s: %v\n", fileName, err)
-			}
+		outputFilePath := filepath + "/samhereoutput.yaml"
+		err = writeToFile(outputFilePath, component)
+		if err != nil {
+			fmt.Printf("Error writing to file: %v", err)
+		} else {
+			fmt.Printf("Metadata written to %s\n", outputFilePath)
 		}
 
 		// print everything out if i want
-		// enc := json.NewEncoder(os.Stdout)
-		// enc.SetEscapeHTML(false)
-		// enc.SetIndent("", "  ")
-		// err = enc.Encode(bundle.Components)
-		// if err != nil {
-		// 	panic(fmt.Errorf("failed to encode bundle to JSON: %w", err))
-		// }
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(component)
+		if err != nil {
+			panic(fmt.Errorf("failed to encode bundle to JSON: %w", err))
+		}
 	},
 }
 
-func transformToAuthProfileMetadata(component *metadataschema.ComponentMetadata, authProfileMetadataFieldsMap map[string][]metadataschema.Metadata) []metadataschema.AuthenticationProfile {
-	fmt.Printf("Processing authProfileMetadataFieldsMap: %v\n", authProfileMetadataFieldsMap)
-	if len(component.AuthenticationProfiles) == 0 {
-		return nil
-	}
-
-	var finalAP []metadataschema.AuthenticationProfile
-	for _, authProfile := range component.AuthenticationProfiles {
-		// Normalize the title for map lookup
-		normalizedTitle := strings.ToLower(authProfile.Title)
-		normalizedTitle = strings.ReplaceAll(normalizedTitle, "'", "")
-		normalizedTitle = strings.ReplaceAll(normalizedTitle, " ", "") // Remove spaces
-		normalizedTitle = strings.TrimSpace(normalizedTitle)           // Remove leading/trailing spaces if any
-		fmt.Printf("Normalized title for lookup: '%s'\n", normalizedTitle)
-
-		if metadataFields, exists := authProfileMetadataFieldsMap[normalizedTitle]; exists && metadataFields != nil {
-			fmt.Printf("Found metadata for profile '%s'\n", authProfile.Title)
-			authProfile.Metadata = metadataFields
-			finalAP = append(finalAP, authProfile)
-		} else {
-			fmt.Printf("No metadata found for normalized title: '%s'\n", normalizedTitle)
-		}
-	}
-
-	fmt.Printf("Final Authentication Profiles: %v\n", finalAP)
-	return finalAP
-}
-
-func getFinalComponentName(longName string) string {
-	parts := strings.SplitAfter(longName, ".")
-	if len(parts) == 0 {
-		return ""
-	}
-	return parts[len(parts)-1]
-}
-
-func generateAuthProfiles(filePath string) ([]metadataschema.AuthenticationProfile, error) {
-
-	// Read the file
-	data, err := os.ReadFile(filePath)
+// generateComponentOperations reads the Go file and extracts the s3Operations variable as a Binding type.
+func generateComponentOperations(filePath, varName string) (*metadataschema.Binding, error) {
+	// Read the Go file
+	src, err := os.ReadFile(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Parse the YAML content into a slice of AuthenticationProfile structs
-	var authProfiles []metadataschema.AuthenticationProfile
-	err = yaml.Unmarshal(data, &authProfiles)
+	// Parse the Go source file
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, src, parser.AllErrors|parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		return nil, fmt.Errorf("failed to parse Go file: %w", err)
 	}
 
-	return authProfiles, nil
+	// Loop through the declarations in the file
+	for _, decl := range node.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.VAR {
+			continue
+		}
+
+		// Check the variable declarations for the name
+		for _, spec := range genDecl.Specs {
+			// Extract the variable declaration
+			vspec, ok := spec.(*ast.ValueSpec)
+			fmt.Printf("sam here 1 %v %v", vspec, ok)
+			if !ok || len(vspec.Names) == 0 || vspec.Names[0].Name != varName {
+				continue
+			}
+
+			// The variable was found, now process it
+			fmt.Printf("sam length %v\n", len(vspec.Values))
+			if len(vspec.Values) == 1 {
+				// The variable definition is in the first value position
+				// Convert the value to a Go expression (it's a literal, so we can use it directly)
+				structLiteral, ok := vspec.Values[0].(*ast.CompositeLit)
+				fmt.Printf("sam %v\n\n", ok)
+				if !ok {
+					continue
+				}
+
+				// Initialize an empty Binding struct
+				binding := &metadataschema.Binding{}
+
+				// Process the struct fields
+				for _, elt := range structLiteral.Elts {
+					fmt.Printf("sam now processing fields %v\n", elt)
+					switch field := elt.(type) {
+
+					case *ast.KeyValueExpr:
+						// Extract the key (field name)
+						fmt.Printf("sam field.Key %t\n", field.Key)
+						key, ok := field.Key.(*ast.Ident)
+						if !ok {
+							continue
+						}
+						fmt.Printf("sam here is key\n", key)
+
+						// Handle each field based on the key
+						switch key.Name {
+						case "Input":
+							fmt.Printf("\nsam in Input %T\n", field.Value)
+							// Parse the Input field
+							if ident, ok := field.Value.(*ast.Ident); ok {
+								// In case it's an identifier, check its name and manually assign the value
+								// For example, "true" or "false" might be assigned to Input
+								switch ident.Name {
+								case "true":
+									binding.Input = true
+								case "false":
+									binding.Input = false
+								}
+								fmt.Printf("sam just set Input value: %v\n", binding.Input)
+							}
+						case "Output":
+							// Parse the Output field
+							fmt.Printf("sam Output value: %+v\n", field.Value)
+							// Check if the value is an Ident (identifier)
+							if ident, ok := field.Value.(*ast.Ident); ok {
+								// In case it's an identifier, check its name and manually assign the value
+								// For example, "true" or "false" might be assigned to Output
+								switch ident.Name {
+								case "true":
+									binding.Output = true
+								case "false":
+									binding.Output = false
+								}
+								fmt.Printf("sam just set Output value: %v\n", binding.Output)
+							}
+						case "Operations":
+							fmt.Printf("sam the oper type %T\n", field.Value)
+							// Parse the Operations field (which is an array of BindingOperation)
+							if arrayLit, ok := field.Value.(*ast.CompositeLit); ok {
+								fmt.Printf("sam in the if for operations %v %v\n", ok, arrayLit)
+								// Process the array of operations
+								var operations []metadataschema.BindingOperation
+								for _, elem := range arrayLit.Elts {
+									// Process each operation (BindingOperation)
+									if opLit, ok := elem.(*ast.CompositeLit); ok {
+										operation := metadataschema.BindingOperation{}
+										// Process each field in the operation struct
+										for _, opElt := range opLit.Elts {
+											if opField, ok := opElt.(*ast.KeyValueExpr); ok {
+												opKey, ok := opField.Key.(*ast.Ident)
+												if !ok {
+													continue
+												}
+
+												// Map each key in the operation to its corresponding value
+												switch opKey.Name {
+												case "Name":
+													if strVal, ok := opField.Value.(*ast.BasicLit); ok {
+														operation.Name = strings.Trim(strVal.Value, `"`)
+													}
+												case "Description":
+													if strVal, ok := opField.Value.(*ast.BasicLit); ok {
+														operation.Description = strings.Trim(strVal.Value, `"`)
+													}
+												}
+											}
+										}
+										fmt.Printf("sam just appended op %v\n", operation)
+
+										operations = append(operations, operation)
+									}
+								}
+								binding.Operations = operations
+							}
+						}
+					}
+				}
+
+				// Return the binding instance
+				fmt.Printf("\nini func still sam %v %v", binding.Input, binding.Output)
+				return binding, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("variable %s not found", varName)
+}
+
+func writeToFile(outputFilePath string, component metadataschema.ComponentMetadata) error {
+	// Open the file for writing (create if not exists)
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return fmt.Errorf("could not create file: %v", err)
+	}
+	defer file.Close()
+
+	// update the field names to lowercase
+	for i := range component.Metadata {
+		component.Metadata[i].Name = lowercaseFirstLetter(component.Metadata[i].Name)
+	}
+
+	yamlEncoder := yaml.NewEncoder(file)
+	yamlEncoder.SetIndent(2)
+	if err := yamlEncoder.Encode(&component); err != nil {
+		return fmt.Errorf("error encoding YAML: %w", err)
+	}
+
+	return nil
+}
+
+func init() {
+
+	// Add flags to the command
+	generateComponentMetadataNewCmd.Flags().String("type", "", "The component type (e.g., 'binding')")
+	generateComponentMetadataNewCmd.Flags().StringSlice("builtinAuth", []string{}, "The authentication profile (e.g., 'aws')")
+	generateComponentMetadataNewCmd.Flags().String("status", "", "The status of the component (e.g., 'stable')")
+	generateComponentMetadataNewCmd.Flags().String("version", "", "The version of the component (e.g., 'v1')")
+	generateComponentMetadataNewCmd.Flags().String("direction", "", "The direction of the component (e.g., 'output')")
+	generateComponentMetadataNewCmd.Flags().String("origin", "", "The direction of the component (e.g., 'output')")
+	generateComponentMetadataNewCmd.Flags().String("title", "", "The direction of the component (e.g., 'output')")
+
+	rootCmd.AddCommand(generateComponentMetadataNewCmd)
+
 }
 
 func convertPrefixToPath(componentName string) string {
@@ -539,32 +644,6 @@ func getStructDefaultValue(meta interface{}) map[string]string {
 	}
 
 	return defaultValues
-}
-
-func init() {
-	rootCmd.AddCommand(generateComponentMetadataCmd)
-}
-
-func writeYAMLFile(filePath string, componentMetadata metadataschema.ComponentMetadata) error {
-	fmt.Printf("sam writing to %v", filePath)
-	file, err := os.Create(filePath + "/metadatanew.yaml")
-	if err != nil {
-		return fmt.Errorf("error creating file: %w", err)
-	}
-	defer file.Close()
-
-	// update the field names to lowercase
-	for i := range componentMetadata.Metadata {
-		componentMetadata.Metadata[i].Name = lowercaseFirstLetter(componentMetadata.Metadata[i].Name)
-	}
-
-	yamlEncoder := yaml.NewEncoder(file)
-	yamlEncoder.SetIndent(2)
-	if err := yamlEncoder.Encode(&componentMetadata); err != nil {
-		return fmt.Errorf("error encoding YAML: %w", err)
-	}
-
-	return nil
 }
 
 // lowercaseFirstLetter lowercases the first letter of a string

@@ -1,3 +1,4 @@
+
 /*
 Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,7 +64,6 @@ type AWSS3 struct {
 	authProvider awsAuth.Provider
 	logger       logger.Logger
 }
-
 
 type createResponse struct {
 	Location   string  `json:"location"`

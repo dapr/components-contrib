@@ -68,15 +68,16 @@ else
 	INSTALLED_LINT_VERSION=v$(shell $(LINTER_BINARY) version | grep -Eo '([0-9]+\.)+[0-9]+' - | head -1 || "")
 endif
 
-# Build tools
+ROOT_DIR := $(shell git rev-parse --show-toplevel)
+
 ifeq ($(TARGET_OS_LOCAL),windows)
 	BUILD_TOOLS_BIN ?= components-contrib-build-tools.exe
-	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
-	RUN_BUILD_TOOLS ?= cd .build-tools; go.exe run .
+	BUILD_TOOLS ?= $(ROOT_DIR)/.build-tools/$(BUILD_TOOLS_BIN)
+	RUN_BUILD_TOOLS ?= cd $(ROOT_DIR)/.build-tools; go.exe run .
 else
 	BUILD_TOOLS_BIN ?= components-contrib-build-tools
-	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
-	RUN_BUILD_TOOLS ?= cd .build-tools; go run .
+	BUILD_TOOLS ?= $(ROOT_DIR)/.build-tools/$(BUILD_TOOLS_BIN)
+	RUN_BUILD_TOOLS ?= cd $(ROOT_DIR)/.build-tools; go run .
 endif
 
 ################################################################################
@@ -213,6 +214,13 @@ component-metadata-schema:
 .PHONY: check-component-metadata-schema-diff
 check-component-metadata-schema-diff: component-metadata-schema
 	git diff --exit-code -- component-metadata-schema.json # check no changes
+
+################################################################################
+# Create individual component metadata manifest (yaml file)                    #
+################################################################################
+.PHONY: component-metadata-manifest
+component-metadata-manifest:
+	$(RUN_BUILD_TOOLS) generate-component-metadata-new --type=$(type) --builtinAuth=$(builtinAuth) --status=$(status) --version=$(version) --direction=$(direction) --origin=$(origin) --title='$(title)'
 
 ################################################################################
 # Component metadata bundle targets                                            #

@@ -1,3 +1,5 @@
+//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="aws" status=stable version=v1 direction=output origin=$PWD "title=AWS S3"
+
 /*
 Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +14,10 @@ limitations under the License.
 */
 
 package s3
+
+import "github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+
+//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="aws" status=stable version=v1 direction=output origin=$PWD "title=AWS S3"
 
 type s3Metadata struct {
 	// AccessKey is the AWS access key to authenticate requests.
@@ -64,4 +70,27 @@ func Examples() s3Metadata {
 		DisableSSL:     true,
 		InsecureSSL:    true,
 	}
+}
+
+var s3Binding = metadataschema.Binding{
+	Input:  false,
+	Output: true,
+	Operations: []metadataschema.BindingOperation{
+		{
+			Name:        "create",
+			Description: "Create blob",
+		},
+		{
+			Name:        "get",
+			Description: "Get blob",
+		},
+		{
+			Name:        "delete",
+			Description: "Delete blob",
+		},
+		{
+			Name:        "list",
+			Description: "List blob",
+		},
+	},
 }

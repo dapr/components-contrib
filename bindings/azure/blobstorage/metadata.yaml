@@ -19,6 +19,8 @@ binding:
       description: "Delete blob"
     - name: list
       description: "List blob"
+    - name: copy
+      description: "Copy blob"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "azuread"

@@ -50,6 +50,7 @@ const (
 	nameZeebeCommand  = "zeebe.command"
 	nameZeebeWorker   = "zeebe.jobworker"
 	nameAppConfig     = "azure.appconfig"
+	nameKinesis       = "aws.kinesis"
 
 	// configuration
 
@@ -128,6 +129,7 @@ const (
 	titleZeebeCommand  = "Zeebe Command"
 	titleZeebeWorker   = "Zeebe JobWorker"
 	titleAppConfig     = "Azure App Configuration"
+	titleKinesis       = "AWS Kinesis Data Streams"
 
 	// configuration
 

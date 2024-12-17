@@ -13,26 +13,26 @@ limitations under the License.
 
 package dynamodb
 
-type dynamoDBMetadata struct {
-	Region       string `json:"region" mapstructure:"region"`
-	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken"`
-	Table        string `json:"table" mapstructure:"table"`
+type dynamodbMetadata struct {
+	Region       string `json:"region" mapstructure:"region" mdignore:"true"`
+	Endpoint     string `json:"endpoint" mapstructure:"endpoint" mdignore:"true"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+	Table        string `json:"table" mapstructure:"table" binding:"output"`
 }
 
 // Set the default values here.
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() dynamoDBMetadata {
-	return dynamoDBMetadata{}
+func Defaults() dynamodbMetadata {
+	return dynamodbMetadata{}
 }
 
 // Note: we do not include any mdignored field.
-func Examples() dynamoDBMetadata {
-	return dynamoDBMetadata{
+func Examples() dynamodbMetadata {
+	return dynamodbMetadata{
 		Endpoint: "http://localhost:4566",
 		Table:    "Contracts",
 	}

@@ -1,0 +1,30 @@
+schemaVersion: v1
+type: bindings
+name: aws.dynamodb
+version: v1
+status: stable
+title: AWS DynamoDB
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/dynamodb/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: Create a table
+capabilities:
+  - actorStateStore
+  - crud
+  - transaction
+  - etag
+  - ttl
+builtinAuthenticationProfiles:
+  - name: aws
+metadata:
+  - name: table
+    description: "The DynamoDB table name"
+    required: true
+    type: string
+    example: Contracts
+    binding:
+      output: true

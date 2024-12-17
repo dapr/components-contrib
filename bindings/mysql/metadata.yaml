@@ -29,6 +29,15 @@ metadata:
     description: "Path to the PEM file. Used with SSL connection"
     example: '"path/to/pem/file"'
     type: string
+  - name: pemContents
+    required: false
+    description: "Base64-encoded PEM file contents. Used with SSL connection. Supersedes pemPath if both provided."
+    example: '"-----BEGIN CERTIFICATE-----
+              MIIFaDCCBFCgAwIBAgISESHkvZFwK9Qz0KsXD3x8p44aMA0GCSqGSIb3DQEBCwUA
+              ...
+              bml6YXRpb252YWxzaGEyZzIuY3JsMIGgBggrBgEFBQcBAQSBkzCBkDBNBggrBgEF
+              -----END CERTIFICATE-----"'
+    type: string
   - name: maxIdleConns
     required: false
     description: "The max idle connections. Integer greater than 0"

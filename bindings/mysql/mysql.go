@@ -20,11 +20,13 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -80,6 +82,10 @@ type mysqlMetadata struct {
 	// PemPath is the path to the pem file to connect to MySQL over SSL.
 	PemPath string `mapstructure:"pemPath"`
 
+	// PemContents is the contents of the pem file to connect to MySQL over SSL.
+	// PemContents supersedes PemPath if both are provided.
+	PemContents string `mapstructure:"pemContents"`
+
 	// MaxIdleConns is the maximum number of connections in the idle connection pool.
 	MaxIdleConns int `mapstructure:"maxIdleConns"`
 
@@ -117,7 +123,34 @@ func (m *Mysql) Init(ctx context.Context, md bindings.Metadata) error {
 		return errors.New("missing MySql connection string")
 	}
 
-	m.db, err = initDB(meta.URL, meta.PemPath)
+	var pemContents []byte
+
+	// meta.PemContents supersedes meta.PemPath if both are provided.
+	if meta.PemContents != "" {
+		// Reformat the PEM to standard format
+		meta.PemContents = reformatPEM(meta.PemContents)
+		pemContents = []byte(meta.PemContents)
+	} else if meta.PemPath != "" {
+		pemContents, err = os.ReadFile(meta.PemPath)
+		if err != nil {
+			return fmt.Errorf("unable to read PEM file: %w", err)
+		}
+	}
+
+	// Decode PEM contents and parse certificate to ensure it's valid.
+	if len(pemContents) != 0 {
+		block, _ := pem.Decode(pemContents)
+		if block == nil {
+			return errors.New("failed to decode PEM")
+		}
+
+		_, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse PEM contents: %w", err)
+		}
+	}
+
+	m.db, err = initDB(meta.URL, pemContents)
 	if err != nil {
 		return err
 	}
@@ -234,7 +267,9 @@ func (m *Mysql) Close() error {
 	}
 
 	if m.db != nil {
-		m.db.Close()
+		if err := m.db.Close(); err != nil {
+			m.logger.Warnf("error closing DB: %v", err)
+		}
 		m.db = nil
 	}
 
@@ -246,7 +281,12 @@ func (m *Mysql) query(ctx context.Context, sql string, params ...any) ([]byte, e
 	if err != nil {
 		return nil, fmt.Errorf("error executing query: %w", err)
 	}
-	defer rows.Close()
+
+	defer func() {
+		if err = rows.Close(); err != nil {
+			m.logger.Warnf("error closing rows: %v", err)
+		}
+	}()
 
 	result, err := m.jsonify(rows)
 	if err != nil {
@@ -265,32 +305,34 @@ func (m *Mysql) exec(ctx context.Context, sql string, params ...any) (int64, err
 	return res.RowsAffected()
 }
 
-func initDB(url, pemPath string) (*sql.DB, error) {
-	conf, err := mysql.ParseDSN(url)
-	if err != nil {
-		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
-	}
-
-	if pemPath != "" {
-		var pem []byte
+func initDB(url string, pemContents []byte) (*sql.DB, error) {
+	// We need to register the custom TLS config before parsing the DSN if the user
+	// has provided a PEM file. DSN parsing will fail if the user has provided a PEM
+	// file, but the custom TLS config requested (i.e., "custom") is not registered.
+	if len(pemContents) != 0 {
+		// Create an empty root cert pool. We will append the PEM contents to this pool.
 		rootCertPool := x509.NewCertPool()
-		pem, err = os.ReadFile(pemPath)
-		if err != nil {
-			return nil, fmt.Errorf("error reading PEM file from %s: %w", pemPath, err)
-		}
 
-		ok := rootCertPool.AppendCertsFromPEM(pem)
+		ok := rootCertPool.AppendCertsFromPEM(pemContents)
 		if !ok {
 			return nil, errors.New("failed to append PEM")
 		}
 
-		err = mysql.RegisterTLSConfig("custom", &tls.Config{
+		// Register TLS config with the name "custom". The url must end with &tls=custom
+		// to use this custom TLS config.
+		err := mysql.RegisterTLSConfig("custom", &tls.Config{
 			RootCAs:    rootCertPool,
 			MinVersion: tls.VersionTLS12,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("error register TLS config: %w", err)
 		}
+	}
+
+	// Parse the DSN to get the connection configuration.
+	conf, err := mysql.ParseDSN(url)
+	if err != nil {
+		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
 	}
 
 	// Required to correctly parse time columns
@@ -304,6 +346,32 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 
 	db := sql.OpenDB(connector)
 	return db, nil
+}
+
+// Helper function to reformat a single-line PEM into standard PEM format
+func reformatPEM(pemStr string) string {
+	// Ensure headers and footers are on their own lines
+	pemStr = strings.ReplaceAll(pemStr, "-----BEGIN CERTIFICATE-----", "\n-----BEGIN CERTIFICATE-----\n")
+	pemStr = strings.ReplaceAll(pemStr, "-----END CERTIFICATE-----", "\n-----END CERTIFICATE-----")
+
+	// Split into base64-encoded content and reformat into 64-character lines
+	lines := strings.Split(pemStr, "\n")
+	if len(lines) >= 3 {
+		encodedContent := lines[1]
+		lines[1] = strings.Join(chunkString(encodedContent, 64), "\n")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// Helper function to split a string into chunks of a given size
+func chunkString(s string, chunkSize int) []string {
+	var chunks []string
+	for len(s) > chunkSize {
+		chunks = append(chunks, s[:chunkSize])
+		s = s[chunkSize:]
+	}
+	chunks = append(chunks, s)
+	return chunks
 }
 
 func (m *Mysql) jsonify(rows *sql.Rows) ([]byte, error) {
@@ -373,6 +441,9 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []any) map[string]
 // GetComponentMetadata returns the metadata of the component.
 func (m *Mysql) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mysqlMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType); err != nil {
+		m.logger.Warnf("error retrieving metadata info: %v", err)
+	}
+
 	return
 }

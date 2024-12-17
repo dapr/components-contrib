@@ -36,6 +36,9 @@ metadata:
     type: string
     default: shared
     example: extended
+    allowedValues:
+      - "shared"
+      - "extended"
     binding:
       input: true
   - name: direction

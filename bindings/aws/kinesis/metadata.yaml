@@ -1,0 +1,58 @@
+schemaVersion: v1
+type: bindings
+name: aws.kinesis
+version: v1
+status: alpha
+title: AWS Kinesis Data Streams
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kinesis/
+binding:
+  input: true
+  output: true
+  operations:
+    - name: create
+      description: Create a stream
+builtinAuthenticationProfiles:
+  - name: aws
+metadata:
+  - name: streamName
+    description: Kinesis stream name.
+    required: true
+    type: string
+    example: mystream
+    binding:
+      input: true
+      output: true
+  - name: consumerName
+    description: Kinesis consumer name
+    required: true
+    type: string
+    example: myconsumer
+    binding:
+      input: true
+  - name: mode
+    description: Kinesis stream mode. Options include "shared" for shared throughput, "extended" for extended/enhanced fanout methods.
+    type: string
+    default: shared
+    example: extended
+    binding:
+      input: true
+  - name: direction
+    description: Indicates the direction of the binding component.
+    type: string
+    example: '"input,output"'
+    allowedValues:
+      - input
+      - output
+      - input,output
+    url:
+      title: Documentation
+      url: https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional
+  - name: route
+    description: Specifies a custom route for incoming events.
+    type: string
+    example: '"/custom-path"'
+    url:
+      title: Documentation
+      url: https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specify-a-custom-route

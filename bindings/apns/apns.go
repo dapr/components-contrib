@@ -82,7 +82,7 @@ func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 // Init will configure the APNS output binding using the metadata specified
 // in the binding's configuration.
 func (a *APNS) Init(ctx context.Context, metadata bindings.Metadata) error {
-	m := APNSmetadata{}
+	m := apnsMetadata{}
 	err := kitmd.DecodeMetadata(metadata.Properties, &m)
 	if err != nil {
 		return err
@@ -172,7 +172,7 @@ func (a *APNS) sendPushNotificationToAPNS(ctx context.Context, deviceToken strin
 	return a.client.Do(httpRequest)
 }
 
-func (a *APNS) makeURLPrefix(metadata APNSmetadata) error {
+func (a *APNS) makeURLPrefix(metadata apnsMetadata) error {
 	if metadata.Development {
 		a.logger.Debug("Using the development APNS service")
 		a.urlPrefix = developmentPrefix
@@ -184,7 +184,7 @@ func (a *APNS) makeURLPrefix(metadata APNSmetadata) error {
 	return nil
 }
 
-func (a *APNS) extractKeyID(metadata APNSmetadata) error {
+func (a *APNS) extractKeyID(metadata apnsMetadata) error {
 	if metadata.KeyID != "" {
 		a.authorizationBuilder.keyID = metadata.KeyID
 
@@ -194,7 +194,7 @@ func (a *APNS) extractKeyID(metadata APNSmetadata) error {
 	return errors.New("the key-id parameter is required")
 }
 
-func (a *APNS) extractTeamID(metadata APNSmetadata) error {
+func (a *APNS) extractTeamID(metadata apnsMetadata) error {
 	if metadata.TeamID != "" {
 		a.authorizationBuilder.teamID = metadata.TeamID
 
@@ -204,7 +204,7 @@ func (a *APNS) extractTeamID(metadata APNSmetadata) error {
 	return errors.New("the team-id parameter is required")
 }
 
-func (a *APNS) extractPrivateKey(metadata APNSmetadata) error {
+func (a *APNS) extractPrivateKey(metadata apnsMetadata) error {
 	if metadata.PrivateKey != "" {
 		block, _ := pem.Decode([]byte(metadata.PrivateKey))
 		if block == nil {
@@ -256,7 +256,7 @@ func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, e
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *APNS) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := APNSmetadata{}
+	metadataStruct := apnsMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

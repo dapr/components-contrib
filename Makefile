@@ -220,7 +220,7 @@ check-component-metadata-schema-diff: component-metadata-schema
 ################################################################################
 .PHONY: component-metadata-manifest
 component-metadata-manifest:
-	$(RUN_BUILD_TOOLS) generate-component-metadata-new --type=$(type) --builtinAuth=$(builtinAuth) --status=$(status) --version=$(version) --direction=$(direction) --origin=$(origin) --title='$(title)'
+	$(RUN_BUILD_TOOLS) generate-component-metadata --type=$(type) --builtinAuth=$(builtinAuth) --status=$(status) --version=$(version) --direction=$(direction) --origin=$(origin) --title='$(title)'
 
 ################################################################################
 # Component metadata bundle targets                                            #

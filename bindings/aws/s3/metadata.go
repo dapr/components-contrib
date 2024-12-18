@@ -15,9 +15,13 @@ limitations under the License.
 
 package s3
 
-import "github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+import (
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
+)
 
-//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="aws" status=stable version=v1 direction=output origin=$PWD "title=AWS S3"
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &s3Metadata{}
 
 type s3Metadata struct {
 	// AccessKey is the AWS access key to authenticate requests.
@@ -55,12 +59,12 @@ type s3Metadata struct {
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() s3Metadata {
+func (s3 *s3Metadata) Defaults() any {
 	return s3Metadata{}
 }
 
 // Note: we do not include any mdignored field.
-func Examples() s3Metadata {
+func (s3 *s3Metadata) Examples() any {
 	return s3Metadata{
 		Endpoint:       "http://localhost:4566",
 		Bucket:         "bucket",
@@ -72,25 +76,27 @@ func Examples() s3Metadata {
 	}
 }
 
-var s3Binding = metadataschema.Binding{
-	Input:  false,
-	Output: true,
-	Operations: []metadataschema.BindingOperation{
-		{
-			Name:        "create",
-			Description: "Create blob",
+func (s3 *s3Metadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create blob",
+			},
+			{
+				Name:        "get",
+				Description: "Get blob",
+			},
+			{
+				Name:        "delete",
+				Description: "Delete blob",
+			},
+			{
+				Name:        "list",
+				Description: "List blob",
+			},
 		},
-		{
-			Name:        "get",
-			Description: "Get blob",
-		},
-		{
-			Name:        "delete",
-			Description: "Delete blob",
-		},
-		{
-			Name:        "list",
-			Description: "List blob",
-		},
-	},
+	}
 }

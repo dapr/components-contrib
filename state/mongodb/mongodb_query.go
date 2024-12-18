@@ -102,7 +102,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	}
 	str := fmt.Sprintf(`{ "value.%s": { "$in": [ `, f.Key)
 
-	for i := range len(f.Vals) {
+	for i := 0; i < len(f.Vals); i++ {
 		if i > 0 {
 			str += ", "
 		}

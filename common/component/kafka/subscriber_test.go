@@ -503,7 +503,7 @@ func Test_Subscribe(t *testing.T) {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		for i := range 100 {
+		for i := 0; i < 100; i++ {
 			go func(i int) {
 				k.Subscribe(ctx, SubscriptionHandlerConfig{}, strconv.Itoa(i))
 			}(i)

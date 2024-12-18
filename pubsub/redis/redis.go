@@ -86,7 +86,7 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 	}
 	r.queue = make(chan redisMessageWrapper, int(r.clientSettings.QueueDepth))
 
-	for range r.clientSettings.Concurrency {
+	for i := uint(0); i < r.clientSettings.Concurrency; i++ {
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()

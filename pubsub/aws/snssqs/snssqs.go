@@ -414,7 +414,7 @@ func (s *snsSqs) getSnsSqsSubscriptionArn(parentCtx context.Context, topicArn st
 		}
 	}
 
-	return "", errors.New("sns sqs subscription not found for topic arn")
+	return "", fmt.Errorf("sns sqs subscription not found for topic arn")
 }
 
 func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, topicArn string) (subscriptionArn string, err error) {
@@ -552,7 +552,7 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 	)
 	if handler, loadOK = s.subscriptionManager.GetSubscriptionTopicHandler(sanitizedTopic); loadOK {
 		if len(handler.requestTopic) == 0 {
-			return errors.New("handler topic name is missing")
+			return fmt.Errorf("handler topic name is missing")
 		}
 	} else {
 		return fmt.Errorf("handler for (sanitized) topic: %s was not found", sanitizedTopic)

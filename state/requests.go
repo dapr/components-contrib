@@ -14,7 +14,7 @@ limitations under the License.
 package state
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/dapr/components-contrib/state/query"
@@ -77,7 +77,7 @@ type DeleteWithPrefixRequest struct {
 
 func (r *DeleteWithPrefixRequest) Validate() error {
 	if r.Prefix == "" || r.Prefix == "||" {
-		return errors.New("a prefix is required for deleteWithPrefix request")
+		return fmt.Errorf("a prefix is required for deleteWithPrefix request")
 	}
 	if !strings.HasSuffix(r.Prefix, "||") {
 		r.Prefix += "||"

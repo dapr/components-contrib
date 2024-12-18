@@ -61,7 +61,7 @@ type snsSqsMetadata struct {
 
 func maskLeft(s string) string {
 	rs := []rune(s)
-	for i := range len(rs) - 4 {
+	for i := 0; i < len(rs)-4; i++ {
 		rs[i] = 'X'
 	}
 	return string(rs)

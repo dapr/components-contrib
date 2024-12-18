@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -104,7 +105,7 @@ func TestInit(t *testing.T) {
 		}
 		err := obs.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, errors.New("missing obs bucket name"))
+		assert.Equal(t, err, fmt.Errorf("missing obs bucket name"))
 	})
 	t.Run("Init with missing access key", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -115,7 +116,7 @@ func TestInit(t *testing.T) {
 		}
 		err := obs.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, errors.New("missing the huawei access key"))
+		assert.Equal(t, err, fmt.Errorf("missing the huawei access key"))
 	})
 	t.Run("Init with missing secret key", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -126,7 +127,7 @@ func TestInit(t *testing.T) {
 		}
 		err := obs.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, errors.New("missing the huawei secret key"))
+		assert.Equal(t, err, fmt.Errorf("missing the huawei secret key"))
 	})
 	t.Run("Init with missing endpoint", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -137,7 +138,7 @@ func TestInit(t *testing.T) {
 		}
 		err := obs.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, errors.New("missing obs endpoint"))
+		assert.Equal(t, err, fmt.Errorf("missing obs endpoint"))
 	})
 }
 
@@ -248,7 +249,7 @@ func TestCreateOperation(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
 				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
-					return nil, errors.New("error while creating object")
+					return nil, fmt.Errorf("error while creating object")
 				},
 			},
 			logger: logger.NewLogger("test"),
@@ -340,7 +341,7 @@ func TestUploadOperation(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
 				PutFileFn: func(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
-					return nil, errors.New("error while creating object")
+					return nil, fmt.Errorf("error while creating object")
 				},
 			},
 			logger: logger.NewLogger("test"),
@@ -416,7 +417,7 @@ func TestGetOperation(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
 				GetObjectFn: func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
-					return nil, errors.New("error while getting object")
+					return nil, fmt.Errorf("error while getting object")
 				},
 			},
 			logger: logger.NewLogger("test"),
@@ -524,7 +525,7 @@ func TestDeleteOperation(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
 				DeleteObjectFn: func(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
-					return nil, errors.New("error while deleting object")
+					return nil, fmt.Errorf("error while deleting object")
 				},
 			},
 			logger: logger.NewLogger("test"),
@@ -579,7 +580,7 @@ func TestListOperation(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
 				ListObjectsFn: func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
-					return nil, errors.New("error while listing objects")
+					return nil, fmt.Errorf("error while listing objects")
 				},
 			},
 			logger: logger.NewLogger("test"),

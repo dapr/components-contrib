@@ -15,7 +15,7 @@ package csms
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
@@ -72,17 +72,17 @@ func (m *mockedCsmsSecretStoreReturnError) ListSecrets(request *model.ListSecret
 }
 
 func (m *mockedCsmsSecretStoreReturnError) ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error) {
-	return nil, errors.New("mocked error")
+	return nil, fmt.Errorf("mocked error")
 }
 
 type mockedCsmsSecretStoreBothReturnError struct{}
 
 func (m *mockedCsmsSecretStoreBothReturnError) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
-	return nil, errors.New("mocked error")
+	return nil, fmt.Errorf("mocked error")
 }
 
 func (m *mockedCsmsSecretStoreBothReturnError) ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error) {
-	return nil, errors.New("mocked error")
+	return nil, fmt.Errorf("mocked error")
 }
 
 func TestGetSecret(t *testing.T) {

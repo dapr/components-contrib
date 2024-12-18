@@ -140,7 +140,7 @@ func mapChecks(config []*AgentServiceCheck) []*consul.AgentServiceCheck {
 
 	mapped := []*consul.AgentServiceCheck{}
 
-	for i := range len(config) {
+	for i := 0; i < len(config); i++ {
 		mapped = append(mapped, mapCheck(config[i]))
 	}
 
@@ -211,7 +211,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 
 		mapped.Checks = config.Checks
 
-		for i := range len(config.Paths) {
+		for i := 0; i < len(config.Paths); i++ {
 			tmp := consul.ExposePath{
 				ListenerPort:    config.Paths[i].ListenerPort,
 				Path:            config.Paths[i].Path,
@@ -232,7 +232,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 
 		mapped := []consul.Upstream{}
 
-		for i := range len(config) {
+		for i := 0; i < len(config); i++ {
 			tmp := consul.Upstream{
 				DestinationType:      consul.UpstreamDestType(config[i].DestinationType),
 				DestinationNamespace: config[i].DestinationNamespace,
@@ -273,7 +273,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 
 		mapped := consul.AgentServiceChecks{}
 
-		for i := range len(config) {
+		for i := 0; i < len(config); i++ {
 			mapped = append(mapped, mapCheck(config[i]))
 		}
 

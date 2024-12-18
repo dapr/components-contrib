@@ -91,11 +91,11 @@ var benches = map[string]struct {
 				httputils.RespondWithErrorAndMessage(w, http.StatusInternalServerError, body)
 			}
 			if path := r.URL.Path; path != "/v1.0/hello" {
-				body := "Expected wasm to rewrite path: " + path
+				body := fmt.Sprintf("Expected wasm to rewrite path: %s", path)
 				httputils.RespondWithErrorAndMessage(w, http.StatusInternalServerError, body)
 			}
 			if query := r.URL.RawQuery; query != "name=teddy" {
-				body := "Expected wasm to retain query: " + query
+				body := fmt.Sprintf("Expected wasm to retain query: %s", query)
 				httputils.RespondWithErrorAndMessage(w, http.StatusInternalServerError, body)
 			}
 			w.Header().Set("Content-Type", "text/plain")

@@ -189,7 +189,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	if meta.ConnectionString == "" {
 		m.logger.Error("Missing MySql connection string")
-		return errors.New(errMissingConnectionString)
+		return fmt.Errorf(errMissingConnectionString)
 	}
 	m.connectionString = meta.ConnectionString
 
@@ -328,6 +328,7 @@ func (m *MySQL) ensureStateSchema(ctx context.Context) error {
 
 	// Close the connection we used to confirm and or create the schema
 	err = m.db.Close()
+
 	if err != nil {
 		return err
 	}
@@ -462,7 +463,7 @@ func (m *MySQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
 // logic to state.DeleteWithRetries as a func.
 func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *state.DeleteRequest) error {
 	if req.Key == "" {
-		return errors.New("missing key in delete operation")
+		return fmt.Errorf("missing key in delete operation")
 	}
 
 	var (
@@ -635,6 +636,7 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	result, err = querier.ExecContext(ctx, query, params...)
+
 	if err != nil {
 		return err
 	}
@@ -829,7 +831,7 @@ func validIdentifier(v string) bool {
 
 	// Loop through the string as byte slice as we only care about ASCII characters
 	b := []byte(v)
-	for i := range len(b) {
+	for i := 0; i < len(b); i++ {
 		if (b[i] >= '0' && b[i] <= '9') ||
 			(b[i] >= 'a' && b[i] <= 'z') ||
 			(b[i] >= 'A' && b[i] <= 'Z') ||

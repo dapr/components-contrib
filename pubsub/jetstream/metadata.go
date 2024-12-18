@@ -14,7 +14,6 @@ limitations under the License.
 package jetstream
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -71,23 +70,23 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	if m.NatsURL == "" {
-		return metadata{}, errors.New("missing nats URL")
+		return metadata{}, fmt.Errorf("missing nats URL")
 	}
 
 	if m.Jwt != "" && m.SeedKey == "" {
-		return metadata{}, errors.New("missing seed key")
+		return metadata{}, fmt.Errorf("missing seed key")
 	}
 
 	if m.Jwt == "" && m.SeedKey != "" {
-		return metadata{}, errors.New("missing jwt")
+		return metadata{}, fmt.Errorf("missing jwt")
 	}
 
 	if m.TLSClientCert != "" && m.TLSClientKey == "" {
-		return metadata{}, errors.New("missing tls client key")
+		return metadata{}, fmt.Errorf("missing tls client key")
 	}
 
 	if m.TLSClientCert == "" && m.TLSClientKey != "" {
-		return metadata{}, errors.New("missing tls client cert")
+		return metadata{}, fmt.Errorf("missing tls client cert")
 	}
 
 	if m.Name == "" {

@@ -170,7 +170,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	assert.True(t, ok)
 	defer require.NoError(t, closer.Close())
 
-	for i := range 1000 {
+	for i := 0; i < 1000; i++ {
 		testBulk(t, db, i)
 	}
 }

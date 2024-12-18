@@ -158,7 +158,7 @@ func TestMigration(t *testing.T) {
 		const parallel = 5
 		errs := make(chan error, parallel)
 		hasLogs := atomic.Uint32{}
-		for i := range parallel {
+		for i := 0; i < parallel; i++ {
 			go func(i int) {
 				// Collect logs
 				collectLog := logger.NewLogger("concurrent-" + strconv.Itoa(i))
@@ -188,7 +188,7 @@ func TestMigration(t *testing.T) {
 			}(i)
 		}
 
-		for range parallel {
+		for i := 0; i < parallel; i++ {
 			select {
 			case err := <-errs:
 				assert.NoError(t, err) //nolint:testifylint
@@ -213,7 +213,7 @@ func getUniqueDBSchema(t *testing.T) string {
 	b := make([]byte, 4)
 	_, err := io.ReadFull(rand.Reader, b)
 	require.NoError(t, err)
-	return "m%s" + hex.EncodeToString(b)
+	return fmt.Sprintf("m%s", hex.EncodeToString(b))
 }
 
 func assertTableExists(t *testing.T, db *sql.DB, schema, table string) {

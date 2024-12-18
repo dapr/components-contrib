@@ -459,7 +459,7 @@ func buildRegexForTopic(topicName string) string {
 	if strings.ContainsAny(topicName, "#+") {
 		regexStr = "^"
 		// It's ok to iterate over bytes here (rather than codepoints) because all characters we're looking for are always single-byte
-		for i := range len(topicName) {
+		for i := 0; i < len(topicName); i++ {
 			// Wildcard chars must either be at the beginning of the string or must follow a /
 			okPos = (i == 0 || topicName[i-1] == '/')
 			if topicName[i] == '#' && okPos {

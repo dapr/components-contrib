@@ -246,7 +246,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
-	t.Run("parse metadata with "+host, func(t *testing.T) {
+	t.Run(fmt.Sprintf("parse metadata with %s", host), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
@@ -279,7 +279,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, want.RequestTimeout, m.RequestTimeout)
 	})
 
-	t.Run("parse metadata with "+connectionString, func(t *testing.T) {
+	t.Run(fmt.Sprintf("parse metadata with %s", connectionString), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"

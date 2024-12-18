@@ -15,7 +15,6 @@ package couchbase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -86,19 +85,19 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 	}
 
 	if m.CouchbaseURL == "" {
-		return nil, errors.New("couchbase URL is missing")
+		return nil, fmt.Errorf("couchbase URL is missing")
 	}
 
 	if m.Username == "" {
-		return nil, errors.New("couchbase username is missing")
+		return nil, fmt.Errorf("couchbase username is missing")
 	}
 
 	if m.Password == "" {
-		return nil, errors.New("couchbase password is missing")
+		return nil, fmt.Errorf("couchbase password is missing")
 	}
 
 	if m.BucketName == "" {
-		return nil, errors.New("couchbase bucket name is missing")
+		return nil, fmt.Errorf("couchbase bucket name is missing")
 	}
 
 	v := meta.Properties[numReplicasDurableReplication]

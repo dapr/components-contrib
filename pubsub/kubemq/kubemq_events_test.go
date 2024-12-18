@@ -2,7 +2,7 @@ package kubemq
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -111,7 +111,7 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 				Topic: "some-topic",
 			},
 			resultError: nil,
-			publishErr:  errors.New("some error"),
+			publishErr:  fmt.Errorf("some error"),
 			wantErr:     true,
 		},
 	}
@@ -175,7 +175,7 @@ func Test_kubeMQEvents_Subscribe(t *testing.T) {
 			subscribeHandler: func(ctx context.Context, msg *pubsub.NewMessage) error {
 				return nil
 			},
-			subscribeError: errors.New("some error"),
+			subscribeError: fmt.Errorf("some error"),
 			wantErr:        true,
 		},
 	}

@@ -213,7 +213,7 @@ func testCreateTable(t *testing.T, db *pgxpool.Pool) {
 func dropTable(t *testing.T, db *pgxpool.Pool, tableName string) {
 	t.Helper()
 
-	_, err := db.Exec(context.Background(), "DROP TABLE "+tableName)
+	_, err := db.Exec(context.Background(), fmt.Sprintf("DROP TABLE %s", tableName))
 	require.NoError(t, err)
 }
 
@@ -237,9 +237,9 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
-	var operations []state.TransactionalStateOperation //nolint:prealloc
-	var setRequests []state.SetRequest                 //nolint:prealloc
-	for range 3 {
+	var operations []state.TransactionalStateOperation
+	var setRequests []state.SetRequest
+	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
 			Key:      randomKey(),
 			Value:    randomJSON(),
@@ -270,9 +270,9 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
-	var operations []state.TransactionalStateOperation //nolint:prealloc
-	var deleteRequests []state.DeleteRequest           //nolint:prealloc
-	for range 3 {
+	var operations []state.TransactionalStateOperation
+	var deleteRequests []state.DeleteRequest
+	for i := 0; i < 3; i++ {
 		req := state.DeleteRequest{
 			Key:      randomKey(),
 			ETag:     nil,
@@ -307,9 +307,9 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
-	var operations []state.TransactionalStateOperation //nolint:prealloc
-	var deleteRequests []state.DeleteRequest           //nolint:prealloc
-	for range 3 {
+	var operations []state.TransactionalStateOperation
+	var deleteRequests []state.DeleteRequest
+	for i := 0; i < 3; i++ {
 		req := state.DeleteRequest{
 			Key:      randomKey(),
 			ETag:     nil,
@@ -331,8 +331,8 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	// Create the set requests.
-	var setRequests []state.SetRequest //nolint:prealloc
-	for range 3 {
+	var setRequests []state.SetRequest
+	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
 			Key:      randomKey(),
 			Value:    randomJSON(),

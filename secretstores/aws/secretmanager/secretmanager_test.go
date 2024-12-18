@@ -16,7 +16,7 @@ package secretmanager
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -141,7 +141,7 @@ func TestGetSecret(t *testing.T) {
 		s := smSecretStore{
 			client: &mockedSM{
 				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-					return nil, errors.New("failed due to any reason")
+					return nil, fmt.Errorf("failed due to any reason")
 				},
 			},
 		}

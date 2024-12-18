@@ -16,7 +16,6 @@ package graphql
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -74,7 +73,7 @@ func (gql *GraphQL) Init(_ context.Context, meta bindings.Metadata) error {
 	}
 
 	if m.Endpoint == "" {
-		return errors.New("GraphQL Error: Missing GraphQL URL")
+		return fmt.Errorf("GraphQL Error: Missing GraphQL URL")
 	}
 
 	// Connect to GraphQL Server
@@ -102,11 +101,11 @@ func (gql *GraphQL) Operations() []bindings.OperationKind {
 // Invoke handles all invoke operations.
 func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
-		return nil, errors.New("GraphQL Error: Invoke request required")
+		return nil, fmt.Errorf("GraphQL Error: Invoke request required")
 	}
 
 	if req.Metadata == nil {
-		return nil, errors.New("GraphQL Error: Metadata required")
+		return nil, fmt.Errorf("GraphQL Error: Metadata required")
 	}
 	gql.logger.Debugf("operation: %v", req.Operation)
 

@@ -335,7 +335,7 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_NonMax(t *testing.T) {
 
 	s := `0123456789`
 	v := nameToAWSSanitizedName(s, true)
-	r.Len(v, len(s)+len(".fifo"))
+	r.EqualValues(len(s)+len(".fifo"), len(v))
 	r.Equal("0123456789.fifo", v)
 }
 

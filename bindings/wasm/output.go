@@ -16,7 +16,6 @@ package wasm
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -92,7 +91,7 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 	if _, found := imports[modeWasiHTTP]; found {
 		if out.meta.StrictSandbox {
 			_ = out.runtime.Close(context.Background())
-			return errors.New("can not instantiate wasi-http with strict sandbox")
+			return fmt.Errorf("can not instantiate wasi-http with strict sandbox")
 		}
 		err = wasi_http.MakeWasiHTTP().Instantiate(ctx, out.runtime)
 	}

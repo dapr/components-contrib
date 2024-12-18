@@ -101,139 +101,139 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	scenarios := []scenario{
 		{
-			key:   key + "-int",
+			key:   fmt.Sprintf("%s-int", key),
 			value: 123,
 		},
 		{
-			key:   key + "-bool",
+			key:   fmt.Sprintf("%s-bool", key),
 			value: true,
 		},
 		{
-			key:   key + "-bytes",
+			key:   fmt.Sprintf("%s-bytes", key),
 			value: []byte{0x1},
 		},
 		{
-			key:   key + "-string-with-json",
+			key:   fmt.Sprintf("%s-string-with-json", key),
 			value: `{"a":"b"}`,
 		},
 		{
-			key:   key + "-string",
+			key:   fmt.Sprintf("%s-string", key),
 			value: "hello world",
 		},
 		{
-			key:   key + "-empty-string",
+			key:   fmt.Sprintf("%s-empty-string", key),
 			value: "",
 		},
 		{
-			key:         key + "-struct",
-			value:       ValueType{Message: "test" + key},
+			key:         fmt.Sprintf("%s-struct", key),
+			value:       ValueType{Message: fmt.Sprintf("test%s", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
-			key: key + "-struct-operations",
+			key: fmt.Sprintf("%s-struct-operations", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 15}, Status: "ACTIVE", Message: key + "message"},
+			}{Value: 15}, Status: "ACTIVE", Message: fmt.Sprintf("%smessage", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
-			key: key + "-struct-operations-inactive",
+			key: fmt.Sprintf("%s-struct-operations-inactive", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 12}, Status: "INACTIVE", Message: key + "message"},
+			}{Value: 12}, Status: "INACTIVE", Message: fmt.Sprintf("%smessage", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
-			key:         key + "-struct-2",
-			value:       ValueType{Message: key + "test"},
+			key:         fmt.Sprintf("%s-struct-2", key),
+			value:       ValueType{Message: fmt.Sprintf("%stest", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
-			key:         key + "-struct-with-int",
+			key:         fmt.Sprintf("%s-struct-with-int", key),
 			value:       intValueType{Message: 42},
 			contentType: contenttype.JSONContentType,
 		},
 		{
-			key:         key + "-to-be-deleted",
+			key:         fmt.Sprintf("%s-to-be-deleted", key),
 			value:       "to be deleted",
 			toBeDeleted: true,
 		},
 		{
-			key:      key + "-bulk-int",
+			key:      fmt.Sprintf("%s-bulk-int", key),
 			value:    123,
 			bulkOnly: true,
 		},
 		{
-			key:      key + "-bulk-bool",
+			key:      fmt.Sprintf("%s-bulk-bool", key),
 			value:    true,
 			bulkOnly: true,
 		},
 		{
-			key:      key + "-bulk-bytes",
+			key:      fmt.Sprintf("%s-bulk-bytes", key),
 			value:    []byte{0x1},
 			bulkOnly: true,
 		},
 		{
-			key:      key + "-bulk-string",
+			key:      fmt.Sprintf("%s-bulk-string", key),
 			value:    "hello world",
 			bulkOnly: true,
 		},
 		{
-			key:      key + "-bulk-struct",
+			key:      fmt.Sprintf("%s-bulk-struct", key),
 			value:    ValueType{Message: "test"},
 			bulkOnly: true,
 		},
 		{
-			key:         key + "-bulk-to-be-deleted",
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted", key),
 			value:       "to be deleted",
 			toBeDeleted: true,
 			bulkOnly:    true,
 		},
 		{
-			key:         key + "-bulk-to-be-deleted-too",
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
 			value:       "to be deleted too",
 			toBeDeleted: true,
 			bulkOnly:    true,
 		},
 		{
-			key:              key + "-trx-int",
+			key:              fmt.Sprintf("%s-trx-int", key),
 			value:            123,
 			transactionOnly:  true,
 			transactionGroup: 1,
 		},
 		{
-			key:              key + "-trx-bool",
+			key:              fmt.Sprintf("%s-trx-bool", key),
 			value:            true,
 			transactionOnly:  true,
 			transactionGroup: 1,
 		},
 		{
-			key:              key + "-trx-bytes",
+			key:              fmt.Sprintf("%s-trx-bytes", key),
 			value:            []byte{0x1},
 			transactionOnly:  true,
 			transactionGroup: 1,
 		},
 		{
-			key:              key + "-trx-string",
+			key:              fmt.Sprintf("%s-trx-string", key),
 			value:            "hello world",
 			transactionOnly:  true,
 			transactionGroup: 1,
 		},
 		{
-			key:              key + "-trx-struct",
+			key:              fmt.Sprintf("%s-trx-struct", key),
 			value:            ValueType{Message: "test"},
 			transactionOnly:  true,
 			transactionGroup: 2,
 		},
 		{
-			key:              key + "-trx-to-be-deleted",
+			key:              fmt.Sprintf("%s-trx-to-be-deleted", key),
 			value:            "to be deleted",
 			toBeDeleted:      true,
 			transactionOnly:  true,
 			transactionGroup: 1,
 		},
 		{
-			key:              key + "-trx-to-be-deleted-too",
+			key:              fmt.Sprintf("%s-trx-to-be-deleted-too", key),
 			value:            "to be deleted too",
 			toBeDeleted:      true,
 			transactionOnly:  true,
@@ -259,7 +259,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			`,
 			results: []state.QueryItem{
 				{
-					Key:  key + "-struct",
+					Key:  fmt.Sprintf("%s-struct", key),
 					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
 				},
 			},
@@ -287,7 +287,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			`,
 			results: []state.QueryItem{
 				{
-					Key:  key + "-struct-operations",
+					Key:  fmt.Sprintf("%s-struct-operations", key),
 					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE","message":"%smessage"}`, key)),
 				},
 			},
@@ -329,7 +329,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			`,
 			results: []state.QueryItem{
 				{
-					Key:  key + "-struct-operations-inactive",
+					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
 					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE","message":"%smessage"}`, key)),
 				},
 			},
@@ -354,11 +354,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Return 2 item from 2 different partitionKey (<key>-struct and <key>-struct-2), for default the partitionKey is equals to key
 			results: []state.QueryItem{
 				{
-					Key:  key + "-struct",
+					Key:  fmt.Sprintf("%s-struct", key),
 					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
 				},
 				{
-					Key:  key + "-struct-2",
+					Key:  fmt.Sprintf("%s-struct-2", key),
 					Data: []byte(fmt.Sprintf(`{"message":"%stest"}`, key)),
 				},
 			},
@@ -381,13 +381,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 			`,
 			metadata: map[string]string{
-				"partitionKey": key + "-struct-2",
+				"partitionKey": fmt.Sprintf("%s-struct-2", key),
 			},
 			partitionOnly: true,
 			// The same query from previous test but return only item having the same partitionKey value (%s-struct-2) given in the metadata
 			results: []state.QueryItem{
 				{
-					Key:  key + "-struct-2",
+					Key:  fmt.Sprintf("%s-struct-2", key),
 					Data: []byte(fmt.Sprintf(`{"message":"%stest"}`, key)),
 				},
 			},
@@ -841,7 +841,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}, state.BulkGetOpts{})
 			require.NoError(t, err)
 			require.Len(t, bulkRes, 3)
-			for i := range 3 {
+			for i := 0; i < 3; i++ {
 				require.NotNil(t, bulkRes[i].ETag)
 				require.NotEmpty(t, *bulkRes[i].ETag)
 				assertDataEquals(t, firstValue, bulkRes[i].Data)
@@ -931,7 +931,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}, state.BulkGetOpts{})
 			require.NoError(t, err)
 			require.Len(t, bulkRes, 2)
-			for i := range 2 {
+			for i := 0; i < 2; i++ {
 				require.NotNil(t, bulkRes[i].ETag)
 				require.NotEmpty(t, *bulkRes[i].ETag)
 				assertDataEquals(t, thirdValue, bulkRes[i].Data)
@@ -1015,7 +1015,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 			require.Len(t, bulkRes, 2)
 			foundKeys := []string{}
-			for i := range 2 {
+			for i := 0; i < 2; i++ {
 				require.Empty(t, bulkRes[i].Data)
 				require.Empty(t, bulkRes[i].ETag)
 				foundKeys = append(foundKeys, bulkRes[i].Key)

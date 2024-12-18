@@ -394,6 +394,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			httpTransport.reset()
 			s.hub = tt.hubInMetadata

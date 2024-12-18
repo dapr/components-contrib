@@ -116,7 +116,7 @@ test:
 ################################################################################
 .PHONY: lint
 lint: verify-linter-installed verify-linter-version
-	$(GOLANGCI_LINT) run --timeout=20m --max-same-issues 0 --max-issues-per-linter 0
+	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
 # Target: modtidy-all                                                          #

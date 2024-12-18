@@ -301,6 +301,7 @@ func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
+
 	if err != nil {
 		return nil, err
 	}

@@ -196,7 +196,7 @@ func (j *localSecretStore) visitPrimitive(context string) error {
 }
 
 func (j *localSecretStore) visitArray(array []interface{}) error {
-	for i := range len(array) {
+	for i := 0; i < len(array); i++ {
 		j.enterContext(strconv.Itoa(i))
 		err := j.visitProperty(array[i])
 		if err != nil {
@@ -244,7 +244,7 @@ func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadat
 	}
 
 	if meta.SecretsFile == "" {
-		return nil, errors.New("missing local secrets file in metadata")
+		return nil, fmt.Errorf("missing local secrets file in metadata")
 	}
 
 	return &meta, nil

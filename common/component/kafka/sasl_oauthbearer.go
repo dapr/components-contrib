@@ -18,7 +18,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -59,7 +58,7 @@ func (ts *OAuthTokenSource) addCa(caPem string) error {
 	block, _ := pem.Decode(pemBytes)
 
 	if block == nil || block.Type != "CERTIFICATE" {
-		return errors.New("PEM data not valid or not of a valid type (CERTIFICATE)")
+		return fmt.Errorf("PEM data not valid or not of a valid type (CERTIFICATE)")
 	}
 
 	caCert, err := x509.ParseCertificate(block.Bytes)
@@ -110,7 +109,7 @@ func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
 	}
 
 	if ts.TokenEndpoint.TokenURL == "" || ts.ClientID == "" || ts.ClientSecret == "" {
-		return nil, errors.New("cannot generate token, OAuthTokenSource not fully configured")
+		return nil, fmt.Errorf("cannot generate token, OAuthTokenSource not fully configured")
 	}
 
 	oidcCfg := ccred.Config{ClientID: ts.ClientID, ClientSecret: ts.ClientSecret, Scopes: ts.Scopes, TokenURL: ts.TokenEndpoint.TokenURL, AuthStyle: ts.TokenEndpoint.AuthStyle}

@@ -420,7 +420,7 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 		cfg.Checks = []*consul.AgentServiceCheck{
 			{
 				Name:     "Dapr Health Status",
-				CheckID:  "daprHealth:" + id,
+				CheckID:  fmt.Sprintf("daprHealth:%s", id),
 				Interval: "15s",
 				HTTP:     fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(host, httpPort), appID),
 			},

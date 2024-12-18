@@ -154,6 +154,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 
 	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
 	_, err = blockBlobClient.UploadBuffer(ctx, req.Data, &uploadOptions)
+
 	if err != nil {
 		return nil, fmt.Errorf("error uploading az blob: %w", err)
 	}
@@ -191,7 +192,7 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
 	if err != nil {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {
-			return nil, errors.New("blob not found")
+			return nil, fmt.Errorf("blob not found")
 		}
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
@@ -260,7 +261,7 @@ func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeReque
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 
 	if bloberror.HasCode(err, bloberror.BlobNotFound) {
-		return nil, errors.New("blob not found")
+		return nil, fmt.Errorf("blob not found")
 	}
 
 	return nil, err

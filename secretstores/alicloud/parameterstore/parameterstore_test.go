@@ -15,7 +15,7 @@ package parameterstore
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	oos "github.com/alibabacloud-go/oos-20190601/client"
@@ -62,11 +62,11 @@ func (m *mockedParameterStore) GetSecretParametersByPathWithOptions(request *oos
 type mockedParameterStoreReturnError struct{}
 
 func (m *mockedParameterStoreReturnError) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
-	return nil, errors.New("mocked error")
+	return nil, fmt.Errorf("mocked error")
 }
 
 func (m *mockedParameterStoreReturnError) GetSecretParametersByPathWithOptions(request *oos.GetSecretParametersByPathRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParametersByPathResponse, error) {
-	return nil, errors.New("mocked error")
+	return nil, fmt.Errorf("mocked error")
 }
 
 func TestInit(t *testing.T) {

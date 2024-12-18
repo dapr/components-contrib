@@ -16,7 +16,6 @@ package secretmanager
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -104,11 +103,11 @@ func (s *Store) GetSecret(ctx context.Context, req secretstores.GetSecretRequest
 	res := secretstores.GetSecretResponse{Data: nil}
 
 	if s.client == nil {
-		return res, errors.New("client is not initialized")
+		return res, fmt.Errorf("client is not initialized")
 	}
 
 	if req.Name == "" {
-		return res, errors.New("missing secret name in request")
+		return res, fmt.Errorf("missing secret name in request")
 	}
 	secretName := fmt.Sprintf("projects/%s/secrets/%s", s.ProjectID, req.Name)
 
@@ -132,11 +131,11 @@ func (s *Store) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecre
 	response := map[string]map[string]string{}
 
 	if s.client == nil {
-		return secretstores.BulkGetSecretResponse{Data: nil}, errors.New("client is not initialized")
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("client is not initialized")
 	}
 
 	request := &secretmanagerpb.ListSecretsRequest{
-		Parent: "projects/" + s.ProjectID,
+		Parent: fmt.Sprintf("projects/%s", s.ProjectID),
 	}
 	it := s.client.ListSecrets(ctx, request)
 
@@ -184,16 +183,16 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 	}
 
 	if meta.Type == "" {
-		return nil, errors.New("missing property `type` in metadata")
+		return nil, fmt.Errorf("missing property `type` in metadata")
 	}
 	if meta.ProjectID == "" {
-		return nil, errors.New("missing property `project_id` in metadata")
+		return nil, fmt.Errorf("missing property `project_id` in metadata")
 	}
 	if meta.PrivateKey == "" {
-		return nil, errors.New("missing property `private_key` in metadata")
+		return nil, fmt.Errorf("missing property `private_key` in metadata")
 	}
 	if meta.ClientEmail == "" {
-		return nil, errors.New("missing property `client_email` in metadata")
+		return nil, fmt.Errorf("missing property `client_email` in metadata")
 	}
 
 	return &meta, nil

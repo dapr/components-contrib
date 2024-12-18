@@ -283,7 +283,7 @@ func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config Subscri
 			return nil, err
 		}
 		if len(message.Value) < 5 {
-			return nil, errors.New("value is too short")
+			return nil, fmt.Errorf("value is too short")
 		}
 		schemaID := binary.BigEndian.Uint32(message.Value[1:5])
 		schema, err := srClient.GetSchema(int(schemaID))

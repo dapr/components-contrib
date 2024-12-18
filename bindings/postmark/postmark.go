@@ -104,7 +104,7 @@ func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		email.From = req.Metadata["emailFrom"]
 	}
 	if len(email.From) == 0 {
-		return nil, errors.New("error Postmark from email not supplied")
+		return nil, fmt.Errorf("error Postmark from email not supplied")
 	}
 
 	// Build email to address, this is required
@@ -115,7 +115,7 @@ func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		email.To = req.Metadata["emailTo"]
 	}
 	if len(email.To) == 0 {
-		return nil, errors.New("error Postmark to email not supplied")
+		return nil, fmt.Errorf("error Postmark to email not supplied")
 	}
 
 	// Build email subject, this is required
@@ -126,7 +126,7 @@ func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		email.Subject = req.Metadata["subject"]
 	}
 	if len(email.Subject) == 0 {
-		return nil, errors.New("error Postmark subject not supplied")
+		return nil, fmt.Errorf("error Postmark subject not supplied")
 	}
 
 	// Build email cc address, this is optional

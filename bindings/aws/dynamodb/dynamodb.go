@@ -36,15 +36,6 @@ type DynamoDB struct {
 	logger       logger.Logger
 }
 
-type dynamoDBMetadata struct {
-	Region       string `json:"region" mapstructure:"region"`
-	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken"`
-	Table        string `json:"table" mapstructure:"table"`
-}
-
 // NewDynamoDB returns a new DynamoDB instance.
 func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 	return &DynamoDB{logger: logger}
@@ -104,8 +95,8 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	return nil, nil
 }
 
-func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
-	var meta dynamoDBMetadata
+func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamodbMetadata, error) {
+	var meta dynamodbMetadata
 	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
@@ -116,7 +107,7 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 
 // GetComponentMetadata returns the metadata of the component.
 func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := dynamoDBMetadata{}
+	metadataStruct := dynamodbMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

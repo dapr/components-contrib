@@ -53,7 +53,7 @@ type consumer struct {
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
-	Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error)
+	Init(ctx context.Context, metadata bindings.Metadata) (*storagequeuesMetadata, error)
 	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 	Close() error
@@ -70,7 +70,7 @@ type AzureQueueHelper struct {
 }
 
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*storageQueuesMetadata, error) {
+func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*storagequeuesMetadata, error) {
 	m, err := parseMetadata(meta)
 	if err != nil {
 		return nil, err
@@ -237,7 +237,7 @@ func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
 
 // AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues.
 type AzureStorageQueues struct {
-	metadata *storageQueuesMetadata
+	metadata *storagequeuesMetadata
 	helper   QueueHelper
 
 	logger logger.Logger
@@ -247,19 +247,7 @@ type AzureStorageQueues struct {
 	closed  atomic.Bool
 }
 
-type storageQueuesMetadata struct {
-	QueueName         string
-	QueueEndpoint     string
-	AccountName       string
-	AccountKey        string
-	DecodeBase64      bool
-	EncodeBase64      bool
-	PollingInterval   time.Duration  `mapstructure:"pollingInterval"`
-	TTL               *time.Duration `mapstructure:"ttl" mapstructurealiases:"ttlInSeconds"`
-	VisibilityTimeout *time.Duration
-}
-
-func (m *storageQueuesMetadata) GetQueueURL(azEnvSettings azauth.EnvironmentSettings) string {
+func (m *storagequeuesMetadata) GetQueueURL(azEnvSettings azauth.EnvironmentSettings) string {
 	var URL string
 	if m.QueueEndpoint != "" {
 		URL = fmt.Sprintf("%s/%s/", m.QueueEndpoint, m.AccountName)
@@ -288,8 +276,8 @@ func (a *AzureStorageQueues) Init(ctx context.Context, metadata bindings.Metadat
 	return nil
 }
 
-func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
-	m := storageQueuesMetadata{
+func parseMetadata(meta bindings.Metadata) (*storagequeuesMetadata, error) {
+	m := storagequeuesMetadata{
 		PollingInterval:   defaultPollingInterval,
 		VisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 	}
@@ -404,7 +392,7 @@ func (a *AzureStorageQueues) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureStorageQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := storageQueuesMetadata{}
+	metadataStruct := storagequeuesMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

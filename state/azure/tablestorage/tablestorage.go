@@ -77,15 +77,6 @@ type StateStore struct {
 	logger   logger.Logger
 }
 
-type tablesMetadata struct {
-	AccountName     string
-	AccountKey      string // optional, if not provided, will use Azure AD authentication
-	TableName       string
-	CosmosDBMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
-	ServiceURL      string // optional, if not provided, will use default Azure service URL
-	SkipCreateTable bool   // skip attempt to create table - useful for fine grained AAD roles
-}
-
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
 func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getTablesMetadata(metadata.Properties)

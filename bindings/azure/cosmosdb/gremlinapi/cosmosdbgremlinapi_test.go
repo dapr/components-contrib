@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cosmosdbgremlinapi
+package gremlinapi
 
 import (
 	"testing"
@@ -30,6 +30,6 @@ func TestParseMetadata(t *testing.T) {
 	im, err := cosmosdbgremlinapi.parseMetadata(m)
 	require.NoError(t, err)
 	assert.Equal(t, "a", im.URL)
-	assert.Equal(t, "a", im.MasterKey)
-	assert.Equal(t, "a", im.Username)
+	assert.Equal(t, "a", im.APMasterKey)
+	assert.Equal(t, "a", im.APUsername)
 }

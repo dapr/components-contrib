@@ -28,6 +28,13 @@ import (
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 )
 
+/*
+sam todos:
+-
+- allowed values
+- if there is no binding direction in encoding tags, then can use the binding direction itself on the field direction if not provided.
+*/
+
 type cliFlags struct {
 	componentType string
 	builtinAuth   []string
@@ -62,9 +69,10 @@ func getCmdFlags(cmd *cobra.Command) *cliFlags {
 // Helper function to get component name based on origin
 func getComponentName(origin, pkg string) string {
 	const (
-		awsPrefix   = "aws"
-		azurePrefix = "azure"
-		gcpPrefix   = "gcp"
+		awsPrefix      = "aws"
+		azurePrefix    = "azure"
+		gcpPrefix      = "gcp"
+		alicloudPrefix = "alicloud"
 	)
 
 	switch {
@@ -74,6 +82,12 @@ func getComponentName(origin, pkg string) string {
 		return azurePrefix + "." + pkg
 	case strings.Contains(origin, gcpPrefix):
 		return gcpPrefix + "." + pkg
+	case strings.Contains(origin, alicloudPrefix):
+		// special edge case
+		if pkg == "webhook" {
+			return "dingtalk.webhook"
+		}
+		return alicloudPrefix + "." + pkg
 	default:
 		return pkg
 	}
@@ -323,6 +337,7 @@ func checkFileExists(filePath string) {
 	}
 }
 
+// parseJSONTag extracts field information from component metadata field json tags
 func parseJSONTag(tag string) string {
 	// Remove the backticks and split the tag
 	tag = strings.Trim(tag, "`")
@@ -331,7 +346,7 @@ func parseJSONTag(tag string) string {
 		if strings.HasPrefix(part, "json:") {
 			// Extract the json field name and remove any options like "omitempty"
 			jsonTag := part[len("json:"):]
-			jsonTag = strings.Trim(jsonTag, `"`) // Remove surrounding quotes
+			jsonTag = strings.Trim(jsonTag, `"`)
 			if commaIdx := strings.Index(jsonTag, ","); commaIdx != -1 {
 				jsonTag = jsonTag[:commaIdx]
 			}
@@ -372,6 +387,9 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 
 	// Extract metadata and authentication profiles
 	metadataEntries, authProfileMetadataMap := extractMetadataFromAST(node, structName, filePath, underlyingComponentName)
+	if len(metadataEntries) == 0 {
+		return nil, nil, errors.New("component has no metadata fields")
+	}
 	return metadataEntries, authProfileMetadataMap, nil
 }
 
@@ -406,9 +424,9 @@ func extractMetadataFromAST(node *ast.File, structName, filePath, underlyingComp
 
 				metadata := convertFieldInfoToMetadata(fieldInfo)
 				if fieldInfo.AuthenticationProfileKey != "" {
-					authProfileMetadataMap[fieldInfo.AuthenticationProfileKey] = append(authProfileMetadataMap[fieldInfo.AuthenticationProfileKey], metadata)
+					authProfileMetadataMap[fieldInfo.AuthenticationProfileKey] = append(authProfileMetadataMap[fieldInfo.AuthenticationProfileKey], *metadata)
 				} else {
-					metadataEntries = append(metadataEntries, metadata)
+					metadataEntries = append(metadataEntries, *metadata)
 				}
 			}
 		}
@@ -418,8 +436,15 @@ func extractMetadataFromAST(node *ast.File, structName, filePath, underlyingComp
 }
 
 // convertFieldInfoToMetadata converts a FieldInfo object into a Metadata object.
-func convertFieldInfoToMetadata(fieldInfo *FieldInfo) metadataschema.Metadata {
-	return metadataschema.Metadata{
+func convertFieldInfoToMetadata(fieldInfo *FieldInfo) *metadataschema.Metadata {
+	if fieldInfo == nil {
+		return nil
+	}
+	var binding metadataschema.MetadataBinding
+	if fieldInfo.Binding != nil {
+		binding = *fieldInfo.Binding
+	}
+	return &metadataschema.Metadata{
 		Name:          fieldInfo.JSONTag,
 		Description:   fieldInfo.Description,
 		Required:      fieldInfo.Required,
@@ -428,16 +453,17 @@ func convertFieldInfoToMetadata(fieldInfo *FieldInfo) metadataschema.Metadata {
 		Default:       fieldInfo.Default,
 		Example:       fieldInfo.Example,
 		AllowedValues: fieldInfo.AllowedValues,
-		Binding:       fieldInfo.Binding,
+		Binding:       &binding,
 		Deprecated:    fieldInfo.Deprecated,
 	}
 }
 
 // parseAuthProfileTag extracts the authentication profile key from a struct tag.
+// Note: this does handle malformed encoding tags.
 func parseAuthProfileTag(tag string) string {
 	tagParts := strings.Split(tag, " ")
 	for _, part := range tagParts {
-		if strings.HasPrefix(part, "authenticationProfile:") {
+		if strings.Contains(part, "authenticationProfile:") {
 			return strings.Trim(part[len("authenticationProfile:"):], "\"`")
 		}
 	}
@@ -664,6 +690,19 @@ func supportedComponentURL(componentType, componentName string) []metadataschema
 		"TODO":         "conversation",
 		"pubsub":       "pubsub",
 	}
+
+	// other edge cases?
+	// if componentName == "alicloud.tablestore" {
+	// 	componentName = strings.ReplaceAll(componentName, ".", "")
+	// }
+	// if componentName == "dingtalk-webhook" {
+	// 	componentName = strings.ReplaceAll(componentName, "-", "")
+	// }
+
+	// TODO(@Sam): docs must be updated to this format that is standardized for all components, as docs are not atm.
+
+	componentName = strings.ReplaceAll(componentName, ".", "/")
+
 	var urls []metadataschema.URL
 	urls = append(urls, metadataschema.URL{
 		Title: "Reference",

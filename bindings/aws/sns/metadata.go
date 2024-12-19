@@ -1,3 +1,5 @@
+//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="aws" status=stable version=v1 direction=output origin=$PWD "title=AWS SNS"
+
 /*
 Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +14,14 @@ limitations under the License.
 */
 
 package sns
+
+import (
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
+)
+
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &snsMetadata{}
 
 type snsMetadata struct {
 	// Ignored by metadata parser because included in built-in authentication profile
@@ -32,14 +42,27 @@ type snsMetadata struct {
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() snsMetadata {
+func (sns *snsMetadata) Defaults() any {
 	return snsMetadata{}
 }
 
 // Note: we do not include any mdignored field.
-func Examples() snsMetadata {
+func (sns *snsMetadata) Examples() any {
 	return snsMetadata{
 		TopicArn: "arn:::topicarn",
 		Endpoint: "http://localhost:4566",
+	}
+}
+
+func (sns *snsMetadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create a new subscription",
+			},
+		},
 	}
 }

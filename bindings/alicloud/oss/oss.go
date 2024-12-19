@@ -34,13 +34,6 @@ type AliCloudOSS struct {
 	logger   logger.Logger
 }
 
-type ossMetadata struct {
-	Endpoint    string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKeyID string `json:"accessKeyID" mapstructure:"accessKeyID"`
-	AccessKey   string `json:"accessKey" mapstructure:"accessKey"`
-	Bucket      string `json:"bucket" mapstructure:"bucket"`
-}
-
 // NewAliCloudOSS returns a new  instance.
 func NewAliCloudOSS(logger logger.Logger) bindings.OutputBinding {
 	return &AliCloudOSS{logger: logger}

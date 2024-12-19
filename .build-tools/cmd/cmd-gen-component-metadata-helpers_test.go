@@ -16,6 +16,7 @@ package cmd
 import (
 	"errors"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"testing"
 
@@ -672,6 +673,365 @@ func TestValidateOperationFields(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestExtractStringValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		expr     ast.Expr
+		expected string
+	}{
+		{
+			name: "Basic string literal",
+			expr: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: "\"hello\"",
+			},
+			expected: "hello",
+		},
+		{
+			name: "Empty string literal",
+			expr: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: "\"\"",
+			},
+			expected: "",
+		},
+		{
+			name: "Non-string literal",
+			expr: &ast.BasicLit{
+				Kind:  token.INT,
+				Value: "123",
+			},
+			expected: "123",
+		},
+		{
+			name:     "Nil expression",
+			expr:     nil,
+			expected: "",
+		},
+		{
+			name: "Unsupported expression type",
+			expr: &ast.Ident{
+				Name: "identifier",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractStringValue(tt.expr)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParseJSONTag(t *testing.T) {
+	tests := []struct {
+		name     string
+		tag      string
+		expected string
+	}{
+		{
+			name:     "Simple JSON tag",
+			tag:      `json:"name"`,
+			expected: "name",
+		},
+		{
+			name:     "JSON tag with omitempty",
+			tag:      `json:"name,omitempty"`,
+			expected: "name",
+		},
+		{
+			name:     "JSON tag with multiple attributes",
+			tag:      `json:"name" xml:"name"`,
+			expected: "name",
+		},
+		{
+			name:     "Empty JSON tag",
+			tag:      `json:""`,
+			expected: "",
+		},
+		{
+			name:     "No JSON tag",
+			tag:      `mapstructure:"name"`,
+			expected: "",
+		},
+		{
+			name:     "Tag without backticks",
+			tag:      "json:\"name\"",
+			expected: "name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseJSONTag(tt.tag)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGenerateMetadataFromStructs(t *testing.T) {
+	tests := []struct {
+		name                     string
+		filePath                 string
+		structName               string
+		underlyingComponentName  string
+		expectedMetadataEntries  int
+		expectedAuthProfileCount int
+		expectError              bool
+	}{
+		{
+			name:                     "Valid Go struct",
+			filePath:                 "./testdata/valid_struct.go",
+			structName:               "TestStruct",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  2,
+			expectedAuthProfileCount: 1,
+			expectError:              false,
+		},
+		{
+			name:                     "Nonexistent file",
+			filePath:                 "./testdata/nonexistent.go",
+			structName:               "TestStruct",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  0,
+			expectedAuthProfileCount: 0,
+			expectError:              true,
+		},
+		{
+			name:                     "Invalid Go syntax",
+			filePath:                 "./testdata/invalid_syntax.go",
+			structName:               "TestStruct",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  0,
+			expectedAuthProfileCount: 0,
+			expectError:              true,
+		},
+		{
+			name:                     "Struct not found",
+			filePath:                 "./testdata/valid_struct.go",
+			structName:               "NonExistentStruct",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  0,
+			expectedAuthProfileCount: 0,
+			expectError:              true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metadataEntries, authProfileMetadataMap, err := generateMetadataFromStructs(tt.filePath, tt.structName, tt.underlyingComponentName)
+			if err != nil || tt.expectError {
+				assert.Error(t, err, tt.expectError)
+			}
+			assert.Equal(t, len(metadataEntries), tt.expectedMetadataEntries)
+			assert.Equal(t, len(authProfileMetadataMap), tt.expectedAuthProfileCount)
+		})
+	}
+}
+func TestExtractMetadataFromAST(t *testing.T) {
+	tests := []struct {
+		name                     string
+		inputAST                 *ast.File
+		structName               string
+		filePath                 string
+		underlyingComponentName  string
+		expectedMetadataEntries  int
+		expectedAuthProfileCount int
+	}{
+		{
+			name: "Struct with metadata",
+			inputAST: func() *ast.File {
+				fset := token.NewFileSet()
+				src := `package test
+
+				type TestStruct struct {
+					FieldA string ` + "`json:\"field_a\"`" + `
+					FieldB string ` + "`json:\"field_b\"`" + `
+				}
+				`
+				file, _ := parser.ParseFile(fset, "", src, parser.AllErrors)
+				return file
+			}(),
+			structName:               "TestStruct",
+			filePath:                 "test.go",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  2,
+			expectedAuthProfileCount: 0,
+		},
+		{
+			name: "Empty struct",
+			inputAST: func() *ast.File {
+				fset := token.NewFileSet()
+				src := `package test
+
+				type EmptyStruct struct {}
+				`
+				file, _ := parser.ParseFile(fset, "", src, parser.AllErrors)
+				return file
+			}(),
+			structName:               "EmptyStruct",
+			filePath:                 "test.go",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  0,
+			expectedAuthProfileCount: 0,
+		},
+		{
+			name: "Struct not found",
+			inputAST: func() *ast.File {
+				fset := token.NewFileSet()
+				src := `package test
+
+				type OtherStruct struct {}
+				`
+				file, _ := parser.ParseFile(fset, "", src, parser.AllErrors)
+				return file
+			}(),
+			structName:               "NonExistentStruct",
+			filePath:                 "test.go",
+			underlyingComponentName:  "componentA",
+			expectedMetadataEntries:  0,
+			expectedAuthProfileCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metadataEntries, authProfileMetadataMap := extractMetadataFromAST(tt.inputAST, tt.structName, tt.filePath, tt.underlyingComponentName)
+			assert.Equal(t, len(metadataEntries), tt.expectedMetadataEntries)
+			assert.Equal(t, len(authProfileMetadataMap), tt.expectedAuthProfileCount)
+		})
+	}
+}
+
+func TestConvertFieldInfoToMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *FieldInfo
+		expected *metadataschema.Metadata
+	}{
+		{
+			name: "Complete FieldInfo",
+			input: &FieldInfo{
+				JSONTag:       "name",
+				Description:   "A sample description",
+				Required:      true,
+				Sensitive:     false,
+				Type:          "string",
+				Default:       "defaultValue",
+				Example:       "exampleValue",
+				AllowedValues: []string{"value1", "value2"},
+				Binding: &metadataschema.MetadataBinding{
+					Input:  true,
+					Output: true,
+				},
+				Deprecated: false,
+			},
+			expected: &metadataschema.Metadata{
+				Name:          "name",
+				Description:   "A sample description",
+				Required:      true,
+				Sensitive:     false,
+				Type:          "string",
+				Default:       "defaultValue",
+				Example:       "exampleValue",
+				AllowedValues: []string{"value1", "value2"},
+				Binding: &metadataschema.MetadataBinding{
+					Input:  true,
+					Output: true,
+				},
+				Deprecated: false,
+			},
+		},
+		{
+			name: "Complete FieldInfo except for binding info",
+			input: &FieldInfo{
+				JSONTag:       "name",
+				Description:   "A sample description",
+				Required:      true,
+				Sensitive:     false,
+				Type:          "string",
+				Default:       "defaultValue",
+				Example:       "exampleValue",
+				AllowedValues: []string{"value1", "value2"},
+				Binding:       &metadataschema.MetadataBinding{},
+				Deprecated:    false,
+			},
+			expected: &metadataschema.Metadata{
+				Name:          "name",
+				Description:   "A sample description",
+				Required:      true,
+				Sensitive:     false,
+				Type:          "string",
+				Default:       "defaultValue",
+				Example:       "exampleValue",
+				AllowedValues: []string{"value1", "value2"},
+				Binding:       &metadataschema.MetadataBinding{},
+				Deprecated:    false,
+			},
+		},
+		{
+			name:     "Nil FieldInfo",
+			input:    nil,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertFieldInfoToMetadata(tt.input)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+				return
+			}
+			assert.Equal(t, tt.expected.Name, result.Name)
+			assert.Equal(t, tt.expected.Type, result.Type)
+			assert.Equal(t, tt.expected.Description, result.Description)
+			if tt.expected.Binding != nil {
+				assert.Equal(t, tt.expected.Binding.Input, result.Binding.Input)
+				assert.Equal(t, tt.expected.Binding.Output, result.Binding.Output)
+			}
+		})
+	}
+}
+
+func TestParseAuthProfileTag(t *testing.T) {
+	tests := []struct {
+		name     string
+		tag      string
+		expected string
+	}{
+		{
+			name:     "Valid authenticationProfile tag",
+			tag:      `authenticationProfile:"profileKey"`,
+			expected: "profileKey",
+		},
+		{
+			name:     "Tag with multiple attributes",
+			tag:      `json:"field" authenticationProfile:"profileKey"`,
+			expected: "profileKey",
+		},
+		{
+			name:     "Malformed authenticationProfile tag",
+			tag:      `authenticationProfile:profileKey`,
+			expected: "profileKey",
+		},
+		{
+			name:     "No authenticationProfile tag",
+			tag:      `json:"field"`,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseAuthProfileTag(tt.tag)
+			assert.Equal(t, result, tt.expected)
 		})
 	}
 }

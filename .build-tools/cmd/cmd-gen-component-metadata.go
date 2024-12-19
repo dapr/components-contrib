@@ -55,7 +55,7 @@ var generateComponentMetadataNewCmd = &cobra.Command{
 	Short: "Generates the component metadata yaml file per component",
 	Long:  `Generates the component metadata yaml file per component so we don't have to rely on community to manually create it.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Running generate-component-metadata command\n")
+		fmt.Println("Running generate-component-metadata command")
 
 		err := cwdToRepoRoot()
 		if err != nil {

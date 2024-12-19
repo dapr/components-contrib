@@ -1,0 +1,32 @@
+schemaVersion: v2
+type: bindings
+name: dingtalk.webhook
+version: v1
+status: alpha
+title: Alibaba Cloud DingTalk
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/dingtalk.webhook/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: Create object
+metadata:
+  - name: id
+    description: Unique ID.
+    required: true
+    type: string
+    example: test_webhook_id
+    binding: {}
+  - name: url
+    description: DingTalk's Webhook URL.
+    required: true
+    type: string
+    example: https://oapi.dingtalk.com/robot/send?access_token=******
+    binding: {}
+  - name: secret
+    description: The secret of DingTalk's Webhook.
+    type: string
+    example: '****************'
+    binding: {}

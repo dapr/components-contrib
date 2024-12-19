@@ -372,7 +372,7 @@ type FieldInfo struct {
 }
 
 // generateMetadataFromStructs processes a Go struct to extract metadata and authentication profile data.
-func generateMetadataFromStructs(filePath, structName, underlyingComponentName string) ([]metadataschema.Metadata, map[string][]metadataschema.Metadata, error) {
+func generateMetadataFromStructs(filePath, structName, underlyingComponentName string) ([]metadataschema.Metadata, []metadataschema.AuthenticationProfile, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read file: %w", err)
@@ -390,7 +390,24 @@ func generateMetadataFromStructs(filePath, structName, underlyingComponentName s
 	if len(metadataEntries) == 0 {
 		return nil, nil, errors.New("component has no metadata fields")
 	}
-	return metadataEntries, authProfileMetadataMap, nil
+
+	return metadataEntries, convertAuthProfileMetadata(authProfileMetadataMap), nil
+}
+
+// TODO: in future need to leverage description field in AuthenticationProfile.
+// However, for now is fine to ignore since very few components actually use this.
+func convertAuthProfileMetadata(profileMap map[string][]metadataschema.Metadata) []metadataschema.AuthenticationProfile {
+	// TODO could add dictionary here for now.
+	// Master Key description: Authenticate using a pre-shared "master key".
+	var authProfiles []metadataschema.AuthenticationProfile
+	for title, profileMetadata := range profileMap {
+		newProfile := metadataschema.AuthenticationProfile{
+			Title:    title,
+			Metadata: profileMetadata,
+		}
+		authProfiles = append(authProfiles, newProfile)
+	}
+	return authProfiles
 }
 
 // extractMetadataFromAST traverses the AST to locate the struct and extract metadata.
@@ -484,6 +501,7 @@ func extractFieldInfo(filePath string, field *ast.Field, componentName string) *
 
 	// Extract JSON tag and metadata
 	jsonTag, required, authProfileKey, bindingsMeta := extractTags(field.Tag)
+	fmt.Printf("sam authprofile key %v\n", authProfileKey)
 
 	// Ignore fields based on specific tags
 	if shouldIgnoreField(field.Tag) {

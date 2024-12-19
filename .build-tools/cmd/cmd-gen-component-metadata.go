@@ -73,7 +73,7 @@ var generateComponentMetadataNewCmd = &cobra.Command{
 		componentPkg := os.Getenv("GOPACKAGE")
 		checkFileExists(metadataFile)
 
-		metadata, _, err := generateMetadataFromStructs(metadataFile, componentPkg+"Metadata", componentPkg)
+		metadata, authProfileMetadataMap, err := generateMetadataFromStructs(metadataFile, componentPkg+"Metadata", componentPkg)
 		if err != nil {
 			fmt.Printf("Error generating metadata from structs: %v\n", err)
 			return
@@ -91,6 +91,8 @@ var generateComponentMetadataNewCmd = &cobra.Command{
 			fmt.Printf("Failed to assemble component metadata: %v\n", err)
 			return
 		}
+
+		component.AuthenticationProfiles = authProfileMetadataMap
 		filePath := flags.origin + "/samhereoutput.yaml"
 		err = writeToFile(filePath, component)
 		if err != nil {

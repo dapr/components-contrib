@@ -36,7 +36,7 @@ const componentDocsURL = "https://docs.dapr.io/reference/components-reference/su
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {
 	*workers.Base
-	metadata componentMetadata
+	metadata queuesMetadata
 }
 
 // NewCFQueues returns a new CFQueues.
@@ -137,7 +137,7 @@ func (q *CFQueues) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (q *CFQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := componentMetadata{}
+	metadataStruct := queuesMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

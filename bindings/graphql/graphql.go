@@ -47,13 +47,11 @@ const (
 	MutationOperation bindings.OperationKind = "mutation"
 )
 
-type graphQLMetadata struct {
-	Endpoint string `mapstructure:"endpoint"`
-}
-
 // GraphQL represents GraphQL output bindings.
 type GraphQL struct {
 	client *graphql.Client
+	// TODO: the headers need to be tweaked on metadata input.
+	// Autogeneration of component manifest does not add this info for end users...
 	header map[string]string
 	logger logger.Logger
 }
@@ -67,7 +65,7 @@ func NewGraphQL(logger logger.Logger) bindings.OutputBinding {
 func (gql *GraphQL) Init(_ context.Context, meta bindings.Metadata) error {
 	gql.logger.Debug("GraphQL Error: Initializing GraphQL binding")
 
-	m := graphQLMetadata{}
+	m := graphqlMetadata{}
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
@@ -189,7 +187,7 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 
 // GetComponentMetadata returns the metadata of the component.
 func (gql *GraphQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := graphQLMetadata{}
+	metadataStruct := graphqlMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

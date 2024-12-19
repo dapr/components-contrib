@@ -34,7 +34,7 @@ func TestInit(t *testing.T) {
 	b, err := ps.parseMetadata(m)
 	require.NoError(t, err)
 
-	var pubsubMeta pubSubMetadata
+	var pubsubMeta pubsubMetadata
 	err = json.Unmarshal(b, &pubsubMeta)
 	require.NoError(t, err)
 

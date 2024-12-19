@@ -30,6 +30,6 @@ func TestParseMetadata(t *testing.T) {
 	im, err := cosmosdbgremlinapi.parseMetadata(m)
 	require.NoError(t, err)
 	assert.Equal(t, "a", im.URL)
-	assert.Equal(t, "a", im.APMasterKey)
-	assert.Equal(t, "a", im.APUsername)
+	assert.Equal(t, "a", im.MasterKey)
+	assert.Equal(t, "a", im.Username)
 }

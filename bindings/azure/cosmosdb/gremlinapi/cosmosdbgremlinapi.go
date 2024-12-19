@@ -65,7 +65,7 @@ func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata)
 	}
 	c.metadata = m
 	client, err := gremcos.New(c.metadata.URL,
-		gremcos.WithAuth(c.metadata.APUsername, c.metadata.APMasterKey),
+		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
 	)
 	if err != nil {
 		return errors.New("CosmosDBGremlinAPI Error: failed to create the Cosmos Graph DB connector")

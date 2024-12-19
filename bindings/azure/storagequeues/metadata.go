@@ -1,3 +1,5 @@
+//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="azuread" status=stable version=v1 direction=output origin=$PWD "title=Azure Storage Queues"
+
 /*
 Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +15,15 @@ limitations under the License.
 
 package storagequeues
 
-import "time"
+import (
+	"time"
+
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
+)
+
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &storagequeuesMetadata{}
 
 type storagequeuesMetadata struct {
 	// The storage account name.
@@ -43,7 +53,7 @@ type storagequeuesMetadata struct {
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() storagequeuesMetadata {
+func (s *storagequeuesMetadata) Defaults() any {
 	ttl := 10 * time.Minute
 	vis := 30 * time.Second
 	return storagequeuesMetadata{
@@ -56,7 +66,7 @@ func Defaults() storagequeuesMetadata {
 }
 
 // Note: we do not include any mdignored field.
-func Examples() storagequeuesMetadata {
+func (s *storagequeuesMetadata) Examples() any {
 	exampleDuration := 30 * time.Second
 	return storagequeuesMetadata{
 		AccountName: "mystorageaccount",
@@ -69,5 +79,18 @@ func Examples() storagequeuesMetadata {
 		PollingInterval:   exampleDuration,
 		TTL:               &exampleDuration,
 		VisibilityTimeout: &exampleDuration,
+	}
+}
+
+func (s *storagequeuesMetadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Publish a new message in the queue.",
+			},
+		},
 	}
 }

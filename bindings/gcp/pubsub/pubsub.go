@@ -39,26 +39,11 @@ const (
 // GCPPubSub is an input/output binding for GCP Pub Sub.
 type GCPPubSub struct {
 	client   *pubsub.Client
-	metadata *pubSubMetadata
+	metadata *pubsubMetadata
 	logger   logger.Logger
 	closed   atomic.Bool
 	closeCh  chan struct{}
 	wg       sync.WaitGroup
-}
-
-type pubSubMetadata struct {
-	Topic               string `json:"topic"`
-	Subscription        string `json:"subscription"`
-	Type                string `json:"type"`
-	ProjectID           string `json:"project_id"`
-	PrivateKeyID        string `json:"private_key_id"`
-	PrivateKey          string `json:"private_key"`
-	ClientEmail         string `json:"client_email"`
-	ClientID            string `json:"client_id"`
-	AuthURI             string `json:"auth_uri"`
-	TokenURI            string `json:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url"`
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance.
@@ -76,7 +61,7 @@ func (g *GCPPubSub) Init(ctx context.Context, metadata bindings.Metadata) error 
 		return err
 	}
 
-	var pubsubMeta pubSubMetadata
+	var pubsubMeta pubsubMetadata
 	err = json.Unmarshal(b, &pubsubMeta)
 	if err != nil {
 		return err
@@ -152,7 +137,7 @@ func (g *GCPPubSub) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (g *GCPPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := pubSubMetadata{}
+	metadataStruct := pubsubMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

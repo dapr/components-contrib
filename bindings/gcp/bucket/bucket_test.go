@@ -237,7 +237,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 func TestGetOption(t *testing.T) {
 	gs := GCPStorage{logger: logger.NewLogger("test")}
-	gs.metadata = &gcpMetadata{}
+	gs.metadata = &bucketMetadata{}
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := gs.get(context.TODO(), &r)
@@ -247,7 +247,7 @@ func TestGetOption(t *testing.T) {
 
 func TestDeleteOption(t *testing.T) {
 	gs := GCPStorage{logger: logger.NewLogger("test")}
-	gs.metadata = &gcpMetadata{}
+	gs.metadata = &bucketMetadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}

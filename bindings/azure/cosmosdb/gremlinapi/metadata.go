@@ -1,3 +1,5 @@
+//go:generate make -f ../../../../Makefile component-metadata-manifest type=bindings builtinAuth="azuread" status=alpha version=v1 direction=output origin=$PWD "title=Azure Cosmos DB (Gremlin API)"
+
 /*
 Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,28 +15,49 @@ limitations under the License.
 
 package gremlinapi
 
+import (
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
+)
+
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &gremlinapiMetadata{}
+
 type gremlinapiMetadata struct {
 	// The Cosmos DB URL for Gremlin APIs.
 	URL string `json:"url"`
 	// The key to authenticate to the Cosmos DB account.
-	APMasterKey string `json:"masterKey"` // AP prefix indicates auth profile metadata specifically
+	MasterKey string `json:"masterKey" authenticationProfile:"masterKey"`
 	// The username of the Cosmos DB database.
-	APUsername string `json:"username"` // AP prefix indicates auth profile metadata specifically
+	Username string `json:"username" authenticationProfile:"masterKey"`
 }
 
 // Set the default values here.
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() gremlinapiMetadata {
+func (g *gremlinapiMetadata) Defaults() any {
 	return gremlinapiMetadata{}
 }
 
 // Note: we do not include any mdignored field.
-func Examples() gremlinapiMetadata {
+func (g *gremlinapiMetadata) Examples() any {
 	return gremlinapiMetadata{
-		URL:         "wss://******.gremlin.cosmos.azure.com:443/",
-		APMasterKey: "my-secret-key",
-		APUsername:  "/dbs/<database_name>/colls/<graph_name>",
+		URL:       "wss://******.gremlin.cosmos.azure.com:443/",
+		MasterKey: "my-secret-key",
+		Username:  "/dbs/<database_name>/colls/<graph_name>",
+	}
+}
+
+func (g *gremlinapiMetadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "query",
+				Description: "Perform a query",
+			},
+		},
 	}
 }

@@ -32,7 +32,7 @@ func TestParseMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a", meta.Collection)
 	assert.Equal(t, "a", meta.Database)
-	assert.Equal(t, "a", meta.APMasterKey)
+	assert.Equal(t, "a", meta.MasterKey)
 	assert.Equal(t, "a", meta.PartitionKey)
 	assert.Equal(t, "a", meta.URL)
 }

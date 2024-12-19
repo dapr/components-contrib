@@ -39,15 +39,6 @@ type Data struct {
 	Query            string
 }
 
-type commercetoolsMetadata struct {
-	Region       string
-	Provider     string
-	ProjectKey   string
-	ClientID     string
-	ClientSecret string
-	Scopes       string
-}
-
 func NewCommercetools(logger logger.Logger) bindings.OutputBinding {
 	return &Binding{logger: logger}
 }

@@ -61,15 +61,6 @@ const (
 	ClientNegotiateOperation bindings.OperationKind = "clientNegotiate"
 )
 
-// Metadata keys.
-// Azure AD credentials are parsed separately and not listed here.
-type SignalRMetadata struct {
-	Endpoint         string `mapstructure:"endpoint"`
-	AccessKey        string `mapstructure:"accessKey"`
-	Hub              string `mapstructure:"hub"`
-	ConnectionString string `mapstructure:"connectionString"`
-}
-
 // Global HTTP client
 var httpClient *http.Client
 
@@ -130,7 +121,7 @@ func (s *SignalR) Init(_ context.Context, metadata bindings.Metadata) (err error
 }
 
 func (s *SignalR) parseMetadata(md map[string]string) (err error) {
-	m := SignalRMetadata{}
+	m := signalrMetadata{}
 	err = kitmd.DecodeMetadata(md, &m)
 	if err != nil {
 		return err
@@ -415,7 +406,7 @@ func (s *SignalR) getToken(ctx context.Context, url string, user string, expireM
 
 // GetComponentMetadata returns the metadata of the component.
 func (s *SignalR) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := SignalRMetadata{}
+	metadataStruct := signalrMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

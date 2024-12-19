@@ -67,8 +67,8 @@ func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	// Create the client; first, try authenticating with a master key, if present
 	var client *azcosmos.Client
-	if m.APMasterKey != "" {
-		cred, keyErr := azcosmos.NewKeyCredential(m.APMasterKey)
+	if m.MasterKey != "" {
+		cred, keyErr := azcosmos.NewKeyCredential(m.MasterKey)
 		if keyErr != nil {
 			return keyErr
 		}

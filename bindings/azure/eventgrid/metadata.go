@@ -1,3 +1,5 @@
+//go:generate make -f ../../../Makefile component-metadata-manifest type=bindings builtinAuth="azure" status=beta version=v1 "direction=input,output" origin=$PWD "title=Azure Event Grid"
+
 /*
 Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +14,14 @@ limitations under the License.
 */
 
 package eventgrid
+
+import (
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
+)
+
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &eventgridMetadata{}
 
 type eventgridMetadata struct {
 	// Component Name
@@ -44,14 +54,14 @@ type eventgridMetadata struct {
 // This unifies the setup across all components,
 // and makes it easy for us to auto-generate the component metadata default values,
 // while also leveraging the default values for types thanks to Go.
-func Defaults() eventgridMetadata {
+func (e *eventgridMetadata) Defaults() any {
 	return eventgridMetadata{
 		HandshakePort: "8080",
 	}
 }
 
 // Note: we do not include any mdignored field.
-func Examples() eventgridMetadata {
+func (e *eventgridMetadata) Examples() any {
 	return eventgridMetadata{
 		SubscriberEndpoint:    "https://[YOUR HOSTNAME]/<path>",
 		HandshakePort:         "9000",
@@ -59,5 +69,18 @@ func Examples() eventgridMetadata {
 		AccessKey:             "accessKey",      // TODO: improve
 		TopicEndpoint:         "topic-endpoint", // TODO: improve
 		Scope:                 "/subscriptions/{subscriptionId}/",
+	}
+}
+
+func (e *eventgridMetadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  true,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "create",
+				Description: "Create an event subscription",
+			},
+		},
 	}
 }

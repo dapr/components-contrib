@@ -14,91 +14,36 @@ package dictionary
 
 import "github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 
-func GetAllBindings() []*metadataschema.ComponentMetadata {
-	return []*metadataschema.ComponentMetadata{
-		&bindingsS3,
-		&bindingsSns,
-		// &bindingsBlob, // TODO: need to refactor to add to automation
-		&bindingsCosmosSQL,
-		&bindingsCosmosGremlin,
-		&bindingsEventGrid,
-		// &bindingsEventHub, // TODO: need to refactor metadata setup to support
-		&bindingsOpenAI,
-		// &bindingsServiceBusQueues, // TODO: need to refactor metadata setup to support
-		&bindingsStorageQueues,
-		&bindingsSignalR,
-		&bindingsCron,
-		&bindingsGCPBucket,
-		&bindingsHTTP,
-		&bindingsKafka,
-		&bindingsMySQL,
-		&bindingsPostgres,
-		&bindingsRabbit,
-		&bindingsRedis,
-		&bindingsZeebeCommand,
-		&bindingsZeebeWorker,
-		&bindingsAppConfig,
-		&bindingsKinesis,
-		&bindingsDynamo,
-	}
-}
+// func GetAllBindings() []*metadataschema.ComponentMetadata {
+// 	return []*metadataschema.ComponentMetadata{
+
+// 		// &bindingsBlob, // TODO: need to refactor to add to automation
+// 		&bindingsCosmosSQL,
+// 		&bindingsCosmosGremlin,
+// 		&bindingsEventGrid,
+// 		// &bindingsEventHub, // TODO: need to refactor metadata setup to support
+// 		&bindingsOpenAI,
+// 		// &bindingsServiceBusQueues, // TODO: need to refactor metadata setup to support
+// 		&bindingsStorageQueues,
+// 		&bindingsSignalR,
+// 		&bindingsCron,
+// 		&bindingsGCPBucket,
+// 		&bindingsHTTP,
+// 		&bindingsKafka,
+// 		&bindingsMySQL,
+// 		&bindingsPostgres,
+// 		&bindingsRabbit,
+// 		&bindingsRedis,
+// 		&bindingsZeebeCommand,
+// 		&bindingsZeebeWorker,
+// 		&bindingsAppConfig,
+// 		&bindingsKinesis,
+// 		&bindingsDynamo,
+// 	}
+// }
 
 var awsAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "aws"}
 var azureAuthProfile = metadataschema.BuiltinAuthenticationProfile{Name: "azuread"}
-
-var bindingsS3 = metadataschema.ComponentMetadata{
-	Type:                          binding,
-	Name:                          nameS3,
-	Version:                       v1,
-	Status:                        stable,
-	Title:                         titleS3,
-	Description:                   "", // TODO
-	Capabilities:                  []string{},
-	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile},
-	Binding: &metadataschema.Binding{
-		Input:  false,
-		Output: true,
-		Operations: []metadataschema.BindingOperation{
-			{
-				Name:        "create",
-				Description: "Create blob",
-			},
-			{
-				Name:        "get",
-				Description: "Get blob",
-			},
-			{
-				Name:        "delete",
-				Description: "Delete blob",
-			},
-			{
-				Name:        "list",
-				Description: "List blob",
-			},
-		},
-	},
-}
-
-var bindingsSns = metadataschema.ComponentMetadata{
-	Type:                          binding,
-	Name:                          nameSns,
-	Version:                       v1,
-	Status:                        alpha,
-	Title:                         titleSns,
-	Description:                   "", // TODO
-	Capabilities:                  []string{},
-	BuiltInAuthenticationProfiles: []metadataschema.BuiltinAuthenticationProfile{awsAuthProfile},
-	Binding: &metadataschema.Binding{
-		Input:  false,
-		Output: true,
-		Operations: []metadataschema.BindingOperation{
-			{
-				Name:        "create",
-				Description: "Create a new subscription",
-			},
-		},
-	},
-}
 
 var bindingsBlob = metadataschema.ComponentMetadata{
 	Type:                          binding,

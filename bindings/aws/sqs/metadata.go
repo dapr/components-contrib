@@ -16,7 +16,7 @@ limitations under the License.
 package sqs
 
 import (
-	"github.com/dapr/components-contrib/build-tools/psg/metadataschema"
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 	"github.com/dapr/components-contrib/common/component"
 )
 

@@ -32,6 +32,8 @@ type sqsMetadata struct {
 	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
 	// Region specifies the AWS region for the bucket.
 	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
+	// AWS endpoint for the component to use, to connect to S3-compatible services or emulators. Do not use this when running against production AWS.
+	Endpoint string `json:"endpoint,omitempty" mapstructure:"endpoint"`
 	// The SQS queue name.
 	QueueName string `json:"queueName"`
 }

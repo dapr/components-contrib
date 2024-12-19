@@ -172,7 +172,7 @@ metadata:
     type: bool
     default: '"false"'
     example: '"true", "false"'
-  - name: reconnectWaitSeconds
+  - name: reconnectWait
     description: |
       Reconnect wait in Seconds.
     type: duration

@@ -42,7 +42,7 @@ type rabbitmqMetadata struct {
 	RequeueInFailure     bool                   `mapstructure:"requeueInFailure"`
 	DeliveryMode         uint8                  `mapstructure:"deliveryMode"`  // Transient (0 or 1) or Persistent (2)
 	PrefetchCount        uint8                  `mapstructure:"prefetchCount"` // Prefetch deactivated if 0
-	ReconnectWait        time.Duration          `mapstructure:"reconnectWaitSeconds"`
+	ReconnectWait        time.Duration          `mapstructure:"reconnectWait"`
 	MaxLen               int64                  `mapstructure:"maxLen"`
 	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind         string                 `mapstructure:"exchangeKind"`

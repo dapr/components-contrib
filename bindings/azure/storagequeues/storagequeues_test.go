@@ -33,12 +33,12 @@ import (
 type MockHelper struct {
 	mock.Mock
 	messages chan []byte
-	metadata *storageQueuesMetadata
+	metadata *storagequeuesMetadata
 	closeCh  chan struct{}
 	wg       sync.WaitGroup
 }
 
-func (m *MockHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+func (m *MockHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storagequeuesMetadata, error) {
 	m.messages = make(chan []byte, 10)
 	var err error
 	m.metadata, err = parseMetadata(metadata)

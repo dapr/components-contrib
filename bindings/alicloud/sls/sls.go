@@ -1,3 +1,17 @@
+/*
+Copyright 2024 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package sls
 
 import (
@@ -19,13 +33,7 @@ import (
 type AliCloudSlsLogstorage struct {
 	logger   logger.Logger
 	producer *producer.Producer
-	metadata SlsLogstorageMetadata
-}
-
-type SlsLogstorageMetadata struct {
-	Endpoint        string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKeyID     string `json:"accessKeyID" mapstructure:"accessKeyID"`
-	AccessKeySecret string `json:"accessKeySecret" mapstructure:"accessKeySecret"`
+	metadata slsMetadata
 }
 
 type Callback struct {
@@ -100,8 +108,8 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 	return producer.GenerateLog(uint32(time.Now().Unix()), logInfo), nil
 }
 
-func (s *AliCloudSlsLogstorage) parseMeta(meta bindings.Metadata) (*SlsLogstorageMetadata, error) {
-	var m SlsLogstorageMetadata
+func (s *AliCloudSlsLogstorage) parseMeta(meta bindings.Metadata) (*slsMetadata, error) {
+	var m slsMetadata
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
@@ -131,7 +139,7 @@ func (callback *Callback) Fail(result *producer.Result) {
 
 // GetComponentMetadata returns the metadata of the component.
 func (s *AliCloudSlsLogstorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := SlsLogstorageMetadata{}
+	metadataStruct := slsMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

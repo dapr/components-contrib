@@ -1,0 +1,16 @@
+- title: "Master key"
+  description: |
+    Authenticate using a pre-shared "master key".
+  metadata:
+    - name: masterKey
+      required: true
+      sensitive: true
+      description: |
+        The key to authenticate to the Cosmos DB account.
+      example: '"my-secret-key"'
+    - name: username
+      required: true
+      sensitive: false
+      description: |
+        The username of the Cosmos DB database.
+      example: '"/dbs/<database_name>/colls/<graph_name>"'

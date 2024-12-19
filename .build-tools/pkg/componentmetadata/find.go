@@ -66,3 +66,54 @@ func findInDirectory(dir string, skip map[string]struct{}, res *[]string) error 
 	}
 	return nil
 }
+
+func FindValidComponents(folders []string, skip []string) ([]string, error) {
+	// Create a map for skipped folders
+	skipMap := make(map[string]struct{}, len(skip))
+	for _, v := range skip {
+		v = filepath.Clean(v)
+		skipMap[v] = struct{}{}
+	}
+
+	var result []string
+	for _, folder := range folders {
+		folder = filepath.Clean(folder)
+		if err := findValidInDirectory(folder, skipMap, &result); err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+func findValidInDirectory(dir string, skip map[string]struct{}, res *[]string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		path := filepath.Join(dir, entry.Name())
+		cleanPath := filepath.Clean(path)
+
+		// Skip the folder ONLY if it is explicitly listed
+		if _, shouldSkip := skip[cleanPath]; shouldSkip {
+			fmt.Fprintln(os.Stderr, "Info: skipped folder "+cleanPath)
+			continue
+		}
+
+		// Add the folder to the result list
+		*res = append(*res, cleanPath)
+
+		// Recursively process subdirectories
+		if err := findValidInDirectory(cleanPath, skip, res); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

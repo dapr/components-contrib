@@ -43,18 +43,6 @@ type AWSSES struct {
 	logger       logger.Logger
 }
 
-type sesMetadata struct {
-	Region       string `json:"region"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	EmailFrom    string `json:"emailFrom"`
-	EmailTo      string `json:"emailTo"`
-	Subject      string `json:"subject"`
-	EmailCc      string `json:"emailCc"`
-	EmailBcc     string `json:"emailBcc"`
-}
-
 // NewAWSSES creates a new AWSSES binding instance.
 func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 	return &AWSSES{logger: logger}

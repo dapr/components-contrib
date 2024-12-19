@@ -32,7 +32,7 @@ import (
 )
 
 type DubboOutputBinding struct {
-	ctxCache  map[string]*dubboContext
+	ctxCache  map[string]*dubboMetadata
 	cacheLock sync.RWMutex
 }
 
@@ -41,7 +41,7 @@ var dubboBinding *DubboOutputBinding
 func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
 	if dubboBinding == nil {
 		dubboBinding = &DubboOutputBinding{
-			ctxCache: make(map[string]*dubboContext),
+			ctxCache: make(map[string]*dubboMetadata),
 		}
 	}
 	dubboLogger.SetLogger(logger)
@@ -55,7 +55,7 @@ func (out *DubboOutputBinding) Init(_ context.Context, _ bindings.Metadata) erro
 
 func (out *DubboOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var (
-		cachedDubboCtx *dubboContext
+		cachedDubboCtx *dubboMetadata
 		ok             bool
 		finalResult    = &bindings.InvokeResponse{}
 	)

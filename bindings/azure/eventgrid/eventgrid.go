@@ -58,36 +58,12 @@ const (
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
-	metadata *azureEventGridMetadata
+	metadata *eventgridMetadata
 	logger   logger.Logger
 	jwks     jwk.Set
 	closeCh  chan struct{}
 	closed   atomic.Bool
 	wg       sync.WaitGroup
-}
-
-type azureEventGridMetadata struct {
-	// Component Name
-	Name string `json:"-" mapstructure:"-"`
-
-	// Required Input Binding Metadata
-	SubscriberEndpoint string `json:"subscriberEndpoint" mapstructure:"subscriberEndpoint"`
-	HandshakePort      string `json:"handshakePort" mapstructure:"handshakePort"`
-	Scope              string `json:"scope" mapstructure:"scope"`
-
-	// Optional Input Binding Metadata
-	EventSubscriptionName string `json:"eventSubscriptionName" mapstructure:"eventSubscriptionName"`
-
-	// Required Output Binding Metadata
-	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
-	TopicEndpoint string `json:"topicEndpoint" mapstructure:"topicEndpoint"`
-
-	// Internal
-	azureTenantID       string // Accepted values include: azureTenantID or tenantID
-	azureClientID       string // Accepted values include: azureClientID or clientID
-	azureSubscriptionID string // Accepted values: azureSubscriptionID or subscriptionID
-	subscriberPath      string
-	properties          map[string]string
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance.
@@ -354,8 +330,8 @@ func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
 	return nil
 }
 
-func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*azureEventGridMetadata, error) {
-	var eventGridMetadata azureEventGridMetadata
+func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*eventgridMetadata, error) {
+	var eventGridMetadata eventgridMetadata
 	err := kitmd.DecodeMetadata(md.Properties, &eventGridMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding metadata: %w", err)
@@ -537,7 +513,7 @@ func (a *AzureEventGrid) subscriptionNeedsUpdating(res armeventgrid.EventSubscri
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureEventGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := azureEventGridMetadata{}
+	metadataStruct := eventgridMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

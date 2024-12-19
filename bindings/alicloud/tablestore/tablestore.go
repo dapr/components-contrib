@@ -40,14 +40,6 @@ const (
 	invokeDurationKey  = "duration"
 )
 
-type tablestoreMetadata struct {
-	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKeyID  string `json:"accessKeyID" mapstructure:"accessKeyID"`
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
-	InstanceName string `json:"instanceName" mapstructure:"instanceName"`
-	TableName    string `json:"tableName" mapstructure:"tableName"`
-}
-
 type AliCloudTableStore struct {
 	logger   logger.Logger
 	client   *tablestore.TableStoreClient

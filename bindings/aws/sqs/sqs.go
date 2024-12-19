@@ -41,15 +41,6 @@ type AWSSQS struct {
 	closed       atomic.Bool
 }
 
-type sqsMetadata struct {
-	QueueName    string `json:"queueName"`
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-}
-
 // NewAWSSQS returns a new AWS SQS instance.
 func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
 	return &AWSSQS{

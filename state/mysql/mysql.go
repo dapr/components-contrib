@@ -94,16 +94,6 @@ type MySQL struct {
 	gc      commonsql.GarbageCollector
 }
 
-type mySQLMetadata struct {
-	TableName         string
-	SchemaName        string
-	ConnectionString  string
-	TimeoutInSeconds  int
-	PemPath           string
-	MetadataTableName string
-	CleanupInterval   *time.Duration
-}
-
 // NewMySQLStateStore creates a new instance of MySQL state store.
 func NewMySQLStateStore(logger logger.Logger) state.Store {
 	factory := newMySQLFactory(logger)

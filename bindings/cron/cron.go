@@ -43,10 +43,6 @@ type Binding struct {
 	wg       sync.WaitGroup
 }
 
-type metadata struct {
-	Schedule string
-}
-
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) bindings.InputBinding {
 	return NewCronWithClock(logger, clock.RealClock{})
@@ -70,7 +66,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 //	"0 30 * * * *" - Every 30 min
 func (b *Binding) Init(ctx context.Context, meta bindings.Metadata) error {
 	b.name = meta.Name
-	m := metadata{}
+	m := cronMetadata{}
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
@@ -134,7 +130,7 @@ func (b *Binding) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (b *Binding) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := metadata{}
+	metadataStruct := cronMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

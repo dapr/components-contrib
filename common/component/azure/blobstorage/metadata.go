@@ -34,11 +34,14 @@ type BlobStorageMetadata struct {
 type ContainerClientOpts struct {
 	// Use a connection string
 	ConnectionString string
-	ContainerName    string
+	// The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist.
+	ContainerName string `json:"containerName,string"`
 
-	// Use a shared account key
-	AccountName string
-	AccountKey  string
+	// The storage account name.
+	AccountName string `json:"accountName,string"`
+
+	// Authenticate using a pre-shared "account key".
+	AccountKey string `json:"accountKey,string"`
 
 	// Misc
 	RetryCount int32 `json:"retryCount,string"`

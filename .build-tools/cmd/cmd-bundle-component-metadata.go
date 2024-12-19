@@ -56,8 +56,8 @@ var bundleComponentMetadataCmd = &cobra.Command{
 			Components:    make([]*metadataschema.ComponentMetadata, 0, len(list)),
 		}
 		for _, component := range list {
-			componentMetadata, err := parser.LoadForComponent(component)
-			if err != nil {
+			componentMetadata, loadErr := parser.LoadForComponent(component)
+			if loadErr != nil {
 				panic(fmt.Errorf("failed to load metadata for component %s: %w", component, err))
 			}
 			if componentMetadata == nil {

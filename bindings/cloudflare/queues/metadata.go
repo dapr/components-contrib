@@ -1,3 +1,5 @@
+//go:generate echo TODO bindings/cloudflare/queues
+
 /*
 Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,31 +20,74 @@ import (
 	"regexp"
 
 	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
+
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
+	"github.com/dapr/components-contrib/common/component"
 )
 
+// implement MetadataBuilder so each component will be properly parsed for the ast to auto-generate metadata manifest.
+var _ component.MetadataBuilder = &queuesMetadata{}
+
 // Component metadata struct.
-type componentMetadata struct {
+type queuesMetadata struct {
 	workers.BaseMetadata `mapstructure:",squash"`
-	QueueName            string `mapstructure:"queueName"`
+	// Name of the existing Cloudflare Queue
+	QueueName string `json:"queueName" mapstructure:"queueName"`
 }
 
 var queueNameValidation = regexp.MustCompile(`^([a-zA-Z0-9_\-\.]+)$`)
 
 // Validate the metadata object.
-func (m *componentMetadata) Validate() error {
+func (q *queuesMetadata) Validate() error {
 	// Start by validating the base metadata, then validate the properties specific to this component
-	err := m.BaseMetadata.Validate()
+	err := q.BaseMetadata.Validate()
 	if err != nil {
 		return err
 	}
 
 	// QueueName
-	if m.QueueName == "" {
+	if q.QueueName == "" {
 		return errors.New("property 'queueName' is required")
 	}
-	if !queueNameValidation.MatchString(m.QueueName) {
+	if !queueNameValidation.MatchString(q.QueueName) {
 		return errors.New("metadata property 'queueName' is invalid")
 	}
 
 	return nil
+}
+
+// Set the default values here.
+// This unifies the setup across all components,
+// and makes it easy for us to auto-generate the component metadata default values,
+// while also leveraging the default values for types thanks to Go.
+func (q *queuesMetadata) Defaults() any {
+	return queuesMetadata{}
+}
+
+// Note: we do not include any mdignored field.
+func (q *queuesMetadata) Examples() any {
+	return queuesMetadata{
+		QueueName: "mydaprqueue",
+		// CfAPIToken:  "secret-key",
+		// CfAccountID: "456789abcdef8b5588f3d134f74ac",
+		// WorkerURL:   "https://mydaprqueue.mydomain.workers.dev",
+	}
+}
+
+func (q *queuesMetadata) Binding() metadataschema.Binding {
+	return metadataschema.Binding{
+		Input:  false,
+		Output: true,
+		Operations: []metadataschema.BindingOperation{
+			{
+				Name:        "publish",
+				Description: "Publish a new message in the queue.",
+			},
+			// Note: I added the create bc docs state create is an alias for publish.
+			{
+				Name:        "create",
+				Description: "Publish a new message in the queue.",
+			},
+		},
+	}
 }

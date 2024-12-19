@@ -24,6 +24,8 @@ import (
 	hessian "github.com/apache/dubbo-go-hessian2"
 )
 
+// TODO delete this and leverage json tags instead.
+// Note: leaving for now since this is already a big PR.
 const (
 	metadataRPCGroup            = "group"
 	metadataRPCVersion          = "version"
@@ -33,31 +35,20 @@ const (
 	metadataRPCProviderPort     = "providerPort"
 )
 
-type dubboContext struct {
-	group         string
-	version       string
-	interfaceName string
-	hostname      string
-	port          string
-	method        string
-
-	inited bool
-	client *generic.GenericService
-}
-
-func newDubboContext(metadata map[string]string) *dubboContext {
-	dubboMetadata := &dubboContext{}
-	dubboMetadata.group = metadata[metadataRPCGroup]
-	dubboMetadata.interfaceName = metadata[metadataRPCInterface]
-	dubboMetadata.version = metadata[metadataRPCVersion]
-	dubboMetadata.method = metadata[metadataRPCMethodName]
-	dubboMetadata.hostname = metadata[metadataRPCProviderHostname]
-	dubboMetadata.port = metadata[metadataRPCProviderPort]
+func newDubboContext(metadata map[string]string) *dubboMetadata {
+	dubboMetadata := &dubboMetadata{}
+	dubboMetadata.Group = metadata[metadataRPCGroup]
+	dubboMetadata.InterfaceName = metadata[metadataRPCInterface]
+	dubboMetadata.Version = metadata[metadataRPCVersion]
+	dubboMetadata.MethodName = metadata[metadataRPCMethodName]
+	dubboMetadata.ProviderHostname = metadata[metadataRPCProviderHostname]
+	dubboMetadata.ProviderPort = metadata[metadataRPCProviderPort]
 	dubboMetadata.inited = false
 	return dubboMetadata
 }
 
-func (d *dubboContext) Init() error {
+func (d *dubboMetadata) Init() error {
+	// TODO: eventually remove this inited field
 	if d.inited {
 		return nil
 	}
@@ -67,18 +58,18 @@ func (d *dubboContext) Init() error {
 		SetConsumer(consumerConfig).
 		Build()
 	referenceConfig := config.NewReferenceConfigBuilder().
-		SetInterface(d.interfaceName).
+		SetInterface(d.InterfaceName).
 		SetProtocol(constant.Dubbo).
 		Build()
-	referenceConfig.URL = fmt.Sprintf("%s://%s:%s", constant.Dubbo, d.hostname, d.port)
-	referenceConfig.Group = d.group
-	referenceConfig.Version = d.version
+	referenceConfig.URL = fmt.Sprintf("%s://%s:%s", constant.Dubbo, d.ProviderHostname, d.ProviderPort)
+	referenceConfig.Group = d.Group
+	referenceConfig.Version = d.Version
 
 	if err := referenceConfig.Init(rootConfig); err != nil {
 		return err
 	}
 	rootConfig.Start()
-	referenceConfig.GenericLoad(d.interfaceName)
+	referenceConfig.GenericLoad(d.InterfaceName)
 	genericService, ok := referenceConfig.GetRPCService().(*generic.GenericService)
 	if !ok {
 		return errors.New("get gerneric service of dubbo failed")
@@ -88,10 +79,10 @@ func (d *dubboContext) Init() error {
 	return nil
 }
 
-func (d *dubboContext) Invoke(ctx context.Context, body []byte) (interface{}, error) {
-	return d.client.Invoke(ctx, d.method, []string{}, []hessian.Object{body})
+func (d *dubboMetadata) Invoke(ctx context.Context, body []byte) (interface{}, error) {
+	return d.client.Invoke(ctx, d.MethodName, []string{}, []hessian.Object{body})
 }
 
-func (d *dubboContext) String() string {
-	return fmt.Sprintf("%s.%s.%s.%s.%s.%s", d.group, d.version, d.interfaceName, d.hostname, d.port, d.method)
+func (d *dubboMetadata) String() string {
+	return fmt.Sprintf("%s.%s.%s.%s.%s.%s", d.Group, d.Version, d.InterfaceName, d.ProviderHostname, d.ProviderPort, d.MethodName)
 }

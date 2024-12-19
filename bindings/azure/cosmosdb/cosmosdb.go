@@ -40,14 +40,6 @@ type CosmosDB struct {
 	logger logger.Logger
 }
 
-type cosmosDBCredentials struct {
-	URL          string `json:"url"`
-	MasterKey    string `json:"masterKey"`
-	Database     string `json:"database"`
-	Collection   string `json:"collection"`
-	PartitionKey string `json:"partitionKey"`
-}
-
 // Value used for timeout durations
 const timeoutValue = 30
 
@@ -113,8 +105,8 @@ func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	return err
 }
 
-func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentials, error) {
-	creds := cosmosDBCredentials{}
+func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosdbMetadata, error) {
+	creds := cosmosdbMetadata{}
 	err := kitmd.DecodeMetadata(metadata.Properties, &creds)
 	if err != nil {
 		return nil, err
@@ -195,7 +187,7 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 
 // GetComponentMetadata returns the metadata of the component.
 func (c *CosmosDB) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := cosmosDBCredentials{}
+	metadataStruct := cosmosdbMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

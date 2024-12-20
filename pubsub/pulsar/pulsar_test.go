@@ -48,6 +48,73 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
 	assert.Equal(t, uint(333), meta.MaxConcurrentHandlers)
 	assert.Empty(t, meta.internalTopicSchemas)
+	assert.Equal(t, "shared", meta.SubscriptionType)
+}
+
+func TestParsePulsarMetadataSubscriptionType(t *testing.T) {
+	tt := []struct {
+		name          string
+		subscribeType string
+		expected      string
+		err           bool
+	}{
+		{
+			name:          "test valid subscribe type - key_shared",
+			subscribeType: "key_shared",
+			expected:      "key_shared",
+			err:           false,
+		},
+		{
+			name:          "test valid subscribe type - shared",
+			subscribeType: "shared",
+			expected:      "shared",
+			err:           false,
+		},
+		{
+			name:          "test valid subscribe type - failover",
+			subscribeType: "failover",
+			expected:      "failover",
+			err:           false,
+		},
+		{
+			name:          "test valid subscribe type - exclusive",
+			subscribeType: "exclusive",
+			expected:      "exclusive",
+			err:           false,
+		},
+		{
+			name:          "test valid subscribe type - empty",
+			subscribeType: "",
+			expected:      "shared",
+			err:           false,
+		},
+		{
+			name:          "test invalid subscribe type",
+			subscribeType: "invalid",
+			err:           true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+
+			m.Properties = map[string]string{
+				"host":          "a",
+				"subscribeType": tc.subscribeType,
+			}
+			meta, err := parsePulsarMetadata(m)
+
+			if tc.err {
+				require.Error(t, err)
+				assert.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, meta.SubscriptionType)
+		})
+	}
 }
 
 func TestParsePulsarSchemaMetadata(t *testing.T) {
@@ -327,4 +394,28 @@ func TestEncryptionKeys(t *testing.T) {
 
 		assert.False(t, r)
 	})
+}
+
+func TestSanitiseURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"With pulsar+ssl prefix", "pulsar+ssl://localhost:6650", "pulsar+ssl://localhost:6650"},
+		{"With pulsar prefix", "pulsar://localhost:6650", "pulsar://localhost:6650"},
+		{"With http prefix", "http://localhost:6650", "http://localhost:6650"},
+		{"With https prefix", "https://localhost:6650", "https://localhost:6650"},
+		{"Without prefix", "localhost:6650", "pulsar://localhost:6650"},
+		{"Empty string", "", "pulsar://"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := sanitiseURL(test.input)
+			if actual != test.expected {
+				t.Errorf("sanitiseURL(%q) = %q; want %q", test.input, actual, test.expected)
+			}
+		})
+	}
 }

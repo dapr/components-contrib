@@ -26,18 +26,20 @@ import (
 )
 
 type AzureEventHubsMetadata struct {
-	ConnectionString        string `json:"connectionString" mapstructure:"connectionString"`
-	EventHubNamespace       string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
-	ConsumerID              string `json:"consumerID" mapstructure:"consumerID"`
-	StorageConnectionString string `json:"storageConnectionString" mapstructure:"storageConnectionString"`
-	StorageAccountName      string `json:"storageAccountName" mapstructure:"storageAccountName"`
-	StorageAccountKey       string `json:"storageAccountKey" mapstructure:"storageAccountKey"`
-	StorageContainerName    string `json:"storageContainerName" mapstructure:"storageContainerName"`
-	EnableEntityManagement  bool   `json:"enableEntityManagement,string" mapstructure:"enableEntityManagement"`
-	MessageRetentionInDays  int32  `json:"messageRetentionInDays,string" mapstructure:"messageRetentionInDays"`
-	PartitionCount          int32  `json:"partitionCount,string" mapstructure:"partitionCount"`
-	SubscriptionID          string `json:"subscriptionID" mapstructure:"subscriptionID"`
-	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
+	ConnectionString             string `json:"connectionString" mapstructure:"connectionString"`
+	EventHubNamespace            string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
+	ConsumerID                   string `json:"consumerID" mapstructure:"consumerID"`
+	StorageConnectionString      string `json:"storageConnectionString" mapstructure:"storageConnectionString"`
+	StorageAccountName           string `json:"storageAccountName" mapstructure:"storageAccountName"`
+	StorageAccountKey            string `json:"storageAccountKey" mapstructure:"storageAccountKey"`
+	StorageContainerName         string `json:"storageContainerName" mapstructure:"storageContainerName"`
+	EnableEntityManagement       bool   `json:"enableEntityManagement,string" mapstructure:"enableEntityManagement"`
+	MessageRetentionInDays       int32  `json:"messageRetentionInDays,string" mapstructure:"messageRetentionInDays"`
+	PartitionCount               int32  `json:"partitionCount,string" mapstructure:"partitionCount"`
+	SubscriptionID               string `json:"subscriptionID" mapstructure:"subscriptionID"`
+	ResourceGroupName            string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
+	EnableInOrderMessageDelivery bool   `json:"enableInOrderMessageDelivery,string" mapstructure:"enableInOrderMessageDelivery"`
+	GetAllMessageProperties      bool   `json:"getAllMessageProperties,string" mapstructure:"getAllMessageProperties"`
 
 	// Binding only
 	EventHub      string `json:"eventHub" mapstructure:"eventHub" mdonly:"bindings"`

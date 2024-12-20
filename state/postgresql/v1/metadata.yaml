@@ -53,16 +53,12 @@ builtinAuthenticationProfiles:
         example: |
           "host=mydb.postgres.database.aws.com user=myapplication port=5432 dbname=dapr_test sslmode=require"
         type: string
-      - name: awsRegion
-        type: string
-        required: true
-        description: |
-          The AWS Region where the AWS Relational Database Service is deployed to.
-        example: '"us-east-1"'
       - name: awsAccessKey
         type: string
-        required: true
+        required: false
         description: |
+          Deprecated as of Dapr 1.17. Use 'accessKey' instead if using AWS IAM.
+          If both fields are set, then 'accessKey' value will be used.
           AWS access key associated with an IAM account.
         example: '"AKIAIOSFODNN7EXAMPLE"'
       - name: awsSecretKey
@@ -70,6 +66,8 @@ builtinAuthenticationProfiles:
         required: false
         sensitive: true
         description: |
+          Deprecated as of Dapr 1.17. Use 'secretKey' instead if using AWS IAM.
+          If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.
         example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
 authenticationProfiles:

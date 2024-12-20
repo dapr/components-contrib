@@ -3,33 +3,84 @@ aws:
     description: |
       Authenticate using an Access Key ID and Secret Access Key included in the metadata
     metadata:
+      - name: region
+        type: string
+        required: false
+        description: |
+          The AWS Region where the AWS resource is deployed to.
+          This will be marked required in Dapr 1.17.
+        example: '"us-east-1"'
       - name: awsRegion
         type: string
-        required: true
+        required: false
         description: |
+          This maintains backwards compatibility with existing fields. 
+          It will be deprecated as of Dapr 1.17. Use 'region' instead.
           The AWS Region where the AWS resource is deployed to.
         example: '"us-east-1"'
       - name: accessKey
         description: AWS access key associated with an IAM account
-        required: true
+        required: false
         sensitive: true
         example: '"AKIAIOSFODNN7EXAMPLE"'
       - name: secretKey
         description: The secret key associated with the access key
-        required: true
+        required: false
         sensitive: true
         example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
       - name: sessionToken
+        type: string
         required: false
         sensitive: true
         description: |
           AWS session token to use. A session token is only required if you are using
           temporary security credentials.
         example: '"TOKEN"'
+  - title: "AWS: Assume IAM Role"
+    description: |
+      Assume a specific IAM role. Note: This is only supported for Kafka and PostgreSQL.
+    metadata:
+      - name: region
         type: string
+        required: true
+        description: |
+          The AWS Region where the AWS resource is deployed to.
+        example: '"us-east-1"'
+      - name: assumeRoleArn
+        type: string
+        required: false
+        description: |
+          IAM role that has access to AWS resource.
+          This is another option to authenticate with MSK and RDS Aurora aside from the AWS Credentials.
+          This will be marked required in Dapr 1.17.
+        example: '"arn:aws:iam::123456789:role/mskRole"'
+      - name: sessionName
+        type: string
+        description: |
+          The session name for assuming a role.
+        example: '"MyAppSession"'
+        default: '"DaprDefaultSession"'
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
-
+  - title: "AWS: IAM Roles Anywhere"
+    description: Use X.509 certificates to establish trust between your AWS account and the Dapr cluster using AWS IAM Roles Anywhere.
+    metadata:
+      - name: trustAnchorArn
+        description: |
+          ARN of the AWS Trust Anchor in the AWS account granting trust to the Dapr Certificate Authority.
+        example: arn:aws:rolesanywhere:us-west-1:012345678910:trust-anchor/01234568-0123-0123-0123-012345678901
+        required: true
+      - name: trustProfileArn
+        description: |
+          ARN of the AWS IAM Profile in the trusting AWS account.
+        example: arn:aws:rolesanywhere:us-west-1:012345678910:profile/01234568-0123-0123-0123-012345678901
+        required: true
+      - name: assumeRoleArn
+        description: |
+          ARN of the AWS IAM role to assume in the trusting AWS account.
+        example: arn:aws:iam:012345678910:role/exampleIAMRoleName
+        required: true
+        
 azuread:
   - title: "Azure AD: Managed identity"
     description: Authenticate using Azure AD and a managed identity.

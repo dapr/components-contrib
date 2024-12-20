@@ -127,6 +127,11 @@ func (aeh *AzureEventHubs) EventHubName() string {
 	return aeh.metadata.hubName
 }
 
+// GetAllMessageProperties returns a boolean to indicate whether to return all properties for an event hubs message.
+func (aeh *AzureEventHubs) GetAllMessageProperties() bool {
+	return aeh.metadata.GetAllMessageProperties
+}
+
 // Publish a batch of messages.
 func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages []*azeventhubs.EventData, batchOpts *azeventhubs.EventDataBatchOptions) error {
 	// Get the producer client
@@ -165,7 +170,7 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
 		}
 
-		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, getAllProperties)
+		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, aeh.GetAllMessageProperties())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %w", err)
 		}
@@ -242,12 +247,6 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 	}
 	topic := config.Topic
 
-	// Get the processor client
-	processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
-	if err != nil {
-		return fmt.Errorf("error trying to establish a connection: %w", err)
-	}
-
 	// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
 	retryHandler := func(ctx context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		b := aeh.backOffConfig.NewBackOffWithContext(ctx)
@@ -277,51 +276,58 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 
 	subscriptionLoopFinished := make(chan bool, 1)
 
-	// Process all partition clients as they come in
-	subscriberLoop := func() {
-		for {
-			// This will block until a new partition client is available
-			// It returns nil if processor.Run terminates or if the context is canceled
-			partitionClient := processor.NextPartitionClient(subscribeCtx)
-			if partitionClient == nil {
-				subscriptionLoopFinished <- true
-				return
-			}
-			aeh.logger.Debugf("Received client for partition %s", partitionClient.PartitionID())
-
-			// Once we get a partition client, process the events in a separate goroutine
-			go func() {
-				processErr := aeh.processEvents(subscribeCtx, partitionClient, retryConfig)
-				// Do not log context.Canceled which happens at shutdown
-				if processErr != nil && !errors.Is(processErr, context.Canceled) {
-					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
-				}
-			}()
-		}
-	}
-
-	// Start the processor
+	// Start the subscribe + processor loop
 	go func() {
 		for {
-			go subscriberLoop()
-			// This is a blocking call that runs until the context is canceled
-			err = processor.Run(subscribeCtx)
-			// Exit if the context is canceled
-			if err != nil && errors.Is(err, context.Canceled) {
-				return
-			}
+			// Get the processor client
+			processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
 			if err != nil {
-				aeh.logger.Errorf("Error from event processor: %v", err)
+				aeh.logger.Errorf("error trying to establish a connection: %w", err)
 			} else {
-				aeh.logger.Debugf("Event processor terminated without error")
+				// Process all partition clients as they come in
+				subscriberLoop := func() {
+					for {
+						// This will block until a new partition client is available
+						// It returns nil if processor.Run terminates or if the context is canceled
+						partitionClient := processor.NextPartitionClient(subscribeCtx)
+						if partitionClient == nil {
+							subscriptionLoopFinished <- true
+							return
+						}
+						aeh.logger.Debugf("Received client for partition %s", partitionClient.PartitionID())
+
+						// Once we get a partition client, process the events in a separate goroutine
+						go func() {
+							processErr := aeh.processEvents(subscribeCtx, partitionClient, retryConfig)
+							// Do not log context.Canceled which happens at shutdown
+							if processErr != nil && !errors.Is(processErr, context.Canceled) {
+								aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
+							}
+						}()
+					}
+				}
+
+				go subscriberLoop()
+				// This is a blocking call that runs until the context is canceled or a non-recoverable error is returned.
+				err = processor.Run(subscribeCtx)
+				// Exit if the context is canceled
+				if err != nil && errors.Is(err, context.Canceled) {
+					return
+				}
+				if err != nil {
+					aeh.logger.Errorf("Error from event processor: %v", err)
+				} else {
+					aeh.logger.Debugf("Event processor terminated without error")
+				}
+				// wait for subscription loop finished signal
+				select {
+				case <-subscribeCtx.Done():
+					return
+				case <-subscriptionLoopFinished:
+					// noop
+				}
 			}
-			// wait for subscription loop finished signal
-			select {
-			case <-subscribeCtx.Done():
-				return
-			case <-subscriptionLoopFinished:
-				// noop
-			}
+
 			// Waiting here is not strictly necessary, however, we will wait for a short time to increase the likelihood of transient errors having disappeared
 			select {
 			case <-subscribeCtx.Done():
@@ -393,7 +399,11 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 
 		if len(events) != 0 {
 			// Handle received message
-			go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			if aeh.metadata.EnableInOrderMessageDelivery {
+				aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			} else {
+				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+			}
 
 			// Checkpointing disabled for CheckPointFrequencyPerPartition == 0
 			if config.CheckPointFrequencyPerPartition > 0 {

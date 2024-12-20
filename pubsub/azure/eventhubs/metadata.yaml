@@ -35,6 +35,13 @@ builtinAuthenticationProfiles:
         example: "false"
         description: |
           Allow management of the Event Hub namespace and storage account.
+      - name: enableInOrderMessageDelivery
+        type: bool
+        required: false
+        default: "false"
+        example: "false"
+        description: |
+          Enable in order processing of messages within a partition.
 
       # The following four properties are needed only if enableEntityManagement is set to true
       - name: resourceGroupName
@@ -103,3 +110,12 @@ metadata:
     description: |
       The name of the Event Hubs Consumer Group to listen on.
     example: '"group1"'
+  - name: getAllMessageProperties
+    required: false
+    default: "false"
+    example: "false"
+    binding:
+      input: true
+      output: false
+    description: |
+      When set to true, will retrieve all message properties and include them in the returned event metadata

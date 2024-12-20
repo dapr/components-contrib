@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
@@ -86,16 +87,47 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 	return nil
 }
 
-func (m *PostgresAuthMetadata) ValidateAwsIamFields() (string, string, string, error) {
+func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properties map[string]string) (*aws.Options, error) {
 	awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
-	if awsRegion == "" {
-		return "", "", "", errors.New("metadata property AWSRegion is missing")
+	region, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "region")
+	if region == "" {
+		region = awsRegion
 	}
+	if region == "" {
+		return nil, errors.New("metadata properties 'region' or 'AWSRegion' is missing")
+	}
+
 	// Note: access key and secret keys can be optional
 	// in the event users are leveraging the credential files for an access token.
 	awsAccessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSAccessKey")
+	// This is needed as we remove the awsAccessKey field to use the builtin AWS profile 'accessKey' field instead.
+	accessKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AccessKey")
+	if awsAccessKey == "" || accessKey != "" {
+		awsAccessKey = accessKey
+	}
 	awsSecretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSSecretKey")
-	return awsRegion, awsAccessKey, awsSecretKey, nil
+	// This is needed as we remove the awsSecretKey field to use the builtin AWS profile 'secretKey' field instead.
+	secretKey, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "SecretKey")
+	if awsSecretKey == "" || secretKey != "" {
+		awsSecretKey = secretKey
+	}
+	sessionToken, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "sessionToken")
+	assumeRoleArn, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "assumeRoleArn")
+	sessionName, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "sessionName")
+	if sessionName == "" {
+		sessionName = "DaprDefaultSession"
+	}
+	return &aws.Options{
+		Region:        region,
+		AccessKey:     awsAccessKey,
+		SecretKey:     awsSecretKey,
+		SessionToken:  sessionToken,
+		AssumeRoleARN: assumeRoleArn,
+		SessionName:   sessionName,
+
+		Logger:     logger,
+		Properties: properties,
+	}, nil
 }
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
@@ -153,27 +185,6 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 
 			cc.Password = at.Token
 			return nil
-		}
-	case m.UseAWSIAM:
-		// We should use AWS IAM
-		awsRegion, awsAccessKey, awsSecretKey, err := m.ValidateAwsIamFields()
-		if err != nil {
-			err = fmt.Errorf("failed to validate AWS IAM authentication fields: %w", err)
-			return nil, err
-		}
-
-		awsOpts := aws.AWSIAMAuthOptions{
-			PoolConfig:       config,
-			ConnectionString: m.ConnectionString,
-			Region:           awsRegion,
-			AccessKey:        awsAccessKey,
-			SecretKey:        awsSecretKey,
-		}
-
-		err = awsOpts.InitiateAWSIAMAuth()
-		if err != nil {
-			err = fmt.Errorf("failed to initiate AWS IAM authentication rotation: %w", err)
-			return nil, err
 		}
 	}
 

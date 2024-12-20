@@ -15,6 +15,7 @@ package state
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -782,6 +783,70 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				})
 				require.NoError(t, err)
 				assert.Equal(t, v, res.Data)
+			}
+		})
+
+		t.Run("transaction-serialization-grpc-json", func(t *testing.T) {
+			features := statestore.Features()
+			// this check for exclude redis 7
+			if state.FeatureQueryAPI.IsPresent(features) {
+				json := "{\"id\":1223,\"name\":\"test\"}"
+				keyTest1 := key + "-key-grpc"
+				valueTest := []byte(json)
+				keyTest2 := key + "-key-grpc-no-json"
+
+				metadataTest1 := map[string]string{
+					"contentType": "application/json",
+				}
+
+				operations := []state.TransactionalStateOperation{
+					state.SetRequest{
+						Key:      keyTest1,
+						Value:    valueTest,
+						Metadata: metadataTest1,
+					},
+					state.SetRequest{
+						Key:   keyTest2,
+						Value: valueTest,
+					},
+				}
+
+				expected := map[string][]byte{
+					keyTest1: []byte(json),
+					keyTest2: []byte(json),
+				}
+
+				expectedMetadata := map[string]map[string]string{
+					keyTest1: metadataTest1,
+				}
+
+				// Act
+				transactionStore, ok := statestore.(state.TransactionalStore)
+				assert.True(t, ok)
+				err := transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
+					Operations: operations,
+				})
+				require.NoError(t, err)
+
+				// Assert
+				for k, v := range expected {
+					res, err := statestore.Get(context.Background(), &state.GetRequest{
+						Key:      k,
+						Metadata: expectedMetadata[k],
+					})
+					expectedValue := res.Data
+
+					// In redisjson when set the value with contentType = application/Json store the value in base64
+					if strings.HasPrefix(string(expectedValue), "\"ey") {
+						valueBase64 := strings.Trim(string(expectedValue), "\"")
+						expectedValueDecoded, _ := base64.StdEncoding.DecodeString(valueBase64)
+						require.NoError(t, err)
+						assert.Equal(t, expectedValueDecoded, v)
+					} else {
+						require.NoError(t, err)
+						assert.Equal(t, expectedValue, v)
+					}
+				}
 			}
 		})
 	} else {

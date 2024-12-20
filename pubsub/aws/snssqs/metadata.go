@@ -22,6 +22,7 @@ type snsSqsMetadata struct {
 	// aws endpoint for the component to use.
 	Endpoint string `mapstructure:"endpoint"`
 	// aws region in which SNS/SQS should create resources.
+	// TODO: rm the alias on region in Dapr 1.17.
 	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	// aws partition in which SNS/SQS should create resources.
 	internalPartition string `mapstructure:"-"`
@@ -57,6 +58,8 @@ type snsSqsMetadata struct {
 	AccountID string `mapstructure:"accountID"`
 	// processing concurrency mode
 	ConcurrencyMode pubsub.ConcurrencyMode `mapstructure:"concurrencyMode"`
+	// limits the number of concurrent goroutines
+	ConcurrencyLimit int `mapstructure:"concurrencyLimit"`
 }
 
 func maskLeft(s string) string {
@@ -67,7 +70,7 @@ func maskLeft(s string) string {
 	return string(rs)
 }
 
-func (s *snsSqs) getSnsSqsMetatdata(meta pubsub.Metadata) (*snsSqsMetadata, error) {
+func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := &snsSqsMetadata{
 		AssetsManagementTimeoutSeconds: assetsManagementDefaultTimeoutSeconds,
 		MessageVisibilityTimeout:       10,
@@ -128,6 +131,10 @@ func (s *snsSqs) getSnsSqsMetatdata(meta pubsub.Metadata) (*snsSqsMetadata, erro
 
 	if err := md.setConcurrencyMode(meta.Properties); err != nil {
 		return nil, err
+	}
+
+	if md.ConcurrencyLimit < 0 {
+		return nil, errors.New("concurrencyLimit must be greater than or equal to 0")
 	}
 
 	s.logger.Debug(md.hideDebugPrintedCredentials())

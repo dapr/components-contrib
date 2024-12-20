@@ -55,7 +55,15 @@ builtinAuthenticationProfiles:
         default: "false"
         example: "false"
         description: |
+        
           Allow management of the Event Hub namespace and storage account.
+      - name: enableInOrderMessageDelivery
+        type: bool
+        required: false
+        default: "false"
+        example: "false"
+        description: |
+          Enable in order processing of messages within a partition.
       - name: resourceGroupName
         type: string
         required: false
@@ -153,3 +161,12 @@ metadata:
     description: |
       Storage container name.
     example: '"myeventhubstoragecontainer"'
+  - name: getAllMessageProperties
+    required: false
+    default: "false"
+    example: "false"
+    binding:
+      input: true
+      output: false
+    description: |
+      When set to true, will retrieve all message properties and include them in the returned event metadata

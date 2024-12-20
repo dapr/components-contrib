@@ -32,14 +32,38 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile, componen
 	for i, profile := range profiles {
 		res[i] = profile
 
-		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
+		// deep copy the metadata slice to avoid side effects when manually updating some req -> non-req fields to deprecate some fields for kafka/postgres
+		// TODO: rm all of this manipulation in Dapr 1.17!!
+		originalMetadata := profile.Metadata
+		metadataCopy := make([]Metadata, len(originalMetadata))
+		copy(metadataCopy, originalMetadata)
 
-		// If component is PostgreSQL, filter out duplicated aws profile fields
-		if strings.ToLower(componentTitle) == "postgresql" && bi.Name == "aws" {
-			res[i].Metadata = filterOutDuplicateFields(res[i].Metadata)
+		if componentTitle == "Apache Kafka" || strings.ToLower(componentTitle) == "postgresql" {
+			removeRequiredOnSomeAWSFields(&metadataCopy)
 		}
 
+		merged := mergedMetadata(bi.Metadata, metadataCopy...)
+
+		// Note: We must apply the removal of deprecated fields after the merge!!
+
+		// Here, we remove some deprecated fields as we support the transition to a new auth profile
+		if profile.Title == "AWS: Assume IAM Role" && componentTitle == "Apache Kafka" || profile.Title == "AWS: Assume IAM Role" && strings.ToLower(componentTitle) == "postgresql" {
+			merged = removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		// Here, there are no metadata fields that need deprecating
+		if profile.Title == "AWS: Credentials from Environment Variables" && componentTitle == "Apache Kafka" || profile.Title == "AWS: Credentials from Environment Variables" && strings.ToLower(componentTitle) == "postgresql" {
+			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		// Here, this is a new auth profile, so rm all deprecating fields as unrelated.
+		if profile.Title == "AWS: IAM Roles Anywhere" && componentTitle == "Apache Kafka" || profile.Title == "AWS: IAM Roles Anywhere" && strings.ToLower(componentTitle) == "postgresql" {
+			merged = removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(merged)
+		}
+
+		res[i].Metadata = merged
 	}
+
 	return res, nil
 }
 
@@ -54,26 +78,55 @@ func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {
 	return res
 }
 
-// filterOutDuplicateFields removes specific duplicated fields from the metadata
-func filterOutDuplicateFields(metadata []Metadata) []Metadata {
-	duplicateFields := map[string]int{
-		"awsRegion": 0,
-		"accessKey": 0,
-		"secretKey": 0,
+// removeRequiredOnSomeAWSFields needs to be removed in Dapr 1.17 as duplicated AWS IAM fields get removed,
+// and we standardize on these fields.
+// Currently, there are: awsAccessKey, accessKey and awsSecretKey, secretKey, and awsRegion and region fields.
+// We normally have accessKey, secretKey, and region fields marked required as it is part of the builtin AWS auth profile fields.
+// However, as we rm the aws prefixed ones, we need to then mark the normally required ones as not required only for postgres and kafka.
+// This way we do not break existing users, and transition them to the standardized fields.
+func removeRequiredOnSomeAWSFields(metadata *[]Metadata) {
+	if metadata == nil {
+		return
 	}
 
+	for i := range *metadata {
+		field := &(*metadata)[i]
+
+		if field == nil {
+			continue
+		}
+
+		if field.Name == "accessKey" || field.Name == "secretKey" || field.Name == "region" {
+			field.Required = false
+		}
+	}
+}
+
+func removeAllDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Metadata {
+	filteredMetadata := []Metadata{}
+	for _, field := range metadata {
+		if strings.HasPrefix(field.Name, "aws") {
+			continue
+		} else {
+			filteredMetadata = append(filteredMetadata, field)
+		}
+	}
+
+	return filteredMetadata
+}
+
+func removeSomeDeprecatedFieldsOnUnrelatedAuthProfiles(metadata []Metadata) []Metadata {
 	filteredMetadata := []Metadata{}
 
 	for _, field := range metadata {
-		if _, exists := duplicateFields[field.Name]; !exists {
-			filteredMetadata = append(filteredMetadata, field)
+		// region is required in Assume Role auth profile, so this is needed for now.
+		if field.Name == "region" {
+			field.Required = true
+		}
+		if field.Name == "awsAccessKey" || field.Name == "awsSecretKey" || field.Name == "awsSessionToken" || field.Name == "awsRegion" {
+			continue
 		} else {
-			if field.Name == "awsRegion" && duplicateFields["awsRegion"] == 0 {
-				filteredMetadata = append(filteredMetadata, field)
-				duplicateFields["awsRegion"]++
-			} else if field.Name != "awsRegion" {
-				continue
-			}
+			filteredMetadata = append(filteredMetadata, field)
 		}
 	}
 

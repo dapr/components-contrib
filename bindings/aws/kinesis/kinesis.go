@@ -27,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/interfaces"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
 
@@ -40,15 +39,16 @@ import (
 
 // AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
 type AWSKinesis struct {
-	client   *kinesis.Kinesis
-	metadata *kinesisMetadata
+	authProvider awsAuth.Provider
+	metadata     *kinesisMetadata
 
-	worker       *worker.Worker
-	workerConfig *config.KinesisClientLibConfiguration
+	worker *worker.Worker
 
-	streamARN   *string
-	consumerARN *string
-	logger      logger.Logger
+	streamName   string
+	consumerName string
+	consumerARN  *string
+	logger       logger.Logger
+	consumerMode string
 
 	closed  atomic.Bool
 	closeCh chan struct{}
@@ -112,30 +112,25 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 		return fmt.Errorf("%s invalid \"mode\" field %s", "aws.kinesis", m.KinesisConsumerMode)
 	}
 
-	client, err := a.getClient(m)
-	if err != nil {
-		return err
-	}
-
-	streamName := aws.String(m.StreamName)
-	stream, err := client.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
-		StreamName: streamName,
-	})
-	if err != nil {
-		return err
-	}
-
-	if m.KinesisConsumerMode == SharedThroughput {
-		kclConfig := config.NewKinesisClientLibConfigWithCredential(m.ConsumerName,
-			m.StreamName, m.Region, m.ConsumerName,
-			client.Config.Credentials)
-		a.workerConfig = kclConfig
-	}
-
-	a.streamARN = stream.StreamDescription.StreamARN
+	a.consumerMode = m.KinesisConsumerMode
+	a.streamName = m.StreamName
+	a.consumerName = m.ConsumerName
 	a.metadata = m
-	a.client = client
 
+	opts := awsAuth.Options{
+		Logger:       a.logger,
+		Properties:   metadata.Properties,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: "",
+	}
+	// extra configs needed per component type
+	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+	if err != nil {
+		return err
+	}
+	a.authProvider = provider
 	return nil
 }
 
@@ -148,7 +143,7 @@ func (a *AWSKinesis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	if partitionKey == "" {
 		partitionKey = uuid.New().String()
 	}
-	_, err := a.client.PutRecordWithContext(ctx, &kinesis.PutRecordInput{
+	_, err := a.authProvider.Kinesis().Kinesis.PutRecordWithContext(ctx, &kinesis.PutRecordInput{
 		StreamName:   &a.metadata.StreamName,
 		Data:         req.Data,
 		PartitionKey: &partitionKey,
@@ -161,16 +156,15 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
-
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
-		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), a.workerConfig)
+		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode))
 		err = a.worker.Start()
 		if err != nil {
 			return err
 		}
 	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
 		var stream *kinesis.DescribeStreamOutput
-		stream, err = a.client.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
+		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
 			return err
 		}
@@ -180,6 +174,10 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
+	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+	if err != nil {
+		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+	}
 	// Wait for context cancelation then stop
 	a.wg.Add(1)
 	go func() {
@@ -191,7 +189,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		if a.metadata.KinesisConsumerMode == SharedThroughput {
 			a.worker.Shutdown()
 		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
-			a.deregisterConsumer(a.streamARN, a.consumerARN)
+			a.deregisterConsumer(ctx, stream, a.consumerARN)
 		}
 	}()
 
@@ -226,8 +224,7 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 					return
 				default:
 				}
-
-				sub, err := a.client.SubscribeToShardWithContext(ctx, &kinesis.SubscribeToShardInput{
+				sub, err := a.authProvider.Kinesis().Kinesis.SubscribeToShardWithContext(ctx, &kinesis.SubscribeToShardInput{
 					ConsumerARN:      consumerARN,
 					ShardId:          s.ShardId,
 					StartingPosition: &kinesis.StartingPosition{Type: aws.String(kinesis.ShardIteratorTypeLatest)},
@@ -269,6 +266,9 @@ func (a *AWSKinesis) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
+	if a.authProvider != nil {
+		return a.authProvider.Close()
+	}
 	return nil
 }
 
@@ -276,7 +276,7 @@ func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*st
 	// Only set timeout on consumer call.
 	conCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	consumer, err := a.client.DescribeStreamConsumerWithContext(conCtx, &kinesis.DescribeStreamConsumerInput{
+	consumer, err := a.authProvider.Kinesis().Kinesis.DescribeStreamConsumerWithContext(conCtx, &kinesis.DescribeStreamConsumerInput{
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
@@ -288,7 +288,7 @@ func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*st
 }
 
 func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*string, error) {
-	consumer, err := a.client.RegisterStreamConsumerWithContext(ctx, &kinesis.RegisterStreamConsumerInput{
+	consumer, err := a.authProvider.Kinesis().Kinesis.RegisterStreamConsumerWithContext(ctx, &kinesis.RegisterStreamConsumerInput{
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
@@ -307,11 +307,11 @@ func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*
 	return consumer.Consumer.ConsumerARN, nil
 }
 
-func (a *AWSKinesis) deregisterConsumer(streamARN *string, consumerARN *string) error {
+func (a *AWSKinesis) deregisterConsumer(ctx context.Context, streamARN *string, consumerARN *string) error {
 	if a.consumerARN != nil {
 		// Use a background context because the running context may have been canceled already
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := a.client.DeregisterStreamConsumerWithContext(ctx, &kinesis.DeregisterStreamConsumerInput{
+		_, err := a.authProvider.Kinesis().Kinesis.DeregisterStreamConsumerWithContext(ctx, &kinesis.DeregisterStreamConsumerInput{
 			ConsumerARN:  consumerARN,
 			StreamARN:    streamARN,
 			ConsumerName: &a.metadata.ConsumerName,
@@ -342,7 +342,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 				tmp := *input
 				inCpy = &tmp
 			}
-			req, _ := a.client.DescribeStreamConsumerRequest(inCpy)
+			req, _ := a.authProvider.Kinesis().Kinesis.DescribeStreamConsumerRequest(inCpy)
 			req.SetContext(ctx)
 			req.ApplyOptions(opts...)
 
@@ -352,16 +352,6 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 	w.ApplyOptions(opts...)
 
 	return w.WaitWithContext(ctx)
-}
-
-func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	k := kinesis.New(sess)
-
-	return k, nil
 }
 
 func (a *AWSKinesis) parseMetadata(meta bindings.Metadata) (*kinesisMetadata, error) {

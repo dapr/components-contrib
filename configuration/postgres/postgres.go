@@ -31,6 +31,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -47,6 +49,10 @@ type ConfigurationStore struct {
 	wg        sync.WaitGroup
 	closed    atomic.Bool
 	lock      sync.RWMutex
+
+	enableAzureAD   bool
+	enableAWSIAM    bool
+	awsAuthProvider awsAuth.Provider
 }
 
 type subscription struct {
@@ -77,6 +83,10 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
+	opts := pgauth.InitWithMetadataOpts{
+		AzureADEnabled: p.enableAzureAD,
+		AWSIAMEnabled:  p.enableAWSIAM,
+	}
 	err := p.metadata.InitWithMetadata(metadata.Properties)
 	if err != nil {
 		p.logger.Error(err)
@@ -84,10 +94,36 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 	}
 
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	p.client, err = p.connectDB(ctx)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		return fmt.Errorf("error connecting to configuration store: '%w'", err)
+		return fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
 	}
+
+	if opts.AWSIAMEnabled && p.metadata.UseAWSIAM {
+		opts, validateErr := p.metadata.BuildAwsIamOptions(p.logger, metadata.Properties)
+		if validateErr != nil {
+			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
+		}
+
+		var provider awsAuth.Provider
+		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
+		if err != nil {
+			return err
+		}
+		p.awsAuthProvider = provider
+		p.awsAuthProvider.UpdatePostgres(ctx, config)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
+	}
+
+	err = pool.Ping(ctx)
+	if err != nil {
+		return fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
+	}
+	p.client = pool
 
 	err = p.client.Ping(ctx)
 	if err != nil {
@@ -304,25 +340,6 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 }
 
-func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, error) {
-	config, err := p.metadata.GetPgxPoolConfig()
-	if err != nil {
-		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %s", err)
-	}
-
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
-	}
-
-	err = pool.Ping(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
-	}
-
-	return pool, nil
-}
-
 func buildQuery(req *configuration.GetRequest, configTable string) (string, []interface{}, error) {
 	var query string
 	var params []interface{}
@@ -436,5 +453,9 @@ func (p *ConfigurationStore) Close() error {
 		p.client.Close()
 	}
 
-	return nil
+	errs := make([]error, 1)
+	if p.awsAuthProvider != nil {
+		errs[0] = p.awsAuthProvider.Close()
+	}
+	return errors.Join(errs...)
 }

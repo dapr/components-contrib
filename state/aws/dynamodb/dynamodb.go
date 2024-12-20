@@ -25,7 +25,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	jsoniterator "github.com/json-iterator/go"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -41,7 +40,8 @@ import (
 type StateStore struct {
 	state.BulkStore
 
-	client           dynamodbiface.DynamoDBAPI
+	authProvider     awsAuth.Provider
+	logger           logger.Logger
 	table            string
 	ttlAttributeName string
 	partitionKey     string
@@ -53,6 +53,7 @@ type dynamoDBMetadata struct {
 	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken"  mapstructure:"sessionToken" mdignore:"true"`
 
+	// TODO: rm the alias in Dapr 1.17
 	Region           string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint         string `json:"endpoint"`
 	Table            string `json:"table"`
@@ -66,9 +67,10 @@ const (
 )
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
-func NewDynamoDBStateStore(_ logger.Logger) state.Store {
+func NewDynamoDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		partitionKey: defaultPartitionKeyName,
+		logger:       logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -80,14 +82,24 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-
-	// This check is needed because d.client is set to a mock in tests
-	if d.client == nil {
-		d.client, err = d.getClient(meta)
+	if d.authProvider == nil {
+		opts := awsAuth.Options{
+			Logger:       d.logger,
+			Properties:   metadata.Properties,
+			Region:       meta.Region,
+			Endpoint:     meta.Endpoint,
+			AccessKey:    meta.AccessKey,
+			SecretKey:    meta.SecretKey,
+			SessionToken: meta.SessionToken,
+		}
+		cfg := awsAuth.GetConfig(opts)
+		provider, err := awsAuth.NewProvider(ctx, opts, cfg)
 		if err != nil {
 			return err
 		}
+		d.authProvider = provider
 	}
+
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
@@ -111,8 +123,7 @@ func (d *StateStore) validateTableAccess(ctx context.Context) error {
 			},
 		},
 	}
-
-	_, err := d.client.GetItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDB().DynamoDB.GetItemWithContext(ctx, input)
 	return err
 }
 
@@ -144,8 +155,7 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 			},
 		},
 	}
-
-	result, err := d.client.GetItemWithContext(ctx, input)
+	result, err := d.authProvider.DynamoDB().DynamoDB.GetItemWithContext(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +227,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		condExpr := "attribute_not_exists(etag)"
 		input.ConditionExpression = &condExpr
 	}
-
-	_, err = d.client.PutItemWithContext(ctx, input)
+	_, err = d.authProvider.DynamoDB().DynamoDB.PutItemWithContext(ctx, input)
 	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -249,8 +258,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		}
 		input.ExpressionAttributeValues = exprAttrValues
 	}
-
-	_, err := d.client.DeleteItemWithContext(ctx, input)
+	_, err := d.authProvider.DynamoDB().DynamoDB.DeleteItemWithContext(ctx, input)
 	if err != nil {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
@@ -268,6 +276,9 @@ func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 }
 
 func (d *StateStore) Close() error {
+	if d.authProvider != nil {
+		return d.authProvider.Close()
+	}
 	return nil
 }
 
@@ -279,16 +290,6 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	}
 	m.PartitionKey = populatePartitionMetadata(meta.Properties, defaultPartitionKeyName)
 	return &m, err
-}
-
-func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
-	if err != nil {
-		return nil, err
-	}
-	c := dynamodb.New(sess)
-
-	return c, nil
 }
 
 // getItemFromReq converts a dapr state.SetRequest into an dynamodb item
@@ -431,8 +432,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		}
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
-
-	_, err := d.client.TransactWriteItemsWithContext(ctx, twinput)
+	_, err := d.authProvider.DynamoDB().DynamoDB.TransactWriteItemsWithContext(ctx, twinput)
 
 	return err
 }

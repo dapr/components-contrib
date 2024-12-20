@@ -279,7 +279,7 @@ func S3SForcePathStyle(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
-				embedded.WithComponentsPath("./components/forcePathStyleTrue"),
+				embedded.WithResourcesPath("./components/forcePathStyleTrue"),
 				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			)...,

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package mongodb is an implementation of StateStore interface to perform operations on store
+// Package ravendb is an implementation of StateStore interface to perform operations on store
 
 package ravendb
 
@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dapr/components-contrib/metadata"
@@ -29,6 +28,7 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 	jsoniterator "github.com/json-iterator/go"
 	ravendb "github.com/ravendb/ravendb-go-client"
+	"net/http"
 	"reflect"
 	"strings"
 	"time"
@@ -52,9 +52,8 @@ const (
 type RavenDB struct {
 	state.BulkStore
 
-	documentStore    *ravendb.DocumentStore
-	operationTimeout time.Duration
-	metadata         RavenDBMetadata
+	documentStore *ravendb.DocumentStore
+	metadata      RavenDBMetadata
 
 	features []state.Feature
 	logger   logger.Logger
@@ -95,12 +94,10 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("parsed metadata")
 	//TODO: Operation timeout?
 	store, err := r.getRavenDBStore(ctx)
 	if err != nil {
-		return fmt.Errorf("error in creating Raven DB Store")
+		return errors.New("error in creating Raven DB Store")
 	}
 
 	r.initTTL(store)
@@ -118,7 +115,7 @@ func (r *RavenDB) Features() []state.Feature {
 func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	session, err := r.documentStore.OpenSession("")
 	if err != nil {
-		return fmt.Errorf("error opening session while deleting")
+		return errors.New("error opening session while deleting")
 	}
 	defer session.Close()
 
@@ -129,7 +126,7 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 	err = session.SaveChanges()
 	if err != nil {
-		return fmt.Errorf("error saving changes")
+		return errors.New("error saving changes")
 	}
 
 	return nil
@@ -193,7 +190,6 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 	err = session.SaveChanges()
 	if err != nil {
-		fmt.Println("error saving changes:", err)
 		return fmt.Errorf("error saving changes %s", err)
 	}
 	return nil
@@ -201,10 +197,10 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 func (r *RavenDB) Ping(ctx context.Context) error {
 	session, err := r.documentStore.OpenSession("")
-	defer session.Close()
 	if err != nil {
 		return fmt.Errorf("error opening session while storing data faild with error %s", err)
 	}
+	defer session.Close()
 
 	return nil
 }
@@ -216,7 +212,6 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	}
 	defer session.Close()
 	for _, o := range request.Operations {
-		var err error
 		switch req := o.(type) {
 		case state.SetRequest:
 			err = r.setInternal(ctx, &req, session)
@@ -269,11 +264,6 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			Data:     []byte(current.Value),
 			Metadata: make(map[string]string),
 		}
-		convJson, _ := json.Marshal(convert)
-		itemJson, _ := json.Marshal(current)
-
-		fmt.Println(string(convJson))
-		fmt.Println(string(itemJson))
 		resp = append(resp, convert)
 	}
 
@@ -309,7 +299,6 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		// First write wins, we send empty change vector to check if exists
 		err = session.StoreWithChangeVectorAndID(item, "", req.Key)
 		if err != nil {
-			fmt.Println(err)
 			return fmt.Errorf("error storing data: %s", err)
 		}
 	} else {
@@ -322,7 +311,6 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		}
 
 		if err != nil {
-			fmt.Println(err)
 			return fmt.Errorf("error storing data: %s", err)
 		}
 	}
@@ -335,7 +323,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 	if reqTTL != nil {
 		metaData, err := session.Advanced().GetMetadataFor(item)
 		if err != nil {
-			return fmt.Errorf("Failed to get metadata for item")
+			return errors.New("Failed to get metadata for item")
 		}
 		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
 		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
@@ -419,22 +407,16 @@ func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
 	}
 	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExppiration)
 	if err != nil {
-		fmt.Println("error setting expiration operation")
 		return
 	}
-
-	err = store.Maintenance().Send(operation)
-	if err != nil {
-		fmt.Println("error sending command")
-	}
+	store.Maintenance().Send(operation)
 }
 
 func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {
 	operation := ravendb.NewGetDatabaseRecordOperation(r.metadata.DatabaseName)
 	err := store.Maintenance().Server().Send(operation)
-	fmt.Println(err)
 	if err == nil {
-		if operation.Command != nil && operation.Command.RavenCommandBase.StatusCode == 404 {
+		if operation.Command != nil && operation.Command.RavenCommandBase.StatusCode == http.StatusNotFound {
 			databaseRecord := ravendb.DatabaseRecord{
 				DatabaseName: r.metadata.DatabaseName,
 				Disabled:     false,

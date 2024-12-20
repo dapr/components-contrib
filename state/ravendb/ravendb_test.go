@@ -57,7 +57,7 @@ func TestGetRavenDBMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, properties[serverURL], metadata.ServerURL)
 		assert.Equal(t, properties[databaseName], metadata.DatabaseName)
-		assert.Equal(t, false, metadata.EnableTTL)
+		assert.False(t, metadata.EnableTTL)
 		assert.Equal(t, int64(15), metadata.TTLFrequency)
 	})
 

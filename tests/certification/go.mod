@@ -263,6 +263,7 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.0.0 // indirect
+	github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/redis/go-redis/v9 v9.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

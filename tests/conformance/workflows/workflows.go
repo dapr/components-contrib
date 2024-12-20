@@ -15,12 +15,12 @@ package workflows
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/dapr/kit/logger"
 
@@ -61,14 +61,12 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 	t.Run("start", func(t *testing.T) {
 		testLogger.Info("Start test running...")
 
-		inputBytes, _ := json.Marshal(10) // Time that the activity within the workflow runs for
-
 		testInstanceID := "TestID"
 		t.Run("start", func(t *testing.T) {
 			req := &workflows.StartRequest{
-				InstanceID:    testInstanceID,
+				InstanceID:    &testInstanceID,
 				WorkflowName:  "TestWorkflow",
-				WorkflowInput: inputBytes,
+				WorkflowInput: wrapperspb.String("10"),
 				Options: map[string]string{
 					"task_queue": "TestTaskQueue",
 				},

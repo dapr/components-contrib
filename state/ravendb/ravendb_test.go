@@ -22,6 +22,7 @@ func TestGetRavenDBMetadata(t *testing.T) {
 		assert.Equal(t, properties[serverURL], metadata.ServerURL)
 		assert.Equal(t, defaultDatabaseName, metadata.DatabaseName)
 		assert.Equal(t, defaultEnableTTL, metadata.EnableTTL)
+		assert.Equal(t, defaultTTLFrequency, metadata.TTLFrequency)
 	})
 
 	t.Run("With custom database name", func(t *testing.T) {
@@ -38,13 +39,15 @@ func TestGetRavenDBMetadata(t *testing.T) {
 		assert.Equal(t, properties[serverURL], metadata.ServerURL)
 		assert.Equal(t, properties[databaseName], metadata.DatabaseName)
 		assert.Equal(t, defaultEnableTTL, metadata.EnableTTL)
+		assert.Equal(t, defaultTTLFrequency, metadata.TTLFrequency)
 	})
 
-	t.Run("With custom enable ttl value", func(t *testing.T) {
+	t.Run("With custom enable ttl values", func(t *testing.T) {
 		properties := map[string]string{
 			serverURL:    "127.0.0.1",
 			databaseName: "TestDB",
 			enableTTL:    "false",
+			ttlFrequency: "15",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
@@ -55,6 +58,7 @@ func TestGetRavenDBMetadata(t *testing.T) {
 		assert.Equal(t, properties[serverURL], metadata.ServerURL)
 		assert.Equal(t, properties[databaseName], metadata.DatabaseName)
 		assert.Equal(t, false, metadata.EnableTTL)
+		assert.Equal(t, int64(15), metadata.TTLFrequency)
 	})
 
 	t.Run("with https without cert and key", func(t *testing.T) {

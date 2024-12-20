@@ -42,9 +42,11 @@ const (
 	certPath            = "certPath"
 	keyPath             = "keyPath"
 	enableTTL           = "enableTTL"
+	ttlFrequency        = "ttlFrequency"
 	changeVector        = "@change-vector"
 	expires             = "@expires"
 	defaultEnableTTL    = true
+	defaultTTLFrequency = int64(60)
 )
 
 type RavenDB struct {
@@ -64,6 +66,7 @@ type RavenDBMetadata struct {
 	CertPath     string
 	KeyPath      string
 	EnableTTL    bool
+	TTLFrequency int64
 }
 
 type Item struct {
@@ -93,25 +96,15 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return err
 	}
 
+	fmt.Println("parsed metadata")
 	//TODO: Operation timeout?
 	store, err := r.getRavenDBStore(ctx)
 	if err != nil {
 		return fmt.Errorf("error in creating Raven DB Store")
 	}
 
-	configurationExppiration := ravendb.ExpirationConfiguration{
-		Disabled: !r.metadata.EnableTTL,
-	}
-	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExppiration)
-	if err != nil {
-		return fmt.Errorf("error in creating expiration operation")
-	}
-
-	err = store.Maintenance().Send(operation)
-	if err != nil {
-		return fmt.Errorf("error in sending expiration operation")
-	}
-
+	r.initTTL(store)
+	r.setupDatabase(store)
 	r.documentStore = store
 
 	return nil
@@ -152,30 +145,30 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	var item *Item
 	err = session.Load(&item, req.Key)
 	if err != nil {
-		return &state.GetResponse{}, fmt.Errorf("error storing data %s", err)
+		return &state.GetResponse{}, fmt.Errorf("error loading data %s", err)
+	}
+	if item == nil {
+		return &state.GetResponse{}, nil
 	}
 	ravenMeta, err := session.GetMetadataFor(item)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error getting metadata for %s", req.Key)
 	}
-	var ttlResp string
-	var etagResp string
+
 	var meta map[string]string
-	var ttl, okTTL = ravenMeta.Get("@Expires")
+	var ttl, okTTL = ravenMeta.Get(expires)
 	if okTTL {
-		ttlResp = ttl.(string)
-	} else {
-		ttlResp = ""
+		meta = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: ttl.(string),
+		}
 	}
-	var eTag, okETag = ravenMeta.Get("@ChangeVector")
+
+	var etagResp string
+	var eTag, okETag = ravenMeta.Get(changeVector)
 	if okETag {
 		etagResp = eTag.(string)
 	} else {
 		etagResp = ""
-	}
-
-	meta = map[string]string{
-		state.GetRespMetaKeyTTLExpireTime: ttlResp,
 	}
 
 	resp := &state.GetResponse{
@@ -200,6 +193,7 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 	err = session.SaveChanges()
 	if err != nil {
+		fmt.Println("error saving changes:", err)
 		return fmt.Errorf("error saving changes %s", err)
 	}
 	return nil
@@ -315,6 +309,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		// First write wins, we send empty change vector to check if exists
 		err = session.StoreWithChangeVectorAndID(item, "", req.Key)
 		if err != nil {
+			fmt.Println(err)
 			return fmt.Errorf("error storing data: %s", err)
 		}
 	} else {
@@ -327,6 +322,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		}
 
 		if err != nil {
+			fmt.Println(err)
 			return fmt.Errorf("error storing data: %s", err)
 		}
 	}
@@ -343,9 +339,8 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		}
 		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
 		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
-		metaData.Put("@expires", iso8601String)
+		metaData.Put(expires, iso8601String)
 	}
-
 	return nil
 }
 
@@ -362,6 +357,7 @@ func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {
 	m := RavenDBMetadata{
 		DatabaseName: defaultDatabaseName,
 		EnableTTL:    defaultEnableTTL,
+		TTLFrequency: defaultTTLFrequency,
 	}
 
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
@@ -413,6 +409,41 @@ func (r *RavenDB) Close() error {
 	}
 
 	r.documentStore.Close()
-
 	return nil
+}
+
+func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
+	configurationExppiration := ravendb.ExpirationConfiguration{
+		Disabled:             !r.metadata.EnableTTL,
+		DeleteFrequencyInSec: &r.metadata.TTLFrequency,
+	}
+	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExppiration)
+	if err != nil {
+		fmt.Println("error setting expiration operation")
+		return
+	}
+
+	err = store.Maintenance().Send(operation)
+	if err != nil {
+		fmt.Println("error sending command")
+	}
+}
+
+func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {
+	operation := ravendb.NewGetDatabaseRecordOperation(r.metadata.DatabaseName)
+	err := store.Maintenance().Server().Send(operation)
+	fmt.Println(err)
+	if err == nil {
+		if operation.Command != nil && operation.Command.RavenCommandBase.StatusCode == 404 {
+			databaseRecord := ravendb.DatabaseRecord{
+				DatabaseName: r.metadata.DatabaseName,
+				Disabled:     false,
+			}
+			createOp := ravendb.NewCreateDatabaseOperation(&databaseRecord, 1)
+			err = store.Maintenance().Server().Send(createOp)
+			if err != nil {
+				return
+			}
+		}
+	}
 }

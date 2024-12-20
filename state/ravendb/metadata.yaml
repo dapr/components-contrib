@@ -39,3 +39,13 @@ metadata:
     description: |
       Path to the key for secure connection
     example: "/path/to/key"
+  - name: EnableTTL
+    description: |
+      Boolean values that enables or disables RaveDB TTL functionality
+    example: "true"
+    default: "true"
+  - name: TTLFrequency
+    description: |
+      Sets RavenDB frequency on running background task and deleting records
+    example: "15"
+    default: "60"

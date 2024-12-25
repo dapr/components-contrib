@@ -48,6 +48,7 @@ type mockThrowErrorCommandStep2 struct {
 type mockDispatchThrowErrorCommand struct {
 	commands.DispatchThrowErrorCommand
 	errorMessage string
+	variables interface{}
 }
 
 func (mc *mockThrowErrorClient) NewThrowErrorCommand() commands.ThrowErrorCommandStep1 {
@@ -76,6 +77,12 @@ func (cmd3 *mockDispatchThrowErrorCommand) ErrorMessage(errorMessage string) com
 	cmd3.errorMessage = errorMessage
 
 	return cmd3
+}
+
+func (cmd3 *mockDispatchThrowErrorCommand) VariablesFromObject(variables interface{}) (commands.DispatchThrowErrorCommand, error) {
+	cmd3.variables = variables
+
+	return cmd3, nil
 }
 
 func (cmd3 *mockDispatchThrowErrorCommand) Send(context.Context) (*pb.ThrowErrorResponse, error) {
@@ -128,5 +135,31 @@ func TestThrowError(t *testing.T) {
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
 		assert.Equal(t, payload.ErrorCode, mc.cmd1.cmd2.errorCode)
 		assert.Equal(t, payload.ErrorMessage, mc.cmd1.cmd2.cmd3.errorMessage)
+	})
+
+	t.Run("throw an error with variables", func(t *testing.T) {
+		payload := throwErrorPayload{
+			JobKey:       new(int64),
+			ErrorCode:    "a",
+			ErrorMessage: "b",
+			Variables: map[string]interface{}{
+				"key": "value",
+			},
+		}
+		data, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
+
+		var mc mockThrowErrorClient
+
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(context.TODO(), req)
+		require.NoError(t, err)
+
+		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
+		assert.Equal(t, payload.ErrorCode, mc.cmd1.cmd2.errorCode)
+		assert.Equal(t, payload.ErrorMessage, mc.cmd1.cmd2.cmd3.errorMessage)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)
 	})
 }

@@ -19,15 +19,17 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 	"github.com/dapr/components-contrib/bindings"
 )
 
 var ErrMissingErrorCode = errors.New("errorCode is a required attribute")
 
 type throwErrorPayload struct {
-	JobKey       *int64 `json:"jobKey"`
-	ErrorCode    string `json:"errorCode"`
-	ErrorMessage string `json:"errorMessage"`
+	JobKey       *int64      `json:"jobKey"`
+	ErrorCode    string      `json:"errorCode"`
+	ErrorMessage string      `json:"errorMessage"`
+	Variables    interface{} `json:"variables"`
 }
 
 func (z *ZeebeCommand) throwError(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -53,7 +55,15 @@ func (z *ZeebeCommand) throwError(ctx context.Context, req *bindings.InvokeReque
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	_, err = cmd.Send(ctx)
+	var cmdDispatch commands.DispatchThrowErrorCommand = cmd
+	if payload.Variables != nil {
+		cmdDispatch, err = cmd.VariablesFromObject(payload.Variables)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = cmdDispatch.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot throw error for job key %d: %w", payload.JobKey, err)
 	}

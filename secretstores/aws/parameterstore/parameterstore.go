@@ -49,6 +49,7 @@ type ParameterStoreMetaData struct {
 
 	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Prefix string `json:"prefix"`
+	Endpoint string `json:"endpoint"`
 }
 
 type ssmSecretStore struct {
@@ -70,6 +71,7 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		Region:       m.Region,
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
+    Endpoint:     m.Endpoint,
 		SessionToken: "",
 	}
 	// extra configs needed per component type

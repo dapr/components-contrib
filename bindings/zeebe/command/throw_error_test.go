@@ -48,7 +48,7 @@ type mockThrowErrorCommandStep2 struct {
 type mockDispatchThrowErrorCommand struct {
 	commands.DispatchThrowErrorCommand
 	errorMessage string
-	variables interface{}
+	variables    interface{}
 }
 
 func (mc *mockThrowErrorClient) NewThrowErrorCommand() commands.ThrowErrorCommandStep1 {

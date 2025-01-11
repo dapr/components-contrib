@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
+
 	"github.com/dapr/components-contrib/bindings"
 )
 
@@ -55,7 +56,7 @@ func (z *ZeebeCommand) throwError(ctx context.Context, req *bindings.InvokeReque
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	var cmdDispatch commands.DispatchThrowErrorCommand = cmd
+	var cmdDispatch = cmd
 	if payload.Variables != nil {
 		cmdDispatch, err = cmd.VariablesFromObject(payload.Variables)
 		if err != nil {

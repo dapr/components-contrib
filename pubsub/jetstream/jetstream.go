@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -164,8 +163,8 @@ func (js *jetstreamPubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 
 	// Wait for all acks to be processed
 	var wg sync.WaitGroup
+	wg.Add(len(acks))
 	for _, ack := range acks {
-		wg.Add(1)
 		// We're spawning goroutines for each ack, as if there is some connectivity problem,
 		// we could end up timing out acks one by one, resulting in a very long operation.
 		go func(ack pubAckWrapped) {

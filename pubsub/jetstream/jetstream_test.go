@@ -15,6 +15,7 @@ package jetstream
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -55,6 +56,59 @@ func setupServerAndStream(t *testing.T) (*server.Server, *nats.Conn) {
 	require.NoError(t, err)
 
 	return ns, nc
+}
+
+func TestNewJetStream_BulkPublish(t *testing.T) {
+	ns, nc := setupServerAndStream(t)
+	defer ns.Shutdown()
+	defer nc.Drain()
+
+	bus := NewJetStream(logger.NewLogger("test"))
+	defer bus.Close()
+
+	err := bus.Init(context.Background(), pubsub.Metadata{
+		Base: mdata.Base{
+			Properties: map[string]string{
+				"natsURL": ns.ClientURL(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	msgs := []pubsub.BulkMessageEntry{}
+
+	for i := 0; i < 100; i++ {
+		msgs = append(msgs, pubsub.BulkMessageEntry{
+			Event:   []byte("test"),
+			EntryId: fmt.Sprintf("%d", i),
+		})
+	}
+
+	ctx := context.Background()
+
+	bP, ok := bus.(pubsub.BulkPublisher)
+	if !ok {
+		t.Fatal("expected BulkPublisher")
+	}
+
+	req := pubsub.BulkPublishRequest{
+		PubsubName: "test",
+		Topic:      "test",
+		Entries:    msgs,
+	}
+
+	res, err := bP.BulkPublish(ctx, &req)
+	require.NoError(t, err)
+
+	assert.Len(t, res.FailedEntries, 0)
+
+	js, err := nc.JetStream()
+	require.NoError(t, err)
+
+	info, err := js.StreamInfo("test")
+	require.NoError(t, err)
+
+	assert.Equal(t, uint64(100), info.State.Msgs)
 }
 
 func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {

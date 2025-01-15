@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -110,6 +111,89 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 
 func (js *jetstreamPubSub) Features() []pubsub.Feature {
 	return nil
+}
+
+// A wrapper for nats.PubAckFuture that allows us to associate the message ID with the specific ack.
+type pubAckWrapped struct {
+	ack nats.PubAckFuture
+	id  string
+}
+
+func (js *jetstreamPubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+
+	if js.closed.Load() {
+		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+	}
+
+	acks := []pubAckWrapped{}
+	errs := []pubsub.BulkPublishResponseFailedEntry{}
+	errsMutex := sync.Mutex{}
+	for _, entry := range req.Entries {
+		var opts []nats.PubOpt
+		var msgID string
+
+		event, err := pubsub.FromCloudEvent(entry.Event, "", "", "", "")
+		if err != nil {
+			js.l.Debugf("error unmarshalling cloudevent: %v", err)
+		} else {
+			// Use the cloudevent id as the Nats-MsgId for deduplication
+			if id, ok := event["id"].(string); ok {
+				msgID = id
+				opts = append(opts, nats.MsgId(msgID))
+			}
+		}
+		if msgID == "" {
+			js.l.Warn("empty message ID, Jetstream deduplication will not be possible")
+		}
+
+		js.l.Debugf("Publishing to topic %v id: %s", req.Topic, msgID)
+		ack, err := js.jsc.PublishAsync(req.Topic, entry.Event, opts...)
+		if err != nil {
+			errs = append(errs, pubsub.BulkPublishResponseFailedEntry{
+				EntryId: entry.EntryId,
+				Error:   err,
+			})
+			continue
+		}
+		ackWrapped := pubAckWrapped{
+			ack: ack,
+			id:  entry.EntryId,
+		}
+		acks = append(acks, ackWrapped)
+	}
+
+	// Wait for all acks to be processed
+	var wg sync.WaitGroup
+	for _, ack := range acks {
+		wg.Add(1)
+		// We're spawning goroutines for each ack, as if there is some connectivity problem,
+		// we could end up timing out acks one by one, resulting in a very long operation.
+		go func(ack pubAckWrapped) {
+			select {
+			case <-ack.ack.Ok():
+			case err := <-ack.ack.Err():
+				if err != nil {
+					errsMutex.Lock()
+					errs = append(errs, pubsub.BulkPublishResponseFailedEntry{
+						EntryId: ack.id,
+						Error:   err,
+					})
+					errsMutex.Unlock()
+				}
+			case <-ctx.Done():
+				errsMutex.Lock()
+				// Context timed out or canceled
+				errs = append(errs, pubsub.BulkPublishResponseFailedEntry{
+					EntryId: ack.id,
+					Error:   ctx.Err(),
+				})
+				errsMutex.Unlock()
+			}
+			wg.Done()
+		}(ack)
+	}
+	wg.Wait()
+	return pubsub.BulkPublishResponse{FailedEntries: errs}, nil
 }
 
 func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {

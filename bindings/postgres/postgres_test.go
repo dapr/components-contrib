@@ -40,13 +40,25 @@ const (
 	testSelect = "SELECT * FROM foo WHERE id < 3"
 )
 
+const (
+	testCustomersTableDDL = `CREATE TABLE IF NOT EXISTS customers (
+								customer_id SERIAL NOT NULL PRIMARY KEY,
+								customer_name VARCHAR(255),
+								contact_name VARCHAR(255),
+								address VARCHAR(255),
+								city VARCHAR(255),
+								postal_code VARCHAR(255),
+								country VARCHAR(255)
+								)`
+)
+
 func TestOperations(t *testing.T) {
 	t.Parallel()
 	t.Run("Get operation list", func(t *testing.T) {
 		b := NewPostgres(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
-		assert.Len(t, l, 3)
+		assert.Len(t, l, 7)
 	})
 }
 
@@ -174,6 +186,86 @@ func testInitConfiguration(t *testing.T, connectionString string) {
 			}
 		})
 	}
+}
+
+// `go test -v -count=1 ./bindings/postgres -run ^TestPostgresEntityIntegration`
+func TestPostgresEntityIntegration(t *testing.T) {
+	url := os.Getenv("POSTGRES_TEST_CONN_URL")
+	if url == "" {
+		t.SkipNow()
+	}
+
+	t.Run("Test init configurations", func(t *testing.T) {
+		testInitConfiguration(t, url)
+	})
+
+	// live DB test
+	b := NewPostgres(logger.NewLogger("test")).(*Postgres)
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"connectionString": url}}}
+	if err := b.Init(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+
+	// create table
+	req := &bindings.InvokeRequest{
+		Operation: execOperation,
+		Metadata:  map[string]string{commandSQLKey: testCustomersTableDDL},
+	}
+	ctx := context.TODO()
+	t.Run("Invoke create table", func(t *testing.T) {
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+	})
+
+	req = &bindings.InvokeRequest{
+		Operation: registerOperation,
+		Metadata: map[string]string{operationType: "entity",
+			commandEntityName: "customers"},
+	}
+	t.Run("Invoke register", func(t *testing.T) {
+		req.Metadata[commandEntityId] = "customer_id"
+		req.Metadata[commandEntityProps] = "[\"customer_id\",\"customer_name\",\"contact_name\",\"address\", \"city\", \"postal_code\",\"country\"]"
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+	})
+
+	req = &bindings.InvokeRequest{
+		Operation: findAllOperation,
+		Metadata: map[string]string{operationType: "entity",
+			commandEntityName: "customers"},
+	}
+
+	t.Run("Invoke findAll", func(t *testing.T) {
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+	})
+
+	req = &bindings.InvokeRequest{
+		Operation: saveOperation,
+		Metadata: map[string]string{operationType: "entity",
+			commandEntityName: "customers"},
+	}
+	t.Run("Invoke save", func(t *testing.T) {
+		// The following payload is a json payload that's why it has weird quoting
+		req.Metadata[commandEntityProps] = "[\"'salaboy'\",\"'salaboy'\",\"'chiswick'\", \"'london'\", \"'w4'\",\"'uk'\"]"
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+	})
+
+	req = &bindings.InvokeRequest{
+		Operation: findAllOperation,
+		Metadata: map[string]string{operationType: "entity",
+			commandEntityName: "customers"},
+	}
+	t.Run("Invoke findAll", func(t *testing.T) {
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := b.Close()
+		require.NoError(t, err, "expected no error closing output binding")
+	})
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -34,13 +35,41 @@ import (
 
 // List of operations.
 const (
-	execOperation  bindings.OperationKind = "exec"
-	queryOperation bindings.OperationKind = "query"
-	closeOperation bindings.OperationKind = "close"
+	execOperation       bindings.OperationKind = "exec"
+	queryOperation      bindings.OperationKind = "query"
+	closeOperation      bindings.OperationKind = "close"
+	registerOperation   bindings.OperationKind = "register"
+	saveOperation       bindings.OperationKind = "save"
+	findByIdOperation   bindings.OperationKind = "findById"
+	findAllOperation    bindings.OperationKind = "findByAll"
+	deleteByIdOperation bindings.OperationKind = "deleteById"
+	existsByIdOperation bindings.OperationKind = "existsById"
+	countOperation      bindings.OperationKind = "count"
 
+	sqlInsert     = "INSERT INTO %v (%v) VALUES (%v)"
+	sqlDelete     = "DELETE FROM %v"
+	sqlUpdateById = "UPDATE '%v' SET %v WHERE %v = %d"
+	sqlSelectById = "SELECT * FROM %v WHERE %v = %d"
+	sqlSelectAll  = "SELECT (%v) FROM %v"
+	sqlCountAll   = "SELECT COUNT(id) FROM %v"
+
+	operationType = "type"
+	//SQL operations
 	commandSQLKey  = "sql"
 	commandArgsKey = "params"
+
+	//Entity operations
+	commandEntityName  = "entity-name"
+	commandEntityId    = "entity-id"
+	commandEntityProps = "props"
 )
+
+var entities = map[string]Entity{}
+
+type Entity struct {
+	id         string
+	properties []string
+}
 
 // Postgres represents PostgreSQL output binding.
 type Postgres struct {
@@ -120,6 +149,10 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		execOperation,
 		queryOperation,
+		registerOperation,
+		saveOperation,
+		findByIdOperation,
+		deleteByIdOperation,
 		closeOperation,
 	}
 }
@@ -144,19 +177,39 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		return nil, errors.New("metadata required")
 	}
 
-	// Metadata property "sql" contains the query to execute
-	sql := req.Metadata[commandSQLKey]
-	if sql == "" {
-		return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
+	operationType := req.Metadata[operationType]
+	if operationType == "" {
+		operationType = "sql"
 	}
 
-	// Metadata property "params" contains JSON-encoded parameters, and it's optional
-	// If present, it must be unserializable into a []any object
+	var sql = ""
 	var args []any
-	if argsStr := req.Metadata[commandArgsKey]; argsStr != "" {
-		err = json.Unmarshal([]byte(argsStr), &args)
-		if err != nil {
-			return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandArgsKey, err)
+	var entityName string
+	var entityProps []string
+	var entityId = ""
+	if operationType == "sql" {
+		// Metadata property "sql" contains the query to execute
+		sql = req.Metadata[commandSQLKey]
+		if sql == "" {
+			return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
+		}
+
+		// Metadata property "params" contains JSON-encoded parameters, and it's optional
+		// If present, it must be unserializable into a []any object
+		if argsStr := req.Metadata[commandArgsKey]; argsStr != "" {
+			err = json.Unmarshal([]byte(argsStr), &args)
+			if err != nil {
+				return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandArgsKey, err)
+			}
+		}
+	} else if operationType == "entity" {
+		entityName = req.Metadata[commandEntityName]
+		entityId = req.Metadata[commandEntityId]
+		if argsStr := req.Metadata[commandEntityProps]; argsStr != "" {
+			err = json.Unmarshal([]byte(argsStr), &entityProps)
+			if err != nil {
+				return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandArgsKey, err)
+			}
 		}
 	}
 
@@ -172,6 +225,31 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	switch req.Operation { //nolint:exhaustive
 	case execOperation:
 		r, err := p.exec(ctx, sql, args...)
+		if err != nil {
+			return nil, err
+		}
+		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
+
+	case registerOperation:
+
+		entities[entityName] = Entity{properties: entityProps, id: entityId}
+
+	case findAllOperation:
+		columns := strings.Join(entities[entityName].properties, ",")
+		sql := fmt.Sprintf(sqlSelectAll, columns, entityName)
+		d, err := p.query(ctx, sql, args...)
+		if err != nil {
+			return nil, err
+		}
+		resp.Data = d
+
+	case saveOperation:
+		columns := strings.Join(entities[entityName].properties, ",")
+		columnsWithoutId := strings.Replace(columns, fmt.Sprintf("%v,", entities[entityName].id), "", -1)
+		values := strings.Join(entityProps, ",")
+		sql := fmt.Sprintf(sqlInsert, entityName, columnsWithoutId, values)
+
+		r, err := p.exec(ctx, sql, args...) //args are values
 		if err != nil {
 			return nil, err
 		}

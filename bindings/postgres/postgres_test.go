@@ -238,6 +238,7 @@ func TestPostgresEntityIntegration(t *testing.T) {
 	t.Run("Invoke findAll", func(t *testing.T) {
 		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
+		assert.Equal(t, string(res.Data), "[]")
 	})
 
 	req = &bindings.InvokeRequest{
@@ -246,7 +247,7 @@ func TestPostgresEntityIntegration(t *testing.T) {
 			commandEntityName: "customers"},
 	}
 	t.Run("Invoke save", func(t *testing.T) {
-		// The following payload is a json payload that's why it has weird quoting
+		// @TODO: we should marshal a customer struct to JSON, but it will not be an array
 		req.Metadata[commandEntityProps] = "[\"'salaboy'\",\"'salaboy'\",\"'chiswick'\", \"'london'\", \"'w4'\",\"'uk'\"]"
 		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
@@ -260,6 +261,21 @@ func TestPostgresEntityIntegration(t *testing.T) {
 	t.Run("Invoke findAll", func(t *testing.T) {
 		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
+		assert.NotNil(t, res.Data)
+		//@TODO: we can marshal this into a customer struct and validate props
+		assert.Contains(t, string(res.Data), "\"salaboy\",\"salaboy\",\"chiswick\",\"london\",\"w4\",\"uk\"")
+	})
+
+	req = &bindings.InvokeRequest{
+		Operation: deleteAllOperation,
+		Metadata: map[string]string{operationType: "entity",
+			commandEntityName: "customers"},
+	}
+	t.Run("Invoke delete all", func(t *testing.T) {
+
+		res, err := b.Invoke(ctx, req)
+		assertResponse(t, res, err)
+		assert.Equal(t, res.Metadata["rows-affected"], "1")
 	})
 
 	t.Run("Close", func(t *testing.T) {

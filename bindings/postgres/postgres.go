@@ -43,14 +43,15 @@ const (
 	findByIdOperation   bindings.OperationKind = "findById"
 	findAllOperation    bindings.OperationKind = "findByAll"
 	deleteByIdOperation bindings.OperationKind = "deleteById"
+	deleteAllOperation  bindings.OperationKind = "deleteAll"
 	existsByIdOperation bindings.OperationKind = "existsById"
 	countOperation      bindings.OperationKind = "count"
 
 	sqlInsert     = "INSERT INTO %v (%v) VALUES (%v)"
-	sqlDelete     = "DELETE FROM %v"
 	sqlUpdateById = "UPDATE '%v' SET %v WHERE %v = %d"
 	sqlSelectById = "SELECT * FROM %v WHERE %v = %d"
 	sqlSelectAll  = "SELECT (%v) FROM %v"
+	sqlDeleteAll  = "DELETE FROM %v"
 	sqlCountAll   = "SELECT COUNT(id) FROM %v"
 
 	operationType = "type"
@@ -242,6 +243,14 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 			return nil, err
 		}
 		resp.Data = d
+
+	case deleteAllOperation:
+		sql := fmt.Sprintf(sqlDeleteAll, entityName)
+		r, err := p.exec(ctx, sql, args...)
+		if err != nil {
+			return nil, err
+		}
+		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case saveOperation:
 		columns := strings.Join(entities[entityName].properties, ",")

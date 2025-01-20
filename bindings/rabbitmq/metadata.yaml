@@ -29,6 +29,12 @@ metadata:
     description: "RabbitMQ queue name."
     type: string
     example: '"myqueue"'
+  - name: queueType
+    required: false
+    description: "RabbitMQ queue type."
+    type: string
+    example: '"classic", "quorum"'
+    default: '"classic"'
   - name: durable
     type: bool
     description: |

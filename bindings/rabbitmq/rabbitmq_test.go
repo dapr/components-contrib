@@ -57,6 +57,7 @@ func TestParseMetadata(t *testing.T) {
 		expectedClientKey          string
 		expectedCACert             string
 		expectedSaslExternal       bool
+		expectedQueueType          string
 	}{
 		{
 			name:                     "Delete / Durable",
@@ -100,6 +101,13 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedExclusive:        true,
+		},
+		{
+			name:                     "Quorum Queue",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "queueType": "quorum"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedQueueType:        "quorum",
 		},
 		{
 			name:                     "With maxPriority",
@@ -158,6 +166,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedClientKey, r.metadata.ClientKey)
 			assert.Equal(t, tt.expectedCACert, r.metadata.CaCert)
 			assert.Equal(t, tt.expectedSaslExternal, r.metadata.ExternalSasl)
+			assert.Equal(t, tt.expectedQueueType, r.metadata.QueueType)
 			if tt.expectedReconnectWaitCheck != nil {
 				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
 			}

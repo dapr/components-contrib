@@ -92,6 +92,7 @@ type rabbitMQMetadata struct {
 	ClientCert       string         `mapstructure:"clientCert"`
 	ClientKey        string         `mapstructure:"clientKey"`
 	ExternalSasl     bool           `mapstructure:"externalSasl"`
+	QueueType        string         `mapstructure:"queueType"`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.

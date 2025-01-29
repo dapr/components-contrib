@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.23.0
+go 1.23.3
+
+toolchain go1.23.5
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -206,6 +208,7 @@ require (
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
+	github.com/cohesion-org/deepseek-go v1.1.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect

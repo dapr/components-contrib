@@ -2,8 +2,6 @@ module github.com/dapr/components-contrib/tests/certification
 
 go 1.23.5
 
-toolchain go1.23.1
-
 require (
 	cloud.google.com/go/pubsub v1.37.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3

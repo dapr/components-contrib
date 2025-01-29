@@ -1,8 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.23.3
-
-toolchain go1.23.5
+go 1.23.5
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -58,6 +56,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
+	github.com/cohesion-org/deepseek-go v1.1.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.13.1-0.20240909215017-3823663aa4bb
@@ -208,7 +207,6 @@ require (
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
-	github.com/cohesion-org/deepseek-go v1.1.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect

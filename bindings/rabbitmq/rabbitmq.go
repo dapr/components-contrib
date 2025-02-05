@@ -252,6 +252,21 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
+	messageId, ok := metadata.TryGetMessageId(req.Metadata)
+	if ok {
+		pub.MessageId = messageId
+	}
+
+	correlationId, ok := metadata.TryGetCorrelationId(req.Metadata)
+	if ok {
+		pub.CorrelationId = correlationId
+	}
+
+	aType, ok := metadata.TryGetType(req.Metadata)
+	if ok {
+		pub.Type = aType
+	}
+
 	err = ch.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to publish message: %w", err)

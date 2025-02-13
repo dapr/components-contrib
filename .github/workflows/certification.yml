@@ -292,7 +292,7 @@ jobs:
         fi
 
     - name: Upload Cert Coverage Report File
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: github.event_name == 'schedule'
       with:
         name: cert_code_cov
@@ -311,7 +311,7 @@ jobs:
         fi
 
     - name: Upload result files
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: result_files
@@ -349,7 +349,7 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         continue-on-error: true
         id: testresults
         with:

@@ -32,7 +32,7 @@ require (
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/riferrei/srclient v0.6.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.14.0
 	go.uber.org/multierr v1.11.0

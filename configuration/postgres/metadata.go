@@ -32,7 +32,7 @@ type metadata struct {
 	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	ConfigTable                 string        `mapstructure:"table"`
 	MaxIdleTimeoutOld           time.Duration `mapstructure:"connMaxIdleTime"` // Deprecated alias for "connectionMaxIdleTime"
-	aws.AWSIAM                  `mapstructure:",squash"`
+	aws.DeprecatedPostgresIAM   `mapstructure:",squash"`
 }
 
 func (m *metadata) InitWithMetadata(meta map[string]string) error {

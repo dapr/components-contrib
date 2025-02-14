@@ -332,7 +332,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: result_files
+        name: ${{ matrix.component }}_result_files
         path: tmp/result_files
         retention-days: 1
 
@@ -346,14 +346,14 @@ jobs:
       uses: actions/upload-artifact@v4
       if: github.event_name == 'schedule'
       with:
-        name: conf_code_cov
+        name: ${{ matrix.component }}_conf_code_cov
         path: tmp/conf_code_cov
         retention-days: 7
 
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
@@ -385,7 +385,7 @@ jobs:
         continue-on-error: true
         id: testresults
         with:
-          name: result_files
+          # name: not being specified which will result in all artifacts being downloaded
           path: tmp/result_files
 
       - name: Build message

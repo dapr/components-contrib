@@ -38,7 +38,6 @@ const (
 	certificateAuthType  = "certificate"
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
-	consumeRetryEnabled  = "consumeRetryEnabled"
 	consumeRetryInterval = "consumeRetryInterval"
 	authType             = "authType"
 	passwordAuthType     = "password"

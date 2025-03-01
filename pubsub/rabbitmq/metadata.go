@@ -52,6 +52,7 @@ type rabbitmqMetadata struct {
 	SaslExternal         bool                   `mapstructure:"saslExternal"`
 	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
 	DefaultQueueTTL      *time.Duration         `mapstructure:"ttlInSeconds"`
+	QueueType            string                 `mapstructure:"queueType"`
 }
 
 const (
@@ -82,6 +83,7 @@ const (
 	metadataClientNameKey           = "clientName"
 	metadataHeartBeatKey            = "heartBeat"
 	metadataQueueNameKey            = "queueName"
+	metadataQueueType               = "queueType"
 
 	defaultReconnectWaitSeconds = 3
 
@@ -102,6 +104,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		PublisherConfirm: false,
 		SaslExternal:     false,
 		HeartBeat:        defaultHeartbeat,
+		QueueType:        amqp.QueueTypeClassic,
 	}
 
 	// upgrade metadata
@@ -156,6 +159,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 
 	if result.SaslExternal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
 		return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
+	}
+
+	if result.QueueType != amqp.QueueTypeClassic && result.QueueType != amqp.QueueTypeQuorum {
+		return &result, fmt.Errorf("%s invalid RabbitMQ queue type %s", errorMessagePrefix, result.QueueType)
 	}
 
 	result.Concurrency, err = pubsub.Concurrency(pubSubMetadata.Properties)

@@ -447,3 +447,45 @@ func TestPublishWithHeaders(t *testing.T) {
 	// assert.Contains(t, msg.Header, "custom_header1")
 	// assert.Contains(t, msg.Header, "custom_header2")
 }
+func TestQuorumQueue(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
+
+	queueName := uuid.New().String()
+	durable := true
+	exclusive := false
+
+	metadata := bindings.Metadata{
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+				"queueType":        "quorum",
+			},
+		},
+	}
+
+	logger := logger.NewLogger("test")
+
+	r := NewRabbitMQ(logger).(*RabbitMQ)
+	err := r.Init(context.Background(), metadata)
+	require.NoError(t, err)
+
+	// Assert that the queue is created with quorum type
+	conn, err := amqp.Dial(rabbitmqHost)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+	defer ch.Close()
+
+	queue, err := ch.QueueDeclarePassive(queueName, durable, false, exclusive, false, amqp.Table{})
+	require.NoError(t, err)
+	assert.Equal(t, "quorum", queue.Arguments["x-queue-type"])
+
+	require.NoError(t, r.Close())
+}

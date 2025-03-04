@@ -259,6 +259,26 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		p.Priority = priority
 	}
 
+	contentType, ok := metadata.TryGetContentType(req.Metadata)
+	if ok {
+		p.ContentType = contentType
+	}
+
+	messageId, ok := metadata.TryGetMessageId(req.Metadata)
+	if ok {
+		p.MessageId = messageId
+	}
+
+	correlationId, ok := metadata.TryGetCorrelationId(req.Metadata)
+	if ok {
+		p.CorrelationId = correlationId
+	}
+
+	aType, ok := metadata.TryGetType(req.Metadata)
+	if ok {
+		p.Type = aType
+	}
+
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)

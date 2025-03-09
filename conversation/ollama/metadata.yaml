@@ -7,7 +7,7 @@ status: alpha
 title: "Ollama"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-openai/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/ollama/
 metadata:
   - name: model
     required: false

@@ -364,7 +364,7 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 			i, j := len(req.Metadata), 0
 			s.WriteString(" AND ")
 			for k, v := range req.Metadata {
-				temp := k + " = " + "$" + strconv.Itoa(paramPosition)
+				temp := "`" + k + "`" + " = " + "$" + strconv.Itoa(paramPosition)
 				s.WriteString(temp)
 				params = append(params, v)
 				paramPosition++

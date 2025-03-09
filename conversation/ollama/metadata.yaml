@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: ollama
+version: v1
+status: alpha
+title: "Ollama"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-openai/
+metadata:
+  - name: model
+    required: false
+    description: |
+      The Ollama LLM to use. Defaults to llama3.2:latest
+    type: string
+    example: 'llama3.2:latest'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

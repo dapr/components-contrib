@@ -353,7 +353,7 @@ jobs:
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

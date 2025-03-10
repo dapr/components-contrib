@@ -107,7 +107,7 @@ require (
 	github.com/redis/go-redis/v9 v9.6.3
 	github.com/riferrei/srclient v0.6.0
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
-	github.com/sijms/go-ora/v2 v2.7.18
+	github.com/sijms/go-ora/v2 v2.8.22
 	github.com/spf13/cast v1.6.0
 	github.com/spiffe/go-spiffe/v2 v2.1.7
 	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
@@ -224,7 +224,7 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
-	github.com/emirpasic/gods v1.12.0 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

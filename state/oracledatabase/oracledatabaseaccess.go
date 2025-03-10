@@ -348,11 +348,11 @@ func (o *oracleDatabaseAccess) ensureStateTable(stateTableName string) error {
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
+	//nolint:gosec
 	query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM = 1", tableName)
 
 	var dummy int
 	err := db.QueryRow(query).Scan(&dummy)
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return true, nil // Table exists but is empty

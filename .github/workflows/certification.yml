@@ -292,10 +292,10 @@ jobs:
         fi
 
     - name: Upload Cert Coverage Report File
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: github.event_name == 'schedule'
       with:
-        name: cert_code_cov
+        name: ${{ matrix.component }}_cert_code_cov
         path: ${{ env.TEST_PATH }}/tmp/cert_code_cov_files
         retention-days: 7
 
@@ -311,10 +311,10 @@ jobs:
         fi
 
     - name: Upload result files
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: result_files
+        name: ${{ matrix.component }}_result_files
         path: tmp/result_files
         retention-days: 1
 
@@ -349,11 +349,11 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         continue-on-error: true
         id: testresults
         with:
-          name: result_files
+          # name: not being specified which will result in all artifacts being downloaded
           path: tmp/result_files
 
       - name: Build message

@@ -127,7 +127,8 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(t.Context(), bindings.Metadata{Base: metadata.Base{
+			//nolint:usetesting
+			err := outputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
 			require.NoError(t, err, "expected no error setting up output binding")

@@ -136,7 +136,8 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(t.Context(), bindings.Metadata{Base: metadata.Base{
+			//nolint:usetesting
+			err := inputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
 			require.NoError(t, err, "expected no error setting up input binding")

@@ -164,7 +164,7 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 	var err error
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucket binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("gcp bucket binding error while merging metadata : %w", err)
 	}
 
 	var name string
@@ -186,14 +186,23 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 	}
 
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(ctx)
-	defer h.Close()
+	// Cannot do `defer h.Close()` as Close() will flush the bytes and need to have error handling.
 	if _, err = io.Copy(h, r); err != nil {
-		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
+		cerr := h.Close()
+		if cerr != nil {
+			return nil, fmt.Errorf("gcp bucket binding error while uploading and closing: %w", err)
+		}
+		return nil, fmt.Errorf("gcp bucket binding error while uploading: %w", err)
+	}
+
+	err = h.Close()
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while flushing: %w", err)
 	}
 
 	objectURL, err := url.Parse(fmt.Sprintf(objectURLBase, g.metadata.Bucket, name))
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucket binding error. error building url response: %w", err)
+		return nil, fmt.Errorf("gcp bucket binding error while building url response: %w", err)
 	}
 
 	resp := createResponse{
@@ -202,7 +211,7 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 
 	b, err := json.Marshal(resp)
 	if err != nil {
-		return nil, fmt.Errorf("gcp binding error. error marshalling create response: %w", err)
+		return nil, fmt.Errorf("gcp bucket binding error while marshalling the create response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -213,7 +222,7 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("gcp binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("gcp binding error while merging metadata : %w", err)
 	}
 
 	var key string
@@ -231,13 +240,13 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 			return nil, errors.New("object not found")
 		}
 
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error while downloading object: %w", err)
 	}
 	defer rc.Close()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: io.ReadAll: %v", err)
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error while reading: %v", err)
 	}
 
 	if metadata.EncodeBase64 {
@@ -299,7 +308,7 @@ func (g *GCPStorage) list(ctx context.Context, req *bindings.InvokeRequest) (*bi
 
 	jsonResponse, err := json.Marshal(result)
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error. list operation. cannot marshal blobs to json: %w", err)
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error while listing: cannot marshal blobs to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -348,7 +357,7 @@ func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("gcp binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("gcp binding error while merging metadata : %w", err)
 	}
 
 	var key string
@@ -371,7 +380,7 @@ func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		SignURL: signURL,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucket binding error: error marshalling sign response: %w", err)
+		return nil, fmt.Errorf("gcp bucket binding error while marshalling sign response: %w", err)
 	}
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
@@ -381,7 +390,7 @@ func (g *GCPStorage) sign(ctx context.Context, req *bindings.InvokeRequest) (*bi
 func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
 	d, err := time.ParseDuration(ttl)
 	if err != nil {
-		return "", fmt.Errorf("gcp bucket binding error: error parsing signTTL: %w", err)
+		return "", fmt.Errorf("gcp bucket binding error while parsing signTTL: %w", err)
 	}
 	opts := &storage.SignedURLOptions{
 		Scheme:  storage.SigningSchemeV4,

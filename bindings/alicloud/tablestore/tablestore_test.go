@@ -14,7 +14,6 @@ limitations under the License.
 package tablestore
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -52,7 +51,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	metadata := bindings.Metadata{Base: metadata.Base{
 		Properties: getTestProperties(),
 	}}
-	aliCloudTableStore.Init(context.Background(), metadata)
+	aliCloudTableStore.Init(t.Context(), metadata)
 
 	// test create
 	putData := map[string]interface{}{
@@ -71,7 +70,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: data,
 	}
 
-	putInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), putRowReq)
+	putInvokeResp, err := aliCloudTableStore.Invoke(t.Context(), putRowReq)
 
 	require.NoError(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -82,7 +81,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		"column2": int64(2),
 	})
 
-	putInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), putRowReq)
+	putInvokeResp, err = aliCloudTableStore.Invoke(t.Context(), putRowReq)
 
 	require.NoError(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -102,7 +101,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: getData,
 	}
 
-	getInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
+	getInvokeResp, err := aliCloudTableStore.Invoke(t.Context(), getInvokeReq)
 
 	require.NoError(t, err)
 	assert.NotNil(t, getInvokeResp)
@@ -136,7 +135,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: listData,
 	}
 
-	listResp, err := aliCloudTableStore.Invoke(context.Background(), listReq)
+	listResp, err := aliCloudTableStore.Invoke(t.Context(), listReq)
 	require.NoError(t, err)
 	assert.NotNil(t, listResp)
 
@@ -164,12 +163,12 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: deleteData,
 	}
 
-	deleteResp, err := aliCloudTableStore.Invoke(context.Background(), deleteReq)
+	deleteResp, err := aliCloudTableStore.Invoke(t.Context(), deleteReq)
 
 	require.NoError(t, err)
 	assert.NotNil(t, deleteResp)
 
-	getInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
+	getInvokeResp, err = aliCloudTableStore.Invoke(t.Context(), getInvokeReq)
 
 	require.NoError(t, err)
 	assert.Nil(t, getInvokeResp.Data)

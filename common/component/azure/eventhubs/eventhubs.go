@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"golang.org/x/exp/maps"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
@@ -447,7 +446,7 @@ func (aeh *AzureEventHubs) Close() (err error) {
 		}(producer)
 	}
 	wg.Wait()
-	maps.Clear(aeh.producers)
+	clear(aeh.producers)
 
 	// Remove the cached checkpoint store and metadata
 	aeh.checkpointStoreCache = nil

@@ -65,7 +65,7 @@ func (m *SqliteAuthMetadata) Validate() error {
 }
 
 // IsInMemoryDB returns true if the connection string is for an in-memory database.
-func (m SqliteAuthMetadata) IsInMemoryDB() bool {
+func (m *SqliteAuthMetadata) IsInMemoryDB() bool {
 	lc := strings.ToLower(m.ConnectionString)
 	return strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
 }

@@ -80,7 +80,7 @@ func (m *fakeDBaccess) Close() error {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createOracleDatabaseWithFake(t)
-	ods.Ping(context.Background())
+	ods.Ping(t.Context())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -88,7 +88,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
 	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
 			createSetRequest(),
 		},
@@ -110,7 +110,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
 			createDeleteRequest(),
 		},
@@ -141,7 +141,7 @@ func createOracleDatabaseWithFake(t *testing.T) (*OracleDatabase, *fakeDBaccess)
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createOracleDatabaseWithFake(t)
-	odb.Ping(context.Background())
+	odb.Ping(t.Context())
 	assert.True(t, fake.pingExecuted)
 }
 
@@ -159,7 +159,7 @@ func createOracleDatabase(t *testing.T) *OracleDatabase {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
-	err := odb.Init(context.Background(), *metadata)
+	err := odb.Init(t.Context(), *metadata)
 
 	require.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)

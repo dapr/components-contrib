@@ -144,7 +144,7 @@ type namedRunnable struct {
 func New(t *testing.T, name string) *Flow {
 	return &Flow{
 		t:           t,
-		ctx:         context.Background(),
+		ctx:         t.Context(),
 		name:        name,
 		variables:   make(map[string]interface{}, 25),
 		tasks:       make([]namedRunnable, 0, 25),

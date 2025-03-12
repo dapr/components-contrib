@@ -329,7 +329,7 @@ func TestCalcJobworkerBySendingMessageWithAutocompleteFalse(t *testing.T) {
 		})
 		assert.NotNil(t, data)
 
-		_, err = zeebe_test.ExecCommandOperation(context.Background(), client, bindings_zeebe_command.PublishMessageOperation, data, nil)
+		_, err = zeebe_test.ExecCommandOperation(t.Context(), client, bindings_zeebe_command.PublishMessageOperation, data, nil)
 		require.NoError(t, err)
 
 		select {

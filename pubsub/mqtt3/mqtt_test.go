@@ -641,7 +641,7 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			name: "publish request does not contain retain metadata",
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
-				ctx:    context.Background(),
+				ctx:    t.Context(),
 				metadata: &mqttMetadata{
 					Retain: true,
 				},
@@ -667,7 +667,7 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			name: "publish request contains retain metadata",
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
-				ctx:    context.Background(),
+				ctx:    t.Context(),
 				metadata: &mqttMetadata{
 					Retain: true,
 				},
@@ -700,7 +700,7 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 				metadata: tt.fields.metadata,
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			tt.wantErr(t, m.Publish(ctx, tt.args.req), fmt.Sprintf("Publish(%v, %v)", ctx, tt.args.req))
 			close(msgCh)
 

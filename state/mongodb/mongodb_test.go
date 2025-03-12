@@ -14,7 +14,6 @@ limitations under the License.
 package mongodb
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"testing"
@@ -314,7 +313,7 @@ func TestGoroutineLeak(t *testing.T) {
 
 		s := NewMongoDB(logger.NewLogger("test"))
 		// ignore errors on init
-		_ = s.Init(context.Background(), m)
+		_ = s.Init(t.Context(), m)
 
 		// close the connection
 		closer, ok := s.(io.Closer)

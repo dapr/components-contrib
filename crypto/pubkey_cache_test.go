@@ -53,7 +53,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			}),
 			ctx: kitctx.NewPool(),
 		}
-		result, err := cache.GetKey(context.Background(), "key")
+		result, err := cache.GetKey(t.Context(), "key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 	})
@@ -76,11 +76,11 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			ctx: kitctx.NewPool(),
 		}
 
-		result, err := cache.GetKey(context.Background(), "key")
+		result, err := cache.GetKey(t.Context(), "key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 
-		result, err = cache.GetKey(context.Background(), "another-key")
+		result, err = cache.GetKey(t.Context(), "another-key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey2, result)
 	})
@@ -95,7 +95,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			}
 		})
 
-		result, err := cache.GetKey(context.Background(), "key")
+		result, err := cache.GetKey(t.Context(), "key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 		assert.Equal(t, 1, called, "should be called once")
@@ -116,10 +116,10 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			}
 		})
 
-		result, err := cache.GetKey(context.Background(), "key")
+		result, err := cache.GetKey(t.Context(), "key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
-		result, err = cache.GetKey(context.Background(), "another-key")
+		result, err = cache.GetKey(t.Context(), "another-key")
 		require.NoError(t, err)
 		assert.Equal(t, testKey2, result)
 
@@ -137,7 +137,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			}
 		})
 
-		result, err := cache.GetKey(context.Background(), "key")
+		result, err := cache.GetKey(t.Context(), "key")
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, 1, called, "should be called once")
@@ -159,7 +159,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		for range 10 {
 			go func() {
 				defer wg.Done()
-				result, err := cache.GetKey(context.Background(), "key")
+				result, err := cache.GetKey(t.Context(), "key")
 				require.NoError(t, err)
 				assert.Equal(t, testKey, result)
 			}()
@@ -171,7 +171,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 
 	t.Run("calling get key and context is cancelled should return context error", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancelCause(context.Background())
+		ctx, cancel := context.WithCancelCause(t.Context())
 		getKeyReturned := make(chan struct{})
 
 		cache := NewPubKeyCache(func(ctx context.Context, i string) func(resolve func(jwk.Key), reject func(error)) {
@@ -197,8 +197,8 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 
 	t.Run("only callers with cancelled contexts should return context error", func(t *testing.T) {
 		t.Parallel()
-		ctx1, cancel1 := context.WithCancelCause(context.Background())
-		ctx2 := context.Background()
+		ctx1, cancel1 := context.WithCancelCause(t.Context())
+		ctx2 := t.Context()
 
 		getKeyReturned := make(chan struct{})
 
@@ -244,8 +244,8 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 
 	t.Run("if all callers give cancelled contexts, the underlying context should also be cancelled", func(t *testing.T) {
 		t.Parallel()
-		ctx1, cancel1 := context.WithCancelCause(context.Background())
-		ctx2, cancel2 := context.WithCancelCause(context.Background())
+		ctx1, cancel1 := context.WithCancelCause(t.Context())
+		ctx2, cancel2 := context.WithCancelCause(t.Context())
 
 		getKeyReturned := make(chan struct{})
 
@@ -312,7 +312,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			}, time.Second*5, time.Millisecond)
 		}
 
-		ctx, cancel := context.WithCancelCause(context.Background())
+		ctx, cancel := context.WithCancelCause(t.Context())
 
 		getKeyReturned := make(chan struct{})
 
@@ -347,14 +347,14 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			assertSize(1)
-			result, err := cache.GetKey(context.Background(), "key")
+			result, err := cache.GetKey(t.Context(), "key")
 			require.NoError(t, err)
 			assert.Equal(t, testKey, result)
 		}()
 		go func() {
 			defer wg.Done()
 			assertSize(2)
-			result, err := cache.GetKey(context.Background(), "key")
+			result, err := cache.GetKey(t.Context(), "key")
 			require.NoError(t, err)
 			assert.Equal(t, testKey, result)
 		}()

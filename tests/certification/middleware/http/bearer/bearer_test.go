@@ -390,7 +390,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 			initMiddleware := func(md map[string]string) error {
 				_, err := bearerMw.
 					NewBearerMiddleware(log).
-					GetHandler(context.Background(), middleware.Metadata{Base: metadata.Base{
+					GetHandler(t.Context(), middleware.Metadata{Base: metadata.Base{
 						Name:       "test",
 						Properties: md,
 					}})
@@ -529,7 +529,7 @@ func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
 		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
-			return bearerMw.NewBearerMiddleware(log).GetHandler(context.Background(), metadata)
+			return bearerMw.NewBearerMiddleware(log).GetHandler(t.Context(), metadata)
 		}
 	}, "bearer")
 

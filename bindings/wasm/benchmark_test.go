@@ -15,7 +15,6 @@ package wasm
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -34,7 +33,7 @@ func BenchmarkExample(b *testing.B) {
 	output := NewWasmOutput(l)
 	defer output.(io.Closer).Close()
 
-	ctx := context.Background()
+	ctx := b.Context()
 	err := output.Init(ctx, bindings.Metadata{Base: md})
 	if err != nil {
 		b.Fatal(err)

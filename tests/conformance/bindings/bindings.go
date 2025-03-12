@@ -127,7 +127,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
+			err := outputBinding.Init(t.Context(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
 			require.NoError(t, err, "expected no error setting up output binding")
@@ -135,7 +135,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
+			err := inputBinding.Init(t.Context(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
 			require.NoError(t, err, "expected no error setting up input binding")
@@ -145,7 +145,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 	t.Run("ping", func(t *testing.T) {
 		if config.HasOperation("read") {
-			errInp := bindings.PingInpBinding(context.Background(), inputBinding)
+			errInp := bindings.PingInpBinding(t.Context(), inputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
 			// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
@@ -156,7 +156,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			}
 		}
 		if config.HasOperation("operations") {
-			errOut := bindings.PingOutBinding(context.Background(), outputBinding)
+			errOut := bindings.PingOutBinding(t.Context(), outputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
 			// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
@@ -192,7 +192,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 	inputBindingCall := atomic.Int32{}
 	readChan := make(chan int, 1)
-	readCtx, readCancel := context.WithCancel(context.Background())
+	readCtx, readCancel := context.WithCancel(t.Context())
 	defer readCancel()
 	if config.HasOperation("read") {
 		t.Run("read", func(t *testing.T) {
@@ -222,7 +222,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Create test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
-			_, err := outputBinding.Invoke(context.Background(), &req)
+			_, err := outputBinding.Invoke(t.Context(), &req)
 			require.NoError(t, err, "expected no error invoking output binding")
 			createPerformed = true
 			testLogger.Info("Create test done.")
@@ -235,7 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Get test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
-			resp, err := outputBinding.Invoke(context.Background(), &req)
+			resp, err := outputBinding.Invoke(t.Context(), &req)
 			require.NoError(t, err, "expected no error invoking output binding")
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
@@ -250,7 +250,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("List test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.ListOperation
-			_, err := outputBinding.Invoke(context.Background(), &req)
+			_, err := outputBinding.Invoke(t.Context(), &req)
 			require.NoError(t, err, "expected no error invoking output binding")
 			testLogger.Info("List test done.")
 		})
@@ -278,12 +278,12 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Delete test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
-			_, err := outputBinding.Invoke(context.Background(), &req)
+			_, err := outputBinding.Invoke(t.Context(), &req)
 			require.NoError(t, err, "expected no error invoking output binding")
 
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation
-				resp, err := outputBinding.Invoke(context.Background(), &req)
+				resp, err := outputBinding.Invoke(t.Context(), &req)
 				require.NoError(t, err, "expected no error invoking output binding")
 				assert.NotNil(t, resp)
 				assert.Nil(t, resp.Data)

@@ -295,7 +295,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -321,7 +321,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -347,7 +347,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -377,7 +377,7 @@ func TestSqlServer(t *testing.T) {
 					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -435,7 +435,7 @@ func TestSqlServer(t *testing.T) {
 					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 

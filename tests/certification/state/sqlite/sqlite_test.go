@@ -212,7 +212,7 @@ func TestSQLite(t *testing.T) {
 				delete(md.Properties, keyCleanupInterval)
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -227,7 +227,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "10s"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -243,7 +243,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "0"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -272,7 +272,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1s"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -312,7 +312,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1h"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -386,7 +386,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyMetadataTableName] = "clean_metadata"
 
 				// Init and perform the migrations
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -414,7 +414,7 @@ func TestSQLite(t *testing.T) {
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 				// Init and perform the migrations
-				err = storeObj.Init(context.Background(), md)
+				err = storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -427,7 +427,7 @@ func TestSQLite(t *testing.T) {
 			t.Run("migrate from implied level 1", func(t *testing.T) {
 				// Before we added the metadata table, the "implied" level 1 had only the state table
 				// Create that table to simulate the old state and validate the migration
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 				defer cancel()
 				_, err := dbClient.ExecContext(
 					ctx,
@@ -447,7 +447,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyMetadataTableName] = "pre_metadata"
 
 				// Init and perform the migrations
-				err = storeObj.Init(context.Background(), md)
+				err = storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -476,7 +476,7 @@ func TestSQLite(t *testing.T) {
 
 						// Init and perform the migrations
 						storeObj := state_sqlite.NewSQLiteStateStore(l).(*state_sqlite.SQLiteStore)
-						err := storeObj.Init(context.Background(), md)
+						err := storeObj.Init(t.Context(), md)
 						if err != nil {
 							errs <- fmt.Errorf("%d failed to init: %w", i, err)
 							return
@@ -553,7 +553,7 @@ func TestSQLite(t *testing.T) {
 			var storeObjs []*state_sqlite.SQLiteStore
 			newStoreObj := func() error {
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				if err != nil {
 					return err
 				}
@@ -570,7 +570,7 @@ func TestSQLite(t *testing.T) {
 				const parallel = 10
 				const runs = 30
 
-				ctx := context.Background()
+				ctx := t.Context()
 
 				wg := sync.WaitGroup{}
 				wg.Add(parallel)
@@ -611,7 +611,7 @@ func TestSQLite(t *testing.T) {
 				const parallel = 10
 				const runs = 30
 
-				ctx := context.Background()
+				ctx := t.Context()
 
 				// We have as many counters as we have number of parallel workers. The final value will be one of them.
 				// This is because we have a race condition between the time we call `save := counter.Add(1)` and when we set the value, causing tests to be flaky since the value stored in the database may not be the one stored in counter.
@@ -793,7 +793,7 @@ func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, key
 }
 
 func tableExists(dbClient *sql.DB, tableName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 
 	var exists string
@@ -813,7 +813,7 @@ func tableExists(dbClient *sql.DB, tableName string) error {
 }
 
 func getMigrationLevel(dbClient *sql.DB, metadataTable string) (level string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 
 	err = dbClient.

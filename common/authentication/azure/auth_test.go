@@ -333,7 +333,7 @@ func TestFallbackToCLI(t *testing.T) {
 	runTest := false
 	cred, credErr := azidentity.NewAzureCLICredential(nil)
 	if credErr == nil {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancelFunc := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancelFunc()
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{})
 		if err == nil && token.Token != "" {
@@ -345,7 +345,7 @@ func TestFallbackToCLI(t *testing.T) {
 		spt, err := settings.GetTokenCredential()
 		require.NoError(t, err)
 
-		token, _ := spt.GetToken(context.Background(), policy.TokenRequestOptions{})
+		token, _ := spt.GetToken(t.Context(), policy.TokenRequestOptions{})
 		assert.NotNil(t, token)
 		assert.NotEmpty(t, token.Token)
 	} else {

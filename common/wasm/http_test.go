@@ -69,7 +69,7 @@ func TestWasmHTTPFetch(t *testing.T) {
 					ts := httptest.NewServer(tc.handler)
 					defer ts.Close()
 					c := newHTTPCLient(http.DefaultTransport)
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 					defer cancel()
 					parse, err := url.Parse(ts.URL)
 					require.NoError(t, err)

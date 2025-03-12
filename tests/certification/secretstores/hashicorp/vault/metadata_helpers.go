@@ -14,7 +14,6 @@ limitations under the License.
 package vault_test
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/dapr/components-contrib/secretstores"
@@ -72,7 +71,7 @@ func getComponentCapabilities(ctx flow.Context, currentGrpcPort int, targetCompo
 	}
 	defer daprClient.Close()
 
-	clientCtx := context.Background()
+	clientCtx := t.Context()
 
 	resp, err := daprClient.GrpcClient().GetMetadata(clientCtx, new(runtime.GetMetadataRequest))
 	assert.NoError(ctx.T, err)

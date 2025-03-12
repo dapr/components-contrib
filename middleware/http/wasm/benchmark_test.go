@@ -14,7 +14,6 @@ limitations under the License.
 package wasm
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +57,7 @@ func benchmarkMiddleware(b *testing.B, url string) {
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
 
-	handlerFn, err := NewMiddleware(l).GetHandler(context.Background(), dapr.Metadata{Base: md})
+	handlerFn, err := NewMiddleware(l).GetHandler(b.Context(), dapr.Metadata{Base: md})
 	if err != nil {
 		b.Fatal(err)
 	}

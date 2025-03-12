@@ -14,7 +14,6 @@ limitations under the License.
 package opa
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -332,7 +331,7 @@ func TestOpaPolicy(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			opaMiddleware := NewMiddleware(log)
 
-			handler, err := opaMiddleware.GetHandler(context.Background(), test.meta)
+			handler, err := opaMiddleware.GetHandler(t.Context(), test.meta)
 			if test.shouldHandlerError {
 				require.Error(t, err)
 				return

@@ -86,7 +86,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(context.Background(), metadata)
+	err := r.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -99,7 +99,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	require.NoError(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -110,7 +110,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	require.NoError(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -150,14 +150,14 @@ func TestQueuesReconnect(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(context.Background(), metadata)
+	err := r.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
-	err = r.Read(context.Background(), handler)
+	err = r.Read(t.Context(), handler)
 	require.NoError(t, err)
 
 	const tooLateMsgContent = "success_msg1"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	require.NoError(t, err)
 
 	// perform a close connection with the rabbitmq server
@@ -165,7 +165,7 @@ func TestQueuesReconnect(t *testing.T) {
 	time.Sleep(3 * defaultReconnectWait)
 
 	const testMsgContent = "reconnect_msg"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	require.NoError(t, err)
 
 	time.Sleep(defaultReconnectWait)
@@ -199,7 +199,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	rabbitMQBinding1 := NewRabbitMQ(logger).(*RabbitMQ)
-	err := rabbitMQBinding1.Init(context.Background(), metadata)
+	err := rabbitMQBinding1.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -219,7 +219,7 @@ func TestPublishingWithTTL(t *testing.T) {
 		},
 	}
 
-	_, err = rabbitMQBinding1.Invoke(context.Background(), &writeRequest)
+	_, err = rabbitMQBinding1.Invoke(t.Context(), &writeRequest)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -230,7 +230,7 @@ func TestPublishingWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	rabbitMQBinding2 := NewRabbitMQ(logger).(*RabbitMQ)
-	err = rabbitMQBinding2.Init(context.Background(), metadata)
+	err = rabbitMQBinding2.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	const testMsgContent = "test_msg"
@@ -240,7 +240,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			contribMetadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
-	_, err = rabbitMQBinding2.Invoke(context.Background(), &writeRequest)
+	_, err = rabbitMQBinding2.Invoke(t.Context(), &writeRequest)
 	require.NoError(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -280,7 +280,7 @@ func TestExclusiveQueue(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(context.Background(), metadata)
+	err := r.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -334,7 +334,7 @@ func TestPublishWithPriority(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(context.Background(), metadata)
+	err := r.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -347,7 +347,7 @@ func TestPublishWithPriority(t *testing.T) {
 	defer ch.Close()
 
 	const middlePriorityMsgContent = "middle"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "5",
 		},
@@ -356,7 +356,7 @@ func TestPublishWithPriority(t *testing.T) {
 	require.NoError(t, err)
 
 	const lowPriorityMsgContent = "low"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "1",
 		},
@@ -365,7 +365,7 @@ func TestPublishWithPriority(t *testing.T) {
 	require.NoError(t, err)
 
 	const highPriorityMsgContent = "high"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "10",
 		},
@@ -416,7 +416,7 @@ func TestPublishWithHeaders(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(context.Background(), metadata)
+	err := r.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -429,7 +429,7 @@ func TestPublishWithHeaders(t *testing.T) {
 	defer ch.Close()
 
 	const msgContent = "some content"
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			"custom_header1": "some value",
 			"custom_header2": "some other value",

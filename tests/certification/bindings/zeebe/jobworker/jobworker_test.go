@@ -63,7 +63,7 @@ func deployCalcProcess(
 ) error {
 	_, err := zeebe_test.DeployResource(
 		client,
-		context.Background(),
+		t.Context(),
 		zeebe_test.CalcProcessFile,
 		1,
 		zeebe_test.IDModifier(id))
@@ -82,7 +82,7 @@ func deployTestProcess(
 ) error {
 	_, err := zeebe_test.DeployResource(
 		client,
-		context.Background(),
+		t.Context(),
 		zeebe_test.TestProcessFile,
 		1,
 		zeebe_test.IDModifier(id),
@@ -329,7 +329,7 @@ func TestCalcJobworkerBySendingMessageWithAutocompleteFalse(t *testing.T) {
 		})
 		assert.NotNil(t, data)
 
-		_, err = zeebe_test.ExecCommandOperation(context.Background(), client, bindings_zeebe_command.PublishMessageOperation, data, nil)
+		_, err = zeebe_test.ExecCommandOperation(t.Context(), client, bindings_zeebe_command.PublishMessageOperation, data, nil)
 		require.NoError(t, err)
 
 		select {

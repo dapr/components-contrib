@@ -165,7 +165,7 @@ func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
 		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
-			return opaMw.NewMiddleware(log).GetHandler(context.Background(), metadata)
+			return opaMw.NewMiddleware(log).GetHandler(t.Context(), metadata)
 		}
 	}, "opa")
 

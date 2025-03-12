@@ -271,7 +271,7 @@ func TestMySQL(t *testing.T) {
 			component := registeredComponents[idx]
 
 			// Should fail
-			err = component.Ping(context.Background())
+			err = component.Ping(t.Context())
 			require.Error(t, err)
 			assert.Equal(t, "driver: bad connection", err.Error())
 
@@ -295,7 +295,7 @@ func TestMySQL(t *testing.T) {
 
 			start := time.Now()
 			// Should fail
-			err = component.Ping(context.Background())
+			err = component.Ping(t.Context())
 			require.Error(t, err)
 			assert.Truef(t, errors.Is(err, context.DeadlineExceeded), "expected context.DeadlineExceeded but got %v", err)
 			assert.GreaterOrEqual(t, time.Since(start), timeout)
@@ -310,7 +310,7 @@ func TestMySQL(t *testing.T) {
 			component := registeredComponents[idx]
 
 			// Check connection is active
-			err = component.Ping(context.Background())
+			err = component.Ping(t.Context())
 			require.NoError(t, err)
 
 			// Close the component
@@ -318,7 +318,7 @@ func TestMySQL(t *testing.T) {
 			require.NoError(t, err)
 
 			// Ensure the connection is closed
-			err = component.Ping(context.Background())
+			err = component.Ping(t.Context())
 			require.Error(t, err)
 			assert.Truef(t, errors.Is(err, sql.ErrConnDone), "expected sql.ErrConnDone but got %v", err)
 
@@ -352,14 +352,14 @@ func TestMySQL(t *testing.T) {
 
 			// Init the component
 			component := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
-			component.Init(context.Background(), state.Metadata{
+			component.Init(t.Context(), state.Metadata{
 				Base: metadata.Base{
 					Properties: properties,
 				},
 			})
 
 			// Check connection is active
-			err = component.Ping(context.Background())
+			err = component.Ping(t.Context())
 			require.NoError(t, err)
 
 			var exists int

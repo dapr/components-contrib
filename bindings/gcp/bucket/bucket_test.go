@@ -14,7 +14,6 @@ limitations under the License.
 package bucket
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -240,7 +239,7 @@ func TestGetOption(t *testing.T) {
 	gs.metadata = &gcpMetadata{}
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := gs.get(context.TODO(), &r)
+		_, err := gs.get(t.Context(), &r)
 		require.Error(t, err)
 	})
 }
@@ -251,7 +250,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := gs.delete(context.TODO(), &r)
+		_, err := gs.delete(t.Context(), &r)
 		require.Error(t, err)
 	})
 }

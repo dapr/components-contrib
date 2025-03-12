@@ -242,7 +242,7 @@ func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
 		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
-			return ratelimitMw.NewRateLimitMiddleware(log).GetHandler(context.Background(), metadata)
+			return ratelimitMw.NewRateLimitMiddleware(log).GetHandler(t.Context(), metadata)
 		}
 	}, "ratelimit")
 

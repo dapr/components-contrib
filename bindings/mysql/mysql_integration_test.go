@@ -62,7 +62,11 @@ func TestMysqlIntegration(t *testing.T) {
 	err := b.Init(t.Context(), m)
 	require.NoError(t, err)
 
-	defer b.Close()
+	defer func() {
+		if err = b.Close(); err != nil {
+			t.Errorf("failed to close database: %s", err)
+		}
+	}()
 
 	t.Run("Invoke create table", func(t *testing.T) {
 		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{

@@ -680,7 +680,7 @@ func TestPostgreSQL(t *testing.T) {
 }
 
 func tableExists(dbClient *pgx.Conn, schema string, table string) error {
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	var scanTable, scanSchema string
@@ -699,7 +699,7 @@ func tableExists(dbClient *pgx.Conn, schema string, table string) error {
 }
 
 func getMigrationLevel(dbClient *pgx.Conn, metadataTable string) (level string, err error) {
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	err = dbClient.

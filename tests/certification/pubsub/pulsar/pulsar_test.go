@@ -1255,7 +1255,7 @@ func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
 }
 
 func (p *pulsarSuite) oauth2ClientCredentials() (*oauth2.ClientCredentials, error) {
-	cc, err := oauth2.NewClientCredentials(t.Context(), oauth2.ClientCredentialsOptions{
+	cc, err := oauth2.NewClientCredentials(context.Background(), oauth2.ClientCredentialsOptions{
 		Logger:       logger.NewLogger("dapr.test.readiness"),
 		TokenURL:     "https://localhost:8085/issuer1/token",
 		ClientID:     "foo",

@@ -529,7 +529,7 @@ func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
 		return func(metadata middleware.Metadata) (runtimeMiddleware.HTTP, error) {
-			return bearerMw.NewBearerMiddleware(log).GetHandler(t.Context(), metadata)
+			return bearerMw.NewBearerMiddleware(log).GetHandler(context.Background(), metadata)
 		}
 	}, "bearer")
 

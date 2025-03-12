@@ -63,7 +63,7 @@ func deployCalcProcess(
 ) error {
 	_, err := zeebe_test.DeployResource(
 		client,
-		t.Context(),
+		context.Background(),
 		zeebe_test.CalcProcessFile,
 		1,
 		zeebe_test.IDModifier(id))
@@ -82,7 +82,7 @@ func deployTestProcess(
 ) error {
 	_, err := zeebe_test.DeployResource(
 		client,
-		t.Context(),
+		context.Background(),
 		zeebe_test.TestProcessFile,
 		1,
 		zeebe_test.IDModifier(id),

@@ -793,7 +793,7 @@ func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, key
 }
 
 func tableExists(dbClient *sql.DB, tableName string) error {
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	var exists string
@@ -813,7 +813,7 @@ func tableExists(dbClient *sql.DB, tableName string) error {
 }
 
 func getMigrationLevel(dbClient *sql.DB, metadataTable string) (level string, err error) {
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	err = dbClient.

@@ -14,7 +14,6 @@ limitations under the License.
 package redis
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -207,7 +206,7 @@ func TestTransactionalUpsert(t *testing.T) {
 		logger:         logger.NewLogger("test"),
 	}
 
-	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ss.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
 			state.SetRequest{
 				Key:   "weapon",
@@ -231,7 +230,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
+	res, err := c.DoRead(t.Context(), "HGETALL", "weapon")
 	require.NoError(t, err)
 
 	vals := res.([]interface{})
@@ -240,15 +239,15 @@ func TestTransactionalUpsert(t *testing.T) {
 	assert.Equal(t, ptr.Of("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
-	res, err = c.DoRead(context.Background(), "TTL", "weapon")
+	res, err = c.DoRead(t.Context(), "TTL", "weapon")
 	require.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 
-	res, err = c.DoRead(context.Background(), "TTL", "weapon2")
+	res, err = c.DoRead(t.Context(), "TTL", "weapon2")
 	require.NoError(t, err)
 	assert.Equal(t, int64(123), res)
 
-	res, err = c.DoRead(context.Background(), "TTL", "weapon3")
+	res, err = c.DoRead(t.Context(), "TTL", "weapon3")
 	require.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 }
@@ -265,13 +264,13 @@ func TestTransactionalDelete(t *testing.T) {
 	}
 
 	// Insert a record first.
-	ss.Set(context.Background(), &state.SetRequest{
+	ss.Set(t.Context(), &state.SetRequest{
 		Key:   "weapon",
 		Value: "deathstar",
 	})
 
 	etag := "1"
-	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ss.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
 			state.DeleteRequest{
 				Key:  "weapon",
@@ -281,7 +280,7 @@ func TestTransactionalDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
+	res, err := c.DoRead(t.Context(), "HGETALL", "weapon")
 	require.NoError(t, err)
 
 	vals := res.([]interface{})
@@ -298,12 +297,12 @@ func TestPing(t *testing.T) {
 		clientSettings: &rediscomponent.Settings{},
 	}
 
-	err := ss.Ping(context.Background())
+	err := ss.Ping(t.Context())
 	require.NoError(t, err)
 
 	s.Close()
 
-	err = ss.Ping(context.Background())
+	err = ss.Ping(t.Context())
 	require.Error(t, err)
 }
 
@@ -321,31 +320,31 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 	}
 
 	t.Run("TTL: Only global specified", func(t *testing.T) {
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 		})
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
+		ttl, _ := ss.client.TTLResult(t.Context(), "weapon100")
 
 		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
 	})
 
 	t.Run("TTL: Global and Request specified", func(t *testing.T) {
 		requestTTL := 200
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(requestTTL),
 			},
 		})
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
+		ttl, _ := ss.client.TTLResult(t.Context(), "weapon100")
 
 		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
 	})
 
 	t.Run("TTL: Global and Request specified", func(t *testing.T) {
-		err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := ss.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
 					Key:   "weapon",
@@ -369,7 +368,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
+		res, err := c.DoRead(t.Context(), "HGETALL", "weapon")
 		require.NoError(t, err)
 
 		vals := res.([]interface{})
@@ -378,15 +377,15 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		assert.Equal(t, ptr.Of("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
-		res, err = c.DoRead(context.Background(), "TTL", "weapon")
+		res, err = c.DoRead(t.Context(), "TTL", "weapon")
 		require.NoError(t, err)
 		assert.Equal(t, int64(globalTTLInSeconds), res)
 
-		res, err = c.DoRead(context.Background(), "TTL", "weapon2")
+		res, err = c.DoRead(t.Context(), "TTL", "weapon2")
 		require.NoError(t, err)
 		assert.Equal(t, int64(123), res)
 
-		res, err = c.DoRead(context.Background(), "TTL", "weapon3")
+		res, err = c.DoRead(t.Context(), "TTL", "weapon3")
 		require.NoError(t, err)
 		assert.Equal(t, int64(-1), res)
 	})
@@ -405,7 +404,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 
 	t.Run("TTL specified", func(t *testing.T) {
 		ttlInSeconds := 100
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 			Metadata: map[string]string{
@@ -413,51 +412,51 @@ func TestSetRequestWithTTL(t *testing.T) {
 			},
 		})
 
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
+		ttl, _ := ss.client.TTLResult(t.Context(), "weapon100")
 
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 	})
 
 	t.Run("TTL not specified", func(t *testing.T) {
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon200",
 			Value: "deathstar200",
 		})
 
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon200")
+		ttl, _ := ss.client.TTLResult(t.Context(), "weapon200")
 
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
 
 	t.Run("TTL Changed for Existing Key", func(t *testing.T) {
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar300",
 		})
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon300")
+		ttl, _ := ss.client.TTLResult(t.Context(), "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 
 		// make the key no longer persistent
 		ttlInSeconds := 123
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar300",
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		ttl, _ = ss.client.TTLResult(context.Background(), "weapon300")
+		ttl, _ = ss.client.TTLResult(t.Context(), "weapon300")
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 
 		// make the key persistent again
-		ss.Set(context.Background(), &state.SetRequest{
+		ss.Set(t.Context(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar301",
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(-1),
 			},
 		})
-		ttl, _ = ss.client.TTLResult(context.Background(), "weapon300")
+		ttl, _ = ss.client.TTLResult(t.Context(), "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
 }
@@ -474,12 +473,12 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	}
 
 	// Insert a record first.
-	ss.Set(context.Background(), &state.SetRequest{
+	ss.Set(t.Context(), &state.SetRequest{
 		Key:   "weapon100",
 		Value: "deathstar100",
 	})
 
-	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ss.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
 			state.DeleteRequest{
 				Key: "weapon100",
@@ -488,7 +487,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	res, err := c.DoRead(context.Background(), "HGETALL", "weapon100")
+	res, err := c.DoRead(t.Context(), "HGETALL", "weapon100")
 	require.NoError(t, err)
 
 	vals := res.([]interface{})

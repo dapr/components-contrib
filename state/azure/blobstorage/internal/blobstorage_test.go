@@ -14,7 +14,6 @@ limitations under the License.
 package internal
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -35,7 +34,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"invalidValue": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing or empty accountName field from metadata"))
 	})

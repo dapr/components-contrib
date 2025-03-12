@@ -14,7 +14,6 @@ limitations under the License.
 package mysql
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -60,13 +59,13 @@ func TestMysqlIntegration(t *testing.T) {
 	b := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
 
-	err := b.Init(context.Background(), m)
+	err := b.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	defer b.Close()
 
 	t.Run("Invoke create table", func(t *testing.T) {
-		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: execOperation,
 			Metadata: map[string]string{
 				commandSQLKey: `CREATE TABLE IF NOT EXISTS foo (
@@ -81,7 +80,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
-		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: execOperation,
 			Metadata: map[string]string{
 				commandSQLKey: "DELETE FROM foo",
@@ -92,7 +91,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke insert", func(t *testing.T) {
 		for i := range 10 {
-			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
 					commandSQLKey: fmt.Sprintf(
@@ -107,7 +106,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke update", func(t *testing.T) {
 		date := time.Now().Add(time.Hour)
 		for i := range 10 {
-			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
 					commandSQLKey: fmt.Sprintf(
@@ -123,7 +122,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke update with parameters", func(t *testing.T) {
 		date := time.Now().Add(2 * time.Hour)
 		for i := range 10 {
-			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
 					commandSQLKey:    "UPDATE foo SET ts = ? WHERE id = ?",
@@ -136,7 +135,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke select", func(t *testing.T) {
-		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: queryOperation,
 			Metadata: map[string]string{
 				commandSQLKey: "SELECT * FROM foo WHERE id < 3",
@@ -167,7 +166,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke select with parameters", func(t *testing.T) {
-		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: queryOperation,
 			Metadata: map[string]string{
 				commandSQLKey:    "SELECT * FROM foo WHERE id = ?",
@@ -190,7 +189,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke drop", func(t *testing.T) {
-		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: execOperation,
 			Metadata: map[string]string{
 				commandSQLKey: "DROP TABLE foo",
@@ -200,7 +199,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke close", func(t *testing.T) {
-		_, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 			Operation: closeOperation,
 		})
 		require.NoError(t, err)

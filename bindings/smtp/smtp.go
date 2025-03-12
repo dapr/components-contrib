@@ -176,7 +176,7 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 }
 
 // Helper to merge config and request metadata.
-func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (Metadata, error) {
+func (metadata *Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (*Metadata, error) {
 	merged := metadata
 
 	if emailFrom := req.Metadata["emailFrom"]; emailFrom != "" {
@@ -226,7 +226,7 @@ func (metadata *Metadata) parsePriority(req string) error {
 	return nil
 }
 
-func (metadata Metadata) parseAddresses(addresses string) []string {
+func (metadata *Metadata) parseAddresses(addresses string) []string {
 	return strings.Split(addresses, mailSeparator)
 }
 

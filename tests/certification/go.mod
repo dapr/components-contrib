@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.23.6
+go 1.24.1
 
 require (
 	cloud.google.com/go/pubsub v1.43.0

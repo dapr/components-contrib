@@ -63,7 +63,7 @@ func TestParseMetadata(t *testing.T) {
 		t.Run("Metadata is correctly marshalled to JSON", func(t *testing.T) {
 			json, err := json.Marshal(meta)
 			require.NoError(t, err)
-			assert.Equal(t,
+			assert.JSONEq(t,
 				"{\"type\":\"my_type\",\"project_id\":\"my_project_id\",\"private_key_id\":\"my_private_key_id\","+
 					"\"private_key\":\"my_private_key\",\"client_email\":\"my_email@mail.dapr\",\"client_id\":\"my_client_id\","+
 					"\"auth_uri\":\"my_auth_uri\",\"token_uri\":\"my_token_uri\",\"auth_provider_x509_cert_url\":\"my_auth_provider_x509\","+

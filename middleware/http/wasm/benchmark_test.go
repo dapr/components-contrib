@@ -125,7 +125,7 @@ func benchmark(
 	b.Run(name, func(b *testing.B) {
 		// We don't report allocations because memory allocations for TinyGo are
 		// in wasm which isn't visible to the Go benchmark.
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			h.ServeHTTP(fakeResponseWriter{}, newRequest())
 		}
 	})

@@ -661,7 +661,7 @@ func TestSet(t *testing.T) {
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
 				assert.Equal(t, "someKey", result.Key)
-				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
+				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
@@ -710,7 +710,7 @@ func TestSet(t *testing.T) {
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
 				assert.Equal(t, "someKey", result.Key)
-				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
+				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
 

@@ -45,7 +45,7 @@ func BenchmarkExample(b *testing.B) {
 	expected := []byte("main")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		if resp, err := output.Invoke(ctx, request); err != nil {
 			b.Fatal(err)
 		} else if !bytes.Equal(expected, resp.Data) {

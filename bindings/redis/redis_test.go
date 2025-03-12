@@ -56,7 +56,7 @@ func TestInvokeCreate(t *testing.T) {
 
 	getRes, err := c.DoRead(t.Context(), "GET", testKey)
 	require.NoError(t, err)
-	assert.Equal(t, testData, getRes)
+	assert.JSONEq(t, testData, getRes.(string))
 }
 
 func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
@@ -76,7 +76,7 @@ func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testData, string(bindingRes.Data))
+	assert.JSONEq(t, testData, string(bindingRes.Data))
 
 	bindingResGet, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
@@ -85,7 +85,7 @@ func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Equal(t, testData, string(bindingResGet.Data))
+	assert.JSONEq(t, testData, string(bindingResGet.Data))
 }
 
 func TestInvokeGetWithDeleteFlag(t *testing.T) {
@@ -105,7 +105,7 @@ func TestInvokeGetWithDeleteFlag(t *testing.T) {
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testData, string(bindingRes.Data))
+	assert.JSONEq(t, testData, string(bindingRes.Data))
 
 	bindingResGet, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
@@ -131,7 +131,7 @@ func TestInvokeDelete(t *testing.T) {
 
 	getRes, err := c.DoRead(t.Context(), "GET", testKey)
 	require.NoError(t, err)
-	assert.Equal(t, testData, getRes)
+	assert.JSONEq(t, testData, getRes.(string))
 
 	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
@@ -169,7 +169,7 @@ func TestCreateExpire(t *testing.T) {
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err2)
-	assert.Equal(t, res.Data, []byte(testData))
+	assert.JSONEq(t, testData, string(res.Data))
 
 	// wait for ttl to expire
 	s.FastForward(2 * time.Second)
@@ -206,7 +206,7 @@ func TestIncrement(t *testing.T) {
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, nil, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, res.Data, []byte("1"))
 
 	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{

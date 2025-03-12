@@ -419,7 +419,7 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 			var obj testObj
 			err := json.Unmarshal(test.jsonBytes, &obj)
 			if test.expectError {
-				require.NoError(t, err)
+				require.Error(t, err)
 
 				return
 			}

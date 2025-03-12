@@ -193,3 +193,12 @@ metadata:
     url:
       title: "Pulsar Subscription Types"
       url: "https://pulsar.apache.org/docs/3.0.x/concepts-messaging/#subscription-types"
+  - name: subscribeInitialPosition
+    type: string
+    description: |
+      Pulsar initial position at which the cursor will be set when subscribe: "latest", "earliest".
+    default: '"latest"'
+    example: '"earliest"'
+    url: 
+      title: "Pulsar SubscriptionInitialPosition"
+      url: "https://pkg.go.dev/github.com/apache/pulsar-client-go/pulsar#SubscriptionInitialPosition"

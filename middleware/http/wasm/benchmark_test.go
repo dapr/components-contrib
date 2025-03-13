@@ -14,7 +14,6 @@ limitations under the License.
 package wasm
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +57,7 @@ func benchmarkMiddleware(b *testing.B, url string) {
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
 
-	handlerFn, err := NewMiddleware(l).GetHandler(context.Background(), dapr.Metadata{Base: md})
+	handlerFn, err := NewMiddleware(l).GetHandler(b.Context(), dapr.Metadata{Base: md})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func benchmark(
 	b.Run(name, func(b *testing.B) {
 		// We don't report allocations because memory allocations for TinyGo are
 		// in wasm which isn't visible to the Go benchmark.
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			h.ServeHTTP(fakeResponseWriter{}, newRequest())
 		}
 	})

@@ -14,7 +14,6 @@ limitations under the License.
 package jobworker
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -60,7 +59,7 @@ func TestInit(t *testing.T) {
 		var mcf mockClientFactory
 
 		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger, closeCh: make(chan struct{})}
-		err := jobWorker.Init(context.Background(), metadata)
+		err := jobWorker.Init(t.Context(), metadata)
 
 		require.ErrorIs(t, err, ErrMissingJobType)
 		require.NoError(t, jobWorker.Close())
@@ -74,7 +73,7 @@ func TestInit(t *testing.T) {
 			metadata: metadata,
 		}
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
-		err := jobWorker.Init(context.Background(), metadata)
+		err := jobWorker.Init(t.Context(), metadata)
 
 		require.NoError(t, err)
 
@@ -95,7 +94,7 @@ func TestInit(t *testing.T) {
 		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
-		err := jobWorker.Init(context.Background(), metadata)
+		err := jobWorker.Init(t.Context(), metadata)
 		require.Error(t, err, errParsing.Error())
 		require.NoError(t, jobWorker.Close())
 	})
@@ -109,7 +108,7 @@ func TestInit(t *testing.T) {
 		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
-		err := jobWorker.Init(context.Background(), metadata)
+		err := jobWorker.Init(t.Context(), metadata)
 
 		require.NoError(t, err)
 

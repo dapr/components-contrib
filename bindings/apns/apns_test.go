@@ -15,7 +15,6 @@ package apns
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -52,7 +51,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, developmentPrefix, binding.urlPrefix)
 	})
@@ -67,7 +66,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
@@ -81,7 +80,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
@@ -94,7 +93,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.Error(t, err, "the key-id parameter is required")
 	})
 
@@ -107,7 +106,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, testKeyID, binding.authorizationBuilder.keyID)
 	})
@@ -120,7 +119,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.Error(t, err, "the team-id parameter is required")
 	})
 
@@ -133,7 +132,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, testTeamID, binding.authorizationBuilder.teamID)
 	})
@@ -146,7 +145,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.Error(t, err, "the private-key parameter is required")
 	})
 
@@ -159,7 +158,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
+		err := binding.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.NotNil(t, binding.authorizationBuilder.privateKey)
 	})
@@ -192,7 +191,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("operation must be create", func(t *testing.T) {
 		testBinding := makeTestBinding(t, testLogger)
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
-		_, err := testBinding.Invoke(context.TODO(), req)
+		_, err := testBinding.Invoke(t.Context(), req)
 		require.Error(t, err, "operation not supported: delete")
 	})
 
@@ -202,7 +201,7 @@ func TestInvoke(t *testing.T) {
 			Operation: bindings.CreateOperation,
 			Metadata:  map[string]string{},
 		}
-		_, err := testBinding.Invoke(context.TODO(), req)
+		_, err := testBinding.Invoke(t.Context(), req)
 		require.Error(t, err, "the device-token parameter is required")
 	})
 
@@ -213,7 +212,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the push type header is sent", func(t *testing.T) {
@@ -224,7 +223,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the message ID is sent", func(t *testing.T) {
@@ -235,7 +234,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the expiration is sent", func(t *testing.T) {
@@ -246,7 +245,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the priority is sent", func(t *testing.T) {
@@ -257,7 +256,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the topic is sent", func(t *testing.T) {
@@ -268,7 +267,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the collapse ID is sent", func(t *testing.T) {
@@ -279,7 +278,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(context.TODO(), successRequest)
+		_, _ = testBinding.Invoke(t.Context(), successRequest)
 	})
 
 	t.Run("the message ID is returned", func(t *testing.T) {
@@ -287,7 +286,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			return successResponse()
 		})
-		response, err := testBinding.Invoke(context.TODO(), successRequest)
+		response, err := testBinding.Invoke(t.Context(), successRequest)
 		require.NoError(t, err)
 		assert.NotNil(t, response.Data)
 		var body notificationResponse
@@ -307,7 +306,7 @@ func TestInvoke(t *testing.T) {
 				Body:       io.NopCloser(strings.NewReader(body)),
 			}
 		})
-		_, err := testBinding.Invoke(context.TODO(), successRequest)
+		_, err := testBinding.Invoke(t.Context(), successRequest)
 		require.Error(t, err, "BadDeviceToken")
 	})
 }
@@ -322,7 +321,7 @@ func makeTestBinding(t *testing.T, log logger.Logger) *APNS {
 			privateKeyKey:  testPrivateKey,
 		},
 	}}
-	err := testBinding.Init(context.Background(), bindingMetadata)
+	err := testBinding.Init(t.Context(), bindingMetadata)
 	require.NoError(t, err)
 
 	return testBinding

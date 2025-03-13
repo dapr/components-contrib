@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"context"
 	"testing"
 
 	"github.com/IBM/sarama"
@@ -47,7 +46,7 @@ func createMessageAsserter(t *testing.T, expectedKey sarama.Encoder, expectedHea
 }
 
 func TestPublish(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("produce message without partition key", func(t *testing.T) {
 		// arrange
@@ -98,7 +97,7 @@ func TestPublish(t *testing.T) {
 }
 
 func TestBulkPublish(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	metadata := map[string]string{
 		"common": "common",
 	}

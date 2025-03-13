@@ -85,6 +85,6 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithM
 	return nil
 }
 
-func (m pgMetadata) TableName(table pgTable) string {
+func (m *pgMetadata) TableName(table pgTable) string {
 	return m.TablePrefix + string(table)
 }

@@ -108,6 +108,6 @@ func TestGraphQlRequestHeadersAndVariables(t *testing.T) {
 			"variable:episode":     "JEDI",
 		},
 	}
-	_, err = gql.Invoke(context.Background(), req)
+	_, err = gql.Invoke(t.Context(), req)
 	require.NoError(t, err)
 }

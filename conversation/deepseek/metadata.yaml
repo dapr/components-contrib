@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: deepseek
+version: v1
+status: alpha
+title: "Deepseek"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-deepseek/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key for Deepseek.
+        example:  "**********"
+        default: ""
+metadata:
+  - name: maxTokens
+    required: false
+    description: |
+      Max tokens for each request
+    type: int
+    example: 2048

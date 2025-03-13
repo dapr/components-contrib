@@ -2,8 +2,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_sqlite "github.com/dapr/components-contrib/state/sqlite"
@@ -16,7 +14,7 @@ func main() {
 
 	log.Info("Initializing the component to perform migrations")
 	store := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-	err := store.Init(context.Background(), state.Metadata{
+	err := store.Init(t.Context(), state.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
 				"connectionString": "file:readonly.db",

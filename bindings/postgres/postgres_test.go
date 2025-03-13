@@ -14,7 +14,6 @@ limitations under the License.
 package postgres
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -70,7 +69,7 @@ func TestPostgresIntegration(t *testing.T) {
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test")).(*Postgres)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"connectionString": url}}}
-	if err := b.Init(context.Background(), m); err != nil {
+	if err := b.Init(t.Context(), m); err != nil {
 		t.Fatal(err)
 	}
 
@@ -79,7 +78,7 @@ func TestPostgresIntegration(t *testing.T) {
 		Operation: execOperation,
 		Metadata:  map[string]string{commandSQLKey: testTableDDL},
 	}
-	ctx := context.TODO()
+	ctx := t.Context()
 	t.Run("Invoke create table", func(t *testing.T) {
 		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
@@ -165,7 +164,7 @@ func testInitConfiguration(t *testing.T, connectionString string) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := p.Init(context.Background(), metadata)
+			err := p.Init(t.Context(), metadata)
 			if tt.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

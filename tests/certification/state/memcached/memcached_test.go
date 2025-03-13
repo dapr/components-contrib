@@ -22,6 +22,9 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/go-sdk/client"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	state_memcached "github.com/dapr/components-contrib/state/memcached"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -31,8 +34,6 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -168,7 +169,7 @@ func TestMemcached(t *testing.T) {
 		key := certificationTestPrefix + "_expiresInOneSecondKey"
 		value := "This key will self-destroy in 1 second"
 
-		ttlExpirationTime := 1 * time.Second
+		ttlExpirationTime := 3 * time.Second
 		ttlInSeconds := int(ttlExpirationTime.Seconds())
 		mapOptionsExpiringKey := map[string]string{
 			"ttlInSeconds": strconv.Itoa(ttlInSeconds),

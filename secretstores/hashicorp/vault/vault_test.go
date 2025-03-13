@@ -14,7 +14,6 @@ limitations under the License.
 package vault
 
 import (
-	"context"
 	"encoding/base64"
 	"os"
 	"strconv"
@@ -124,7 +123,7 @@ func TestVaultEnginePath(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
+		err := v.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
 		require.NoError(t, err)
 		assert.Equal(t, defaultVaultEnginePath, v.vaultEnginePath)
 	})
@@ -134,7 +133,7 @@ func TestVaultEnginePath(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
+		err := v.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
 		require.NoError(t, err)
 		assert.Equal(t, "kv", v.vaultEnginePath)
 	})
@@ -158,7 +157,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(context.Background(), m); err != nil {
+		if err := target.Init(t.Context(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -181,7 +180,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(context.Background(), m); err != nil {
+		if err := target.Init(t.Context(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -222,7 +221,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 
 		assert.Equal(t, "", target.vaultToken)
 		assert.Equal(t, "", target.vaultTokenMountPath)
@@ -244,7 +243,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(context.Background(), m); err != nil {
+		if err := target.Init(t.Context(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -266,7 +265,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(context.Background(), m); err != nil {
+		if err := target.Init(t.Context(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -289,7 +288,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 
 		assert.Equal(t, expectedTok, target.vaultToken)
 		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
@@ -316,7 +315,7 @@ func TestDefaultVaultAddress(t *testing.T) {
 			logger: nil,
 		}
 
-		if err := target.Init(context.Background(), m); err != nil {
+		if err := target.Init(t.Context(), m); err != nil {
 			t.Fatal(err)
 		}
 
@@ -341,7 +340,7 @@ func TestVaultValueType(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 		require.NoError(t, err)
 		assert.True(t, target.vaultValueType.isMapType())
 	})
@@ -362,7 +361,7 @@ func TestVaultValueType(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 		require.NoError(t, err)
 		assert.False(t, target.vaultValueType.isMapType())
 	})
@@ -382,7 +381,7 @@ func TestVaultValueType(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 		require.NoError(t, err)
 		assert.True(t, target.vaultValueType.isMapType())
 	})
@@ -403,7 +402,7 @@ func TestVaultValueType(t *testing.T) {
 			logger: nil,
 		}
 
-		err := target.Init(context.Background(), m)
+		err := target.Init(t.Context(), m)
 		require.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
 	})
 }
@@ -435,7 +434,7 @@ func TestGetFeatures(t *testing.T) {
 		// the call x509.SystemCertPool() because system root pool is not
 		// available on Windows so ignore the error for when the tests are run
 		// on the Windows platform during CI
-		_ = target.Init(context.Background(), m)
+		_ = target.Init(t.Context(), m)
 
 		return target
 	}

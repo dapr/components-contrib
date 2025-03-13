@@ -110,7 +110,7 @@ func Test_getConfigurationWithProvidedKeys(t *testing.T) {
 			Keys:     []string{"testKey"},
 			Metadata: map[string]string{},
 		}
-		res, err := s.Get(context.Background(), &req)
+		res, err := s.Get(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Len(t, res.Items, 1)
 	})
@@ -129,13 +129,13 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Keys:     []string{"testKey"},
 			Metadata: metadata,
 		}
-		subID, err := s.Subscribe(context.Background(), &req, updateEventHandler)
+		subID, err := s.Subscribe(t.Context(), &req, updateEventHandler)
 		assert.NotEmpty(t, subID)
 		require.NoError(t, err)
 		unReq := &configuration.UnsubscribeRequest{
 			ID: subID,
 		}
-		s.Unsubscribe(context.Background(), unReq)
+		s.Unsubscribe(t.Context(), unReq)
 	})
 
 	t.Run("call subscribe w/o sentinel key", func(t *testing.T) {
@@ -143,7 +143,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 			Keys:     []string{"testKey"},
 			Metadata: make(map[string]string),
 		}
-		_, err := s.Subscribe(context.Background(), &req, updateEventHandler)
+		_, err := s.Subscribe(t.Context(), &req, updateEventHandler)
 		require.Error(t, err)
 	})
 }
@@ -152,7 +152,7 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
 
 	s.client = &MockConfigurationStore{}
-	cancelContext, cancel := context.WithCancel(context.Background())
+	cancelContext, cancel := context.WithCancel(t.Context())
 	s.cancelMap.Store("id1", cancel)
 
 	t.Run("call unsubscribe with incorrect subId", func(t *testing.T) {
@@ -186,7 +186,7 @@ func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
 			Keys:     []string{},
 			Metadata: map[string]string{},
 		}
-		res, err := s.Get(context.Background(), &req)
+		res, err := s.Get(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Len(t, res.Items, 2)
 	})
@@ -207,7 +207,7 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
@@ -232,7 +232,7 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)

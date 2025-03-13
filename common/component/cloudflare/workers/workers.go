@@ -96,7 +96,7 @@ func (w *Base) SetMetadata(metadata *BaseMetadata) {
 }
 
 // Client returns the HTTP client.
-func (w Base) Client() *http.Client {
+func (w *Base) Client() *http.Client {
 	return w.client
 }
 

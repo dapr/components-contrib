@@ -66,12 +66,12 @@ func TestSqlServer(t *testing.T) {
 	// This environment variable is used to revert to the old behavior.
 	// Ref: https://github.com/microsoft/mssql-docker/issues/895
 	oldDebugValue := os.Getenv("GODEBUG")
-	err := os.Setenv("GODEBUG", "x509negativeserial=1")
+	err := t.Setenv("GODEBUG", "x509negativeserial=1")
 	if err != nil {
 		t.Fatalf("Failed to set GODEBUG environment variable: %v", err)
 	}
 	defer func() {
-		os.Setenv("GODEBUG", oldDebugValue)
+		t.Setenv("GODEBUG", oldDebugValue)
 	}()
 
 	ports, err := dapr_testing.GetFreePorts(2)
@@ -295,7 +295,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -321,7 +321,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -347,7 +347,7 @@ func TestSqlServer(t *testing.T) {
 					}
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
 
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -377,7 +377,7 @@ func TestSqlServer(t *testing.T) {
 					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 
@@ -435,7 +435,7 @@ func TestSqlServer(t *testing.T) {
 					}
 
 					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					require.NoError(t, err, "failed to init")
 					defer storeObj.Close()
 

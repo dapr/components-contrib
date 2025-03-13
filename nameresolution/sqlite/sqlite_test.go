@@ -14,7 +14,6 @@ limitations under the License.
 package sqlite
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -28,7 +27,7 @@ func TestSqliteNameResolver(t *testing.T) {
 	nr := NewResolver(logger.NewLogger("test")).(*resolver)
 
 	t.Run("Init", func(t *testing.T) {
-		err := nr.Init(context.Background(), nameresolution.Metadata{
+		err := nr.Init(t.Context(), nameresolution.Metadata{
 			Instance: nameresolution.Instance{
 				Address:          "127.0.0.1",
 				DaprInternalPort: 1234,
@@ -91,7 +90,7 @@ func TestSqliteNameResolver(t *testing.T) {
 		for name, tc := range tt {
 			t.Run(name, func(t *testing.T) {
 				if len(tc.expectAny) == 0 {
-					res, err := nr.ResolveID(context.Background(), nameresolution.ResolveRequest{ID: tc.appID})
+					res, err := nr.ResolveID(t.Context(), nameresolution.ResolveRequest{ID: tc.appID})
 
 					if tc.expectEmpty {
 						require.Error(t, err)
@@ -103,7 +102,7 @@ func TestSqliteNameResolver(t *testing.T) {
 					}
 				} else {
 					for i := range 20 {
-						res, err := nr.ResolveID(context.Background(), nameresolution.ResolveRequest{ID: tc.appID})
+						res, err := nr.ResolveID(t.Context(), nameresolution.ResolveRequest{ID: tc.appID})
 						require.NoErrorf(t, err, "Error on iteration %d", i)
 						require.Contains(t, tc.expectAny, res)
 					}
@@ -126,7 +125,7 @@ func TestSqliteNameResolver(t *testing.T) {
 			time.Sleep(time.Second)
 
 			// Renew
-			err = nr.doRenewRegistration(context.Background(), addr)
+			err = nr.doRenewRegistration(t.Context(), addr)
 			require.NoError(t, err)
 
 			// Get updated last_update
@@ -140,7 +139,7 @@ func TestSqliteNameResolver(t *testing.T) {
 
 		t.Run("Lost registration", func(t *testing.T) {
 			// Renew
-			err := nr.doRenewRegistration(context.Background(), "fail")
+			err := nr.doRenewRegistration(t.Context(), "fail")
 			require.Error(t, err)
 			require.ErrorIs(t, err, errRegistrationLost)
 		})

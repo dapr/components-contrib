@@ -17,9 +17,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.15.0-rc.1.0.20241216170750-aca5116d95c9
-	github.com/dapr/dapr v1.15.0-rc.18
-	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
+	github.com/dapr/components-contrib v1.15.0-rc.1.0.2
+	github.com/dapr/go-sdk v1.8.0
 	github.com/dapr/kit v0.13.1-0.20241127165251-30e2c24840b4
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.12
@@ -260,6 +259,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.0.0 // indirect
+	github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/redis/go-redis/v9 v9.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

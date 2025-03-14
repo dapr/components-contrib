@@ -105,14 +105,14 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := ps.Init(context.Background(), pubsub.Metadata{Base: metadata.Base{
+		err := ps.Init(t.Context(), pubsub.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
 		require.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := pubsub.Ping(context.Background(), ps)
+		err := pubsub.Ping(t.Context(), ps)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
@@ -134,7 +134,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	errorCount := 0
 	dataPrefix := "message-" + runID + "-"
 	var outOfOrder bool
-	ctx := context.Background()
+	ctx := t.Context()
 	awaitingMessagesBulk := make(map[string]struct{}, 20)
 	processedMessagesBulk := make(map[int]struct{}, 20)
 	processedCBulk := make(chan string, config.MessageCount*2)
@@ -388,7 +388,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 			t.Logf("Calling Bulk Publish on component %s", config.ComponentName)
 			// Making use of entryMap defined above here to iterate through entryIds of messages published.
-			res, err := bP.BulkPublish(context.Background(), &req)
+			res, err := bP.BulkPublish(t.Context(), &req)
 			faileEntries := convertBulkPublishResponseToStringSlice(res)
 			if err == nil {
 				for k := range entryMap {
@@ -454,8 +454,8 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	t.Run("multiple handlers", func(t *testing.T) {
 		received1Ch := make(chan string)
 		received2Ch := make(chan string)
-		subscribe1Ctx, subscribe1Cancel := context.WithCancel(context.Background())
-		subscribe2Ctx, subscribe2Cancel := context.WithCancel(context.Background())
+		subscribe1Ctx, subscribe1Cancel := context.WithCancel(t.Context())
+		subscribe2Ctx, subscribe2Cancel := context.WithCancel(t.Context())
 		defer func() {
 			subscribe1Cancel()
 			subscribe2Cancel()

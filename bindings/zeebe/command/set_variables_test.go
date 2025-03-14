@@ -91,7 +91,7 @@ func TestSetVariables(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: SetVariablesOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingElementInstanceKey)
 	})
 
@@ -104,7 +104,7 @@ func TestSetVariables(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingVariables)
 	})
 
@@ -123,7 +123,7 @@ func TestSetVariables(t *testing.T) {
 		var mc mockSetVariableClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
@@ -147,7 +147,7 @@ func TestSetVariables(t *testing.T) {
 		var mc mockSetVariableClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)

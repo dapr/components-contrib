@@ -54,7 +54,7 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		return err
 	}
 
-	if _, err = r.Client.PingResult(context.TODO()); err != nil {
+	if _, err = r.Client.PingResult(context.Background()); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 

@@ -14,7 +14,6 @@ limitations under the License.
 package command
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -58,7 +57,7 @@ func TestInit(t *testing.T) {
 		}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(context.Background(), metadata)
+		err := cmd.Init(t.Context(), metadata)
 		require.ErrorIs(t, err, errParsing)
 	})
 
@@ -67,7 +66,7 @@ func TestInit(t *testing.T) {
 		mcf := &mockClientFactory{}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(context.Background(), metadata)
+		err := cmd.Init(t.Context(), metadata)
 
 		require.NoError(t, err)
 
@@ -85,7 +84,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("operation must be supported", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.EqualError(t, err, ErrUnsupportedOperation(bindings.DeleteOperation).Error())
 	})
 }

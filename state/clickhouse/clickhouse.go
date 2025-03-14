@@ -146,7 +146,6 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		}
 	}
 
-	etag := uuid.New().String()
 	value, err := c.marshal(req.Value)
 	if err != nil {
 		return err
@@ -157,6 +156,32 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		t := time.Now().Add(time.Duration(ttlInSeconds) * time.Second)
 		expireTime = &t
 	}
+
+	// Handle ETag for optimistic concurrency
+	if req.ETag != nil && *req.ETag != "" {
+		// First, get the current etag
+		currentETag, err := c.getETag(ctx, req.Key)
+		if err != nil {
+			return err
+		}
+
+		// If an etag exists and it doesn't match the provided etag, return error
+		if currentETag != "" && currentETag != *req.ETag {
+			return state.NewETagError(state.ETagMismatch, nil)
+		}
+	} else if req.Options.Concurrency == state.FirstWrite {
+		// Check if the key already exists for first-write
+		exists, err := c.keyExists(ctx, req.Key)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return state.NewETagError(state.ETagMismatch, nil)
+		}
+	}
+
+	// Generate a new etag for this write
+	etag := uuid.New().String()
 
 	// ClickHouse uses ALTER TABLE ... UPDATE instead of ON DUPLICATE KEY
 	// First try to insert
@@ -186,6 +211,20 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	if req.Key == "" {
 		return errors.New("key is empty")
+	}
+
+	// Handle ETag for optimistic concurrency
+	if req.ETag != nil && *req.ETag != "" {
+		// First, get the current etag
+		currentETag, err := c.getETag(ctx, req.Key)
+		if err != nil {
+			return err
+		}
+
+		// If an etag exists and it doesn't match the provided etag, return error
+		if currentETag != "" && currentETag != *req.ETag {
+			return state.NewETagError(state.ETagMismatch, nil)
+		}
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s.%s WHERE key = ?", c.config.Database, c.config.Table)
@@ -308,4 +347,45 @@ func (c *StateStore) Close() error {
 		return c.db.Close()
 	}
 	return nil
+}
+
+// getETag retrieves the ETag for a specific key
+func (c *StateStore) getETag(ctx context.Context, key string) (string, error) {
+	query := fmt.Sprintf(`
+		SELECT etag 
+		FROM %s.%s FINAL  -- Add FINAL to get the latest version
+		WHERE key = ? AND (expire IS NULL OR expire > now64())
+	`, c.config.Database, c.config.Table)
+	
+	var etag string
+	err := c.db.QueryRowContext(ctx, query, key).Scan(&etag)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("error getting etag: %v", err)
+	}
+	
+	return etag, nil
+}
+
+// keyExists checks if a key exists in the state store
+func (c *StateStore) keyExists(ctx context.Context, key string) (bool, error) {
+	query := fmt.Sprintf(`
+		SELECT 1 
+		FROM %s.%s FINAL  -- Add FINAL to get the latest version
+		WHERE key = ? AND (expire IS NULL OR expire > now64())
+		LIMIT 1
+	`, c.config.Database, c.config.Table)
+	
+	var exists int
+	err := c.db.QueryRowContext(ctx, query, key).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("error checking key existence: %v", err)
+	}
+	
+	return true, nil
 }

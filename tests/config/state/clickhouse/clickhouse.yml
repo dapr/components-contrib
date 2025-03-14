@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.clickhouse
+  version: v1
+  metadata:
+  - name: clickhouseURL
+    value: "tcp://localhost:9000"
+  - name: databaseName
+    value: "dapr_test"
+  - name: tableName
+    value: "state_test"
+  - name: username
+    value: "default"
+  - name: password
+    value: ""

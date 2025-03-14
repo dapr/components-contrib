@@ -103,7 +103,7 @@ type KafkaMetadata struct {
 	consumerFetchDefault int32 `mapstructure:"-"`
 
 	// configs for kafka producer
-	Compression         string                  `mapstructure:"Compression"`
+	Compression         string                  `mapstructure:"compression"`
 	internalCompression sarama.CompressionCodec `mapstructure:"-"`
 
 	// schema registry

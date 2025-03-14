@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
@@ -40,6 +41,8 @@ type clickhouseMetadata struct {
 	ClickHouseURL string
 	Database      string
 	Table         string
+	Username      string
+	Password      string
 }
 
 func NewClickHouseStateStore(logger logger.Logger) state.Store {
@@ -55,7 +58,28 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 	c.config = config
 
-	db, err := sql.Open("clickhouse", c.config.ClickHouseURL)
+	// Construct DSN with authentication if provided
+	dsn := c.config.ClickHouseURL
+	// If username and password are provided and not already in the URL, add them to the DSN
+	if c.config.Username != "" && !strings.Contains(dsn, "username=") {
+		if !strings.Contains(dsn, "?") {
+			dsn += "?"
+		} else {
+			dsn += "&"
+		}
+		dsn += "username=" + c.config.Username
+	}
+
+	if c.config.Password != "" && !strings.Contains(dsn, "password=") {
+		if !strings.Contains(dsn, "?") {
+			dsn += "?"
+		} else if !strings.HasSuffix(dsn, "&") {
+			dsn += "&"
+		}
+		dsn += "password=" + c.config.Password
+	}
+
+	db, err := sql.Open("clickhouse", dsn)
 	if err != nil {
 		return fmt.Errorf("error opening connection: %v", err)
 	}
@@ -293,6 +317,15 @@ func parseAndValidateMetadata(metadata state.Metadata) (clickhouseMetadata, erro
 		config.Table = val
 	} else {
 		return config, errors.New("ClickHouse table name is missing")
+	}
+
+	// Get username and password if provided
+	if val, ok := metadata.Properties["username"]; ok {
+		config.Username = val
+	}
+
+	if val, ok := metadata.Properties["password"]; ok {
+		config.Password = val
 	}
 
 	return config, nil

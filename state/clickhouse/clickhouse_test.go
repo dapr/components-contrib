@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	testURL      = "tcp://localhost:9000"
+	testURL      = "clickhouse://localhost:9000"
 	testDatabase = "dapr_test"
 	testTable    = "state_test"
 	testUsername = "default"

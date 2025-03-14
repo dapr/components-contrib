@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
@@ -231,6 +231,13 @@ func TestRedis(t *testing.T) {
 						"ttlInSeconds": "50",
 					},
 				},
+				state.SetRequest{
+					Key:   "reqKey4",
+					Value: `reqVal104`,
+					Metadata: map[string]string{
+						"contentType": "application/json",
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -245,6 +252,14 @@ func TestRedis(t *testing.T) {
 		})
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, `"reqVal103"`, string(resp3.Data))
+
+		resp4, err := stateStore.Get(t.Context(), &state.GetRequest{
+			Key: "reqKey4",
+			Metadata: map[string]string{
+				"contentType": "application/json",
+			},
+		})
+		assert.Equal(t, `"reqVal103"`, string(resp4.Data))
 		return nil
 	}
 

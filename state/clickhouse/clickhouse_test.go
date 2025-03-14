@@ -29,11 +29,11 @@ import (
 )
 
 const (
-	testURL      = "clickhouse://localhost:9000"
+	testURL      = "http://localhost:8123"
 	testDatabase = "dapr_test"
 	testTable    = "state_test"
 	testUsername = "default"
-	testPassword = ""
+	testPassword = "clickhouse_password"
 )
 
 func TestClickHouseIntegration(t *testing.T) {

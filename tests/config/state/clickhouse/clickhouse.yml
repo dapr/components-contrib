@@ -15,4 +15,4 @@ spec:
   - name: username
     value: "default"
   - name: password
-    value: ""
+    value: "clickhouse_password"

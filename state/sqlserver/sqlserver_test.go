@@ -256,7 +256,7 @@ func TestValidConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := sqlStore.Init(context.Background(), metadata)
+			err := sqlStore.Init(t.Context(), metadata)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected.metadata.ConnectionString, sqlStore.metadata.ConnectionString)
 			assert.Equal(t, tt.expected.metadata.TableName, sqlStore.metadata.TableName)
@@ -383,7 +383,7 @@ func TestInvalidConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := sqlStore.Init(context.Background(), metadata)
+			err := sqlStore.Init(t.Context(), metadata)
 			require.Error(t, err)
 
 			if tt.expectedErr != "" {
@@ -523,7 +523,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": sampleConnectionString, "tableName": sampleUserTableName, "databaseName": "dapr_test_table"}},
 	}
 
-	err := sqlStore.Init(context.Background(), metadata)
+	err := sqlStore.Init(t.Context(), metadata)
 	require.Error(t, err)
 }
 

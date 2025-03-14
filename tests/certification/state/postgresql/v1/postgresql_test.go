@@ -112,7 +112,7 @@ func TestPostgreSQL(t *testing.T) {
 			md.Properties[keyMetadataTableName] = "clean_metadata"
 
 			// Init and perform the migrations
-			err := storeObj.Init(context.Background(), md)
+			err := storeObj.Init(t.Context(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the tables correctly created
@@ -136,7 +136,7 @@ func TestPostgreSQL(t *testing.T) {
 			md.Properties[keyMetadataTableName] = "public.clean2_metadata"
 
 			// Init and perform the migrations
-			err := storeObj.Init(context.Background(), md)
+			err := storeObj.Init(t.Context(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the tables correctly created
@@ -166,7 +166,7 @@ func TestPostgreSQL(t *testing.T) {
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			// Init and perform the migrations
-			err = storeObj.Init(context.Background(), md)
+			err = storeObj.Init(t.Context(), md)
 			require.NoError(t, err, "failed to init")
 
 			// Ensure migration level is correct
@@ -181,7 +181,7 @@ func TestPostgreSQL(t *testing.T) {
 		t.Run("migrate from implied level 1", func(t *testing.T) {
 			// Before we added the metadata table, the "implied" level 1 had only the state table
 			// Create that table to simulate the old state and validate the migration
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			_, err := dbClient.Exec(
 				ctx,
@@ -200,7 +200,7 @@ func TestPostgreSQL(t *testing.T) {
 			md.Properties[keyMetadataTableName] = "pre_metadata"
 
 			// Init and perform the migrations
-			err = storeObj.Init(context.Background(), md)
+			err = storeObj.Init(t.Context(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the metadata table created
@@ -214,7 +214,7 @@ func TestPostgreSQL(t *testing.T) {
 
 			// Ensure the expiredate column has been added
 			var colExists bool
-			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			err = dbClient.
 				QueryRow(ctx,
@@ -249,7 +249,7 @@ func TestPostgreSQL(t *testing.T) {
 
 					// Init and perform the migrations
 					storeObj := postgresql.NewPostgreSQLStateStore(l).(*state_postgres.PostgreSQLQuery)
-					err := storeObj.Init(context.Background(), md)
+					err := storeObj.Init(t.Context(), md)
 					if err != nil {
 						errs <- fmt.Errorf("%d failed to init: %w", i, err)
 						return
@@ -336,37 +336,37 @@ func TestPostgreSQL(t *testing.T) {
 	eTagTest := func(ctx flow.Context) error {
 		etag900invalid := "1d72af06-ee52-4edd-a8d4-1ca8078d01bf"
 
-		err1 := stateStore.Set(context.Background(), &state.SetRequest{
+		err1 := stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
 		require.NoError(t, err1)
-		resp1, err2 := stateStore.Get(context.Background(), &state.GetRequest{
+		resp1, err2 := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "k",
 		})
 
 		require.NoError(t, err2)
-		err3 := stateStore.Set(context.Background(), &state.SetRequest{
+		err3 := stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   "k",
 			Value: "v2",
 			ETag:  resp1.ETag,
 		})
 		require.NoError(t, err3)
 
-		resp11, err12 := stateStore.Get(context.Background(), &state.GetRequest{
+		resp11, err12 := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "k",
 		})
 		expectedEtag := *resp11.ETag
 		require.NoError(t, err12)
 
-		err4 := stateStore.Set(context.Background(), &state.SetRequest{
+		err4 := stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   "k",
 			Value: "v3",
 			ETag:  &etag900invalid,
 		})
 		require.Error(t, err4)
 
-		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "k",
 		})
 		require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	transactionsTest := func(ctx flow.Context) error {
-		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := stateStore.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
 					Key:   "reqKey1",
@@ -415,12 +415,12 @@ func TestPostgreSQL(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp1, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
-		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp3, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
@@ -498,7 +498,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = ""
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -513,7 +513,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "10"
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -528,7 +528,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1m"
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -543,7 +543,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "0"
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -572,7 +572,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1"
 
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -610,7 +610,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1h"
 
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 

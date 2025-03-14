@@ -14,7 +14,6 @@ limitations under the License.
 package inmemory
 
 import (
-	"context"
 	"sort"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ func TestReadAndWrite(t *testing.T) {
 	store := NewInMemoryStateStore(logger.NewLogger("test")).(*inMemoryStore)
 	fakeClock := clocktesting.NewFakeClock(time.Now())
 	store.clock = fakeClock
-	store.Init(context.Background(), state.Metadata{})
+	store.Init(t.Context(), state.Metadata{})
 
 	keyA := "theFirstKey"
 	valueA := "value of key"
@@ -46,13 +45,13 @@ func TestReadAndWrite(t *testing.T) {
 			Key:   keyA,
 			Value: valueA,
 		}
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 		// get after set
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `"`+valueA+`"`, string(resp.Data))
@@ -67,7 +66,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value:    valueA,
 			Metadata: map[string]string{"ttlInSeconds": "1"},
 		}
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 		// simulate expiration
 		fakeClock.Step(2 * time.Second)
@@ -75,7 +74,7 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
@@ -92,14 +91,14 @@ func TestReadAndWrite(t *testing.T) {
 			Metadata: map[string]string{"ttlInSeconds": "1000"},
 		}
 
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 
 		// get
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `"value of key"`, string(resp.Data))
@@ -109,18 +108,18 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("return expire time when ttlInSeconds set with GetBulk", func(t *testing.T) {
-		require.NoError(t, store.Set(context.Background(), &state.SetRequest{
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{
 			Key:      "a",
 			Value:    "123",
 			Metadata: map[string]string{"ttlInSeconds": "1000"},
 		}))
-		require.NoError(t, store.Set(context.Background(), &state.SetRequest{
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{
 			Key:      "b",
 			Value:    "456",
 			Metadata: map[string]string{"ttlInSeconds": "2001"},
 		}))
 
-		resp, err := store.BulkGet(context.Background(), []state.GetRequest{
+		resp, err := store.BulkGet(t.Context(), []state.GetRequest{
 			{Key: "a"},
 			{Key: "b"},
 		}, state.BulkGetOpts{})
@@ -146,20 +145,20 @@ func TestReadAndWrite(t *testing.T) {
 			Key:   "theSecondKey",
 			Value: 1234,
 		}
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 		// get
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, `1234`, string(resp.Data))
 	})
 
 	t.Run("BulkSet two keys", func(t *testing.T) {
-		err := store.BulkSet(context.Background(), []state.SetRequest{{
+		err := store.BulkSet(t.Context(), []state.SetRequest{{
 			Key:   "theFirstKey",
 			Value: "42",
 		}, {
@@ -174,7 +173,7 @@ func TestReadAndWrite(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
-		err := store.Delete(context.Background(), req)
+		err := store.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
 }

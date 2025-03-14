@@ -14,7 +14,6 @@ limitations under the License.
 package routeralias
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,7 @@ func TestRouterAlias(t *testing.T) {
 	runTest := func(meta middleware.Metadata) func(t *testing.T) {
 		return func(t *testing.T) {
 			ralias := NewMiddleware(logger.NewLogger("routeralias.test"))
-			handler, err := ralias.GetHandler(context.Background(), meta)
+			handler, err := ralias.GetHandler(t.Context(), meta)
 			require.NoError(t, err)
 
 			t.Run("hit: change router with common request", func(t *testing.T) {

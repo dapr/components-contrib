@@ -15,7 +15,6 @@ limitations under the License.
 package file
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +42,7 @@ func TestInit(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 
@@ -51,7 +50,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"dummy": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing local secrets file in metadata"))
 	})
@@ -75,14 +74,14 @@ func TestSeparator(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": ".",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root.key1",
 			Metadata: map[string]string{},
 		}
-		output, err := s.GetSecret(context.Background(), req)
+		output, err := s.GetSecret(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, "value1", output.Data[req.Name])
 	})
@@ -91,14 +90,14 @@ func TestSeparator(t *testing.T) {
 		m.Properties = map[string]string{
 			"secretsFile": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root:key2",
 			Metadata: map[string]string{},
 		}
-		output, err := s.GetSecret(context.Background(), req)
+		output, err := s.GetSecret(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, "value2", output.Data[req.Name])
 	})
@@ -119,14 +118,14 @@ func TestGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(context.Background(), m)
+	s.Init(t.Context(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
 			Name:     "secret",
 			Metadata: map[string]string{},
 		}
-		output, e := s.GetSecret(context.Background(), req)
+		output, e := s.GetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data[req.Name])
 	})
@@ -136,7 +135,7 @@ func TestGetSecret(t *testing.T) {
 			Name:     "NoSecret",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(context.Background(), req)
+		_, err := s.GetSecret(t.Context(), req)
 		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
 	})
@@ -161,11 +160,11 @@ func TestBulkGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(context.Background(), m)
+	s.Init(t.Context(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
-		output, e := s.BulkGetSecret(context.Background(), req)
+		output, e := s.BulkGetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data["secret"]["secret"])
 	})
@@ -198,7 +197,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 			return secrets, err
 		},
 	}
-	err := s.Init(context.Background(), m)
+	err := s.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	t.Run("MultiValued stores support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
@@ -209,7 +208,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 		req := secretstores.GetSecretRequest{
 			Name: "parent",
 		}
-		resp, err := s.GetSecret(context.Background(), req)
+		resp, err := s.GetSecret(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"child1":        "12345",
@@ -220,7 +219,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 
 	t.Run("successfully retrieve multi-valued secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
-		resp, err := s.BulkGetSecret(context.Background(), req)
+		resp, err := s.BulkGetSecret(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]map[string]string{
 			"parent": {

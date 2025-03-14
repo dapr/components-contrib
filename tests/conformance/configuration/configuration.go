@@ -158,7 +158,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		}
 
 		// Initializing store
-		err = store.Init(context.Background(), configuration.Metadata{
+		err = store.Init(t.Context(), configuration.Metadata{
 			Base: metadata.Base{
 				Properties: props,
 			},
@@ -187,7 +187,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 				Metadata: make(map[string]string),
 			}
 
-			resp, err := store.Get(context.Background(), req)
+			resp, err := store.Get(t.Context(), req)
 			require.NoError(t, err)
 			assert.Equal(t, initValues1, resp.Items)
 		})
@@ -200,7 +200,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 				Metadata: make(map[string]string),
 			}
 
-			resp, err := store.Get(context.Background(), req)
+			resp, err := store.Get(t.Context(), req)
 			require.NoError(t, err)
 			assert.Equal(t, initValues, resp.Items)
 		})
@@ -215,7 +215,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 				Metadata: make(map[string]string),
 			}
 
-			resp, err := store.Get(context.Background(), req)
+			resp, err := store.Get(t.Context(), req)
 			require.NoError(t, err)
 			assert.Equal(t, expectedResponse, resp.Items)
 		})
@@ -228,7 +228,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
-			ID, err := store.Subscribe(context.Background(),
+			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
 					Metadata: subscribeMetadata,
@@ -243,7 +243,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 		t.Run("subscriber 2 with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues)
-			ID, err := store.Subscribe(context.Background(),
+			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
 					Metadata: subscribeMetadata,
@@ -258,7 +258,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 		t.Run("subscriber 3 with empty key list", func(t *testing.T) {
 			keys := []string{}
-			ID, err := store.Subscribe(context.Background(),
+			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
 					Metadata: subscribeMetadata,
@@ -323,7 +323,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 	t.Run("unsubscribe", func(t *testing.T) {
 		t.Run("unsubscribe subscriber 1", func(t *testing.T) {
-			err := store.Unsubscribe(context.Background(),
+			err := store.Unsubscribe(t.Context(),
 				&configuration.UnsubscribeRequest{
 					ID: subscribeIDs[0],
 				},
@@ -345,7 +345,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 2", func(t *testing.T) {
-			err := store.Unsubscribe(context.Background(),
+			err := store.Unsubscribe(t.Context(),
 				&configuration.UnsubscribeRequest{
 					ID: subscribeIDs[1],
 				},
@@ -365,7 +365,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 3", func(t *testing.T) {
-			err := store.Unsubscribe(context.Background(),
+			err := store.Unsubscribe(t.Context(),
 				&configuration.UnsubscribeRequest{
 					ID: subscribeIDs[2],
 				},

@@ -132,7 +132,7 @@ WHEN NOT MATCHED THEN
 	return nil
 }
 
-func (m Migrations) ensureMetadataTable(ctx context.Context) error {
+func (m *Migrations) ensureMetadataTable(ctx context.Context) error {
 	m.Logger.Infof("Ensuring metadata table '%s' exists", m.tableName)
 	_, err := m.DB.ExecContext(ctx, fmt.Sprintf(`
 IF OBJECT_ID('%[1]s', 'U') IS NULL

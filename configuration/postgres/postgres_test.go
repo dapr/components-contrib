@@ -27,7 +27,7 @@ import (
 
 func TestSelectAllQuery(t *testing.T) {
 	g := &configuration.GetRequest{}
-	expected := "SELECT * FROM cfgtbl"
+	expected := "SELECT * FROM \"cfgtbl\""
 	query, _, err := buildQuery(g, "cfgtbl")
 	if err != nil {
 		t.Errorf("Error building query: %v ", err)
@@ -59,7 +59,7 @@ func TestPostgresbuildQuery(t *testing.T) {
 	query, params, err := buildQuery(g, "cfgtbl")
 	_ = params
 	require.NoError(t, err, "Error building query: %v ", err)
-	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND `Version` = $2"
+	expected := "SELECT * FROM \"cfgtbl\" WHERE KEY IN ($1) AND \"Version\" = $2"
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 	i := 0
 	for _, v := range params {

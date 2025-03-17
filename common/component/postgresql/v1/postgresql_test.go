@@ -45,7 +45,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	defer m.db.Close()
 
 	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: nil,
 	})
 
@@ -69,7 +69,7 @@ func TestValidSetRequest(t *testing.T) {
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		// Act
-		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 
@@ -92,7 +92,7 @@ func TestValidSetRequest(t *testing.T) {
 		m.db.ExpectRollback()
 
 		// Act
-		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 
@@ -114,7 +114,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	}
 
 	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -137,7 +137,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 		// Act
-		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 
@@ -160,7 +160,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 		m.db.ExpectRollback()
 
 		// Act
-		err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 
@@ -180,7 +180,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	operations := []state.TransactionalStateOperation{state.DeleteRequest{}, state.DeleteRequest{}} // Delete request without key is not valid for Delete operation
 
 	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -210,7 +210,7 @@ func TestMultiOperationOrder(t *testing.T) {
 	m.db.ExpectRollback()
 
 	// Act
-	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 

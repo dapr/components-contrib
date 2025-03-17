@@ -82,7 +82,7 @@ func TestInit(t *testing.T) {
 			"Table":            "a",
 			"TtlAttributeName": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 
@@ -90,7 +90,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"Dummy": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing dynamodb table name"))
 	})
@@ -100,7 +100,7 @@ func TestInit(t *testing.T) {
 			"Table":  "a",
 			"Region": "eu-west-1",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 
@@ -110,7 +110,7 @@ func TestInit(t *testing.T) {
 			"Table":        "a",
 			"partitionKey": pkey,
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 		assert.Equal(t, s.partitionKey, pkey)
 	})
@@ -140,7 +140,7 @@ func TestInit(t *testing.T) {
 			table:        table,
 		}
 
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
@@ -187,7 +187,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -236,7 +236,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -288,7 +288,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -322,7 +322,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.Error(t, err)
 		assert.Nil(t, out)
 	})
@@ -355,7 +355,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -394,7 +394,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := s.Get(context.Background(), req)
+		out, err := s.Get(t.Context(), req)
 		require.NoError(t, err)
 		assert.Empty(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -448,7 +448,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -543,7 +543,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -590,7 +590,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -645,7 +645,7 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -689,7 +689,7 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.Error(t, err)
 		switch err.(type) {
 		case *state.ETagError:
@@ -705,7 +705,7 @@ func TestSet(t *testing.T) {
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
 				assert.Equal(t, "someKey", result.Key)
-				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
+				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
@@ -744,7 +744,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "-1",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
@@ -754,7 +754,7 @@ func TestSet(t *testing.T) {
 				result := DynamoDBItem{}
 				dynamodbattribute.UnmarshalMap(input.Item, &result)
 				assert.Equal(t, "someKey", result.Key)
-				assert.Equal(t, "{\"Value\":\"someValue\"}", result.Value)
+				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
 
@@ -793,7 +793,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -824,7 +824,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.Error(t, err)
 	})
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
@@ -871,7 +871,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
@@ -922,7 +922,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "invalidvalue",
 			},
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.Error(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
@@ -961,7 +961,7 @@ func TestDelete(t *testing.T) {
 			partitionKey: defaultPartitionKeyName,
 		}
 
-		err := s.Delete(context.Background(), req)
+		err := s.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -1003,7 +1003,7 @@ func TestDelete(t *testing.T) {
 			partitionKey: defaultPartitionKeyName,
 		}
 
-		err := s.Delete(context.Background(), req)
+		err := s.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -1045,7 +1045,7 @@ func TestDelete(t *testing.T) {
 			authProvider: mockAuthProvider,
 			partitionKey: defaultPartitionKeyName,
 		}
-		err := s.Delete(context.Background(), req)
+		err := s.Delete(t.Context(), req)
 		require.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -1079,7 +1079,7 @@ func TestDelete(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "key",
 		}
-		err := s.Delete(context.Background(), req)
+		err := s.Delete(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -1154,7 +1154,7 @@ func TestMultiTx(t *testing.T) {
 			Operations: ops,
 			Metadata:   map[string]string{},
 		}
-		err := s.Multi(context.Background(), req)
+		err := s.Multi(t.Context(), req)
 		require.NoError(t, err)
 	})
 }

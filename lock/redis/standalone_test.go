@@ -14,7 +14,6 @@ limitations under the License.
 package redis
 
 import (
-	"context"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -42,7 +41,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.InitLockStore(t.Context(), cfg)
 		require.Error(t, err)
 	})
 
@@ -58,7 +57,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.InitLockStore(t.Context(), cfg)
 		require.Error(t, err)
 	})
 
@@ -75,7 +74,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["maxRetries"] = "1 "
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.InitLockStore(t.Context(), cfg)
 		require.Error(t, err)
 	})
 }
@@ -98,12 +97,12 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	cfg.Properties["redisPassword"] = ""
 
 	// Init
-	err = comp.InitLockStore(context.Background(), cfg)
+	err = comp.InitLockStore(t.Context(), cfg)
 	require.NoError(t, err)
 
 	// 1. client1 trylock
 	ownerID1 := uuid.New().String()
-	resp, err := comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp, err := comp.TryLock(t.Context(), &lock.TryLockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       ownerID1,
 		ExpiryInSeconds: 10,
@@ -113,7 +112,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 
 	//	2. Client2 tryLock fail
 	owner2 := uuid.New().String()
-	resp, err = comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp, err = comp.TryLock(t.Context(), &lock.TryLockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       owner2,
 		ExpiryInSeconds: 10,
@@ -122,7 +121,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	assert.False(t, resp.Success)
 
 	// 3. Client 1 unlock
-	unlockResp, err := comp.Unlock(context.Background(), &lock.UnlockRequest{
+	unlockResp, err := comp.Unlock(t.Context(), &lock.UnlockRequest{
 		ResourceID: resourceID,
 		LockOwner:  ownerID1,
 	})
@@ -131,7 +130,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 
 	// 4. Client 2 get lock
 	owner2 = uuid.New().String()
-	resp2, err2 := comp.TryLock(context.Background(), &lock.TryLockRequest{
+	resp2, err2 := comp.TryLock(t.Context(), &lock.TryLockRequest{
 		ResourceID:      resourceID,
 		LockOwner:       owner2,
 		ExpiryInSeconds: 10,
@@ -140,7 +139,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	assert.True(t, resp2.Success, "client2 failed to get lock?!")
 
 	// 5. client2 unlock
-	unlockResp, err = comp.Unlock(context.Background(), &lock.UnlockRequest{
+	unlockResp, err = comp.Unlock(t.Context(), &lock.UnlockRequest{
 		ResourceID: resourceID,
 		LockOwner:  owner2,
 	})

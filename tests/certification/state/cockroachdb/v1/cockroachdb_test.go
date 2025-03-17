@@ -128,7 +128,7 @@ func TestCockroach(t *testing.T) {
 		}
 		defer client.Close()
 
-		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		require.NoError(t, err)
@@ -144,21 +144,21 @@ func TestCockroach(t *testing.T) {
 		etag100 := "100"
 
 		// Setting with nil etag will insert an item with an etag value of 1 unless there is a conflict
-		err := stateStore.Set(context.Background(), &state.SetRequest{
+		err := stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "v1",
 		})
 		require.NoError(t, err)
 
 		// Setting with an etag wil do an update, not an insert so an error is expected since the etag of 100 is not present
-		err = stateStore.Set(context.Background(), &state.SetRequest{
+		err = stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "v3",
 			ETag:  &etag100,
 		})
 		assert.Equal(t, state.NewETagError(state.ETagMismatch, nil), err)
 
-		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		require.NoError(t, err)
@@ -167,14 +167,14 @@ func TestCockroach(t *testing.T) {
 
 		// This will update the value stored in key K with "Overwrite Success" since the previously created etag has a value of 1
 		// It will also increment the etag stored by a value of 1
-		err = stateStore.Set(context.Background(), &state.SetRequest{
+		err = stateStore.Set(t.Context(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "Overwrite Success",
 			ETag:  &etag1,
 		})
 		require.NoError(t, err)
 
-		resp, err = stateStore.Get(context.Background(), &state.GetRequest{
+		resp, err = stateStore.Get(t.Context(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		require.NoError(t, err)
@@ -187,15 +187,15 @@ func TestCockroach(t *testing.T) {
 	// Transaction related test - also for Multi
 	transactionsTest := func(ctx flow.Context) error {
 		// Set state to allow for a delete operation inside the multi list
-		err = stateStore.Set(context.Background(), &state.SetRequest{Key: certificationTestPrefix + "key1", Value: []byte("certificationdata")})
+		err = stateStore.Set(t.Context(), &state.SetRequest{Key: certificationTestPrefix + "key1", Value: []byte("certificationdata")})
 		require.NoError(t, err)
 
 		// get state
-		item, errUpdatedGet := stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
+		item, errUpdatedGet := stateStore.Get(t.Context(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
 		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte("certificationdata"), item.Data)
 
-		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
+		err = stateStore.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
 					Key:   "reqKey1",
@@ -238,18 +238,18 @@ func TestCockroach(t *testing.T) {
 		require.NoError(t, err)
 
 		// get state
-		item, errUpdatedGet = stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
+		item, errUpdatedGet = stateStore.Get(t.Context(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
 		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte(nil), item.Data)
 
-		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp1, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "2", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
-		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
+		resp3, err := stateStore.Get(t.Context(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		require.NoError(t, err)
@@ -283,7 +283,7 @@ func TestCockroach(t *testing.T) {
 				md.Properties["cleanupIntervalInSeconds"] = ""
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -298,7 +298,7 @@ func TestCockroach(t *testing.T) {
 				md.Properties["cleanupIntervalInSeconds"] = "10"
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -313,7 +313,7 @@ func TestCockroach(t *testing.T) {
 				md.Properties["cleanupIntervalInSeconds"] = "0"
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -342,7 +342,7 @@ func TestCockroach(t *testing.T) {
 				md.Properties["cleanupIntervalInSeconds"] = "1"
 
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -380,7 +380,7 @@ func TestCockroach(t *testing.T) {
 				md.Properties["cleanupIntervalInSeconds"] = "1h"
 
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
-				err := storeObj.Init(context.Background(), md)
+				err := storeObj.Init(t.Context(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 

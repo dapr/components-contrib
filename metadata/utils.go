@@ -113,7 +113,8 @@ func IsRawPayload(props map[string]string) (bool, error) {
 
 	return false, nil
 }
-func TryGetMessageId(props map[string]string) (string, bool) {
+
+func TryGetMessageID(props map[string]string) (string, bool) {
 	if val, ok := props["messageId"]; ok && val != "" {
 		return val, true
 	}
@@ -121,7 +122,7 @@ func TryGetMessageId(props map[string]string) (string, bool) {
 	return "", false
 }
 
-func TryGetCorrelationId(props map[string]string) (string, bool) {
+func TryGetCorrelationID(props map[string]string) (string, bool) {
 	if val, ok := props["correlationId"]; ok && val != "" {
 		return val, true
 	}

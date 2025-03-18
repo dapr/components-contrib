@@ -263,17 +263,14 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	if ok {
 		p.ContentType = contentType
 	}
-
-	messageId, ok := metadata.TryGetMessageId(req.Metadata)
+	messageID, ok := metadata.TryGetMessageID(req.Metadata)
 	if ok {
-		p.MessageId = messageId
+		p.MessageId = messageID
 	}
-
-	correlationId, ok := metadata.TryGetCorrelationId(req.Metadata)
+	correlationID, ok := metadata.TryGetCorrelationID(req.Metadata)
 	if ok {
-		p.CorrelationId = correlationId
+		p.CorrelationId = correlationID
 	}
-
 	aType, ok := metadata.TryGetType(req.Metadata)
 	if ok {
 		p.Type = aType

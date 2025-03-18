@@ -252,14 +252,14 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
-	messageId, ok := metadata.TryGetMessageId(req.Metadata)
+	messageID, ok := metadata.TryGetMessageID(req.Metadata)
 	if ok {
-		pub.MessageId = messageId
+		pub.MessageId = messageID
 	}
 
-	correlationId, ok := metadata.TryGetCorrelationId(req.Metadata)
+	correlationID, ok := metadata.TryGetCorrelationID(req.Metadata)
 	if ok {
-		pub.CorrelationId = correlationId
+		pub.CorrelationId = correlationID
 	}
 
 	aType, ok := metadata.TryGetType(req.Metadata)

@@ -31,6 +31,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/components-contrib/bindings"
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -228,11 +229,6 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Headers[k] = v
 	}
 
-	contentType, ok := metadata.TryGetContentType(req.Metadata)
-	if ok {
-		pub.ContentType = contentType
-	}
-
 	// The default time to live has been set in the queue
 	// We allow overriding on each call, by setting a value in request metadata
 	ttl, ok, err := metadata.TryGetTTL(req.Metadata)
@@ -252,17 +248,22 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
-	messageID, ok := metadata.TryGetMessageID(req.Metadata)
+	contentType, ok := common.TryGetContentType(req.Metadata)
+	if ok {
+		pub.ContentType = contentType
+	}
+
+	messageID, ok := common.TryGetMessageID(req.Metadata)
 	if ok {
 		pub.MessageId = messageID
 	}
 
-	correlationID, ok := metadata.TryGetCorrelationID(req.Metadata)
+	correlationID, ok := common.TryGetCorrelationID(req.Metadata)
 	if ok {
 		pub.CorrelationId = correlationID
 	}
 
-	aType, ok := metadata.TryGetType(req.Metadata)
+	aType, ok := common.TryGetType(req.Metadata)
 	if ok {
 		pub.Type = aType
 	}

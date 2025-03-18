@@ -28,6 +28,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -259,19 +260,19 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		p.Priority = priority
 	}
 
-	contentType, ok := metadata.TryGetContentType(req.Metadata)
+	contentType, ok := common.TryGetContentType(req.Metadata)
 	if ok {
 		p.ContentType = contentType
 	}
-	messageID, ok := metadata.TryGetMessageID(req.Metadata)
+	messageID, ok := common.TryGetMessageID(req.Metadata)
 	if ok {
 		p.MessageId = messageID
 	}
-	correlationID, ok := metadata.TryGetCorrelationID(req.Metadata)
+	correlationID, ok := common.TryGetCorrelationID(req.Metadata)
 	if ok {
 		p.CorrelationId = correlationID
 	}
-	aType, ok := metadata.TryGetType(req.Metadata)
+	aType, ok := common.TryGetType(req.Metadata)
 	if ok {
 		p.Type = aType
 	}

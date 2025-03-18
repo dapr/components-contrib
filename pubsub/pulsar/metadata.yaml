@@ -196,7 +196,7 @@ metadata:
   - name: subscribeInitialPosition
     type: string
     description: |
-      Subscription position is the initial position which the cursor will be set when start consuming: "latest", "earliest".
+      Subscription position is the initial position which the cursor is set when start consuming: "latest", "earliest".
     default: '"latest"'
     example: '"earliest"'
     url: 

@@ -196,7 +196,7 @@ metadata:
   - name: subscribeInitialPosition
     type: string
     description: |
-      Pulsar initial position at which the cursor will be set when subscribe: "latest", "earliest".
+      Subscription position is the initial position which the cursor will be set when start consuming: "latest", "earliest".
     default: '"latest"'
     example: '"earliest"'
     url: 

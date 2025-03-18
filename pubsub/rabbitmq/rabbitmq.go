@@ -260,22 +260,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		p.Priority = priority
 	}
 
-	contentType, ok := common.TryGetContentType(req.Metadata)
-	if ok {
-		p.ContentType = contentType
-	}
-	messageID, ok := common.TryGetMessageID(req.Metadata)
-	if ok {
-		p.MessageId = messageID
-	}
-	correlationID, ok := common.TryGetCorrelationID(req.Metadata)
-	if ok {
-		p.CorrelationId = correlationID
-	}
-	aType, ok := common.TryGetType(req.Metadata)
-	if ok {
-		p.Type = aType
-	}
+	common.ApplyMetadataToPublishing(req.Metadata, &p)
 
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {

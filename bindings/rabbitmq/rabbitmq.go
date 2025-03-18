@@ -248,25 +248,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
-	contentType, ok := common.TryGetContentType(req.Metadata)
-	if ok {
-		pub.ContentType = contentType
-	}
-
-	messageID, ok := common.TryGetMessageID(req.Metadata)
-	if ok {
-		pub.MessageId = messageID
-	}
-
-	correlationID, ok := common.TryGetCorrelationID(req.Metadata)
-	if ok {
-		pub.CorrelationId = correlationID
-	}
-
-	aType, ok := common.TryGetType(req.Metadata)
-	if ok {
-		pub.Type = aType
-	}
+	common.ApplyMetadataToPublishing(req.Metadata, &pub)
 
 	err = ch.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
 	if err != nil {

@@ -809,6 +809,10 @@ const components = {
         requireGCPCredentials: true,
         certificationSetup: 'certification-state.gcp.firestore-setup.sh',
     },
+    'state.ravendb': {
+        conformance: true,
+        certification: true,
+    },
 }
 
 /**

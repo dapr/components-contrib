@@ -17,22 +17,25 @@ package ravendb
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	jsoniterator "github.com/json-iterator/go"
+	ravendb "github.com/ravendb/ravendb-go-client"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	jsoniterator "github.com/json-iterator/go"
-	ravendb "github.com/ravendb/ravendb-go-client"
-	"math/rand"
-	"net/http"
-	"reflect"
-	"strings"
-	"time"
 )
 
 const (
@@ -95,7 +98,7 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 	if err != nil {
 		return err
 	}
-	//TODO: Operation timeout?
+	// TODO: Operation timeout?
 	store, err := r.getRavenDBStore(ctx)
 	if err != nil {
 		return errors.New("error in creating Raven DB Store")
@@ -157,7 +160,7 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	}
 
 	var meta map[string]string
-	var ttl, okTTL = ravenMeta.Get(expires)
+	ttl, okTTL := ravenMeta.Get(expires)
 	if okTTL {
 		meta = map[string]string{
 			state.GetRespMetaKeyTTLExpireTime: ttl.(string),
@@ -165,7 +168,7 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	}
 
 	var etagResp string
-	var eTag, okETag = ravenMeta.Get(changeVector)
+	eTag, okETag := ravenMeta.Get(changeVector)
 	if okETag {
 		etagResp = eTag.(string)
 	} else {
@@ -256,17 +259,17 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 	}
 	defer session.Close()
 
-	var items = make(map[string]*Item, len(keys))
+	items := make(map[string]*Item, len(keys))
 	err = session.LoadMulti(items, keys)
 	if err != nil {
 		return []state.BulkGetResponse{}, fmt.Errorf("faield bulk get with error: %s", err)
 	}
 
-	var resp = make([]state.BulkGetResponse, 0, len(items))
+	resp := make([]state.BulkGetResponse, 0, len(items))
 
 	for ID, current := range items {
 		if current == nil {
-			var convert = state.BulkGetResponse{
+			convert := state.BulkGetResponse{
 				Key:      ID,
 				Data:     nil,
 				ETag:     nil,
@@ -275,14 +278,14 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			resp = append(resp, convert)
 		} else {
 			ravenMeta, err := session.GetMetadataFor(current)
-			var etagResp = ""
+			etagResp := ""
 			if err == nil {
-				var eTag, okETag = ravenMeta.Get(changeVector)
+				eTag, okETag := ravenMeta.Get(changeVector)
 				if okETag {
 					etagResp = eTag.(string)
 				}
 			}
-			var convert = state.BulkGetResponse{
+			convert := state.BulkGetResponse{
 				Key:      current.ID,
 				Data:     []byte(current.Value),
 				ETag:     &etagResp,
@@ -328,9 +331,6 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		// if we have item in DB we can try to override it with concurency check
 		var newItem *Item
 		err = session.Load(&newItem, req.Key)
-		if err != nil {
-			fmt.Println("error loading item during set", err)
-		}
 		if newItem == nil {
 			err = session.Store(item)
 		} else {
@@ -375,7 +375,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 	if reqTTL != nil {
 		metaData, err := session.Advanced().GetMetadataFor(item)
 		if err != nil {
-			return errors.New("Failed to get metadata for item")
+			return errors.New("failed to get metadata for item")
 		}
 		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
 		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
@@ -393,11 +393,10 @@ func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, 
 			err = session.Delete(itemToDelete)
 		}
 	} else {
-
 		if req.HasETag() {
 			err = session.DeleteByID(req.Key, *req.ETag)
 		} else {
-			//TODO: Fix after update to ravendb sdk
+			// TODO: Fix after update to ravendb sdk
 			err = session.DeleteByID(req.Key, "")
 		}
 	}
@@ -452,10 +451,7 @@ func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
 	if err != nil {
 		return
 	}
-	err = store.Maintenance().Send(operation)
-	if err != nil {
-		fmt.Println(err)
-	}
+	store.Maintenance().Send(operation)
 }
 
 func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {
@@ -508,13 +504,17 @@ func isConcurrencyException(err error) bool {
 	return strings.Contains(err.Error(), "Optimistic concurrency violation")
 }
 
-// helper method to generate random string
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 func RandStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	// Create a byte slice to hold the random bytes
+	bytes := make([]byte, n)
+
+	// Fill the byte slice with random bytes
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return ""
 	}
-	return string(b)
+
+	// Encode the random bytes to a base64 string
+	// This will make it printable/usable as a string
+	return base64.URLEncoding.EncodeToString(bytes)[:n]
 }

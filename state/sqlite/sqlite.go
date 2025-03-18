@@ -59,7 +59,7 @@ func (s *SQLiteStore) Init(ctx context.Context, metadata state.Metadata) error {
 	return s.dbaccess.Init(ctx, metadata)
 }
 
-func (s SQLiteStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (s *SQLiteStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sqliteMetadataStruct{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return

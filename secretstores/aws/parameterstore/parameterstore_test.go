@@ -48,7 +48,7 @@ func TestInit(t *testing.T) {
 			"SecretKey":    "a",
 			"SessionToken": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 }
@@ -86,7 +86,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/dev/secret",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -128,7 +128,7 @@ func TestGetSecret(t *testing.T) {
 					VersionID: "1",
 				},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -167,7 +167,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/dev/secret",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -199,7 +199,7 @@ func TestGetSecret(t *testing.T) {
 			Name:     "/aws/dev/secret",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(context.Background(), req)
+		_, err := s.GetSecret(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -245,7 +245,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		output, e := s.BulkGetSecret(context.Background(), req)
+		output, e := s.BulkGetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Contains(t, output.Data, "/aws/dev/secret1")
 		assert.Contains(t, output.Data, "/aws/dev/secret2")
@@ -292,7 +292,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		output, e := s.BulkGetSecret(context.Background(), req)
+		output, e := s.BulkGetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Equal(t, "map[/aws/dev/secret1:/prefix/aws/dev/secret1-secret]", fmt.Sprint(output.Data["/aws/dev/secret1"]))
 		assert.Equal(t, "map[/aws/dev/secret2:/prefix/aws/dev/secret2-secret]", fmt.Sprint(output.Data["/aws/dev/secret2"]))
@@ -331,7 +331,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		_, err := s.BulkGetSecret(context.Background(), req)
+		_, err := s.BulkGetSecret(t.Context(), req)
 		require.Error(t, err)
 	})
 
@@ -358,7 +358,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		_, err := s.BulkGetSecret(context.Background(), req)
+		_, err := s.BulkGetSecret(t.Context(), req)
 		require.Error(t, err)
 	})
 }

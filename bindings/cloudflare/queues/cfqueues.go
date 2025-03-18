@@ -75,7 +75,7 @@ func (q *CFQueues) Init(_ context.Context, metadata bindings.Metadata) error {
 }
 
 // Operations returns the supported operations for this binding.
-func (q CFQueues) Operations() []bindings.OperationKind {
+func (q *CFQueues) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, "publish"}
 }
 

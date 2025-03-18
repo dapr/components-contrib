@@ -66,7 +66,7 @@ func TestMigration(t *testing.T) {
 	_, err = db.Exec(fmt.Sprintf("CREATE SCHEMA [%s]", schema))
 	require.NoError(t, err, "Failed to create schema")
 	t.Cleanup(func() {
-		err = commonsqlserver.DropSchema(context.Background(), db, schema)
+		err = commonsqlserver.DropSchema(t.Context(), db, schema)
 		require.NoError(t, err, "Failed to drop schema")
 	})
 
@@ -80,14 +80,14 @@ func TestMigration(t *testing.T) {
 		}
 
 		t.Run("Create new", func(t *testing.T) {
-			err = m.Perform(context.Background(), []commonsql.MigrationFn{})
+			err = m.Perform(t.Context(), []commonsql.MigrationFn{})
 			require.NoError(t, err)
 
 			assertTableExists(t, db, schema, "metadata_1")
 		})
 
 		t.Run("Already exists", func(t *testing.T) {
-			err = m.Perform(context.Background(), []commonsql.MigrationFn{})
+			err = m.Perform(t.Context(), []commonsql.MigrationFn{})
 			require.NoError(t, err)
 
 			assertTableExists(t, db, schema, "metadata_1")
@@ -109,7 +109,7 @@ func TestMigration(t *testing.T) {
 		}
 
 		t.Run("First migration", func(t *testing.T) {
-			err = m.Perform(context.Background(), []commonsql.MigrationFn{fn1})
+			err = m.Perform(t.Context(), []commonsql.MigrationFn{fn1})
 			require.NoError(t, err)
 
 			assertTableExists(t, db, schema, "TestTable")
@@ -124,7 +124,7 @@ func TestMigration(t *testing.T) {
 				return nil
 			}
 
-			err = m.Perform(context.Background(), []commonsql.MigrationFn{fn1, fn2})
+			err = m.Perform(t.Context(), []commonsql.MigrationFn{fn1, fn2})
 			require.NoError(t, err)
 
 			assert.True(t, called)
@@ -139,7 +139,7 @@ func TestMigration(t *testing.T) {
 				return nil
 			}
 
-			err = m.Perform(context.Background(), []commonsql.MigrationFn{fn1, fn2})
+			err = m.Perform(t.Context(), []commonsql.MigrationFn{fn1, fn2})
 			require.NoError(t, err)
 
 			assert.False(t, called)
@@ -174,7 +174,7 @@ func TestMigration(t *testing.T) {
 					MetadataKey:       "migrations_concurrent",
 				}
 
-				migrateErr := m.Perform(context.Background(), []commonsql.MigrationFn{fn})
+				migrateErr := m.Perform(t.Context(), []commonsql.MigrationFn{fn})
 				if migrateErr != nil {
 					errs <- fmt.Errorf("migration failed in handler %d: %w", i, migrateErr)
 				}

@@ -91,7 +91,7 @@ func TestFailJob(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: FailJobOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingJobKey)
 	})
 
@@ -104,7 +104,7 @@ func TestFailJob(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: FailJobOperation}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingRetries)
 	})
 
@@ -122,7 +122,7 @@ func TestFailJob(t *testing.T) {
 		var mc mockFailJobClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

@@ -14,7 +14,6 @@ limitations under the License.
 package blobstorage
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.get(context.Background(), &r)
+		_, err := blobStorage.get(t.Context(), &r)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingBlobName)
 	})
@@ -39,7 +38,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.delete(context.Background(), &r)
+		_, err := blobStorage.delete(t.Context(), &r)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingBlobName)
 	})
@@ -50,7 +49,7 @@ func TestDeleteOption(t *testing.T) {
 			"blobName":        "foo",
 			"deleteSnapshots": "invalid",
 		}
-		_, err := blobStorage.delete(context.Background(), &r)
+		_, err := blobStorage.delete(t.Context(), &r)
 		require.Error(t, err)
 	})
 }

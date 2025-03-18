@@ -14,7 +14,6 @@ limitations under the License.
 package rethinkdb
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,13 +74,13 @@ func TestRethinkDBStateStore(t *testing.T) {
 	}
 
 	t.Run("With init", func(t *testing.T) {
-		if err := db.Init(context.Background(), m); err != nil {
+		if err := db.Init(t.Context(), m); err != nil {
 			t.Fatalf("error initializing db: %v", err)
 		}
 		assert.Equal(t, stateTableNameDefault, db.config.Table)
 
 		m.Properties["table"] = "test"
-		if err := db.Init(context.Background(), m); err != nil {
+		if err := db.Init(t.Context(), m); err != nil {
 			t.Fatalf("error initializing db: %v", err)
 		}
 		assert.Equal(t, "test", db.config.Table)
@@ -92,12 +91,12 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d := &testObj{F1: "test", F2: 1, F3: time.Now().UTC()}
 		k := fmt.Sprintf("ids-%d", time.Now().UnixNano())
 
-		if err := db.Set(context.Background(), &state.SetRequest{Key: k, Value: d}); err != nil {
+		if err := db.Set(t.Context(), &state.SetRequest{Key: k, Value: d}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
 		// get set data and compare
-		resp, err := db.Get(context.Background(), &state.GetRequest{Key: k})
+		resp, err := db.Get(t.Context(), &state.GetRequest{Key: k})
 		require.NoError(t, err)
 		d2 := testGetTestObj(t, resp)
 		assert.NotNil(t, d2)
@@ -109,12 +108,12 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d2.F2 = 2
 		d2.F3 = time.Now().UTC()
 		tag := fmt.Sprintf("hash-%d", time.Now().UnixNano())
-		if err = db.Set(context.Background(), &state.SetRequest{Key: k, Value: d2, ETag: &tag}); err != nil {
+		if err = db.Set(t.Context(), &state.SetRequest{Key: k, Value: d2, ETag: &tag}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
 		// get updated data and compare
-		resp2, err := db.Get(context.Background(), &state.GetRequest{Key: k})
+		resp2, err := db.Get(t.Context(), &state.GetRequest{Key: k})
 		require.NoError(t, err)
 		d3 := testGetTestObj(t, resp2)
 		assert.NotNil(t, d3)
@@ -123,7 +122,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		assert.Equal(t, d2.F3.Format(time.RFC3339), d3.F3.Format(time.RFC3339))
 
 		// delete data
-		if err := db.Delete(context.Background(), &state.DeleteRequest{Key: k}); err != nil {
+		if err := db.Delete(t.Context(), &state.DeleteRequest{Key: k}); err != nil {
 			t.Fatalf("error on data deletion: %v", err)
 		}
 	})
@@ -133,19 +132,19 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d := []byte("test")
 		k := fmt.Sprintf("idb-%d", time.Now().UnixNano())
 
-		if err := db.Set(context.Background(), &state.SetRequest{Key: k, Value: d}); err != nil {
+		if err := db.Set(t.Context(), &state.SetRequest{Key: k, Value: d}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
 		// get set data and compare
-		resp, err := db.Get(context.Background(), &state.GetRequest{Key: k})
+		resp, err := db.Get(t.Context(), &state.GetRequest{Key: k})
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.Data)
 		assert.Equal(t, string(d), string(resp.Data))
 
 		// delete data
-		if err := db.Delete(context.Background(), &state.DeleteRequest{Key: k}); err != nil {
+		if err := db.Delete(t.Context(), &state.DeleteRequest{Key: k}); err != nil {
 			t.Fatalf("error on data deletion: %v", err)
 		}
 	})
@@ -162,7 +161,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test"))
-	if err := db.Init(context.Background(), m); err != nil {
+	if err := db.Init(t.Context(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
 	defer require.NoError(t, db.Close())
@@ -184,26 +183,26 @@ func testBulk(t *testing.T, db state.Store, i int) {
 	}
 
 	// bulk set it
-	if err := db.BulkSet(context.Background(), setList, state.BulkStoreOpts{}); err != nil {
+	if err := db.BulkSet(t.Context(), setList, state.BulkStoreOpts{}); err != nil {
 		t.Fatalf("error setting data to db: %v -- run %d", err, i)
 	}
 
 	// check for the data
 	for _, v := range deleteList {
-		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
+		resp, err := db.Get(t.Context(), &state.GetRequest{Key: v.Key})
 		require.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.Data)
 	}
 
 	// delete data
-	if err := db.BulkDelete(context.Background(), deleteList, state.BulkStoreOpts{}); err != nil {
+	if err := db.BulkDelete(t.Context(), deleteList, state.BulkStoreOpts{}); err != nil {
 		t.Fatalf("error on data deletion: %v -- run %d", err, i)
 	}
 
 	// check for the data NOT being there
 	for _, v := range deleteList {
-		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
+		resp, err := db.Get(t.Context(), &state.GetRequest{Key: v.Key})
 		require.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)

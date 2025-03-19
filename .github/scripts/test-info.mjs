@@ -812,6 +812,7 @@ const components = {
     'state.ravendb': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh ravendb',
     },
 }
 

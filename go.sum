@@ -218,6 +218,8 @@ github.com/apache/dubbo-go-hessian2 v1.11.5 h1:rcK22+yMw2Hejm6GRG7WrdZ0DinW2QMZc
 github.com/apache/dubbo-go-hessian2 v1.11.5/go.mod h1:QP9Tc0w/B/mDopjusebo/c7GgEfl6Lz8jeuFg8JA6yw=
 github.com/apache/pulsar-client-go v0.11.0 h1:fniyVbewAOcMSMLwxzhdrCFmFTorCW40jfnmQVcsrJw=
 github.com/apache/pulsar-client-go v0.11.0/go.mod h1:FoijqJwgjroSKptIWp1vvK1CXs8dXnQiL8I+MHOri4A=
+github.com/apache/pulsar-client-go v0.12.1 h1:jRA+VQKebVA4iIvojKUlkCeJ/R7oOxr/NXvwj+tNLkk=
+github.com/apache/pulsar-client-go v0.12.1/go.mod h1:dkutuH4oS2pXiGm+Ti7fQZ4MRjrMPZ8IJeEGAWMeckk=
 github.com/apache/rocketmq-client-go v1.2.5 h1:2hPoLHpMJy1a57HDNmx7PZKgvlgVYO1Alz925oeqphQ=
 github.com/apache/rocketmq-client-go v1.2.5/go.mod h1:Kap8oXIVLlHF50BGUbN9z97QUp1GaK1nOoCfsZnR2bw=
 github.com/apache/rocketmq-client-go/v2 v2.1.0/go.mod h1:oEZKFDvS7sz/RWU0839+dQBupazyBV7WX5cP6nrio0Q=

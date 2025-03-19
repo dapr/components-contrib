@@ -35,6 +35,7 @@ func getFakeProperties() map[string]string {
 		consumerID:   "fakeConsumer",
 		enableTLS:    "true",
 		maxLenApprox: "1000",
+		minIDApprox:  "1742397526022-0",
 	}
 }
 
@@ -54,6 +55,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[consumerID], m.ConsumerID)
 		assert.Equal(t, int64(1000), m.MaxLenApprox)
+		assert.Equal(t, "1742397526022-0", m.MinIDApprox)
 	})
 
 	// TODO: fix the code to return the error for the missing property to make this test work

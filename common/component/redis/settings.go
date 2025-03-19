@@ -102,6 +102,9 @@ type Settings struct {
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
 
+	// Min ID of a stream (stream entry IDs lower than this threshold will be evicted)
+	MinIDApprox string `mapstructure:"minIDApprox" mdonly:"pubsub"`
+
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`

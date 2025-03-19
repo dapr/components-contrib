@@ -165,7 +165,7 @@ metadata:
   - name: failover
     required: false
     description: |
-      Property to enabled failover configuration. Needs sentinalMasterName to be set. Defaults to "false"
+      Property to enabled failover configuration. Needs sentinelMasterName to be set. Defaults to "false"
     example: "false"
     type: bool
   - name: sentinelMasterName
@@ -178,6 +178,16 @@ metadata:
     description: Maximum number of items inside a stream.The old entries are automatically evicted when the specified length is reached, so that the stream is left at a constant size. Defaults to unlimited.
     example: "10000"
     type: number
+  - name: minIDApprox
+    required: false
+    description: |
+      Minimum ID threshold for the stream. Entries with IDs smaller than the specified threshold are evicted, 
+      keeping the stream trimmed to only contain entries with IDs greater than or equal to this value. 
+      This can be used for time-based eviction since Redis stream IDs are in the format {timestamp-sequence}, 
+      where timestamp is in milliseconds since epoch. Defaults to none.
+    example: "1742397526022-0"
+    type: string
+
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:

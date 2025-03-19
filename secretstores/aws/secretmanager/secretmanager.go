@@ -179,7 +179,11 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*S
 
 // Features returns the features available in this secret store.
 func (s *smSecretStore) Features() []secretstores.Feature {
-	return []secretstores.Feature{} // No Feature supported.
+	if s.multipleKeysPerSecret {
+		return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
+	}
+
+	return []secretstores.Feature{}
 }
 
 func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

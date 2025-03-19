@@ -310,7 +310,19 @@ func TestGetSecret(t *testing.T) {
 
 func TestGetFeatures(t *testing.T) {
 	s := smSecretStore{}
-	t.Run("no features are advertised", func(t *testing.T) {
+	t.Run("when multipleKeysPerSecret = true, return feature", func(t *testing.T) {
+		s.multipleKeysPerSecret = true
+		f := s.Features()
+		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
+	})
+
+	t.Run("when multipleKeysPerSecret = false, no feature advertised", func(t *testing.T) {
+		s.multipleKeysPerSecret = false
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+
+	t.Run("by default, no feature advertised", func(t *testing.T) {
 		f := s.Features()
 		assert.Empty(t, f)
 	})

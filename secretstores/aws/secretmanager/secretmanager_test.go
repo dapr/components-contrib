@@ -308,6 +308,139 @@ func TestGetSecret(t *testing.T) {
 	})
 }
 
+func TestBulkGetSecret(t *testing.T) {
+	t.Run("returns all secrets in store", func(t *testing.T) {
+		secret1 := "/aws/secret/testing1"
+		secretValue1 := "secret1"
+		secret2 := "/aws/secret/testing2"
+		secretValue2 := "secret2"
+
+		mockSSM := &awsAuth.MockSecretManager{
+
+			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+				assert.Nil(t, input.VersionId)
+				assert.Nil(t, input.VersionStage)
+
+				if input.SecretId == &secret1 {
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secretValue1,
+					}, nil
+				} else {
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secretValue2,
+					}, nil
+				}
+
+			},
+
+			ListSecretsFn: func(ctx context.Context, input *secretsmanager.ListSecretsInput, option ...request.Option) (*secretsmanager.ListSecretsOutput, error) {
+				return &secretsmanager.ListSecretsOutput{
+					SecretList: []*secretsmanager.SecretListEntry{
+						{Name: &secret1},
+						{Name: &secret2},
+					},
+				}, nil
+			},
+		}
+
+		secret := awsAuth.SecretManagerClients{
+			Manager: mockSSM,
+		}
+
+		mockedClients := awsAuth.Clients{
+			Secret: &secret,
+		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
+		s := smSecretStore{
+			authProvider: mockAuthProvider,
+		}
+
+		req := secretstores.BulkGetSecretRequest{
+			Metadata: map[string]string{},
+		}
+		output, e := s.BulkGetSecret(t.Context(), req)
+		require.NoError(t, e)
+		assert.Equal(t, map[string]map[string]string{
+			secret1: {
+				secret1: secretValue1,
+			},
+			secret2: {
+				secret2: secretValue2,
+			},
+		}, output.Data)
+	})
+
+	t.Run("when multipleKeysPerSecret = true, returns all secrets in store broken out by key", func(t *testing.T) {
+		secret1 := "/aws/secret/testing1"
+		secretValue1 := `{"key1":"value1","key2":"value2"}`
+		secret2 := "/aws/secret/testing2"
+		secretValue2 := `{"key3":"value3","key4":"value4"}`
+
+		mockSSM := &awsAuth.MockSecretManager{
+
+			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+				assert.Nil(t, input.VersionId)
+				assert.Nil(t, input.VersionStage)
+
+				if input.SecretId == &secret1 {
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secretValue1,
+					}, nil
+				} else {
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secretValue2,
+					}, nil
+				}
+
+			},
+
+			ListSecretsFn: func(ctx context.Context, input *secretsmanager.ListSecretsInput, option ...request.Option) (*secretsmanager.ListSecretsOutput, error) {
+				return &secretsmanager.ListSecretsOutput{
+					SecretList: []*secretsmanager.SecretListEntry{
+						{Name: &secret1},
+						{Name: &secret2},
+					},
+				}, nil
+			},
+		}
+
+		secret := awsAuth.SecretManagerClients{
+			Manager: mockSSM,
+		}
+
+		mockedClients := awsAuth.Clients{
+			Secret: &secret,
+		}
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
+		s := smSecretStore{
+			authProvider:          mockAuthProvider,
+			multipleKeysPerSecret: true,
+		}
+
+		req := secretstores.BulkGetSecretRequest{
+			Metadata: map[string]string{},
+		}
+		output, e := s.BulkGetSecret(t.Context(), req)
+		require.NoError(t, e)
+		assert.Equal(t, map[string]map[string]string{
+			secret1: {
+				"key1": "value1",
+				"key2": "value2",
+			},
+			secret2: {
+				"key3": "value3",
+				"key4": "value4",
+			},
+		}, output.Data)
+	})
+}
+
 func TestGetFeatures(t *testing.T) {
 	s := smSecretStore{}
 	t.Run("when multipleKeysPerSecret = true, return feature", func(t *testing.T) {

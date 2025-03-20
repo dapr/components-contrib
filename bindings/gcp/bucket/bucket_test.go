@@ -16,6 +16,7 @@ package bucket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -232,6 +233,41 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, mergedMeta)
 		assert.False(t, mergedMeta.EncodeBase64)
+	})
+}
+
+func TestInit(t *testing.T) {
+	t.Run("Init explicit auth metadata", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"bucket":    "my_bucket",
+			"projectID": "my_project_id",
+		}
+		gs := GCPStorage{logger: logger.NewLogger("test")}
+		err := gs.Init(context.Background(), m)
+		require.NoError(t, err)
+	})
+
+	t.Run("Init missing bucket from metadata", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"projectID": "my_project_id",
+		}
+		gs := GCPStorage{logger: logger.NewLogger("test")}
+		err := gs.Init(context.Background(), m)
+		require.Error(t, err)
+		assert.Equal(t, err, errors.New("missing property `bucket` in metadata"))
+	})
+
+	t.Run("Init missing projectID from metadata", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"bucket": "my_bucket",
+		}
+		gs := GCPStorage{logger: logger.NewLogger("test")}
+		err := gs.Init(context.Background(), m)
+		require.Error(t, err)
+		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))
 	})
 }
 

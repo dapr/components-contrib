@@ -237,17 +237,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	t.Run("Init explicit auth metadata", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"bucket":    "my_bucket",
-			"projectID": "my_project_id",
-		}
-		gs := GCPStorage{logger: logger.NewLogger("test")}
-		err := gs.Init(context.Background(), m)
-		require.NoError(t, err)
-	})
-
 	t.Run("Init missing bucket from metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{

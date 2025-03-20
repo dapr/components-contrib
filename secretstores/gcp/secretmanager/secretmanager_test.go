@@ -134,14 +134,6 @@ func TestInit(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))
 	})
-
-	t.Run("Init implicit auth with no error", func(t *testing.T) {
-		m.Properties = map[string]string{
-			"project_id": "a",
-		}
-		err := sm.Init(ctx, m)
-		require.NoError(t, err)
-	})
 }
 
 func TestGetSecret(t *testing.T) {

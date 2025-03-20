@@ -24,7 +24,7 @@ const (
 	sidecarNamePrefix       = "ravendb-sidecar-"
 	stateStoreName          = "statestore"
 	certificationTestPrefix = "stable-certification-"
-	dockerComposeYAML       = "docker-compose.yaml"
+	dockerComposeYAML       = "docker-compose.yml"
 )
 
 func TestRavenDB(t *testing.T) {

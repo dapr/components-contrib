@@ -84,7 +84,6 @@ func NewRavenDB(logger logger.Logger) state.Store {
 		features: []state.Feature{
 			state.FeatureETag,
 			state.FeatureTransactional,
-			// state.FeatureQueryAPI,
 			state.FeatureTTL,
 		},
 		logger: logger,

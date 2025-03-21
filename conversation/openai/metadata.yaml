@@ -7,7 +7,7 @@ status: alpha
 title: "OpenAI"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-openai/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/openai/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"

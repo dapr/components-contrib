@@ -46,6 +46,6 @@ metadata:
     default: "true"
   - name: TTLFrequency
     description: |
-      Sets RavenDB frequency on running background task and deleting records
+      Sets RavenDB frequency on running the background expiration task and deleting records
     example: "15"
     default: "60"

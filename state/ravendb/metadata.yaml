@@ -41,7 +41,7 @@ metadata:
     example: "/path/to/key"
   - name: EnableTTL
     description: |
-      Boolean values that enables or disables RaveDB TTL functionality
+      Boolean value that enables or disables RaveDB TTL functionality
     example: "true"
     default: "true"
   - name: TTLFrequency

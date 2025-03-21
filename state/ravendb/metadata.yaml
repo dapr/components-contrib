@@ -13,7 +13,7 @@ capabilities:
 authenticationProfiles:
   - title: "No authentication"
     description: |
-      No authentication connect via connection string
+      No authentication. Connect via connection string
     metadata:
       - name : connectionString
         required: true

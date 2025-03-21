@@ -411,7 +411,7 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 			var bt []byte
 			isReqJSON := isJSON ||
-				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
+				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON)
 			if isReqJSON {
 				bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
 				pipe.Do(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt)
@@ -431,7 +431,7 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 				req.ETag = ptr.Of("0")
 			}
 			isReqJSON := isJSON ||
-				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
+				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON)
 			if isReqJSON {
 				pipe.Do(ctx, "EVAL", delJSONQuery, 1, req.Key, *req.ETag)
 			} else {

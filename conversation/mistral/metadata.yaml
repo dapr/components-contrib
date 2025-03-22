@@ -7,7 +7,7 @@ status: alpha
 title: "Mistral"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-mistral/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/mistral/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"

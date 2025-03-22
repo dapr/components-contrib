@@ -7,7 +7,7 @@ status: alpha
 title: "AWS Bedrock"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-aws-bedrock/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/aws-bedrock/
 builtinAuthenticationProfiles:
   - name: "aws"
 metadata:

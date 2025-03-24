@@ -168,6 +168,7 @@ func TestGetSecret(t *testing.T) {
 				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 					assert.Nil(t, input.VersionId)
 					assert.Nil(t, input.VersionStage)
+					// #nosec G101: This is a mock secret used for testing purposes.
 					secret := `{"key1":"value1","key2":"value2"}`
 
 					return &secretsmanager.GetSecretValueOutput{
@@ -207,6 +208,7 @@ func TestGetSecret(t *testing.T) {
 				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 					assert.Nil(t, input.VersionId)
 					assert.Nil(t, input.VersionStage)
+					// #nosec G101: This is a mock secret used for testing purposes.
 					secret := `{"key1":"value1","key2":"value2"}`
 
 					return &secretsmanager.GetSecretValueOutput{
@@ -236,7 +238,7 @@ func TestGetSecret(t *testing.T) {
 			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Len(t, output.Data, 1)
-			assert.Equal(t, `{"key1":"value1","key2":"value2"}`, output.Data["/aws/secret/testing"])
+			assert.JSONEq(t, `{"key1":"value1","key2":"value2"}`, output.Data["/aws/secret/testing"])
 		})
 
 		t.Run("with multiple keys per secret and secret is NOT json", func(t *testing.T) {
@@ -316,7 +318,6 @@ func TestBulkGetSecret(t *testing.T) {
 		secretValue2 := "secret2"
 
 		mockSSM := &awsAuth.MockSecretManager{
-
 			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 				assert.Nil(t, input.VersionId)
 				assert.Nil(t, input.VersionStage)
@@ -332,7 +333,6 @@ func TestBulkGetSecret(t *testing.T) {
 						SecretString: &secretValue2,
 					}, nil
 				}
-
 			},
 
 			ListSecretsFn: func(ctx context.Context, input *secretsmanager.ListSecretsInput, option ...request.Option) (*secretsmanager.ListSecretsOutput, error) {
@@ -375,12 +375,13 @@ func TestBulkGetSecret(t *testing.T) {
 
 	t.Run("when multipleKeysPerSecret = true, returns all secrets in store broken out by key", func(t *testing.T) {
 		secret1 := "/aws/secret/testing1"
+		// #nosec G101: This is a mock secret used for testing purposes.
 		secretValue1 := `{"key1":"value1","key2":"value2"}`
 		secret2 := "/aws/secret/testing2"
+		// #nosec G101: This is a mock secret used for testing purposes.
 		secretValue2 := `{"key3":"value3","key4":"value4"}`
 
 		mockSSM := &awsAuth.MockSecretManager{
-
 			GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 				assert.Nil(t, input.VersionId)
 				assert.Nil(t, input.VersionStage)
@@ -396,7 +397,6 @@ func TestBulkGetSecret(t *testing.T) {
 						SecretString: &secretValue2,
 					}, nil
 				}
-
 			},
 
 			ListSecretsFn: func(ctx context.Context, input *secretsmanager.ListSecretsInput, option ...request.Option) (*secretsmanager.ListSecretsOutput, error) {

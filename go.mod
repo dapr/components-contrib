@@ -117,7 +117,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732
 	github.com/tetratelabs/wazero v1.7.0
 	github.com/tmc/langchaingo v0.1.12
-	github.com/valyala/fasthttp v1.49.0
+	github.com/valyala/fasthttp v1.53.0
 	github.com/vmware/vmware-go-kcl v1.5.1
 	github.com/xdg-go/scram v1.1.2
 	go.etcd.io/etcd/client/v3 v3.5.10
@@ -176,7 +176,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
-	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect

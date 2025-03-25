@@ -439,7 +439,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["X-Token"])
 	})
@@ -455,7 +455,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Empty(t, handler.Headers["X-Token"])
 	})
@@ -478,7 +478,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
@@ -493,7 +493,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		_, traceParentExists := handler.Headers["Traceparent"]
 		assert.False(t, traceParentExists)
@@ -510,7 +510,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
@@ -624,7 +624,7 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		response, err := hs.Invoke(context.Background(), &req)
+		response, err := hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
 		require.NoError(t, err)
@@ -638,7 +638,7 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 201,
 		}.ToInvokeRequest()
-		response, err = hs.Invoke(context.Background(), &req)
+		response, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
 		require.NoError(t, err)
@@ -657,7 +657,7 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
+		_, err = hs.Invoke(t.Context(), &req)
 		require.Error(t, err)
 	})
 
@@ -677,7 +677,7 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		response, err := hs.Invoke(context.Background(), &req)
+		response, err := hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
 		require.NoError(t, err)
@@ -694,7 +694,7 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 201,
 		}.ToInvokeRequest()
-		response, err = hs.Invoke(context.Background(), &req)
+		response, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
 		require.NoError(t, err)
@@ -851,7 +851,7 @@ func verifyDefaultBehaviors(t *testing.T, hs bindings.OutputBinding, handler *HT
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.Background(), &req)
+			response, err := hs.Invoke(t.Context(), &req)
 			if tc.err == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, handler.Path)
@@ -915,7 +915,7 @@ func verifyNon2XXErrorsSuppressed(t *testing.T, hs bindings.OutputBinding, handl
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.Background(), &req)
+			response, err := hs.Invoke(t.Context(), &req)
 			if tc.err == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, handler.Path)
@@ -965,7 +965,7 @@ func verifyTimeoutBehavior(t *testing.T, hs bindings.OutputBinding, handler *HTT
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.Background(), &req)
+			response, err := hs.Invoke(t.Context(), &req)
 			if tc.err == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, handler.Path)
@@ -999,7 +999,7 @@ func TestMaxBodySizeHonored(t *testing.T) {
 	}
 
 	req := tc.ToInvokeRequest()
-	response, err := hs.Invoke(context.Background(), &req)
+	response, err := hs.Invoke(t.Context(), &req)
 	require.NoError(t, err)
 
 	// Should have only read 1KB

@@ -78,7 +78,7 @@ func TestInvoke(t *testing.T) {
 	reqData := enc.Buffer()
 
 	// 3. invoke dapr dubbo output binding, get rsp bytes
-	rsp, err := output.Invoke(context.Background(), &bindings.InvokeRequest{
+	rsp, err := output.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			metadataRPCProviderPort:     dubboPort,
 			metadataRPCProviderHostname: localhostIP,

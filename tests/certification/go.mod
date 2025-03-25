@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.23.1
+go 1.24.1
 
 require (
 	cloud.google.com/go/pubsub v1.43.0
@@ -18,7 +18,7 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.15.0-rc.1.0.20241216170750-aca5116d95c9
-	github.com/dapr/dapr v1.14.3-0.20240916190634-9bc98db80afa
+	github.com/dapr/dapr v1.15.0-rc.18
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
 	github.com/dapr/kit v0.13.1-0.20241127165251-30e2c24840b4
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -32,7 +32,7 @@ require (
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/riferrei/srclient v0.6.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.14.0
 	go.uber.org/multierr v1.11.0
@@ -108,7 +108,7 @@ require (
 	github.com/bytedance/gopkg v0.0.0-20240711085056-a03554c296f8 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
-	github.com/choleraehyq/pid v0.0.19 // indirect
+	github.com/choleraehyq/pid v0.0.20 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
@@ -311,15 +311,15 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.10.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/term v0.27.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect

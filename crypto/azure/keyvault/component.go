@@ -402,15 +402,15 @@ func (k *keyvaultCrypto) Close() error {
 	return nil
 }
 
-func (keyvaultCrypto) SupportedEncryptionAlgorithms() []string {
+func (*keyvaultCrypto) SupportedEncryptionAlgorithms() []string {
 	return encryptionAlgsList
 }
 
-func (keyvaultCrypto) SupportedSignatureAlgorithms() []string {
+func (*keyvaultCrypto) SupportedSignatureAlgorithms() []string {
 	return signatureAlgsList
 }
 
-func (keyvaultCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+func (*keyvaultCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := keyvaultMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
 	return

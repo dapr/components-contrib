@@ -32,7 +32,7 @@ import (
 func Test_reloadConsumerGroup(t *testing.T) {
 	t.Run("if reload called with no topics and not closed, expect return and cancel called", func(t *testing.T) {
 		var consumeCalled atomic.Bool
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		cg := mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
@@ -56,7 +56,7 @@ func Test_reloadConsumerGroup(t *testing.T) {
 
 	t.Run("if reload called with topics but is closed, expect return and cancel called", func(t *testing.T) {
 		var consumeCalled atomic.Bool
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		cg := mocks.NewConsumerGroup().WithConsumeFn(func(context.Context, []string, sarama.ConsumerGroupHandler) error {
@@ -255,7 +255,7 @@ func Test_Subscribe(t *testing.T) {
 			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
-		k.Subscribe(context.Background(), SubscriptionHandlerConfig{})
+		k.Subscribe(t.Context(), SubscriptionHandlerConfig{})
 
 		assert.Nil(t, k.consumerCancel)
 		assert.Equal(t, int64(0), consumeCalled.Load())
@@ -282,7 +282,7 @@ func Test_Subscribe(t *testing.T) {
 
 		k.closed.Store(true)
 
-		k.Subscribe(context.Background(), SubscriptionHandlerConfig{}, "abc")
+		k.Subscribe(t.Context(), SubscriptionHandlerConfig{}, "abc")
 
 		assert.Nil(t, k.consumerCancel)
 		assert.Equal(t, int64(0), consumeCalled.Load())
@@ -309,7 +309,7 @@ func Test_Subscribe(t *testing.T) {
 			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		k.Subscribe(ctx, SubscriptionHandlerConfig{}, "abc")
 
 		assert.Eventually(t, func() bool {
@@ -347,7 +347,7 @@ func Test_Subscribe(t *testing.T) {
 			subscribeTopics:      make(TopicHandlerConfig),
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		k.Subscribe(ctx, SubscriptionHandlerConfig{}, "abc")
 
 		assert.Eventually(t, func() bool {
@@ -398,7 +398,7 @@ func Test_Subscribe(t *testing.T) {
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		k.Subscribe(context.Background(), SubscriptionHandlerConfig{}, "foo")
+		k.Subscribe(t.Context(), SubscriptionHandlerConfig{}, "foo")
 		assert.Equal(t, TopicHandlerConfig{"foo": SubscriptionHandlerConfig{}}, k.subscribeTopics)
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 5
@@ -428,7 +428,7 @@ func Test_Subscribe(t *testing.T) {
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		ctx1, cancel1 := context.WithCancel(context.Background())
+		ctx1, cancel1 := context.WithCancel(t.Context())
 		k.Subscribe(ctx1, SubscriptionHandlerConfig{}, "abc")
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 1
@@ -436,7 +436,7 @@ func Test_Subscribe(t *testing.T) {
 		assert.ElementsMatch(t, []string{"abc"}, consumeTopics.Load())
 		assert.Equal(t, int64(0), cancelCalled.Load())
 
-		ctx2, cancel2 := context.WithCancel(context.Background())
+		ctx2, cancel2 := context.WithCancel(t.Context())
 		k.Subscribe(ctx2, SubscriptionHandlerConfig{}, "def")
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 2
@@ -444,7 +444,7 @@ func Test_Subscribe(t *testing.T) {
 		assert.ElementsMatch(t, []string{"abc", "def"}, consumeTopics.Load())
 		assert.Equal(t, int64(1), cancelCalled.Load())
 
-		ctx3, cancel3 := context.WithCancel(context.Background())
+		ctx3, cancel3 := context.WithCancel(t.Context())
 		k.Subscribe(ctx3, SubscriptionHandlerConfig{}, "123")
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 3
@@ -459,7 +459,7 @@ func Test_Subscribe(t *testing.T) {
 		assert.ElementsMatch(t, []string{"abc", "123"}, consumeTopics.Load())
 		assert.Equal(t, int64(3), cancelCalled.Load())
 
-		ctx2, cancel2 = context.WithCancel(context.Background())
+		ctx2, cancel2 = context.WithCancel(t.Context())
 		k.Subscribe(ctx2, SubscriptionHandlerConfig{}, "456")
 		assert.Eventually(t, func() bool {
 			return consumeCalled.Load() == 5
@@ -502,7 +502,7 @@ func Test_Subscribe(t *testing.T) {
 			consumeRetryInterval: time.Millisecond,
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		for i := range 100 {
 			go func(i int) {
 				k.Subscribe(ctx, SubscriptionHandlerConfig{}, strconv.Itoa(i))

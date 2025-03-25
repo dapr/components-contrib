@@ -14,7 +14,6 @@ limitations under the License.
 package kubernetes
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +43,7 @@ func TestGetNamespace(t *testing.T) {
 
 	t.Run("no namespace", func(t *testing.T) {
 		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
-		os.Setenv("NAMESPACE", "")
+		t.Setenv("NAMESPACE", "")
 		_, err := store.getNamespaceFromMetadata(map[string]string{})
 
 		require.Error(t, err)

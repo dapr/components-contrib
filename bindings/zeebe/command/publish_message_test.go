@@ -108,7 +108,7 @@ func TestPublishMessage(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: PublishMessageOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingMessageName)
 	})
 
@@ -124,7 +124,7 @@ func TestPublishMessage(t *testing.T) {
 		var mc mockPublishMessageClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
@@ -149,7 +149,7 @@ func TestPublishMessage(t *testing.T) {
 		var mc mockPublishMessageClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)

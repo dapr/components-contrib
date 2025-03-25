@@ -14,7 +14,6 @@ limitations under the License.
 package state
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -396,7 +395,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("init", func(t *testing.T) {
-		err := statestore.Init(context.Background(), state.Metadata{Base: metadata.Base{
+		err := statestore.Init(t.Context(), state.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
 		require.NoError(t, err)
@@ -408,7 +407,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("ping", func(t *testing.T) {
-		err := state.Ping(context.Background(), statestore)
+		err := state.Ping(t.Context(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
@@ -430,7 +429,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				if len(scenario.contentType) != 0 {
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
-				err := statestore.Set(context.Background(), req)
+				err := statestore.Set(t.Context(), req)
 				require.NoError(t, err)
 			}
 		}
@@ -446,7 +445,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				if len(scenario.contentType) != 0 {
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
-				res, err := statestore.Get(context.Background(), req)
+				res, err := statestore.Get(t.Context(), req)
 				require.NoError(t, err)
 				assertEquals(t, scenario.value, res)
 			}
@@ -477,7 +476,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata["partitionKey"] = val
 				}
 
-				resp, err := querier.Query(context.Background(), &req)
+				resp, err := querier.Query(t.Context(), &req)
 				require.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
 				for i := range scenario.results {
@@ -509,11 +508,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				if len(scenario.contentType) != 0 {
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
-				err := statestore.Delete(context.Background(), req)
+				err := statestore.Delete(t.Context(), req)
 				require.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
 				t.Logf("Checking value absence for %s", scenario.key)
-				res, err := statestore.Get(context.Background(), &state.GetRequest{
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
 					Key: scenario.key,
 				})
 				require.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
@@ -533,14 +532,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				})
 			}
 		}
-		err := statestore.BulkSet(context.Background(), bulk, state.BulkStoreOpts{})
+		err := statestore.BulkSet(t.Context(), bulk, state.BulkStoreOpts{})
 		require.NoError(t, err)
 
 		for _, scenario := range scenarios {
 			if scenario.bulkOnly {
 				t.Logf("Checking value presence for %s", scenario.key)
 				// Data should have been inserted at this point
-				res, err := statestore.Get(context.Background(), &state.GetRequest{
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
 					Key: scenario.key,
 				})
 				require.NoError(t, err)
@@ -581,7 +580,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				res, err := statestore.BulkGet(context.Background(), tt.req, state.BulkGetOpts{})
+				res, err := statestore.BulkGet(t.Context(), tt.req, state.BulkGetOpts{})
 				require.NoError(t, err)
 				require.Len(t, res, len(tt.expect))
 
@@ -607,12 +606,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				})
 			}
 		}
-		err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
+		err := statestore.BulkDelete(t.Context(), bulk, state.BulkStoreOpts{})
 		require.NoError(t, err)
 
 		for _, req := range bulk {
 			t.Logf("Checking value absence for %s", req.Key)
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
+			res, err := statestore.Get(t.Context(), &state.GetRequest{
 				Key: req.Key,
 			})
 			require.NoError(t, err)
@@ -661,7 +660,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
-				err := transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
+				err := transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
 					Operations: transactions[transactionGroup],
 					// For CosmosDB
 					Metadata: map[string]string{
@@ -674,7 +673,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						if scenario.transactionGroup == transactionGroup {
 							t.Logf("Checking value presence for %s", scenario.key)
 							// Data should have been inserted at this point
-							res, err := statestore.Get(context.Background(), &state.GetRequest{
+							res, err := statestore.Get(t.Context(), &state.GetRequest{
 								Key: scenario.key,
 								// For CosmosDB
 								Metadata: map[string]string{
@@ -688,7 +687,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
 							t.Logf("Checking value absence for %s", scenario.key)
 							// Data should have been deleted at this point
-							res, err := statestore.Get(context.Background(), &state.GetRequest{
+							res, err := statestore.Get(t.Context(), &state.GetRequest{
 								Key: scenario.key,
 								// For CosmosDB
 								Metadata: map[string]string{
@@ -718,7 +717,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// prerequisite: key1 should be present
-			err := statestore.Set(context.Background(), &state.SetRequest{
+			err := statestore.Set(t.Context(), &state.SetRequest{
 				Key:      firstKey,
 				Value:    firstValue,
 				Metadata: partitionMetadata,
@@ -726,14 +725,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err, "set request should be successful")
 
 			// prerequisite: key2 should not be present
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+			err = statestore.Delete(t.Context(), &state.DeleteRequest{
 				Key:      secondKey,
 				Metadata: partitionMetadata,
 			})
 			require.NoError(t, err, "delete request should be successful")
 
 			// prerequisite: key3 should not be present
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+			err = statestore.Delete(t.Context(), &state.DeleteRequest{
 				Key:      thirdKey,
 				Metadata: partitionMetadata,
 			})
@@ -769,7 +768,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Act
 			transactionStore, ok := statestore.(state.TransactionalStore)
 			assert.True(t, ok)
-			err = transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
+			err = transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
 				Operations: operations,
 				Metadata:   partitionMetadata,
 			})
@@ -777,7 +776,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			// Assert
 			for k, v := range expected {
-				res, err := statestore.Get(context.Background(), &state.GetRequest{
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
 					Key:      k,
 					Metadata: partitionMetadata,
 				})
@@ -823,14 +822,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				// Act
 				transactionStore, ok := statestore.(state.TransactionalStore)
 				assert.True(t, ok)
-				err := transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
+				err := transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
 					Operations: operations,
 				})
 				require.NoError(t, err)
 
 				// Assert
 				for k, v := range expected {
-					res, err := statestore.Get(context.Background(), &state.GetRequest{
+					res, err := statestore.Get(t.Context(), &state.GetRequest{
 						Key:      k,
 						Metadata: expectedMetadata[k],
 					})
@@ -881,7 +880,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.True(t, state.FeatureETag.IsPresent(features))
 
 			// Set some objects (no etag as they are new)
-			err := statestore.BulkSet(context.Background(), []state.SetRequest{
+			err := statestore.BulkSet(t.Context(), []state.SetRequest{
 				{Key: testKeys[0], Value: firstValue},
 				{Key: testKeys[1], Value: firstValue},
 				{Key: testKeys[2], Value: firstValue},
@@ -890,7 +889,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Validate the set, using both regular Get and BulkGet
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
+			res, err := statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[0],
 			})
 			require.NoError(t, err)
@@ -899,7 +898,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assertEquals(t, firstValue, res)
 			etags[0] = *res.ETag
 
-			bulkRes, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+			bulkRes, err := statestore.BulkGet(t.Context(), []state.GetRequest{
 				{Key: testKeys[1]},
 				{Key: testKeys[2]},
 				{Key: testKeys[3]},
@@ -921,7 +920,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// Try and update with wrong ETag, expect failure
-			err = statestore.Set(context.Background(), &state.SetRequest{
+			err = statestore.Set(t.Context(), &state.SetRequest{
 				Key:   testKeys[0],
 				Value: secondValue,
 				ETag:  &config.BadEtag,
@@ -931,7 +930,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
 			// Try and update with Set and corect ETag, expect success
-			err = statestore.Set(context.Background(), &state.SetRequest{
+			err = statestore.Set(t.Context(), &state.SetRequest{
 				Key:   testKeys[0],
 				Value: secondValue,
 				ETag:  &etags[0],
@@ -939,7 +938,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Validate the Set
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[0],
 			})
 			require.NoError(t, err)
@@ -949,7 +948,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			etags[0] = *res.ETag
 
 			// Try and update bulk with one ETag wrong, expect partial success
-			err = statestore.BulkSet(context.Background(), []state.SetRequest{
+			err = statestore.BulkSet(t.Context(), []state.SetRequest{
 				{Key: testKeys[1], Value: secondValue, ETag: &config.BadEtag},
 				{Key: testKeys[2], Value: secondValue, ETag: &etags[2]},
 			}, state.BulkStoreOpts{})
@@ -965,7 +964,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
 			// Validate: key 1 should be unchanged, and key 2 should be changed
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[1],
 			})
 			require.NoError(t, err)
@@ -973,7 +972,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NotNil(t, res.ETag)
 			require.Equal(t, etags[1], *res.ETag)
 
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[2],
 			})
 			require.NoError(t, err)
@@ -983,14 +982,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			etags[2] = *res.ETag
 
 			// Update bulk with valid etags
-			err = statestore.BulkSet(context.Background(), []state.SetRequest{
+			err = statestore.BulkSet(t.Context(), []state.SetRequest{
 				{Key: testKeys[1], Value: thirdValue, ETag: &etags[1]},
 				{Key: testKeys[2], Value: thirdValue, ETag: &etags[2]},
 			}, state.BulkStoreOpts{})
 			require.NoError(t, err)
 
 			// Validate
-			bulkRes, err = statestore.BulkGet(context.Background(), []state.GetRequest{
+			bulkRes, err = statestore.BulkGet(t.Context(), []state.GetRequest{
 				{Key: testKeys[1]},
 				{Key: testKeys[2]},
 			}, state.BulkGetOpts{})
@@ -1009,7 +1008,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// Try and delete with wrong ETag, expect failure
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+			err = statestore.Delete(t.Context(), &state.DeleteRequest{
 				Key:  testKeys[0],
 				ETag: &config.BadEtag,
 			})
@@ -1018,14 +1017,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.NotEmpty(t, etagErr.Kind())
 
 			// Try and delete with correct ETag, expect success
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+			err = statestore.Delete(t.Context(), &state.DeleteRequest{
 				Key:  testKeys[0],
 				ETag: &etags[0],
 			})
 			require.NoError(t, err)
 
 			// Validate missing
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[0],
 			})
 			require.NoError(t, err)
@@ -1033,7 +1032,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Empty(t, res.ETag)
 
 			// Try and delete bulk with two ETag's wrong, expect partial success
-			err = statestore.BulkDelete(context.Background(), []state.DeleteRequest{
+			err = statestore.BulkDelete(t.Context(), []state.DeleteRequest{
 				{Key: testKeys[1], ETag: &etags[1]},
 				{Key: testKeys[2], ETag: &config.BadEtag},
 			}, state.BulkStoreOpts{})
@@ -1049,7 +1048,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
 			// Validate key 1 missing
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[1],
 			})
 			require.NoError(t, err)
@@ -1057,7 +1056,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Empty(t, res.ETag)
 
 			// Validate key 2 unchanged
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKeys[2],
 			})
 			require.NoError(t, err)
@@ -1066,14 +1065,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Equal(t, etags[2], *res.ETag)
 
 			// Try and delete bulk with valid ETags
-			err = statestore.BulkDelete(context.Background(), []state.DeleteRequest{
+			err = statestore.BulkDelete(t.Context(), []state.DeleteRequest{
 				{Key: testKeys[2], ETag: &etags[2]},
 				{Key: testKeys[3], ETag: &etags[3]},
 			}, state.BulkStoreOpts{})
 			require.NoError(t, err)
 
 			// Validate keys missing
-			bulkRes, err = statestore.BulkGet(context.Background(), []state.GetRequest{
+			bulkRes, err = statestore.BulkGet(t.Context(), []state.GetRequest{
 				{Key: testKeys[2]},
 				{Key: testKeys[3]},
 			}, state.BulkGetOpts{})
@@ -1150,24 +1149,24 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			for i, requestSet := range requestSets {
 				t.Run(fmt.Sprintf("request set %d", i), func(t *testing.T) {
 					// Delete any potential object, it's important to start from a clean slate.
-					err := statestore.Delete(context.Background(), &state.DeleteRequest{
+					err := statestore.Delete(t.Context(), &state.DeleteRequest{
 						Key: testKey,
 					})
 					require.NoError(t, err)
 
 					// Set the value
-					err = statestore.Set(context.Background(), requestSet[0])
+					err = statestore.Set(t.Context(), requestSet[0])
 					require.NoError(t, err)
 
 					// Validate the set
-					res, err := statestore.Get(context.Background(), &state.GetRequest{
+					res, err := statestore.Get(t.Context(), &state.GetRequest{
 						Key: testKey,
 					})
 					require.NoError(t, err)
 					assertEquals(t, firstValue, res)
 
 					// Second write expect fail
-					err = statestore.Set(context.Background(), requestSet[1])
+					err = statestore.Set(t.Context(), requestSet[1])
 					require.Error(t, err)
 				})
 			}
@@ -1183,11 +1182,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: firstValue,
 			}
 
-			err := statestore.Set(context.Background(), request)
+			err := statestore.Set(t.Context(), request)
 			require.NoError(t, err)
 
 			// Validate the set.
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
+			res, err := statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)
@@ -1204,11 +1203,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Consistency: state.Strong,
 				},
 			}
-			err = statestore.Set(context.Background(), request)
+			err = statestore.Set(t.Context(), request)
 			require.NoError(t, err)
 
 			// Validate the set.
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
+			res, err = statestore.Get(t.Context(), &state.GetRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)
@@ -1218,14 +1217,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			request.ETag = etag
 
 			// Second write expect fail
-			err = statestore.Set(context.Background(), request)
+			err = statestore.Set(t.Context(), request)
 			require.Error(t, err)
 		})
 	}
 
 	if config.HasOperation("ttl") {
 		t.Run("set ttl with bad value should error", func(t *testing.T) {
-			require.Error(t, statestore.Set(context.Background(), &state.SetRequest{
+			require.Error(t, statestore.Set(t.Context(), &state.SetRequest{
 				Key:   key + "-ttl",
 				Value: "⏱️",
 				Metadata: map[string]string{
@@ -1239,7 +1238,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			features := statestore.Features()
 			require.True(t, state.FeatureTTL.IsPresent(features))
 
-			err := statestore.Set(context.Background(), &state.SetRequest{
+			err := statestore.Set(t.Context(), &state.SetRequest{
 				Key:   key + "-ttl",
 				Value: "⏱️",
 				Metadata: map[string]string{
@@ -1249,7 +1248,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Request immediately
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
+			res, err := statestore.Get(t.Context(), &state.GetRequest{
 				Key: key + "-ttl",
 			})
 			require.NoError(t, err)
@@ -1257,7 +1256,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			// Wait for the object to expire and request again
 			assert.Eventually(t, func() bool {
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl",
 				})
 				require.NoError(t, err)
@@ -1277,7 +1276,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("no TTL should not return any expire time", func(t *testing.T) {
-			err := statestore.Set(context.Background(), &state.SetRequest{
+			err := statestore.Set(t.Context(), &state.SetRequest{
 				Key:      key + "-no-ttl",
 				Value:    "⏱️",
 				Metadata: map[string]string{},
@@ -1285,7 +1284,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Request immediately
-			res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key + "-no-ttl"})
+			res, err := statestore.Get(t.Context(), &state.GetRequest{Key: key + "-no-ttl"})
 			require.NoError(t, err)
 			assertEquals(t, "⏱️", res)
 
@@ -1312,7 +1311,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			t.Run("set and get expire time", func(t *testing.T) {
 				now := time.Now()
-				err := statestore.Set(context.Background(), &state.SetRequest{
+				err := statestore.Set(t.Context(), &state.SetRequest{
 					Key:   key + "-ttl-expire-time",
 					Value: "⏱️",
 					Metadata: map[string]string{
@@ -1323,7 +1322,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				require.NoError(t, err)
 
 				// Request immediately
-				res, err := statestore.Get(context.Background(), &state.GetRequest{
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time",
 				})
 				require.NoError(t, err)
@@ -1344,13 +1343,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					}
 				}
 
-				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+				require.NoError(t, statestore.Set(t.Context(), req(map[string]string{
 					// Expire in 2 seconds.
 					"ttlInSeconds": "2",
 				})))
 
 				// Request immediately
-				res, err := statestore.Get(context.Background(), &state.GetRequest{
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
@@ -1358,10 +1357,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assert.Contains(t, res.Metadata, "ttlExpireTime")
 
 				// Remove TTL by setting a value of -1.
-				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+				require.NoError(t, statestore.Set(t.Context(), req(map[string]string{
 					"ttlInSeconds": "-1",
 				})))
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
@@ -1371,17 +1370,17 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				// Ensure that the key is not expired after previous TTL.
 				time.Sleep(3 * time.Second)
 
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
 				assertEquals(t, "⏱️", res)
 
 				// Set a new TTL.
-				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+				require.NoError(t, statestore.Set(t.Context(), req(map[string]string{
 					"ttlInSeconds": "2",
 				})))
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
@@ -1389,8 +1388,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assert.Contains(t, res.Metadata, "ttlExpireTime")
 
 				// Remove TTL by omitting the ttlInSeconds field.
-				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{})))
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				require.NoError(t, statestore.Set(t.Context(), req(map[string]string{})))
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
@@ -1399,7 +1398,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				// Ensure key is not expired after previous TTL.
 				time.Sleep(3 * time.Second)
-				res, err = statestore.Get(context.Background(), &state.GetRequest{
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
 					Key: key + "-ttl-expire-time-minus-1",
 				})
 				require.NoError(t, err)
@@ -1409,20 +1408,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			t.Run("set and get expire time bulkGet", func(t *testing.T) {
 				now := time.Now()
-				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
 					Key:      key + "-ttl-expire-time-bulk-1",
 					Value:    "123",
 					Metadata: map[string]string{"ttlInSeconds": "3600"},
 				}))
 
-				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
 					Key:      key + "-ttl-expire-time-bulk-2",
 					Value:    "234",
 					Metadata: map[string]string{"ttlInSeconds": "3600"},
 				}))
 
 				// Request immediately
-				res, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+				res, err := statestore.BulkGet(t.Context(), []state.GetRequest{
 					{Key: key + "-ttl-expire-time-bulk-1"},
 					{Key: key + "-ttl-expire-time-bulk-2"},
 				}, state.BulkGetOpts{})
@@ -1465,7 +1464,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		validateFn := func() func(t *testing.T) {
 			return func(t *testing.T) {
 				for key, exists := range keys {
-					res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key})
+					res, err := statestore.Get(t.Context(), &state.GetRequest{Key: key})
 					require.NoErrorf(t, err, "Error retrieving key '%s'", key)
 					if exists {
 						require.NotEmptyf(t, res.Data, "Expected key '%s' to be not empty", key)
@@ -1489,7 +1488,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("set test data", func(t *testing.T) {
-			err := statestore.BulkSet(context.Background(), []state.SetRequest{
+			err := statestore.BulkSet(t.Context(), []state.SetRequest{
 				{Key: "prefix||key1", Value: []byte("Ovid, Metamorphoseon")},
 				{Key: "prefix||key2", Value: []byte("In nova fert animus mutatas dicere formas")},
 				{Key: "prefix||prefix2||key3", Value: []byte("corpora; di, coeptis (nam vos mutastis et illas)")},
@@ -1504,7 +1503,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		require.False(t, t.Failed(), "Cannot continue if previous test failed")
 
 		t.Run("delete with prefix", func(t *testing.T) {
-			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
 				// Does not delete "prefix||prefix2||key3"
 				Prefix: "prefix||",
 			})
@@ -1518,7 +1517,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("delete with prefix appends ||", func(t *testing.T) {
-			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
 				// Appends || automatically
 				Prefix: "other-prefix",
 			})
@@ -1531,7 +1530,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("error when prefix is empty", func(t *testing.T) {
-			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
 				Prefix: "",
 			})
 			require.Error(t, err)
@@ -1539,7 +1538,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("error when prefix is ||", func(t *testing.T) {
-			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(context.Background(), state.DeleteWithPrefixRequest{
+			_, err := statestoreDeleteWithPrefix.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
 				Prefix: "||",
 			})
 			require.Error(t, err)

@@ -14,7 +14,6 @@ limitations under the License.
 package tablestore
 
 import (
-	"context"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -56,7 +55,7 @@ func TestReadAndWrite(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 	store.BulkStore = state.NewDefaultBulkStore(store)
-	store.Init(context.Background(), state.Metadata{})
+	store.Init(t.Context(), state.Metadata{})
 
 	store.client = &mockClient{
 		data: make(map[string][]byte),
@@ -68,7 +67,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "value of key",
 			ETag:  ptr.Of("the etag"),
 		}
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 	})
 
@@ -76,7 +75,7 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theFirstKey",
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "value of key", string(resp.Data))
@@ -88,7 +87,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "1234",
 			ETag:  ptr.Of("the etag"),
 		}
-		err := store.Set(context.Background(), setReq)
+		err := store.Set(t.Context(), setReq)
 		require.NoError(t, err)
 	})
 
@@ -96,14 +95,14 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
-		resp, err := store.Get(context.Background(), getReq)
+		resp, err := store.Get(t.Context(), getReq)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "1234", string(resp.Data))
 	})
 
 	t.Run("test BulkSet", func(t *testing.T) {
-		err := store.BulkSet(context.Background(), []state.SetRequest{{
+		err := store.BulkSet(t.Context(), []state.SetRequest{{
 			Key:   "theFirstKey",
 			Value: "666",
 		}, {
@@ -115,7 +114,7 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("test BulkGet", func(t *testing.T) {
-		resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
+		resp, err := store.BulkGet(t.Context(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
@@ -131,12 +130,12 @@ func TestReadAndWrite(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
-		err := store.Delete(context.Background(), req)
+		err := store.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
 
 	t.Run("test BulkGet2", func(t *testing.T) {
-		resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
+		resp, err := store.BulkGet(t.Context(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",

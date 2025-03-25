@@ -96,12 +96,12 @@ func TestWriteQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(context.Background(), &r)
+	_, err = a.Invoke(t.Context(), &r)
 
 	require.NoError(t, err)
 	require.NoError(t, a.Close())
@@ -118,12 +118,12 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(context.Background(), &r)
+	_, err = a.Invoke(t.Context(), &r)
 
 	require.NoError(t, err)
 	require.NoError(t, a.Close())
@@ -140,7 +140,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{
@@ -148,7 +148,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 		Metadata: map[string]string{metadata.TTLMetadataKey: "1"},
 	}
 
-	_, err = a.Invoke(context.Background(), &r)
+	_, err = a.Invoke(t.Context(), &r)
 
 	require.NoError(t, err)
 	require.NoError(t, a.Close())
@@ -162,7 +162,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -181,12 +181,12 @@ func TestReadQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	_, err = a.Invoke(ctx, &r)
 
 	require.NoError(t, err)
@@ -223,12 +223,12 @@ func TestReadQueueDecode(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", "decodeBase64": "true"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	_, err = a.Invoke(ctx, &r)
 
 	require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestReadQueueDecode(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -294,10 +294,10 @@ func TestReadQueueNoMessage(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(context.Background(), m)
+	err := a.Init(t.Context(), m)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		received++

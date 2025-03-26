@@ -28,6 +28,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -258,6 +259,8 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	if ok {
 		p.Priority = priority
 	}
+
+	common.ApplyMetadataToPublishing(req.Metadata, &p)
 
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {

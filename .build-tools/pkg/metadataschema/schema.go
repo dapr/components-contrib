@@ -20,7 +20,7 @@ type ComponentMetadata struct {
 	// Version of the component metadata schema.
 	SchemaVersion string `json:"schemaVersion" yaml:"schemaVersion" jsonschema:"enum=v1"`
 	// Component type, of one of the allowed values.
-	Type string `json:"type" yaml:"type" jsonschema:"enum=bindings,enum=state,enum=secretstores,enum=pubsub,enum=workflows,enum=configuration,enum=lock,enum=middleware,enum=crypto"`
+	Type string `json:"type" yaml:"type" jsonschema:"enum=bindings,enum=state,enum=secretstores,enum=pubsub,enum=workflows,enum=configuration,enum=lock,enum=middleware,enum=crypto,enum=conversation"`
 	// Name of the component (without the inital type, e.g. "http" instead of "bindings.http").
 	Name string `json:"name" yaml:"name"`
 	// Version of the component, with the leading "v", e.g. "v1".

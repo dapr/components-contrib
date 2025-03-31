@@ -167,7 +167,7 @@ func (mr *MockQueryAPIMockRecorder) QueryRawWithParams(arg0, arg1, arg2, arg3 in
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRawWithParams", reflect.TypeOf((*MockQueryAPI)(nil).QueryRaw), arg0, arg1, arg2, arg3)
 }
-	
+
 // QueryWithParams executes flux parametrized query  on the InfluxDB server and returns QueryTableResult which parses streamed response into structures representing flux table parts
 func (m *MockQueryAPI) QueryWithParams(ctx context.Context, query string, params interface{}) (*api.QueryTableResult, error) {
 	m.ctrl.T.Helper()

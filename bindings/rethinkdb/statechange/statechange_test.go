@@ -71,10 +71,10 @@ func TestBinding(t *testing.T) {
 	}}
 
 	b := getNewRethinkActorBinding()
-	err := b.Init(context.Background(), m)
+	err := b.Init(t.Context(), m)
 	require.NoErrorf(t, err, "error initializing")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	err = b.Read(ctx, func(_ context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		t.Logf("state change event:\n%s", string(res.Data))

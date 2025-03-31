@@ -35,7 +35,7 @@ func TestBulkStore(t *testing.T) {
 			expectBulkCount int32
 		)
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		s := &storeBulk{}
 		s.BulkStore = NewDefaultBulkStore(s)
@@ -97,7 +97,7 @@ func TestBulkStore(t *testing.T) {
 			expectBulkCount int32
 		)
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		s := &storeBulkNative{}
 		s.BulkStore = NewDefaultBulkStore(s)

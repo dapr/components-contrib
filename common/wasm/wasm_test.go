@@ -38,7 +38,7 @@ const (
 var binArgs []byte
 
 func TestGetInitMetadata(t *testing.T) {
-	testCtx, cancel := context.WithCancel(context.Background())
+	testCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	type testCase struct {
@@ -184,7 +184,7 @@ func TestNewModuleConfig(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	rt := wazero.NewRuntime(ctx)
 	defer rt.Close(ctx)
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)

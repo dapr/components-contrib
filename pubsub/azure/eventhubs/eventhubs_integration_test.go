@@ -70,7 +70,7 @@ func testReadIotHubEvents(t *testing.T) {
 	logger := kitLogger.NewLogger("pubsub.azure.eventhubs.integration.test")
 	logger.SetOutputLevel(kitLogger.DebugLevel)
 	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
-	err := eh.Init(context.Background(), createIotHubPubsubMetadata())
+	err := eh.Init(t.Context(), createIotHubPubsubMetadata())
 	require.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events
@@ -94,7 +94,7 @@ func testReadIotHubEvents(t *testing.T) {
 			"requireAllProperties": "true",
 		},
 	}
-	err = eh.Subscribe(context.Background(), req, handler)
+	err = eh.Subscribe(t.Context(), req, handler)
 	require.NoError(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s

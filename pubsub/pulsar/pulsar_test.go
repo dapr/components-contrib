@@ -233,7 +233,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
-		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
+		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
 	})
 
 	t.Run("test combined avro/json/proto", func(t *testing.T) {
@@ -253,7 +253,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, "3", meta.internalTopicSchemas["darth"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
-		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
+		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
 		assert.Equal(t, protoProtocol, meta.internalTopicSchemas["darth"].protocol)
 	})
 

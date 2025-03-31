@@ -260,7 +260,7 @@ func TestGetConnectionString(t *testing.T) {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createSqliteWithFake(t)
-	ods.Ping(context.Background())
+	ods.Ping(t.Context())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -268,7 +268,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
 	ods := createSqlite(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
 
 	ods := createSqlite(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createSetRequest()},
 	})
 	require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
 
 	ods := createSqlite(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createDeleteRequest()},
 	})
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createSqliteWithFake(t)
-	odb.Ping(context.Background())
+	odb.Ping(t.Context())
 	assert.True(t, fake.pingExecuted)
 }
 
@@ -368,7 +368,7 @@ func createSqlite(t *testing.T) *SQLiteStore {
 		},
 	}
 
-	err := odb.Init(context.Background(), *metadata)
+	err := odb.Init(t.Context(), *metadata)
 
 	require.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)

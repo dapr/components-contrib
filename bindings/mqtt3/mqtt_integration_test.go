@@ -16,7 +16,6 @@ limitations under the License.
 package mqtt
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func getConnectionString() string {
 
 func TestInvokeWithTopic(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	url := getConnectionString()
 	if url == "" {
@@ -106,7 +105,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	}()
 
 	// Test invoke with default topic configured for component.
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: dataDefault})
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: dataDefault})
 	require.NoError(t, err)
 
 	m := <-msgCh
@@ -116,7 +115,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	assert.Equal(t, topicDefault, mqttMessage.Topic())
 
 	// Test invoke with customized topic.
-	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{
 		Data: dataCustomized,
 		Metadata: map[string]string{
 			mqttTopic: topicCustomized,

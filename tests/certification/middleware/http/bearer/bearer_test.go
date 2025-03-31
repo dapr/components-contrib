@@ -390,7 +390,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 			initMiddleware := func(md map[string]string) error {
 				_, err := bearerMw.
 					NewBearerMiddleware(log).
-					GetHandler(context.Background(), middleware.Metadata{Base: metadata.Base{
+					GetHandler(t.Context(), middleware.Metadata{Base: metadata.Base{
 						Name:       "test",
 						Properties: md,
 					}})

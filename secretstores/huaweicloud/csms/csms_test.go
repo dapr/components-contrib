@@ -14,7 +14,6 @@ limitations under the License.
 package csms
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -98,7 +97,7 @@ func TestGetSecret(t *testing.T) {
 			},
 		}
 
-		resp, e := c.GetSecret(context.Background(), req)
+		resp, e := c.GetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Equal(t, secretValue, resp.Data[req.Name])
 	})
@@ -113,7 +112,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 
-		_, e := c.GetSecret(context.Background(), req)
+		_, e := c.GetSecret(t.Context(), req)
 		require.Error(t, e)
 	})
 }
@@ -130,7 +129,7 @@ func TestBulkGetSecret(t *testing.T) {
 				secretName: secretValue,
 			},
 		}
-		resp, e := c.BulkGetSecret(context.Background(), req)
+		resp, e := c.BulkGetSecret(t.Context(), req)
 		require.NoError(t, e)
 		assert.Equal(t, expectedSecrets, resp.Data)
 	})
@@ -142,7 +141,7 @@ func TestBulkGetSecret(t *testing.T) {
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
-			_, e := c.BulkGetSecret(context.Background(), req)
+			_, e := c.BulkGetSecret(t.Context(), req)
 			require.Error(t, e)
 		})
 
@@ -152,7 +151,7 @@ func TestBulkGetSecret(t *testing.T) {
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
-			_, e := c.BulkGetSecret(context.Background(), req)
+			_, e := c.BulkGetSecret(t.Context(), req)
 			require.Error(t, e)
 		})
 	})

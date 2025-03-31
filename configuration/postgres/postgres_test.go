@@ -14,7 +14,6 @@ limitations under the License.
 package postgres
 
 import (
-	"context"
 	"regexp"
 	"testing"
 
@@ -98,7 +97,7 @@ func TestConnectAndQuery(t *testing.T) {
 			[]string{"exists"}).
 			AddRow(string("t")),
 		)
-	rows := mock.QueryRow(context.Background(), query)
+	rows := mock.QueryRow(t.Context(), query)
 	var id string
 	err = rows.Scan(&id)
 	require.NoError(t, err, "error in scan")

@@ -48,7 +48,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 func TestRocketMQ_Init(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	require.NoError(t, err)
 }
 
@@ -62,7 +62,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Topic:      "ZCY_ZHIXING_TEST_test",
 		Metadata:   map[string]string{},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	if e != nil {
 		l.Error(e)
 		return
@@ -80,7 +80,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"traceId":              "4a09073987b148348ae0420435cddf5e",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -93,7 +93,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -106,7 +106,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	require.NoError(t, e)
 
 	time.Sleep(time.Second)
@@ -128,7 +128,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "2",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	if e != nil {
 		l.Error(e)
 		return
@@ -146,7 +146,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "3",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	require.NoError(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -159,7 +159,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-shardingkey": "sKey",
 		},
 	}
-	e = r.Publish(context.Background(), req)
+	e = r.Publish(t.Context(), req)
 	require.NoError(t, e)
 	time.Sleep(2 * time.Second)
 	require.NoError(t, r.Close())
@@ -176,7 +176,7 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		l.Info(string(msg.Data))
 		return nil
 	}
-	e = r.Subscribe(context.Background(), req, handler)
+	e = r.Subscribe(t.Context(), req, handler)
 	if e != nil {
 		l.Error(e)
 		return
@@ -201,7 +201,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 			metadataRocketmqExpression: "*",
 		},
 	}
-	e = r.Subscribe(context.Background(), req, handler)
+	e = r.Subscribe(t.Context(), req, handler)
 	if e != nil {
 		l.Error(e)
 		return
@@ -215,7 +215,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 			metadataRocketmqExpression: "*",
 		},
 	}
-	e = r.Subscribe(context.Background(), req, handler)
+	e = r.Subscribe(t.Context(), req, handler)
 	require.NoError(t, e)
 	time.Sleep(2 * time.Second)
 	require.NoError(t, r.Close())

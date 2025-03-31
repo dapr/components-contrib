@@ -15,7 +15,6 @@ package blobstorage
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +45,7 @@ func TestClientInitFailures(t *testing.T) {
 
 	for name, s := range scenarios {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := CreateContainerStorageClient(context.Background(), log, s.metadata)
+			_, _, err := CreateContainerStorageClient(t.Context(), log, s.metadata)
 			assert.Contains(t, err.Error(), s.expectedFailureSubString)
 		})
 	}

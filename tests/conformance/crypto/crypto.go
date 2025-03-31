@@ -114,7 +114,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
-		err := component.Init(context.Background(), contribCrypto.Metadata{Base: metadata.Base{
+		err := component.Init(t.Context(), contribCrypto.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
 		require.NoError(t, err, "expected no error on initializing store")
@@ -157,7 +157,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			t.Run("Get public keys", func(t *testing.T) {
 				keys.public.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
 					return func(t *testing.T) {
-						ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+						ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 						defer cancel()
 
 						key, err := component.GetKey(ctx, keyName)
@@ -172,7 +172,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 		t.Run("Get public part from private keys", func(t *testing.T) {
 			keys.private.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
 				return func(t *testing.T) {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 
 					key, err := component.GetKey(ctx, keyName)
@@ -203,7 +203,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 		t.Run("Cannot get symmetric keys", func(t *testing.T) {
 			keys.symmetric.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
 				return func(t *testing.T) {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 
 					key, err := component.GetKey(ctx, keyName)
@@ -222,7 +222,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			require.NotEqual(t, 0, (len(message) % 16), "message must have a length that's not a multiple of 16")
 
 			// Encrypt the message
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
 			require.NoError(t, err)
@@ -234,21 +234,21 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			}
 
 			// Decrypt the message
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
 			require.NoError(t, err)
 			assert.Equal(t, message, string(plaintext))
 
 			// Invalid key
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
 			require.Error(t, err)
 
 			// Tag mismatch
 			if hasTag(algorithm) {
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 				defer cancel()
 				badTag := randomBytes(t, 16)
 				_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
@@ -281,7 +281,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 					require.NotEqual(t, 0, (len(message) % 16), "message must have a length that's not a multiple of 16")
 
 					// Encrypt the message
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 					ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nil, nil)
 					require.NoError(t, err)
@@ -305,7 +305,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			require.NoError(t, err, "failed to generate key to wrap")
 
 			// Wrap the key
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			wrapped, tag, err := component.WrapKey(ctx, rawKeyObj, algorithm, keyName, nonce, nil)
 			require.NoError(t, err)
@@ -317,7 +317,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			}
 
 			// Unwrap the key
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			unwrappedObj, err := component.UnwrapKey(ctx, wrapped, algorithm, keyName, nonce, tag, nil)
 			require.NoError(t, err)
@@ -327,14 +327,14 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			assert.True(t, bytes.Equal(rawKey, unwrapped))
 
 			// Invalid key
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			_, err = component.UnwrapKey(ctx, wrapped, algorithm, "foo", nonce, tag, nil)
 			require.Error(t, err)
 
 			// Tag mismatch
 			if hasTag(algorithm) {
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				ctx, cancel = context.WithTimeout(t.Context(), 30*time.Second)
 				defer cancel()
 				badTag := randomBytes(t, 16)
 				_, err = component.UnwrapKey(ctx, wrapped, algorithm, keyName, nonce, badTag, nil)
@@ -368,7 +368,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 					require.NoError(t, err, "failed to generate key to wrap")
 
 					// Wrap the key
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 					wrapped, tag, err := component.WrapKey(ctx, rawKeyObj, algorithm, keyName, nil, nil)
 					require.NoError(t, err)
@@ -392,7 +392,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 
 		return func(t *testing.T) {
 			// Sign the message
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			signature, err := component.Sign(ctx, digest, algorithm, keyName)
 			require.NoError(t, err)

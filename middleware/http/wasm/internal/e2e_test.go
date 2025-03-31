@@ -16,7 +16,6 @@ package internal_test
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -167,7 +166,7 @@ func Test_EndToEnd(t *testing.T) {
 						meta.Properties[k] = v
 					}
 				}
-				handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
+				handlerFn, err := wasm.NewMiddleware(l).GetHandler(t.Context(), middleware.Metadata{Base: meta})
 				require.NoError(t, err)
 				handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 				tc.test(t, handler, &buf)
@@ -215,7 +214,7 @@ func Test_EndToEnd(t *testing.T) {
 							meta.Properties[k] = v
 						}
 					}
-					handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
+					handlerFn, err := wasm.NewMiddleware(l).GetHandler(t.Context(), middleware.Metadata{Base: meta})
 					require.NoError(t, err)
 					handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 					tc.test(t, handler, &buf)

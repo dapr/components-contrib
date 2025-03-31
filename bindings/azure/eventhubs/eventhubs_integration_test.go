@@ -94,7 +94,7 @@ func createEventHubsBindingsAADMetadata() bindings.Metadata {
 }
 
 func testEventHubsBindingsAADAuthentication(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	log := logger.NewLogger("bindings.azure.eventhubs.integration.test")
@@ -102,7 +102,7 @@ func testEventHubsBindingsAADAuthentication(t *testing.T) {
 	metadata := createEventHubsBindingsAADMetadata()
 	eventHubsBindings := NewAzureEventHubs(log)
 
-	err := eventHubsBindings.Init(context.Background(), metadata)
+	err := eventHubsBindings.Init(t.Context(), metadata)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{
@@ -142,11 +142,11 @@ func testEventHubsBindingsAADAuthentication(t *testing.T) {
 }
 
 func testReadIotHubEvents(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	logger := logger.NewLogger("bindings.azure.eventhubs.integration.test")
 	eh := NewAzureEventHubs(logger)
-	err := eh.Init(context.Background(), createIotHubBindingsMetadata())
+	err := eh.Init(t.Context(), createIotHubBindingsMetadata())
 	require.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events

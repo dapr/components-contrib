@@ -14,7 +14,6 @@ limitations under the License.
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -58,7 +57,7 @@ func TestSqliteIntegration(t *testing.T) {
 		defer s.Close()
 	})
 
-	if initerror := s.Init(context.Background(), metadata); initerror != nil {
+	if initerror := s.Init(t.Context(), metadata); initerror != nil {
 		t.Fatal(initerror)
 	}
 
@@ -147,13 +146,13 @@ func TestSqliteIntegration(t *testing.T) {
 	t.Run("Binary data", func(t *testing.T) {
 		key := randomKey()
 
-		err := s.Set(context.Background(), &state.SetRequest{
+		err := s.Set(t.Context(), &state.SetRequest{
 			Key:   key,
 			Value: []byte("🤖"),
 		})
 		require.NoError(t, err)
 
-		res, err := s.Get(context.Background(), &state.GetRequest{
+		res, err := s.Get(t.Context(), &state.GetRequest{
 			Key: key,
 		})
 		require.NoError(t, err)
@@ -187,7 +186,7 @@ func deleteItemThatDoesNotExist(t *testing.T, s state.Store) {
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
-	err := s.Delete(context.Background(), deleteReq)
+	err := s.Delete(t.Context(), deleteReq)
 	require.NoError(t, err)
 }
 
@@ -203,7 +202,7 @@ func multiWithSetOnly(t *testing.T, s state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := s.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -230,7 +229,7 @@ func multiWithDeleteOnly(t *testing.T, s state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := s.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -267,7 +266,7 @@ func multiWithDeleteAndSet(t *testing.T, s state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := s.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -297,7 +296,7 @@ func deleteWithInvalidEtagFails(t *testing.T, s state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := s.Delete(context.Background(), deleteReq)
+	err := s.Delete(t.Context(), deleteReq)
 	require.Error(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
 }
 
@@ -305,7 +304,7 @@ func deleteWithNoKeyFails(t *testing.T, s state.Store) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
-	err := s.Delete(context.Background(), deleteReq)
+	err := s.Delete(t.Context(), deleteReq)
 	require.Error(t, err)
 }
 
@@ -323,7 +322,7 @@ func newItemWithEtagFails(t *testing.T, s state.Store) {
 		},
 	}
 
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -353,7 +352,7 @@ func updateWithOldEtagFails(t *testing.T, s state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -375,7 +374,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, s state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err, "Setting the item should be successful")
 	updateResponse, updatedItem := getItem(t, s, key)
 	assert.Equal(t, value, updatedItem)
@@ -391,7 +390,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, s state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err = s.Delete(context.Background(), deleteReq)
+	err = s.Delete(t.Context(), deleteReq)
 	require.NoError(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
@@ -413,7 +412,7 @@ func getItemWithNoKey(t *testing.T, s state.Store) {
 		Key: "",
 	}
 
-	response, getErr := s.Get(context.Background(), getReq)
+	response, getErr := s.Get(t.Context(), getReq)
 	require.Error(t, getErr)
 	assert.Nil(t, response)
 }
@@ -455,7 +454,7 @@ func setTTLUpdatesExpiry(t *testing.T, s state.Store) {
 		},
 	}
 
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	// expirationTime should be set (to a date in the future).
@@ -480,10 +479,10 @@ func setNoTTLUpdatesExpiry(t *testing.T, s state.Store) {
 			"ttlInSeconds": "1000",
 		},
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	delete(setReq.Metadata, "ttlInSeconds")
-	err = s.Set(context.Background(), setReq)
+	err = s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	// expirationTime should not be set.
@@ -495,7 +494,7 @@ func setNoTTLUpdatesExpiry(t *testing.T, s state.Store) {
 
 func getExpireTime(t *testing.T, s state.Store) {
 	key1 := randomKey()
-	require.NoError(t, s.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, s.Set(t.Context(), &state.SetRequest{
 		Key:   key1,
 		Value: "123",
 		Metadata: map[string]string{
@@ -503,7 +502,7 @@ func getExpireTime(t *testing.T, s state.Store) {
 		},
 	}))
 
-	resp, err := s.Get(context.Background(), &state.GetRequest{Key: key1})
+	resp, err := s.Get(t.Context(), &state.GetRequest{Key: key1})
 	require.NoError(t, err)
 	assert.Equal(t, `"123"`, string(resp.Data))
 	require.Len(t, resp.Metadata, 1)
@@ -516,14 +515,14 @@ func getBulkExpireTime(t *testing.T, s state.Store) {
 	key1 := randomKey()
 	key2 := randomKey()
 
-	require.NoError(t, s.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, s.Set(t.Context(), &state.SetRequest{
 		Key:   key1,
 		Value: "123",
 		Metadata: map[string]string{
 			"ttlInSeconds": "1000",
 		},
 	}))
-	require.NoError(t, s.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, s.Set(t.Context(), &state.SetRequest{
 		Key:   key2,
 		Value: "456",
 		Metadata: map[string]string{
@@ -531,7 +530,7 @@ func getBulkExpireTime(t *testing.T, s state.Store) {
 		},
 	}))
 
-	resp, err := s.BulkGet(context.Background(), []state.GetRequest{
+	resp, err := s.BulkGet(t.Context(), []state.GetRequest{
 		{Key: key1}, {Key: key2},
 	}, state.BulkGetOpts{})
 	require.NoError(t, err)
@@ -566,11 +565,11 @@ func expiredStateCannotBeRead(t *testing.T, s state.Store) {
 			"ttlInSeconds": "1",
 		},
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * time.Duration(2))
-	getResponse, err := s.Get(context.Background(), &state.GetRequest{Key: key})
+	getResponse, err := s.Get(t.Context(), &state.GetRequest{Key: key})
 	assert.Equal(t, &state.GetResponse{}, getResponse, "Response must be empty")
 	require.NoError(t, err, "Expired element must not be treated as error")
 
@@ -591,7 +590,7 @@ func unexpiredStateCanBeRead(t *testing.T, s state.Store) {
 			"ttlInSeconds": "10000",
 		},
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	_, getValue := getItem(t, s, key)
 	assert.Equal(t, value.Color, getValue.Color, "Response must be as set")
@@ -605,7 +604,7 @@ func setItemWithNoKey(t *testing.T, s state.Store) {
 		Key: "",
 	}
 
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -617,7 +616,7 @@ func testSetItemWithInvalidTTL(t *testing.T, s state.Store) {
 			"ttlInSeconds": "XX",
 		}),
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.Error(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 }
 
@@ -629,7 +628,7 @@ func testSetItemWithNegativeTTL(t *testing.T, s state.Store) {
 			"ttlInSeconds": "-10",
 		}),
 	}
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.Error(t, err, "Setting a value with a proper key and a negative (other than -1) TTL value should be produce an error")
 }
 
@@ -646,7 +645,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err := s.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
+	err := s.BulkSet(t.Context(), setReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, s, setReq[0].Key))
 	assert.True(t, storeItemExists(t, s, setReq[1].Key))
@@ -660,7 +659,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err = s.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
+	err = s.BulkDelete(t.Context(), deleteReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, s, setReq[0].Key))
 	assert.False(t, storeItemExists(t, s, setReq[1].Key))
@@ -700,7 +699,7 @@ func testInitConfiguration(t *testing.T) {
 				},
 			}
 
-			err := p.Init(context.Background(), metadata)
+			err := p.Init(t.Context(), metadata)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -733,7 +732,7 @@ func setItem(t *testing.T, s state.Store, key string, value interface{}, etag *s
 		Options: setOptions,
 	}
 
-	err := s.Set(context.Background(), setReq)
+	err := s.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	itemExists := storeItemExists(t, s, key)
 	assert.True(t, itemExists, "Item should exist after set has been executed")
@@ -745,7 +744,7 @@ func getItem(t *testing.T, s state.Store, key string) (*state.GetResponse, *fake
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := s.Get(context.Background(), getReq)
+	response, getErr := s.Get(t.Context(), getReq)
 	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -761,7 +760,7 @@ func deleteItem(t *testing.T, s state.Store, key string, etag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := s.Delete(context.Background(), deleteReq)
+	deleteErr := s.Delete(t.Context(), deleteReq)
 	require.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, s, key), "item should no longer exist after delete has been performed")
 }

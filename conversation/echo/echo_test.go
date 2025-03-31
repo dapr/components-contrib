@@ -1,7 +1,6 @@
 package echo
 
 import (
-	"context"
 	"testing"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -13,9 +12,9 @@ import (
 
 func TestConverse(t *testing.T) {
 	e := NewEcho(logger.NewLogger("echo test"))
-	e.Init(context.Background(), conversation.Metadata{})
+	e.Init(t.Context(), conversation.Metadata{})
 
-	r, err := e.Converse(context.Background(), &conversation.ConversationRequest{
+	r, err := e.Converse(t.Context(), &conversation.ConversationRequest{
 		Inputs: []conversation.ConversationInput{
 			{
 				Message: "hello",

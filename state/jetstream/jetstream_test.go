@@ -14,7 +14,6 @@ limitations under the License.
 package jetstream
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -97,7 +96,7 @@ func TestSetGetAndDelete(t *testing.T) {
 
 	store := NewJetstreamStateStore(nil)
 
-	err := store.Init(context.Background(), state.Metadata{
+	err := store.Init(t.Context(), state.Metadata{
 		Base: metadata.Base{Properties: map[string]string{
 			"natsURL": nats.DefaultURL,
 			"bucket":  "test",
@@ -113,7 +112,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		"dkey": "dvalue",
 	}
 
-	err = store.Set(context.Background(), &state.SetRequest{
+	err = store.Set(t.Context(), &state.SetRequest{
 		Key:   tkey,
 		Value: tData,
 	})
@@ -122,7 +121,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	resp, err := store.Get(context.Background(), &state.GetRequest{
+	resp, err := store.Get(t.Context(), &state.GetRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -135,7 +134,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		t.Fatal("Response data does not match written data\n")
 	}
 
-	err = store.Delete(context.Background(), &state.DeleteRequest{
+	err = store.Delete(t.Context(), &state.DeleteRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -143,7 +142,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	_, err = store.Get(context.Background(), &state.GetRequest{
+	_, err = store.Get(t.Context(), &state.GetRequest{
 		Key: tkey,
 	})
 	if err == nil {

@@ -14,7 +14,6 @@ limitations under the License.
 package zookeeper
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -80,7 +79,7 @@ func TestGet(t *testing.T) {
 	t.Run("With key exists", func(t *testing.T) {
 		conn.EXPECT().Get("foo").Return([]byte("bar"), &zk.Stat{Version: 123}, nil).Times(1)
 
-		res, err := s.Get(context.Background(), &state.GetRequest{Key: "foo"})
+		res, err := s.Get(t.Context(), &state.GetRequest{Key: "foo"})
 		assert.NotNil(t, res, "Key must be exists")
 		assert.Equal(t, "bar", string(res.Data), "Value must be equals")
 		assert.Equal(t, ptr.Of("123"), res.ETag, "ETag must be equals")
@@ -90,7 +89,7 @@ func TestGet(t *testing.T) {
 	t.Run("With key non-exists", func(t *testing.T) {
 		conn.EXPECT().Get("foo").Return(nil, nil, zk.ErrNoNode).Times(1)
 
-		res, err := s.Get(context.Background(), &state.GetRequest{Key: "foo"})
+		res, err := s.Get(t.Context(), &state.GetRequest{Key: "foo"})
 		assert.Equal(t, &state.GetResponse{}, res, "Response must be empty")
 		require.NoError(t, err, "Non-existent key must not be treated as error")
 	})
@@ -108,21 +107,21 @@ func TestDelete(t *testing.T) {
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
-		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
+		err := s.Delete(t.Context(), &state.DeleteRequest{Key: "foo"})
 		require.NoError(t, err, "Key must be exists")
 	})
 
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(123)).Return(nil).Times(1)
 
-		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo", ETag: &etag})
+		err := s.Delete(t.Context(), &state.DeleteRequest{Key: "foo", ETag: &etag})
 		require.NoError(t, err, "Key must be exists")
 	})
 
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
-		err := s.Delete(context.Background(), &state.DeleteRequest{
+		err := s.Delete(t.Context(), &state.DeleteRequest{
 			Key:     "foo",
 			ETag:    &etag,
 			Options: state.DeleteStateOption{Concurrency: state.LastWrite},
@@ -133,14 +132,14 @@ func TestDelete(t *testing.T) {
 	t.Run("With delete error", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrUnknown).Times(1)
 
-		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
+		err := s.Delete(t.Context(), &state.DeleteRequest{Key: "foo"})
 		require.EqualError(t, err, "zk: unknown error")
 	})
 
 	t.Run("With delete and ignore NoNode error", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrNoNode).Times(1)
 
-		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
+		err := s.Delete(t.Context(), &state.DeleteRequest{Key: "foo"})
 		require.NoError(t, err, "Delete must be successful")
 	})
 }
@@ -159,19 +158,19 @@ func TestSet(t *testing.T) {
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(t.Context(), &state.SetRequest{Key: "foo", Value: "bar"})
 		require.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(123)).Return(stat, nil).Times(1)
 
-		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
+		err := s.Set(t.Context(), &state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
 		require.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		err := s.Set(context.Background(), &state.SetRequest{
+		err := s.Set(t.Context(), &state.SetRequest{
 			Key:     "foo",
 			Value:   "bar",
 			ETag:    &etag,
@@ -183,14 +182,14 @@ func TestSet(t *testing.T) {
 	t.Run("With error", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(1)
 
-		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(t.Context(), &state.SetRequest{Key: "foo", Value: "bar"})
 		require.EqualError(t, err, "zk: unknown error")
 	})
 	t.Run("With NoNode error and retry", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrNoNode).Times(1)
 		conn.EXPECT().Create("foo", []byte("\"bar\""), int32(0), nil).Return("/foo", nil).Times(1)
 
-		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(t.Context(), &state.SetRequest{Key: "foo", Value: "bar"})
 		require.NoError(t, err, "Key must be create")
 	})
 }

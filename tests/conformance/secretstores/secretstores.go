@@ -14,7 +14,6 @@ limitations under the License.
 package secretstores
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,14 +49,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{
+		err := store.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
 		require.NoError(t, err, "expected no error on initializing store")
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := secretstores.Ping(context.Background(), store)
+		err := secretstores.Ping(t.Context(), store)
 		// TODO: Ideally, all stable components should implement a ping function,
 		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
@@ -80,7 +79,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("get", func(t *testing.T) {
-			resp, err := store.GetSecret(context.Background(), getSecretRequest)
+			resp, err := store.GetSecret(t.Context(), getSecretRequest)
 			require.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
@@ -101,7 +100,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("bulkget", func(t *testing.T) {
-			resp, err := store.BulkGetSecret(context.Background(), bulkReq)
+			resp, err := store.BulkGetSecret(t.Context(), bulkReq)
 			require.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")

@@ -98,7 +98,7 @@ func TestGetX509Client(t *testing.T) {
 				},
 			})
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			errCh := make(chan error)
 			go func() {

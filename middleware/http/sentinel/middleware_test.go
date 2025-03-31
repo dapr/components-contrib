@@ -14,7 +14,6 @@ limitations under the License.
 package sentinel
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,7 +49,7 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 
 	log := logger.NewLogger("sentinel.test")
 	sentinel := NewMiddleware(log)
-	handler, err := sentinel.GetHandler(context.Background(), meta)
+	handler, err := sentinel.GetHandler(t.Context(), meta)
 	require.NoError(t, err)
 
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/nodeapp/healthz", nil)

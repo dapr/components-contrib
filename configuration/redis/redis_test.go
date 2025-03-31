@@ -66,7 +66,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				req: &configuration.GetRequest{
 					Keys: []string{"testKey"},
 				},
-				ctx: context.Background(),
+				ctx: t.Context(),
 			},
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{
@@ -86,7 +86,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 			},
 			args: args{
 				req: &configuration.GetRequest{},
-				ctx: context.Background(),
+				ctx: t.Context(),
 			},
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{
@@ -112,7 +112,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				req: &configuration.GetRequest{
 					Keys: []string{"notExistKey"},
 				},
-				ctx: context.Background(),
+				ctx: t.Context(),
 			},
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{},
@@ -121,7 +121,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 		{
 			name: "test does not throw error for wrong type during get all",
 			prepare: func(client redisComponent.RedisClient) {
-				client.DoWrite(context.Background(), "HSET", "notSupportedType", []string{"key1", "value1", "key2", "value2"})
+				client.DoWrite(t.Context(), "HSET", "notSupportedType", []string{"key1", "value1", "key2", "value2"})
 			},
 			fields: fields{
 				client: c,
@@ -130,7 +130,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 			},
 			args: args{
 				req: &configuration.GetRequest{},
-				ctx: context.Background(),
+				ctx: t.Context(),
 			},
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{
@@ -145,7 +145,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				},
 			},
 			restore: func(client redisComponent.RedisClient) {
-				client.DoWrite(context.Background(), "HDEL", "notSupportedType")
+				client.DoWrite(t.Context(), "HDEL", "notSupportedType")
 			},
 		},
 	}
@@ -302,7 +302,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			log := logger.NewLogger("dapr.components")
 			_, got, err := redisComponent.ParseClientFromProperties(tt.args.meta.Properties, contribMetadata.ConfigurationStoreType, ctx, &log)
 			if (err != nil) != tt.wantErr {

@@ -187,7 +187,7 @@ func TestGetMSI(t *testing.T) {
 }
 
 func TestFallbackToMSI(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -203,7 +203,7 @@ func TestFallbackToMSI(t *testing.T) {
 }
 
 func TestAuthorizorWithMSI(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -222,7 +222,7 @@ func TestAuthorizorWithMSI(t *testing.T) {
 }
 
 func TestFallbackToMSIbutAzureAuthDisallowed(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -239,7 +239,7 @@ func TestFallbackToMSIbutAzureAuthDisallowed(t *testing.T) {
 }
 
 func TestFallbackToMSIandInAllowedList(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -259,7 +259,7 @@ func TestFallbackToMSIandInAllowedList(t *testing.T) {
 }
 
 func TestFallbackToMSIandNotInAllowedList(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -276,7 +276,7 @@ func TestFallbackToMSIandNotInAllowedList(t *testing.T) {
 }
 
 func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -296,7 +296,7 @@ func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
 }
 
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
-	os.Setenv("MSI_ENDPOINT", "test")
+	t.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
 		map[string]string{
@@ -333,7 +333,7 @@ func TestFallbackToCLI(t *testing.T) {
 	runTest := false
 	cred, credErr := azidentity.NewAzureCLICredential(nil)
 	if credErr == nil {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancelFunc := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancelFunc()
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{})
 		if err == nil && token.Token != "" {
@@ -345,7 +345,7 @@ func TestFallbackToCLI(t *testing.T) {
 		spt, err := settings.GetTokenCredential()
 		require.NoError(t, err)
 
-		token, _ := spt.GetToken(context.Background(), policy.TokenRequestOptions{})
+		token, _ := spt.GetToken(t.Context(), policy.TokenRequestOptions{})
 		assert.NotNil(t, token)
 		assert.NotEmpty(t, token.Token)
 	} else {

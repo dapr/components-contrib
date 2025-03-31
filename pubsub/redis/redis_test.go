@@ -103,7 +103,7 @@ func TestProcessStreams(t *testing.T) {
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
-	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, expectedMetadata))
+	testRedisStream.enqueueMessages(t.Context(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, expectedMetadata))
 
 	// Wait for the handler to finish processing
 	wg.Wait()
@@ -141,7 +141,7 @@ func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
-	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, ""))
+	testRedisStream.enqueueMessages(t.Context(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(3, expectedData, ""))
 
 	// Wait for the handler to finish processing
 	wg.Wait()

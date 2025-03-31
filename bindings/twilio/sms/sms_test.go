@@ -14,7 +14,6 @@ limitations under the License.
 package sms
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -53,7 +52,7 @@ func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber"}
 	tw := NewSMS(logger.NewLogger("test"))
-	err := tw.Init(context.Background(), m)
+	err := tw.Init(t.Context(), m)
 	require.Error(t, err)
 }
 
@@ -66,7 +65,7 @@ func TestParseDuration(t *testing.T) {
 		"authToken":  "authToken", "timeout": "badtimeout",
 	}
 	tw := NewSMS(logger.NewLogger("test"))
-	err := tw.Init(context.Background(), m)
+	err := tw.Init(t.Context(), m)
 	require.Error(t, err)
 }
 
@@ -85,12 +84,12 @@ func TestWriteShouldSucceed(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(context.Background(), m)
+	err := tw.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -123,12 +122,12 @@ func TestWriteShouldFail(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(context.Background(), m)
+	err := tw.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data:     []byte("hello world"),
 			Metadata: map[string]string{},
 		})
@@ -140,7 +139,7 @@ func TestWriteShouldFail(t *testing.T) {
 		httpTransport.reset()
 		httpErr := errors.New("twilio fake error")
 		httpTransport.errToReturn = httpErr
-		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -154,7 +153,7 @@ func TestWriteShouldFail(t *testing.T) {
 	t.Run("Twilio call returns status not >=200 and <300", func(t *testing.T) {
 		httpTransport.reset()
 		httpTransport.response.StatusCode = 401
-		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -180,13 +179,13 @@ func TestMessageBody(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(context.Background(), m)
+	err := tw.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	tester := func(reqData []byte, expectBody string) func(t *testing.T) {
 		return func(t *testing.T) {
 			httpTransport.reset()
-			_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+			_, err := tw.Invoke(t.Context(), &bindings.InvokeRequest{
 				Data: reqData,
 				Metadata: map[string]string{
 					toNumber: "toNumber",

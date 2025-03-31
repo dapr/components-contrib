@@ -14,7 +14,6 @@ limitations under the License.
 package redis
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -44,10 +43,10 @@ func TestInvokeCreate(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 
-	_, err := c.DoRead(context.Background(), "GET", testKey)
+	_, err := c.DoRead(t.Context(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
 
-	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingRes, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Data:      []byte(testData),
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.CreateOperation,
@@ -55,9 +54,9 @@ func TestInvokeCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, bindingRes)
 
-	getRes, err := c.DoRead(context.Background(), "GET", testKey)
+	getRes, err := c.DoRead(t.Context(), "GET", testKey)
 	require.NoError(t, err)
-	assert.Equal(t, testData, getRes)
+	assert.JSONEq(t, testData, getRes.(string))
 }
 
 func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
@@ -69,24 +68,24 @@ func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 
-	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	err := c.DoWrite(t.Context(), "SET", testKey, testData)
 	require.NoError(t, err)
 
-	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingRes, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testData, string(bindingRes.Data))
+	assert.JSONEq(t, testData, string(bindingRes.Data))
 
-	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingResGet, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 
 	require.NoError(t, err)
 
-	assert.Equal(t, testData, string(bindingResGet.Data))
+	assert.JSONEq(t, testData, string(bindingResGet.Data))
 }
 
 func TestInvokeGetWithDeleteFlag(t *testing.T) {
@@ -98,17 +97,17 @@ func TestInvokeGetWithDeleteFlag(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 
-	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	err := c.DoWrite(t.Context(), "SET", testKey, testData)
 	require.NoError(t, err)
 
-	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingRes, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey, "delete": "true"},
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testData, string(bindingRes.Data))
+	assert.JSONEq(t, testData, string(bindingRes.Data))
 
-	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingResGet, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
@@ -127,21 +126,21 @@ func TestInvokeDelete(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 
-	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	err := c.DoWrite(t.Context(), "SET", testKey, testData)
 	require.NoError(t, err)
 
-	getRes, err := c.DoRead(context.Background(), "GET", testKey)
+	getRes, err := c.DoRead(t.Context(), "GET", testKey)
 	require.NoError(t, err)
-	assert.Equal(t, testData, getRes)
+	assert.JSONEq(t, testData, getRes.(string))
 
-	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.DeleteOperation,
 	})
 
 	require.NoError(t, err)
 
-	rgetRep, err := c.DoRead(context.Background(), "GET", testKey)
+	rgetRep, err := c.DoRead(t.Context(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
 	assert.Nil(t, rgetRep)
 }
@@ -154,35 +153,35 @@ func TestCreateExpire(t *testing.T) {
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
-	_, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey, metadata.TTLMetadataKey: "1"},
 		Operation: bindings.CreateOperation,
 		Data:      []byte(testData),
 	})
 	require.NoError(t, err)
 
-	rgetRep, err := c.DoRead(context.Background(), "TTL", testKey)
+	rgetRep, err := c.DoRead(t.Context(), "TTL", testKey)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), rgetRep)
 
-	res, err2 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	res, err2 := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err2)
-	assert.Equal(t, res.Data, []byte(testData))
+	assert.JSONEq(t, testData, string(res.Data))
 
 	// wait for ttl to expire
 	s.FastForward(2 * time.Second)
 
-	res, err2 = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	res, err2 = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err2)
 	assert.Equal(t, []byte(nil), res.Data)
 
-	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": testKey},
 		Operation: bindings.DeleteOperation,
 	})
@@ -197,30 +196,30 @@ func TestIncrement(t *testing.T) {
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
-	_, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: IncrementOperation,
 	})
 	require.NoError(t, err)
 
-	res, err2 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	res, err2 := bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, nil, err2)
+	require.NoError(t, err2)
 	assert.Equal(t, res.Data, []byte("1"))
 
-	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey", metadata.TTLMetadataKey: "5"},
 		Operation: IncrementOperation,
 	})
 	require.NoError(t, err)
 
-	rgetRep, err := c.DoRead(context.Background(), "TTL", "incKey")
+	rgetRep, err := c.DoRead(t.Context(), "TTL", "incKey")
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), rgetRep)
 
-	res, err2 = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	res, err2 = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
@@ -230,14 +229,14 @@ func TestIncrement(t *testing.T) {
 	// wait for ttl to expire
 	s.FastForward(10 * time.Second)
 
-	res, err2 = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	res, err2 = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.GetOperation,
 	})
 	require.NoError(t, err2)
 	assert.Equal(t, []byte(nil), res.Data)
 
-	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err = bind.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  map[string]string{"key": "incKey"},
 		Operation: bindings.DeleteOperation,
 	})

@@ -101,7 +101,7 @@ func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata) error {
 	return nil
 }
 
-func (m sqliteMetadata) GetAddress() string {
+func (m *sqliteMetadata) GetAddress() string {
 	return net.JoinHostPort(m.hostAddress, strconv.Itoa(m.port))
 }
 

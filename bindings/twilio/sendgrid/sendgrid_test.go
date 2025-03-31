@@ -71,7 +71,7 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 		assert.Equal(t, "test2@example.net", sgMeta.EmailTo)
 		assert.Equal(t, "test 2", sgMeta.EmailToName)
 		assert.Equal(t, "hello", sgMeta.Subject)
-		assert.Equal(t, `{"name":{"first":"MyFirst","last":"MyLast"}}`, sgMeta.DynamicTemplateData)
+		assert.JSONEq(t, `{"name":{"first":"MyFirst","last":"MyLast"}}`, sgMeta.DynamicTemplateData)
 		assert.Equal(t, "456", sgMeta.DynamicTemplateID)
 	})
 

@@ -110,7 +110,7 @@ func (m *BaseMetadata) Validate() error {
 }
 
 // CreateToken creates a JWT token for authorizing requests
-func (m BaseMetadata) CreateToken() (string, error) {
+func (m *BaseMetadata) CreateToken() (string, error) {
 	now := time.Now()
 	token, err := jwt.NewBuilder().
 		Audience([]string{m.WorkerName}).

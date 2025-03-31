@@ -57,7 +57,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 	t.Logf("Base key for test: %s", key)
 
 	t.Run("init", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 		defer cancel()
 		err := lockstore.InitLockStore(ctx, lock.Metadata{Base: metadata.Base{
 			Properties: props,
@@ -79,7 +79,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 	t.Run("TryLock", func(t *testing.T) {
 		// Acquire a lock
 		t.Run("acquire lock1", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
 				ResourceID:      lockKey1,
@@ -93,7 +93,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 
 		// Acquire a second lock (with a shorter expiration)
 		t.Run("acquire lock2", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
 				ResourceID:      lockKey2,
@@ -110,7 +110,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 
 		// Acquiring the same lock again should fail
 		t.Run("fails to acquire existing lock", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
 				ResourceID:      lockKey1,
@@ -125,7 +125,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 
 	t.Run("Unlock", func(t *testing.T) {
 		t.Run("fails to unlock with nonexistent resource ID", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.Unlock(ctx, &lock.UnlockRequest{
 				ResourceID: "nonexistent",
@@ -137,7 +137,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 		})
 
 		t.Run("fails to unlock with wrong owner", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.Unlock(ctx, &lock.UnlockRequest{
 				ResourceID: lockKey1,
@@ -149,7 +149,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 		})
 
 		t.Run("unlocks successfully", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.Unlock(ctx, &lock.UnlockRequest{
 				ResourceID: lockKey1,
@@ -167,7 +167,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 
 		// Assert that the lock doesn't exist anymore - we should be able to re-acquire it
 		assert.Eventually(t, func() bool {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
 				ResourceID:      lockKey2,

@@ -16,7 +16,6 @@ limitations under the License.
 package oracledatabase
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -71,7 +70,7 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		defer ods.Close()
 	})
 
-	if initerror := ods.Init(context.Background(), metadata); initerror != nil {
+	if initerror := ods.Init(t.Context(), metadata); initerror != nil {
 		t.Fatal(initerror)
 	}
 
@@ -208,7 +207,7 @@ func deleteItemThatDoesNotExist(t *testing.T, ods state.Store) {
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
-	err := ods.Delete(context.Background(), deleteReq)
+	err := ods.Delete(t.Context(), deleteReq)
 	require.NoError(t, err)
 }
 
@@ -224,7 +223,7 @@ func multiWithSetOnly(t *testing.T, ods state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -253,7 +252,7 @@ func multiWithDeleteOnly(t *testing.T, ods state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -291,7 +290,7 @@ func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
 		operations = append(operations, req)
 	}
 
-	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
@@ -321,7 +320,7 @@ func deleteWithInvalidEtagFails(t *testing.T, ods state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Delete(context.Background(), deleteReq)
+	err := ods.Delete(t.Context(), deleteReq)
 	require.Error(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
 }
 
@@ -329,7 +328,7 @@ func deleteWithNoKeyFails(t *testing.T, ods state.Store) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
-	err := ods.Delete(context.Background(), deleteReq)
+	err := ods.Delete(t.Context(), deleteReq)
 	require.Error(t, err)
 }
 
@@ -347,7 +346,7 @@ func newItemWithEtagFails(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -377,7 +376,7 @@ func updateWithOldEtagFails(t *testing.T, ods state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -399,7 +398,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err, "Setting the item should be successful")
 	updateResponse, updatedItem := getItem(t, ods, key)
 	assert.Equal(t, value, updatedItem)
@@ -415,7 +414,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods state.Store) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err = ods.Delete(context.Background(), deleteReq)
+	err = ods.Delete(t.Context(), deleteReq)
 	require.NoError(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
@@ -438,7 +437,7 @@ func getItemWithNoKey(t *testing.T, ods state.Store) {
 		Key: "",
 	}
 
-	response, getErr := ods.Get(context.Background(), getReq)
+	response, getErr := ods.Get(t.Context(), getReq)
 	require.Error(t, getErr)
 	assert.Nil(t, response)
 }
@@ -481,7 +480,7 @@ func setTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	// expirationTime should be set (to a date in the future).
@@ -491,7 +490,7 @@ func setTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 	assert.NotNil(t, expirationTime)
 	assert.True(t, expirationTime.Valid, "Expiration Time should have a value after set with TTL value")
 
-	resp, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
+	resp, err := ods.Get(t.Context(), &state.GetRequest{Key: key})
 	require.NoError(t, err)
 	assert.Contains(t, resp.Metadata, "ttlExpireTime")
 	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
@@ -515,16 +514,16 @@ func setNoTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 			"ttlInSeconds": "1000",
 		},
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	delete(setReq.Metadata, "ttlInSeconds")
-	err = ods.Set(context.Background(), setReq)
+	err = ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	// expirationTime should not be set.
 	db := getDB(ods)
 	_, _, expirationTime := getTimesForRow(t, db, key)
-	resp, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
+	resp, err := ods.Get(t.Context(), &state.GetRequest{Key: key})
 	require.NoError(t, err)
 	assert.NotContains(t, resp.Metadata, "ttlExpireTime")
 
@@ -546,11 +545,11 @@ func expiredStateCannotBeRead(t *testing.T, ods state.Store) {
 			"ttlInSeconds": "1",
 		},
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * time.Duration(2))
-	getResponse, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
+	getResponse, err := ods.Get(t.Context(), &state.GetRequest{Key: key})
 	assert.Equal(t, &state.GetResponse{}, getResponse, "Response must be empty")
 	require.NoError(t, err, "Expired element must not be treated as error")
 
@@ -571,7 +570,7 @@ func unexpiredStateCanBeRead(t *testing.T, ods state.Store) {
 			"ttlInSeconds": "10000",
 		},
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	_, getValue := getItem(t, ods, key)
 	assert.Equal(t, value.Color, getValue.Color, "Response must be as set")
@@ -585,7 +584,7 @@ func setItemWithNoKey(t *testing.T, ods state.Store) {
 		Key: "",
 	}
 
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -597,7 +596,7 @@ func testSetItemWithInvalidTTL(t *testing.T, ods state.Store) {
 			"ttlInSeconds": "XX",
 		}),
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.Error(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 }
 
@@ -609,7 +608,7 @@ func testSetItemWithNegativeTTL(t *testing.T, ods state.Store) {
 			"ttlInSeconds": "-10",
 		}),
 	}
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.Error(t, err, "Setting a value with a proper key and a negative (other than -1) TTL value should be produce an error")
 }
 
@@ -628,7 +627,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err := ods.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
+	err := ods.BulkSet(t.Context(), setReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, db, setReq[0].Key))
 	assert.True(t, storeItemExists(t, db, setReq[1].Key))
@@ -642,7 +641,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err = ods.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
+	err = ods.BulkDelete(t.Context(), deleteReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, db, setReq[0].Key))
 	assert.False(t, storeItemExists(t, db, setReq[1].Key))
@@ -677,7 +676,7 @@ func testInitConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := p.Init(context.Background(), metadata)
+			err := p.Init(t.Context(), metadata)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -715,7 +714,7 @@ func setItem(t *testing.T, ods state.Store, key string, value any, etag *string)
 
 	db := getDB(ods)
 
-	err := ods.Set(context.Background(), setReq)
+	err := ods.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	itemExists := storeItemExists(t, db, key)
 	assert.True(t, itemExists, "Item should exist after set has been executed")
@@ -727,7 +726,7 @@ func getItem(t *testing.T, ods state.Store, key string) (*state.GetResponse, *fa
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := ods.Get(context.Background(), getReq)
+	response, getErr := ods.Get(t.Context(), getReq)
 	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -745,7 +744,7 @@ func deleteItem(t *testing.T, ods state.Store, key string, etag *string) {
 
 	db := getDB(ods)
 
-	deleteErr := ods.Delete(context.Background(), deleteReq)
+	deleteErr := ods.Delete(t.Context(), deleteReq)
 	require.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, db, key), "item should no longer exist after delete has been performed")
 }

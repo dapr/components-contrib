@@ -56,9 +56,9 @@ func TestNoConsumerOrQueueName(t *testing.T) {
 			metadataHostnameKey: "anyhost",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{}, nil)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{}, nil)
 	assert.Contains(t, err.Error(), "consumerID is required for subscriptions that don't specify a queue name")
 }
 
@@ -71,7 +71,7 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), broker.connectCount.Load())
 	assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -89,52 +89,52 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{metadataMaxPriority: "5"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{metadataMaxPriority: "5"}}, handler)
 	require.NoError(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world"), Metadata: map[string]string{metadataMaxPriority: "5"}})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world"), Metadata: map[string]string{metadataMaxPriority: "5"}})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
 	// subscribe using classic queue type
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}}, handler)
 	require.NoError(t, err)
 
 	// publish using classic queue type
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hey there"), Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hey there"), Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
 	assert.Equal(t, "hey there", lastMessage)
 
 	// subscribe using quorum queue type
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}}, handler)
 	require.NoError(t, err)
 
 	// publish using quorum queue type
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello friends"), Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello friends"), Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 3, messageCount)
 	assert.Equal(t, "hello friends", lastMessage)
 
 	// trying to subscribe using invalid queue type
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "invalid"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "invalid"}}, handler)
 	require.Error(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 4, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 
 	// subscribe using single active consumer
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataSingleActiveConsumerKey: "true"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataSingleActiveConsumerKey: "true"}}, handler)
 	require.NoError(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("dummy data"), Metadata: map[string]string{reqMetadataSingleActiveConsumerKey: "true"}})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("dummy data"), Metadata: map[string]string{reqMetadataSingleActiveConsumerKey: "true"}})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 5, messageCount)
@@ -152,7 +152,7 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Parallel),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(context.Background(), metadata)
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.metadata.Concurrency)
 	})
@@ -167,7 +167,7 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Single),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(context.Background(), metadata)
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, pubsub.Single, pubsubRabbitMQ.metadata.Concurrency)
 	})
@@ -181,7 +181,7 @@ func TestConcurrencyMode(t *testing.T) {
 				metadataConsumerIDKey: "consumer",
 			},
 		}}
-		err := pubsubRabbitMQ.Init(context.Background(), metadata)
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
 		require.NoError(t, err)
 		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.metadata.Concurrency)
 	})
@@ -235,7 +235,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 			metadata := pubsub.Metadata{Base: mdata.Base{
 				Properties: test.componentMetadata,
 			}}
-			err := pubsubRabbitMQ.Init(context.Background(), metadata)
+			err := pubsubRabbitMQ.Init(t.Context(), metadata)
 			require.NoError(t, err)
 			assert.Equal(t, int32(1), broker.connectCount.Load())
 			assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -250,18 +250,18 @@ func TestPublishAndSubscribe(t *testing.T) {
 				return nil
 			}
 
-			err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: test.topic, Metadata: test.subscribeMetadata}, handler)
+			err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: test.topic, Metadata: test.subscribeMetadata}, handler)
 			require.NoError(t, err)
 			assert.True(t, pubsubRabbitMQ.declaredExchanges[test.topic])
 			assert.ElementsMatch(t, test.declaredQueues, broker.declaredQueues)
 
-			err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("hello world")})
+			err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("hello world")})
 			require.NoError(t, err)
 			<-processed
 			assert.Equal(t, 1, messageCount)
 			assert.Equal(t, "hello world", lastMessage)
 
-			err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("foo bar")})
+			err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("foo bar")})
 			require.NoError(t, err)
 			<-processed
 			assert.Equal(t, 2, messageCount)
@@ -279,7 +279,7 @@ func TestPublishReconnect(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), broker.connectCount.Load())
 	assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -297,16 +297,16 @@ func TestPublishReconnect(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	require.NoError(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	require.Error(t, err)
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
@@ -314,7 +314,7 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, int32(3), broker.connectCount.Load()) // three counts - one initial connection plus 2 reconnect attempts
 	assert.Equal(t, int32(4), broker.closeCount.Load())   // four counts - one for connection, one for channel , times 2 reconnect attempts
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
@@ -330,7 +330,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), broker.connectCount.Load())
 	assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -348,10 +348,10 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	require.NoError(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	require.NoError(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
@@ -362,7 +362,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), broker.closeCount.Load()) // two counts - one for connection, one for channel
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	require.Error(t, err)
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
@@ -380,7 +380,7 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), broker.connectCount.Load())
 	assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -391,7 +391,7 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{"routingKey": "keya,keyb,"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{"routingKey": "keya,keyb,"}}, handler)
 	require.NoError(t, err)
 }
 
@@ -407,7 +407,7 @@ func TestSubscribeReconnect(t *testing.T) {
 			pubsub.ConcurrencyKey:           string(pubsub.Single),
 		},
 	}}
-	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), broker.connectCount.Load())
 	assert.Equal(t, int32(0), broker.closeCount.Load())
@@ -425,10 +425,10 @@ func TestSubscribeReconnect(t *testing.T) {
 		return errors.New(errorChannelConnection)
 	}
 
-	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	require.NoError(t, err)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	require.NoError(t, err)
 	select {
 	case <-processed:
@@ -438,7 +438,7 @@ func TestSubscribeReconnect(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	require.NoError(t, err)
 	select {
 	case <-processed:

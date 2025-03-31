@@ -14,7 +14,6 @@ limitations under the License.
 package kitex
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -61,7 +60,7 @@ func TestInvoke(t *testing.T) {
 		metadataRPCMethodName:  MethodName,
 	}
 
-	resp, err := output.Invoke(context.Background(), &bindings.InvokeRequest{
+	resp, err := output.Invoke(t.Context(), &bindings.InvokeRequest{
 		Metadata:  metadata,
 		Data:      reqData,
 		Operation: bindings.GetOperation,

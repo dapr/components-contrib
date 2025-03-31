@@ -65,7 +65,7 @@ func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {
 	bus := NewJetStream(logger.NewLogger("test"))
 	defer bus.Close()
 
-	err := bus.Init(context.Background(), pubsub.Metadata{
+	err := bus.Init(t.Context(), pubsub.Metadata{
 		Base: mdata.Base{
 			Properties: map[string]string{
 				"natsURL": ns.ClientURL(),
@@ -74,7 +74,7 @@ func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := make(chan []byte, 1)
 
 	err = bus.Subscribe(ctx, pubsub.SubscribeRequest{Topic: "test"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
@@ -108,7 +108,7 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 	bus := NewJetStream(logger.NewLogger("test"))
 	defer bus.Close()
 
-	err := bus.Init(context.Background(), pubsub.Metadata{
+	err := bus.Init(t.Context(), pubsub.Metadata{
 		Base: mdata.Base{
 			Properties: map[string]string{
 				"natsURL":        ns.ClientURL(),
@@ -119,7 +119,7 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := make(chan []byte, 2)
 
 	// Two subscriptions to the same queue group. If there is a config

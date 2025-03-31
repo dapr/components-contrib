@@ -14,7 +14,6 @@ limitations under the License.
 package workflows
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -72,13 +71,13 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 				},
 			}
 
-			startRes, err := workflowItem.Start(context.Background(), req)
+			startRes, err := workflowItem.Start(t.Context(), req)
 			require.NoError(t, err)
 			assert.Equal(t, testInstanceID, startRes.InstanceID)
 		})
 
 		t.Run("get after start", func(t *testing.T) {
-			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			resp, err := workflowItem.Get(t.Context(), &workflows.GetRequest{InstanceID: testInstanceID})
 			require.NoError(t, err)
 			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
 			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
@@ -88,13 +87,13 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		time.Sleep(5 * time.Second)
 
 		t.Run("get after wait", func(t *testing.T) {
-			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			resp, err := workflowItem.Get(t.Context(), &workflows.GetRequest{InstanceID: testInstanceID})
 			require.NoError(t, err)
 			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
 		})
 
 		t.Run("terminate", func(t *testing.T) {
-			err := workflowItem.Terminate(context.Background(), &workflows.TerminateRequest{InstanceID: testInstanceID})
+			err := workflowItem.Terminate(t.Context(), &workflows.TerminateRequest{InstanceID: testInstanceID})
 			require.NoError(t, err)
 		})
 
@@ -102,7 +101,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		time.Sleep(5 * time.Second)
 
 		t.Run("get after terminate", func(t *testing.T) {
-			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			resp, err := workflowItem.Get(t.Context(), &workflows.GetRequest{InstanceID: testInstanceID})
 			require.NoError(t, err)
 			assert.Equal(t, "Terminated", resp.Workflow.RuntimeStatus)
 			assert.Equal(t, "TestID", resp.Workflow.InstanceID)

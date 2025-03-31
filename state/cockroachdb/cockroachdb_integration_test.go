@@ -14,7 +14,6 @@ limitations under the License.
 package cockroachdb
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -65,7 +64,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 		defer pgs.Close()
 	})
 
-	if err := pgs.Init(context.Background(), metadata); err != nil {
+	if err := pgs.Init(t.Context(), metadata); err != nil {
 		t.Fatal(err)
 	}
 
@@ -180,7 +179,7 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 func testCreateTable(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
 	const tableName = "test_state"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Drop the table if it already exists.
 	exists, err := tableExists(ctx, db, tableName)
@@ -213,7 +212,7 @@ func testCreateTable(t *testing.T, db *pgxpool.Pool) {
 func dropTable(t *testing.T, db *pgxpool.Pool, tableName string) {
 	t.Helper()
 
-	_, err := db.Exec(context.Background(), "DROP TABLE "+tableName)
+	_, err := db.Exec(t.Context(), "DROP TABLE "+tableName)
 	require.NoError(t, err)
 }
 
@@ -230,7 +229,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(context.Background(), deleteReq)
+	err := pgs.Delete(t.Context(), deleteReq)
 	require.NoError(t, err)
 }
 
@@ -255,7 +254,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -293,7 +292,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -348,7 +347,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.Multi(t.Context(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -383,7 +382,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(context.Background(), deleteReq)
+	err := pgs.Delete(t.Context(), deleteReq)
 	require.Error(t, err)
 }
 
@@ -399,7 +398,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(context.Background(), deleteReq)
+	err := pgs.Delete(t.Context(), deleteReq)
 	require.Error(t, err)
 }
 
@@ -422,7 +421,7 @@ func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		ContentType: nil,
 	}
 
-	err := pgs.Set(context.Background(), setReq)
+	err := pgs.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -456,7 +455,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 		ContentType: nil,
 	}
-	err := pgs.Set(context.Background(), setReq)
+	err := pgs.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -508,7 +507,7 @@ func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 
-	response, getErr := pgs.Get(context.Background(), getReq)
+	response, getErr := pgs.Get(t.Context(), getReq)
 	require.Error(t, getErr)
 	assert.Nil(t, response)
 }
@@ -551,7 +550,7 @@ func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 		ContentType: nil,
 	}
 
-	err := pgs.Set(context.Background(), setReq)
+	err := pgs.Set(t.Context(), setReq)
 	require.Error(t, err)
 }
 
@@ -570,7 +569,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 
-	err := pgs.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
+	err := pgs.BulkSet(t.Context(), setReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -584,7 +583,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 
-	err = pgs.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
+	err = pgs.BulkDelete(t.Context(), deleteReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -621,7 +620,7 @@ func testInitConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: rowTest.props},
 			}
 
-			err := cockroackDB.Init(context.Background(), metadata)
+			err := cockroackDB.Init(t.Context(), metadata)
 			if rowTest.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -651,7 +650,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 		ContentType: nil,
 	}
 
-	err := pgs.Set(context.Background(), setReq)
+	err := pgs.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
@@ -699,7 +698,7 @@ func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetRe
 		Metadata: map[string]string{},
 	}
 
-	response, getErr := pgs.Get(context.Background(), getReq)
+	response, getErr := pgs.Get(t.Context(), getReq)
 	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{
@@ -723,7 +722,7 @@ func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *stri
 		Metadata: map[string]string{},
 	}
 
-	deleteErr := pgs.Delete(context.Background(), deleteReq)
+	deleteErr := pgs.Delete(t.Context(), deleteReq)
 	require.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }
@@ -773,7 +772,7 @@ func setItemWithTTL(t *testing.T, pgs *postgresql.PostgreSQL, key string, value 
 		ContentType: nil,
 	}
 
-	err := pgs.Set(context.Background(), setReq)
+	err := pgs.Set(t.Context(), setReq)
 	require.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)

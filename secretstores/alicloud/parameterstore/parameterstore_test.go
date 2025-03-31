@@ -14,7 +14,6 @@ limitations under the License.
 package parameterstore
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -78,7 +77,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 
@@ -87,7 +86,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 	})
 }
@@ -103,7 +102,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     secretName,
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -119,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 					"version_id": "1",
 				},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -137,7 +136,7 @@ func TestGetSecret(t *testing.T) {
 					"version_id": "not-number",
 				},
 			}
-			_, e := s.GetSecret(context.Background(), req)
+			_, e := s.GetSecret(t.Context(), req)
 			require.Error(t, e)
 		})
 
@@ -150,7 +149,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     secretName,
 				Metadata: map[string]string{},
 			}
-			_, e := s.GetSecret(context.Background(), req)
+			_, e := s.GetSecret(t.Context(), req)
 			require.Error(t, e)
 		})
 	})
@@ -166,7 +165,7 @@ func TestBulkGetSecret(t *testing.T) {
 			req := secretstores.BulkGetSecretRequest{
 				Metadata: map[string]string{},
 			}
-			output, e := s.BulkGetSecret(context.Background(), req)
+			output, e := s.BulkGetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
@@ -181,7 +180,7 @@ func TestBulkGetSecret(t *testing.T) {
 					"path": "/oos/",
 				},
 			}
-			output, e := s.BulkGetSecret(context.Background(), req)
+			output, e := s.BulkGetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
@@ -196,7 +195,7 @@ func TestBulkGetSecret(t *testing.T) {
 			req := secretstores.BulkGetSecretRequest{
 				Metadata: map[string]string{},
 			}
-			_, e := s.BulkGetSecret(context.Background(), req)
+			_, e := s.BulkGetSecret(t.Context(), req)
 			require.Error(t, e)
 		})
 	})
@@ -205,7 +204,7 @@ func TestBulkGetSecret(t *testing.T) {
 func TestGetFeatures(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
-	s.Init(context.Background(), m)
+	s.Init(t.Context(), m)
 	t.Run("no features are advertised", func(t *testing.T) {
 		f := s.Features()
 		assert.Empty(t, f)

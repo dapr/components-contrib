@@ -76,7 +76,7 @@ func Test_outputBinding_Init(t *testing.T) {
 			output := NewWasmOutput(logger.NewLogger(t.Name())).(*outputBinding)
 			defer output.Close()
 
-			err := output.Init(context.Background(), bindings.Metadata{Base: tc.metadata})
+			err := output.Init(t.Context(), bindings.Metadata{Base: tc.metadata})
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				require.NotNil(t, output.runtime)
@@ -89,7 +89,7 @@ func Test_outputBinding_Init(t *testing.T) {
 }
 
 func Test_Invoke(t *testing.T) {
-	canceledCtx, cancel := context.WithCancel(context.Background())
+	canceledCtx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	type testCase struct {
@@ -160,7 +160,7 @@ func Test_Invoke(t *testing.T) {
 			output := NewWasmOutput(l)
 			defer output.(io.Closer).Close()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			err := output.Init(ctx, bindings.Metadata{Base: meta})
 			require.NoError(t, err)
@@ -244,7 +244,7 @@ func Test_InvokeHttp(t *testing.T) {
 			output := NewWasmOutput(l)
 			defer output.(io.Closer).Close()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			err := output.Init(ctx, bindings.Metadata{Base: meta})
 			require.NoError(t, err)
@@ -284,7 +284,7 @@ func TestEnsureConcurrency(t *testing.T) {
 	output := NewWasmOutput(l)
 	defer output.(io.Closer).Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	err := output.Init(ctx, bindings.Metadata{Base: meta})
 	require.NoError(t, err)

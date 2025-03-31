@@ -115,7 +115,7 @@ func TestSqsClients_QueueURL(t *testing.T) {
 				Sqs: mockSQS,
 			}
 
-			url, err := client.QueueURL(context.Background(), tt.queueName)
+			url, err := client.QueueURL(t.Context(), tt.queueName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -171,7 +171,7 @@ func TestKinesisClients_Stream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.kinesisClient.Stream(context.Background(), tt.streamName)
+			got, err := tt.kinesisClient.Stream(t.Context(), tt.streamName)
 			if tt.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
@@ -251,7 +251,7 @@ func TestKinesisClients_WorkerCfg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.kinesisClient.WorkerCfg(context.Background(), tt.streamName, tt.consumer, tt.mode)
+			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.consumer, tt.mode)
 			if tt.expectedConfig == nil {
 				assert.Equal(t, tt.expectedConfig, cfg)
 				return

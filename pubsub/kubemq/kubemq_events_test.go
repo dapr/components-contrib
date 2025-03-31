@@ -117,7 +117,7 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 	}
 	for _, tt := range tests {
 		k := newkubeMQEvents(logger.NewLogger("kubemq-test"))
-		k.ctx, k.ctxCancel = context.WithCancel(context.Background())
+		k.ctx, k.ctxCancel = context.WithCancel(t.Context())
 		client := newKubemqEventsMock().
 			setResultError(tt.resultError).
 			setPublishError(tt.publishErr)
@@ -181,7 +181,7 @@ func Test_kubeMQEvents_Subscribe(t *testing.T) {
 	}
 	for _, tt := range tests {
 		k := newkubeMQEvents(logger.NewLogger("kubemq-test"))
-		k.ctx, k.ctxCancel = context.WithCancel(context.Background())
+		k.ctx, k.ctxCancel = context.WithCancel(t.Context())
 		k.client = newKubemqEventsMock().
 			setSubscribeError(tt.subscribeError)
 		k.isInitialized = true

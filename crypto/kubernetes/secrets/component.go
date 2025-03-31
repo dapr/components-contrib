@@ -144,12 +144,12 @@ func (k *kubeSecretsCrypto) parseKeyString(param string) (namespace string, secr
 	return
 }
 
-func (kubeSecretsCrypto) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (*kubeSecretsCrypto) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := secretsMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.CryptoType)
 	return
 }
 
-func (kubeSecretsCrypto) Close() error {
+func (*kubeSecretsCrypto) Close() error {
 	return nil
 }

@@ -107,7 +107,7 @@ func TestActivateJobs(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingJobType)
 	})
 
@@ -120,7 +120,7 @@ func TestActivateJobs(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingMaxJobsToActivate)
 	})
 
@@ -137,7 +137,7 @@ func TestActivateJobs(t *testing.T) {
 		var mc mockActivateJobsClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
@@ -160,7 +160,7 @@ func TestActivateJobs(t *testing.T) {
 		var mc mockActivateJobsClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)

@@ -94,7 +94,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(context.Background(), m)
+		err := obs.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 	t.Run("Init with missing bucket name", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(context.Background(), m)
+		err := obs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing obs bucket name"))
 	})
@@ -115,7 +115,7 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(context.Background(), m)
+		err := obs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing the huawei access key"))
 	})
@@ -126,7 +126,7 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"accessKey": "dummy-ak",
 		}
-		err := obs.Init(context.Background(), m)
+		err := obs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing the huawei secret key"))
 	})
@@ -137,7 +137,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(context.Background(), m)
+		err := obs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing obs endpoint"))
 	})
@@ -178,7 +178,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(context.Background(), req)
+		out, err := mo.create(t.Context(), req)
 		require.NoError(t, err)
 
 		var data createResponse
@@ -209,7 +209,7 @@ func TestCreateOperation(t *testing.T) {
 			Data:      []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(context.Background(), req)
+		out, err := mo.create(t.Context(), req)
 		require.NoError(t, err)
 
 		var data createResponse
@@ -242,7 +242,7 @@ func TestCreateOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.create(context.Background(), req)
+		_, err := mo.create(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -267,7 +267,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		_, err := mo.create(context.Background(), req)
+		_, err := mo.create(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -298,7 +298,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(context.Background(), req)
+		out, err := mo.upload(t.Context(), req)
 		require.NoError(t, err)
 
 		var data createResponse
@@ -329,7 +329,7 @@ func TestUploadOperation(t *testing.T) {
 			Data:      []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(context.Background(), req)
+		out, err := mo.upload(t.Context(), req)
 		require.NoError(t, err)
 
 		var data createResponse
@@ -359,7 +359,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		_, err := mo.upload(context.Background(), req)
+		_, err := mo.upload(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -393,7 +393,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.Background(), req)
+		_, err := mo.get(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -410,7 +410,7 @@ func TestGetOperation(t *testing.T) {
 			Operation: "get",
 		}
 
-		_, err := mo.get(context.Background(), req)
+		_, err := mo.get(t.Context(), req)
 		require.Error(t, err)
 	})
 
@@ -434,7 +434,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.Background(), req)
+		_, err := mo.get(t.Context(), req)
 		require.Error(t, err)
 	})
 
@@ -466,7 +466,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.Background(), req)
+		_, err := mo.get(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -496,7 +496,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		out, err := mo.delete(context.Background(), req)
+		out, err := mo.delete(t.Context(), req)
 		require.NoError(t, err)
 
 		var data createResponse
@@ -518,7 +518,7 @@ func TestDeleteOperation(t *testing.T) {
 			Operation: "delete",
 		}
 
-		_, err := mo.delete(context.Background(), req)
+		_, err := mo.delete(t.Context(), req)
 		require.Error(t, err)
 	})
 
@@ -542,7 +542,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.delete(context.Background(), req)
+		_, err := mo.delete(t.Context(), req)
 		require.Error(t, err)
 	})
 }
@@ -573,7 +573,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(context.Background(), req)
+		_, err := mo.list(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -598,7 +598,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(context.Background(), req)
+		_, err := mo.list(t.Context(), req)
 		require.Error(t, err)
 	})
 
@@ -627,7 +627,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"key\": \"value\"}"),
 		}
 
-		_, err := mo.list(context.Background(), req)
+		_, err := mo.list(t.Context(), req)
 		require.NoError(t, err)
 	})
 }
@@ -654,7 +654,7 @@ func TestInvoke(t *testing.T) {
 			Operation: "create",
 		}
 
-		_, err := mo.Invoke(context.Background(), req)
+		_, err := mo.Invoke(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -686,7 +686,7 @@ func TestInvoke(t *testing.T) {
 			},
 		}
 
-		_, err := mo.Invoke(context.Background(), req)
+		_, err := mo.Invoke(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -714,7 +714,7 @@ func TestInvoke(t *testing.T) {
 			},
 		}
 
-		_, err := mo.Invoke(context.Background(), req)
+		_, err := mo.Invoke(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -743,7 +743,7 @@ func TestInvoke(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.Invoke(context.Background(), req)
+		_, err := mo.Invoke(t.Context(), req)
 		require.NoError(t, err)
 	})
 
@@ -760,7 +760,7 @@ func TestInvoke(t *testing.T) {
 			Operation: "unknown",
 		}
 
-		_, err := mo.Invoke(context.Background(), req)
+		_, err := mo.Invoke(t.Context(), req)
 		require.Error(t, err)
 	})
 }

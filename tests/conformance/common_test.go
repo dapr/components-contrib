@@ -68,7 +68,7 @@ func TestIsYaml(t *testing.T) {
 }
 
 func TestLookUpEnv(t *testing.T) {
-	os.Setenv("CONF_TEST_KEY", "testval")
+	t.Setenv("CONF_TEST_KEY", "testval")
 	defer os.Unsetenv("CONF_TEST_KEY")
 	r := LookUpEnv("CONF_TEST_KEY")
 	assert.Equal(t, "testval", r)
@@ -92,7 +92,7 @@ func TestConvertMetadataToProperties(t *testing.T) {
 		},
 	}
 	t.Run("env var set", func(t *testing.T) {
-		os.Setenv("CONF_TEST_KEY", "testval")
+		t.Setenv("CONF_TEST_KEY", "testval")
 		defer os.Unsetenv("CONF_TEST_KEY")
 		resp, err := ConvertMetadataToProperties(items)
 		require.NoError(t, err)

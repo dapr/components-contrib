@@ -331,7 +331,7 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 			err     error
 			errored int
 		)
-		for range len(msgs) {
+		for range msgs {
 			// This is a nop if the received error is nil
 			if multierr.AppendInto(&err, <-errCh) {
 				errored++

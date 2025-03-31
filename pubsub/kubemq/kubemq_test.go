@@ -1,7 +1,6 @@
 package kubemq
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,7 +97,7 @@ func Test_kubeMQ_Init(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k := NewKubeMQ(logger.NewLogger("test"))
-			err := k.Init(context.Background(), tt.meta)
+			err := k.Init(t.Context(), tt.meta)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})
 	}

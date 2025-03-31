@@ -188,7 +188,7 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
 
-		require.Equal(t, valJSON, act)
+		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
@@ -197,7 +197,7 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "None"})
 
-		require.Equal(t, valJSON, act)
+		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
@@ -206,7 +206,7 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "NONE"})
 
-		require.Equal(t, valJSON, act)
+		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
@@ -262,7 +262,7 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
-		require.Equal(t, valJSON, act)
+		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 

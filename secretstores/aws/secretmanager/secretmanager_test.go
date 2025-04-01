@@ -188,8 +188,8 @@ func TestGetSecret(t *testing.T) {
 			mockAuthProvider := &awsAuth.StaticAuth{}
 			mockAuthProvider.WithMockClients(&mockedClients)
 			s := smSecretStore{
-				authProvider:          mockAuthProvider,
-				multipleKeysPerSecret: true,
+				authProvider:               mockAuthProvider,
+				multipleKeyValuesPerSecret: true,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -265,8 +265,8 @@ func TestGetSecret(t *testing.T) {
 			mockAuthProvider := &awsAuth.StaticAuth{}
 			mockAuthProvider.WithMockClients(&mockedClients)
 			s := smSecretStore{
-				authProvider:          mockAuthProvider,
-				multipleKeysPerSecret: true,
+				authProvider:               mockAuthProvider,
+				multipleKeyValuesPerSecret: true,
 			}
 
 			req := secretstores.GetSecretRequest{
@@ -373,7 +373,7 @@ func TestBulkGetSecret(t *testing.T) {
 		}, output.Data)
 	})
 
-	t.Run("when multipleKeysPerSecret = true, returns all secrets in store broken out by key", func(t *testing.T) {
+	t.Run("when multipleKeyValuesPerSecret = true, returns all secrets in store broken out by key", func(t *testing.T) {
 		secret1 := "/aws/secret/testing1"
 		// #nosec G101: This is a mock secret used for testing purposes.
 		secretValue1 := `{"key1":"value1","key2":"value2"}`
@@ -419,8 +419,8 @@ func TestBulkGetSecret(t *testing.T) {
 		mockAuthProvider := &awsAuth.StaticAuth{}
 		mockAuthProvider.WithMockClients(&mockedClients)
 		s := smSecretStore{
-			authProvider:          mockAuthProvider,
-			multipleKeysPerSecret: true,
+			authProvider:               mockAuthProvider,
+			multipleKeyValuesPerSecret: true,
 		}
 
 		req := secretstores.BulkGetSecretRequest{
@@ -443,14 +443,14 @@ func TestBulkGetSecret(t *testing.T) {
 
 func TestGetFeatures(t *testing.T) {
 	s := smSecretStore{}
-	t.Run("when multipleKeysPerSecret = true, return feature", func(t *testing.T) {
-		s.multipleKeysPerSecret = true
+	t.Run("when multipleKeyValuesPerSecret = true, return feature", func(t *testing.T) {
+		s.multipleKeyValuesPerSecret = true
 		f := s.Features()
 		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
 	})
 
-	t.Run("when multipleKeysPerSecret = false, no feature advertised", func(t *testing.T) {
-		s.multipleKeysPerSecret = false
+	t.Run("when multipleKeyValuesPerSecret = false, no feature advertised", func(t *testing.T) {
+		s.multipleKeyValuesPerSecret = false
 		f := s.Features()
 		assert.Empty(t, f)
 	})

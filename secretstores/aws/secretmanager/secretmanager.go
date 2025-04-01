@@ -40,18 +40,18 @@ func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 }
 
 type SecretManagerMetaData struct {
-	Region                string `json:"region" mapstructure:"region" mdignore:"true"`
-	AccessKey             string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey             string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken          string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
-	Endpoint              string `json:"endpoint" mapstructure:"endpoint"`
-	MultipleKeysPerSecret bool   `json:"multipleKeysPerSecret" mapstructure:"multipleKeysPerSecret"`
+	Region                     string `json:"region" mapstructure:"region" mdignore:"true"`
+	AccessKey                  string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey                  string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken               string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+	Endpoint                   string `json:"endpoint" mapstructure:"endpoint"`
+	MultipleKeyValuesPerSecret bool   `json:"multipleKeyValuesPerSecret" mapstructure:"multipleKeysPerSecret"`
 }
 
 type smSecretStore struct {
-	authProvider          awsAuth.Provider
-	logger                logger.Logger
-	multipleKeysPerSecret bool
+	authProvider               awsAuth.Provider
+	logger                     logger.Logger
+	multipleKeyValuesPerSecret bool
 }
 
 // Init creates an AWS secret manager client.
@@ -69,7 +69,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		SessionToken: meta.SessionToken,
 		Endpoint:     meta.Endpoint,
 	}
-	s.multipleKeysPerSecret = meta.MultipleKeysPerSecret
+	s.multipleKeyValuesPerSecret = meta.MultipleKeyValuesPerSecret
 
 	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
@@ -83,7 +83,7 @@ func (s *smSecretStore) formatSecret(output *secretsmanager.GetSecretValueOutput
 	result := map[string]string{}
 
 	if output.Name != nil && output.SecretString != nil {
-		if s.multipleKeysPerSecret {
+		if s.multipleKeyValuesPerSecret {
 			data := map[string]string{}
 			err := json.Unmarshal([]byte(*output.SecretString), &data)
 			if err == nil {
@@ -179,7 +179,7 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*S
 
 // Features returns the features available in this secret store.
 func (s *smSecretStore) Features() []secretstores.Feature {
-	if s.multipleKeysPerSecret {
+	if s.multipleKeyValuesPerSecret {
 		return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 	}
 

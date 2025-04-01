@@ -448,7 +448,7 @@ func getSubscribePosition(subsPositionStr string) pulsar.SubscriptionInitialPosi
 
 	switch subsPositionStr {
 	case subscribePositionEarliest:
-		subsPosition = pulsar.SubscriptionPositionLatest
+		subsPosition = pulsar.SubscriptionPositionEarliest
 	case subscribePositionLatest:
 		subsPosition = pulsar.SubscriptionPositionLatest
 	}

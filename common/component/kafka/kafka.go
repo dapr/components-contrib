@@ -69,7 +69,6 @@ type Kafka struct {
 	latestSchemaCacheTTL       time.Duration
 	latestSchemaCacheWriteLock sync.RWMutex
 	latestSchemaCacheReadLock  sync.Mutex
-	useAvroJSON                bool
 
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
@@ -226,10 +225,10 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 	k.consumeRetryEnabled = meta.ConsumeRetryEnabled
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
-	k.useAvroJSON = meta.UseAvroJSON
 	if meta.SchemaRegistryURL != "" {
 		k.logger.Infof("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
+		k.srClient.CodecJsonEnabled(!meta.UseAvroJSON)
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {
 			k.srClient.SetCredentials(meta.SchemaRegistryAPIKey, meta.SchemaRegistryAPISecret)
@@ -348,16 +347,7 @@ func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config Subscri
 		if err != nil {
 			return nil, err
 		}
-		// The data coming through is either Avro JSON or standard JSON.
-		var codec *goavro.Codec
-		if k.useAvroJSON {
-			codec = schema.Codec() // The value returned in Avro JSON format
-		} else {
-			codec, err = goavro.NewCodecForStandardJSONFull(schema.Schema())
-		}
-		if err != nil {
-			return nil, err
-		}
+		codec := schema.Codec() // The value returned in Avro JSON format
 		native, _, err := codec.NativeFromBinary(message.Value[5:])
 		if err != nil {
 			return nil, err
@@ -393,18 +383,8 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 		if errSchema != nil {
 			return nil, nil, errSchema
 		}
-		// New JSON standard serialization/Deserialization is not integrated in srclient yet.
-		// Since standard json is passed from dapr, it is needed.
-		var codec *goavro.Codec
-		if k.useAvroJSON {
-			codec = schema.Codec()
-		} else {
-			codec, err = goavro.NewCodecForStandardJSONFull(schema.Schema())
+		codec := schema.Codec()
 
-			if err != nil {
-				return nil, nil, err
-			}
-		}
 		k.latestSchemaCacheWriteLock.Lock()
 		k.latestSchemaCache[subject] = SchemaCacheEntry{schema: schema, codec: codec, expirationTime: time.Now().Add(k.latestSchemaCacheTTL)}
 		k.latestSchemaCacheWriteLock.Unlock()
@@ -414,17 +394,7 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 	if err != nil {
 		return nil, nil, err
 	}
-	var codec *goavro.Codec
-	if k.useAvroJSON {
-		codec = schema.Codec()
-	} else {
-		codec, err = goavro.NewCodecForStandardJSONFull(schema.Schema())
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return schema, codec, nil
+	return schema, schema.Codec(), nil
 }
 
 func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error) {

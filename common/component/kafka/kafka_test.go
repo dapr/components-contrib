@@ -68,41 +68,41 @@ var (
 )
 
 func TestDeserializeValue(t *testing.T) {
-	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 	handlerConfig := SubscriptionHandlerConfig{
 		IsBulkSubscribe: false,
 		ValueSchemaType: Avro,
 	}
-	k := Kafka{
-		srClient:             registry,
+
+	registryJson := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	kJson := Kafka{
+		srClient:             registryJson,
 		schemaCachingEnabled: true,
 		logger:               logger.NewLogger("kafka_test"),
 	}
-
-	schemaIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID())) //nolint:gosec
+	kJson.srClient.CodecJsonEnabled(true)
+	schemaJson, _ := registryJson.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	// set up for Standard JSON
 	codec, _ := goavro.NewCodecForStandardJSONFull(testSchema1)
 	valJSON, _ := json.Marshal(testValue1)
 	native, _, _ := codec.NativeFromTextual(valJSON)
 	valueBytesFromJson, _ := codec.BinaryFromNative(nil, native)
-
-	var recordValueFromJson []byte
-	recordValueFromJson = append(recordValueFromJson, byte(0))
-	recordValueFromJson = append(recordValueFromJson, schemaIDBytes...)
-	recordValueFromJson = append(recordValueFromJson, valueBytesFromJson...)
+	recordValueFromJson := formatByteRecord(schemaJson.ID(), valueBytesFromJson)
 
 	// setup for Avro JSON
+	registryAvroJson := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	kAvroJson := Kafka{
+		srClient:             registryAvroJson,
+		schemaCachingEnabled: true,
+		logger:               logger.NewLogger("kafka_test"),
+	}
+	kAvroJson.srClient.CodecJsonEnabled(false)
+	schemaAvroJson, _ := registryAvroJson.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
+
 	codecAvroJson, _ := goavro.NewCodec(testSchema1)
 	valueBytesFromAvroJson, _ := codecAvroJson.BinaryFromNative(nil, testValue1AvroJson)
 	valueAvroJson, _ := codecAvroJson.TextualFromNative(nil, testValue1AvroJson)
-
-	var recordValueFromAvroJson []byte
-	recordValueFromAvroJson = append(recordValueFromAvroJson, byte(0))
-	recordValueFromAvroJson = append(recordValueFromAvroJson, schemaIDBytes...)
-	recordValueFromAvroJson = append(recordValueFromAvroJson, valueBytesFromAvroJson...)
+	recordValueFromAvroJson := formatByteRecord(schemaAvroJson.ID(), valueBytesFromAvroJson)
 
 	t.Run("Schema found, return value", func(t *testing.T) {
 		msg := sarama.ConsumerMessage{
@@ -110,7 +110,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: recordValueFromJson,
 			Topic: "my-topic",
 		}
-		act, err := k.DeserializeValue(&msg, handlerConfig)
+		act, err := kJson.DeserializeValue(&msg, handlerConfig)
 		var actMap map[string]any
 		json.Unmarshal(act, &actMap)
 		require.Equal(t, testValue1, actMap)
@@ -123,10 +123,12 @@ func TestDeserializeValue(t *testing.T) {
 			Value: recordValueFromAvroJson,
 			Topic: "my-topic",
 		}
-		k.useAvroJSON = true
 
-		act, err := k.DeserializeValue(&msg, handlerConfig)
-		require.Equal(t, valueAvroJson, act)
+		actText, err := kAvroJson.DeserializeValue(&msg, handlerConfig)
+		// test if flaky if comparing the textual version. Convert to native for comparison
+		exp, _, _ := codecAvroJson.NativeFromTextual(valueAvroJson)
+		act, _, _ := codecAvroJson.NativeFromTextual(actText)
+		require.Equal(t, exp, act)
 		require.NoError(t, err)
 	})
 
@@ -136,7 +138,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: nil,
 			Topic: "my-topic",
 		}
-		act, err := k.DeserializeValue(&msg, handlerConfig)
+		act, err := kJson.DeserializeValue(&msg, handlerConfig)
 		require.Equal(t, []byte("null"), act)
 		require.NoError(t, err)
 	})
@@ -147,7 +149,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: []byte("xxxx"),
 			Topic: "my-topic",
 		}
-		_, err := k.DeserializeValue(&msg, handlerConfig)
+		_, err := kJson.DeserializeValue(&msg, handlerConfig)
 
 		require.Error(t, err)
 	})
@@ -158,7 +160,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: []byte("xxxxx"),
 			Topic: "my-topic",
 		}
-		_, err := k.DeserializeValue(&msg, handlerConfig)
+		_, err := kJson.DeserializeValue(&msg, handlerConfig)
 
 		require.Error(t, err)
 	})
@@ -166,7 +168,7 @@ func TestDeserializeValue(t *testing.T) {
 	t.Run("Invalid data, return error", func(t *testing.T) {
 		var invalidVal []byte
 		invalidVal = append(invalidVal, byte(0))
-		invalidVal = append(invalidVal, schemaIDBytes...)
+		invalidVal = append(invalidVal, recordValueFromJson[0:5]...)
 		invalidVal = append(invalidVal, []byte("xxx")...)
 
 		msg := sarama.ConsumerMessage{
@@ -174,7 +176,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: invalidVal,
 			Topic: "my-topic",
 		}
-		_, err := k.DeserializeValue(&msg, handlerConfig)
+		_, err := kJson.DeserializeValue(&msg, handlerConfig)
 
 		require.Error(t, err)
 	})
@@ -194,6 +196,18 @@ func TestDeserializeValue(t *testing.T) {
 	})
 }
 
+func formatByteRecord(schemaID int, valueBytes []byte) []byte {
+
+	schemaIDBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schemaID)) //nolint:gosec
+
+	var recordValue []byte
+	recordValue = append(recordValue, byte(0))
+	recordValue = append(recordValue, schemaIDBytes...)
+	recordValue = append(recordValue, valueBytes...)
+	return recordValue
+}
+
 func assertValueSerialized(t *testing.T, act []byte, valJSON []byte, schema *srclient.Schema) {
 	require.NotEqual(t, act, valJSON)
 
@@ -209,87 +223,101 @@ func assertValueSerialized(t *testing.T, act []byte, valJSON []byte, schema *src
 }
 
 func TestSerializeValueCachingDisabled(t *testing.T) {
-	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
+	registryJson := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	registryJson.CodecJsonEnabled(true)
+	schemaJson, _ := registryJson.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	schemaIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schema.ID())) //nolint:gosec
+	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schemaJson.ID())) //nolint:gosec
+
+	// set up for Avro JSON
+	registryAvroJson := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	registryAvroJson.CodecJsonEnabled(false)
 	codecAvroJson, _ := goavro.NewCodec(testSchema1)
+	schemaAvroJson, _ := registryAvroJson.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
+	schemaAvroJsonIDBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(schemaAvroJsonIDBytes, uint32(schemaAvroJson.ID())) //nolint:gosec
 	valueBytesFromAvroJson, _ := codecAvroJson.BinaryFromNative(nil, testValue1AvroJson)
 	valueAvroJson, _ := codecAvroJson.TextualFromNative(nil, testValue1AvroJson)
 	var recordValueFromAvroJson []byte
 	recordValueFromAvroJson = append(recordValueFromAvroJson, byte(0))
-	recordValueFromAvroJson = append(recordValueFromAvroJson, schemaIDBytes...)
+	recordValueFromAvroJson = append(recordValueFromAvroJson, schemaAvroJsonIDBytes...)
 	recordValueFromAvroJson = append(recordValueFromAvroJson, valueBytesFromAvroJson...)
 
-	k := Kafka{
-		srClient:             registry,
+	kJson := Kafka{
+		srClient:             registryJson,
+		schemaCachingEnabled: false,
+		logger:               logger.NewLogger("kafka_test"),
+	}
+
+	kAvroJson := Kafka{
+		srClient:             registryAvroJson,
 		schemaCachingEnabled: false,
 		logger:               logger.NewLogger("kafka_test"),
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{})
+		act, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{})
 		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType set to None, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "None"})
+		act, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "None"})
 		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType set to None, leave value as is", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "NONE"})
+		act, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "NONE"})
 		require.JSONEq(t, string(valJSON), string(act))
 		require.NoError(t, err)
 	})
 
 	t.Run("valueSchemaType invalid, return error", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		_, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "xx"})
+		_, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "xx"})
 		require.Error(t, err, "error parsing schema type. 'xx' is not a supported value")
 	})
 
 	t.Run("schema found, serialize value as Avro binary", func(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
-		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
-		assertValueSerialized(t, act, valJSON, schema)
+		act, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		assertValueSerialized(t, act, valJSON, schemaJson)
 		require.NoError(t, err)
 	})
 
 	t.Run("schema found, useAvroJson=true, serialize value as Avro binary", func(t *testing.T) {
-		k.useAvroJSON = true
-		act, err := k.SerializeValue("my-topic", valueAvroJson, map[string]string{"valueSchemaType": "Avro"})
+		act, err := kAvroJson.SerializeValue("my-topic", valueAvroJson, map[string]string{"valueSchemaType": "Avro"})
 		require.Equal(t, act[:5], recordValueFromAvroJson[:5])
 		require.NoError(t, err)
 	})
 
 	t.Run("value published 'null', no error", func(t *testing.T) {
-		act, err := k.SerializeValue("my-topic", []byte("null"), map[string]string{"valueSchemaType": "Avro"})
+		act, err := kJson.SerializeValue("my-topic", []byte("null"), map[string]string{"valueSchemaType": "Avro"})
 		require.Nil(t, act)
 		require.NoError(t, err)
 	})
 
 	t.Run("value published nil, no error", func(t *testing.T) {
-		act, err := k.SerializeValue("my-topic", nil, map[string]string{"valueSchemaType": "Avro"})
+		act, err := kJson.SerializeValue("my-topic", nil, map[string]string{"valueSchemaType": "Avro"})
 		require.Nil(t, act)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid data, return error", func(t *testing.T) {
 		valJSON, _ := json.Marshal(invValue)
-		_, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
+		_, err := kJson.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		require.Error(t, err, "cannot decode textual record \"cupcake\": cannot decode textual map: cannot determine codec: \"xxx\"")
 	})
 }
 
 func TestSerializeValueCachingEnabled(t *testing.T) {
 	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	registry.CodecJsonEnabled(true)
 	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	k := Kafka{
@@ -319,6 +347,7 @@ func TestLatestSchemaCaching(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	registry := srclient.CreateMockSchemaRegistryClient("http://locahost:8081")
+	registry.CodecJsonEnabled(true)
 	m := mock_srclient.NewMockISchemaRegistryClient(ctrl)
 	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 

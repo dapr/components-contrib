@@ -343,7 +343,7 @@ metadata:
         It allows sending headers with special characters that are usually not allowed in HTTP headers.
       example: "true"
       default: "false"
-    - name: useAvroJsonSchema
+    - name: useAvroJSON
       type: bool
       required: false
       description: |

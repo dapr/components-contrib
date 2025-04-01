@@ -28,6 +28,9 @@ const (
 // AppResponse is the object describing the response from user code after a pubsub event.
 type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
+
+	// When Retry/Drop, this field should be populated with the error message to be published to DLQ if configured.
+	Error error `json:"error"`
 }
 
 // AppBulkResponseEntry Represents single response, as part of AppBulkResponse, to be

@@ -95,7 +95,7 @@ const (
 	processModeAsync = "async"
 	processModeSync  = "sync"
 
-	subscribeInitialPosition = "subscribePosition"
+	subscribeInitialPosition = "subscribeInitialPosition"
 
 	subscribePositionEarliest = "earliest"
 	subscribePositionLatest   = "latest"

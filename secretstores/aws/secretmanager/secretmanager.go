@@ -45,7 +45,7 @@ type SecretManagerMetaData struct {
 	SecretKey                  string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken               string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
 	Endpoint                   string `json:"endpoint" mapstructure:"endpoint"`
-	MultipleKeyValuesPerSecret bool   `json:"multipleKeyValuesPerSecret" mapstructure:"multipleKeysPerSecret"`
+	MultipleKeyValuesPerSecret bool   `json:"multipleKeyValuesPerSecret" mapstructure:"multipleKeyValuesPerSecret"`
 }
 
 type smSecretStore struct {

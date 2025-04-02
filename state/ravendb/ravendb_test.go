@@ -1,11 +1,13 @@
 package ravendb
 
 import (
-	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/components-contrib/state"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/state"
 )
 
 func TestGetRavenDBMetadata(t *testing.T) {

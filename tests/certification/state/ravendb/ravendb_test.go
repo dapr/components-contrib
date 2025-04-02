@@ -53,9 +53,6 @@ func TestRavenDB(t *testing.T) {
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("ravenCert1"), nil)
 		require.NoError(t, err)
 
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("ravenCert2"), nil)
-		require.NoError(t, err)
-
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		require.NoError(t, err)

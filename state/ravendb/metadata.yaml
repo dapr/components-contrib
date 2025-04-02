@@ -7,7 +7,7 @@ status: development-only
 title: "RavenDB"
 urls:
   - title: Reference
-    url:
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-ravendb/
 capabilities:
   - crud
 authenticationProfiles:

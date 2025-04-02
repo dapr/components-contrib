@@ -135,7 +135,8 @@ func TestParsePulsarMetadataSubscriptionInitialPosition(t *testing.T) {
 			subscribeInitialPosition: "latest",
 			expected:                 "latest",
 			err:                      false,
-		}, {
+		},
+		{
 			name:                     "test valid subscribe initial position - empty",
 			subscribeInitialPosition: "",
 			expected:                 "latest",

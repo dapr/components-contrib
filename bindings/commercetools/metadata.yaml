@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: commercetools
+version: v1
+status: stable
+title: "Commercetools"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/commercetools/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Execute a GraphQL query against the Commercetools API"
+metadata:
+  - name: region
+    type: string
+    required: true
+    description: "The Commercetools region (e.g., 'us-east-1')"
+    example: '"us-east-1"'
+  - name: provider
+    type: string
+    required: true
+    description: "The Commercetools provider (e.g., 'aws')"
+    example: '"aws"'
+  - name: projectKey
+    type: string
+    required: true
+    description: "Your Commercetools project key"
+    example: '"your-project-key"'
+  - name: clientID
+    type: string
+    required: true
+    description: "Your Commercetools client ID"
+    example: '"your-client-id"'
+  - name: clientSecret
+    type: string
+    required: true
+    description: "Your Commercetools client secret"
+    example: '"your-client-secret"'
+  - name: scopes
+    type: string
+    required: true
+    description: "The OAuth scopes for authentication"
+    example: '"manage_project:your-project-key"' 

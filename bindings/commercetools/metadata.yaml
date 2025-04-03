@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: commercetools
 version: v1
-status: stable
+status: alpha
 title: "Commercetools"
 urls:
   - title: Reference

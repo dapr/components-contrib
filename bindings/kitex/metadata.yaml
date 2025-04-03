@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kitex
+version: v1
+status: alpha
+title: Kitex Binding
+description: |
+  An output binding that allows invoking methods on Kitex services.
+  Kitex is a high-performance RPC framework developed by ByteDance.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kitex/
+  - title: Kitex Framework
+    url: https://www.cloudwego.io/docs/kitex/
+
+binding:
+  output: true
+  operations:
+    - name: get
+      description: "Invoke a Kitex service method. The request data is passed as the argument."
+
+metadata:
+  - name: methodName
+    description: |
+      The name of the RPC method to invoke on the target Kitex service.
+    type: string
+    required: true
+    example: "MyMethod"
+
+  - name: destService
+    description: |
+      The name of the destination Kitex service.
+    type: string
+    required: true
+    example: "MyKitexService"
+
+  - name: hostPorts
+    description: |
+      The host and port address of the target Kitex service.
+    type: string
+    required: true
+    example: "localhost:8888"
+
+  - name: version
+    description: |
+      The version identifier for the service connection.
+      Required for client connection caching and service versioning.
+    type: string
+    required: true
+    example: "0.5.0"

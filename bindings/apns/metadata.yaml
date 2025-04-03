@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: apns
 version: v1
-status: stable
+status: alpha
 title: "Apple Push Notification Service (APNs)"
 urls:
   - title: Reference

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: graphql
+version: v1
+status: stable
+title: "GraphQL Binding"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/graghql/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: query
+      description: "Execute a GraphQL query"
+    - name: mutation
+      description: "Execute a GraphQL mutation"
+capabilities: []
+metadata:
+  - name: endpoint
+    type: string
+    required: true
+    sensitive: false
+    description: "The GraphQL server endpoint."
+    example: "https://api.example.com/graphql"
+  - name: headers
+    type: string
+    required: false
+    sensitive: false
+    description: "Optional headers to include in the GraphQL request."
+    example: "{\"Authorization\": \"Bearer token\"}"
+  - name: query
+    type: string
+    required: false
+    sensitive: false
+    description: "The GraphQL query to execute. Required when using the 'query' operation."
+    example: "query { user(id: \"1\") { name } }"
+  - name: mutation
+    type: string
+    required: false
+    sensitive: false
+    description: "The GraphQL mutation to execute. Required when using the 'mutation' operation."
+    example: "mutation { createUser(name: \"John\") { id } }"
+  - name: variable
+    type: string
+    required: false
+    sensitive: false
+    description: "Optional variables for the GraphQL query or mutation."
+    example: "{\"id\": \"1\"}"

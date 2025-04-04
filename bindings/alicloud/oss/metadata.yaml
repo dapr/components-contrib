@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: alicloud.oss
 version: v1
-status: stable
+status: alpha
 title: Alibaba Cloud Object Storage Service
 description: |
   Output binding for Alibaba Cloud Object Storage Service (OSS).

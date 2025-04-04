@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: apns
+version: v1
+status: alpha
+title: "Apple Push Notification Service (APNs)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/apns/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Send a push notification"
+capabilities: []
+metadata:
+  - name: keyId
+    required: true
+    sensitive: false
+    description: "The APNs Key ID."
+    example: "ABCD1234"
+  - name: teamId
+    required: true
+    sensitive: false
+    description: "The Apple Developer Team ID."
+    example: "EFGH5678"
+  - name: authKey
+    required: true
+    sensitive: true
+    description: "The private key for APNs authentication."
+    example: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+  - name: topic
+    required: true
+    sensitive: false
+    description: "The topic (bundle ID) for the push notification."
+    example: "com.example.myapp"
+  - name: apnsHost
+    required: false
+    sensitive: false
+    description: "The APNs host URL. Defaults to the production endpoint."
+    example: "https://api.push.apple.com"

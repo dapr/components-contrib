@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.sls
+version: v1
+status: stable
+title: Alibaba Cloud Simple Log Service
+description: |
+  Output binding for Alibaba Cloud Simple Log Service (SLS).
+  This component enables sending logs to Alibaba Cloud SLS.
+  Note: Requires 'project', 'logstore', 'topic', and 'source' metadata fields in each invoke request.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloudsls/
+  - title: Alibaba Cloud SLS
+    url: https://www.alibabacloud.com/product/log-service
+
+metadata:
+  - name: endpoint
+    description: |
+      The endpoint of the SLS service, e.g., "cn-hangzhou.log.aliyuncs.com".
+    type: string
+    required: true
+    example: "cn-hangzhou.log.aliyuncs.com"
+
+  - name: accessKeyID
+    description: |
+      Access key ID for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "LTAI4G*************"
+
+  - name: accessKeySecret
+    description: |
+      Access key secret for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "PkT4F*******************"

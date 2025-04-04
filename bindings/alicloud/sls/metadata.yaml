@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: alicloud.sls
 version: v1
-status: stable
+status: alpha
 title: Alibaba Cloud Simple Log Service
 description: |
   Output binding for Alibaba Cloud Simple Log Service (SLS).

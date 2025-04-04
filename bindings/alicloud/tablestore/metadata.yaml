@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: alicloud.tablestore
 version: v1
-status: stable
+status: alpha
 title: Alibaba Cloud TableStore
 description: |
   Binding for Alibaba Cloud TableStore (OTS), a fully managed NoSQL database service.

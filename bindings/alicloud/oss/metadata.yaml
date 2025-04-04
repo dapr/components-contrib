@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.oss
+version: v1
+status: stable
+title: Alibaba Cloud Object Storage Service
+description: |
+  Output binding for Alibaba Cloud Object Storage Service (OSS).
+  This component enables storing data in Alibaba Cloud's object storage.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloudoss/
+  - title: Alibaba Cloud OSS
+    url: https://www.alibabacloud.com/product/object-storage-service
+
+metadata:
+  - name: endpoint
+    description: |
+      The endpoint of OSS service, e.g., "http://oss-cn-hangzhou.aliyuncs.com".
+    type: string
+    required: true
+    example: "http://oss-cn-hangzhou.aliyuncs.com"
+
+  - name: accessKeyID
+    description: |
+      Access key ID for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "LTAI4G*************"
+
+  - name: accessKey
+    description: |
+      Access key secret for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "PkT4F*******************"
+
+  - name: bucket
+    description: |
+      The name of the OSS bucket to store objects in.
+    type: string
+    required: true
+    example: "my-dapr-bucket"

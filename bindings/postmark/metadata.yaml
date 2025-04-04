@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: postmark
+version: v1
+status: stable
+title: "Postmark"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/postmark/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send an email using Postmark"
+metadata:
+  - name: serverToken
+    type: string
+    required: true
+    description: "Your Postmark server token"
+    example: '"your-server-token"'
+  - name: accountToken
+    type: string
+    required: true
+    description: "Your Postmark account token"
+    example: '"your-account-token"'
+  - name: emailFrom
+    type: string
+    required: false
+    description: "The sender's email address. Can be specified in metadata or in the request"
+    example: '"sender@example.com"'
+  - name: emailTo
+    type: string
+    required: false
+    description: "The recipient's email address. Can be specified in metadata or in the request"
+    example: '"recipient@example.com"'
+  - name: subject
+    type: string
+    required: false
+    description: "The email subject. Can be specified in metadata or in the request"
+    example: '"Hello from Dapr!"'
+  - name: emailCc
+    type: string
+    required: false
+    description: "CC recipient's email address. Can be specified in metadata or in the request"
+    example: '"cc@example.com"'
+  - name: emailBcc
+    type: string
+    required: false
+    description: "BCC recipient's email address. Can be specified in metadata or in the request"
+    example: '"bcc@example.com"' 

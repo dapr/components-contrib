@@ -15,28 +15,24 @@ binding:
       description: "Send a push notification"
 capabilities: []
 metadata:
-  - name: keyId
+  - name: key-id
     required: true
     sensitive: false
-    description: "The APNs Key ID."
-    example: "ABCD1234"
-  - name: teamId
+    description: "The identifier for the private key from the Apple Developer Portal"
+    example: "private-key-id"
+  - name: team-id
     required: true
     sensitive: false
-    description: "The Apple Developer Team ID."
-    example: "EFGH5678"
-  - name: authKey
+    description: "The identifier for the organization or author from the Apple Developer Portal"
+    example: "team-id"
+  - name: private-key
     required: true
     sensitive: true
-    description: "The private key for APNs authentication."
+    description: "Is a PKCS #8-formatted private key. It is intended that the private key is stored in the secret store and not exposed directly in the configuration."
     example: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-  - name: topic
-    required: true
-    sensitive: false
-    description: "The topic (bundle ID) for the push notification."
-    example: "com.example.myapp"
-  - name: apnsHost
+  - name: development
     required: false
+    default: "true"
     sensitive: false
-    description: "The APNs host URL. Defaults to the production endpoint."
-    example: "https://api.push.apple.com"
+    description: "Tells the binding which APNs service to use. Set to \"true\" to use the development service or \"false\" to use the production service."
+    example: "false"

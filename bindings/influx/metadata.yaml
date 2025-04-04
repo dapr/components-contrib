@@ -1,39 +1,40 @@
-# yaml-language-server: $schema=../../component-metadata-schema.json
+# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: bindings
 name: influx
 version: v1
-status: stable
-title: "InfluxDB"
+status: beta
+title: "InfluxDB Binding"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-bindings/influx/
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/influxdb/
 binding:
   output: true
-  input: false
+  input: true
   operations:
-    - name: create
-      description: "Write a data point to InfluxDB"
+    - name: write
+      description: "Write data to InfluxDB"
     - name: query
-      description: "Execute a Flux query against InfluxDB"
+      description: "Query data from InfluxDB"
+capabilities: []
 metadata:
   - name: url
-    type: string
     required: true
-    description: "The URL of the InfluxDB instance"
-    example: '"http://localhost:8086"'
+    sensitive: false
+    description: "The URL of the InfluxDB instance."
+    example: "http://localhost:8086"
   - name: token
-    type: string
     required: true
-    description: "The authentication token for InfluxDB"
-    example: '"your-token-here"'
+    sensitive: true
+    description: "The authentication token for InfluxDB."
+    example: "my-auth-token"
   - name: org
-    type: string
     required: true
-    description: "The organization name in InfluxDB"
-    example: '"my-org"'
+    sensitive: false
+    description: "The organization name in InfluxDB."
+    example: "my-org"
   - name: bucket
-    type: string
     required: true
-    description: "The bucket name in InfluxDB"
-    example: '"my-bucket"' 
+    sensitive: false
+    description: "The bucket name in InfluxDB."
+    example: "my-bucket"

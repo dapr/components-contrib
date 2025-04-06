@@ -41,13 +41,13 @@ builtinAuthenticationProfiles:
         required: true
         description: |
           The Event Hub Namespace name.
-        example: '"namespace"'
+        example: "namespace"
       - name: eventHub
         type: string
         required: true # required for Azure AD
         description: |
           The name of the Event Hubs hub (“topic”).
-        example: '"mytopic"'
+        example: "mytopic"
       # Entity management is only possible when using Azure AD
       - name: enableEntityManagement
         type: bool
@@ -70,7 +70,7 @@ builtinAuthenticationProfiles:
         description: |
           Name of the resource group the Event Hub namespace is part of.
           Required when entity management is enabled.
-        example: '"test-rg"'
+        example: "test-rg"
       - name: subscriptionId
         type: string
         required: false
@@ -79,7 +79,7 @@ builtinAuthenticationProfiles:
           output: false
         description: |
           Azure subscription ID value. Required when entity management is enabled
-        example: '"00112233-4455-6677-8899-aabbccddeeff"'
+        example: "00112233-4455-6677-8899-aabbccddeeff"
       - name: messageRetentionInDays
         type: number
         required: false
@@ -107,7 +107,7 @@ metadata:
       output: false
     description: |
       The name of the Event Hubs Consumer Group to listen on.
-    example: '"group1"'
+    example: "group1"
   - name: consumerGroup
     type: string
     required: false
@@ -117,7 +117,7 @@ metadata:
     description: |
       The name of the Event Hubs Consumer Group to listen on.
       Alias to consumerID.
-    example: '"group1"'
+    example: "group1"
     deprecated: true
   - name: storageAccountKey
     type: string
@@ -130,7 +130,7 @@ metadata:
       it is possible to omit this if the service principal has access to the
       storage account too.
       Property "storageAccountKey" is ignored when "storageConnectionString" is present
-    example: '"112233445566778899"'
+    example: "112233445566778899"
   - name: storageConnectionString
     type: string
     required: false
@@ -151,7 +151,7 @@ metadata:
       output: false
     description: |
       Storage account name to use for the checkpoint store.
-    example: '"myeventhubstorage"'
+    example: "myeventhubstorage"
   - name: storageContainerName
     type: string
     required: true
@@ -160,8 +160,9 @@ metadata:
       output: false
     description: |
       Storage container name.
-    example: '"myeventhubstoragecontainer"'
+    example: "myeventhubstoragecontainer"
   - name: getAllMessageProperties
+    type: bool
     required: false
     default: "false"
     example: "false"

@@ -33,49 +33,60 @@ binding:
 capabilities: []
 metadata:
   - name: url
+    type: string
     required: true
     description: "The base URL of the HTTP endpoint to invoke"
-    example: '"http://host:port/path", "http://myservice:8000/customer"'
-    # If omitted, uses the same values as "<root>.binding"
+    example: "http://host:port/path"
   - name: responseTimeout
+    type: duration
     required: false
     description: "The duration after which HTTP requests should be canceled."
-    example: '"10s", "5m"'
+    example: "10s"
   - name: maxResponseBodySize
     required: false
     description: "Max amount of data to read from the response body, as a resource quantity. A value <= 0 means no limit."
-    type: bytesize
-    default: '"100Mi"'
-    example: '"100" (as bytes), "1k", "10Ki", "1M", "1G"'
+    default: "100Mi"
+    example: "100Mi"
   - name: MTLSRootCA
+    type: string
     required: false
+    sensitive: true
     description: "CA certificate: either a PEM-encoded string, or a path to a certificate on disk"
-    example: '"/path/to/ca.pem"'
+    example: "/path/to/ca.pem"
   - name: MTLSClientCert
+    type: string
     required: false
+    sensitive: true
     description: "Client certificate for mTLS: either a PEM-encoded string, or a path to a certificate on disk"
-    example: '"/path/to/client.pem"'
+    example: "/path/to/client.pem"
   - name: MTLSClientKey
     required: false
+    sensitive: true
     description: "Client key for mTLS: either a PEM-encoded string, or a path to a certificate on disk"
-    example: '"/path/to/client.key"'
+    example: "/path/to/client.key"
   - name: MTLSRenegotiation
+    type: string
     required: false
     description: "Set TLS renegotiation setting"
     allowedValues:
       - "RenegotiateNever"
       - "RenegotiateOnceAsClient"
       - "RenegotiateFreelyAsClient"
-    example: '"RenegotiateOnceAsClient"'
+    example: "RenegotiateOnceAsClient"
   - name: securityToken
+    type: string
     required: false
+    sensitive: true
     description: "The security token to include on an outgoing HTTP request as a header"
-    example: '"this-value-is-preferably-injected-from-a-secret-store"'
+    example: "this-value-is-preferably-injected-from-a-secret-store"
   - name: securityTokenHeader
+    type: string
     required: false
     description: "The header name on an outgoing HTTP request for a security token"
-    example: '"X-Security-Token"'
+    example: "X-Security-Token"
   - name: errorIfNot2XX
+    type: bool
     required: false
-    default: 'true'
+    default: "true"
     description: "Create an error if a non-2XX status code is returned"
+    example: "true"

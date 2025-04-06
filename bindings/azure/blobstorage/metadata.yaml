@@ -27,7 +27,7 @@ builtinAuthenticationProfiles:
       required: true
       sensitive: false
       description: "The storage account name"
-      example: '"mystorageaccount"'
+      example: "mystorageaccount"
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a connection string."
@@ -36,7 +36,7 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "Shared access policy connection string for Blob Storage."
-        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
+        example: "BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"
         # If omitted, uses the same values as "<root>.binding"
         binding:
           output: true
@@ -48,38 +48,42 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The key to authenticate to the Storage Account."
-        example: '"my-secret-key"'
+        example: "my-secret-key"
       - name: accountName
         required: true
         sensitive: false
         description: "The storage account name"
-        example: '"mystorageaccount"'
+        example: "mystorageaccount"
 metadata:
   - name: containerName
-    description: "The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist."
+    type: string
     required: true
-    example: '"container"'
+    description: "The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist."
+    example: "container"
   - name: endpoint
+    type: string
+    required: false
     description: | 
       Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). 
       The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
-    example: '"http://127.0.0.1:10000"'
-    type: string
+    example: "http://127.0.0.1:10000"
   - name: publicAccessLevel
+    type: string
     required: false
     description: |
       Indicates whether data in the container may be accessed publicly and the level of access.
-    example: '"none"'
+    example: "none"
     default: "none"
     allowedValues:
       - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
       - "blob"
       - "container"
   - name: decodeBase64
+    type: bool
+    required: false
     description: "Decode the blob in base64."
     example: "true"
-    default: '"false"'
-    type: bool
+    default: "false"
   - name: retryCount
     # getBlobRetryCount is a deprecated alias for this field
     type: number
@@ -89,7 +93,8 @@ metadata:
       Specifies the maximum number of HTTP requests that will be made to retry blob operations.
       A value of zero means that no additional attempts will be made after a failure.
   - name: disableEntityManagement
+    type: bool
+    required: false
     description: "Disable entity management. Skips the attempt to create the specified storage container. This is useful when operating with minimal Azure AD permissions."
     example: "true"
-    default: '"false"'
-    type: bool
+    default: "false"

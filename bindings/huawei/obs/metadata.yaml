@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: huawei.obs
+version: v1
+status: alpha
+title: Huawei Object Storage Service
+description: |
+  Binding for Huawei Object Storage Service (OBS), a scalable and secure cloud storage service.
+  Supports create, upload, get, delete, and list operations.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/huawei-obs/
+  - title: Huawei OBS
+    url: https://www.huaweicloud.com/intl/en-us/product/obs.html
+
+metadata:
+  - name: region
+    description: |
+      The specific Huawei region of the bucket.
+    type: string
+    required: false
+    example: "cn-north-1"
+
+  - name: endpoint
+    description: |
+      The Huawei OBS endpoint, e.g., "https://obs.cn-north-1.myhuaweicloud.com".
+    type: string
+    required: true
+    example: "https://obs.cn-north-1.myhuaweicloud.com"
+
+  - name: accessKey
+    description: |
+      The Huawei Access Key (AK) for authentication.
+    type: string
+    required: true
+    sensitive: true
+    example: "AKIAIOSFODNN7EXAMPLE"
+
+  - name: secretKey
+    description: |
+      The Huawei Secret Key (SK) for authentication.
+    type: string
+    required: true
+    sensitive: true
+    example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+  - name: bucket
+    description: |
+      The name of the Huawei OBS bucket to write to.
+    type: string
+    required: true
+    example: "my-dapr-bucket"

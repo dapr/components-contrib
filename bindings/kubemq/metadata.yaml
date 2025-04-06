@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kubemq
+version: v1
+status: beta
+title: "KubeMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kubemq/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send a message to a KubeMQ queue"
+metadata:
+  - name: address
+    type: string
+    required: true
+    description: "The KubeMQ server address (host:port)"
+    example: "kubemq-cluster-grpc.kubemq:50000"
+  - name: channel
+    type: string
+    required: true
+    description: "The queue channel name"
+    example: "my-queue"
+  - name: authToken
+    type: string
+    required: false
+    sensitive: true
+    description: "Authentication token for KubeMQ server"
+    example: "my-auth-token"
+  - name: pollMaxItems
+    type: number
+    required: false
+    description: "Maximum number of items to poll at once"
+    default: "10"
+    example: "10"
+  - name: pollTimeoutSeconds
+    type: number
+    required: false
+    description: "Timeout in seconds for polling operations"
+    default: "30"
+    example: "30"
+  - name: autoAcknowledged
+    type: bool
+    required: false
+    description: "Whether to automatically acknowledge messages"
+    default: "false"
+    example: "false"
+  - name: policyDelaySeconds
+    type: number
+    required: false
+    description: "Delay in seconds before a message becomes available"
+    example: "60"
+  - name: policyExpirationSeconds
+    type: number
+    required: false
+    description: "Time in seconds after which a message expires"
+    example: "3600"
+  - name: policyMaxReceiveCount
+    type: number
+    required: false
+    description: "Maximum number of times a message can be received"
+    example: "3"
+  - name: policyMaxReceiveQueue
+    type: string
+    required: false
+    description: "Maximum queue size for received messages"
+    example: "1000" 

@@ -31,7 +31,7 @@ metadata:
       in the form of: `"https://[YOUR HOSTNAME]/<path>"` If testing on your
       local machine, you can use something like `ngrok` to create a public
       endpoint.
-    example: '"https://[YOUR HOSTNAME]/<path>"'
+    example: "https://[YOUR HOSTNAME]/<path>"
   - name: handshakePort
     type: number
     required: true # code actually defaults to 8080 if missing
@@ -41,7 +41,7 @@ metadata:
     description: |
       The container port that the input binding listens on when receiving
       events on the webhook
-    example: '"9000"'
+    example: "9000"
   - name: scope
     type: string
     required: true
@@ -51,7 +51,7 @@ metadata:
     description: |
       The identifier of the resource to which the event subscription needs
       to be created or updated.
-    example: '"/subscriptions/{subscriptionId}/"'
+    example: "/subscriptions/{subscriptionId}/"
   # Optional Input Binding Metadata
   - name: eventSubscriptionName
     type: string
@@ -63,7 +63,7 @@ metadata:
       The name of the event subscription. Event subscription names must be
       between 3 and 64 characters long and should use alphanumeric letters
       only.
-    example: '"name"'
+    example: "name"
   # Required Output Binding Metadata
   - name: accessKey
     type: string
@@ -73,7 +73,7 @@ metadata:
       output: true
     description: |
       The Access Key to be used for publishing an Event Grid Event to a custom topic
-    example: '"accessKey"'
+    example: "accessKey"
   - name: topicEndpoint
     type: string
     required: true
@@ -82,5 +82,5 @@ metadata:
       output: true
     description: |
       The topic endpoint in which this output binding should publish events
-    example: '"topic-endpoint"'
+    example: "topic-endpoint"
 

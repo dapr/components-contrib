@@ -73,7 +73,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.4
 	github.com/gorilla/mux v1.8.1
 	github.com/grandcat/zeroconf v1.0.0
-	github.com/hamba/avro/v2 v2.22.2-0.20240625062549-66aad10411d9
+	github.com/hamba/avro/v2 v2.28.0
 	github.com/hashicorp/consul/api v1.25.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
@@ -126,7 +126,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
 	golang.org/x/crypto v0.35.0
-	golang.org/x/mod v0.18.0
+	golang.org/x/mod v0.23.0
 	golang.org/x/net v0.36.0
 	golang.org/x/oauth2 v0.27.0
 	google.golang.org/api v0.180.0
@@ -299,7 +299,7 @@ require (
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kubemq-io/protobuf v1.3.1 // indirect
@@ -399,7 +399,7 @@ require (
 	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/genproto v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect

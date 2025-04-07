@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.sqs
+version: v1
+status: alpha
+title: "AWS SQS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sqs/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send a message to an SQS queue"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: queueName
+    type: string
+    required: true
+    description: |
+      The name of the SQS queue to send messages to or receive messages from.
+    example: "myqueue"
+  - name: region
+    type: string
+    required: true
+    description: |
+      The specific AWS region where the SQS queue is located.
+    example: "us-west-2"
+  - name: endpoint
+    type: string
+    required: false
+    description: |
+      The AWS endpoint for the SQS service. This is optional and typically used for testing with localstack.
+    example: "http://localhost:4566"
+  - name: accessKey
+    type: string
+    required: true
+    sensitive: true
+    description: |
+      The AWS access key to access the SQS queue. Required unless using IAM roles on EKS.
+    example: "AKIAIOSFODNN7EXAMPLE"
+  - name: secretKey
+    type: string
+    required: true
+    sensitive: true
+    description: |
+      The AWS secret key to access the SQS queue. Required unless using IAM roles on EKS.
+    example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  - name: sessionToken
+    type: string
+    required: false
+    sensitive: true
+    description: |
+      The AWS session token to use for temporary credentials.
+    example: "AQoDYXdzEJr..."

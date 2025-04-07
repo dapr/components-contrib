@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.kinesis
+version: v1
+status: alpha
+title: "AWS Kinesis"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kinesis/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send a record to a Kinesis stream"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: streamName
+    type: string
+    required: true
+    description: |
+      The name of the Kinesis stream to send records to or receive records from.
+    example: "stream"
+  - name: consumerName
+    type: string
+    required: true
+    description: |
+      The name of the Kinesis consumer to use when reading from the stream.
+    example: "myconsumer"
+  - name: region
+    type: string
+    required: true
+    description: |
+      The specific AWS region where the Kinesis stream is located.
+    example: "us-west-2"
+  - name: endpoint
+    type: string
+    required: false
+    description: |
+      The AWS endpoint for the Kinesis service. This is optional and typically used for testing with localstack.
+    example: "http://localhost:4566"
+  - name: accessKey
+    type: string
+    required: true
+    description: |
+      The AWS access key to access the Kinesis stream. Required unless using IAM roles on EKS.
+    example: "AKIAIOSFODNN7EXAMPLE"
+  - name: secretKey
+    type: string
+    required: true
+    description: |
+      The AWS secret key to access the Kinesis stream. Required unless using IAM roles on EKS.
+    example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  - name: sessionToken
+    type: string
+    required: false
+    description: |
+      The AWS session token to use for temporary credentials.
+    example: "AQoDYXdzEJr..."
+  - name: mode
+    type: string
+    required: false
+    description: |
+      The consumer mode for reading from Kinesis. Can be 'shared' for shared throughput or 'extended' for dedicated throughput through data stream API.
+      More details are available at https://docs.aws.amazon.com/streams/latest/dev/building-consumers.html.
+    example: "shared"
+    default: "shared"
+    allowedValues:
+      - "shared"
+      - "extended"

@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: apns
+version: v1
+status: alpha
+title: "Apple Push Notification Service (APNs)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/apns/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Send a push notification"
+capabilities: []
+metadata:
+  - name: key-id
+    type: string
+    required: true
+    sensitive: false
+    description: "The identifier for the private key from the Apple Developer Portal."
+    example: "ABCD1234"
+  - name: team-id
+    type: string
+    required: true
+    sensitive: false
+    description: "The identifier for the organization or author from the Apple Developer Portal."
+    example: "EFGH5678"
+  - name: private-key
+    type: string
+    required: true
+    sensitive: true
+    description: "Is a PKCS #8-formatted private key. It is intended that the private key is stored in the secret store and not exposed directly in the configuration."
+    example: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+  - name: development
+    required: false
+    sensitive: false
+    type: bool
+    description: "Tells the binding which APNs service to use."
+    default: "true"
+    example: "false"

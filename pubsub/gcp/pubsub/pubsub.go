@@ -243,14 +243,9 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 
 	topic := g.getTopic(req.Topic)
 
-	attributes := make(map[string]string, len(req.Metadata))
-	for key, value := range req.Metadata {
-		attributes["metadata."+key] = value
-	}
-
 	msg := &gcppubsub.Message{
 		Data:       req.Data,
-		Attributes: attributes,
+		Attributes: req.Metadata,
 	}
 
 	// If Message Ordering is enabled,
@@ -378,10 +373,15 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 	var receiveErr error = nil
 	for {
 		receiveErr = sub.Receive(parentCtx, func(ctx context.Context, m *gcppubsub.Message) {
+			attributes := make(map[string]string, len(m.Attributes))
+			for key, value := range m.Attributes {
+				attributes["metadata."+key] = value
+			}
+
 			msg := &pubsub.NewMessage{
 				Data:     m.Data,
 				Topic:    topic.ID(),
-				Metadata: m.Attributes,
+				Metadata: attributes,
 			}
 
 			err := handler(ctx, msg)

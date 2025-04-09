@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: dubbo
+version: v1
+status: alpha
+title: Dubbo Binding
+description: |
+  An output binding that allows invoking methods on Apache Dubbo services.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/
+  - title: Apache Dubbo
+    url: https://dubbo.apache.org/
+binding:
+  # This is an output-only binding
+  output: true
+  operations:
+    - name: get # The binding seems to only support 'get' based on Operations() method
+      description: Invoke a Dubbo service method.
+
+metadata:
+  - name: group
+    description: |
+      The service group for the Dubbo service.
+    type: string
+    required: true
+    example: "my-group"
+
+  - name: version
+    description: |
+      The service version for the Dubbo service.
+    type: string
+    required: true
+    example: "1.0.0"
+
+  - name: interfaceName
+    description: |
+      The fully qualified interface name of the Dubbo service.
+    type: string
+    required: true
+    example: "org.apache.dubbo.sample.UserProvider"
+
+  - name: methodName
+    description: |
+      The name of the method to invoke on the Dubbo service.
+    type: string
+    required: true
+    example: "getUser"
+
+  - name: providerHostname
+    description: |
+      The hostname or IP address of the Dubbo provider.
+    type: string
+    required: true
+    example: "localhost"
+
+  - name: providerPort
+    description: |
+      The port number of the Dubbo provider.
+    type: string
+    required: true
+    example: "20000"

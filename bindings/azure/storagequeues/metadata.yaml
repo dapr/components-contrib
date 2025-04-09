@@ -25,18 +25,18 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The key to authenticate to the Storage Account."
-        example: '"my-secret-key"'
+        example: "my-secret-key"
 metadata:
   - name: "accountName"
     required: true
     description: |
       The storage account name
-    example: '"mystorageaccount"'
+    example: "mystorageaccount"
   - name: "queueName"
     required: true
     description: |
       The name of the Azure Storage queue.
-    example: '"myqueue"'
+    example: "myqueue"
   - name: "queueEndpoint"
     description: |
       Optional custom endpoint URL.
@@ -48,8 +48,8 @@ metadata:
     type: duration
     description: |
       Set the interval to poll Azure Storage Queues for new messages
-    example: '"30s"'
-    default: '"10s"'
+    example: "30s"
+    default: "10s"
   - name: "ttl"
     type: duration
     description: |

@@ -267,9 +267,126 @@ metadata:
   - name: maxMessageBytes
     type: number
     description: |
-      The maximum size in bytes allowed for a single Kafka message.
-    example: '2048'
-    default: '1024'
+      The maximum size in bytes allowed for a single Kafka message. Defaults to 1024.
+    example: "2048"
+    default: "1024"
+    binding:
+      output: true
+      input: true
+  - name: heartbeatInterval
+    type: duration
+    description: |
+      The interval between heartbeats to the consumer coordinator. At most, the value should be set to a 1/3 of the sessionTimeout value. Defaults to "3s".
+    example: "5s"
+    default: "3s"
+    binding:
+      input: true
+  - name: sessionTimeout
+    type: duration
+    description: |
+      The timeout used to detect client failures when using Kafka's group management facility. If the broker fails to receive any heartbeats from the consumer before the expiration of this session timeout, then the consumer is removed and initiates a rebalance. Defaults to "10s".
+    example: "20s"
+    default: "10s"
+    binding:
+      input: true
+  - name: version
+    type: string
+    description: |
+      Kafka cluster version. Defaults to 2.0.0. Please note that this needs to be mandatorily set to 1.0.0 for EventHubs with Kafka.
+    example: "1.0.0"
+    default: "2.0.0"
+    binding:
+      output: true
+      input: true
+  - name: schemaRegistryURL
+    type: string
+    description: |
+      When using Schema Registry Avro serialization/deserialization. The Schema Registry URL.
+    example: "http://localhost:8081"
+    binding:
+      output: true
+      input: true
+  - name: schemaRegistryAPIKey
+    type: string
+    description: |
+      When using Schema Registry Avro serialization/deserialization. The Schema Registry credentials API Key.
+    example: "XYAXXAZ"
+    binding:
+      output: true
+      input: true
+  - name: schemaRegistryAPISecret
+    type: string
+    sensitive: true
+    description: |
+      When using Schema Registry Avro serialization/deserialization. The Schema Registry credentials API Secret.
+    example: "ABCDEFGMEADFF"
+    binding:
+      output: true
+      input: true
+  - name: schemaCachingEnabled
+    type: bool
+    description: |
+      When using Schema Registry Avro serialization/deserialization. Enables caching for schemas. Default is true.
+    example: "true"
+    default: "true"
+    binding:
+      output: true
+      input: true
+  - name: schemaLatestVersionCacheTTL
+    type: duration
+    description: |
+      When using Schema Registry Avro serialization/deserialization. The TTL for schema caching when publishing a message with latest schema available. Default is 5 min.
+    example: "5m"
+    default: "5m"
+    binding:
+      output: true
+      input: true
+  - name: clientConnectionTopicMetadataRefreshInterval
+    type: duration
+    description: |
+      The interval for the client connection's topic metadata to be refreshed with the broker as a Go duration.
+    example: "4m"
+    default: "9m"
+    binding:
+      output: true
+      input: true
+  - name: clientConnectionKeepAliveInterval
+    type: duration
+    description: |
+      The max amount of time for the client connection to be kept alive with the broker, as a Go duration, before closing the connection. A zero value (default) means keeping alive indefinitely.
+    example: "4m"
+    default: "0"
+    binding:
+      output: true
+      input: true
+  - name: consumerFetchDefault
+    type: number
+    description: |
+      The default number of message bytes to fetch from the broker in each request. Default is "1048576" bytes.
+    example: "2097152"
+    default: "1048576"
+    binding:
+      output: true
+      input: true
+  - name: escapeHeaders
+    type: bool
+    description: |
+      Enables URL escaping of the message header values received by the consumer. Allows receiving content with special characters that are usually not allowed in HTTP headers. Default is false.
+    example: "true"
+    default: "false"
+    binding:
+      input: true
+
+  - name: disableTls
+    type: bool
+    description: |
+      Disables TLS connection to the Kafka broker. Default is false.
+    example: "true"
+    default: "false"
+    binding:
+      output: true
+      input: true
+
   - name: consumeRetryInterval
     type: duration
     description: |

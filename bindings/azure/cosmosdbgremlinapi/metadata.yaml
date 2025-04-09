@@ -24,17 +24,17 @@ authenticationProfiles:
         sensitive: true
         description: |
           The key to authenticate to the Cosmos DB account.
-        example: '"my-secret-key"'
+        example: "my-secret-key"
       - name: username
         required: true
         sensitive: false
         description: |
           The username of the Cosmos DB database.
-        example: '"/dbs/<database_name>/colls/<graph_name>"'
+        example: "/dbs/<database_name>/colls/<graph_name>"
 metadata:
   - name: url
     type: string
     required: true
     description: |
         The Cosmos DB URL for Gremlin APIs
-    example: '"wss://******.gremlin.cosmos.azure.com:443/"'
+    example: "wss://******.gremlin.cosmos.azure.com:443/"

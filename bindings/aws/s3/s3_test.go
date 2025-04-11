@@ -14,7 +14,6 @@ limitations under the License.
 package s3
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -176,7 +175,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.get(context.Background(), &r)
+		_, err := s3.get(t.Context(), &r)
 		require.Error(t, err)
 	})
 }
@@ -187,7 +186,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.delete(context.Background(), &r)
+		_, err := s3.delete(t.Context(), &r)
 		require.Error(t, err)
 	})
 }

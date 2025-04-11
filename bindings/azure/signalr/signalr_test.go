@@ -313,7 +313,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 	t.Run("Missing hub should fail", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data:     []byte("hello world"),
 			Metadata: map[string]string{},
 		})
@@ -325,7 +325,7 @@ func TestWriteShouldFail(t *testing.T) {
 		httpTransport.reset()
 		httpErr := errors.New("fake error")
 		httpTransport.errToReturn = httpErr
-		_, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -339,7 +339,7 @@ func TestWriteShouldFail(t *testing.T) {
 	t.Run("SignalR call returns status != [200, 202]", func(t *testing.T) {
 		httpTransport.reset()
 		httpTransport.response.StatusCode = 401
-		_, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -364,7 +364,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	t.Run("Has authorization", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		_, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -397,7 +397,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			httpTransport.reset()
 			s.hub = tt.hubInMetadata
-			_, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			_, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 				Data: []byte("hello world"),
 				Metadata: map[string]string{
 					hubKey:   tt.hubInWriteRequest,
@@ -433,7 +433,7 @@ func TestGetShouldSucceed(t *testing.T) {
 	t.Run("Can get negotiate response with accessKey", func(t *testing.T) {
 		s.aadToken = nil
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
-		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				hubKey: "testHub",
 			},
@@ -463,7 +463,7 @@ func TestGetShouldSucceed(t *testing.T) {
 	t.Run("Can get negotiate response with accessKey and userId", func(t *testing.T) {
 		s.aadToken = nil
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
-		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				hubKey:  "testHub",
 				userKey: "user1",
@@ -499,7 +499,7 @@ func TestGetShouldSucceed(t *testing.T) {
 		}
 
 		httpTransport.reset()
-		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+		res, err := s.Invoke(t.Context(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				hubKey:  "testHub",
 				userKey: "user?1&2",

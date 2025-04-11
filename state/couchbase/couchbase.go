@@ -181,7 +181,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(*req.ETag)
 		if cerr != nil {
-			return err
+			return cerr
 		}
 		if req.Options.Consistency == state.Strong {
 			_, err = cbs.bucket.ReplaceDura(req.Key, value, cas, 0, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)

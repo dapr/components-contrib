@@ -70,7 +70,7 @@ func TestCancelInstance(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: CancelInstanceOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingProcessInstanceKey)
 	})
 
@@ -86,7 +86,7 @@ func TestCancelInstance(t *testing.T) {
 		var mc mockCancelInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessInstanceKey, mc.cmd1.cmd2.processInstanceKey)

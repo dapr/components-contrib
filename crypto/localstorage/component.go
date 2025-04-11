@@ -109,7 +109,7 @@ func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) 
 	return jwkObj, nil
 }
 
-func (localStorageCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
+func (*localStorageCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := localStorageMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
 	return

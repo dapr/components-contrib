@@ -52,7 +52,7 @@ func (s *MockStore) Close() error {
 }
 
 func TestInit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	m := secretstores.Metadata{}
 	sm := NewSecreteManager(logger.NewLogger("test"))
 	t.Run("Init with Wrong metadata", func(t *testing.T) {
@@ -137,11 +137,11 @@ func TestInit(t *testing.T) {
 }
 
 func TestGetSecret(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sm := NewSecreteManager(logger.NewLogger("test"))
 
 	t.Run("Get Secret - without Init", func(t *testing.T) {
-		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
+		v, err := sm.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "test"})
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("client is not initialized"))
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
@@ -163,7 +163,7 @@ func TestGetSecret(t *testing.T) {
 			},
 		}}
 		sm.Init(ctx, m)
-		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
+		v, err := sm.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "test"})
 		require.Error(t, err)
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
 	})
@@ -173,7 +173,7 @@ func TestGetSecret(t *testing.T) {
 		s.client = &MockStore{}
 		s.ProjectID = "test_project"
 
-		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{})
+		resp, err := sm.GetSecret(t.Context(), secretstores.GetSecretRequest{})
 		require.Error(t, err)
 		assert.Nil(t, resp.Data)
 	})
@@ -183,7 +183,7 @@ func TestGetSecret(t *testing.T) {
 		s.client = &MockStore{}
 		s.ProjectID = "test_project"
 
-		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
+		resp, err := sm.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "test"})
 		require.NoError(t, err)
 		assert.NotNil(t, resp.Data)
 		assert.Equal(t, "test", resp.Data["test"])
@@ -191,11 +191,11 @@ func TestGetSecret(t *testing.T) {
 }
 
 func TestBulkGetSecret(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sm := NewSecreteManager(logger.NewLogger("test"))
 
 	t.Run("Bulk Get Secret - without Init", func(t *testing.T) {
-		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+		v, err := sm.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("client is not initialized"))
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
@@ -219,7 +219,7 @@ func TestBulkGetSecret(t *testing.T) {
 			},
 		}
 		sm.Init(ctx, m)
-		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+		v, err := sm.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 		require.Error(t, err)
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
 	})

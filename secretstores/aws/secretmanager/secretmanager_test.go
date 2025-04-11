@@ -44,7 +44,7 @@ func TestInit(t *testing.T) {
 			"SecretKey":    "a",
 			"SessionToken": "a",
 		}
-		err := s.Init(context.Background(), m)
+		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
 }
@@ -82,7 +82,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/secret/testing",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -120,7 +120,7 @@ func TestGetSecret(t *testing.T) {
 					VersionID: "1",
 				},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -158,7 +158,7 @@ func TestGetSecret(t *testing.T) {
 					VersionStage: "dev",
 				},
 			}
-			output, e := s.GetSecret(context.Background(), req)
+			output, e := s.GetSecret(t.Context(), req)
 			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -189,7 +189,7 @@ func TestGetSecret(t *testing.T) {
 			Name:     "/aws/secret/testing",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(context.Background(), req)
+		_, err := s.GetSecret(t.Context(), req)
 		require.Error(t, err)
 	})
 }

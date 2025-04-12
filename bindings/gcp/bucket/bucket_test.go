@@ -242,7 +242,7 @@ func TestInit(t *testing.T) {
 			"projectID": "my_project_id",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		err := gs.Init(context.Background(), m)
+		err := gs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing property `bucket` in metadata"))
 	})
@@ -253,7 +253,7 @@ func TestInit(t *testing.T) {
 			"bucket": "my_bucket",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		err := gs.Init(context.Background(), m)
+		err := gs.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))
 	})

@@ -85,7 +85,7 @@ func TestCronInitSuccess(t *testing.T) {
 
 	for _, test := range initTests {
 		c := getNewCron()
-		err := c.Init(context.Background(), getTestMetadata(test.schedule))
+		err := c.Init(t.Context(), getTestMetadata(test.schedule))
 		if test.errorExpected {
 			require.Errorf(t, err, "Got no error while initializing an invalid schedule: %s", test.schedule)
 		} else {
@@ -100,10 +100,10 @@ func TestCronRead(t *testing.T) {
 	clk := clocktesting.NewFakeClock(time.Now())
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
-	require.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
+	require.NoErrorf(t, c.Init(t.Context(), getTestMetadata(schedule)), "error initializing valid schedule")
 	expectedCount := int32(5)
 	var observedCount atomic.Int32
-	err := c.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+	err := c.Read(t.Context(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		observedCount.Add(1)
 		return nil, nil
@@ -128,10 +128,10 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 	clk := clocktesting.NewFakeClock(time.Now())
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
-	require.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
+	require.NoErrorf(t, c.Init(t.Context(), getTestMetadata(schedule)), "error initializing valid schedule")
 	expectedCount := int32(5)
 	var observedCount atomic.Int32
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	err := c.Read(ctx, func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		assert.LessOrEqualf(t, observedCount.Load(), expectedCount, "Invoke didn't stop the schedule")

@@ -70,7 +70,7 @@ func TestResolveIncident(t *testing.T) {
 		data, marshalErr := json.Marshal(payload)
 		require.NoError(t, marshalErr)
 		req := &bindings.InvokeRequest{Operation: ResolveIncidentOperation, Data: data}
-		_, err := cmd.Invoke(context.TODO(), req)
+		_, err := cmd.Invoke(t.Context(), req)
 		require.ErrorIs(t, err, ErrMissingIncidentKey)
 	})
 
@@ -86,7 +86,7 @@ func TestResolveIncident(t *testing.T) {
 		var mc mockResolveIncidentClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(context.TODO(), req)
+		_, err = cmd.Invoke(t.Context(), req)
 		require.NoError(t, err)
 
 		assert.Equal(t, *payload.IncidentKey, mc.cmd1.incidentKey)

@@ -288,7 +288,7 @@ func TestCaFamilyOfFields(t *testing.T) {
 	fs.componentNamePrefix = "my-hashicorp-vault-TestCaFamilyOfFields-"
 
 	// Generate certificates and caPem/hashicorp-vault.yml
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 	makeCmd := exec.CommandContext(ctx, "make",
 		// Change to components/caFamily directory so files are generated relative to that directory

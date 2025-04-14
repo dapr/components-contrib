@@ -22,7 +22,6 @@ import (
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	"github.com/cenkalti/backoff/v4"
-	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/kit/logger"
@@ -192,7 +191,7 @@ func (c *Client) CloseAllSenders(log logger.Logger) {
 	close(workersCh)
 
 	// Clear the map
-	maps.Clear(c.senders)
+	clear(c.senders)
 }
 
 // Close the client and every sender or consumer created by the connnection.
@@ -212,7 +211,7 @@ func (c *Client) Close(log logger.Logger) {
 	}
 
 	// Clear the map of senders
-	maps.Clear(c.senders)
+	clear(c.senders)
 }
 
 // EnsureTopic creates the topic if it doesn't exist.

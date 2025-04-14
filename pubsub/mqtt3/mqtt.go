@@ -27,7 +27,6 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"golang.org/x/exp/maps"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -400,7 +399,7 @@ func (m *mqttPubSub) Close() error {
 	m.logger.Debug("Closing component")
 
 	// Clear all topics from the map as a first thing, before stopping all subscriptions (we have the lock anyways)
-	maps.Clear(m.topics)
+	clear(m.topics)
 
 	if m.closed.CompareAndSwap(false, true) {
 		close(m.closeCh)

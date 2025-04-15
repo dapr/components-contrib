@@ -1,6 +1,8 @@
 package influx
 
-import "fmt"
+import (
+	"strconv"
+)
 
 type InfluxPoint struct {
 	Line        *string
@@ -28,12 +30,18 @@ func (p *InfluxPoint) GetLine() string {
 				switch value := v.(type) {
 				case string:
 					line += k + "=\"" + value + "\","
-				case int, int32, int64:
-					line += k + "=" + fmt.Sprintf("%d", value) + ","
-				case float32, float64:
-					line += k + "=" + fmt.Sprintf("%f", value) + ","
+				case int64:
+					line += k + "=" + strconv.FormatInt(value, 10) + ","
+				case int32:
+					line += k + "=" + strconv.FormatInt(int64(value), 10) + ","
+				case int:
+					line += k + "=" + strconv.Itoa(value) + ","
+				case float32:
+					line += k + "=" + strconv.FormatFloat(float64(value), 'f', -1, 32) + ","
+				case float64:
+					line += k + "=" + strconv.FormatFloat(value, 'f', -1, 64) + ","
 				case bool:
-					line += k + "=" + fmt.Sprintf("%t", value) + ","
+					line += k + "=" + strconv.FormatBool(value) + ","
 				default:
 					// Handle unsupported types gracefully
 					line += k + "=null,"
@@ -42,7 +50,7 @@ func (p *InfluxPoint) GetLine() string {
 			line = line[:len(line)-1] // Remove the trailing comma
 		}
 		if p.Timestamp != nil {
-			line += " " + fmt.Sprintf("%d", *p.Timestamp)
+			line += " " + strconv.FormatInt(*p.Timestamp, 10)
 		}
 		return line
 	}

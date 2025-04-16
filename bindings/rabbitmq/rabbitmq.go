@@ -471,9 +471,9 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 			// Passthrough any custom metadata to the handler.
 			for k, v := range d.Headers {
 				if s, ok := v.(string); ok {
-					// Escape the key and value to ensure they are valid URL query parameters.
+					// Escape the key to ensure they are valid URL query parameters.
 					// This is necessary for them to be sent as HTTP Metadata.
-					metadata[url.QueryEscape(k)] = url.QueryEscape(s)
+					metadata[url.QueryEscape(k)] = s
 				}
 			}
 

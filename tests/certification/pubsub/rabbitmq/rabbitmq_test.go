@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -858,6 +859,15 @@ func TestRabbitMQPriority(t *testing.T) {
 		Run()
 }
 
+func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
+	for k, v := range metadata {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func TestRabbitMQMetadataProperties(t *testing.T) {
 	//rand.Seed(time.Now().UTC().UnixNano())
 	//log := logger.NewLogger("dapr.components")
@@ -880,13 +890,11 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 			Route:      "/metadata",
 			Metadata:   map[string]string{},
 		}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-			// Extract metadata properties using case-insensitive helpers
-			msgIdVal := e.Metadata["Messageid"]
-			corrIdVal := e.Metadata["Correlationid"]
-			contentTypeVal := e.Metadata["Contenttype"]
-			typeVal := e.Metadata["Type"]
+			msgIdVal, _ := getMetadataValueCI(e.Metadata, "messageid")
+			corrIdVal, _ := getMetadataValueCI(e.Metadata, "correlationid")
+			contentTypeVal, _ := getMetadataValueCI(e.Metadata, "contenttype")
+			typeVal, _ := getMetadataValueCI(e.Metadata, "type")
 
-			// Verify all important metadata properties were passed correctly
 			if msgIdVal != msgID {
 				ctx.Logf("ERROR: messageID not found or incorrect: value=%s", msgIdVal)
 				messages.FailIfNotExpected(t, fmt.Sprintf("Expected messageID: %s, got: %s", msgID, msgIdVal))

@@ -19,9 +19,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -615,6 +615,15 @@ func amqpMtlsExternalAuthReady(url string) flow.Runnable {
 	}
 }
 
+func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
+	for k, v := range metadata {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func TestRabbitMQMetadataProperties(t *testing.T) {
 	messages := watcher.NewUnordered()
 
@@ -669,25 +678,15 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 				// Log the received metadata for debugging
 				ctx.Logf("Got message: %s with metadata: %+v", msg, in.Metadata)
 
-				// Alternative approach with more formatted output
-				metadataStr := ""
-				for k, v := range in.Metadata {
-					if metadataStr != "" {
-						metadataStr += ", "
-					}
-					metadataStr += fmt.Sprintf("%s=%s", k, v)
-				}
-				ctx.Logf("Message metadata details: {%s}", metadataStr)
+				msgIdVal, _ := getMetadataValueCI(in.Metadata, "messageid")
+				corrIdVal, _ := getMetadataValueCI(in.Metadata, "correlationid")
+				contentTypeVal, _ := getMetadataValueCI(in.Metadata, "contenttype")
+				typeVal, _ := getMetadataValueCI(in.Metadata, "type")
 
-				// TODO: should the header be written with dash? E.g. "message-id" instead of "Messageid"
-				// TODO: Should all content always be URL-encoded? E.g. "application/json" instead of "application/json"
-				// Verify all metadata was correctly passed using proper assertions
-				require.Equal(t, msgID, in.Metadata["Messageid"], "messageID should match expected value")
-				require.Equal(t, corrID, in.Metadata["Correlationid"], "correlationID should match expected value")
-				decodedContentType, err := url.QueryUnescape(in.Metadata["Contenttype"])
-				require.NoError(t, err, "failed to URL-decode content-type")
-				require.Equal(t, contentType, decodedContentType, "contentType should match expected value")
-				require.Equal(t, msgType, in.Metadata["Type"], "type should match expected value")
+				require.Equal(t, msgID, msgIdVal, "messageID should match expected value")
+				require.Equal(t, corrID, corrIdVal, "correlationID should match expected value")
+				require.Equal(t, contentType, contentTypeVal, "contentType should match expected value")
+				require.Equal(t, msgType, typeVal, "type should match expected value")
 
 				return []byte("{}"), nil
 			}))

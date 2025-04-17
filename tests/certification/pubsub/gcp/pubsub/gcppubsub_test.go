@@ -15,9 +15,12 @@ package pubsub_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 
 	"testing"
 	"time"
@@ -148,6 +151,10 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 
 	t.Run("GCPPubSubBasic", func(t *testing.T) {
 		GCPPubSubBasic(t)
+	})
+
+	t.Run("GCPPubSubMetadataAsAttributes", func(t *testing.T) {
+		GCPPubSubMetadataAsAttributes(t)
 	})
 
 	t.Run("GCPPubSubFIFOMessages", func(t *testing.T) {
@@ -286,6 +293,111 @@ func GCPPubSubBasic(t *testing.T) {
 		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Run()
+}
+
+func GCPPubSubMetadataAsAttributes(t *testing.T) {
+
+	consumerGroup1 := watcher.NewUnordered()
+
+	metadata := map[string]string{"hello":"world", "foo": "bar"}
+
+	// subscriber of the given topic
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					if err := sim(); err != nil {
+						return true, err
+					}
+
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					if len(e.Metadata) > 0 {
+						messagesWatcher.Observe(marshalMetadataStableJSON(t, e.Metadata))
+					}
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s %v", appID, e.PubsubName, e.Topic, e.ID, e.Data, e.Metadata)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("message for topic: %s, index: %03d, uniqueId: %s", topicName, i, uuid.New().String())
+			}
+
+			if metadata == nil {
+				t.Fatalf("GCPPubSubMetadataAsAttributes - metadata is nil")
+			}
+
+			marshalledMetadata := marshalMetadataStableJSON(t, metadata)
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+				messageWatcher.Expect(marshalledMetadata)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions = dapr.PublishEventWithMetadata(metadata)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				require.NoError(ctx, err, "GCPPubSubBasic - error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, timeout) {
+					ctx.Errorf("GCPPubSubBasic - message assertion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "GCPPub Verify with single publisher / single subscriber").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_CONSUMER_ID_1"
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic with metadata ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages with attributes published to active topic", assertMessages(250*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }
 
@@ -806,4 +918,38 @@ func teardown(t *testing.T) {
 	}
 
 	t.Logf("GCP PubSub CertificationTests teardown...done!")
+}
+
+
+func marshalMetadataStableJSON(t *testing.T, metadata map[string]string) string {
+	var keys = make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// manually constructing the JSON object
+	var builder strings.Builder
+	builder.WriteRune('{')
+	for i, key := range keys {
+		marshalledKey, err := json.Marshal(key)
+		if err != nil {
+			t.Fatalf("failed json marshalling %s due to %s", key, err)
+		}
+		marshalledValue, err := json.Marshal(metadata[key])
+		if err != nil {
+			t.Fatalf("failed json marshalling %s due to %s", metadata[key], err)
+		}
+
+		builder.Write(marshalledKey)
+		builder.WriteRune(':')
+		builder.Write(marshalledValue)
+		// Add a comma if not the last element
+		if i < len(keys)-1 {
+			builder.WriteRune(',')
+		}
+	}
+	builder.WriteRune('}')
+
+	return builder.String()
 }

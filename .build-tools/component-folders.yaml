@@ -9,6 +9,7 @@ componentFolders:
   - secretstores
   - state
   - workflows
+  - conversation
 
 excludeFolders:
   - bindings/alicloud

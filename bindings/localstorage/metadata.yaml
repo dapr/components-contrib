@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: localstorage
+version: v1
+status: stable
+title: "Local Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/localstorage/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Create a new file in the local storage"
+    - name: get
+      description: "Read a file from the local storage"
+    - name: list
+      description: "List files in a directory"
+    - name: delete
+      description: "Delete a file from the local storage"
+metadata:
+  - name: rootPath
+    type: string
+    required: true
+    description: "The root path for file storage. Must be an absolute path or a relative path from the current working directory. Cannot point to disallowed locations like /proc, /sys, /boot, or /var/run/secrets."
+    example: "/data/files" 

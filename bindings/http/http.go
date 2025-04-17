@@ -35,7 +35,6 @@ import (
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/utils"
-	"go.opentelemetry.io/otel/baggage"
 )
 
 const (
@@ -238,15 +237,6 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 	}
 }
 
-// getBaggageFromContext extracts baggage from the ctx
-func getBaggageFromContext(ctx context.Context) string {
-	b := baggage.FromContext(ctx)
-	if b.Len() == 0 {
-		return ""
-	}
-	return b.String()
-}
-
 // Invoke performs an HTTP request to the configured HTTP endpoint.
 func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
@@ -329,23 +319,12 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 
 		request.Header.Set(TracestateHeaderKey, ts)
 	}
-
-	// Handle baggage from headers
-	if headerBaggage, ok := req.Metadata[BaggageHeaderKey]; ok && headerBaggage != "" {
+	if baggage, ok := req.Metadata[BaggageHeaderKey]; ok && baggage != "" {
 		if _, ok := request.Header[http.CanonicalHeaderKey(BaggageHeaderKey)]; ok {
 			h.logger.Warn("Tracing is enabled. A custom Baggage request header cannot be specified and is ignored.")
 		}
-		request.Header.Set(BaggageHeaderKey, headerBaggage)
-	}
 
-	// Get context baggage and combine with header baggage if both exist
-	if ctxBaggage := getBaggageFromContext(ctx); ctxBaggage != "" {
-		if existingBaggage := request.Header.Get(BaggageHeaderKey); existingBaggage != "" {
-			combinedBaggage := existingBaggage + "," + ctxBaggage
-			request.Header.Set(BaggageHeaderKey, combinedBaggage)
-		} else {
-			request.Header.Set(BaggageHeaderKey, ctxBaggage)
-		}
+		request.Header.Set(BaggageHeaderKey, baggage)
 	}
 
 	// Send the question

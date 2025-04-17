@@ -37,8 +37,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/baggage"
-
+	
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -459,79 +458,6 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 		_, err = hs.Invoke(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Empty(t, handler.Headers["X-Token"])
-	})
-}
-
-func TestBaggageForwarded(t *testing.T) {
-	handler := NewHTTPHandler()
-	s := httptest.NewServer(handler)
-	defer s.Close()
-
-	hs, err := InitBinding(s, map[string]string{"responseTimeout": "1s"})
-	require.NoError(t, err)
-
-	t.Run("baggage from context is propagated as HTTP header", func(t *testing.T) {
-		m, err := baggage.NewMember("key1", "value1")
-		require.NoError(t, err)
-		b, err := baggage.New(m)
-		require.NoError(t, err)
-		ctx := baggage.ContextWithBaggage(context.Background(), b)
-
-		req := TestCase{
-			input:      "GET",
-			operation:  "get",
-			metadata:   map[string]string{"path": "/"},
-			path:       "/",
-			err:        "",
-			statusCode: 200,
-		}.ToInvokeRequest()
-		_, err = hs.Invoke(ctx, &req)
-		require.NoError(t, err)
-		assert.Equal(t, "key1=value1", handler.Headers["Baggage"], "baggage should be propagated as a header")
-	})
-
-	t.Run("baggage from metadata is set as header", func(t *testing.T) {
-		req := TestCase{
-			input:      "GET",
-			operation:  "get",
-			metadata:   map[string]string{"path": "/", "baggage": "key1=value1"},
-			path:       "/",
-			err:        "",
-			statusCode: 200,
-		}.ToInvokeRequest()
-		_, err := hs.Invoke(t.Context(), &req)
-		require.NoError(t, err)
-		assert.Equal(t, "key1=value1", handler.Headers["Baggage"])
-	})
-
-	t.Run("context and header baggage are combined", func(t *testing.T) {
-		// Create a context with baggage (from gRPC)
-		m, err := baggage.NewMember("key1", "value1")
-		require.NoError(t, err)
-		b, err := baggage.New(m)
-		require.NoError(t, err)
-		ctx := baggage.ContextWithBaggage(context.Background(), b)
-
-		// Create request w/ header baggage
-		req := TestCase{
-			input:      "GET",
-			operation:  "get",
-			metadata:   map[string]string{"path": "/", "baggage": "key2=value2"},
-			path:       "/",
-			err:        "",
-			statusCode: 200,
-		}.ToInvokeRequest()
-
-		// Invoke with both
-		_, err = hs.Invoke(ctx, &req)
-		require.NoError(t, err)
-
-		// Verify baggage is combined
-		// Note: The order might vary if baggage is found in both ctx (from gRPC) and in headers (for HTTP),
-		// so we should check for both key-value pairs
-		baggageHeader := handler.Headers["Baggage"]
-		assert.Contains(t, baggageHeader, "key1=value1", "context baggage should be included")
-		assert.Contains(t, baggageHeader, "key2=value2", "header baggage should be included")
 	})
 }
 

@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.ses
+version: v1
+status: alpha
+title: AWS Simple Email Service
+description: |
+  Output binding for AWS Simple Email Service (SES).
+  This component allows sending emails via AWS SES.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/ses/
+  - title: AWS SES Documentation
+    url: https://aws.amazon.com/ses/
+
+builtinAuthenticationProfiles:
+  - name: "aws"
+    metadata:
+      - name: AccessKey
+        required: false
+        description: |
+          AWS access key ID associated with an IAM account.
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: SecretKey
+        required: false
+        sensitive: true
+        description: |
+          The secret key associated with the access key.
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: SessionToken
+        required: false
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using temporary security credentials.
+        example: "TOKEN"
+
+metadata:
+  - name: region
+    description: |
+      The AWS region to use.
+    type: string
+    required: true
+    example: "us-west-2"
+
+  - name: emailFrom
+    description: |
+      The email address to send from. This must be verified in AWS SES.
+    type: string
+    required: false
+    example: "sender@example.com"
+
+  - name: emailTo
+    description: |
+      The email addresses to send to, separated by semicolons.
+    type: string
+    required: false
+    example: "recipient1@example.com;recipient2@example.com"
+
+  - name: subject
+    description: |
+      The subject line of the email.
+    type: string
+    required: false
+    example: "Important Message"
+
+  - name: emailCc
+    description: |
+      The email addresses to CC, separated by semicolons.
+    type: string
+    required: false
+    example: "cc1@example.com;cc2@example.com"
+
+  - name: emailBcc
+    description: |
+      The email addresses to BCC, separated by semicolons.
+    type: string
+    required: false
+    example: "bcc1@example.com;bcc2@example.com"

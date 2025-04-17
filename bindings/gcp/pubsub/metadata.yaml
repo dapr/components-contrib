@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: gcp.pubsub
+version: v1
+status: alpha
+title: "Google Cloud Pub/Sub"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/gcppubsub/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a message to a Pub/Sub topic"
+metadata:
+  - name: topic
+    type: string
+    required: true
+    description: "The Pub/Sub topic name"
+    example: "my-topic"
+  - name: subscription
+    type: string
+    required: true
+    description: "The Pub/Sub subscription name"
+    example: "my-subscription"
+  - name: project_id
+    type: string
+    required: true
+    description: "The GCP project ID"
+    example: "my-project"
+  - name: private_key_id
+    type: string
+    required: true
+    description: "The private key ID from the service account"
+    example: "abc123..."
+  - name: private_key
+    type: string
+    required: true
+    description: "The private key from the service account"
+    example: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+  - name: client_email
+    type: string
+    required: true
+    description: "The client email from the service account"
+    example: "service-account@my-project.iam.gserviceaccount.com"
+  - name: client_id
+    type: string
+    required: true
+    description: "The client ID from the service account"
+    example: "123456789"
+  - name: auth_uri
+    type: string
+    required: true
+    description: "The authentication URI"
+    example: "https://accounts.google.com/o/oauth2/auth"
+  - name: token_uri
+    type: string
+    required: true
+    description: "The token URI"
+    example: "https://oauth2.googleapis.com/token"
+  - name: auth_provider_x509_cert_url
+    type: string
+    required: true
+    description: "The auth provider certificate URL"
+    example: "https://www.googleapis.com/oauth2/v1/certs"
+  - name: client_x509_cert_url
+    type: string
+    required: true
+    description: "The client certificate URL"
+    example: "https://www.googleapis.com/robot/v1/metadata/x509/service-account%40my-project.iam.gserviceaccount.com" 

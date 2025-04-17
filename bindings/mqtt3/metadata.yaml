@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: mqtt3
+version: v1
+status: beta
+title: "MQTT v3"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/mqtt3/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a message to an MQTT topic"
+metadata:
+  - name: url
+    type: string
+    required: true
+    description: "The MQTT broker URL"
+    example: "mqtt://localhost:1883"
+  - name: topic
+    type: string
+    required: true
+    description: "The MQTT topic to subscribe to (for input) or publish to (for output)"
+    example: "mytopic"
+  - name: consumerID
+    type: string
+    required: true
+    description: "The client ID to use when connecting to the MQTT broker"
+    example: "myclient"
+  - name: retain
+    type: bool
+    required: false
+    description: "Whether to retain messages on the broker"
+    default: "false"
+    example: "true"
+  - name: cleanSession
+    type: bool
+    required: false
+    description: "Whether to start with a clean session"
+    default: "false"
+    example: "true"
+  - name: caCert
+    type: string
+    required: false
+    description: "CA certificate for TLS in PEM format"
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+  - name: clientCert
+    type: string
+    required: false
+    description: "Client certificate for TLS in PEM format"
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+  - name: clientKey
+    type: string
+    required: false
+    sensitive: true
+    description: "Client key for TLS in PEM format"
+    example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+  - name: backOffMaxRetries
+    type: number
+    required: false
+    description: "Maximum number of retries for publishing messages"
+    example: "5" 

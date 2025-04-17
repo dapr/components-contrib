@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.tablestore
+version: v1
+status: alpha
+title: Alibaba Cloud TableStore
+description: |
+  Binding for Alibaba Cloud TableStore (OTS), a fully managed NoSQL database service.
+  Supports get, list, create, and delete operations.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloudtablestore/
+  - title: Alibaba Cloud TableStore
+    url: https://www.alibabacloud.com/product/table-store
+
+metadata:
+  - name: endpoint
+    description: |
+      The endpoint of the TableStore service, e.g., "https://instance.region.ots.aliyuncs.com".
+    type: string
+    required: true
+    example: "https://dapr-instance.cn-hangzhou.ots.aliyuncs.com"
+
+  - name: accessKeyID
+    description: |
+      Access key ID for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "LTAI4G*************"
+
+  - name: accessKey
+    description: |
+      Access key secret for authenticating with Alibaba Cloud.
+    type: string
+    required: true
+    sensitive: true
+    example: "PkT4F*******************"
+
+  - name: instanceName
+    description: |
+      The name of the TableStore instance.
+    type: string
+    required: true
+    example: "dapr-instance"
+
+  - name: tableName
+    description: |
+      Default table name for operations.
+      This can be overridden in individual requests with the tableName metadata.
+    type: string
+    required: false
+    example: "my-table"

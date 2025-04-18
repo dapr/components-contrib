@@ -49,7 +49,7 @@ const (
 	metadataFilePath     = "filePath"
 	metadataPresignTTL   = "presignTTL"
 	metadataStorageClass = "storageClass"
-	metadataTags = "tags"
+	metadataTags         = "tags"
 
 	metatadataContentType = "Content-Type"
 	metadataKey           = "key"
@@ -201,7 +201,6 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		}
 	}
 
-
 	var r io.Reader
 	if metadata.FilePath != "" {
 		r, err = os.Open(metadata.FilePath)
@@ -227,7 +226,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		Body:         r,
 		ContentType:  contentType,
 		StorageClass: storageClass,
-		Tagging: tagging,
+		Tagging:      tagging,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
@@ -433,11 +432,12 @@ func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 
 // Helper for parsing s3 tags metadata
 func (s *AWSS3) parseS3Tags(raw string) (*string, error) {
-	var pairs []string
-	for _, tagEntry := range strings.Split(raw, ",") {
+	tagEntries := strings.Split(raw, ",")
+	pairs := make([]string, 0, len(tagEntries))
+	for _, tagEntry := range tagEntries {
 		kv := strings.SplitN(strings.TrimSpace(tagEntry), "=", 2)
-		is_invalid_tag := len(kv) != 2 || strings.TrimSpace(kv[0]) == "" || strings.TrimSpace(kv[1]) == ""
-		if is_invalid_tag {
+		isInvalidTag := len(kv) != 2 || strings.TrimSpace(kv[0]) == "" || strings.TrimSpace(kv[1]) == ""
+		if isInvalidTag {
 			return nil, fmt.Errorf("invalid tag format: '%s' (expected key=value)", tagEntry)
 		}
 		pairs = append(pairs, fmt.Sprintf("%s=%s", strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])))
@@ -449,8 +449,6 @@ func (s *AWSS3) parseS3Tags(raw string) (*string, error) {
 
 	return aws.String(strings.Join(pairs, "&")), nil
 }
-
-
 
 // Helper to merge config and request metadata.
 func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (s3Metadata, error) {

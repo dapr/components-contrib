@@ -61,13 +61,13 @@ func TestParseS3Tags(t *testing.T) {
 			"encodeBase64": "false",
 			"filePath":     "/usr/vader.darth",
 			"storageClass": "STANDARD_IA",
-			"tags": "project=myproject,year=2024",
+			"tags":         "project=myproject,year=2024",
 		}
 		s3 := AWSS3{}
-		parsed_tags, err := s3.parseS3Tags(request.Metadata["tags"])
+		parsedTags, err := s3.parseS3Tags(request.Metadata["tags"])
 
 		require.NoError(t, err)
-		assert.Equal(t, "project=myproject&year=2024", *parsed_tags)
+		assert.Equal(t, "project=myproject&year=2024", *parsedTags)
 	})
 }
 

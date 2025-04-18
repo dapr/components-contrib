@@ -195,7 +195,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	var tagging *string
 	if rawTags, ok := req.Metadata[metadataTags]; ok {
-		tagging, err = parseS3Tags(rawTags)
+		tagging, err = s.parseS3Tags(rawTags)
 		if err != nil {
 			return nil, fmt.Errorf("s3 binding error: parsing tags falied error: %w", err)
 		}
@@ -432,7 +432,7 @@ func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 }
 
 // Helper for parsing s3 tags metadata
-func parseS3Tags(raw string) (*string, error) {
+func (s *AWSS3) parseS3Tags(raw string) (*string, error) {
 	var pairs []string
 	for _, tagEntry := range strings.Split(raw, ",") {
 		kv := strings.SplitN(strings.TrimSpace(tagEntry), "=", 2)

@@ -5,11 +5,11 @@ import (
 )
 
 type InfluxPoint struct {
-	Line        *string
-	Measurement *string
-	Tags        map[string]string
-	Fields      map[string]interface{}
-	Timestamp   *int64
+	Line        *string                `json:"line,omitempty"`
+	Measurement *string                `json:"measurement,omitempty"`
+	Tags        map[string]string      `json:"tags,omitempty"`
+	Fields      map[string]interface{} `json:"fields,omitempty"`
+	Timestamp   *int64                 `json:"timestamp,omitempty"`
 }
 
 func (p *InfluxPoint) GetLine() string {

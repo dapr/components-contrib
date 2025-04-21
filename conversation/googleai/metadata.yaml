@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: conversation
-name: deepseek
+name: googleai
 version: v1
 status: alpha
-title: "Deepseek"
+title: "GoogleAI"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/deepseek/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/googleai/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"
@@ -17,13 +17,19 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          API key for Deepseek.
+          API key for GoogleAI.
         example:  "**********"
         default: ""
 metadata:
-  - name: maxTokens
+  - name: model
     required: false
     description: |
-      Max tokens for each request
-    type: int
-    example: 2048
+      The GoogleAI LLM to use. Defaults to gemini-1.5-flash
+    type: string
+    example: 'gemini-2.0-flash'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

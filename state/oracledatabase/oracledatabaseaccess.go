@@ -22,17 +22,16 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/metadata"
 
-	// Blank import for the underlying Oracle Database driver.
-	_ "github.com/sijms/go-ora/v2"
+	"github.com/google/uuid"
+	goora "github.com/sijms/go-ora/v2"
 )
 
 const (
@@ -78,23 +77,26 @@ func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := parseMetadata(metadata.Properties)
-	o.metadata = meta
 	if err != nil {
 		return err
 	}
-	if o.metadata.ConnectionString != "" {
-		o.connectionString = meta.ConnectionString
-	} else {
+
+	o.metadata = meta
+
+	if o.metadata.ConnectionString == "" {
 		o.logger.Error("Missing Oracle Database connection string")
 		return errors.New(errMissingConnectionString)
 	}
-	if o.metadata.OracleWalletLocation != "" {
-		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(o.metadata.OracleWalletLocation)
+
+	o.connectionString, err = ParseConnectionString(meta)
+	if err != nil {
+		o.logger.Error(err)
+		return err
 	}
+
 	db, err := sql.Open("oracle", o.connectionString)
 	if err != nil {
 		o.logger.Error(err)
-
 		return err
 	}
 
@@ -105,12 +107,63 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		return err
 	}
 
-	err = o.ensureStateTable(o.metadata.TableName)
+	return o.ensureStateTable(o.metadata.TableName)
+}
+
+func ParseConnectionString(meta oracleDatabaseMetadata) (string, error) {
+	username := ""
+	password := ""
+	host := ""
+	port := 0
+	serviceName := ""
+	query := url.Values{}
+	options := make(map[string]string)
+
+	connectionStringURL, err := url.Parse(meta.ConnectionString)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	isURL := connectionStringURL.Scheme != "" && connectionStringURL.Host != ""
+	if isURL {
+		username = connectionStringURL.User.Username()
+		password, _ = connectionStringURL.User.Password()
+		query = connectionStringURL.Query()
+		serviceName = strings.TrimPrefix(connectionStringURL.Path, "/")
+		if strings.Contains(connectionStringURL.Host, ":") {
+			host = strings.Split(connectionStringURL.Host, ":")[0]
+		} else {
+			host = connectionStringURL.Host
+		}
+	} else {
+		host = connectionStringURL.Path
+	}
+
+	if connectionStringURL.Port() != "" {
+		port, err = strconv.Atoi(connectionStringURL.Port())
+		if err != nil {
+			return "", err
+		}
+	}
+
+	for k, v := range query {
+		options[k] = v[0]
+	}
+
+	// Add wallet location if specified
+	if meta.OracleWalletLocation != "" {
+		options["WALLET"] = meta.OracleWalletLocation
+		options["TRACE FILE"] = "trace.log"
+		options["SSL"] = "enable"
+		options["SSL Verify"] = "false"
+	}
+
+	if strings.Contains(host, "(DESCRIPTION") {
+		// connections string is url containing descriptor and auth info
+		return goora.BuildJDBC(username, password, host, options), nil
+	} else {
+		return goora.BuildUrl(host, port, serviceName, username, password, options), nil
+	}
 }
 
 // Set makes an insert or update to the database.
@@ -170,7 +223,7 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		if req.Options.Concurrency == state.FirstWrite {
 			stmt = `INSERT INTO ` + o.metadata.TableName + `
 				(key, value, binary_yn, etag, expiration_time)
-			VALUES 
+			VALUES
 				(:key, :value, :binary_yn, :etag, ` + ttlStatement + `) `
 		} else {
 			// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.

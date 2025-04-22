@@ -114,7 +114,7 @@ func TestConnectionString(t *testing.T) {
 			meta, err := parseMetadata(metadata.Properties)
 			require.NoError(t, err)
 
-			actualConnectionString, err := ParseConnectionString(meta)
+			actualConnectionString, err := parseConnectionString(meta)
 			require.NoError(t, err)
 
 			if tt.expectedError != "" {

@@ -88,7 +88,7 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		return errors.New(errMissingConnectionString)
 	}
 
-	o.connectionString, err = ParseConnectionString(meta)
+	o.connectionString, err = parseConnectionString(meta)
 	if err != nil {
 		o.logger.Error(err)
 		return err
@@ -110,7 +110,7 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 	return o.ensureStateTable(o.metadata.TableName)
 }
 
-func ParseConnectionString(meta oracleDatabaseMetadata) (string, error) {
+func parseConnectionString(meta oracleDatabaseMetadata) (string, error) {
 	username := ""
 	password := ""
 	host := ""
@@ -150,7 +150,6 @@ func ParseConnectionString(meta oracleDatabaseMetadata) (string, error) {
 		options[k] = v[0]
 	}
 
-	// Add wallet location if specified
 	if meta.OracleWalletLocation != "" {
 		options["WALLET"] = meta.OracleWalletLocation
 		options["TRACE FILE"] = "trace.log"
@@ -159,7 +158,7 @@ func ParseConnectionString(meta oracleDatabaseMetadata) (string, error) {
 	}
 
 	if strings.Contains(host, "(DESCRIPTION") {
-		// connections string is url containing descriptor and auth info
+		// the connection string is a URL that contains the descriptor and authentication info
 		return goora.BuildJDBC(username, password, host, options), nil
 	} else {
 		return goora.BuildUrl(host, port, serviceName, username, password, options), nil

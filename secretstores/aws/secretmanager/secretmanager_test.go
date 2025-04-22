@@ -201,7 +201,7 @@ func TestGetSecret(t *testing.T) {
 			assert.Len(t, output.Data, 3)
 			assert.Equal(t, "value1", output.Data["key1"])
 			assert.Equal(t, "value2", output.Data["key2"])
-			assert.Equal(t, `{"nested":"value3"}`, output.Data["key3"])
+			assert.JSONEq(t, `{"nested":"value3"}`, output.Data["key3"])
 		})
 
 		t.Run("with multiple keys per secret and option disabled", func(t *testing.T) {

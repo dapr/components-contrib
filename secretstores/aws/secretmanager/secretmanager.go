@@ -79,15 +79,30 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 	return nil
 }
 
+func convertMapAnyToString(m map[string]any) map[string]string {
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		switch v := v.(type) {
+		case string:
+			result[k] = v
+		default:
+			jVal, _ := json.Marshal(v)
+			result[k] = string(jVal)
+		}
+	}
+	return result
+}
+
 func (s *smSecretStore) formatSecret(output *secretsmanager.GetSecretValueOutput) map[string]string {
 	result := map[string]string{}
 
 	if output.Name != nil && output.SecretString != nil {
 		if s.multipleKeyValuesPerSecret {
-			data := map[string]string{}
+			data := map[string]any{}
 			err := json.Unmarshal([]byte(*output.SecretString), &data)
 			if err == nil {
-				result = data
+				// In case of a nested JSON value, we need to stringify it
+				result = convertMapAnyToString(data)
 			} else {
 				result[*output.Name] = *output.SecretString
 			}

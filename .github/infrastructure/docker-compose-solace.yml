@@ -9,9 +9,13 @@ services:
     shm_size: 1g
     ulimits:
       core: -1
+      # Setting nofile to 4096 and hard to 1048576, as recommended by Solace documentation
+      # Otherwise, the container will have an error and crash with:
+      # ERROR POST Violation [022]:Required system resource missing, Hard resource limit nofile 1048576 is required, 6592 detected
+      # https://docs.solace.com/Software-Broker/System-Resource-Requirements.htm#concurrent-open-files-considerations
       nofile:
-        soft: 2448
-        hard: 6592
+        soft: 4096
+        hard: 1048576
     deploy:
       restart_policy:
         condition: on-failure

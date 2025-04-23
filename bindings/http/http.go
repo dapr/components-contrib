@@ -44,6 +44,7 @@ const (
 
 	TraceparentHeaderKey            = "traceparent"
 	TracestateHeaderKey             = "tracestate"
+	BaggageHeaderKey                = "baggage"
 	TraceMetadataKey                = "traceHeaders"
 	securityToken                   = "securityToken"
 	securityTokenHeader             = "securityTokenHeader"
@@ -317,6 +318,13 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 		}
 
 		request.Header.Set(TracestateHeaderKey, ts)
+	}
+	if baggage, ok := req.Metadata[BaggageHeaderKey]; ok && baggage != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(BaggageHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Baggage request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(BaggageHeaderKey, baggage)
 	}
 
 	// Send the question

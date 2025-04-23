@@ -279,6 +279,44 @@ func TestGetSecret(t *testing.T) {
 			assert.Len(t, output.Data, 1)
 			assert.Equal(t, "not json", output.Data["/aws/secret/testing"])
 		})
+
+		t.Run("with multiple keys per secret and secret is json collection", func(t *testing.T) {
+			mockSSM := &awsAuth.MockSecretManager{
+				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+					assert.Nil(t, input.VersionId)
+					assert.Nil(t, input.VersionStage)
+					secret := `[{"key1":"value1"},{"key2":"value2"}]`
+
+					return &secretsmanager.GetSecretValueOutput{
+						Name:         input.SecretId,
+						SecretString: &secret,
+					}, nil
+				},
+			}
+
+			secret := awsAuth.SecretManagerClients{
+				Manager: mockSSM,
+			}
+
+			mockedClients := awsAuth.Clients{
+				Secret: &secret,
+			}
+			mockAuthProvider := &awsAuth.StaticAuth{}
+			mockAuthProvider.WithMockClients(&mockedClients)
+			s := smSecretStore{
+				authProvider:               mockAuthProvider,
+				multipleKeyValuesPerSecret: true,
+			}
+
+			req := secretstores.GetSecretRequest{
+				Name:     "/aws/secret/testing",
+				Metadata: map[string]string{},
+			}
+			output, e := s.GetSecret(t.Context(), req)
+			require.NoError(t, e)
+			assert.Len(t, output.Data, 1)
+			assert.JSONEq(t, `[{"key1":"value1"},{"key2":"value2"}]`, output.Data["/aws/secret/testing"])
+		})
 	})
 
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {

@@ -317,7 +317,7 @@ jobs:
           exit 1
         fi
 
-    - name: Retrieve docker compose container logs
+    - name: Retrieve infrastructure failure logs
       if: failure() && matrix.logs-script != ''
       run: .github/scripts/components-scripts/${{ matrix.logs-script }}
 

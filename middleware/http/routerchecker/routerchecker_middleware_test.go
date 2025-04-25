@@ -14,7 +14,6 @@ limitations under the License.
 package routerchecker
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,7 +38,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	}}}
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
-	handler, err := rchecker.GetHandler(context.Background(), meta)
+	handler, err := rchecker.GetHandler(t.Context(), meta)
 	require.NoError(t, err)
 
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method/%20cat%20password", nil)
@@ -56,7 +55,7 @@ func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
 
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
-	handler, err := rchecker.GetHandler(context.Background(), meta)
+	handler, err := rchecker.GetHandler(t.Context(), meta)
 	require.NoError(t, err)
 
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method", nil)

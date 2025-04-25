@@ -120,7 +120,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		assert.Truef(t, ok, "value should be a string")
 		assert.NotContains(t, j, "ttl")
 
-		assert.Equal(t, "{\"color\":\"red\"}", m)
+		assert.JSONEq(t, "{\"color\":\"red\"}", m)
 	})
 
 	t.Run("create item for random bytes", func(t *testing.T) {

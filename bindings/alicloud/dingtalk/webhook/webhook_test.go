@@ -57,11 +57,11 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(context.Background(), m)
+	err := d.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(context.Background(), req)
+	_, err = d.Invoke(t.Context(), req)
 	require.NoError(t, err)
 }
 
@@ -78,7 +78,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(context.Background(), m)
+	err := d.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	var count int32
@@ -92,11 +92,11 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 		return nil, nil
 	}
 
-	err = d.Read(context.Background(), handler)
+	err = d.Read(t.Context(), handler)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(context.Background(), req)
+	_, err = d.Invoke(t.Context(), req)
 	require.NoError(t, err)
 
 	select {
@@ -117,7 +117,7 @@ func TestBindingClose(t *testing.T) {
 			"id":     "x",
 		},
 	}}
-	require.NoError(t, d.Init(context.Background(), m))
+	require.NoError(t, d.Init(t.Context(), m))
 	require.NoError(t, d.Close())
 	require.NoError(t, d.Close(), "second close should not error")
 }

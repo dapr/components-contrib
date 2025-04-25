@@ -124,7 +124,7 @@ func (m *Migrations) GetConn() *sql.Conn {
 }
 
 // Returns true if a table exists
-func (m Migrations) tableExists(parentCtx context.Context, db commonsql.DatabaseSQLConn, tableName string) (bool, error) {
+func (m *Migrations) tableExists(parentCtx context.Context, db commonsql.DatabaseSQLConn, tableName string) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
@@ -138,7 +138,7 @@ func (m Migrations) tableExists(parentCtx context.Context, db commonsql.Database
 	return exists == "1", err
 }
 
-func (m Migrations) createMetadataTable(ctx context.Context, db commonsql.DatabaseSQLConn) error {
+func (m *Migrations) createMetadataTable(ctx context.Context, db commonsql.DatabaseSQLConn) error {
 	m.Logger.Infof("Creating metadata table '%s' if it doesn't exist", m.MetadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency

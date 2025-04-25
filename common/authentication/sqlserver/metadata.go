@@ -96,7 +96,7 @@ func (m *SQLServerAuthMetadata) GetConnector(setDatabase bool) (*mssql.Connector
 		conn, err := mssql.NewSecurityTokenConnector(config, func(ctx context.Context) (string, error) {
 			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
 				Scopes: []string{
-					m.azureEnv.Cloud.Services[azure.ServiceAzureSQL].Audience,
+					m.azureEnv.Cloud.Services[azure.ServiceAzureSQL].Audience + "/.default",
 				},
 			})
 			if err != nil {

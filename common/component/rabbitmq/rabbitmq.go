@@ -18,9 +18,8 @@ func tryGetProperty(props map[string]string, keys ...string) (string, bool) {
 	// Then try case-insensitive match if no exact matches were found
 	for k, v := range props {
 		if v != "" {
-			lowerK := strings.ToLower(k)
 			for _, key := range keys {
-				if strings.ToLower(key) == lowerK {
+				if strings.EqualFold(key, k) {
 					return v, true
 				}
 			}

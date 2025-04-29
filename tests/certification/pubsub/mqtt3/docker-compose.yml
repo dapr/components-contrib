@@ -1,6 +1,6 @@
 services:
   emqx:
-    image: emqx/emqx:5.8.6
+    image: emqx/emqx:4.4.19
     hostname: emqx
     container_name: emqx
     ports:

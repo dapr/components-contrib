@@ -447,3 +447,67 @@ func TestPublishWithHeaders(t *testing.T) {
 	// assert.Contains(t, msg.Header, "custom_header1")
 	// assert.Contains(t, msg.Header, "custom_header2")
 }
+
+func TestPublishMetadataProperties(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	require.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s'", testRabbitMQHostEnvKey))
+
+	queueName := uuid.New().String()
+	durable := true
+	exclusive := false
+
+	metadata := bindings.Metadata{
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+			},
+		},
+	}
+
+	logger := logger.NewLogger("test")
+	r := NewRabbitMQ(logger).(*RabbitMQ)
+	err := r.Init(t.Context(), metadata)
+	require.NoError(t, err)
+
+	conn, err := amqp.Dial(rabbitmqHost)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+	defer ch.Close()
+
+	const messageData = "test message"
+	const msgID = "msg-123"
+	const corrID = "corr-456"
+	const msgType = "testType"
+	const contentType = "application/json"
+
+	writeRequest := bindings.InvokeRequest{
+		Data: []byte(messageData),
+		Metadata: map[string]string{
+			"messageID":     msgID,
+			"correlationID": corrID,
+			"type":          msgType,
+			"contentType":   contentType,
+		},
+	}
+	_, err = r.Invoke(t.Context(), &writeRequest)
+	require.NoError(t, err)
+
+	// Retrieve the message.
+	msg, ok, err := getMessageWithRetries(ch, queueName, 2*time.Second)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, messageData, string(msg.Body))
+	assert.Equal(t, msgID, msg.MessageId)
+	assert.Equal(t, corrID, msg.CorrelationId)
+	assert.Equal(t, msgType, msg.Type)
+	assert.Equal(t, contentType, msg.ContentType)
+
+	require.NoError(t, r.Close())
+}

@@ -28,6 +28,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -259,25 +260,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		p.Priority = priority
 	}
 
-	contentType, ok := metadata.TryGetContentType(req.Metadata)
-	if ok {
-		p.ContentType = contentType
-	}
-
-	messageId, ok := metadata.TryGetMessageId(req.Metadata)
-	if ok {
-		p.MessageId = messageId
-	}
-
-	correlationId, ok := metadata.TryGetCorrelationId(req.Metadata)
-	if ok {
-		p.CorrelationId = correlationId
-	}
-
-	aType, ok := metadata.TryGetType(req.Metadata)
-	if ok {
-		p.Type = aType
-	}
+	common.ApplyMetadataToPublishing(req.Metadata, &p)
 
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {
@@ -640,8 +623,9 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 
 func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic string, handler pubsub.Handler) error {
 	pubsubMsg := &pubsub.NewMessage{
-		Data:  d.Body,
-		Topic: topic,
+		Data:     d.Body,
+		Topic:    topic,
+		Metadata: addAMQPPropertiesToMetadata(d),
 	}
 
 	err := handler(ctx, pubsubMsg)
@@ -764,4 +748,43 @@ func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 func queueTypeValid(qType string) bool {
 	return qType == amqp.QueueTypeClassic || qType == amqp.QueueTypeQuorum
+}
+
+// Add this function to extract metadata from AMQP delivery
+func addAMQPPropertiesToMetadata(delivery amqp.Delivery) map[string]string {
+	metadata := map[string]string{}
+
+	// Add message properties as metadata
+	if delivery.MessageId != "" {
+		metadata["messageId"] = delivery.MessageId
+	}
+
+	if delivery.CorrelationId != "" {
+		metadata["correlationId"] = delivery.CorrelationId
+	}
+
+	if delivery.Type != "" {
+		metadata["type"] = delivery.Type
+	}
+
+	if delivery.ContentType != "" {
+		metadata["contentType"] = delivery.ContentType
+	}
+
+	// Add any custom headers
+	for k, v := range delivery.Headers {
+		if v != nil {
+			switch value := v.(type) {
+			case string:
+				metadata[k] = value
+			case []byte:
+				metadata[k] = string(value)
+			default:
+				// Try to convert other types to string
+				metadata[k] = fmt.Sprintf("%v", v)
+			}
+		}
+	}
+
+	return metadata
 }

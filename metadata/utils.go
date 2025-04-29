@@ -113,37 +113,6 @@ func IsRawPayload(props map[string]string) (bool, error) {
 
 	return false, nil
 }
-func TryGetMessageId(props map[string]string) (string, bool) {
-	if val, ok := props["messageId"]; ok && val != "" {
-		return val, true
-	}
-
-	return "", false
-}
-
-func TryGetCorrelationId(props map[string]string) (string, bool) {
-	if val, ok := props["correlationId"]; ok && val != "" {
-		return val, true
-	}
-
-	return "", false
-}
-
-func TryGetContentType(props map[string]string) (string, bool) {
-	if val, ok := props[ContentType]; ok && val != "" {
-		return val, true
-	}
-
-	return "", false
-}
-
-func TryGetType(props map[string]string) (string, bool) {
-	if val, ok := props["type"]; ok && val != "" {
-		return val, true
-	}
-
-	return "", false
-}
 
 func TryGetQueryIndexName(props map[string]string) (string, bool) {
 	if val, ok := props[QueryIndexName]; ok && val != "" {

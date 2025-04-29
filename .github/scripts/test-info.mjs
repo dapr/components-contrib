@@ -440,6 +440,7 @@ const components = {
     'pubsub.solace': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh solace',
+        conformanceLogs: 'docker-compose-logs.sh solace',
     },
     'secretstores.azure.keyvault': {
         certification: true,
@@ -829,6 +830,7 @@ const components = {
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
+ * @property {string?} conformanceLogs Logs script for conformance tests
  * @property {string?} conformanceDestroy Destroy script for conformance tests
  * @property {string?} certificationSetup Setup script for certification tests
  * @property {string?} certificationDestroy Destroy script for certification tests
@@ -850,6 +852,7 @@ const components = {
  * @property {boolean?} require-kind Requires KinD
  * @property {string?} setup-script Setup script
  * @property {string?} destroy-script Destroy script
+ * @property {string?} logs-script Logs script in case of failure
  * @property {string?} nodejs-version Install the specified Node.js version if set
  * @property {string?} mongodb-version Install the specified MongoDB version if set
  * @property {string?} source-pkg Source package
@@ -920,6 +923,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'require-kind': comp.requireKind ? 'true' : undefined,
             'setup-script': comp[testKind + 'Setup'] || undefined,
             'destroy-script': comp[testKind + 'Destroy'] || undefined,
+            'logs-script': comp[testKind + 'Logs'] || undefined,
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg

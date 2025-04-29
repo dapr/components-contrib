@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func getFakeProperties() map[string]string {
 		consumerID:   "fakeConsumer",
 		enableTLS:    "true",
 		maxLenApprox: "1000",
-		minIDApprox:  "1742397526022-0",
+		streamTTL:    "1h",
 	}
 }
 
@@ -55,7 +56,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[consumerID], m.ConsumerID)
 		assert.Equal(t, int64(1000), m.MaxLenApprox)
-		assert.Equal(t, "1742397526022-0", m.MinIDApprox)
+		assert.Equal(t, 1*time.Hour, m.StreamTTL)
 	})
 
 	// TODO: fix the code to return the error for the missing property to make this test work

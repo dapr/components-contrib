@@ -312,7 +312,6 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 	}, nil
 }
 
-// BulkGet performs a bulk get operation from the database.
 func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
 		return []state.BulkGetResponse{}, nil
@@ -331,7 +330,6 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 		bindVars[i] = ":" + strconv.Itoa(i+1)
 	}
 
-	// Build the query with the IN clause
 	inClause := strings.Join(bindVars, ",")
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
 	//nolint:gosec
@@ -402,7 +400,6 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 		n++
 	}
 
-	// Check for any errors from iterating over rows
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}

@@ -26,6 +26,7 @@ type dbAccess interface {
 	Ping(ctx context.Context) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
+	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
 	ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error // io.Closer.

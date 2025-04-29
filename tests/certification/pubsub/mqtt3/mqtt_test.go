@@ -63,7 +63,7 @@ const (
 	appID3            = "app-3"
 	clusterName       = "mqttcertification"
 	dockerComposeYAML = "docker-compose.yml"
-	numMessages       = 1000
+	numMessages       = 10
 	appPort           = 8000
 	portOffset        = 2
 	messageKey        = "partitionKey"

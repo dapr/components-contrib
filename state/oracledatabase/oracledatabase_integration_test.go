@@ -120,6 +120,10 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		testBulkSetAndBulkDelete(t, ods)
 	})
 
+	t.Run("Bulk get", func(t *testing.T) {
+		testBulkGet(t, ods)
+	})
+
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
 		updateAndDeleteWithEtagSucceeds(t, ods)
 	})
@@ -645,6 +649,88 @@ func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
 	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, db, setReq[0].Key))
 	assert.False(t, storeItemExists(t, db, setReq[1].Key))
+}
+
+func testBulkGet(t *testing.T, ods state.Store) {
+	db := getDB(ods)
+
+	setReq := []state.SetRequest{
+		{
+			Key:   randomKey(),
+			Value: &fakeItem{Color: "red"},
+		},
+		{
+			Key:   randomKey(),
+			Value: &fakeItem{Color: "blue"},
+		},
+		{
+			Key:   randomKey(),
+			Value: &fakeItem{Color: "green"},
+		},
+	}
+
+	err := ods.BulkSet(t.Context(), setReq, state.BulkStoreOpts{})
+	require.NoError(t, err)
+	assert.True(t, storeItemExists(t, db, setReq[0].Key))
+	assert.True(t, storeItemExists(t, db, setReq[1].Key))
+	assert.True(t, storeItemExists(t, db, setReq[2].Key))
+
+	getReq := []state.GetRequest{
+		{
+			Key: setReq[0].Key,
+		},
+		{
+			Key: setReq[1].Key,
+		},
+		{
+			Key: setReq[2].Key,
+		},
+		{
+			Key: randomKey(), // This key doesn't exist
+		},
+	}
+
+	responses, err := ods.BulkGet(t.Context(), getReq, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, responses, 4)
+
+	// Verify the responses
+	// First three items should exist
+	for i := range 3 {
+		assert.Equal(t, getReq[i].Key, responses[i].Key)
+		assert.NotNil(t, responses[i].Data)
+		assert.NotNil(t, responses[i].ETag)
+
+		// Verify the data
+		var item fakeItem
+		err = json.Unmarshal(responses[i].Data, &item)
+		require.NoError(t, err)
+
+		// Check the color matches what we set
+		originalItem := setReq[i].Value.(*fakeItem)
+		assert.Equal(t, originalItem.Color, item.Color)
+	}
+
+	// The fourth item should not exist (empty response)
+	assert.Equal(t, getReq[3].Key, responses[3].Key)
+	assert.Nil(t, responses[3].Data)
+	assert.Nil(t, responses[3].ETag)
+
+	// Clean up
+	deleteReq := []state.DeleteRequest{
+		{
+			Key: setReq[0].Key,
+		},
+		{
+			Key: setReq[1].Key,
+		},
+		{
+			Key: setReq[2].Key,
+		},
+	}
+
+	err = ods.BulkDelete(t.Context(), deleteReq, state.BulkStoreOpts{})
+	require.NoError(t, err)
 }
 
 // testInitConfiguration tests valid and invalid config settings.

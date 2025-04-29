@@ -78,6 +78,10 @@ func (o *OracleDatabase) Get(ctx context.Context, req *state.GetRequest) (*state
 	return o.dbaccess.Get(ctx, req)
 }
 
+func (o *OracleDatabase) BulkGet(ctx context.Context, req []state.GetRequest, opts state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	return o.dbaccess.BulkGet(ctx, req)
+}
+
 // Set adds/updates an entity on store.
 func (o *OracleDatabase) Set(ctx context.Context, req *state.SetRequest) error {
 	return o.dbaccess.Set(ctx, req)

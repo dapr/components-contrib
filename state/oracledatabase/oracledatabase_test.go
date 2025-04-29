@@ -64,6 +64,10 @@ func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.G
 	return nil, nil
 }
 
+func (m *fakeDBaccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	return []state.BulkGetResponse{}, nil
+}
+
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }

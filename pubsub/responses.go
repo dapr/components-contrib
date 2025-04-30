@@ -49,7 +49,6 @@ type AppBulkResponse struct {
 // to be sent to publishing App for the corresponding single message during bulk publish
 type BulkPublishResponseFailedEntry struct {
 	EntryId string `json:"entryId"` //nolint:stylecheck
-	Error   error  `json:"error"`
 }
 
 // BulkPublishResponse contains the list of failed entries in a bulk publish request.

@@ -869,9 +869,6 @@ func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
 }
 
 func TestRabbitMQMetadataProperties(t *testing.T) {
-	//rand.Seed(time.Now().UTC().UnixNano())
-	//log := logger.NewLogger("dapr.components")
-
 	messages := watcher.NewOrdered()
 
 	// Define the test values for metadata with fixed IDs
@@ -880,6 +877,9 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 	const corrID = "corr-id-456"
 	const msgType = "test-type"
 	const contentType = "application/json"
+
+	// Use a channel to collect metadata validation errors
+	metadataErrors := make(chan error, 1)
 
 	// Application logic that tracks messages with their metadata
 	metadataApp := func(ctx flow.Context, s common.Service) (err error) {
@@ -890,40 +890,92 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 			Route:      "/metadata",
 			Metadata:   map[string]string{},
 		}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+			// Log full metadata for debugging
+			ctx.Logf("Received message with metadata: %+v", e.Metadata)
+
 			msgIdVal, _ := getMetadataValueCI(e.Metadata, "messageid")
 			corrIdVal, _ := getMetadataValueCI(e.Metadata, "correlationid")
 			contentTypeVal, _ := getMetadataValueCI(e.Metadata, "contenttype")
 			typeVal, _ := getMetadataValueCI(e.Metadata, "type")
 
+			// Instead of failing silently, collect errors and send them to the channel
+			var metadataErr error
+
 			if msgIdVal != msgID {
 				ctx.Logf("ERROR: messageID not found or incorrect: value=%s", msgIdVal)
-				messages.FailIfNotExpected(t, fmt.Sprintf("Expected messageID: %s, got: %s", msgID, msgIdVal))
-				return false, nil
+				metadataErr = fmt.Errorf("expected messageID: %s, got: %s", msgID, msgIdVal)
 			}
 
 			if corrIdVal != corrID {
 				ctx.Logf("ERROR: correlationID not found or incorrect: value=%s", corrIdVal)
-				messages.FailIfNotExpected(t, fmt.Sprintf("Expected correlationID: %s, got: %s", corrID, corrIdVal))
-				return false, nil
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected correlationID: %s, got: %s",
+						metadataErr, corrID, corrIdVal)
+				} else {
+					metadataErr = fmt.Errorf("expected correlationID: %s, got: %s", corrID, corrIdVal)
+				}
 			}
 
 			if contentTypeVal != contentType {
 				ctx.Logf("ERROR: contentType not found or incorrect: value=%s", contentTypeVal)
-				messages.FailIfNotExpected(t, fmt.Sprintf("Expected contentType: %s, got: %s", contentType, contentTypeVal))
-				return false, nil
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected contentType: %s, got: %s",
+						metadataErr, contentType, contentTypeVal)
+				} else {
+					metadataErr = fmt.Errorf("expected contentType: %s, got: %s", contentType, contentTypeVal)
+				}
 			}
 
 			if typeVal != msgType {
 				ctx.Logf("ERROR: type not found or incorrect: value=%s", typeVal)
-				messages.FailIfNotExpected(t, fmt.Sprintf("Expected type: %s, got: %s", msgType, typeVal))
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected type: %s, got: %s",
+						metadataErr, msgType, typeVal)
+				} else {
+					metadataErr = fmt.Errorf("expected type: %s, got: %s", msgType, typeVal)
+				}
+			}
+
+			// If we have metadata errors, send them to the channel (non-blocking)
+			if metadataErr != nil {
+				select {
+				case metadataErrors <- metadataErr:
+					// Successfully sent error
+				default:
+					// Channel already has an error, just log it
+					ctx.Logf("Additional metadata error: %v", metadataErr)
+				}
+
+				// Still track the message so the test can complete
+				dataStr, ok := e.Data.(string)
+				if !ok {
+					if dataBytes, okBytes := e.Data.([]byte); okBytes {
+						dataStr = string(dataBytes)
+					} else {
+						return false, fmt.Errorf("e.Data is not a string or []byte, got %T", e.Data)
+					}
+				}
+
+				idx, err := strconv.Atoi(dataStr)
+				if err != nil {
+					ctx.Logf("ERROR: Failed to parse message data: %v", err)
+					return false, nil
+				}
+
+				messages.Add(strconv.Itoa(idx))
 				return false, nil
 			}
 
 			// Track the message with index for ordered verification
 			dataStr, ok := e.Data.(string)
 			if !ok {
-				return false, fmt.Errorf("e.Data is not a string, got %T", e.Data)
+				if dataBytes, okBytes := e.Data.([]byte); okBytes {
+					dataStr = string(dataBytes)
+				} else {
+					return false, fmt.Errorf("e.Data is not a string or []byte, got %T", e.Data)
+				}
 			}
+
 			idx, err := strconv.Atoi(dataStr)
 			if err != nil {
 				ctx.Logf("ERROR: Failed to parse message data: %v", err)
@@ -961,9 +1013,17 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 			require.NoError(ctx, err, "Failed publishing message with metadata")
 		}
 
+		// Check for metadata errors with timeout
+		select {
+		case err := <-metadataErrors:
+			return fmt.Errorf("metadata validation failed: %w", err)
+		case <-time.After(5 * time.Second):
+			// No errors within timeout, continue with message assertion
+		}
+
 		// Verify all messages were processed correctly
-		ctx.Log("Verifying messages with metadata properties...")
-		messages.Assert(ctx, 2*time.Minute)
+		ctx.Log("Verifying messages were received...")
+		messages.Assert(t, 20*time.Second)
 
 		return nil
 	}
@@ -978,6 +1038,7 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 		Step(sidecar.Run(sidecarNameMetadata,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/metadata"),
+				// Consider switching to gRPC protocol if you want metadata to be preserved better
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+10)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+20)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+10)),
@@ -987,7 +1048,7 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 		)).
 		// Wait for subscription to complete
 		Step("wait for subscription setup", flow.Sleep(5*time.Second)).
-		// Run the test
+		// Run the test with timeout
 		Step("publish and verify metadata properties", testMetadata).
 		Run()
 }

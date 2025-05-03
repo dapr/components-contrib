@@ -53,6 +53,14 @@ func TestRavenDB(t *testing.T) {
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("ravenCert1"), nil)
 		require.NoError(t, err)
 
+		//this is set for the test after restart
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("ravenCert2"), nil)
+		require.NoError(t, err)
+
+		//this is set for the test after restart
+		err = client.SaveState(ctx, stateStoreName, "deleteInTransaction", []byte("ravenCert3"), nil)
+		require.NoError(t, err)
+
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		require.NoError(t, err)
@@ -194,6 +202,12 @@ func TestRavenDB(t *testing.T) {
 						},
 					},
 				},
+				{
+					Type: daprClient.StateOperationTypeDelete,
+					Item: &daprClient.SetStateItem{
+						Key: "deleteInTransaction",
+					},
+				},
 			})
 			require.NoError(t, err)
 
@@ -204,6 +218,10 @@ func TestRavenDB(t *testing.T) {
 			resp3, err := client.GetState(ctx, stateStoreName, "reqKey3", nil)
 			require.NoError(t, err)
 			assert.Equal(t, "reqVal3", string(resp3.Value))
+
+			resp4, err := client.GetState(ctx, stateStoreName, "deleteInTransaction", nil)
+			require.NoError(t, err)
+			assert.Nil(t, resp4.Value)
 
 			return nil
 		}

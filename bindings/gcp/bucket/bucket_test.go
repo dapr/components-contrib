@@ -325,7 +325,6 @@ func TestRenameOption(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, "gcp bucket binding error: required 'newName' missing", err.Error())
 	})
-
 }
 
 func TestMoveOption(t *testing.T) {
@@ -363,5 +362,4 @@ func TestMoveOption(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
 	})
-
 }

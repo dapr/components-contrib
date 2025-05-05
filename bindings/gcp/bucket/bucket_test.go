@@ -254,3 +254,27 @@ func TestDeleteOption(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestBulkGetOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if data is not valid json", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := gs.bulkGet(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error while unmarshalling bulk get payload: unexpected end of JSON input", err.Error())
+	})
+
+	t.Run("return error if destinationPath is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.bulkGet(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required metadata 'destinationPath' missing", err.Error())
+	})
+}

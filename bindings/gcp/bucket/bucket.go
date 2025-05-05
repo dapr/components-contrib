@@ -23,8 +23,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -49,8 +52,9 @@ const (
 	metadataKey = "key"
 	maxResults  = 1000
 
-	metadataKeyBC = "name"
-	signOperation = "sign"
+	metadataKeyBC    = "name"
+	signOperation    = "sign"
+	bulkGetOperation = "bulkGet"
 )
 
 // GCPStorage allows saving data to GCP bucket storage.
@@ -138,6 +142,7 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 		bindings.DeleteOperation,
 		bindings.ListOperation,
 		signOperation,
+		bulkGetOperation,
 	}
 }
 
@@ -155,6 +160,8 @@ func (g *GCPStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return g.list(ctx, req)
 	case signOperation:
 		return g.sign(ctx, req)
+	case bulkGetOperation:
+		return g.bulkGet(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -403,4 +410,75 @@ func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
 		return "", fmt.Errorf("Bucket(%q).SignedURL: %w", bucket, err)
 	}
 	return u, nil
+}
+
+type bulkGetPayload struct {
+	DestinationPath string `json:"destinationPath"`
+}
+
+func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var payload bulkGetPayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while unmarshalling bulk get payload: %w", err)
+	}
+
+	if payload.DestinationPath == "" {
+		return nil, errors.New("gcp bucket binding error: required metadata 'destinationPath' missing")
+	}
+
+	var allObjs []storage.ObjectAttrs
+	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, nil)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		allObjs = append(allObjs, *attrs)
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(allObjs))
+
+	for _, obj := range allObjs {
+		wg.Add(1)
+		go func(object storage.ObjectAttrs) {
+			defer wg.Done()
+			destPath := filepath.Join(payload.DestinationPath, object.Name)
+			if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+				errCh <- err
+				return
+			}
+
+			f, err := os.Create(destPath)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			defer f.Close()
+
+			rc, err := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			defer rc.Close()
+
+			if _, err := io.Copy(f, rc); err != nil {
+				errCh <- err
+				return
+			}
+		}(obj)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &bindings.InvokeResponse{}, nil
 }

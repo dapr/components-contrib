@@ -3,6 +3,7 @@ package redis
 import (
 	"crypto/tls"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,5 +39,35 @@ func TestSettings(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, c)
+	})
+
+	t.Run("stream TTL", func(t *testing.T) {
+		fixedTime := time.Date(2025, 3, 14, 0o1, 59, 26, 0, time.UTC)
+
+		tests := []struct {
+			name      string
+			streamTTL time.Duration
+			want      string
+		}{
+			{
+				name:      "with one hour TTL",
+				streamTTL: time.Hour,
+				want:      "1741913966000-1",
+			},
+			{
+				name:      "with zero TTL",
+				streamTTL: 0,
+				want:      "",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				settings := &Settings{
+					StreamTTL: tt.streamTTL,
+				}
+				require.Equal(t, tt.want, settings.GetMinID(fixedTime))
+			})
+		}
 	})
 }

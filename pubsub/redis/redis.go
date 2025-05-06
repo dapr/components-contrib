@@ -38,6 +38,7 @@ const (
 	queueDepth        = "queueDepth"
 	concurrency       = "concurrency"
 	maxLenApprox      = "maxLenApprox"
+	streamTTL         = "streamTTL"
 )
 
 // redisStreams handles consuming from a Redis stream using
@@ -112,7 +113,7 @@ func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) 
 		redisPayload["metadata"] = serializedMetadata
 	}
 
-	_, err := r.client.XAdd(ctx, req.Topic, r.clientSettings.MaxLenApprox, redisPayload)
+	_, err := r.client.XAdd(ctx, req.Topic, r.clientSettings.MaxLenApprox, r.clientSettings.GetMinID(time.Now()), redisPayload)
 	if err != nil {
 		return fmt.Errorf("redis streams: error from publish: %s", err)
 	}

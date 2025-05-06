@@ -82,7 +82,7 @@ type RedisClient interface {
 	ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs)
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)
 	EvalInt(ctx context.Context, script string, keys []string, args ...interface{}) (*int, error, error)
-	XAdd(ctx context.Context, stream string, maxLenApprox int64, values map[string]interface{}) (string, error)
+	XAdd(ctx context.Context, stream string, maxLenApprox int64, streamTTL string, values map[string]interface{}) (string, error)
 	XGroupCreateMkStream(ctx context.Context, stream string, group string, start string) error
 	XAck(ctx context.Context, stream string, group string, messageID string) error
 	XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error)

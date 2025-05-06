@@ -318,7 +318,7 @@ func TestMQTT(t *testing.T) {
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithResourcesPath("./components/consumer1"),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -336,7 +336,7 @@ func TestMQTT(t *testing.T) {
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithResourcesPath("./components/consumer2"),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),

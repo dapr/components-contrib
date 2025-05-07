@@ -51,7 +51,7 @@ func NewTopicManager(projectID string) (*topicManager, error) {
 }
 
 func (tm *topicManager) connect() error {
-	ctx := t.Context()
+	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, tm.projectID)
 	if err != nil {
 		return fmt.Errorf("GCP pubsub.NewClient failed to connect: %v", err)
@@ -66,7 +66,7 @@ func (tm *topicManager) disconnect() error {
 }
 
 func (tp *topicManager) GetMessages(topicID string, msgTimeout time.Duration, subID string, fn MessageFunc) (int, error) {
-	ctx := t.Context()
+	ctx := context.Background()
 
 	topic := tp.gcpClient.Topic(topicID)
 	cfg := &pubsub.SubscriptionConfig{
@@ -150,7 +150,7 @@ func deleteTopics(projectID string, topics []string) error {
 }
 
 func deleteSubscription(w io.Writer, projectID, subID string) error {
-	ctx := t.Context()
+	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("pubsub.NewClient: %v", err)
@@ -166,7 +166,7 @@ func deleteSubscription(w io.Writer, projectID, subID string) error {
 }
 
 func deleteTopic(w io.Writer, projectID, topicID string) error {
-	ctx := t.Context()
+	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("pubsub.NewClient: %v", err)

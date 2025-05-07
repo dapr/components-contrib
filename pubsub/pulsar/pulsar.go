@@ -94,6 +94,11 @@ const (
 
 	processModeAsync = "async"
 	processModeSync  = "sync"
+
+	subscribeInitialPosition = "subscribeInitialPosition"
+
+	subscribePositionEarliest = "earliest"
+	subscribePositionLatest   = "latest"
 )
 
 type ProcessMode string
@@ -142,6 +147,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m.SubscriptionType, err = parseSubscriptionType(meta.Properties[subscribeTypeKey])
 	if err != nil {
 		return nil, errors.New("invalid subscription type. Accepted values are `exclusive`, `shared`, `failover` and `key_shared`")
+	}
+
+	m.SubscriptionInitialPosition, err = parseSubscriptionPosition(meta.Properties[subscribeInitialPosition])
+	if err != nil {
+		return nil, errors.New("invalid subscription initial position. Accepted values are `latest` and `earliest`")
 	}
 
 	for k, v := range meta.Properties {
@@ -421,6 +431,30 @@ func getSubscribeType(subsTypeStr string) pulsar.SubscriptionType {
 	return subsType
 }
 
+func parseSubscriptionPosition(in string) (string, error) {
+	subsPosition := strings.ToLower(in)
+	switch subsPosition {
+	case subscribePositionEarliest, subscribePositionLatest:
+		return subsPosition, nil
+	case "":
+		return subscribePositionLatest, nil
+	default:
+		return "", fmt.Errorf("invalid subscription initial position: %s", subsPosition)
+	}
+}
+
+func getSubscribePosition(subsPositionStr string) pulsar.SubscriptionInitialPosition {
+	var subsPosition pulsar.SubscriptionInitialPosition
+
+	switch subsPositionStr {
+	case subscribePositionEarliest:
+		subsPosition = pulsar.SubscriptionPositionEarliest
+	case subscribePositionLatest:
+		subsPosition = pulsar.SubscriptionPositionLatest
+	}
+	return subsPosition
+}
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -436,12 +470,13 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}
 
 	options := pulsar.ConsumerOptions{
-		Topic:               topic,
-		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                getSubscribeType(subscribeType),
-		MessageChannel:      channel,
-		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
-		ReceiverQueueSize:   p.metadata.ReceiverQueueSize,
+		Topic:                       topic,
+		SubscriptionName:            p.metadata.ConsumerID,
+		Type:                        getSubscribeType(subscribeType),
+		SubscriptionInitialPosition: getSubscribePosition(subscribeInitialPosition),
+		MessageChannel:              channel,
+		NackRedeliveryDelay:         p.metadata.RedeliveryDelay,
+		ReceiverQueueSize:           p.metadata.ReceiverQueueSize,
 	}
 
 	// Handle KeySharedPolicy for key_shared subscription type

@@ -15,9 +15,13 @@ binding:
 capabilities: []
 metadata:
   - name: schedule
-    required: true
-    description: "The cron schedule to use"
-    example: "@every 15m"
     type: string
-
-
+    required: true
+    description: |
+      The cron schedule to use. Supports standard cron format with optional seconds field.
+      Examples:
+      - "15 * * * * *" - Every 15 seconds
+      - "0 30 * * * *" - Every 30 minutes
+      - "@every 1h" - Every hour
+      - "0 0 * * *" - Daily at midnight
+    example: "@every 15m"

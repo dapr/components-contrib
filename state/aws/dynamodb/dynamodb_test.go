@@ -492,7 +492,7 @@ func TestSet(t *testing.T) {
 			Key:   "key",
 			Value: []byte("value"),
 		}
-		err := s.Set(context.Background(), req)
+		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 

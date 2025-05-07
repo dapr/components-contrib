@@ -165,7 +165,7 @@ metadata:
   - name: failover
     required: false
     description: |
-      Property to enabled failover configuration. Needs sentinalMasterName to be set. Defaults to "false"
+      Property to enabled failover configuration. Needs sentinelMasterName to be set. Defaults to "false"
     example: "false"
     type: bool
   - name: sentinelMasterName
@@ -175,9 +175,19 @@ metadata:
     type: string
   - name: maxLenApprox
     required: false
-    description: Maximum number of items inside a stream.The old entries are automatically evicted when the specified length is reached, so that the stream is left at a constant size. Defaults to unlimited.
+    description: Maximum number of items inside a stream. The old entries are automatically evicted when the specified length is reached, so that the stream is left at a constant size. Defaults to unlimited.
     example: "10000"
     type: number
+  - name: streamTTL
+    required: false
+    description: |
+      TTL duration for stream entries. Entries older than this duration will be evicted.
+      This is an approximate value, as it's implemented using Redis stream's MINID trimming with the '~' modifier.
+      The actual retention may include slightly more entries than strictly defined by the TTL,
+      as Redis optimizes the trimming operation for efficiency by potentially keeping some additional entries.
+    example: "30d"
+    type: duration
+
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:

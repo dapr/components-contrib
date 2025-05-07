@@ -1,7 +1,6 @@
-version: '2'
 services:
   emqx:
-    image: emqx/emqx:4.2.7
+    image: emqx/emqx:4.4.19
     hostname: emqx
     container_name: emqx
     ports:

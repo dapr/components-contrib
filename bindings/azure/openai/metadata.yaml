@@ -26,9 +26,9 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "API Key"
-        example: '"1234567890abcdef"'
+        example: "1234567890abcdef"
 metadata:
   - name: endpoint
     required: true
     description: "Endpoint of the Azure OpenAI service"
-    example: '"https://myopenai.openai.azure.com"'
+    example: "https://myopenai.openai.azure.com"

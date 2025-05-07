@@ -12,21 +12,48 @@ binding:
   output: true
   operations:
     - name: create
-      description: "Create a new subscription"
+      description: "Publish a message to an SNS topic"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "aws"
 metadata:
   - name: topicArn
+    type: string
     required: true
     description: |
-      The SNS topic name.
-    example: '"arn:::topicarn"'
+      The Amazon Resource Name (ARN) of the SNS topic to publish to.
+    example: "arn:aws:sns:us-west-2:123456789012:mytopic"
+  - name: region
+    required: true
+    description: |
+      The specific AWS region where the SNS topic is located.
+    example: "us-west-2"
     type: string
   - name: endpoint
     required: false
     description: |
       AWS endpoint for the component to use, to connect to SNS-compatible services or emulators.
       Do not use this when running against production AWS.
-    example: '"http://localhost:4566"'
+    example: "sns.us-west-2.amazonaws.com"
     type: string
+  - name: accessKey
+    type: string
+    required: true
+    sensitive: true
+    description: |
+      The AWS access key to access the SNS topic. Required unless using IAM roles on EKS.
+    example: "AKIAIOSFODNN7EXAMPLE"
+  - name: secretKey
+    type: string
+    required: true
+    sensitive: true
+    description: |
+      The AWS secret key to access the SNS topic. Required unless using IAM roles on EKS.
+    example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  - name: sessionToken
+    type: string
+    required: false
+    sensitive: true
+    description: |
+      The AWS session token to use for temporary credentials.
+    example: "AQoDYXdzEJr..."

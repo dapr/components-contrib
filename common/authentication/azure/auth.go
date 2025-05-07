@@ -139,6 +139,17 @@ func (s EnvironmentSettings) addWorkloadIdentityProvider(creds *[]azcore.TokenCr
 	}
 }
 
+func (s EnvironmentSettings) addSpiffeWorkloadIdentityProvider(creds *[]azcore.TokenCredential, errs *[]error) {
+	if c, e := s.GetSpiffeWorkloadIdentity(); e == nil {
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			*creds = append(*creds, cred)
+		} else {
+			*errs = append(*errs, err)
+		}
+	}
+}
+
 func (s EnvironmentSettings) addManagedIdentityProvider(timeout time.Duration, creds *[]azcore.TokenCredential, errs *[]error) {
 	c := s.GetMSI()
 	msiCred, err := c.GetTokenCredential()
@@ -172,6 +183,8 @@ func (s EnvironmentSettings) addProviderByAuthMethodName(authMethod string, cred
 		s.addClientCertificateProvider(creds, errs)
 	case "workloadidentity", "wi":
 		s.addWorkloadIdentityProvider(creds, errs)
+	case "spiffeworkloadidentity", "spiffe":
+		s.addSpiffeWorkloadIdentityProvider(creds, errs)
 	case "managedidentity", "mi":
 		s.addManagedIdentityProvider(1*time.Second, creds, errs)
 	case "commandlineinterface", "cli":
@@ -180,13 +193,13 @@ func (s EnvironmentSettings) addProviderByAuthMethodName(authMethod string, cred
 }
 
 func getAzureAuthMethods() []string {
-	return []string{"clientcredentials", "creds", "clientcertificate", "cert", "workloadidentity", "wi", "managedidentity", "mi", "commandlineinterface", "cli", "none"}
+	return []string{"clientcredentials", "creds", "clientcertificate", "cert", "workloadidentity", "wi", "spiffeworkloadidentity", "spiffe", "managedidentity", "mi", "commandlineinterface", "cli", "none"}
 }
 
 // GetTokenCredential returns an azcore.TokenCredential retrieved from the order specified via
 // the azureAuthMethods component metadata property which denotes a comma-separated list of auth methods to try in order.
 // The possible values contained are (case-insensitive):
-// ServicePrincipal, Certificate, WorkloadIdentity, ManagedIdentity, CLI
+// ServicePrincipal, Certificate, WorkloadIdentity, SPIFFEWorkloadIdentity, ManagedIdentity, CLI
 // The string "None" can be used to disable Azure authentication.
 //
 // If the azureAuthMethods property is not present, the following order is used (which with the exception of step 5
@@ -194,8 +207,9 @@ func getAzureAuthMethods() []string {
 // 1. Client credentials
 // 2. Client certificate
 // 3. Workload identity
-// 4. MSI (we use a timeout of 1 second when no compatible managed identity implementation is available)
-// 5. Azure CLI
+// 4. SPIFFE workload identity
+// 5. MSI (we use a timeout of 1 second when no compatible managed identity implementation is available)
+// 6. Azure CLI
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
@@ -212,10 +226,13 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		// 3. Workload identity
 		s.addWorkloadIdentityProvider(&creds, &errs)
 
-		// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
+		// 4. SPIFFE workload identity
+		s.addSpiffeWorkloadIdentityProvider(&creds, &errs)
+
+		// 5. MSI with timeout of 1 second (same as DefaultAzureCredential)
 		s.addManagedIdentityProvider(1*time.Second, &creds, &errs)
 
-		// 5. AzureCLICredential
+		// 6. AzureCLICredential
 		// We omit this if running in a cloud environment
 		if !isCloudServiceWithManagedIdentity() {
 			s.addCLIProvider(30*time.Second, &creds, &errs)

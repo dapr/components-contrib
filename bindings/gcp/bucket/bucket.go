@@ -417,32 +417,36 @@ type bulkGetPayload struct {
 }
 
 func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := g.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("gcp binding error while merging metadata : %w", err)
+	}
+
 	var payload bulkGetPayload
-	err := json.Unmarshal(req.Data, &payload)
+	err = json.Unmarshal(req.Data, &payload)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while unmarshalling bulk get payload: %w", err)
 	}
 
 	if payload.DestinationPath == "" {
-		return nil, errors.New("gcp bucket binding error: required metadata 'destinationPath' missing")
+		return nil, errors.New("gcp bucket binding error: required request payload property 'destinationPath' missing")
 	}
 
-	var allObjs []storage.ObjectAttrs
+	var allObjs []*storage.ObjectAttrs
 	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, nil)
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
 			break
 		}
-		allObjs = append(allObjs, *attrs)
+		allObjs = append(allObjs, attrs)
 	}
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(allObjs))
-
 	for _, obj := range allObjs {
 		wg.Add(1)
-		go func(object storage.ObjectAttrs) {
+		go func(object *storage.ObjectAttrs) {
 			defer wg.Done()
 			destPath := filepath.Join(payload.DestinationPath, object.Name)
 			if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
@@ -464,7 +468,18 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 			}
 			defer rc.Close()
 
-			if _, err := io.Copy(f, rc); err != nil {
+			data, err := io.ReadAll(rc)
+			if err != nil {
+				errCh <- err
+				return
+			}
+
+			if metadata.EncodeBase64 {
+				encoded := b64.StdEncoding.EncodeToString(data)
+				data = []byte(encoded)
+			}
+
+			if err := os.WriteFile(destPath, data, 0o644); err != nil {
 				errCh <- err
 				return
 			}

@@ -275,6 +275,6 @@ func TestBulkGetOption(t *testing.T) {
 		}
 		_, err := gs.bulkGet(t.Context(), &r)
 		require.Error(t, err)
-		assert.Equal(t, "gcp bucket binding error: required metadata 'destinationPath' missing", err.Error())
+		assert.Equal(t, "gcp bucket binding error: required request payload property 'destinationPath' missing", err.Error())
 	})
 }

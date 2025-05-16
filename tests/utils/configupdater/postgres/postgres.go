@@ -15,7 +15,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 type ConfigUpdater struct {
@@ -92,8 +92,8 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 
 	md := pgauth.PostgresAuthMetadata{
 		ConnectionString: connString,
-		UseAzureAD:       utils.IsTruthy(useAzureAd),
-		UseAWSIAM:        utils.IsTruthy(useAwsIam),
+		UseAzureAD:       kitstrings.IsTruthy(useAzureAd),
+		UseAWSIAM:        kitstrings.IsTruthy(useAwsIam),
 	}
 	err := md.InitWithMetadata(props, pgauth.InitWithMetadataOpts{AzureADEnabled: true, AWSIAMEnabled: true})
 	if err != nil {

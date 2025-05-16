@@ -397,6 +397,7 @@ func TestMetadataProducerValues(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
 		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+		require.Equal(t, sarama.CompressionNone, meta.internalCompression)
 	})
 
 	t.Run("setting producer values explicitly", func(t *testing.T) {
@@ -404,11 +405,13 @@ func TestMetadataProducerValues(t *testing.T) {
 		m := getCompleteMetadata()
 		m[clientConnectionTopicMetadataRefreshInterval] = "3m0s"
 		m[clientConnectionKeepAliveInterval] = "4m0s"
+		m[compression] = "gzip"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
 		require.Equal(t, 3*time.Minute, meta.ClientConnectionTopicMetadataRefreshInterval)
 		require.Equal(t, 4*time.Minute, meta.ClientConnectionKeepAliveInterval)
+		require.Equal(t, sarama.CompressionGZIP, meta.internalCompression)
 	})
 
 	t.Run("setting producer invalid values so defaults take over", func(t *testing.T) {
@@ -421,6 +424,17 @@ func TestMetadataProducerValues(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, defaultClientConnectionTopicMetadataRefreshInterval, meta.ClientConnectionTopicMetadataRefreshInterval)
 		require.Equal(t, defaultClientConnectionKeepAliveInterval, meta.ClientConnectionKeepAliveInterval)
+	})
+
+	t.Run("setting producer invalid compression value", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m[compression] = "invalid"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid compression: invalid", err.Error())
 	})
 }
 

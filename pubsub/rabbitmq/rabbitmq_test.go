@@ -461,10 +461,11 @@ func createAMQPMessage(body []byte) amqp.Delivery {
 }
 
 type rabbitMQInMemoryBroker struct {
-	buffer         chan amqp.Delivery
-	declaredQueues []string
-	connectCount   atomic.Int32
-	closeCount     atomic.Int32
+	buffer          chan amqp.Delivery
+	declaredQueues  []string
+	connectCount    atomic.Int32
+	closeCount      atomic.Int32
+	lastMsgMetadata *amqp.Publishing // Add this field to capture the last message metadata
 }
 
 func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
@@ -482,7 +483,17 @@ func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx conte
 		return nil, errors.New(errorChannelConnection)
 	}
 
-	r.buffer <- createAMQPMessage(msg.Body)
+	// Store the last message metadata for inspection in tests
+	r.lastMsgMetadata = &msg
+
+	// Use a non-blocking send or a separate goroutine to prevent deadlock
+	// when there's no consumer reading from the buffer
+	select {
+	case r.buffer <- createAMQPMessage(msg.Body):
+		// Message sent successfully
+	default:
+		// Buffer is full or there's no consumer, but we don't want to block
+	}
 
 	return nil, nil
 }
@@ -524,4 +535,77 @@ func (r *rabbitMQInMemoryBroker) Close() error {
 
 func (r *rabbitMQInMemoryBroker) IsClosed() bool {
 	return r.connectCount.Load() <= r.closeCount.Load()
+}
+
+// TestPublishMetadataProperties tests that message metadata properties are correctly passed to the broker
+func TestPublishMetadataProperties(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}
+	err := pubsubRabbitMQ.Init(t.Context(), metadata)
+	require.NoError(t, err)
+
+	topic := "metadatatest"
+
+	// Create a consumer for the test to prevent channel deadlock
+	messageHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	}
+	err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topic}, messageHandler)
+	require.NoError(t, err)
+
+	// Test messageID
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{
+		Topic: topic,
+		Data:  []byte("test message"),
+		Metadata: map[string]string{
+			"messageID": "msg-123",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "msg-123", broker.lastMsgMetadata.MessageId)
+
+	// Test correlationID
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{
+		Topic: topic,
+		Data:  []byte("test message"),
+		Metadata: map[string]string{
+			"correlationID": "corr-456",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "corr-456", broker.lastMsgMetadata.CorrelationId)
+
+	// Test Type
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{
+		Topic: topic,
+		Data:  []byte("test message"),
+		Metadata: map[string]string{
+			"type": "mytype",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "mytype", broker.lastMsgMetadata.Type)
+
+	// Test all properties together
+	err = pubsubRabbitMQ.Publish(t.Context(), &pubsub.PublishRequest{
+		Topic: topic,
+		Data:  []byte("test message"),
+		Metadata: map[string]string{
+			"messageID":     "msg-789",
+			"correlationID": "corr-789",
+			"type":          "complete-type",
+			"contentType":   "application/json",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "msg-789", broker.lastMsgMetadata.MessageId)
+	assert.Equal(t, "corr-789", broker.lastMsgMetadata.CorrelationId)
+	assert.Equal(t, "complete-type", broker.lastMsgMetadata.Type)
+	assert.Equal(t, "application/json", broker.lastMsgMetadata.ContentType)
 }

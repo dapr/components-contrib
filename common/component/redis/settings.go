@@ -102,6 +102,9 @@ type Settings struct {
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
 
+	// The TTL of stream entries
+	StreamTTL time.Duration `mapstructure:"streamTTL" mdonly:"pubsub"`
+
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
@@ -125,6 +128,15 @@ func (s *Settings) SetCertificate(fn func(cert *tls.Certificate)) error {
 	}
 	fn(&cert)
 	return nil
+}
+
+func (s *Settings) GetMinID(now time.Time) string {
+	// If StreamTTL is not set, return empty string (no trimming)
+	if s.StreamTTL == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d-1", now.Add(-s.StreamTTL).UnixMilli())
 }
 
 type Duration time.Duration

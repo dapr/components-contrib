@@ -479,7 +479,7 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 				data = []byte(encoded)
 			}
 
-			if err := os.WriteFile(destPath, data, 0600); err != nil {
+			if err := os.WriteFile(destPath, data, 0o644); err != nil {
 				errCh <- err
 				return
 			}

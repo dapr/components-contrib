@@ -430,8 +430,8 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 	var allObjs []*storage.ObjectAttrs
 	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, nil)
 	for {
-		attrs, err := it.Next()
-		if err == iterator.Done {
+		attrs, err2 := it.Next()
+		if err2 == iterator.Done {
 			break
 		}
 		allObjs = append(allObjs, attrs)
@@ -446,16 +446,16 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 		go func(idx int, object *storage.ObjectAttrs) {
 			defer wg.Done()
 
-			rc, err := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
-			if err != nil {
-				errCh <- err
+			rc, err3 := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
+			if err3 != nil {
+				errCh <- err3
 				return
 			}
 			defer rc.Close()
 
-			data, err := io.ReadAll(rc)
-			if err != nil {
-				errCh <- err
+			data, readErr := io.ReadAll(rc)
+			if readErr != nil {
+				errCh <- readErr
 				return
 			}
 

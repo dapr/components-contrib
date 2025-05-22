@@ -32,6 +32,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"go.uber.org/multierr"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -490,10 +491,13 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 	wg.Wait()
 	close(errCh)
 
+	var multiErr error
 	for err := range errCh {
-		if err != nil {
-			return nil, err
-		}
+		multierr.AppendInto(&multiErr, err)
+	}
+
+	if multiErr != nil {
+		return nil, multiErr
 	}
 
 	return &bindings.InvokeResponse{}, nil

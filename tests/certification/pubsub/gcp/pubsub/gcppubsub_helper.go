@@ -39,19 +39,18 @@ type DataMessage struct {
 
 type MessageFunc func(*DataMessage) error
 
-func NewTopicManager(projectID string) (*topicManager, error) {
+func NewTopicManager(ctx context.Context, projectID string) (*topicManager, error) {
 	tpm := &topicManager{
 		projectID: projectID,
 	}
-	err := tpm.connect()
+	err := tpm.connect(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return tpm, nil
 }
 
-func (tm *topicManager) connect() error {
-	ctx := t.Context()
+func (tm *topicManager) connect(ctx context.Context) error {
 	client, err := pubsub.NewClient(ctx, tm.projectID)
 	if err != nil {
 		return fmt.Errorf("GCP pubsub.NewClient failed to connect: %v", err)
@@ -65,9 +64,8 @@ func (tm *topicManager) disconnect() error {
 	return tm.gcpClient.Close()
 }
 
-func (tp *topicManager) GetMessages(topicID string, msgTimeout time.Duration, subID string, fn MessageFunc) (int, error) {
-	ctx := t.Context()
-
+func (tp *topicManager) GetMessages(ctx context.Context, topicID string, msgTimeout time.Duration, subID string,
+	fn MessageFunc) (int, error) {
 	topic := tp.gcpClient.Topic(topicID)
 	cfg := &pubsub.SubscriptionConfig{
 		Topic: topic,
@@ -133,24 +131,23 @@ func getOrCreateSub(ctx context.Context, client *pubsub.Client, subID string, cf
 	return sub, nil
 }
 
-func deleteSubscriptions(projectID string, subs []string) error {
+func deleteSubscriptions(ctx context.Context, projectID string, subs []string) error {
 	for _, s := range subs {
 		fmt.Printf("Deleting subscription: %s\n", s)
-		deleteSubscription(os.Stdout, projectID, s)
+		deleteSubscription(ctx, os.Stdout, projectID, s)
 	}
 	return nil
 }
 
-func deleteTopics(projectID string, topics []string) error {
+func deleteTopics(ctx context.Context, projectID string, topics []string) error {
 	for _, t := range topics {
 		fmt.Printf("Deleting topics: %s\n", t)
-		deleteTopic(os.Stdout, projectID, t)
+		deleteTopic(ctx, os.Stdout, projectID, t)
 	}
 	return nil
 }
 
-func deleteSubscription(w io.Writer, projectID, subID string) error {
-	ctx := t.Context()
+func deleteSubscription(ctx context.Context, w io.Writer, projectID, subID string) error {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("pubsub.NewClient: %v", err)
@@ -165,8 +162,7 @@ func deleteSubscription(w io.Writer, projectID, subID string) error {
 	return nil
 }
 
-func deleteTopic(w io.Writer, projectID, topicID string) error {
-	ctx := t.Context()
+func deleteTopic(ctx context.Context, w io.Writer, projectID, topicID string) error {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("pubsub.NewClient: %v", err)

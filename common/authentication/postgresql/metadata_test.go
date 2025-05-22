@@ -155,7 +155,7 @@ func TestDSNBuildConnectionStringOnlyWithMetadata(t *testing.T) {
 	parts := strings.Split(actual, " ")
 	for _, part := range parts {
 		kv := strings.Split(part, "=")
-		require.Equal(t, 2, len(kv))
+		require.Len(t, kv, 2)
 		switch kv[0] {
 		case "host":
 			require.Equal(t, "localhost", kv[1])

@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sns/snsiface"
@@ -164,22 +163,8 @@ func sqsService() *sqs.SQS {
 
 func getIdentity(svc stsiface.STSAPI) (*sts.GetCallerIdentityOutput, error) {
 	input := &sts.GetCallerIdentityInput{}
-	result, err := svc.GetCallerIdentity(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				return nil, fmt.Errorf(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			return nil, fmt.Errorf(aerr.Error())
-		}
-		return nil, err
-	}
 
-	return result, nil
+	return svc.GetCallerIdentity(input)
 }
 
 func buildARN(partition, serviceName, entityName, region string, id *sts.GetCallerIdentityOutput) string {

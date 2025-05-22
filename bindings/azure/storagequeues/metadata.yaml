@@ -69,7 +69,7 @@ metadata:
     default: 'false'
     binding:
       output: true
-      input: false
+      input: false  
   - name: "encodeBase64"
     type: bool
     description: |
@@ -88,4 +88,13 @@ metadata:
     binding:
       output: false
       input: true
+  - name: "initialVisibilityDelay"
+    type: duration
+    description: |
+      Sets a delay before a message becomes visible in the queue after being added.
+      It can also be specified per message by setting the `initialVisibilityDelay` property in the invocation request's metadata.
+    example: '30s'
+    binding:
+      output: true
+      input: false
 

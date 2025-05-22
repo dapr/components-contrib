@@ -23,8 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"sync"
@@ -413,8 +411,10 @@ func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
 	return u, nil
 }
 
-type bulkGetPayload struct {
-	DestinationPath string `json:"destinationPath"`
+type objectData struct {
+	Name  string              `json:"name"`
+	Data  []byte              `json:"data"`
+	Attrs storage.ObjectAttrs `json:"attrs"`
 }
 
 func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -423,14 +423,8 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 		return nil, fmt.Errorf("gcp binding error while merging metadata : %w", err)
 	}
 
-	var payload bulkGetPayload
-	err = json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, fmt.Errorf("gcp bucket binding error while unmarshalling bulk get payload: %w", err)
-	}
-
-	if payload.DestinationPath == "" {
-		return nil, errors.New("gcp bucket binding error: required request payload property 'destinationPath' missing")
+	if g.metadata.Bucket == "" {
+		return nil, errors.New("gcp bucket binding error: bucket is required")
 	}
 
 	var allObjs []*storage.ObjectAttrs
@@ -444,23 +438,13 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 	}
 
 	var wg sync.WaitGroup
+	objectsCh := make(chan objectData, len(allObjs))
 	errCh := make(chan error, len(allObjs))
-	for _, obj := range allObjs {
-		wg.Add(1)
-		go func(object *storage.ObjectAttrs) {
-			defer wg.Done()
-			destPath := filepath.Join(payload.DestinationPath, object.Name)
-			if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
-				errCh <- err
-				return
-			}
 
-			f, err := os.Create(destPath)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			defer f.Close()
+	for i, obj := range allObjs {
+		wg.Add(1)
+		go func(idx int, object *storage.ObjectAttrs) {
+			defer wg.Done()
 
 			rc, err := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
 			if err != nil {
@@ -480,12 +464,12 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 				data = []byte(encoded)
 			}
 
-			//nolint:gosec
-			if err := os.WriteFile(destPath, data, 0o644); err != nil {
-				errCh <- err
-				return
+			objectsCh <- objectData{
+				Name:  object.Name,
+				Data:  data,
+				Attrs: *object,
 			}
-		}(obj)
+		}(i, obj)
 	}
 
 	wg.Wait()
@@ -500,5 +484,17 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 		return nil, multiErr
 	}
 
-	return &bindings.InvokeResponse{}, nil
+	response := make([]objectData, 0, len(allObjs))
+	for obj := range objectsCh {
+		response = append(response, obj)
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while marshalling bulk get response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
 }

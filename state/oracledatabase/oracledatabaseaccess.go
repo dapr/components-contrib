@@ -22,17 +22,16 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/metadata"
 
-	// Blank import for the underlying Oracle Database driver.
-	_ "github.com/sijms/go-ora/v2"
+	"github.com/google/uuid"
+	goora "github.com/sijms/go-ora/v2"
 )
 
 const (
@@ -78,23 +77,26 @@ func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := parseMetadata(metadata.Properties)
-	o.metadata = meta
 	if err != nil {
 		return err
 	}
-	if o.metadata.ConnectionString != "" {
-		o.connectionString = meta.ConnectionString
-	} else {
+
+	o.metadata = meta
+
+	if o.metadata.ConnectionString == "" {
 		o.logger.Error("Missing Oracle Database connection string")
 		return errors.New(errMissingConnectionString)
 	}
-	if o.metadata.OracleWalletLocation != "" {
-		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(o.metadata.OracleWalletLocation)
+
+	o.connectionString, err = parseConnectionString(meta)
+	if err != nil {
+		o.logger.Error(err)
+		return err
 	}
+
 	db, err := sql.Open("oracle", o.connectionString)
 	if err != nil {
 		o.logger.Error(err)
-
 		return err
 	}
 
@@ -105,12 +107,62 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		return err
 	}
 
-	err = o.ensureStateTable(o.metadata.TableName)
+	return o.ensureStateTable(o.metadata.TableName)
+}
+
+func parseConnectionString(meta oracleDatabaseMetadata) (string, error) {
+	username := ""
+	password := ""
+	host := ""
+	port := 0
+	serviceName := ""
+	query := url.Values{}
+	options := make(map[string]string)
+
+	connectionStringURL, err := url.Parse(meta.ConnectionString)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	isURL := connectionStringURL.Scheme != "" && connectionStringURL.Host != ""
+	if isURL {
+		username = connectionStringURL.User.Username()
+		password, _ = connectionStringURL.User.Password()
+		query = connectionStringURL.Query()
+		serviceName = strings.TrimPrefix(connectionStringURL.Path, "/")
+		if strings.Contains(connectionStringURL.Host, ":") {
+			host = strings.Split(connectionStringURL.Host, ":")[0]
+		} else {
+			host = connectionStringURL.Host
+		}
+	} else {
+		host = connectionStringURL.Path
+	}
+
+	if connectionStringURL.Port() != "" {
+		port, err = strconv.Atoi(connectionStringURL.Port())
+		if err != nil {
+			return "", err
+		}
+	}
+
+	for k, v := range query {
+		options[k] = v[0]
+	}
+
+	if meta.OracleWalletLocation != "" {
+		options["WALLET"] = meta.OracleWalletLocation
+		options["TRACE FILE"] = "trace.log"
+		options["SSL"] = "enable"
+		options["SSL Verify"] = "false"
+	}
+
+	if strings.Contains(host, "(DESCRIPTION") {
+		// the connection string is a URL that contains the descriptor and authentication info
+		return goora.BuildJDBC(username, password, host, options), nil
+	} else {
+		return goora.BuildUrl(host, port, serviceName, username, password, options), nil
+	}
 }
 
 // Set makes an insert or update to the database.
@@ -170,7 +222,7 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		if req.Options.Concurrency == state.FirstWrite {
 			stmt = `INSERT INTO ` + o.metadata.TableName + `
 				(key, value, binary_yn, etag, expiration_time)
-			VALUES 
+			VALUES
 				(:key, :value, :binary_yn, :etag, ` + ttlStatement + `) `
 		} else {
 			// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
@@ -258,6 +310,120 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 		ETag:     &etag,
 		Metadata: metadata,
 	}, nil
+}
+
+func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Oracle supports the IN operator for bulk operations
+	// Build the IN clause with bind variables
+	// Oracle uses :1, :2, etc. for bind variables in the IN clause
+	params := make([]any, len(req))
+	bindVars := make([]string, len(req))
+	for i, r := range req {
+		if r.Key == "" {
+			return nil, errors.New("missing key in bulk get operation")
+		}
+		params[i] = r.Key
+		bindVars[i] = ":" + strconv.Itoa(i+1)
+	}
+
+	inClause := strings.Join(bindVars, ",")
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	//nolint:gosec
+	query := "SELECT key, value, binary_yn, etag, expiration_time FROM " + o.metadata.TableName + " WHERE key IN (" + inClause + ") AND (expiration_time IS NULL OR expiration_time > systimestamp)"
+
+	rows, err := o.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var n int
+	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
+
+	for rows.Next() {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
+		var (
+			key        string
+			value      string
+			binaryYN   string
+			etag       string
+			expireTime sql.NullTime
+		)
+
+		err = rows.Scan(&key, &value, &binaryYN, &etag, &expireTime)
+		if err != nil {
+			res[n] = state.BulkGetResponse{
+				Key:   key,
+				Error: err.Error(),
+			}
+		} else {
+			response := state.BulkGetResponse{
+				Key:  key,
+				ETag: &etag,
+			}
+
+			if expireTime.Valid {
+				response.Metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: expireTime.Time.UTC().Format(time.RFC3339),
+				}
+			}
+
+			if binaryYN == "Y" {
+				var (
+					s    string
+					data []byte
+				)
+				if err = json.Unmarshal([]byte(value), &s); err != nil {
+					return nil, err
+				}
+				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+					return nil, err
+				}
+				response.Data = data
+			} else {
+				response.Data = []byte(value)
+			}
+
+			res[n] = response
+		}
+
+		foundKeys[key] = struct{}{}
+		n++
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
+	}
+
+	return res[:n], nil
 }
 
 // Delete removes an item from the state store.

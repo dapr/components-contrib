@@ -17,3 +17,9 @@ metadata:
       The Secrets manager endpoint. The AWS SDK will generate a default endpoint if not specified. Useful for local testing with AWS LocalStack
     example: '"http://localhost:4566"'
     type: string
+  - name: multipleKeyValuesPerSecret
+    required: false
+    description: |
+      A boolean value to indicate if the secrets with multiple key/values should break keys out.
+    example: "true"
+    type: bool

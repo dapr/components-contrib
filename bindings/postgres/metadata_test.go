@@ -34,7 +34,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("has connection string", func(t *testing.T) {
 		m := psqlMetadata{}
 		props := map[string]string{
-			"connectionString": "foo",
+			"connectionString": "foo=bar",
 		}
 
 		err := m.InitWithMetadata(props)
@@ -44,7 +44,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("default timeout", func(t *testing.T) {
 		m := psqlMetadata{}
 		props := map[string]string{
-			"connectionString": "foo",
+			"connectionString": "foo=bar",
 		}
 
 		err := m.InitWithMetadata(props)
@@ -55,7 +55,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("invalid timeout", func(t *testing.T) {
 		m := psqlMetadata{}
 		props := map[string]string{
-			"connectionString": "foo",
+			"connectionString": "foo=bar",
 			"timeout":          "NaN",
 		}
 
@@ -66,7 +66,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("positive timeout", func(t *testing.T) {
 		m := psqlMetadata{}
 		props := map[string]string{
-			"connectionString": "foo",
+			"connectionString": "foo=bar",
 			"timeout":          "42",
 		}
 
@@ -78,7 +78,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("zero timeout", func(t *testing.T) {
 		m := psqlMetadata{}
 		props := map[string]string{
-			"connectionString": "foo",
+			"connectionString": "foo=bar",
 			"timeout":          "0",
 		}
 

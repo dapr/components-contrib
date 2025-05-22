@@ -40,7 +40,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -455,11 +455,11 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 	merged := metadata
 
 	if val, ok := req.Metadata[metadataDecodeBase64]; ok && val != "" {
-		merged.DecodeBase64 = utils.IsTruthy(val)
+		merged.DecodeBase64 = kitstrings.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
-		merged.EncodeBase64 = utils.IsTruthy(val)
+		merged.EncodeBase64 = kitstrings.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataFilePath]; ok && val != "" {

@@ -34,7 +34,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	"github.com/dapr/kit/strings"
 )
 
 const (
@@ -313,7 +313,7 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 	}
 
 	if val, ok := meta.Properties[externalSasl]; ok && val != "" {
-		m.ExternalSasl = utils.IsTruthy(val)
+		m.ExternalSasl = strings.IsTruthy(val)
 	}
 
 	if val, ok := meta.Properties[caCert]; ok && val != "" {
@@ -336,7 +336,7 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 	}
 
 	if val, ok := meta.Properties[externalSasl]; ok && val != "" {
-		m.ExternalSasl = utils.IsTruthy(val)
+		m.ExternalSasl = strings.IsTruthy(val)
 	}
 
 	ttl, ok, err := metadata.TryGetTTL(meta.Properties)

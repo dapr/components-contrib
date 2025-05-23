@@ -53,13 +53,13 @@ func (a *AuthStatic) AuthTest() bool {
 func (a *AuthStatic) GetAWSCredentialsProvider() aws.CredentialsProvider {
 	switch {
 	case a.accessKey == nil:
-		a.logger.Error("accessKey is nil")
+		a.logger.Debug("accessKey is nil")
 		return nil
 	case a.secretKey == nil:
-		a.logger.Error("secretKey is nil")
+		a.logger.Debug("secretKey is nil")
 		return nil
 	case a.sessionToken == nil:
-		a.logger.Error("sessionToken is nil")
+		a.logger.Debug("sessionToken is nil")
 		return nil
 	}
 

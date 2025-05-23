@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -603,22 +602,12 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqsTypes.Message, que
 func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLettersQueueInfo *sqsQueueInfo) {
 	sqsPullExponentialBackoff := s.backOffConfig.NewBackOffWithContext(ctx)
 
-	// Check for overflows
-	switch {
-	case s.metadata.MessageMaxNumber >= math.MinInt32 && s.metadata.MessageMaxNumber <= math.MaxInt32:
-		s.logger.Errorf("messageMaxNumber is out of range. It should be between %d and %d", math.MinInt32, math.MaxInt32)
-	case s.metadata.MessageVisibilityTimeout >= math.MinInt32 && s.metadata.MessageVisibilityTimeout <= math.MaxInt32:
-		s.logger.Errorf("messageVisibilityTimeout is out of range. It should be between %d and %d", math.MinInt32, math.MaxInt32)
-	case s.metadata.MessageWaitTimeSeconds >= math.MinInt32 && s.metadata.MessageWaitTimeSeconds <= math.MaxInt32:
-		s.logger.Errorf("messageWaitTimeSeconds is out of range. It should be between %d and %d", math.MinInt32, math.MaxInt32)
-	}
-
 	receiveMessageInput := &sqs.ReceiveMessageInput{
 		AttributeNames:      []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameAll},
-		MaxNumberOfMessages: int32(s.metadata.MessageMaxNumber),
+		MaxNumberOfMessages: s.metadata.MessageMaxNumber,
 		QueueUrl:            aws.String(queueInfo.url),
-		VisibilityTimeout:   int32(s.metadata.MessageVisibilityTimeout),
-		WaitTimeSeconds:     int32(s.metadata.MessageWaitTimeSeconds),
+		VisibilityTimeout:   s.metadata.MessageVisibilityTimeout,
+		WaitTimeSeconds:     s.metadata.MessageWaitTimeSeconds,
 	}
 
 	// sem is a semaphore used to control the concurrencyLimit.

@@ -205,7 +205,7 @@ metadata:
   - name: subscribeMode
     type: string
     description: |
-      Subscription mode indicates the cursor belongs to "durable" type or "non_durable" type.
+      Subscription mode indicates the cursor belongs to "durable" type or "non_durable" type, durable subscription retains messages and persists the current position. 
     default: '"durable"'
     example: '"durable"'
     url: 

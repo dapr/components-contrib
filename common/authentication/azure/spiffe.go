@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	//nolint:gosec
 	AzureADTokenExchangeAudience = "api://AzureADTokenExchange"
 )
 
@@ -56,7 +57,7 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 	tokenProvider := func(ctx context.Context) (string, error) {
 		tknSource, ok := spiffecontext.JWTFrom(ctx)
 		if !ok {
-			return "", fmt.Errorf("failed to get JWT SVID source from context")
+			return "", errors.New("failed to get JWT SVID source from context")
 		}
 		jwt, err := tknSource.FetchJWTSVID(ctx, jwtsvid.Params{
 			Audience: AzureADTokenExchangeAudience,

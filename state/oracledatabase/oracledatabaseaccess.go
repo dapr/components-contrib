@@ -312,6 +312,120 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 	}, nil
 }
 
+func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Oracle supports the IN operator for bulk operations
+	// Build the IN clause with bind variables
+	// Oracle uses :1, :2, etc. for bind variables in the IN clause
+	params := make([]any, len(req))
+	bindVars := make([]string, len(req))
+	for i, r := range req {
+		if r.Key == "" {
+			return nil, errors.New("missing key in bulk get operation")
+		}
+		params[i] = r.Key
+		bindVars[i] = ":" + strconv.Itoa(i+1)
+	}
+
+	inClause := strings.Join(bindVars, ",")
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	//nolint:gosec
+	query := "SELECT key, value, binary_yn, etag, expiration_time FROM " + o.metadata.TableName + " WHERE key IN (" + inClause + ") AND (expiration_time IS NULL OR expiration_time > systimestamp)"
+
+	rows, err := o.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var n int
+	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
+
+	for rows.Next() {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
+		var (
+			key        string
+			value      string
+			binaryYN   string
+			etag       string
+			expireTime sql.NullTime
+		)
+
+		err = rows.Scan(&key, &value, &binaryYN, &etag, &expireTime)
+		if err != nil {
+			res[n] = state.BulkGetResponse{
+				Key:   key,
+				Error: err.Error(),
+			}
+		} else {
+			response := state.BulkGetResponse{
+				Key:  key,
+				ETag: &etag,
+			}
+
+			if expireTime.Valid {
+				response.Metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: expireTime.Time.UTC().Format(time.RFC3339),
+				}
+			}
+
+			if binaryYN == "Y" {
+				var (
+					s    string
+					data []byte
+				)
+				if err = json.Unmarshal([]byte(value), &s); err != nil {
+					return nil, err
+				}
+				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+					return nil, err
+				}
+				response.Data = data
+			} else {
+				response.Data = []byte(value)
+			}
+
+			res[n] = response
+		}
+
+		foundKeys[key] = struct{}{}
+		n++
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
+	}
+
+	return res[:n], nil
+}
+
 // Delete removes an item from the state store.
 func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return o.doDelete(ctx, o.db, req)

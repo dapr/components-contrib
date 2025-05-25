@@ -53,6 +53,24 @@ func TestParseMetadata(t *testing.T) {
 	})
 }
 
+func TestParseS3Tags(t *testing.T) {
+	t.Run("Has parsed s3 tags", func(t *testing.T) {
+		request := bindings.InvokeRequest{}
+		request.Metadata = map[string]string{
+			"decodeBase64": "yes",
+			"encodeBase64": "false",
+			"filePath":     "/usr/vader.darth",
+			"storageClass": "STANDARD_IA",
+			"tags":         "project=myproject,year=2024",
+		}
+		s3 := AWSS3{}
+		parsedTags, err := s3.parseS3Tags(request.Metadata["tags"])
+
+		require.NoError(t, err)
+		assert.Equal(t, "project=myproject&year=2024", *parsedTags)
+	})
+}
+
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		m := bindings.Metadata{}

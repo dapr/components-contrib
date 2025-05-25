@@ -27,7 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	"github.com/dapr/kit/strings"
 )
 
 // go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestGetRethinkDBMetadata$.
@@ -229,7 +229,7 @@ func testGetTestObj(t *testing.T, resp *state.GetResponse) *testObj {
 }
 
 func isLiveTest() bool {
-	return utils.IsTruthy(os.Getenv("RUN_LIVE_RETHINKDB_TEST"))
+	return strings.IsTruthy(os.Getenv("RUN_LIVE_RETHINKDB_TEST"))
 }
 
 func getTestMetadata() map[string]string {

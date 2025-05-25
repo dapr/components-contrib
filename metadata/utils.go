@@ -22,7 +22,7 @@ import (
 	"time"
 
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -253,10 +253,10 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		}
 
 		// If there's a mdignore tag and that's truthy, the field should be ignored by the metadata analyzer
-		mdField.Ignored = utils.IsTruthy(currentField.Tag.Get("mdignore"))
+		mdField.Ignored = kitstrings.IsTruthy(currentField.Tag.Get("mdignore"))
 
 		// If there's a "mddeprecated" tag, the field may be deprecated
-		mdField.Deprecated = utils.IsTruthy(currentField.Tag.Get("mddeprecated"))
+		mdField.Deprecated = kitstrings.IsTruthy(currentField.Tag.Get("mddeprecated"))
 
 		// If there's a "mdaliases" tag, the field contains aliases
 		// The value is a comma-separated string

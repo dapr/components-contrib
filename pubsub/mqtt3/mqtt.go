@@ -31,7 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -139,7 +139,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	if topic == "" {
 		return errors.New("topic name is empty")
 	}
-	unsubscribeOnClose := utils.IsTruthy(req.Metadata[unsubscribeOnCloseKey])
+	unsubscribeOnClose := kitstrings.IsTruthy(req.Metadata[unsubscribeOnCloseKey])
 
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()

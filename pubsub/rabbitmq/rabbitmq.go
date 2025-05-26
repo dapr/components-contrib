@@ -31,7 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -435,7 +435,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	// Applying x-single-active-consumer if defined at subscription level
-	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; utils.IsTruthy(val) {
+	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; kitstrings.IsTruthy(val) {
 		args[argSingleActiveConsumer] = true
 	}
 

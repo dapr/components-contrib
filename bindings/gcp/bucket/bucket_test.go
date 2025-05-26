@@ -254,3 +254,14 @@ func TestDeleteOption(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestBulkGetOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if bucket is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := gs.bulkGet(t.Context(), &r)
+		require.Error(t, err)
+	})
+}

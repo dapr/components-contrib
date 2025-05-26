@@ -27,7 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	"github.com/dapr/kit/strings"
 )
 
 const (
@@ -85,7 +85,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		return errors.New("component is closed")
 	}
 
-	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
+	requireSessions := strings.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
 	sessionIdleTimeout := time.Duration(commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
 	maxConcurrentSessions := commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
@@ -116,7 +116,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		return errors.New("component is closed")
 	}
 
-	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
+	requireSessions := strings.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
 	sessionIdleTimeout := time.Duration(commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
 	maxConcurrentSessions := commonutils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 

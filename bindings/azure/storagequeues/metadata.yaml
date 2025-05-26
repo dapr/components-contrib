@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+﻿# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: "v1"
 type: "bindings"
 name: "azure.storagequeues"
@@ -69,7 +69,7 @@ metadata:
     default: 'false'
     binding:
       output: true
-      input: false  
+      input: false
   - name: "encodeBase64"
     type: bool
     description: |

@@ -39,7 +39,7 @@ const (
 	defaultTTL                    = 10 * time.Minute
 	defaultVisibilityTimeout      = 30 * time.Second
 	defaultPollingInterval        = 10 * time.Second
-	defaultInitialVisibilityDelay = 30 * time.Second
+	defaultInitialVisibilityDelay = 0 * time.Second
 	dequeueCount                  = "dequeueCount"
 	insertionTime                 = "insertionTime"
 	expirationTime                = "expirationTime"

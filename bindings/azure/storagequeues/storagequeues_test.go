@@ -322,7 +322,6 @@ func TestReadQueueNoMessage(t *testing.T) {
 
 func TestParseMetadata(t *testing.T) {
 	oneSecondDuration := time.Second
-
 	testCases := []struct {
 		name       string
 		properties map[string]string
@@ -343,7 +342,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueEndpointURL:       "",
 			expectedPollingInterval:        defaultPollingInterval,
 			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "Accout, key, and endpoint",
@@ -353,7 +352,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueEndpointURL:       "https://foo.example.com:10001",
 			expectedPollingInterval:        defaultPollingInterval,
 			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "Empty TTL",
@@ -363,7 +362,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueEndpointURL:       "",
 			expectedPollingInterval:        defaultPollingInterval,
 			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "With TTL",
@@ -374,7 +373,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueEndpointURL:       "",
 			expectedPollingInterval:        defaultPollingInterval,
 			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:                           "With visibility timeout",
@@ -382,7 +381,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueName:              "queue1",
 			expectedPollingInterval:        defaultPollingInterval,
 			expectedVisibilityTimeout:      ptr.Of(5 * time.Second),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "With polling interval",
@@ -392,7 +391,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueEndpointURL:       "",
 			expectedPollingInterval:        2 * time.Second,
 			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
-			expectedInitialVisibilityDelay: ptr.Of(defaultInitialVisibilityDelay),
+			expectedInitialVisibilityDelay: nil,
 		},
 	}
 

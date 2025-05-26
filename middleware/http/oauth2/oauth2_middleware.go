@@ -29,7 +29,7 @@ import (
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 // Metadata is the oAuth middleware config.
@@ -70,7 +70,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 		return nil, err
 	}
 
-	forceHTTPS := utils.IsTruthy(meta.ForceHTTPS)
+	forceHTTPS := kitstrings.IsTruthy(meta.ForceHTTPS)
 	conf := &oauth2.Config{
 		ClientID:     meta.ClientID,
 		ClientSecret: meta.ClientSecret,

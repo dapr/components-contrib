@@ -478,17 +478,13 @@ func parseSubscriptionMode(in string) (string, error) {
 }
 
 func getSubscriptionMode(subsModeStr string) pulsar.SubscriptionMode {
-	var subsMode pulsar.SubscriptionMode
-
 	switch subsModeStr {
-	case subscribeModeDurable:
-		subsMode = pulsar.Durable
 	case subscribeModeNonDurable:
-		subsMode = pulsar.NonDurable
+		return pulsar.NonDurable
+	default:
+		return pulsar.Durable
 	}
-	return subsMode
 }
-
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")

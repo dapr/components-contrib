@@ -122,3 +122,38 @@ metadata:
       - "simple_protocol"
     example: "cache_describe"
     default: ""
+  - name: host
+    required: false
+    description: The host of the PostgreSQL database
+    example: "localhost"
+    type: string
+  - name: hostaddr
+    required: false
+    description: The host address of the PostgreSQL database
+    example: "127.0.0.1"
+    type: string
+  - name: port
+    required: false
+    description: The port of the PostgreSQL database
+    example: "5432"
+    type: string
+  - name: database
+    required: false
+    description: The database of the PostgreSQL database
+    example: "postgres"
+    type: string
+  - name: user
+    required: false
+    description: The user of the PostgreSQL database
+    example: "postgres"
+    type: string
+  - name: password
+    required: false
+    description: The password of the PostgreSQL database
+    example: "password"
+    type: string
+  - name: sslRootCert
+    required: false
+    description: The path to the SSL root certificate file
+    example: "/path/to/ssl/root/cert.pem"
+    type: string

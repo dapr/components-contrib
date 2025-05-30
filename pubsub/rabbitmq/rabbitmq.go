@@ -773,15 +773,16 @@ func addAMQPPropertiesToMetadata(delivery amqp.Delivery) map[string]string {
 
 	// Add any custom headers
 	for k, v := range delivery.Headers {
+		metadataPrefixedKey := fmt.Sprintf("metadata.%s", k)
 		if v != nil {
 			switch value := v.(type) {
 			case string:
-				metadata[k] = value
+				metadata[metadataPrefixedKey] = value
 			case []byte:
-				metadata[k] = string(value)
+				metadata[metadataPrefixedKey] = string(value)
 			default:
 				// Try to convert other types to string
-				metadata[k] = fmt.Sprintf("%v", v)
+				metadata[metadataPrefixedKey] = fmt.Sprintf("%v", v)
 			}
 		}
 	}

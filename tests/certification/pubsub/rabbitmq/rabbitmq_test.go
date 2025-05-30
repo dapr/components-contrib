@@ -1017,7 +1017,6 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 		Step(sidecar.Run(sidecarNameMetadata,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/metadata"),
-				// Consider switching to gRPC protocol if you want metadata to be preserved better
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+10)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+20)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+10)),

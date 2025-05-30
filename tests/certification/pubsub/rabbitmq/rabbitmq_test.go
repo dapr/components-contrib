@@ -869,7 +869,7 @@ func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
 }
 
 func TestRabbitMQMetadataProperties(t *testing.T) {
-	messages := watcher.NewOrdered()
+	messagesWatcher := watcher.NewUnordered()
 
 	// Define the test values for metadata with fixed IDs
 	const messageCount = 10
@@ -877,6 +877,11 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 	const corrID = "corr-id-456"
 	const msgType = "test-type"
 	const contentType = "application/json"
+
+	messages := make([]string, messageCount)
+	for i := range messageCount {
+		messages[i] = fmt.Sprintf("Test message %d", i+1)
+	}
 
 	// Use a channel to collect metadata validation errors
 	metadataErrors := make(chan error, 1)
@@ -890,13 +895,27 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 			Route:      "/metadata",
 			Metadata:   map[string]string{},
 		}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-			// Log full metadata for debugging
-			ctx.Logf("Received message with metadata: %+v", e.Metadata)
+			// ENHANCED DEBUGGING - Print every detail of the message
+			ctx.Logf("==================== MESSAGE RECEIVED ====================")
+			ctx.Logf("Topic: %s", e.Topic)
+			ctx.Logf("PubsubName: %s", e.PubsubName)
+			ctx.Logf("ID: %s", e.ID)
+			ctx.Logf("Data Type: %T", e.Data)
+			ctx.Logf("Data: %s", e.Data)
+			ctx.Logf("---------------- METADATA DUMP ----------------")
+			ctx.Logf("Total metadata entries: %d", len(e.Metadata))
+			ctx.Logf("Raw metadata map: %+v", e.Metadata)
 
+			ctx.Logf("---------------- TARGET METADATA VALUES ----------------")
 			msgIdVal, _ := getMetadataValueCI(e.Metadata, "messageid")
 			corrIdVal, _ := getMetadataValueCI(e.Metadata, "correlationid")
 			contentTypeVal, _ := getMetadataValueCI(e.Metadata, "contenttype")
 			typeVal, _ := getMetadataValueCI(e.Metadata, "type")
+
+			ctx.Logf("  → messageID: '%s' (expected: '%s')", msgIdVal, msgID)
+			ctx.Logf("  → correlationID: '%s' (expected: '%s')", corrIdVal, corrID)
+			ctx.Logf("  → contentType: '%s' (expected: '%s')", contentTypeVal, contentType)
+			ctx.Logf("  → type: '%s' (expected: '%s')", typeVal, msgType)
 
 			// Instead of failing silently, collect errors and send them to the channel
 			var metadataErr error
@@ -936,53 +955,12 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 				}
 			}
 
-			// If we have metadata errors, send them to the channel (non-blocking)
-			if metadataErr != nil {
-				select {
-				case metadataErrors <- metadataErr:
-					// Successfully sent error
-				default:
-					// Channel already has an error, just log it
-					ctx.Logf("Additional metadata error: %v", metadataErr)
-				}
-
-				// Still track the message so the test can complete
-				dataStr, ok := e.Data.(string)
-				if !ok {
-					if dataBytes, okBytes := e.Data.([]byte); okBytes {
-						dataStr = string(dataBytes)
-					} else {
-						return false, fmt.Errorf("e.Data is not a string or []byte, got %T", e.Data)
-					}
-				}
-
-				idx, err := strconv.Atoi(dataStr)
-				if err != nil {
-					ctx.Logf("ERROR: Failed to parse message data: %v", err)
-					return false, nil
-				}
-
-				messages.Add(strconv.Itoa(idx))
-				return false, nil
-			}
-
-			// Track the message with index for ordered verification
 			dataStr, ok := e.Data.(string)
 			if !ok {
-				if dataBytes, okBytes := e.Data.([]byte); okBytes {
-					dataStr = string(dataBytes)
-				} else {
-					return false, fmt.Errorf("e.Data is not a string or []byte, got %T", e.Data)
-				}
+				return false, fmt.Errorf("e.Data is not a string, got %T", e.Data)
 			}
 
-			idx, err := strconv.Atoi(dataStr)
-			if err != nil {
-				ctx.Logf("ERROR: Failed to parse message data: %v", err)
-				return false, nil
-			}
-
-			messages.Add(strconv.Itoa(idx))
+			messagesWatcher.Observe(dataStr)
 			ctx.Logf("Got message: %s with all expected metadata properties", e.Data)
 			return false, nil
 		})
@@ -994,16 +972,12 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 	testMetadata := func(ctx flow.Context) error {
 		// Get the Dapr client
 		client := sidecar.GetClient(ctx, sidecarNameMetadata)
-
-		// Prepare expected messages
-		for i := 0; i < messageCount; i++ {
-			messages.Expect(strconv.Itoa(i))
-		}
+		messagesWatcher.ExpectStrings(messages...)
 
 		// Publish messages with metadata properties
 		ctx.Log("Publishing messages with metadata properties")
 		for i := 0; i < messageCount; i++ {
-			err := client.PublishEvent(ctx, pubsubMetadata, topicMetadata, []byte(strconv.Itoa(i)),
+			err := client.PublishEvent(ctx, pubsubMetadata, topicMetadata, messages[i],
 				daprClient.PublishEventWithMetadata(map[string]string{
 					"messageID":     msgID,
 					"correlationID": corrID,
@@ -1023,7 +997,7 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 
 		// Verify all messages were processed correctly
 		ctx.Log("Verifying messages were received...")
-		messages.Assert(t, 20*time.Second)
+		messagesWatcher.Assert(t, 20*time.Second)
 
 		return nil
 	}

@@ -756,19 +756,19 @@ func addAMQPPropertiesToMetadata(delivery amqp.Delivery) map[string]string {
 
 	// Add message properties as metadata
 	if delivery.MessageId != "" {
-		metadata["messageid"] = delivery.MessageId
+		metadata["metadata.messageid"] = delivery.MessageId
 	}
 
 	if delivery.CorrelationId != "" {
-		metadata["correlationid"] = delivery.CorrelationId
+		metadata["metadata.correlationid"] = delivery.CorrelationId
 	}
 
 	if delivery.Type != "" {
-		metadata["type"] = delivery.Type
+		metadata["metadata.type"] = delivery.Type
 	}
 
 	if delivery.ContentType != "" {
-		metadata["contenttype"] = delivery.ContentType
+		metadata["metadata.contenttype"] = delivery.ContentType
 	}
 
 	// Add any custom headers

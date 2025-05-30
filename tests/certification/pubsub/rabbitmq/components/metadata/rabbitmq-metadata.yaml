@@ -16,3 +16,5 @@ spec:
     value: false
   - name: requeueInFailure
     value: true
+  - name: publishMessagePropertiesToMetadata
+    value: true

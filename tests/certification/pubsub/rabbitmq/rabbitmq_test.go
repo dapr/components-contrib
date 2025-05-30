@@ -959,6 +959,11 @@ func TestRabbitMQMetadataProperties(t *testing.T) {
 			if !ok {
 				return false, fmt.Errorf("e.Data is not a string, got %T", e.Data)
 			}
+			// If there are any metadata errors, send them to the channel
+			if metadataErr != nil {
+				ctx.Logf("Metadata validation failed: %s", metadataErr)
+				metadataErrors <- metadataErr
+			}
 
 			messagesWatcher.Observe(dataStr)
 			ctx.Logf("Got message: %s with all expected metadata properties", e.Data)

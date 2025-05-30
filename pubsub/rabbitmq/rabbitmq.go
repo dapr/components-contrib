@@ -625,7 +625,11 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 	pubsubMsg := &pubsub.NewMessage{
 		Data:     d.Body,
 		Topic:    topic,
-		Metadata: addAMQPPropertiesToMetadata(d),
+		Metadata: map[string]string{},
+	}
+
+	if r.metadata.PublishMessagePropertiesToMetadata {
+		pubsubMsg.Metadata = addAMQPPropertiesToMetadata(d)
 	}
 
 	err := handler(ctx, pubsubMsg)
@@ -773,7 +777,7 @@ func addAMQPPropertiesToMetadata(delivery amqp.Delivery) map[string]string {
 
 	// Add any custom headers
 	for k, v := range delivery.Headers {
-		metadataPrefixedKey := fmt.Sprintf("metadata.%s", k)
+		metadataPrefixedKey := "metadata." + k
 		if v != nil {
 			switch value := v.(type) {
 			case string:

@@ -609,3 +609,127 @@ func TestPublishMetadataProperties(t *testing.T) {
 	assert.Equal(t, "complete-type", broker.lastMsgMetadata.Type)
 	assert.Equal(t, "application/json", broker.lastMsgMetadata.ContentType)
 }
+
+func TestPublishMessagePropertiesToMetadataFlag(t *testing.T) {
+	topicName := "test-topic"
+	messageData := []byte("test message data")
+
+	t.Run("flag is true", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{Base: mdata.Base{
+			Properties: map[string]string{
+				metadataHostnameKey:                           "anyhost",
+				metadataConsumerIDKey:                         "consumer",
+				metadataPublishMessagePropertiesToMetadataKey: "true",
+			},
+		}}
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
+		require.NoError(t, err)
+
+		var receivedMsg *pubsub.NewMessage
+		processed := make(chan bool)
+		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+			receivedMsg = msg
+			processed <- true
+			return nil
+		}
+
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topicName}, handler)
+		require.NoError(t, err)
+
+		// Publish a message with some AMQP properties
+		broker.buffer <- amqp.Delivery{
+			Body:        messageData,
+			MessageId:   "msg-id-true",
+			ContentType: "text/plain",
+			Headers: amqp.Table{
+				"customHeader": "customValue",
+			},
+		}
+
+		<-processed
+		require.NotNil(t, receivedMsg)
+		assert.Equal(t, messageData, receivedMsg.Data)
+		assert.Equal(t, topicName, receivedMsg.Topic)
+		assert.Equal(t, "msg-id-true", receivedMsg.Metadata["metadata.messageid"])
+		assert.Equal(t, "text/plain", receivedMsg.Metadata["metadata.contenttype"])
+		assert.Equal(t, "customValue", receivedMsg.Metadata["metadata.customHeader"])
+	})
+
+	t.Run("flag is false", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{Base: mdata.Base{
+			Properties: map[string]string{
+				metadataHostnameKey:                           "anyhost",
+				metadataConsumerIDKey:                         "consumer",
+				metadataPublishMessagePropertiesToMetadataKey: "false", // Explicitly false
+			},
+		}}
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
+		require.NoError(t, err)
+
+		var receivedMsg *pubsub.NewMessage
+		processed := make(chan bool)
+		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+			receivedMsg = msg
+			processed <- true
+			return nil
+		}
+
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topicName}, handler)
+		require.NoError(t, err)
+
+		// Publish a message with some AMQP properties
+		broker.buffer <- amqp.Delivery{
+			Body:        messageData,
+			MessageId:   "msg-id-false",
+			ContentType: "application/xml",
+		}
+
+		<-processed
+		require.NotNil(t, receivedMsg)
+		assert.Equal(t, messageData, receivedMsg.Data)
+		assert.Equal(t, topicName, receivedMsg.Topic)
+		assert.Empty(t, receivedMsg.Metadata, "Metadata should be empty when flag is false")
+	})
+
+	t.Run("flag is not set (default to false)", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{Base: mdata.Base{
+			Properties: map[string]string{
+				metadataHostnameKey:   "anyhost",
+				metadataConsumerIDKey: "consumer",
+				// metadataPublishMessagePropertiesToMetadataKey is not set
+			},
+		}}
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
+		require.NoError(t, err)
+
+		var receivedMsg *pubsub.NewMessage
+		processed := make(chan bool)
+		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+			receivedMsg = msg
+			processed <- true
+			return nil
+		}
+
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: topicName}, handler)
+		require.NoError(t, err)
+
+		// Publish a message with some AMQP properties
+		broker.buffer <- amqp.Delivery{
+			Body:        messageData,
+			MessageId:   "msg-id-default",
+			ContentType: "application/json",
+		}
+
+		<-processed
+		require.NotNil(t, receivedMsg)
+		assert.Equal(t, messageData, receivedMsg.Data)
+		assert.Equal(t, topicName, receivedMsg.Topic)
+		assert.Empty(t, receivedMsg.Metadata, "Metadata should be empty when flag is not set (defaults to false)")
+	})
+}

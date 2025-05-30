@@ -14,7 +14,6 @@ limitations under the License.
 package kafka
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -45,9 +44,9 @@ func notifyRecover(consumer *consumer, message *sarama.ConsumerMessage, session 
 			// If the retry policy got interrupted, it could mean that either
 			// the policy has reached its maximum number of attempts or the context has been cancelled.
 			// There is a weird edge case where the error returned is a 'context canceled' error but the session.Context is not done.
-			// This is a workaround to handle that edge case and reprocess the current message.
-			if err == context.Canceled && session.Context().Err() == nil {
-				consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. The error returned is 'context canceled' but the session context is not done. Retrying...")
+			// This is a workaround to handle that edge case and reprocess the current message if the rety policy expects to retry forever
+			if session.Context().Err() == nil && consumer.k.backOffConfig.Policy == retry.PolicyConstant && consumer.k.backOffConfig.MaxRetries == -1 {
+				consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. The session context is still active and the retry policy is set to constant with infinite retries. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 				continue
 			}
 			return err
@@ -108,7 +107,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 				if consumer.k.consumeRetryEnabled {
 					if err := notifyRecover(consumer, message, session, b); err != nil {
-						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Session context Error: %v", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err, session.Context().Err())
 					}
 				} else {
 					err := consumer.doCallback(session, message)

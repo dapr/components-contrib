@@ -117,14 +117,15 @@ func (i *Influx) Operations() []bindings.OperationKind {
 func (i *Influx) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		var jsonPoint map[string]interface{}
+		var jsonPoint InfluxPoint
 		err := json.Unmarshal(req.Data, &jsonPoint)
 		if err != nil {
 			return nil, ErrInvalidRequestData
 		}
-
-		line := fmt.Sprintf("%s,%s %s", jsonPoint["measurement"], jsonPoint["tags"], jsonPoint["values"])
-
+		line := jsonPoint.GetLine()
+		if line == "" {
+			return nil, ErrInvalidRequestData
+		}
 		// write the point
 		err = i.writeAPI.WriteRecord(ctx, line)
 		if err != nil {

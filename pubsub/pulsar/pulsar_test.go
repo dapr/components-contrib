@@ -223,6 +223,109 @@ func TestParsePulsarMetadataSubscriptionMode(t *testing.T) {
 	}
 }
 
+func TestParsePulsarMetadataSubscriptionCombination(t *testing.T) {
+	tt := []struct {
+		name                     string
+		subscribeType            string
+		subscribeInitialPosition string
+		subscribeMode            string
+		expectedType             string
+		expectedInitialPosition  string
+		expectedMode             string
+		err                      bool
+	}{
+		{
+			name:                     "test valid subscribe - default",
+			subscribeType:            "",
+			subscribeInitialPosition: "",
+			subscribeMode:            "",
+			expectedType:             "shared",
+			expectedInitialPosition:  "latest",
+			expectedMode:             "durable",
+			err:                      false,
+		},
+		{
+			name:                     "test valid subscribe - pass case 1",
+			subscribeType:            "key_shared",
+			subscribeInitialPosition: "earliest",
+			subscribeMode:            "non_durable",
+			expectedType:             "key_shared",
+			expectedInitialPosition:  "earliest",
+			expectedMode:             "non_durable",
+			err:                      false,
+		},
+		{
+			name:                     "test valid subscribe - pass case 2",
+			subscribeType:            "exclusive",
+			subscribeInitialPosition: "latest",
+			subscribeMode:            "durable",
+			expectedType:             "exclusive",
+			expectedInitialPosition:  "latest",
+			expectedMode:             "durable",
+			err:                      false,
+		},
+		{
+			name:                     "test valid subscribe - pass case 3",
+			subscribeType:            "failover",
+			subscribeInitialPosition: "earliest",
+			subscribeMode:            "durable",
+			expectedType:             "failover",
+			expectedInitialPosition:  "earliest",
+			expectedMode:             "durable",
+			err:                      false,
+		},
+		{
+			name:                     "test valid subscribe - pass case 4",
+			subscribeType:            "shared",
+			subscribeInitialPosition: "latest",
+			subscribeMode:            "non_durable",
+			expectedType:             "shared",
+			expectedInitialPosition:  "latest",
+			expectedMode:             "non_durable",
+			err:                      false,
+		},
+		{
+			name:          "test valid subscribe - fail case 1",
+			subscribeType: "invalid",
+			err:           true,
+		},
+		{
+			name:                     "test valid subscribe - fail case 2",
+			subscribeInitialPosition: "invalid",
+			err:                      true,
+		},
+		{
+			name:          "test valid subscribe - fail case 3",
+			subscribeMode: "invalid",
+			err:           true,
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+
+			m.Properties = map[string]string{
+				"host":                     "a",
+				"subscribeType":            tc.subscribeType,
+				"subscribeInitialPosition": tc.subscribeInitialPosition,
+				"subscribeMode":            tc.subscribeMode,
+			}
+			meta, err := parsePulsarMetadata(m)
+
+			if tc.err {
+				require.Error(t, err)
+				assert.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedType, meta.SubscriptionType)
+			assert.Equal(t, tc.expectedInitialPosition, meta.SubscriptionInitialPosition)
+			assert.Equal(t, tc.expectedMode, meta.SubscriptionMode)
+		})
+	}
+}
+
 func TestParsePulsarSchemaMetadata(t *testing.T) {
 	t.Run("test json", func(t *testing.T) {
 		m := pubsub.Metadata{}

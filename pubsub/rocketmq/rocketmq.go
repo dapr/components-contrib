@@ -34,7 +34,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 type daprQueueSelector struct {
@@ -185,7 +185,7 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithConsumeTimestamp(r.metadata.ConsumeTimestamp))
 	}
 	if r.metadata.ConsumeOrderly != "" {
-		if utils.IsTruthy(r.metadata.ConsumeOrderly) {
+		if kitstrings.IsTruthy(r.metadata.ConsumeOrderly) {
 			opts = append(opts, mqc.WithConsumerOrder(true))
 			// in orderly message mode, if no value is set of MessageBatchMaxSize, the recommended value [1] is used
 			if r.metadata.ConsumeMessageBatchMaxSize <= 0 {
@@ -205,7 +205,7 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithMaxReconsumeTimes(r.metadata.MaxReconsumeTimes))
 	}
 	if r.metadata.AutoCommit != "" {
-		opts = append(opts, mqc.WithAutoCommit(utils.IsTruthy(r.metadata.AutoCommit)))
+		opts = append(opts, mqc.WithAutoCommit(kitstrings.IsTruthy(r.metadata.AutoCommit)))
 	}
 	if r.metadata.ConsumeTimeout > 0 {
 		opts = append(opts, mqc.WithConsumeTimeout(time.Duration(r.metadata.ConsumeTimeout)*time.Minute))
@@ -386,7 +386,7 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	}
 
 	var cb func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
-	if utils.IsTruthy(r.metadata.ConsumeOrderly) {
+	if kitstrings.IsTruthy(r.metadata.ConsumeOrderly) {
 		cb = r.consumeMessageOrderly(req.Topic, selector, handler)
 	} else {
 		cb = r.consumeMessageConcurrently(req.Topic, selector, handler)

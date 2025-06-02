@@ -36,7 +36,7 @@ import (
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 type Status int
@@ -145,7 +145,7 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 	}
 
 	var body string
-	if utils.IsTruthy(meta.ReadBody) {
+	if kitstrings.IsTruthy(meta.ReadBody) {
 		buf, _ := io.ReadAll(r.Body)
 		body = string(buf)
 

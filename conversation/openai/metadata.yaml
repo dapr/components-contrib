@@ -26,7 +26,7 @@ metadata:
     description: |
       The OpenAI LLM to use. Defaults to gpt-4o
     type: string
-    example: 'gpt-4-turbo'
+    example: 'gpt-4o-mini'
   - name: cacheTTL
     required: false
     description: |

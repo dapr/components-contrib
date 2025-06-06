@@ -457,7 +457,7 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 			t := time.NewTicker(500 * time.Millisecond)
 			defer t.Stop()
 			counter := 1
-			tm, err := NewTopicManager(projectID)
+			tm, err := NewTopicManager(ctx, projectID)
 			if err != nil {
 				return fmt.Errorf("deadLetterReceiverApplication - NewTopicManager: %v", err)
 			}
@@ -474,11 +474,12 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 					ctx.Logf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
 					return fmt.Errorf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
 				case <-t.C:
-					numMsgs, err := tm.GetMessages(deadLetterTopicName, msgTimeout, deadLetterSubcription, func(m *DataMessage) error {
-						ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
-						messagesWatcher.Observe(m.Data)
-						return nil
-					})
+					numMsgs, err := tm.GetMessages(ctx, deadLetterTopicName, msgTimeout, deadLetterSubcription,
+						func(m *DataMessage) error {
+							ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
+							messagesWatcher.Observe(m.Data)
+							return nil
+						})
 					if err != nil {
 						ctx.Logf("deadLetterReceiverApplication - failed to get messages from (%q) counter(%d) %v  - trying again\n", deadLetterTopicName, counter, err)
 						continue
@@ -797,11 +798,11 @@ func teardown(t *testing.T) {
 	t.Logf("GCP PubSub CertificationTests teardown...")
 	//Dapr runtime automatically creates the following subscriptions, topics
 	//so here they get deleted.
-	if err := deleteSubscriptions(projectID, subscriptions); err != nil {
+	if err := deleteSubscriptions(t.Context(), projectID, subscriptions); err != nil {
 		t.Log(err)
 	}
 
-	if err := deleteTopics(projectID, topics); err != nil {
+	if err := deleteTopics(t.Context(), projectID, topics); err != nil {
 		t.Log(err)
 	}
 

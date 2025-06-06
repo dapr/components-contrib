@@ -154,6 +154,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
 	config.ChannelBufferSize = meta.channelBufferSize
 
+	config.Producer.Compression = meta.internalCompression
+
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval
 

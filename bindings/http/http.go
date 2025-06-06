@@ -34,7 +34,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -44,6 +44,7 @@ const (
 
 	TraceparentHeaderKey            = "traceparent"
 	TracestateHeaderKey             = "tracestate"
+	BaggageHeaderKey                = "baggage"
 	TraceMetadataKey                = "traceHeaders"
 	securityToken                   = "securityToken"
 	securityTokenHeader             = "securityTokenHeader"
@@ -136,7 +137,7 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	}
 
 	if val := meta.Properties["errorIfNot2XX"]; val != "" {
-		h.errorIfNot2XX = utils.IsTruthy(val)
+		h.errorIfNot2XX = kitstrings.IsTruthy(val)
 	} else {
 		// Default behavior
 		h.errorIfNot2XX = true
@@ -251,7 +252,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 		u = strings.TrimRight(u, "/") + "/" + strings.TrimLeft(req.Metadata["path"], "/")
 	}
 	if req.Metadata["errorIfNot2XX"] != "" {
-		errorIfNot2XX = utils.IsTruthy(req.Metadata["errorIfNot2XX"])
+		errorIfNot2XX = kitstrings.IsTruthy(req.Metadata["errorIfNot2XX"])
 	}
 
 	var body io.Reader
@@ -317,6 +318,13 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 		}
 
 		request.Header.Set(TracestateHeaderKey, ts)
+	}
+	if baggage, ok := req.Metadata[BaggageHeaderKey]; ok && baggage != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(BaggageHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Baggage request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(BaggageHeaderKey, baggage)
 	}
 
 	// Send the question

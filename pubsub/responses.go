@@ -28,6 +28,9 @@ const (
 // AppResponse is the object describing the response from user code after a pubsub event.
 type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
+
+	// When Retry/Drop, this field should be populated with the error message to be published to DLQ if configured.
+	Error error `json:"error"`
 }
 
 // AppBulkResponseEntry Represents single response, as part of AppBulkResponse, to be
@@ -46,7 +49,6 @@ type AppBulkResponse struct {
 // to be sent to publishing App for the corresponding single message during bulk publish
 type BulkPublishResponseFailedEntry struct {
 	EntryId string `json:"entryId"` //nolint:stylecheck
-	Error   error  `json:"error"`
 }
 
 // BulkPublishResponse contains the list of failed entries in a bulk publish request.

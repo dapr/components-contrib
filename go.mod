@@ -88,7 +88,7 @@ require (
 	github.com/labd/commercetools-go-sdk v1.3.1
 	github.com/lestrrat-go/httprc v1.0.5
 	github.com/lestrrat-go/jwx/v2 v2.0.21
-	github.com/linkedin/goavro/v2 v2.12.0
+	github.com/linkedin/goavro/v2 v2.13.1
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/microsoft/go-mssqldb v1.6.0
@@ -105,7 +105,7 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/redis/go-redis/v9 v9.6.3
-	github.com/riferrei/srclient v0.6.0
+	github.com/riferrei/srclient v0.7.2
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.18
 	github.com/spf13/cast v1.8.0
@@ -270,7 +270,7 @@ require (
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/golang/snappy v0.0.4 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/generative-ai-go v0.14.0 // indirect

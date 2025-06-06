@@ -29,6 +29,8 @@ components:
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
+  - component: coherence
+    operations: [ "ttl" ]
   - component: sqlserver
     operations: [ "transaction", "etag", "first-write", "ttl" ]
     config:

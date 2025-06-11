@@ -485,6 +485,7 @@ func getSubscriptionMode(subsModeStr string) pulsar.SubscriptionMode {
 		return pulsar.Durable
 	}
 }
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")

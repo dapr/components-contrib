@@ -92,9 +92,11 @@ func TestGetX509Client(t *testing.T) {
 			var fetches atomic.Int32
 			s := spiffe.New(spiffe.Options{
 				Log: logger.NewLogger("test"),
-				RequestSVIDFn: func(context.Context, []byte) ([]*cryptoX509.Certificate, error) {
+				RequestSVIDFn: func(context.Context, []byte) (*spiffe.SVIDResponse, error) {
 					fetches.Add(1)
-					return respCert, respErr
+					return &spiffe.SVIDResponse{
+						X509Certificates: respCert,
+					}, respErr
 				},
 			})
 

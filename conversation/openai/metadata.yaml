@@ -27,6 +27,12 @@ metadata:
       The OpenAI LLM to use. Defaults to gpt-4o
     type: string
     example: 'gpt-4-turbo'
+  - name: endpoint
+    required: false
+    description: |
+      Custom API endpoint URL for OpenAI API-compatible services. If not specified, the default OpenAI API endpoint will be used.
+    type: string
+    example: 'https://api.openai.com/v1'
   - name: cacheTTL
     required: false
     description: |

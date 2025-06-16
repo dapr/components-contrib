@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -32,6 +34,13 @@ import (
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
 type PostgresAuthMetadata struct {
 	ConnectionString      string        `mapstructure:"connectionString" mapstructurealiases:"url"`
+	Host                  string        `mapstructure:"host"`
+	HostAddr              string        `mapstructure:"hostaddr"`
+	Port                  string        `mapstructure:"port"`
+	Database              string        `mapstructure:"database"`
+	User                  string        `mapstructure:"user"`
+	Password              string        `mapstructure:"password"`
+	SslRootCert           string        `mapstructure:"sslRootCert"`
 	ConnectionMaxIdleTime time.Duration `mapstructure:"connectionMaxIdleTime"`
 	MaxConns              int           `mapstructure:"maxConns"`
 	UseAzureAD            bool          `mapstructure:"useAzureAD"`
@@ -45,6 +54,13 @@ type PostgresAuthMetadata struct {
 // Reset the object.
 func (m *PostgresAuthMetadata) Reset() {
 	m.ConnectionString = ""
+	m.Host = ""
+	m.HostAddr = ""
+	m.Port = ""
+	m.Database = ""
+	m.User = ""
+	m.Password = ""
+	m.SslRootCert = ""
 	m.ConnectionMaxIdleTime = 0
 	m.MaxConns = 0
 	m.UseAzureAD = false
@@ -62,8 +78,9 @@ type InitWithMetadataOpts struct {
 // This is different from the "useAzureAD" property from the user, which is provided by the user and instructs the component to authenticate using Azure AD.
 func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts InitWithMetadataOpts) (err error) {
 	// Validate input
-	if m.ConnectionString == "" {
-		return errors.New("missing connection string")
+	_, err = m.buildConnectionString()
+	if err != nil {
+		return err
 	}
 	switch {
 	case opts.AzureADEnabled && m.UseAzureAD:
@@ -85,6 +102,118 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 	}
 
 	return nil
+}
+
+// buildConnectionString builds the connection string from the metadata.
+// It supports both DSN-style and URL-style connection strings.
+// Metadata fields override existing values in the connection string.
+func (m *PostgresAuthMetadata) buildConnectionString() (string, error) {
+	metadata := m.getConnectionStringMetadata()
+	if strings.HasPrefix(m.ConnectionString, "postgres://") || strings.HasPrefix(m.ConnectionString, "postgresql://") {
+		return m.buildURLConnectionString(metadata)
+	}
+	return m.buildDSNConnectionString(metadata)
+}
+
+func (m *PostgresAuthMetadata) buildDSNConnectionString(metadata map[string]string) (string, error) {
+	connectionString := ""
+	parts := strings.Split(m.ConnectionString, " ")
+	for _, part := range parts {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) == 2 {
+			key := kv[0]
+			if value, ok := metadata[key]; ok {
+				connectionString += fmt.Sprintf("%s=%s ", key, value)
+				delete(metadata, key)
+			} else {
+				connectionString += fmt.Sprintf("%s=%s ", key, kv[1])
+			}
+		}
+	}
+	for k, v := range metadata {
+		connectionString += fmt.Sprintf("%s=%s ", k, v)
+	}
+
+	if connectionString == "" {
+		return "", errors.New("failed to build connection string")
+	}
+
+	return strings.TrimSpace(connectionString), nil
+}
+
+func (m *PostgresAuthMetadata) getConnectionStringMetadata() map[string]string {
+	metadata := make(map[string]string)
+	if m.User != "" {
+		metadata["user"] = m.User
+	}
+	if m.Host != "" {
+		metadata["host"] = m.Host
+	}
+	if m.HostAddr != "" {
+		metadata["hostaddr"] = m.HostAddr
+	}
+	if m.Port != "" {
+		metadata["port"] = m.Port
+	}
+	if m.Database != "" {
+		metadata["database"] = m.Database
+	}
+	if m.Password != "" {
+		metadata["password"] = m.Password
+	}
+	if m.SslRootCert != "" {
+		metadata["sslrootcert"] = m.SslRootCert
+	}
+	return metadata
+}
+
+func (m *PostgresAuthMetadata) buildURLConnectionString(metadata map[string]string) (string, error) {
+	u, err := url.Parse(m.ConnectionString)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL connection string: %w", err)
+	}
+
+	var username string
+	var password string
+	if u.User != nil {
+		username = u.User.Username()
+		pw, set := u.User.Password()
+		if set {
+			password = pw
+		}
+	}
+
+	if val, ok := metadata["user"]; ok {
+		username = val
+	}
+	if val, ok := metadata["password"]; ok {
+		password = val
+	}
+	if username != "" {
+		u.User = url.UserPassword(username, password)
+	}
+
+	if val, ok := metadata["host"]; ok {
+		u.Host = val
+	}
+	if val, ok := metadata["hostaddr"]; ok {
+		u.Host = val
+	}
+	if m.Port != "" {
+		u.Host = fmt.Sprintf("%s:%s", u.Host, m.Port)
+	}
+
+	if val, ok := metadata["database"]; ok {
+		u.Path = "/" + strings.TrimPrefix(val, "/")
+	}
+
+	q := u.Query()
+	if val, ok := metadata["sslrootcert"]; ok {
+		q.Set("sslrootcert", val)
+	}
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
 }
 
 func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properties map[string]string) (*aws.Options, error) {
@@ -132,8 +261,11 @@ func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properti
 
 // GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to PostgreSQL.
 func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
-	// Get the config from the connection string
-	config, err := pgxpool.ParseConfig(m.ConnectionString)
+	connectionString, err := m.buildConnectionString()
+	if err != nil {
+		return nil, err
+	}
+	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}

@@ -17,6 +17,7 @@ package huggingface
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
@@ -24,7 +25,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	"github.com/tmc/langchaingo/llms/huggingface"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 type Huggingface struct {
@@ -41,7 +42,11 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	return h
 }
 
-const defaultModel = "meta-llama/Meta-Llama-3-8B"
+// Default model - using a popular and reliable model
+const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+
+// Default HuggingFace OpenAI-compatible endpoint
+const defaultEndpoint = "https://router.huggingface.co/hf-inference/models/{{model}}/v1"
 
 func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
@@ -55,18 +60,20 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		model = m.Model
 	}
 
-	// Create options for Huggingface client
-	options := []huggingface.Option{
-		huggingface.WithModel(model),
-		huggingface.WithToken(m.Key),
-		huggingface.WithURL("https://router.huggingface.co/hf-inference"),
-	}
-
+	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {
-		options = append(options, huggingface.WithURL(m.Endpoint))
+		endpoint = m.Endpoint
 	}
 
-	llm, err := huggingface.New(options...)
+	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
+	// This is a workaround for issues with the native HuggingFace langchaingo implementation
+	options := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(m.Key),
+		openai.WithBaseURL(endpoint),
+	}
+
+	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}

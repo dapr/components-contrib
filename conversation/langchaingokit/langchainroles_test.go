@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package conversation
+package langchaingokit
 
 import (
 	"testing"
@@ -21,19 +21,21 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func TestConvertLangchainRole(t *testing.T) {
 	roles := map[string]string{
-		RoleSystem:    string(llms.ChatMessageTypeSystem),
-		RoleAssistant: string(llms.ChatMessageTypeAI),
-		RoleFunction:  string(llms.ChatMessageTypeFunction),
-		RoleUser:      string(llms.ChatMessageTypeHuman),
-		RoleTool:      string(llms.ChatMessageTypeTool),
+		conversation.RoleSystem:    string(llms.ChatMessageTypeSystem),
+		conversation.RoleAssistant: string(llms.ChatMessageTypeAI),
+		conversation.RoleFunction:  string(llms.ChatMessageTypeFunction),
+		conversation.RoleUser:      string(llms.ChatMessageTypeHuman),
+		conversation.RoleTool:      string(llms.ChatMessageTypeTool),
 	}
 
 	for k, v := range roles {
-		r := ConvertLangchainRole(Role(k))
+		r := ConvertLangchainRole(conversation.Role(k))
 		assert.Equal(t, v, string(r))
 	}
 }

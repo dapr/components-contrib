@@ -12,21 +12,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package conversation
+package langchaingokit
 
-import "github.com/tmc/langchaingo/llms"
+import (
+	"github.com/dapr/components-contrib/conversation"
+	"github.com/tmc/langchaingo/llms"
+)
 
-func ConvertLangchainRole(role Role) llms.ChatMessageType {
+func ConvertLangchainRole(role conversation.Role) llms.ChatMessageType {
 	switch role {
-	case RoleSystem:
+	case conversation.RoleSystem:
 		return llms.ChatMessageTypeSystem
-	case RoleUser:
+	case conversation.RoleUser:
 		return llms.ChatMessageTypeHuman
-	case RoleAssistant:
+	case conversation.RoleAssistant:
 		return llms.ChatMessageTypeAI
-	case RoleTool:
+	case conversation.RoleTool:
 		return llms.ChatMessageTypeTool
-	case RoleFunction:
+	case conversation.RoleFunction:
 		return llms.ChatMessageTypeFunction
 	default:
 		return llms.ChatMessageTypeHuman

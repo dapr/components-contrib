@@ -491,7 +491,7 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 		return nil, fmt.Errorf("gcp bucket binding error while reading objects: %w", err)
 	}
 
-	response, err := json.Marshal(allObjs)
+	response, err := json.Marshal(objects)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while marshalling bulk get response: %w", err)
 	}

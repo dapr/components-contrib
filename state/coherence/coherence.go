@@ -46,9 +46,15 @@ const (
 	nearCacheMemoryConfig   = "nearCacheMemory"
 	scopeNameConfig         = "scopeName"
 	defaultScopeNameConfig  = "default"
+	defaultServerAddress    = "localhost:1408"
+	defaultTLSEnabled       = false
 )
 
-var errTrueOrFalse = errors.New("value should be true or false")
+var (
+	errTrueOrFalse        = errors.New("value should be true or false")
+	defaultRequestTimeout = time.Duration(30) * time.Second
+	defaultNearCacheTTL   = time.Duration(0)
+)
 
 type Coherence struct {
 	state.BulkStore
@@ -92,24 +98,23 @@ func (c *Coherence) Init(_ context.Context, metadata state.Metadata) error {
 	// configure TLS and options
 	if !meta.TLSEnabled {
 		options = append(options, coh.WithPlainText())
-	}
-
-	if meta.TLSClientCertPath != "" {
-		options = append(options, coh.WithTLSClientCert(meta.TLSClientCertPath))
-	}
-	if meta.TLSCertsPath != "" {
-		options = append(options, coh.WithTLSCertsPath(meta.TLSCertsPath))
-	}
-	if meta.TLSClientKey != "" {
-		options = append(options, coh.WithTLSClientKey(meta.TLSClientKey))
-	}
-	if meta.IgnoreInvalidCerts {
-		options = append(options, coh.WithIgnoreInvalidCerts())
+	} else {
+		if meta.TLSClientCertPath != "" {
+			options = append(options, coh.WithTLSClientCert(meta.TLSClientCertPath))
+		}
+		if meta.TLSCertsPath != "" {
+			options = append(options, coh.WithTLSCertsPath(meta.TLSCertsPath))
+		}
+		if meta.TLSClientKey != "" {
+			options = append(options, coh.WithTLSClientKey(meta.TLSClientKey))
+		}
+		if meta.IgnoreInvalidCerts {
+			options = append(options, coh.WithIgnoreInvalidCerts())
+		}
 	}
 
 	options = append(options, coh.WithRequestTimeout(meta.RequestTimeout))
 
-	// create the Coherence session
 	session, err := coh.NewSession(context.Background(), options...)
 	if err != nil {
 		return err
@@ -139,10 +144,10 @@ func (c *Coherence) Init(_ context.Context, metadata state.Metadata) error {
 
 func retrieveCoherenceMetadata(meta state.Metadata) (*coherenceMetadata, error) {
 	c := coherenceMetadata{
-		ServerAddress:  "localhost:1408",
-		TLSEnabled:     false,
-		RequestTimeout: time.Duration(30) * time.Second,
-		NearCacheTTL:   0,
+		ServerAddress:  defaultServerAddress,
+		TLSEnabled:     defaultTLSEnabled,
+		RequestTimeout: defaultRequestTimeout,
+		NearCacheTTL:   defaultNearCacheTTL,
 		ScopeName:      defaultScopeNameConfig,
 	}
 

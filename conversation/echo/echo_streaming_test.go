@@ -5,11 +5,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEchoStreamingInterface(t *testing.T) {
@@ -27,7 +28,7 @@ func TestEchoStreamingFunctionality(t *testing.T) {
 	echoComponent := NewEcho(testLogger)
 
 	// Initialize the echo component
-	ctx := context.Background()
+	ctx := t.Context()
 	err := echoComponent.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{},
@@ -63,7 +64,7 @@ func TestEchoStreamingFunctionality(t *testing.T) {
 	require.NotNil(t, resp)
 
 	// Verify streaming chunks were received
-	assert.Greater(t, len(chunks), 0, "Should receive streaming chunks")
+	assert.NotEmpty(t, chunks, "Should receive streaming chunks")
 
 	// Verify chunks combine to form the original message
 	fullContent := strings.Join(chunks, "")
@@ -83,7 +84,7 @@ func TestEchoStreamingWithMultipleInputs(t *testing.T) {
 	echoComponent := NewEcho(testLogger)
 
 	// Initialize the echo component
-	ctx := context.Background()
+	ctx := t.Context()
 	err := echoComponent.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{},
@@ -131,7 +132,7 @@ func TestEchoStreamingContextGeneration(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	echoComponent := NewEcho(testLogger)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := echoComponent.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{},
@@ -170,7 +171,7 @@ func TestEchoStreamingErrorHandling(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	echoComponent := NewEcho(testLogger)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := echoComponent.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{},
@@ -196,15 +197,15 @@ func TestEchoStreamingErrorHandling(t *testing.T) {
 	}
 
 	resp, err := streamingComponent.ConverseStream(ctx, req, streamFunc)
-	assert.Error(t, err, "Should return error when streamFunc fails")
-	assert.Nil(t, resp, "Response should be nil when streaming fails")
+	require.Error(t, err, "Should return error when streamFunc fails")
+	require.Nil(t, resp, "Response should be nil when streaming fails")
 }
 
 func TestEchoStreamingWithCancelledContext(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	echoComponent := NewEcho(testLogger)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := echoComponent.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{},
@@ -216,7 +217,7 @@ func TestEchoStreamingWithCancelledContext(t *testing.T) {
 	require.True(t, ok)
 
 	// Create a context that we can cancel
-	streamCtx, cancel := context.WithCancel(context.Background())
+	streamCtx, cancel := context.WithCancel(ctx)
 	cancel() // Cancel immediately
 
 	req := &conversation.ConversationRequest{
@@ -233,6 +234,6 @@ func TestEchoStreamingWithCancelledContext(t *testing.T) {
 	}
 
 	resp, err := streamingComponent.ConverseStream(streamCtx, req, streamFunc)
-	assert.Error(t, err, "Should return error when context is cancelled")
-	assert.Nil(t, resp, "Response should be nil when context is cancelled")
+	require.Error(t, err, "Should return error when context is cancelled")
+	require.Nil(t, resp, "Response should be nil when context is cancelled")
 }

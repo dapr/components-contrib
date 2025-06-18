@@ -133,7 +133,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			errors.Is(err, errors.New("streaming is not supported by this model or provider"))) {
 			t.Run("streaming disabled returns proper error", func(t *testing.T) {
 				// This is expected for components like HuggingFace
-				assert.Error(t, err, "Should return error when streaming is disabled")
+				require.Error(t, err, "Should return error when streaming is disabled")
 				assert.Nil(t, resp, "Response should be nil when streaming is disabled")
 				t.Logf("Component %s has streaming disabled (expected): %v", component, err)
 			})

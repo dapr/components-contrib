@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/anthropic"
 	"github.com/dapr/components-contrib/conversation/aws/bedrock"
+	"github.com/dapr/components-contrib/conversation/deepseek"
 	"github.com/dapr/components-contrib/conversation/echo"
 	"github.com/dapr/components-contrib/conversation/googleai"
 	"github.com/dapr/components-contrib/conversation/huggingface"
@@ -98,6 +99,11 @@ func shouldSkipComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping Huggingface conformance test: HUGGINGFACE_API_KEY environment variable not set")
 			return true
 		}
+	case "deepseek":
+		if os.Getenv("DEEPSEEK_API_KEY") == "" {
+			t.Skipf("Skipping DeepSeek conformance test: DEEPSEEK_API_KEY environment variable not set")
+			return true
+		}
 	case "ollama":
 		// Ollama requires a local server - always skip for now unless specifically enabled
 		if os.Getenv("OLLAMA_ENABLED") == "" {
@@ -127,6 +133,8 @@ func loadConversationComponent(name string) conversation.Conversation {
 		return mistral.NewMistral(testLogger)
 	case "huggingface":
 		return huggingface.NewHuggingface(testLogger)
+	case "deepseek":
+		return deepseek.NewDeepseek(testLogger)
 	case "ollama":
 		return ollama.NewOllama(testLogger)
 	case "bedrock":

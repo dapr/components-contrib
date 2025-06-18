@@ -18,12 +18,15 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
+	mistral2 "github.com/gage-technologies/mistral-go"
 	"github.com/tmc/langchaingo/llms/mistral"
 )
 
@@ -31,6 +34,24 @@ type Mistral struct {
 	langchaingokit.LLM
 
 	logger logger.Logger
+}
+
+func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
+	if resp == nil || len(resp.Choices) == 0 {
+		return nil
+	}
+
+	choice := resp.Choices[0]
+	usage, ok := (choice.GenerationInfo["usage"]).(mistral2.UsageInfo)
+	if !ok {
+		return nil
+	}
+
+	return &conversation.UsageInfo{
+		PromptTokens:     int32(usage.PromptTokens),
+		CompletionTokens: int32(usage.CompletionTokens),
+		TotalTokens:      int32(usage.TotalTokens),
+	}
 }
 
 func NewMistral(logger logger.Logger) conversation.Conversation {
@@ -64,6 +85,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	m.LLM.Model = llm
+	m.LLM.UsageGetterFunc = usageGetter
 
 	if md.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.LLM.Model)

@@ -33,6 +33,14 @@ type Conversation interface {
 	io.Closer
 }
 
+// StreamingConversation is an optional interface that conversation components
+// can implement to support real-time streaming responses.
+type StreamingConversation interface {
+	// ConverseStream enables streaming conversation using LangChain Go's WithStreamingFunc.
+	// The streamFunc will be called for each chunk of content as it's generated.
+	ConverseStream(ctx context.Context, req *ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*ConversationResponse, error)
+}
+
 type ConversationInput struct {
 	Message string `json:"string"`
 	Role    Role   `json:"role"`
@@ -59,6 +67,7 @@ type ConversationResult struct {
 type ConversationResponse struct {
 	ConversationContext string               `json:"conversationContext"`
 	Outputs             []ConversationResult `json:"outputs"`
+	Usage               *UsageInfo           `json:"usage,omitempty"`
 }
 
 type Role string

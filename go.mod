@@ -57,13 +57,13 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/cohesion-org/deepseek-go v1.2.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.15.3-0.20250516121556-bc7dc566c45d
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
+	github.com/gage-technologies/mistral-go v1.1.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-zookeeper/zk v1.0.3
@@ -239,7 +239,6 @@ require (
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
@@ -306,7 +305,6 @@ require (
 	github.com/jhump/protoreflect v1.15.1 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/kataras/go-errors v0.0.3 // indirect

@@ -12,6 +12,8 @@ components:
     operations: []
   - component: huggingface
     operations: []
+  - component: deepseek
+    operations: []
   - component: ollama
     operations: []
   - component: bedrock

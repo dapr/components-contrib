@@ -76,7 +76,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	for _, input := range r.Inputs {
 		// Simple token estimation: roughly 1 token per 4 characters
-		inputTokens := int32(len(input.Message) / 4)
+		inputTokens := int32(len(input.Message) / int(4)) //nolint:gosec // This is a valid conversion
 		if inputTokens == 0 && len(input.Message) > 0 {
 			inputTokens = 1 // Minimum 1 token for non-empty input
 		}
@@ -157,7 +157,7 @@ func (e *Echo) ConverseStream(ctx context.Context, r *conversation.ConversationR
 
 	for _, input := range r.Inputs {
 		// Simple token estimation: roughly 1 token per 4 characters
-		inputTokens := int32(len(input.Message) / 4)
+		inputTokens := int32(len(input.Message) / int(4)) //nolint:gosec // This is a valid conversion
 		if inputTokens == 0 && len(input.Message) > 0 {
 			inputTokens = 1 // Minimum 1 token for non-empty input
 		}

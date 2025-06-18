@@ -48,9 +48,9 @@ func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
 	}
 
 	return &conversation.UsageInfo{
-		PromptTokens:     int32(usage.PromptTokens),
-		CompletionTokens: int32(usage.CompletionTokens),
-		TotalTokens:      int32(usage.TotalTokens),
+		PromptTokens:     int32(usage.PromptTokens),     //nolint:gosec // This is a valid conversion
+		CompletionTokens: int32(usage.CompletionTokens), //nolint:gosec // This is a valid conversion
+		TotalTokens:      int32(usage.TotalTokens),      //nolint:gosec // This is a valid conversion
 	}
 }
 

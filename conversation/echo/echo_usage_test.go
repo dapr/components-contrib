@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dapr/components-contrib/conversation"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 func TestEchoUsageInformation(t *testing.T) {
 	e := NewEcho(nil)
 	meta := conversation.Metadata{Base: metadata.Base{Properties: map[string]string{}}}
-	err := e.Init(context.Background(), meta)
+	err := e.Init(t.Context(), meta)
 	require.NoError(t, err)
 
 	req := &conversation.ConversationRequest{
@@ -23,7 +24,7 @@ func TestEchoUsageInformation(t *testing.T) {
 	}
 
 	t.Run("non-streaming mode returns usage", func(t *testing.T) {
-		resp, err := e.Converse(context.Background(), req)
+		resp, err := e.Converse(t.Context(), req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		require.NotNil(t, resp.Usage, "Usage information should be present")
@@ -47,12 +48,12 @@ func TestEchoUsageInformation(t *testing.T) {
 		streamer, ok := e.(conversation.StreamingConversation)
 		require.True(t, ok, "Echo should implement StreamingConversation interface")
 
-		resp, err := streamer.ConverseStream(context.Background(), req, streamFunc)
+		resp, err := streamer.ConverseStream(t.Context(), req, streamFunc)
 		require.NoError(t, err)
 		finalResp = resp
 
 		// Verify we got streaming chunks
-		assert.Greater(t, len(chunks), 0, "Should receive streaming chunks")
+		assert.NotEmpty(t, chunks, "Should receive streaming chunks")
 
 		// Verify usage information is present in final response
 		require.NotNil(t, finalResp, "Final response should be present")
@@ -73,7 +74,7 @@ func TestEchoUsageInformation(t *testing.T) {
 		}
 
 		// Non-streaming
-		nonStreamResp, err := e.Converse(context.Background(), testReq)
+		nonStreamResp, err := e.Converse(t.Context(), testReq)
 		require.NoError(t, err)
 		require.NotNil(t, nonStreamResp.Usage)
 
@@ -81,7 +82,7 @@ func TestEchoUsageInformation(t *testing.T) {
 		streamer, ok := e.(conversation.StreamingConversation)
 		require.True(t, ok, "Echo should implement StreamingConversation interface")
 
-		streamResp, err := streamer.ConverseStream(context.Background(), testReq, func(ctx context.Context, chunk []byte) error {
+		streamResp, err := streamer.ConverseStream(t.Context(), testReq, func(ctx context.Context, chunk []byte) error {
 			return nil // Ignore chunks for this test
 		})
 		require.NoError(t, err)

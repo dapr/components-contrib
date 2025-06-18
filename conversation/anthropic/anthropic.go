@@ -16,16 +16,16 @@ package anthropic
 
 import (
 	"context"
-	"github.com/tmc/langchaingo/llms"
 	"reflect"
+
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/anthropic"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
 type Anthropic struct {

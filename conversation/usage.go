@@ -124,14 +124,14 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 }
 
 // ExtractInt32 safely extracts an int32 value from an interface{}
-func ExtractInt32(value interface{}) (int32, bool) {
+func ExtractInt32(value any) (int32, bool) {
 	switch v := value.(type) {
 	case int:
-		return int32(v), true
+		return int32(v), true //nolint:gosec // This is a valid conversion
 	case int32:
 		return v, true
 	case int64:
-		return int32(v), true
+		return int32(v), true //nolint:gosec // This is a valid conversion
 	case float64:
 		return int32(v), true
 	case float32:

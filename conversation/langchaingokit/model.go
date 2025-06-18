@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"errors"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -25,11 +26,15 @@ import (
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
+	UsageGetterFunc   func(resp *llms.ContentResponse) *conversation.UsageInfo
+	StreamingDisabled bool // If true, disables streaming functionality (some providers do not support streaming)
 }
 
-func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+var ErrStreamingNotSupported = errors.New("streaming is not supported by this model or provider")
+
+// generateContent is a helper function that generates content using the LangChain Go model.
+func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationRequest, opts []llms.CallOption) (*conversation.ConversationResponse, error) {
 	messages := GetMessageFromRequest(r)
-	opts := GetOptionsFromRequest(r)
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
@@ -45,9 +50,30 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest)
 		})
 	}
 
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
+	usageGetter := a.UsageGetterFunc
+	if usageGetter == nil {
+		usageGetter = conversation.ExtractUsageFromResponse
 	}
 
-	return res, nil
+	return &conversation.ConversationResponse{
+		Outputs: outputs,
+		Usage:   usageGetter(resp),
+	}, nil
+}
+
+// Converse executes a non-streaming conversation with the LangChain Go model.
+func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+	opts := GetOptionsFromRequest(r)
+
+	return a.generateContent(ctx, r, opts)
+}
+
+// ConverseStream executes a streaming conversation with the LangChain Go model.
+func (a *LLM) ConverseStream(ctx context.Context, r *conversation.ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*conversation.ConversationResponse, error) {
+	if a.StreamingDisabled {
+		return nil, ErrStreamingNotSupported
+	}
+	opts := GetOptionsFromRequest(r, llms.WithStreamingFunc(streamFunc))
+
+	return a.generateContent(ctx, r, opts)
 }

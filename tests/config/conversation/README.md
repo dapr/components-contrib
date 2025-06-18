@@ -10,6 +10,7 @@ This directory contains conformance tests for all conversation components, inclu
 - **googleai** - Google Gemini models
 - **mistral** - Mistral AI models
 - **huggingface** - HuggingFace models (using OpenAI compatibility layer)
+- **deepseek** - DeepSeek models (using OpenAI compatibility layer)
 - **ollama** - Local Ollama models
 - **bedrock** - AWS Bedrock models
 
@@ -76,34 +77,42 @@ export HUGGINGFACE_API_KEY="your_huggingface_api_key"
 ```
 Get your API key from: https://huggingface.co/settings/tokens
 
+### DeepSeek
+```bash
+export DEEPSEEK_API_KEY="your_deepseek_api_key"
+```
+Get your API key from: https://platform.deepseek.com/api_keys
+
 ### AWS Bedrock
 ```bash
-export AWS_ACCESS_KEY_ID="your_aws_access_key"
-export AWS_SECRET_ACCESS_KEY="your_aws_secret_key"
-export AWS_REGION="us-east-1"  # Optional, defaults to us-east-1
+export AWS_ACCESS_KEY_ID="your_aws_access_key_id"
+export AWS_SECRET_ACCESS_KEY="your_aws_secret_access_key"
+export AWS_DEFAULT_REGION="us-east-1"
 ```
-Get your credentials from AWS Console
 
 ### Ollama
+Ollama requires a local Ollama server to be running. To enable tests:
 ```bash
 export OLLAMA_ENABLED="1"
 ```
-Requires a local Ollama server running with the `llama3.2:latest` model available.
 
-## Test Configuration
+## Component Configuration
 
-Each component has its own configuration file in this directory:
+Each component has its own configuration file in the respective subdirectory. For example:
+- `echo/echo.yml` - Echo component (no special configuration needed)
+- `openai/openai.yml` - OpenAI configuration
+- `anthropic/anthropic.yml` - Anthropic configuration
+- And so on...
 
-- `echo/echo.yml` - Echo component configuration
-- `openai/openai.yml` - OpenAI configuration with gpt-4o-mini model
-- `anthropic/anthropic.yml` - Anthropic configuration with Claude 3 Haiku
-- `googleai/googleai.yml` - Google AI configuration with Gemini 1.5 Flash
-- `mistral/mistral.yml` - Mistral configuration with open-mistral-7b
-- `huggingface/huggingface.yml` - HuggingFace configuration (uses OpenAI compatibility layer)
-- `ollama/ollama.yml` - Ollama configuration with llama3.2:latest
-- `bedrock/bedrock.yml` - AWS Bedrock configuration with Claude 3 Haiku
+## Test Types
 
-The configurations use cost-effective models where possible to minimize testing costs.
+The conformance tests validate:
+1. **Basic functionality** - Component initialization and basic conversation
+2. **Usage information** - Token usage reporting for both streaming and non-streaming modes
+3. **Streaming support** - Real-time streaming responses (when supported by the component)
+4. **Error handling** - Proper error responses for components with streaming disabled
+
+Components like Echo and DeepSeek support streaming, while HuggingFace has streaming disabled due to API limitations.
 
 ## HuggingFace OpenAI Compatibility Layer
 

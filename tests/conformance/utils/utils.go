@@ -15,6 +15,7 @@ package utils
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -92,7 +93,7 @@ func loadEnvFile(filepath string) error {
 func LoadEnvVars(relativePath string) error {
 	_, filename, _, ok := runtime.Caller(1)
 	if !ok {
-		return fmt.Errorf("cannot get path to current file")
+		return errors.New("cannot get path to current file")
 	}
 
 	filepath := path.Join(path.Dir(filename), relativePath)

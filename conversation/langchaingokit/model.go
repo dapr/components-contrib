@@ -2,8 +2,10 @@ package langchaingokit
 
 import (
 	"context"
-	"github.com/dapr/components-contrib/conversation"
+
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 // LLM is a helper struct that wraps a LangChain Go model

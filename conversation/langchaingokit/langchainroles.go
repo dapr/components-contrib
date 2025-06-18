@@ -15,8 +15,9 @@ limitations under the License.
 package langchaingokit
 
 import (
-	"github.com/dapr/components-contrib/conversation"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func ConvertLangchainRole(role conversation.Role) llms.ChatMessageType {

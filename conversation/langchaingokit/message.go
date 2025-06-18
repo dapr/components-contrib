@@ -1,8 +1,9 @@
 package langchaingokit
 
 import (
-	"github.com/dapr/components-contrib/conversation"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageContent {

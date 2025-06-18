@@ -66,11 +66,11 @@ EMPTY_LINE_ABOVE=yes
 TEST_OVERRIDE=original_value
 `
 
-	err := os.WriteFile(envFile, []byte(envContent), 0644)
+	err := os.WriteFile(envFile, []byte(envContent), 0o600)
 	require.NoError(t, err)
 
 	// Set a value that should be overridden
-	os.Setenv("TEST_OVERRIDE", "should_be_overridden")
+	t.Setenv("TEST_OVERRIDE", "should_be_overridden")
 
 	// Load the .env file
 	err = loadEnvFile(envFile)
@@ -107,13 +107,13 @@ func TestLoadEnvVars(t *testing.T) {
 	envFile := filepath.Join(tmpDir, "test.env")
 
 	envContent := `TEST_LOAD_VARS=success`
-	err := os.WriteFile(envFile, []byte(envContent), 0644)
+	err := os.WriteFile(envFile, []byte(envContent), 0o600)
 	require.NoError(t, err)
 
 	// This test is tricky because LoadEnvVars uses runtime.Caller
 	// For now, just test that it doesn't panic when file doesn't exist
 	err = LoadEnvVars("nonexistent.env")
-	assert.Error(t, err) // Should return error but not panic
+	require.Error(t, err) // Should return error but not panic
 
 	// Clean up
 	os.Unsetenv("TEST_LOAD_VARS")

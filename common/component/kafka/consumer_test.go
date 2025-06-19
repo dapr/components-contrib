@@ -335,8 +335,8 @@ func Test_ConsumeClaim(t *testing.T) {
 					Handler: func(ctx context.Context, event *NewEvent) error {
 						// This must never be test-value-2
 						assert.Equal(t, "test-value", string(event.Data))
-
-						return context.Canceled
+						cancel()
+						return ctx.Err()
 					},
 				}
 

@@ -21,10 +21,12 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 // Mock implementations
@@ -46,6 +48,7 @@ func (m *mockConsumerGroupSession) MemberID() string {
 
 func (m *mockConsumerGroupSession) GenerationID() int32 {
 	args := m.Called()
+	//nolint:gosec // Ignoring integer overflow in test code
 	return int32(args.Int(0))
 }
 
@@ -81,6 +84,7 @@ func (m *mockConsumerGroupClaim) Topic() string {
 
 func (m *mockConsumerGroupClaim) Partition() int32 {
 	args := m.Called()
+	//nolint:gosec // Ignoring integer overflow in test code
 	return int32(args.Int(0))
 }
 
@@ -153,7 +157,7 @@ func Test_ConsumeClaim(t *testing.T) {
 
 				// Test
 				err := consumer.ConsumeClaim(mockSession, mockClaim)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				mockSession.AssertExpectations(t)
 			})
 
@@ -195,7 +199,7 @@ func Test_ConsumeClaim(t *testing.T) {
 
 				// Test
 				err := consumer.ConsumeClaim(mockSession, mockClaim)
-				assert.Nil(t, err) // The error isn't returned by this method
+				require.NoError(t, err)
 				mockSession.AssertNotCalled(t, "MarkMessage", msg, "")
 			})
 		})
@@ -257,7 +261,7 @@ func Test_ConsumeClaim(t *testing.T) {
 
 				// Test
 				err := consumer.ConsumeClaim(mockSession, mockClaim)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				mockSession.AssertExpectations(t)
 			})
 
@@ -299,7 +303,7 @@ func Test_ConsumeClaim(t *testing.T) {
 
 				// Test
 				err := consumer.ConsumeClaim(mockSession, mockClaim)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				mockSession.AssertNotCalled(t, "MarkMessage", msg, "")
 			})
 
@@ -352,7 +356,7 @@ func Test_ConsumeClaim(t *testing.T) {
 
 				// Test
 				err := consumer.ConsumeClaim(mockSession, mockClaim)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				mockSession.AssertNotCalled(t, "MarkMessage", msg, "")
 			})
 		})

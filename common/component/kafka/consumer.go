@@ -109,6 +109,13 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				if consumer.k.consumeRetryEnabled {
 					if err := notifyRecover(consumer, message, session, b); err != nil {
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+						if errors.Is(session.Context().Err(), context.Canceled) {
+							// If the context is canceled, we should not attempt to consume any more messages. Exiting the loop.
+							// Otherwise, there is a race condition when this loop keeps processing messages from the claim.Messages() channel
+							// before the session.Context().Done() is closed. If there are other messages that can successfully be processed,
+							// they will be marked as processed and this failing message will be lost.
+							return nil
+						}
 					}
 				} else {
 					err := consumer.doCallback(session, message)

@@ -28,6 +28,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -258,6 +259,8 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	if ok {
 		p.Priority = priority
 	}
+
+	common.ApplyMetadataToPublishing(req.Metadata, &p)
 
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {
@@ -620,8 +623,13 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 
 func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic string, handler pubsub.Handler) error {
 	pubsubMsg := &pubsub.NewMessage{
-		Data:  d.Body,
-		Topic: topic,
+		Data:     d.Body,
+		Topic:    topic,
+		Metadata: map[string]string{},
+	}
+
+	if r.metadata.PublishMessagePropertiesToMetadata {
+		pubsubMsg.Metadata = addAMQPPropertiesToMetadata(d)
 	}
 
 	err := handler(ctx, pubsubMsg)
@@ -744,4 +752,44 @@ func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 func queueTypeValid(qType string) bool {
 	return qType == amqp.QueueTypeClassic || qType == amqp.QueueTypeQuorum
+}
+
+// Add this function to extract metadata from AMQP delivery
+func addAMQPPropertiesToMetadata(delivery amqp.Delivery) map[string]string {
+	metadata := map[string]string{}
+
+	// Add message properties as metadata
+	if delivery.MessageId != "" {
+		metadata["metadata.messageid"] = delivery.MessageId
+	}
+
+	if delivery.CorrelationId != "" {
+		metadata["metadata.correlationid"] = delivery.CorrelationId
+	}
+
+	if delivery.Type != "" {
+		metadata["metadata.type"] = delivery.Type
+	}
+
+	if delivery.ContentType != "" {
+		metadata["metadata.contenttype"] = delivery.ContentType
+	}
+
+	// Add any custom headers
+	for k, v := range delivery.Headers {
+		metadataPrefixedKey := "metadata." + k
+		if v != nil {
+			switch value := v.(type) {
+			case string:
+				metadata[metadataPrefixedKey] = value
+			case []byte:
+				metadata[metadataPrefixedKey] = string(value)
+			default:
+				// Try to convert other types to string
+				metadata[metadataPrefixedKey] = fmt.Sprintf("%v", v)
+			}
+		}
+	}
+
+	return metadata
 }

@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: metadata-binding
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+  - name: queueName
+    value: metadataQueue
+  - name: host
+    value: "amqp://test:test@localhost:5672"
+  - name: durable
+    value: true
+  - name: deleteWhenUnused
+    value: false

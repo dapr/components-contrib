@@ -20,18 +20,18 @@ import (
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/bedrock"
 )
 
 type AWSBedrock struct {
 	model string
-	llm   llms.Model
+	langchaingokit.LLM
 
 	logger logger.Logger
 }
@@ -81,15 +81,15 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
-	b.llm = llm
+	b.LLM.Model = llm
 
 	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.llm)
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		b.llm = cachedModel
+		b.LLM.Model = cachedModel
 	}
 	return nil
 }
@@ -98,47 +98,6 @@ func (b *AWSBedrock) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadataStruct := AWSBedrockMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
-}
-
-func (b *AWSBedrock) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := make([]llms.MessageContent, 0, len(r.Inputs))
-
-	for _, input := range r.Inputs {
-		role := conversation.ConvertLangchainRole(input.Role)
-
-		messages = append(messages, llms.MessageContent{
-			Role: role,
-			Parts: []llms.ContentPart{
-				llms.TextPart(input.Message),
-			},
-		})
-	}
-
-	opts := []llms.CallOption{}
-
-	if r.Temperature > 0 {
-		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
-	}
-
-	resp, err := b.llm.GenerateContent(ctx, messages, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
-
-	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
-	}
-
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
-	}
-
-	return res, nil
 }
 
 func (b *AWSBedrock) Close() error {

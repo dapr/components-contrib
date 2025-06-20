@@ -18,19 +18,40 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms"
+
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	"github.com/tmc/langchaingo/llms"
+	mistral2 "github.com/gage-technologies/mistral-go"
 	"github.com/tmc/langchaingo/llms/mistral"
 )
 
 type Mistral struct {
-	llm llms.Model
+	langchaingokit.LLM
 
 	logger logger.Logger
+}
+
+func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
+	if resp == nil || len(resp.Choices) == 0 {
+		return nil
+	}
+
+	choice := resp.Choices[0]
+	usage, ok := (choice.GenerationInfo["usage"]).(mistral2.UsageInfo)
+	if !ok {
+		return nil
+	}
+
+	return &conversation.UsageInfo{
+		PromptTokens:     int32(usage.PromptTokens),     //nolint:gosec // This is a valid conversion
+		CompletionTokens: int32(usage.CompletionTokens), //nolint:gosec // This is a valid conversion
+		TotalTokens:      int32(usage.TotalTokens),      //nolint:gosec // This is a valid conversion
+	}
 }
 
 func NewMistral(logger logger.Logger) conversation.Conversation {
@@ -63,15 +84,16 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	m.llm = llm
+	m.LLM.Model = llm
+	m.LLM.UsageGetterFunc = usageGetter
 
 	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.llm)
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		m.llm = cachedModel
+		m.LLM.Model = cachedModel
 	}
 	return nil
 }
@@ -80,47 +102,6 @@ func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
-}
-
-func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := make([]llms.MessageContent, 0, len(r.Inputs))
-
-	for _, input := range r.Inputs {
-		role := conversation.ConvertLangchainRole(input.Role)
-
-		messages = append(messages, llms.MessageContent{
-			Role: role,
-			Parts: []llms.ContentPart{
-				llms.TextPart(input.Message),
-			},
-		})
-	}
-
-	opts := []llms.CallOption{}
-
-	if r.Temperature > 0 {
-		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
-	}
-
-	resp, err := m.llm.GenerateContent(ctx, messages, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
-
-	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
-	}
-
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
-	}
-
-	return res, nil
 }
 
 func (m *Mistral) Close() error {

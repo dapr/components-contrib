@@ -13,30 +13,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package echo
+package langchaingokit
 
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/conversation"
-	"github.com/dapr/kit/logger"
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
-func TestConverse(t *testing.T) {
-	e := NewEcho(logger.NewLogger("echo test"))
-	e.Init(t.Context(), conversation.Metadata{})
+func TestConvertLangchainRole(t *testing.T) {
+	roles := map[string]string{
+		conversation.RoleSystem:    string(llms.ChatMessageTypeSystem),
+		conversation.RoleAssistant: string(llms.ChatMessageTypeAI),
+		conversation.RoleFunction:  string(llms.ChatMessageTypeFunction),
+		conversation.RoleUser:      string(llms.ChatMessageTypeHuman),
+		conversation.RoleTool:      string(llms.ChatMessageTypeTool),
+	}
 
-	r, err := e.Converse(t.Context(), &conversation.ConversationRequest{
-		Inputs: []conversation.ConversationInput{
-			{
-				Message: "hello",
-			},
-		},
-	})
-	require.NoError(t, err)
-	assert.Len(t, r.Outputs, 1)
-	assert.Equal(t, "hello", r.Outputs[0].Result)
+	for k, v := range roles {
+		r := ConvertLangchainRole(conversation.Role(k))
+		assert.Equal(t, v, string(r))
+	}
 }

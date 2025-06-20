@@ -2,3 +2,19 @@ componentType: conversation
 components:
   - component: echo
     operations: []
+  - component: openai
+    operations: []
+  - component: anthropic
+    operations: []
+  - component: googleai
+    operations: []
+  - component: mistral
+    operations: []
+  - component: huggingface
+    operations: []
+  - component: deepseek
+    operations: []
+  - component: ollama
+    operations: []
+  - component: bedrock
+    operations: []

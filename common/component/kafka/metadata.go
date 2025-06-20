@@ -112,6 +112,7 @@ type KafkaMetadata struct {
 	SchemaRegistryAPISecret     string        `mapstructure:"schemaRegistryAPISecret"`
 	SchemaCachingEnabled        bool          `mapstructure:"schemaCachingEnabled"`
 	SchemaLatestVersionCacheTTL time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
+	UseAvroJSON                 bool          `mapstructure:"useAvroJSON"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -164,6 +165,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		SchemaCachingEnabled:                         true,
 		SchemaLatestVersionCacheTTL:                  5 * time.Minute,
 		EscapeHeaders:                                false,
+		UseAvroJSON:                                  false,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)

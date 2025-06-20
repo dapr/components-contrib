@@ -462,7 +462,7 @@ func TestParsePulsarMetadataReplicateSubscriptionState(t *testing.T) {
 		},
 		{
 			name:                       "test replicateSubscriptionState false",
-			replicateSubscriptionState: "false", 
+			replicateSubscriptionState: "false",
 			expected:                   false,
 		},
 		{
@@ -478,11 +478,11 @@ func TestParsePulsarMetadataReplicateSubscriptionState(t *testing.T) {
 			m.Properties = map[string]string{
 				"host": "a",
 			}
-			
+
 			if tc.replicateSubscriptionState != "" {
 				m.Properties["replicateSubscriptionState"] = tc.replicateSubscriptionState
 			}
-			
+
 			meta, err := parsePulsarMetadata(m)
 
 			require.NoError(t, err)

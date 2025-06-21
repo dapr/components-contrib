@@ -277,6 +277,8 @@ func (k *Kafka) initConsumerGroupRebalanceStrategy(config *sarama.Config, metada
 		k.logger.Warnf("Invalid consumer group rebalance strategy: %s. Using default strategy: '%s'", consumerGroupRebalanceStrategy, consumerGroupRebalanceStrategyRange)
 		config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
 	}
+	k.logger.Infof("Consumer group rebalance strategy set to '%s'", config.Consumer.Group.Rebalance.GroupStrategies[0].Name())
+
 }
 
 func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {

@@ -473,6 +473,20 @@ func TestInitConsumerGroupRebalanceStrategy(t *testing.T) {
 			expectedStrategy: "range",
 		},
 		{
+			name: "case insensitive strategy",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "sTickY",
+			},
+			expectedStrategy: "sticky",
+		},
+		{
+			name: "case insensitive strategy default",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "Range",
+			},
+			expectedStrategy: "range",
+		},
+		{
 			name: "invalid strategy defaults to Range with warning",
 			metadata: map[string]string{
 				"consumerGroupRebalanceStrategy": "invalid",

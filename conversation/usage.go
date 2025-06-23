@@ -56,7 +56,7 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 
 	// Pattern 2: OpenAI-style usage in nested map
 	if !found {
-		if usageMap, ok := choice.GenerationInfo["usage"].(map[string]interface{}); ok {
+		if usageMap, ok := choice.GenerationInfo["usage"].(map[string]any); ok {
 			if promptTokens, ok := ExtractInt32(usageMap["prompt_tokens"]); ok {
 				usage.PromptTokens = promptTokens
 				found = true

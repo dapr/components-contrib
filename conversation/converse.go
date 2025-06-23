@@ -41,9 +41,21 @@ type StreamingConversation interface {
 	ConverseStream(ctx context.Context, req *ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*ConversationResponse, error)
 }
 
+// ToolCallSupport is an optional interface that conversation components
+// can implement to support tool calling functionality.
+type ToolCallSupport interface {
+	// SupportsToolCalling returns true if the component supports tool calling
+	SupportsToolCalling() bool
+}
+
 type ConversationInput struct {
 	Message string `json:"string"`
 	Role    Role   `json:"role"`
+
+	// Tool calling support
+	Tools      []Tool `json:"tools,omitempty"`        // Tool definitions (only in first message)
+	ToolCallID string `json:"tool_call_id,omitempty"` // For tool result messages
+	Name       string `json:"name,omitempty"`         // Function name for tool results
 }
 
 type ConversationRequest struct {
@@ -62,12 +74,39 @@ type ConversationRequest struct {
 type ConversationResult struct {
 	Result     string                `json:"result"`
 	Parameters map[string]*anypb.Any `json:"parameters"`
+
+	// Tool calling fields
+	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`    // Tool calls from LLM
+	FinishReason string     `json:"finish_reason,omitempty"` // Why generation stopped
 }
 
 type ConversationResponse struct {
 	ConversationContext string               `json:"conversationContext"`
 	Outputs             []ConversationResult `json:"outputs"`
 	Usage               *UsageInfo           `json:"usage,omitempty"`
+}
+
+// Tool calling types (matching Dapr protobuf structure)
+type Tool struct {
+	Type     string       `json:"type"` // Always "function"
+	Function ToolFunction `json:"function"`
+}
+
+type ToolFunction struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  any    `json:"parameters"` // JSON schema as map or string
+}
+
+type ToolCall struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type"` // Always "function"
+	Function ToolCallFunction `json:"function"`
+}
+
+type ToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON string
 }
 
 type Role string

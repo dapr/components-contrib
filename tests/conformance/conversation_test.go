@@ -17,9 +17,11 @@ limitations under the License.
 package conformance
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -33,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/conversation/ollama"
 	"github.com/dapr/components-contrib/conversation/openai"
+	"github.com/dapr/components-contrib/metadata"
 	conf_conversation "github.com/dapr/components-contrib/tests/conformance/conversation"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -61,9 +64,29 @@ func TestConversationConformance(t *testing.T) {
 			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, componentConfigPath))
 			require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 
+			// Create component instance once for all tests
 			conv := loadConversationComponent(comp.Component)
 			require.NotNil(t, conv, "error running conformance test for component %s", comp.Component)
 
+			// Initialize the component once before running all tests
+			t.Run("setup", func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+				defer cancel()
+
+				err := conv.Init(ctx, conversation.Metadata{
+					Base: metadata.Base{
+						Properties: props,
+					},
+				})
+				require.NoError(t, err, "Component initialization failed")
+			})
+
+			// If initialization failed, skip all other tests
+			if t.Failed() {
+				t.Fatal("Component initialization failed, skipping all tests")
+			}
+
+			// Run conformance tests with the initialized component
 			conf_conversation.ConformanceTests(t, props, conv, comp.Component)
 		}
 	}

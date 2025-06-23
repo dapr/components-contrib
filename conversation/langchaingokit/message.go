@@ -27,12 +27,27 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 	for _, input := range r.Inputs {
 		role := ConvertLangchainRole(input.Role)
 
-		messages = append(messages, llms.MessageContent{
-			Role: role,
-			Parts: []llms.ContentPart{
-				llms.TextPart(input.Message),
-			},
-		})
+		// Handle tool result messages
+		if input.Role == conversation.RoleTool && input.ToolCallID != "" {
+			messages = append(messages, llms.MessageContent{
+				Role: role,
+				Parts: []llms.ContentPart{
+					llms.ToolCallResponse{
+						ToolCallID: input.ToolCallID,
+						Name:       input.Name,
+						Content:    input.Message,
+					},
+				},
+			})
+		} else {
+			// Regular text message
+			messages = append(messages, llms.MessageContent{
+				Role: role,
+				Parts: []llms.ContentPart{
+					llms.TextPart(input.Message),
+				},
+			})
+		}
 	}
 
 	return messages

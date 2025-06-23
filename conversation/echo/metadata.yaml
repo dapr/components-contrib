@@ -1,0 +1,33 @@
+# Echo Conversation Provider
+# A test double implementation designed for reliable testing of conversation components.
+# Provides predictable, deterministic responses while maintaining full structural compatibility with real LLM providers.
+
+schemaVersion: v1
+type: conversation
+name: echo
+version: v1
+status: stable
+title: "Echo Conversation Provider"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/echo/
+capabilities:
+  - "Conversation interface"
+  - "Streaming conversation"
+  - "Tool calling (function calling)"
+  - "Dynamic tool support"
+  - "Case-agnostic tool matching"
+  - "Parallel tool calling"
+  - "Token usage tracking"
+builtinAuthenticationProfiles:
+  - title: "None"
+    description: "No authentication required. Echo is a test component."
+metadata:
+  - name: model
+    required: false
+    description: "Model name for compatibility (optional)"
+    example: "echo-v1"
+    type: string
+authenticationProfiles:
+  - title: "None Required"
+    description: "Echo requires no authentication as it's designed for testing" 

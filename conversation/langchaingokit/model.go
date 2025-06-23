@@ -17,6 +17,7 @@ package langchaingokit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/tmc/langchaingo/llms"
@@ -33,9 +34,96 @@ type LLM struct {
 
 var ErrStreamingNotSupported = errors.New("streaming is not supported by this model or provider")
 
+// SupportsToolCalling returns true to indicate this component supports tool calling
+func (a *LLM) SupportsToolCalling() bool {
+	return true
+}
+
+// convertParametersToMap converts tool parameters from JSON string to map[string]any if needed
+// This ensures langchaingo receives parameters in the expected format
+func convertParametersToMap(params any) any {
+	// If params is already a map, return it as-is
+	if paramMap, ok := params.(map[string]any); ok {
+		return paramMap
+	}
+
+	// If params is a string, try to unmarshal it as JSON
+	if paramStr, ok := params.(string); ok {
+		var paramMap map[string]any
+		if err := json.Unmarshal([]byte(paramStr), &paramMap); err != nil {
+			// If unmarshaling fails, return original string
+			return params
+		}
+		return paramMap
+	}
+
+	// For other types, return as-is (let langchaingo handle it)
+	return params
+}
+
+// convertDaprToolsToLangchainTools converts Dapr tool definitions to langchaingo format
+func convertDaprToolsToLangchainTools(tools []conversation.Tool) []llms.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	langchainTools := make([]llms.Tool, len(tools))
+	for i, tool := range tools {
+		langchainTools[i] = llms.Tool{
+			Type: tool.Type,
+			Function: &llms.FunctionDefinition{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  convertParametersToMap(tool.Function.Parameters),
+			},
+		}
+	}
+	return langchainTools
+}
+
+// convertLangchainToolCallsToDapr converts langchaingo tool calls to Dapr format
+func convertLangchainToolCallsToDapr(toolCalls []llms.ToolCall) []conversation.ToolCall {
+	if len(toolCalls) == 0 {
+		return nil
+	}
+
+	daprToolCalls := make([]conversation.ToolCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		daprToolCalls[i] = conversation.ToolCall{
+			ID:   tc.ID,
+			Type: tc.Type,
+			Function: conversation.ToolCallFunction{
+				Name:      tc.FunctionCall.Name,
+				Arguments: tc.FunctionCall.Arguments,
+			},
+		}
+	}
+	return daprToolCalls
+}
+
 // generateContent is a helper function that generates content using the LangChain Go model.
 func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationRequest, opts []llms.CallOption) (*conversation.ConversationResponse, error) {
+	// Debug: Check if Model is nil
+	if a.Model == nil {
+		return nil, errors.New("LLM Model is nil - component may not have been initialized properly (this could indicate the wrong component instance is being used)")
+	}
+
 	messages := GetMessageFromRequest(r)
+
+	// Extract tools from inputs (typically from the first user message that contains them)
+	var tools []conversation.Tool
+	for _, input := range r.Inputs {
+		if len(input.Tools) > 0 {
+			tools = input.Tools
+			break // Take tools from first input that has them
+		}
+	}
+
+	// Add tools if provided
+	if len(tools) > 0 {
+		langchainTools := convertDaprToolsToLangchainTools(tools)
+		opts = append(opts, llms.WithTools(langchainTools))
+	}
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
@@ -45,10 +133,21 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
 
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
+		result := conversation.ConversationResult{
 			Result:     resp.Choices[i].Content,
 			Parameters: r.Parameters,
-		})
+		}
+
+		// Convert tool calls if present
+		if len(resp.Choices[i].ToolCalls) > 0 {
+			result.ToolCalls = convertLangchainToolCallsToDapr(resp.Choices[i].ToolCalls)
+			result.FinishReason = "tool_calls"
+		} else {
+			// No tool calls, should finish with "stop"
+			result.FinishReason = "stop"
+		}
+
+		outputs = append(outputs, result)
 	}
 
 	usageGetter := a.UsageGetterFunc
@@ -64,6 +163,11 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 // Converse executes a non-streaming conversation with the LangChain Go model.
 func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
+	// Debug: Log the Model field status before calling generateContent
+	if a.Model == nil {
+		return nil, errors.New("LLM Model is nil in Converse() - this indicates the component instance was not properly initialized")
+	}
+
 	opts := GetOptionsFromRequest(r)
 
 	return a.generateContent(ctx, r, opts)

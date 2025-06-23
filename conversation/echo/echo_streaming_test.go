@@ -109,16 +109,17 @@ func TestEchoStreamingWithMultipleInputs(t *testing.T) {
 	streamingComponent, ok := echoComponent.(conversation.StreamingConversation)
 	require.True(t, ok)
 
-	// Test with multiple inputs
+	// Test with multiple inputs - Echo now processes conversation as a whole
+	// and responds to the most recent user message
 	req := &conversation.ConversationRequest{
 		Inputs: []conversation.ConversationInput{
 			{
 				Message: "First message",
-				Role:    "user",
+				Role:    "assistant",
 			},
 			{
 				Message: "Second message",
-				Role:    "assistant",
+				Role:    "user",
 			},
 		},
 	}
@@ -133,13 +134,12 @@ func TestEchoStreamingWithMultipleInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// Verify we got chunks for both inputs
-	assert.Greater(t, len(chunks), 2, "Should receive chunks for multiple inputs")
+	// Echo now provides a single response per conversation (like real LLM providers)
+	assert.Greater(t, len(chunks), 1, "Should receive chunks for streaming")
 
-	// Verify response has both outputs
-	assert.Len(t, resp.Outputs, 2)
-	assert.Equal(t, "First message", resp.Outputs[0].Result)
-	assert.Equal(t, "Second message", resp.Outputs[1].Result)
+	// Verify response has single output reflecting the conversation
+	assert.Len(t, resp.Outputs, 1)
+	assert.Equal(t, "Second message", resp.Outputs[0].Result) // Echoes the last user message
 }
 
 func TestEchoStreamingContextGeneration(t *testing.T) {
@@ -176,9 +176,8 @@ func TestEchoStreamingContextGeneration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// Verify context ID was generated
-	assert.NotEmpty(t, resp.ConversationContext, "Should generate context ID when none provided")
-	assert.Contains(t, resp.ConversationContext, "echo-context-", "Generated context should have echo prefix")
+	// Echo now returns empty context when none provided (like real LLM providers)
+	assert.Equal(t, "", resp.ConversationContext, "Should return empty context when none provided")
 }
 
 func TestEchoStreamingErrorHandling(t *testing.T) {

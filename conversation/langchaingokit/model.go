@@ -141,9 +141,13 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 		// Convert tool calls if present
 		if len(resp.Choices[i].ToolCalls) > 0 {
 			result.ToolCalls = convertLangchainToolCallsToDapr(resp.Choices[i].ToolCalls)
+		}
+
+		if resp.Choices[i].StopReason != "" {
+			result.FinishReason = resp.Choices[i].StopReason
+		} else if len(resp.Choices[i].ToolCalls) > 0 { // for echo models so tests pass while mimicking OpenAI behavior
 			result.FinishReason = "tool_calls"
 		} else {
-			// No tool calls, should finish with "stop"
 			result.FinishReason = "stop"
 		}
 

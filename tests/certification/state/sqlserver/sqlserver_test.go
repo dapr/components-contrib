@@ -66,9 +66,10 @@ func TestSqlServer(t *testing.T) {
 	// This environment variable is used to revert to the old behavior.
 	// Ref: https://github.com/microsoft/mssql-docker/issues/895
 	oldDebugValue := os.Getenv("GODEBUG")
-	err := t.Setenv("GODEBUG", "x509negativeserial=1")
-	if err != nil {
-		t.Fatalf("Failed to set GODEBUG environment variable: %v", err)
+	t.Setenv("GODEBUG", "x509negativeserial=1")
+
+	if os.Getenv("GODEBUG") != "x509negativeserial=1" {
+		t.Fatal("Failed to set GODEBUG environment variable, actual value: " + os.Getenv("GODEBUG"))
 	}
 	defer func() {
 		t.Setenv("GODEBUG", oldDebugValue)

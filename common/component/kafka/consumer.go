@@ -33,29 +33,6 @@ type consumer struct {
 	mutex sync.Mutex
 }
 
-func notifyRecover(consumer *consumer, message *sarama.ConsumerMessage, session sarama.ConsumerGroupSession, b backoff.BackOff) error {
-	for {
-		if err := retry.NotifyRecover(func() error {
-			return consumer.doCallback(session, message)
-		}, b, func(err error, d time.Duration) {
-			consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-		}, func() {
-			consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-		}); err != nil {
-			// If the retry policy got interrupted, it could mean that either
-			// the policy has reached its maximum number of attempts or the context has been cancelled.
-			// There is a weird edge case where the error returned is a 'context canceled' error but the session.Context is not done.
-			// This is a workaround to handle that edge case and reprocess the current message.
-			if err == context.Canceled && session.Context().Err() == nil {
-				consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. The error returned is 'context canceled' but the session context is not done. Retrying...")
-				continue
-			}
-			return err
-		}
-		return nil
-	}
-}
-
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	isBulkSubscribe := consumer.k.checkBulkSubscribe(claim.Topic())
@@ -107,8 +84,21 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				}
 
 				if consumer.k.consumeRetryEnabled {
-					if err := notifyRecover(consumer, message, session, b); err != nil {
+					if err := retry.NotifyRecover(func() error {
+						return consumer.doCallback(session, message)
+					}, b, func(err error, d time.Duration) {
+						consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+					}, func() {
+						consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+					}); err != nil {
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+						if errors.Is(session.Context().Err(), context.Canceled) {
+							// If the context is canceled, we should not attempt to consume any more messages. Exiting the loop.
+							// Otherwise, there is a race condition when this loop keeps processing messages from the claim.Messages() channel
+							// before the session.Context().Done() is closed. If there are other messages that can successfully be processed,
+							// they will be marked as processed and this failing message will be lost.
+							return nil
+						}
 					}
 				} else {
 					err := consumer.doCallback(session, message)

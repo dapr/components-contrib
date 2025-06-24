@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -37,7 +38,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/dapr/kit/utils"
+	"github.com/dapr/kit/strings"
 )
 
 const (
@@ -49,8 +50,12 @@ const (
 	metadataKey = "key"
 	maxResults  = 1000
 
-	metadataKeyBC = "name"
-	signOperation = "sign"
+	metadataKeyBC    = "name"
+	signOperation    = "sign"
+	bulkGetOperation = "bulkGet"
+	copyOperation    = "copy"
+	renameOperation  = "rename"
+	moveOperation    = "move"
 )
 
 // GCPStorage allows saving data to GCP bucket storage.
@@ -84,6 +89,7 @@ type listPayload struct {
 	MaxResults int32  `json:"maxResults"`
 	Delimiter  string `json:"delimiter"`
 }
+
 type signResponse struct {
 	SignURL string `json:"signURL"`
 }
@@ -138,6 +144,10 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 		bindings.DeleteOperation,
 		bindings.ListOperation,
 		signOperation,
+		bulkGetOperation,
+		copyOperation,
+		renameOperation,
+		moveOperation,
 	}
 }
 
@@ -155,6 +165,14 @@ func (g *GCPStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return g.list(ctx, req)
 	case signOperation:
 		return g.sign(ctx, req)
+	case bulkGetOperation:
+		return g.bulkGet(ctx, req)
+	case copyOperation:
+		return g.copy(ctx, req)
+	case renameOperation:
+		return g.rename(ctx, req)
+	case moveOperation:
+		return g.move(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -325,11 +343,11 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	merged := metadata
 
 	if val, ok := req.Metadata[metadataDecodeBase64]; ok && val != "" {
-		merged.DecodeBase64 = utils.IsTruthy(val)
+		merged.DecodeBase64 = strings.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
-		merged.EncodeBase64 = utils.IsTruthy(val)
+		merged.EncodeBase64 = strings.IsTruthy(val)
 	}
 	if val, ok := req.Metadata[metadataSignTTL]; ok && val != "" {
 		merged.SignTTL = val
@@ -403,4 +421,189 @@ func (g *GCPStorage) signObject(bucket, object, ttl string) (string, error) {
 		return "", fmt.Errorf("Bucket(%q).SignedURL: %w", bucket, err)
 	}
 	return u, nil
+}
+
+type objectData struct {
+	Name  string              `json:"name"`
+	Data  []byte              `json:"data"`
+	Attrs storage.ObjectAttrs `json:"attrs"`
+}
+
+func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := g.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("gcp binding error while merging metadata : %w", err)
+	}
+
+	if g.metadata.Bucket == "" {
+		return nil, errors.New("gcp bucket binding error: bucket is required")
+	}
+
+	var allObjs []*storage.ObjectAttrs
+	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, nil)
+	for {
+		var attrs *storage.ObjectAttrs
+		attrs, err = it.Next()
+		if err == iterator.Done {
+			break
+		}
+		allObjs = append(allObjs, attrs)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(allObjs))
+
+	objects := make([]objectData, len(allObjs))
+	errs := make([]error, len(allObjs))
+	for i, obj := range allObjs {
+		go func(idx int, object *storage.ObjectAttrs) {
+			defer wg.Done()
+
+			rc, gerr := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
+			if gerr != nil {
+				errs[idx] = err
+				return
+			}
+			defer rc.Close()
+
+			data, gerr := io.ReadAll(rc)
+			if gerr != nil {
+				errs[idx] = err
+				return
+			}
+
+			if metadata.EncodeBase64 {
+				encoded := b64.StdEncoding.EncodeToString(data)
+				data = []byte(encoded)
+			}
+
+			objects[idx] = objectData{
+				Name:  object.Name,
+				Data:  data,
+				Attrs: *object,
+			}
+		}(i, obj)
+	}
+
+	wg.Wait()
+
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while reading objects: %w", err)
+	}
+
+	response, err := json.Marshal(objects)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while marshalling bulk get response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: response,
+	}, nil
+}
+
+type movePayload struct {
+	DestinationBucket string `json:"destinationBucket"`
+}
+
+func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, errors.New("gcp bucket binding error: can't read key value")
+	}
+
+	var payload movePayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, errors.New("gcp bucket binding error: invalid move payload")
+	}
+
+	if payload.DestinationBucket == "" {
+		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
+	}
+
+	src := g.client.Bucket(g.metadata.Bucket).Object(key)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
+	}
+
+	if err := src.Delete(ctx); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while deleting object: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: []byte(fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)),
+	}, nil
+}
+
+type renamePayload struct {
+	NewName string `json:"newName"`
+}
+
+func (g *GCPStorage) rename(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, errors.New("gcp bucket binding error: can't read key value")
+	}
+
+	var payload renamePayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, errors.New("gcp bucket binding error: invalid rename payload")
+	}
+
+	if payload.NewName == "" {
+		return nil, errors.New("gcp bucket binding error: required 'newName' missing")
+	}
+
+	src := g.client.Bucket(g.metadata.Bucket).Object(key)
+	dst := g.client.Bucket(g.metadata.Bucket).Object(payload.NewName)
+	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
+	}
+
+	if err := src.Delete(ctx); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while deleting object: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: []byte(fmt.Sprintf("object %s renamed to %s", key, payload.NewName)),
+	}, nil
+}
+
+type copyPayload struct {
+	DestinationBucket string `json:"destinationBucket"`
+}
+
+func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, errors.New("gcp bucket binding error: can't read key value")
+	}
+
+	var payload copyPayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, errors.New("gcp bucket binding error: invalid copy payload")
+	}
+
+	if payload.DestinationBucket == "" {
+		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
+	}
+
+	src := g.client.Bucket(g.metadata.Bucket).Object(key)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: []byte(fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)),
+	}, nil
 }

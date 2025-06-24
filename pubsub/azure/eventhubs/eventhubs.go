@@ -27,7 +27,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-	"github.com/dapr/kit/utils"
+	"github.com/dapr/kit/strings"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
@@ -129,7 +129,7 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	}
 
 	// Check if requireAllProperties is set and is truthy
-	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+	getAllProperties := strings.IsTruthy(req.Metadata["requireAllProperties"])
 	if !getAllProperties {
 		getAllProperties = aeh.GetAllMessageProperties()
 	}
@@ -158,7 +158,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 	}
 
 	// Check if requireAllProperties is set and is truthy
-	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+	getAllProperties := strings.IsTruthy(req.Metadata["requireAllProperties"])
 	if !getAllProperties {
 		getAllProperties = aeh.GetAllMessageProperties()
 	}

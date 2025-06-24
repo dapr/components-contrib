@@ -60,7 +60,7 @@ require (
 	github.com/cohesion-org/deepseek-go v1.2.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.13.1-0.20240909215017-3823663aa4bb
+	github.com/dapr/kit v0.15.3-0.20250516121556-bc7dc566c45d
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5

@@ -30,7 +30,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	"go.uber.org/multierr"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -443,32 +442,33 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 	var allObjs []*storage.ObjectAttrs
 	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, nil)
 	for {
-		attrs, err2 := it.Next()
-		if err2 == iterator.Done {
+		var attrs *storage.ObjectAttrs
+		attrs, err = it.Next()
+		if err == iterator.Done {
 			break
 		}
 		allObjs = append(allObjs, attrs)
 	}
 
 	var wg sync.WaitGroup
-	objectsCh := make(chan objectData, len(allObjs))
-	errCh := make(chan error, len(allObjs))
+	wg.Add(len(allObjs))
 
+	objects := make([]objectData, len(allObjs))
+	errs := make([]error, len(allObjs))
 	for i, obj := range allObjs {
-		wg.Add(1)
 		go func(idx int, object *storage.ObjectAttrs) {
 			defer wg.Done()
 
-			rc, err3 := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
-			if err3 != nil {
-				errCh <- err3
+			rc, gerr := g.client.Bucket(g.metadata.Bucket).Object(object.Name).NewReader(ctx)
+			if gerr != nil {
+				errs[idx] = err
 				return
 			}
 			defer rc.Close()
 
-			data, readErr := io.ReadAll(rc)
-			if readErr != nil {
-				errCh <- readErr
+			data, gerr := io.ReadAll(rc)
+			if gerr != nil {
+				errs[idx] = err
 				return
 			}
 
@@ -477,7 +477,7 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 				data = []byte(encoded)
 			}
 
-			objectsCh <- objectData{
+			objects[idx] = objectData{
 				Name:  object.Name,
 				Data:  data,
 				Attrs: *object,
@@ -486,29 +486,18 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 	}
 
 	wg.Wait()
-	close(errCh)
 
-	var multiErr error
-	for err := range errCh {
-		multierr.AppendInto(&multiErr, err)
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error while reading objects: %w", err)
 	}
 
-	if multiErr != nil {
-		return nil, multiErr
-	}
-
-	response := make([]objectData, 0, len(allObjs))
-	for obj := range objectsCh {
-		response = append(response, obj)
-	}
-
-	jsonResponse, err := json.Marshal(response)
+	response, err := json.Marshal(objects)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while marshalling bulk get response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
-		Data: jsonResponse,
+		Data: response,
 	}, nil
 }
 

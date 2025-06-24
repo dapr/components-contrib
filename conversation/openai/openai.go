@@ -54,11 +54,18 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	if md.Model != "" {
 		model = md.Model
 	}
-
-	llm, err := openai.New(
+	// Create options for OpenAI client
+	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(md.Key),
-	)
+	}
+
+	// Add custom endpoint if provided
+	if md.Endpoint != "" {
+		options = append(options, openai.WithBaseURL(md.Endpoint))
+	}
+
+	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}

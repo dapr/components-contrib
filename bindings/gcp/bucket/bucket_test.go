@@ -265,3 +265,112 @@ func TestBulkGetOption(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestCopyOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := gs.copy(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: can't read key value", err.Error())
+	})
+
+	t.Run("return error if data is not valid json", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.copy(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: invalid copy payload", err.Error())
+	})
+
+	t.Run("return error if destinationBucket is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.copy(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+	})
+}
+
+func TestRenameOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"newName": "my_new_name"}`),
+		}
+		_, err := gs.rename(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: can't read key value", err.Error())
+	})
+
+	t.Run("return error if data is not valid json", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.rename(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: invalid rename payload", err.Error())
+	})
+
+	t.Run("return error if newName is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.rename(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required 'newName' missing", err.Error())
+	})
+}
+
+func TestMoveOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"destinationBucket": "my_bucket"}`),
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: can't read key value", err.Error())
+	})
+
+	t.Run("return error if data is not valid json", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: invalid move payload", err.Error())
+	})
+
+	t.Run("return error if destinationBucket is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+	})
+}

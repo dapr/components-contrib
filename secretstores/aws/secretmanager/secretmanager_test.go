@@ -285,7 +285,7 @@ func TestGetSecret(t *testing.T) {
 				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 					assert.Nil(t, input.VersionId)
 					assert.Nil(t, input.VersionStage)
-					secret := `[{"key1":"value1"},{"key2":"value2"}]`
+					secret := `[{"key1":"value1"},{"key2":"value2"}]` // #nosec G101: This is a mock secret used for testing purposes.
 
 					return &secretsmanager.GetSecretValueOutput{
 						Name:         input.SecretId,

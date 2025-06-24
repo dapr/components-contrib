@@ -99,11 +99,11 @@ func (s *smSecretStore) formatSecret(output *secretsmanager.GetSecretValueOutput
 	if output.Name != nil && output.SecretString != nil {
 		if s.multipleKeyValuesPerSecret {
 			data := map[string]any{}
-			if err := json.Unmarshal([]byte(*output.SecretString), &data); err == nil {
+			if err := json.Unmarshal([]byte(*output.SecretString), &data); err != nil {
+				result[*output.Name] = *output.SecretString
+			} else {
 				// In case of a nested JSON value, we need to stringify it
 				result = convertMapAnyToString(data)
-			} else {
-				result[*output.Name] = *output.SecretString
 			}
 		} else {
 			result[*output.Name] = *output.SecretString

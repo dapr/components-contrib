@@ -54,6 +54,22 @@ func parseInitialOffset(value string) (initialOffset int64, err error) {
 	return initialOffset, err
 }
 
+// parseCompression parses the compression codec from the given string.
+// If the string is empty, it returns the default compression codec.
+// If the string is not empty, it returns the parsed compression codec.
+// If the string is not empty and not a valid compression codec, it returns an error.
+// Supported compression codecs are: none, gzip, snappy, lz4, zstd.
+func parseCompression(value string) (compression sarama.CompressionCodec, err error) {
+	compression = sarama.CompressionNone // Default
+	if value != "" {
+		unmarshalErr := compression.UnmarshalText([]byte(value))
+		if unmarshalErr != nil {
+			return sarama.CompressionNone, fmt.Errorf("kafka error: invalid compression: %s", value)
+		}
+	}
+	return compression, err
+}
+
 // isValidPEM validates the provided input has PEM formatted block.
 func isValidPEM(val string) bool {
 	block, _ := pem.Decode([]byte(val))
@@ -64,7 +80,7 @@ func isValidPEM(val string) bool {
 // TopicHandlerConfig is the map of topics and sruct containing handler and their config.
 type TopicHandlerConfig map[string]SubscriptionHandlerConfig
 
-// // TopicList returns the list of topics
+// TopicList returns the list of topics
 func (tbh TopicHandlerConfig) TopicList() []string {
 	topics := make([]string, len(tbh))
 	i := 0

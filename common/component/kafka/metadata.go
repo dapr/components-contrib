@@ -38,7 +38,6 @@ const (
 	certificateAuthType  = "certificate"
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
-	consumeRetryEnabled  = "consumeRetryEnabled"
 	consumeRetryInterval = "consumeRetryInterval"
 	authType             = "authType"
 	passwordAuthType     = "password"
@@ -50,6 +49,7 @@ const (
 	consumerFetchDefault = "consumerFetchDefault"
 	channelBufferSize    = "channelBufferSize"
 	valueSchemaType      = "valueSchemaType"
+	compression          = "compression"
 
 	// Kafka client config default values.
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
@@ -102,6 +102,10 @@ type KafkaMetadata struct {
 	consumerFetchMin     int32 `mapstructure:"-"`
 	consumerFetchDefault int32 `mapstructure:"-"`
 
+	// configs for kafka producer
+	Compression         string                  `mapstructure:"compression"`
+	internalCompression sarama.CompressionCodec `mapstructure:"-"`
+
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
 	SchemaRegistryAPIKey        string        `mapstructure:"schemaRegistryAPIKey"`
@@ -149,6 +153,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
 		ConsumeRetryInterval:                         100 * time.Millisecond,
 		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
+		internalCompression:                          sarama.CompressionNone,
 		channelBufferSize:                            256,
 		consumerFetchMin:                             1,
 		consumerFetchDefault:                         1024 * 1024,
@@ -292,6 +297,14 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("kafka error: invalid kafka version")
 		}
 		m.internalVersion = version
+	}
+
+	if m.Compression != "" {
+		compression, err := parseCompression(m.Compression)
+		if err != nil {
+			return nil, err
+		}
+		m.internalCompression = compression
 	}
 
 	if val, ok := meta[channelBufferSize]; ok && val != "" {

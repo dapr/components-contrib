@@ -32,7 +32,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
-	"github.com/dapr/kit/utils"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 // Etcd is a state store implementation for Etcd.
@@ -109,7 +109,7 @@ func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, 
 	}
 
 	var tlsConfig *tls.Config
-	if utils.IsTruthy(etcdConfig.TLSEnable) {
+	if kitstrings.IsTruthy(etcdConfig.TLSEnable) {
 		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.CA != "" {
 			var err error
 			tlsConfig, err = NewTLSConfig(etcdConfig.Cert, etcdConfig.Key, etcdConfig.CA)

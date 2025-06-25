@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mistral
+spec:
+  type: conversation.mistral
+  version: v1
+  metadata:
+    - name: key
+      value: "${{MISTRAL_API_KEY}}"
+    - name: model
+      value: "open-mistral-7b" 

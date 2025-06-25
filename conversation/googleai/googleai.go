@@ -41,8 +41,10 @@ func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	return g
 }
 
-const defaultModel = "gemini-2.5-flash"
-const googleAIOpenAICompatEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+const (
+	defaultModel                 = "gemini-2.5-flash"
+	googleAIOpenAICompatEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+)
 
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}

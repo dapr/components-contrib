@@ -19,6 +19,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -70,7 +72,7 @@ func convertDaprToolsToLangchainTools(tools []conversation.Tool) []llms.Tool {
 	langchainTools := make([]llms.Tool, len(tools))
 	for i, tool := range tools {
 		langchainTools[i] = llms.Tool{
-			Type: tool.Type,
+			Type: tool.ToolType,
 			Function: &llms.FunctionDefinition{
 				Name:        tool.Function.Name,
 				Description: tool.Function.Description,
@@ -81,41 +83,24 @@ func convertDaprToolsToLangchainTools(tools []conversation.Tool) []llms.Tool {
 	return langchainTools
 }
 
-// convertLangchainToolCallsToDapr converts langchaingo tool calls to Dapr format
-func convertLangchainToolCallsToDapr(toolCalls []llms.ToolCall) []conversation.ToolCall {
-	if len(toolCalls) == 0 {
-		return nil
-	}
-
-	daprToolCalls := make([]conversation.ToolCall, len(toolCalls))
-	for i, tc := range toolCalls {
-		daprToolCalls[i] = conversation.ToolCall{
-			ID:   tc.ID,
-			Type: tc.Type,
-			Function: conversation.ToolCallFunction{
-				Name:      tc.FunctionCall.Name,
-				Arguments: tc.FunctionCall.Arguments,
-			},
-		}
-	}
-	return daprToolCalls
-}
-
 // generateContent is a helper function that generates content using the LangChain Go model.
 func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationRequest, opts []llms.CallOption) (*conversation.ConversationResponse, error) {
-	// Debug: Check if Model is nil
 	if a.Model == nil {
-		return nil, errors.New("LLM Model is nil - component may not have been initialized properly (this could indicate the wrong component instance is being used)")
+		return nil, errors.New("LLM Model is nil - component not initialized")
 	}
 
+	// Build messages from all inputs using new content parts approach
 	messages := GetMessageFromRequest(r)
 
-	// Extract tools from inputs (typically from the first user message that contains them)
+	// Extract tools from inputs using new content parts approach
 	var tools []conversation.Tool
 	for _, input := range r.Inputs {
-		if len(input.Tools) > 0 {
-			tools = input.Tools
-			break // Take tools from first input that has them
+		// Extract tools from content parts (new feature)
+		if len(input.Parts) > 0 {
+			if toolDefs := conversation.ExtractToolDefinitionsFromParts(input.Parts); len(toolDefs) > 0 {
+				tools = toolDefs
+				// Don't break - allow tools from multiple inputs to be combined
+			}
 		}
 	}
 
@@ -132,23 +117,58 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
 
+	// Determine the primary finish reason from the first choice, as it's the most reliable.
+	var primaryFinishReason string
+	if len(resp.Choices) > 0 {
+		primaryFinishReason = resp.Choices[0].StopReason
+	}
+
 	for i := range resp.Choices {
 		result := conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
 			Parameters: r.Parameters,
 		}
 
-		// Convert tool calls if present
-		if len(resp.Choices[i].ToolCalls) > 0 {
-			result.ToolCalls = convertLangchainToolCallsToDapr(resp.Choices[i].ToolCalls)
+		// Create response parts
+		var parts []conversation.ContentPart
+
+		// Add text content if available
+		if resp.Choices[i].Content != "" {
+			parts = append(parts, conversation.TextContentPart{Text: resp.Choices[i].Content})
 		}
 
-		if resp.Choices[i].StopReason != "" {
+		// Add tool calls if present
+		if len(resp.Choices[i].ToolCalls) > 0 {
+			for j, tc := range resp.Choices[i].ToolCalls {
+				// Generate ID if not provided by the provider (e.g., GoogleAI)
+				toolCallID := tc.ID
+				if toolCallID == "" {
+					toolCallID = fmt.Sprintf("call_%d_%d_%d", time.Now().UnixNano(), i, j)
+				}
+
+				parts = append(parts, conversation.ToolCallContentPart{
+					ID:       toolCallID,
+					CallType: tc.Type,
+					Function: conversation.ToolCallFunction{
+						Name:      tc.FunctionCall.Name,
+						Arguments: tc.FunctionCall.Arguments,
+					},
+				})
+			}
+		}
+
+		// Set content parts and legacy result field
+		result.Parts = parts
+		result.Result = conversation.ExtractTextFromParts(parts) // Legacy field for text backward compatibility
+
+		// Set finish reason: prioritize the primary reason from the first choice.
+		if primaryFinishReason != "" {
+			result.FinishReason = primaryFinishReason
+		} else if resp.Choices[i].StopReason != "" {
+			// Fallback to the current choice's reason if the primary one was empty.
 			result.FinishReason = resp.Choices[i].StopReason
-		} else if len(resp.Choices[i].ToolCalls) > 0 { // for echo models so tests pass while mimicking OpenAI behavior
-			result.FinishReason = "tool_calls"
 		} else {
-			result.FinishReason = "stop"
+			// If no reason is provided by the model, determine it from the content.
+			result.FinishReason = conversation.DefaultFinishReason(parts)
 		}
 
 		outputs = append(outputs, result)
@@ -167,13 +187,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 // Converse executes a non-streaming conversation with the LangChain Go model.
 func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	// Debug: Log the Model field status before calling generateContent
-	if a.Model == nil {
-		return nil, errors.New("LLM Model is nil in Converse() - this indicates the component instance was not properly initialized")
-	}
-
 	opts := GetOptionsFromRequest(r)
-
 	return a.generateContent(ctx, r, opts)
 }
 

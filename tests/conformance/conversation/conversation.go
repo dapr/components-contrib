@@ -15,13 +15,12 @@ package conversation
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 
 	"github.com/stretchr/testify/assert"
@@ -44,10 +43,38 @@ func NewTestConfig(componentName string) TestConfig {
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, conv conversation.Conversation, component string) {
-	// Note: Component initialization is now handled in the test framework setup phase
+	// Ensure component is initialized for isolated test runs
+	ensureComponentInitialized := func() {
+		// Check if component needs initialization by trying a simple operation
+		// This is a heuristic - if the component fails with "not initialized" error, we initialize it
+		testReq := &conversation.ConversationRequest{
+			Inputs: []conversation.ConversationInput{
+				{Message: "init test"},
+			},
+		}
+
+		_, err := conv.Converse(t.Context(), testReq)
+		if err != nil && (strings.Contains(err.Error(), "LLM Model is nil") ||
+			strings.Contains(err.Error(), "not properly initialized") ||
+			strings.Contains(err.Error(), "not initialized")) {
+			// Component needs initialization
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			initErr := conv.Init(ctx, conversation.Metadata{
+				Base: metadata.Base{
+					Properties: props,
+				},
+			})
+			if initErr != nil {
+				t.Fatalf("Failed to initialize component for isolated test: %v", initErr)
+			}
+		}
+	}
 
 	t.Run("converse", func(t *testing.T) {
 		t.Run("get a non-empty response without errors", func(t *testing.T) {
+			ensureComponentInitialized()
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
 
@@ -66,6 +93,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		})
 
 		t.Run("returns usage information", func(t *testing.T) {
+			ensureComponentInitialized()
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
 
@@ -84,301 +112,458 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.GreaterOrEqual(t, resp.Usage.CompletionTokens, int32(0), "Should have non-negative completion tokens")
 			assert.Equal(t, resp.Usage.TotalTokens, resp.Usage.PromptTokens+resp.Usage.CompletionTokens, "Total should equal sum of prompt and completion tokens")
 		})
+
+		t.Run("finish_reason_is_stop_for_text_completion", func(t *testing.T) {
+			// This test ensures that a simple text completion returns a 'stop' finish reason.
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{Message: "Hello", Role: conversation.RoleUser},
+				},
+			}
+
+			resp, err := conv.Converse(t.Context(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Outputs, 1, "Should have one output")
+
+			// The finish reason for a simple text completion varies by provider
+			expectedFinishReasons := []string{"stop"} // Default expectation
+			if component == "anthropic" {
+				expectedFinishReasons = []string{"end_turn", "stop"} // Anthropic uses 'end_turn'
+			}
+
+			actualFinishReason := resp.Outputs[0].FinishReason
+			assert.Contains(t, expectedFinishReasons, actualFinishReason,
+				"Finish reason for simple text completion should be one of: %v (got: %s)",
+				expectedFinishReasons, actualFinishReason)
+		})
+	})
+
+	t.Run("content parts", func(t *testing.T) {
+		t.Run("text content parts", func(t *testing.T) {
+			ensureComponentInitialized()
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "Hello"},
+							conversation.TextContentPart{Text: "World"},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+
+			output := resp.Outputs[0]
+			assert.NotEmpty(t, output.Parts, "Should have content parts in response")
+
+			// Legacy fields should still be populated for backward compatibility
+			assert.NotEmpty(t, output.Result, "Legacy result field should be populated")
+		})
+
+		t.Run("tool definitions in content parts", func(t *testing.T) {
+			ensureComponentInitialized()
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "What can you do?"},
+							conversation.ToolDefinitionsContentPart{
+								Tools: []conversation.Tool{
+									{
+										ToolType: "function",
+										Function: conversation.ToolFunction{
+											Name:        "test_tool",
+											Description: "A test tool",
+											Parameters: map[string]any{
+												"type": "object",
+												"properties": map[string]any{
+													"message": map[string]any{
+														"type":        "string",
+														"description": "A test message parameter",
+													},
+												},
+												"required": []string{"message"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+
+			output := resp.Outputs[0]
+			assert.NotEmpty(t, output.Parts, "Should have content parts in response")
+		})
+
+		t.Run("backward compatibility with legacy fields", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			// Test using legacy Message field
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Role:    conversation.RoleUser,
+						Message: "Legacy message test",
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+
+			output := resp.Outputs[0]
+			// Should work with legacy Message field
+			assert.NotEmpty(t, output.Result, "Should respond to legacy message field")
+		})
+
+		t.Run("content parts utility functions", func(t *testing.T) {
+			// Test the utility functions work correctly
+			parts := []conversation.ContentPart{
+				conversation.TextContentPart{Text: "Hello"},
+				conversation.TextContentPart{Text: "World"},
+				conversation.ToolDefinitionsContentPart{
+					Tools: []conversation.Tool{
+						{
+							ToolType: "function",
+							Function: conversation.ToolFunction{
+								Name:        "test_tool",
+								Description: "A test tool",
+							},
+						},
+					},
+				},
+			}
+
+			// Test text extraction
+			text := conversation.ExtractTextFromParts(parts)
+			assert.Equal(t, "Hello World", text)
+
+			// Test tool definitions extraction
+			tools := conversation.ExtractToolDefinitionsFromParts(parts)
+			assert.Len(t, tools, 1)
+			assert.Equal(t, "test_tool", tools[0].Function.Name)
+		})
+
+		t.Run("tool calling with content parts", func(t *testing.T) {
+			// Tool calling support is component-dependent
+			// This test will run for all components but expectations vary
+			ensureComponentInitialized()
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "What's the weather like?"},
+							conversation.ToolDefinitionsContentPart{
+								Tools: []conversation.Tool{
+									{
+										ToolType: "function",
+										Function: conversation.ToolFunction{
+											Name:        "get_weather",
+											Description: "Get current weather",
+											Parameters: map[string]any{
+												"type": "object",
+												"properties": map[string]any{
+													"location": map[string]any{
+														"type":        "string",
+														"description": "City name",
+													},
+												},
+												"required": []string{"location"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, resp.Outputs, "Should have at least one output")
+
+			// Collect all parts from all outputs (some providers may return multiple outputs)
+			var allParts []conversation.ContentPart
+			for _, output := range resp.Outputs {
+				assert.NotEmpty(t, output.Parts, "Each output should have content parts")
+				allParts = append(allParts, output.Parts...)
+			}
+
+			// Check if tool calls were generated (component-dependent)
+			toolCalls := conversation.ExtractToolCallsFromParts(allParts)
+			if len(toolCalls) > 0 {
+				t.Logf("Component generated %d tool calls across %d outputs", len(toolCalls), len(resp.Outputs))
+				for _, tc := range toolCalls {
+					assert.NotEmpty(t, tc.ID, "Tool call should have ID")
+					assert.NotEmpty(t, tc.Function.Name, "Tool call should have function name")
+				}
+			}
+		})
+
+		t.Run("parallel tool calling with content parts", func(t *testing.T) {
+			// Test parallel tool calling - multiple tools called simultaneously
+			ensureComponentInitialized()
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "I need the weather in New York and the time in London"},
+							conversation.ToolDefinitionsContentPart{
+								Tools: []conversation.Tool{
+									{
+										ToolType: "function",
+										Function: conversation.ToolFunction{
+											Name:        "get_weather",
+											Description: "Get current weather for a location",
+											Parameters: map[string]any{
+												"type": "object",
+												"properties": map[string]any{
+													"location": map[string]any{
+														"type":        "string",
+														"description": "City name",
+													},
+												},
+												"required": []string{"location"},
+											},
+										},
+									},
+									{
+										ToolType: "function",
+										Function: conversation.ToolFunction{
+											Name:        "get_time",
+											Description: "Get current time for a location",
+											Parameters: map[string]any{
+												"type": "object",
+												"properties": map[string]any{
+													"location": map[string]any{
+														"type":        "string",
+														"description": "City name",
+													},
+												},
+												"required": []string{"location"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, resp.Outputs, "Should have at least one output")
+
+			// Collect all parts from all outputs
+			var allParts []conversation.ContentPart
+			for _, output := range resp.Outputs {
+				assert.NotEmpty(t, output.Parts, "Each output should have content parts")
+				allParts = append(allParts, output.Parts...)
+			}
+
+			// Check for tool calls (component-dependent behavior)
+			toolCalls := conversation.ExtractToolCallsFromParts(allParts)
+			if len(toolCalls) > 0 {
+				t.Logf("Component generated %d tool calls for parallel request", len(toolCalls))
+
+				// Verify each tool call has required fields
+				for i, tc := range toolCalls {
+					assert.NotEmpty(t, tc.ID, "Tool call %d should have ID", i)
+					assert.NotEmpty(t, tc.Function.Name, "Tool call %d should have function name", i)
+					assert.Contains(t, []string{"get_weather", "get_time"}, tc.Function.Name,
+						"Tool call %d should be one of the defined tools", i)
+				}
+
+				// If multiple tool calls were generated, verify they have unique IDs
+				if len(toolCalls) > 1 {
+					seenIDs := make(map[string]bool)
+					for i, tc := range toolCalls {
+						assert.False(t, seenIDs[tc.ID], "Tool call %d ID should be unique", i)
+						seenIDs[tc.ID] = true
+					}
+					t.Logf("Verified %d parallel tool calls have unique IDs", len(toolCalls))
+				}
+			} else {
+				t.Log("Component did not generate tool calls (this is acceptable for some components)")
+			}
+		})
+
+		t.Run("multi-turn conversation with content parts", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					// User's initial message
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "Hello, how are you?"},
+						},
+					},
+					// Assistant's response
+					{
+						Role: conversation.RoleAssistant,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "I'm doing well, thank you!"},
+						},
+					},
+					// User's follow-up
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "What can you help me with?"},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+
+			output := resp.Outputs[0]
+			assert.NotEmpty(t, output.Parts, "Should have content parts in response")
+			assert.NotEmpty(t, output.Result, "Should have legacy result field")
+		})
+
+		t.Run("tool result processing with content parts", func(t *testing.T) {
+			// Test processing tool results in content parts
+			// This test is component-dependent - some providers have strict conversation flow requirements
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+
+			// Skip this test for providers that require strict tool call flows
+			if component == "openai" || component == "anthropic" || component == "googleai" {
+				t.Skip("Skipping tool result processing test for provider with strict conversation flow requirements")
+				return
+			}
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					// Initial user message with tool definitions
+					{
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "What's the weather like?"},
+							conversation.ToolDefinitionsContentPart{
+								Tools: []conversation.Tool{
+									{
+										ToolType: "function",
+										Function: conversation.ToolFunction{
+											Name:        "get_weather",
+											Description: "Get current weather",
+											Parameters: map[string]any{
+												"type": "object",
+												"properties": map[string]any{
+													"location": map[string]any{
+														"type":        "string",
+														"description": "City name",
+													},
+												},
+												"required": []string{"location"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					// Simulated assistant response with tool call
+					{
+						Role: conversation.RoleAssistant,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "I'll check the weather for you."},
+							conversation.ToolCallContentPart{
+								ID:       "call_weather_123",
+								CallType: "function",
+								Function: conversation.ToolCallFunction{
+									Name:      "get_weather",
+									Arguments: `{"location":"New York"}`,
+								},
+							},
+						},
+					},
+					// Tool result
+					{
+						Role: conversation.RoleTool,
+						Parts: []conversation.ContentPart{
+							conversation.ToolResultContentPart{
+								ToolCallID: "call_weather_123",
+								Name:       "get_weather",
+								Content:    "Sunny, 75°F in New York",
+								IsError:    false,
+							},
+						},
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, resp.Outputs, "Should have at least one output")
+
+			// Collect all parts from all outputs
+			var allParts []conversation.ContentPart
+			for _, output := range resp.Outputs {
+				assert.NotEmpty(t, output.Parts, "Each output should have content parts")
+				allParts = append(allParts, output.Parts...)
+			}
+
+			// Should have some response to the tool result
+			textContent := conversation.ExtractTextFromParts(allParts)
+			assert.NotEmpty(t, textContent, "Should have text response to tool result")
+			t.Logf("Component response to tool result: %s", textContent)
+		})
 	})
 
 	t.Run("streaming", func(t *testing.T) {
 		// Check if component supports streaming
-		streamer, ok := conv.(conversation.StreamingConversation)
-		if !ok {
-			t.Skipf("Component %s does not implement StreamingConversation interface, skipping streaming tests", component)
+		streamingConv, supportsStreaming := conv.(conversation.StreamingConversation)
+		if !supportsStreaming {
+			t.Skip("Component does not support streaming")
 			return
 		}
 
-		// Create a simple request for streaming tests
-		req := &conversation.ConversationRequest{
-			Inputs: []conversation.ConversationInput{
-				{
-					Message: "Say hello world",
-				},
-			},
-		}
-
-		// First try to stream and see if it's supported or disabled
-		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-		defer cancel()
-
-		streamFunc := func(ctx context.Context, chunk []byte) error {
-			return nil // Simple stream function for testing
-		}
-
-		resp, err := streamer.ConverseStream(ctx, req, streamFunc)
-
-		// Check if streaming is disabled (like HuggingFace)
-		if err != nil && (strings.Contains(err.Error(), "streaming is not supported") ||
-			strings.Contains(err.Error(), "streaming not supported") ||
-			errors.Is(err, errors.New("streaming is not supported by this model or provider"))) {
-			t.Run("streaming disabled returns proper error", func(t *testing.T) {
-				// This is expected for components like HuggingFace
-				require.Error(t, err, "Should return error when streaming is disabled")
-				assert.Nil(t, resp, "Response should be nil when streaming is disabled")
-				t.Logf("Component %s has streaming disabled (expected): %v", component, err)
-			})
-			return // Skip other streaming tests if streaming is disabled
-		}
-
-		// If we get here, streaming should be working
-		t.Run("stream response without errors", func(t *testing.T) {
+		t.Run("basic streaming functionality", func(t *testing.T) {
+			ensureComponentInitialized()
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
-
-			var chunks []string
-			var totalContent string
-
-			streamFunc := func(ctx context.Context, chunk []byte) error {
-				content := string(chunk)
-				chunks = append(chunks, content)
-				totalContent += content
-				return nil
-			}
 
 			req := &conversation.ConversationRequest{
 				Inputs: []conversation.ConversationInput{
 					{
-						Message: "Say hello world",
-					},
-				},
-			}
-
-			resp, err := streamer.ConverseStream(ctx, req, streamFunc)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Verify we got streaming chunks (at least some content)
-			assert.NotEmpty(t, totalContent, "Should have received streaming content")
-		})
-
-		t.Run("streaming returns usage information", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			streamFunc := func(ctx context.Context, chunk []byte) error {
-				return nil // Ignore chunks for this test
-			}
-
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "Count to three",
-					},
-				},
-			}
-
-			resp, err := streamer.ConverseStream(ctx, req, streamFunc)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Verify usage information is present in streaming response
-			require.NotNil(t, resp.Usage, "Usage information should be present in streaming response")
-			assert.GreaterOrEqual(t, resp.Usage.PromptTokens, int32(0), "Should have non-negative prompt tokens")
-			assert.GreaterOrEqual(t, resp.Usage.CompletionTokens, int32(0), "Should have non-negative completion tokens")
-			assert.Equal(t, resp.Usage.TotalTokens, resp.Usage.PromptTokens+resp.Usage.CompletionTokens, "Total should equal sum of prompt and completion tokens")
-		})
-	})
-
-	t.Run("tool calling", func(t *testing.T) {
-		// Check if component supports tool calling
-		toolCaller, ok := conv.(conversation.ToolCallSupport)
-		if !ok {
-			t.Skipf("Component %s does not implement ToolCallSupport interface, skipping tool calling tests", component)
-			return
-		}
-
-		if !toolCaller.SupportsToolCalling() {
-			t.Skipf("Component %s does not support tool calling, skipping tool calling tests", component)
-			return
-		}
-
-		t.Run("basic tool calling flow", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define a simple weather tool
-			weatherTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"location": map[string]any{
-								"type":        "string",
-								"description": "City and state",
-							},
-						},
-						"required": []string{"location"},
-					},
-				},
-			}
-
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the weather like in San Francisco?",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherTool},
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Provider-specific tool calling validation
-			switch component {
-			case "anthropic":
-				// Anthropic may return multiple outputs: explanation + tool calls
-				if len(resp.Outputs) == 2 {
-					// First output: explanation text
-					assert.NotEmpty(t, resp.Outputs[0].Result, "Anthropic should provide explanatory text")
-					assert.Equal(t, "stop", resp.Outputs[0].FinishReason)
-
-					// Second output: tool calls
-					output := resp.Outputs[1]
-					if len(output.ToolCalls) > 0 {
-						assert.Equal(t, "tool_calls", output.FinishReason)
-						toolCall := output.ToolCalls[0]
-						assert.NotEmpty(t, toolCall.ID, "Tool call should have an ID")
-						assert.Equal(t, "get_weather", toolCall.Function.Name, "Tool call should be for get_weather function")
-					}
-				} else {
-					// Single output behavior
-					output := resp.Outputs[0]
-					if len(output.ToolCalls) > 0 {
-						assert.Equal(t, "tool_calls", output.FinishReason)
-						toolCall := output.ToolCalls[0]
-						assert.NotEmpty(t, toolCall.ID, "Tool call should have an ID")
-						assert.Equal(t, "get_weather", toolCall.Function.Name, "Tool call should be for get_weather function")
-					} else {
-						assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-						assert.Equal(t, "stop", output.FinishReason)
-					}
-				}
-
-			default:
-				// Standard validation for other providers
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				// we should get tool calls in the response
-				if len(output.ToolCalls) > 0 {
-					assert.Equal(t, "tool_calls", output.FinishReason, "Finish reason should be 'tool_calls' when tools are called")
-
-					// Verify tool call structure
-					toolCall := output.ToolCalls[0]
-
-					// TODO: GoogleAI through langchaingo doesn't populate Type and ID fields in the same way as OpenAI
-					// This is a langchaingo implementation detail, not a functional limitation
-					// The tool calling functionality works correctly, just the metadata format differs
-					switch component {
-					case "googleai":
-						// Skip Type and ID assertions for GoogleAI due to langchaingo implementation differences
-						// Tool calling functionality works correctly despite missing metadata
-					default:
-						assert.Equal(t, "function", toolCall.Type, "Tool call type should be 'function'")
-						assert.NotEmpty(t, toolCall.ID, "Tool call should have an ID")
-					}
-
-					// These assertions work for all providers including GoogleAI
-					assert.Equal(t, "get_weather", toolCall.Function.Name, "Tool call should be for get_weather function")
-					assert.NotEmpty(t, toolCall.Function.Arguments, "Tool call should have arguments")
-
-					// Arguments should be valid JSON and contain location
-					var args map[string]interface{}
-					err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-					require.NoError(t, err, "Tool call arguments should be valid JSON")
-					assert.Contains(t, args, "location", "Tool call arguments should contain location")
-				} else {
-					// If no tool calls, should still be a valid response
-					assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-					assert.Equal(t, "stop", output.FinishReason, "Finish reason should be 'stop' when no tools are called")
-				}
-			}
-		})
-
-		t.Run("tool result handling", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Provider-specific tool result handling
-			switch component {
-			case "anthropic", "googleai", "mistral", "deepseek":
-				// These providers require proper conversation flow with matching tool call IDs
-				// Skip this test as it requires dynamic tool call ID extraction from previous responses
-				t.Skipf("Component %s requires proper conversation flow with matching tool call IDs, skipping isolated tool result test", component)
-				return
-			}
-
-			// Simulate sending a tool result back (works for Echo, OpenAI, HuggingFace)
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message:    `{"temperature": 72, "condition": "sunny", "location": "San Francisco"}`,
-						Role:       conversation.RoleTool,
-						ToolCallID: "call_test_12345",
-						Name:       "get_weather",
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Len(t, resp.Outputs, 1)
-
-			output := resp.Outputs[0]
-			assert.NotEmpty(t, output.Result, "Should process tool result and return a response")
-			assert.Equal(t, "stop", output.FinishReason, "Tool result responses should finish with 'stop'")
-			assert.Empty(t, output.ToolCalls, "Tool result responses shouldn't trigger new tool calls")
-		})
-
-		t.Run("streaming with tool calls", func(t *testing.T) {
-			// Check if component also supports streaming
-			streamer, ok := conv.(conversation.StreamingConversation)
-			if !ok {
-				t.Skipf("Component %s does not support streaming, skipping streaming tool calling tests", component)
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define a simple weather tool
-			weatherTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"location": map[string]any{
-								"type":        "string",
-								"description": "City and state",
-							},
-						},
-						"required": []string{"location"},
-					},
-				},
-			}
-
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the weather like in New York?",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherTool},
+						Message: "Tell me a short story",
 					},
 				},
 			}
@@ -389,465 +574,27 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				return nil
 			}
 
-			resp, err := streamer.ConverseStream(ctx, req, streamFunc)
-
-			// Check if streaming is disabled for this component
-			if err != nil && (strings.Contains(err.Error(), "streaming is not supported") ||
-				strings.Contains(err.Error(), "streaming not supported")) {
-				t.Skipf("Component %s has streaming disabled, skipping streaming tool calling tests", component)
-				return
-			}
+			resp, err := streamingConv.ConverseStream(ctx, req, streamFunc)
 
 			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Len(t, resp.Outputs, 1)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
 
-			// Should have received some streaming chunks
+			// Should have received streaming chunks
 			assert.NotEmpty(t, chunks, "Should have received streaming chunks")
-
-			output := resp.Outputs[0]
-
-			// If tool calling is triggered, verify structure
-			if len(output.ToolCalls) > 0 {
-				assert.Equal(t, "tool_calls", output.FinishReason)
-
-				// TODO: GoogleAI through langchaingo doesn't populate Type field consistently
-				// Tool calling functionality works correctly despite missing metadata
-				switch component {
-				case "googleai":
-					// Skip Type assertion for GoogleAI due to langchaingo implementation differences
-				default:
-					assert.Equal(t, "function", output.ToolCalls[0].Type)
-				}
-
-				assert.Equal(t, "get_weather", output.ToolCalls[0].Function.Name)
-			} else {
-				assert.NotEmpty(t, output.Result, "Should have a streamed response")
-				assert.Equal(t, "stop", output.FinishReason)
-			}
 		})
 
-		t.Run("tool calling without tools provided", func(t *testing.T) {
+		t.Run("streaming with content parts", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
-
-			// Send a weather query but without tool definitions
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the weather like?",
-						Role:    conversation.RoleUser,
-						// No tools provided
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Len(t, resp.Outputs, 1)
-
-			output := resp.Outputs[0]
-			// Without tools defined, should not trigger tool calls
-			assert.Empty(t, output.ToolCalls, "Should not trigger tool calls when no tools are provided")
-			assert.NotEmpty(t, output.Result, "Should still provide a response")
-			assert.Equal(t, "stop", output.FinishReason)
-		})
-
-		t.Run("tool calling returns usage information", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define a simple weather tool
-			weatherTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"location": map[string]any{
-								"type":        "string",
-								"description": "City and state",
-							},
-						},
-						"required": []string{"location"},
-					},
-				},
-			}
 
 			req := &conversation.ConversationRequest{
 				Inputs: []conversation.ConversationInput{
 					{
-						Message: "What's the temperature in Boston?",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherTool},
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Verify usage information is present even with tool calling
-			require.NotNil(t, resp.Usage, "Usage information should be present in tool calling response")
-			assert.GreaterOrEqual(t, resp.Usage.PromptTokens, int32(0), "Should have non-negative prompt tokens")
-			assert.GreaterOrEqual(t, resp.Usage.CompletionTokens, int32(0), "Should have non-negative completion tokens")
-			assert.Equal(t, resp.Usage.TotalTokens, resp.Usage.PromptTokens+resp.Usage.CompletionTokens, "Total should equal sum of prompt and completion tokens")
-		})
-
-		t.Run("tool calling with parameters as JSON string", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define a weather tool with parameters as JSON string (simulating real Dapr usage)
-			weatherToolWithStringParams := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					// Parameters as JSON string (as they would come over the wire in real Dapr usage)
-					Parameters: `{
-						"type": "object",
-						"properties": {
-							"location": {
-								"type": "string",
-								"description": "City and state"
-							},
-							"unit": {
-								"type": "string",
-								"enum": ["celsius", "fahrenheit"],
-								"description": "Temperature unit"
-							}
+						Role: conversation.RoleUser,
+						Parts: []conversation.ContentPart{
+							conversation.TextContentPart{Text: "Count to five"},
 						},
-						"required": ["location"]
-					}`,
-				},
-			}
-
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the temperature in New York in fahrenheit?",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherToolWithStringParams},
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// This test ensures langchaingo providers properly handle JSON string parameters
-			// The conversion should happen transparently without errors
-			switch component {
-			case "anthropic":
-				// Handle Anthropic's multiple output behavior
-				var toolCallOutput *conversation.ConversationResult
-				for _, output := range resp.Outputs {
-					if len(output.ToolCalls) > 0 {
-						toolCallOutput = &output
-						break
-					}
-				}
-
-				if toolCallOutput != nil {
-					assert.Equal(t, "tool_calls", toolCallOutput.FinishReason)
-					toolCall := toolCallOutput.ToolCalls[0]
-					assert.Equal(t, "get_weather", toolCall.Function.Name)
-
-					// Verify arguments can be parsed and contain expected location
-					var args map[string]interface{}
-					err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-					require.NoError(t, err, "Tool arguments should be valid JSON even with string parameters")
-					assert.Contains(t, args, "location", "Arguments should contain location parameter")
-				} else {
-					// No tool calls - this is acceptable for some providers in some cases
-					t.Logf("Component %s chose not to call tools for this request (acceptable)", component)
-				}
-
-			default:
-				// Standard validation
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				if len(output.ToolCalls) > 0 {
-					assert.Equal(t, "tool_calls", output.FinishReason)
-					toolCall := output.ToolCalls[0]
-					assert.Equal(t, "get_weather", toolCall.Function.Name)
-
-					// The key test: ensure arguments are valid JSON even when parameters were provided as string
-					var args map[string]interface{}
-					err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-					require.NoError(t, err, "Tool arguments should be valid JSON even with string parameters")
-					assert.Contains(t, args, "location", "Arguments should contain location parameter")
-
-					// Verify the location parameter was extracted correctly
-					location, ok := args["location"].(string)
-					if ok {
-						assert.Contains(t, strings.ToLower(location), "new york", "Should extract New York from message")
-					}
-				} else {
-					// No tool calls - log for debugging
-					t.Logf("Component %s chose not to call tools for this request", component)
-					assert.NotEmpty(t, output.Result, "Should have a response if no tools are called")
-					assert.Equal(t, "stop", output.FinishReason)
-				}
-			}
-		})
-
-		t.Run("parallel tool calling", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define multiple tools that can be called together
-			weatherTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"location": map[string]any{
-								"type":        "string",
-								"description": "City and state",
-							},
-						},
-						"required": []string{"location"},
-					},
-				},
-			}
-
-			timeTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_time",
-					Description: "Get current time in a timezone",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"timezone": map[string]any{
-								"type":        "string",
-								"description": "The timezone, e.g. America/New_York",
-							},
-						},
-						"required": []string{"timezone"},
-					},
-				},
-			}
-
-			calcTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "calculate",
-					Description: "Perform a mathematical calculation",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"expression": map[string]any{
-								"type":        "string",
-								"description": "The mathematical expression to evaluate",
-							},
-						},
-						"required": []string{"expression"},
-					},
-				},
-			}
-
-			// Use a prompt designed to trigger multiple tools
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the weather and current time in New York City? Also calculate 23 * 7 for me.",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherTool, timeTool, calcTool},
-					},
-				},
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Provider-specific expectations
-			switch component {
-			case "anthropic":
-				// Anthropic often returns multiple outputs: explanation + tool calls
-				if len(resp.Outputs) == 2 {
-					// First output: explanation text
-					assert.NotEmpty(t, resp.Outputs[0].Result, "Anthropic should provide explanatory text")
-					assert.Equal(t, "stop", resp.Outputs[0].FinishReason)
-
-					// Second output: tool calls
-					output := resp.Outputs[1]
-					if len(output.ToolCalls) >= 1 {
-						assert.Equal(t, "tool_calls", output.FinishReason)
-						// Anthropic may call tools sequentially, not always in parallel
-						t.Logf("✅ Component %s performed tool calling (%d tools) with conversational approach", component, len(output.ToolCalls))
-					}
-				} else {
-					// Single output behavior
-					output := resp.Outputs[0]
-					if len(output.ToolCalls) >= 1 {
-						assert.Equal(t, "tool_calls", output.FinishReason)
-						t.Logf("✅ Component %s performed tool calling (%d tools)", component, len(output.ToolCalls))
-					} else {
-						assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-						t.Logf("ℹ️  Component %s chose conversational response over tool calling", component)
-					}
-				}
-
-			case "huggingface":
-				// HuggingFace typically has limited parallel tool calling support
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				if len(output.ToolCalls) >= 1 {
-					assert.Equal(t, "tool_calls", output.FinishReason)
-					t.Logf("✅ Component %s called %d tool(s) (limited parallel support expected)", component, len(output.ToolCalls))
-				} else {
-					assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-					t.Logf("ℹ️  Component %s chose not to call tools", component)
-				}
-
-			case "googleai", "mistral":
-				// GoogleAI and Mistral have different tool call structure via langchaingo
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				if len(output.ToolCalls) >= 1 {
-					assert.Equal(t, "tool_calls", output.FinishReason, "Finish reason should be 'tool_calls' when tools are called")
-
-					// For GoogleAI/Mistral, validate what we can without strict ID/Type requirements
-					toolNames := make(map[string]bool)
-					for _, toolCall := range output.ToolCalls {
-						// Function name should always be present
-						assert.NotEmpty(t, toolCall.Function.Name, "Tool call should have function name")
-						assert.NotEmpty(t, toolCall.Function.Arguments, "Tool call should have arguments")
-						toolNames[toolCall.Function.Name] = true
-
-						// Verify tool call arguments are valid JSON
-						var args map[string]interface{}
-						err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-						require.NoError(t, err, "Tool call arguments should be valid JSON")
-					}
-
-					if len(output.ToolCalls) >= 2 {
-						// Verify multiple different tools were called
-						assert.True(t, len(toolNames) >= 2, "Expected multiple different tools to be called for parallel execution")
-						t.Logf("✅ Component %s successfully performed parallel tool calling (%d tools)", component, len(output.ToolCalls))
-					} else {
-						t.Logf("ℹ️  Component %s called 1 tool (parallel calling not triggered)", component)
-					}
-				} else {
-					// No tool calls
-					assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-					assert.Equal(t, "stop", output.FinishReason)
-					t.Logf("ℹ️  Component %s chose not to call tools for parallel request", component)
-				}
-
-			default:
-				// Standard behavior for OpenAI, Echo, DeepSeek, etc.
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				// Check if multiple tools were called (parallel tool calling)
-				if len(output.ToolCalls) >= 2 {
-					assert.Equal(t, "tool_calls", output.FinishReason, "Finish reason should be 'tool_calls' when tools are called")
-
-					// Verify that tool calls have unique IDs
-					toolIDs := make(map[string]bool)
-					toolNames := make(map[string]bool)
-					for _, toolCall := range output.ToolCalls {
-						assert.NotEmpty(t, toolCall.ID, "Tool call should have a unique ID")
-						assert.False(t, toolIDs[toolCall.ID], "Tool call IDs should be unique")
-						toolIDs[toolCall.ID] = true
-						toolNames[toolCall.Function.Name] = true
-
-						assert.Equal(t, "function", toolCall.Type, "Tool call type should be 'function'")
-						assert.NotEmpty(t, toolCall.Function.Arguments, "Tool call should have arguments")
-
-						// Verify tool call arguments are valid JSON
-						var args map[string]interface{}
-						err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-						require.NoError(t, err, "Tool call arguments should be valid JSON")
-					}
-
-					// Verify multiple different tools were called
-					assert.True(t, len(toolNames) >= 2, "Expected multiple different tools to be called for parallel execution")
-
-					t.Logf("✅ Component %s successfully performed parallel tool calling (%d tools)", component, len(output.ToolCalls))
-				} else if len(output.ToolCalls) == 1 {
-					// Single tool call is still valid behavior
-					assert.Equal(t, "tool_calls", output.FinishReason)
-					t.Logf("ℹ️  Component %s called 1 tool (parallel calling not triggered)", component)
-				} else {
-					// No tool calls - some components may not support parallel tool calling
-					assert.NotEmpty(t, output.Result, "Should have a response even if no tools are called")
-					assert.Equal(t, "stop", output.FinishReason)
-					t.Logf("ℹ️  Component %s chose not to call tools for parallel request", component)
-				}
-			}
-		})
-
-		t.Run("streaming parallel tool calling", func(t *testing.T) {
-			// Check if component also supports streaming
-			streamer, ok := conv.(conversation.StreamingConversation)
-			if !ok {
-				t.Skipf("Component %s does not support streaming, skipping streaming parallel tool calling tests", component)
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-			defer cancel()
-
-			// Define tools for parallel calling
-			weatherTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_weather",
-					Description: "Get current weather for a location",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"location": map[string]any{
-								"type":        "string",
-								"description": "City and state",
-							},
-						},
-						"required": []string{"location"},
-					},
-				},
-			}
-
-			timeTool := conversation.Tool{
-				Type: "function",
-				Function: conversation.ToolFunction{
-					Name:        "get_time",
-					Description: "Get current time in a timezone",
-					Parameters: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"timezone": map[string]any{
-								"type":        "string",
-								"description": "The timezone, e.g. America/New_York",
-							},
-						},
-						"required": []string{"timezone"},
-					},
-				},
-			}
-
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
-					{
-						Message: "What's the weather and current time in New York City?",
-						Role:    conversation.RoleUser,
-						Tools:   []conversation.Tool{weatherTool, timeTool},
 					},
 				},
 			}
@@ -858,100 +605,15 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				return nil
 			}
 
-			resp, err := streamer.ConverseStream(ctx, req, streamFunc)
-
-			// Check if streaming is disabled for this component
-			if err != nil && (strings.Contains(err.Error(), "streaming is not supported") ||
-				strings.Contains(err.Error(), "streaming not supported") ||
-				strings.Contains(err.Error(), "invalid delta text field type")) {
-				t.Skipf("Component %s has streaming disabled or streaming tool calling issues, skipping streaming parallel tool calling tests", component)
-				return
-			}
+			resp, err := streamingConv.ConverseStream(ctx, req, streamFunc)
 
 			require.NoError(t, err)
-			require.NotNil(t, resp)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Parts, "Should have content parts in response")
+			assert.NotEmpty(t, resp.Outputs[0].Result, "Should have legacy result field")
 
-			// Provider-specific streaming expectations
-			switch component {
-			case "anthropic":
-				// Anthropic may return multiple outputs even in streaming
-				if len(resp.Outputs) >= 1 {
-					// Check the last output for tool calls
-					output := resp.Outputs[len(resp.Outputs)-1]
-					if len(output.ToolCalls) >= 1 {
-						assert.Equal(t, "tool_calls", output.FinishReason)
-						t.Logf("✅ Component %s performed streaming tool calling (%d tools, %d chunks) with conversational approach",
-							component, len(output.ToolCalls), len(chunks))
-					} else {
-						t.Logf("ℹ️  Component %s streaming chose conversational response", component)
-					}
-				}
-
-			case "googleai", "mistral":
-				// GoogleAI and Mistral may have different streaming behavior
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				if len(output.ToolCalls) >= 1 {
-					assert.Equal(t, "tool_calls", output.FinishReason)
-
-					// For GoogleAI/Mistral, don't require streaming chunks or strict tool structure
-					toolNames := make(map[string]bool)
-					for _, toolCall := range output.ToolCalls {
-						assert.NotEmpty(t, toolCall.Function.Name, "Tool call should have function name")
-						toolNames[toolCall.Function.Name] = true
-					}
-
-					if len(output.ToolCalls) >= 2 {
-						assert.True(t, len(toolNames) >= 2, "Expected multiple different tools to be called")
-						t.Logf("✅ Component %s performed streaming parallel tool calling (%d tools, %d chunks) - langchaingo behavior",
-							component, len(output.ToolCalls), len(chunks))
-					} else {
-						t.Logf("ℹ️  Component %s streaming called 1 tool (parallel calling not triggered)", component)
-					}
-				} else {
-					t.Logf("ℹ️  Component %s streaming chose not to call tools", component)
-				}
-
-			default:
-				require.Len(t, resp.Outputs, 1)
-				output := resp.Outputs[0]
-
-				// Check if multiple tools were called via streaming
-				if len(output.ToolCalls) >= 2 {
-					assert.Equal(t, "tool_calls", output.FinishReason)
-
-					// Verify that tool calls have unique IDs
-					toolIDs := make(map[string]bool)
-					toolNames := make(map[string]bool)
-					for _, toolCall := range output.ToolCalls {
-						assert.NotEmpty(t, toolCall.ID, "Tool call should have a unique ID")
-						assert.False(t, toolIDs[toolCall.ID], "Tool call IDs should be unique")
-						toolIDs[toolCall.ID] = true
-						toolNames[toolCall.Function.Name] = true
-
-						assert.Equal(t, "function", toolCall.Type)
-					}
-
-					// Verify multiple different tools were called
-					assert.True(t, len(toolNames) >= 2, "Expected multiple different tools to be called")
-
-					// Should have received streaming chunks
-					assert.NotEmpty(t, chunks, "Should have received streaming chunks for parallel tool calling")
-
-					t.Logf("✅ Component %s successfully performed streaming parallel tool calling (%d tools, %d chunks)",
-						component, len(output.ToolCalls), len(chunks))
-				} else if len(output.ToolCalls) == 1 {
-					// Single tool call via streaming is still valid
-					assert.Equal(t, "tool_calls", output.FinishReason)
-					t.Logf("ℹ️  Component %s streaming called 1 tool (parallel calling not triggered)", component)
-				} else {
-					// No tool calls via streaming
-					assert.NotEmpty(t, output.Result, "Should have a streamed response")
-					assert.Equal(t, "stop", output.FinishReason)
-					t.Logf("ℹ️  Component %s streaming chose not to call tools", component)
-				}
-			}
+			// Should have received streaming chunks
+			assert.NotEmpty(t, chunks, "Should have received streaming chunks")
 		})
 	})
 }

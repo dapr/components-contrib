@@ -54,6 +54,7 @@ package echo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -138,84 +139,95 @@ func (e *Echo) SupportsToolCalling() bool {
 //   - Usage information with token counts
 //   - FinishReason: "stop" for normal responses, "tool_calls" for tool invocations
 func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	// Collect user messages and tools like real LLM providers do
+	if len(r.Inputs) == 0 {
+		return nil, errors.New("no inputs provided")
+	}
+
+	// Collect user messages and tools using parts-aware approach
 	var lastUserMessage string
 	var allUserMessages []string
 	totalInputTokens := int32(0)
 	var allTools []conversation.Tool
 
+	// Process all inputs with content parts support
 	for _, input := range r.Inputs {
+		// Get text content (with backward compatibility for Message field)
+		var inputContent string
+		if len(input.Parts) > 0 {
+			inputContent = conversation.ExtractTextFromParts(input.Parts)
+		} else {
+			inputContent = input.Message // Backward compatibility for text only
+		}
+
 		// Simple token estimation: roughly 1 token per 4 characters
-		inputTokens := int32(len(input.Message) / int(4)) //nolint:gosec // This is a valid conversion
-		if inputTokens == 0 && len(input.Message) > 0 {
+		contentLen := len(inputContent)
+		var inputTokens int32
+		if contentLen > 0 {
+			// Safe conversion with bounds checking
+			tokens := contentLen / 4
+			if tokens > int(^int32(0)>>1) { // Check if it exceeds int32 max
+				inputTokens = ^int32(0) >> 1 // Use int32 max value
+			} else {
+				inputTokens = int32(tokens)
+			}
+		}
+		if inputTokens == 0 && len(inputContent) > 0 {
 			inputTokens = 1 // Minimum 1 token for non-empty input
 		}
 		totalInputTokens += inputTokens
 
-		// Collect tools from inputs
-		allTools = append(allTools, input.Tools...)
+		// Extract tools from content parts (new feature)
+		tools := conversation.ExtractToolDefinitionsFromParts(input.Parts)
+		allTools = append(allTools, tools...)
 
 		// Collect user messages for tool matching context
 		if input.Role == conversation.RoleUser || input.Role == "" { // Empty role defaults to user
-			lastUserMessage = input.Message
-			allUserMessages = append(allUserMessages, input.Message)
+			lastUserMessage = inputContent
+			allUserMessages = append(allUserMessages, inputContent)
 		}
 	}
 
-	// Get the user message for echoing (last user message for predictability)
-	echoMessage := lastUserMessage
+	lastInput := r.Inputs[len(r.Inputs)-1]
 
-	// Get contextual message for tool matching (concatenated for better tool detection)
-	toolMatchingMessage := e.buildToolMatchingContext(allUserMessages)
-
-	// Create output
+	// Create output with content parts
 	output := conversation.ConversationResult{
 		Parameters: r.Parameters,
 	}
 
-	// Check if any input is a tool result
-	if len(r.Inputs) > 0 && r.Inputs[0].Role == conversation.RoleTool {
-		// Handle tool result
-		output.Result = e.generateToolResultResponse(r.Inputs[0])
-		output.FinishReason = "stop"
-		output.ToolCalls = []conversation.ToolCall{} // No tool calls for tool results
-	} else if len(allTools) > 0 {
-		// Check if we should call any tools using the contextual message
-		toolsToCall := e.findMatchingTools(allTools, toolMatchingMessage)
+	var responseParts []conversation.ContentPart
 
-		if len(toolsToCall) > 0 {
-			// Generate tool calls
-			toolCalls := make([]conversation.ToolCall, 0, len(toolsToCall))
-			for i, tool := range toolsToCall {
-				toolCall := conversation.ToolCall{
-					ID:   fmt.Sprintf("call_echo_%d", time.Now().UnixNano()+int64(i)),
-					Type: "function",
-					Function: conversation.ToolCallFunction{
-						Name:      tool.Function.Name,
-						Arguments: e.generateToolArguments(tool, toolMatchingMessage),
-					},
-				}
-				toolCalls = append(toolCalls, toolCall)
-			}
-
-			output.Result = "I'll help you with that by calling the appropriate tools."
-			output.ToolCalls = toolCalls
-			output.FinishReason = "tool_calls"
+	// Prioritize legacy message field for simple echo backward compatibility
+	if lastInput.Message != "" {
+		responseText := e.processLegacyTextInput(lastInput, allTools, lastInput.Message, allUserMessages)
+		responseParts = append(responseParts, conversation.TextContentPart{Text: responseText})
+	} else if len(lastInput.Parts) > 0 {
+		toolResults := conversation.ExtractToolResultsFromParts(lastInput.Parts)
+		if len(toolResults) > 0 {
+			// Handle tool result
+			responseText := e.generateToolResultResponseFromPart(toolResults[0])
+			responseParts = append(responseParts, conversation.TextContentPart{Text: responseText})
 		} else {
-			// No tools match, echo the last user message (predictable)
-			output.Result = echoMessage
-			output.FinishReason = "stop"
-			output.ToolCalls = []conversation.ToolCall{}
+			// Process other parts content
+			responseParts = e.processContentParts(lastInput, allTools, lastUserMessage, allUserMessages)
 		}
-	} else {
-		// No tools available, echo the last user message (predictable)
-		output.Result = echoMessage
-		output.FinishReason = "stop"
-		output.ToolCalls = []conversation.ToolCall{}
 	}
 
+	// Set content parts and legacy result field
+	output.Parts = responseParts
+	output.Result = conversation.ExtractTextFromParts(responseParts) // Backward compatibility
+
 	// Calculate output tokens
-	totalOutputTokens := int32(len(output.Result) / int(4)) //nolint:gosec // This is a valid conversion
+	resultLen := len(output.Result)
+	var totalOutputTokens int32
+	if resultLen > 0 {
+		// Safe conversion with bounds checking
+		tokens := resultLen / 4
+		if tokens > int(^int32(0)>>1) { // Check if it exceeds int32 max
+			totalOutputTokens = ^int32(0) >> 1 // Use int32 max value
+		} else {
+			totalOutputTokens = int32(tokens)
+		}
+	}
 	if totalOutputTokens == 0 && len(output.Result) > 0 {
 		totalOutputTokens = 1
 	}
@@ -231,6 +243,72 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	}
 
 	return res, nil
+}
+
+// Process content parts (new feature)
+func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) []conversation.ContentPart {
+	var responseParts []conversation.ContentPart
+
+	// Echo back information about the parts received
+	responseParts = append(responseParts, conversation.TextContentPart{
+		Text: fmt.Sprintf("Echo received %d content parts:", len(input.Parts)),
+	})
+
+	for i, part := range input.Parts {
+		switch p := part.(type) {
+		case conversation.TextContentPart:
+			responseParts = append(responseParts, conversation.TextContentPart{
+				Text: fmt.Sprintf("Part %d (text): %s", i+1, p.Text),
+			})
+		case conversation.ToolDefinitionsContentPart:
+			responseParts = append(responseParts, conversation.TextContentPart{
+				Text: fmt.Sprintf("Part %d (tools): %d tools available", i+1, len(p.Tools)),
+			})
+		case conversation.ToolCallContentPart:
+			responseParts = append(responseParts, conversation.TextContentPart{
+				Text: fmt.Sprintf("Part %d (tool call): %s", i+1, p.Function.Name),
+			})
+		case conversation.ToolResultContentPart:
+			responseParts = append(responseParts, conversation.TextContentPart{
+				Text: fmt.Sprintf("Part %d (tool result): %s returned %s", i+1, p.Name, p.Content),
+			})
+		}
+	}
+
+	// Check for tool calling opportunities
+	if len(allTools) > 0 {
+		toolMatchingMessage := e.buildToolMatchingContext(allUserMessages)
+		toolsToCall := e.findMatchingTools(allTools, toolMatchingMessage)
+
+		if len(toolsToCall) > 0 {
+			responseParts = append(responseParts, conversation.TextContentPart{
+				Text: fmt.Sprintf("Echo detected %d matching tools, generating calls:", len(toolsToCall)),
+			})
+
+			// Generate tool calls
+			for i, tool := range toolsToCall {
+				responseParts = append(responseParts, conversation.ToolCallContentPart{
+					ID:       fmt.Sprintf("call_echo_%d", time.Now().UnixNano()+int64(i)),
+					CallType: "function",
+					Function: conversation.ToolCallFunction{
+						Name:      tool.Function.Name,
+						Arguments: e.generateToolArguments(tool, toolMatchingMessage),
+					},
+				})
+			}
+		}
+	}
+
+	return responseParts
+}
+
+// Process legacy text input (backward compatibility)
+func (e *Echo) processLegacyTextInput(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) string {
+	// Simple echo for backward compatibility
+	if input.Message != "" {
+		return input.Message
+	}
+	return "(empty message)"
 }
 
 // ConverseStream implements streaming conversation with chunk-based response delivery.
@@ -254,83 +332,18 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 //   - Same ConversationResponse as Converse() after streaming is complete
 //   - Error if streaming fails or context is cancelled
 func (e *Echo) ConverseStream(ctx context.Context, r *conversation.ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*conversation.ConversationResponse, error) {
-	// Collect user messages and tools like real LLM providers do
-	var lastUserMessage string
-	var allUserMessages []string
-	totalInputTokens := int32(0)
-	var allTools []conversation.Tool
-
-	for _, input := range r.Inputs {
-		// Simple token estimation: roughly 1 token per 4 characters
-		inputTokens := int32(len(input.Message) / int(4)) //nolint:gosec // This is a valid conversion
-		if inputTokens == 0 && len(input.Message) > 0 {
-			inputTokens = 1 // Minimum 1 token for non-empty input
-		}
-		totalInputTokens += inputTokens
-
-		// Collect tools from inputs
-		allTools = append(allTools, input.Tools...)
-
-		// Collect user messages for tool matching context
-		if input.Role == conversation.RoleUser || input.Role == "" { // Empty role defaults to user
-			lastUserMessage = input.Message
-			allUserMessages = append(allUserMessages, input.Message)
-		}
+	// Get the response using the same logic as Converse()
+	response, err := e.Converse(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
-	// Get the user message for echoing (last user message for predictability)
-	echoMessage := lastUserMessage
-
-	// Get contextual message for tool matching (concatenated for better tool detection)
-	toolMatchingMessage := e.buildToolMatchingContext(allUserMessages)
-
-	// Create output
-	output := conversation.ConversationResult{
-		Parameters: r.Parameters,
+	if len(response.Outputs) == 0 {
+		return response, nil
 	}
 
-	// Check if any input is a tool result
-	if len(r.Inputs) > 0 && r.Inputs[0].Role == conversation.RoleTool {
-		// Handle tool result
-		output.Result = e.generateToolResultResponse(r.Inputs[0])
-		output.FinishReason = "stop"
-		output.ToolCalls = []conversation.ToolCall{} // No tool calls for tool results
-	} else if len(allTools) > 0 {
-		// Check if we should call any tools using the contextual message
-		toolsToCall := e.findMatchingTools(allTools, toolMatchingMessage)
-
-		if len(toolsToCall) > 0 {
-			// Generate tool calls
-			toolCalls := make([]conversation.ToolCall, 0, len(toolsToCall))
-			for i, tool := range toolsToCall {
-				toolCall := conversation.ToolCall{
-					ID:   fmt.Sprintf("call_echo_stream_%d", time.Now().UnixNano()+int64(i)),
-					Type: "function",
-					Function: conversation.ToolCallFunction{
-						Name:      tool.Function.Name,
-						Arguments: e.generateToolArguments(tool, toolMatchingMessage),
-					},
-				}
-				toolCalls = append(toolCalls, toolCall)
-			}
-
-			output.Result = "I'll help you with that by calling the appropriate tools."
-			output.ToolCalls = toolCalls
-			output.FinishReason = "tool_calls"
-		} else {
-			// No tools match, echo the last user message (predictable)
-			output.Result = echoMessage
-			output.FinishReason = "stop"
-			output.ToolCalls = []conversation.ToolCall{}
-		}
-	} else {
-		// No tools available, echo the last user message (predictable)
-		output.Result = echoMessage
-		output.FinishReason = "stop"
-		output.ToolCalls = []conversation.ToolCall{}
-	}
-
-	// Stream the response content (like real LLM providers)
+	// Stream the response content
+	output := response.Outputs[0]
 	content := output.Result
 
 	// Break content into words for more realistic streaming
@@ -365,23 +378,7 @@ func (e *Echo) ConverseStream(ctx context.Context, r *conversation.ConversationR
 		}
 	}
 
-	// Calculate output tokens
-	totalOutputTokens := int32(len(content) / int(4)) //nolint:gosec // This is a valid conversion
-	if totalOutputTokens == 0 && len(content) > 0 {
-		totalOutputTokens = 1
-	}
-
-	res := &conversation.ConversationResponse{
-		Outputs:             []conversation.ConversationResult{output},
-		ConversationContext: r.ConversationContext,
-		Usage: &conversation.UsageInfo{
-			PromptTokens:     totalInputTokens,
-			CompletionTokens: totalOutputTokens,
-			TotalTokens:      totalInputTokens + totalOutputTokens,
-		},
-	}
-
-	return res, nil
+	return response, nil
 }
 
 // findMatchingTools finds tools that match the user message using case-agnostic matching
@@ -748,32 +745,12 @@ func (e *Echo) extractNumber(message string) float64 {
 	return 0
 }
 
-// generateToolResultResponse creates a response based on tool result input
-func (e *Echo) generateToolResultResponse(input conversation.ConversationInput) string {
-	// Parse tool result and generate realistic response
-	var toolResult map[string]interface{}
-	if err := json.Unmarshal([]byte(input.Message), &toolResult); err == nil {
-		// Handle weather tool results
-		if temp, tempOk := toolResult["temperature"]; tempOk {
-			if condition, condOk := toolResult["condition"]; condOk {
-				if location, locOk := toolResult["location"]; locOk {
-					return fmt.Sprintf("Based on the weather data, it's %v°F and %v in %v today!", temp, condition, location)
-				}
-				return fmt.Sprintf("The current weather is %v°F and %v.", temp, condition)
-			}
-		}
-
-		// Handle generic tool results
-		if len(toolResult) > 0 {
-			return fmt.Sprintf("I received the tool result with data: %v. Thanks for the information!", input.Message)
-		}
+// Generate tool result response from content part (new feature)
+func (e *Echo) generateToolResultResponseFromPart(toolResult conversation.ToolResultContentPart) string {
+	if toolResult.IsError {
+		return fmt.Sprintf("Tool %s failed: %s", toolResult.Name, toolResult.Content)
 	}
-
-	// Fallback response for invalid JSON or other content
-	if input.Name != "" {
-		return fmt.Sprintf("I processed the tool result from %s: %s. Thanks for the information!", input.Name, input.Message)
-	}
-	return fmt.Sprintf("I processed the tool result: %s. Thanks for the information!", input.Message)
+	return fmt.Sprintf("Tool %s result: %s", toolResult.Name, toolResult.Content)
 }
 
 func (e *Echo) Close() error {

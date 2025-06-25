@@ -165,8 +165,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 		if contentLen > 0 {
 			// Safe conversion with bounds checking
 			tokens := contentLen / 4
-			if tokens > int(^int32(0)>>1) { // Check if it exceeds int32 max
-				inputTokens = ^int32(0) >> 1 // Use int32 max value
+			if tokens > 2147483647 { // int32 max value
+				inputTokens = 2147483647 // Use int32 max value
 			} else {
 				inputTokens = int32(tokens)
 			}
@@ -174,6 +174,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 		if inputTokens == 0 && len(inputContent) > 0 {
 			inputTokens = 1 // Minimum 1 token for non-empty input
 		}
+
 		totalInputTokens += inputTokens
 
 		// Extract tools from content parts (new feature)
@@ -216,14 +217,25 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	output.Parts = responseParts
 	output.Result = conversation.ExtractTextFromParts(responseParts) // Backward compatibility
 
+	// Extract tool calls for finish reason determination
+	toolCalls := conversation.ExtractToolCallsFromParts(responseParts)
+
+	// Set finish reason based on whether tool calls were generated
+	if len(toolCalls) > 0 {
+		output.FinishReason = "tool_calls"
+	} else {
+		output.FinishReason = "stop"
+	}
+
 	// Calculate output tokens
 	resultLen := len(output.Result)
 	var totalOutputTokens int32
+
 	if resultLen > 0 {
 		// Safe conversion with bounds checking
 		tokens := resultLen / 4
-		if tokens > int(^int32(0)>>1) { // Check if it exceeds int32 max
-			totalOutputTokens = ^int32(0) >> 1 // Use int32 max value
+		if tokens > 2147483647 { // int32 max value
+			totalOutputTokens = 2147483647 // Use int32 max value
 		} else {
 			totalOutputTokens = int32(tokens)
 		}

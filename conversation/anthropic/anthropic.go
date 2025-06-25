@@ -72,7 +72,7 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	return a
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
+const defaultModel = "claude-sonnet-4-20250514"
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}

@@ -152,6 +152,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
+	k.initConsumerGroupRebalanceStrategy(config, metadata)
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	config.Producer.Compression = meta.internalCompression
@@ -258,6 +259,25 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.logger.Debug("Kafka message bus initialization complete")
 
 	return nil
+}
+
+func (k *Kafka) initConsumerGroupRebalanceStrategy(config *sarama.Config, metadata map[string]string) {
+	consumerGroupRebalanceStrategy, ok := kitmd.GetMetadataProperty(metadata, "consumerGroupRebalanceStrategy")
+	if !ok {
+		consumerGroupRebalanceStrategy = consumerGroupRebalanceStrategyRange
+	}
+	switch strings.ToLower(consumerGroupRebalanceStrategy) {
+	case consumerGroupRebalanceStrategySticky:
+		config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategySticky()}
+	case consumerGroupRebalanceStrategyRoundRobin:
+		config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
+	case consumerGroupRebalanceStrategyRange:
+		config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
+	default:
+		k.logger.Warnf("Invalid consumer group rebalance strategy: %s. Using default strategy: '%s'", consumerGroupRebalanceStrategy, consumerGroupRebalanceStrategyRange)
+		config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
+	}
+	k.logger.Infof("Consumer group rebalance strategy set to '%s'", config.Consumer.Group.Rebalance.GroupStrategies[0].Name())
 }
 
 func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {

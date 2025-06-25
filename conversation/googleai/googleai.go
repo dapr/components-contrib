@@ -62,6 +62,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	// Use OpenAI client with Google AI's OpenAI compatibility endpoint
 	// This provides much better tool calling support than the native langchaingo Google AI implementation
+	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(md.Key),

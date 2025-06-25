@@ -705,6 +705,9 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 	}
 
 	// Test 3: Demonstrate content parts variety processing
+	// Generate a provider-compatible tool call ID for the variety test
+	varietyToolCallID := conversation.GenerateProviderCompatibleToolCallID()
+
 	varietyReq := &conversation.ConversationRequest{
 		Inputs: []conversation.ConversationInput{
 			// Message with tool definitions
@@ -720,7 +723,7 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 				Parts: []conversation.ContentPart{
 					conversation.TextContentPart{Text: "I'll check the weather for you."},
 					conversation.ToolCallContentPart{
-						ID:       "call_demo_123",
+						ID:       varietyToolCallID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
 							Name:      "get_weather",
@@ -734,7 +737,7 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 				Role: conversation.RoleTool,
 				Parts: []conversation.ContentPart{
 					conversation.ToolResultContentPart{
-						ToolCallID: "call_demo_123",
+						ToolCallID: varietyToolCallID,
 						Name:       "get_weather",
 						Content:    `{"temperature": 60, "condition": "rainy"}`,
 						IsError:    false,
@@ -775,6 +778,9 @@ func TestOrderPreservationBugFix(t *testing.T) {
 	// must be processed in order, not grouped by type
 	echo := &Echo{}
 
+	// Generate a provider-compatible tool call ID for the order preservation test
+	orderTestToolCallID := conversation.GenerateProviderCompatibleToolCallID()
+
 	// Create a conversation that tests order preservation
 	req := &conversation.ConversationRequest{
 		Inputs: []conversation.ConversationInput{
@@ -802,7 +808,7 @@ func TestOrderPreservationBugFix(t *testing.T) {
 				Parts: []conversation.ContentPart{
 					conversation.TextContentPart{Text: "I'll check the weather for you."},
 					conversation.ToolCallContentPart{
-						ID:       "call_weather_123",
+						ID:       orderTestToolCallID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
 							Name:      "get_weather",
@@ -816,7 +822,7 @@ func TestOrderPreservationBugFix(t *testing.T) {
 				Role: conversation.RoleTool,
 				Parts: []conversation.ContentPart{
 					conversation.ToolResultContentPart{
-						ToolCallID: "call_weather_123",
+						ToolCallID: orderTestToolCallID,
 						Name:       "get_weather",
 						Content:    "Sunny, 72°F in Boston",
 					},
@@ -836,8 +842,7 @@ func TestOrderPreservationBugFix(t *testing.T) {
 	// and append them at the end, breaking conversation order. Now it should maintain order.
 
 	// Test the message conversion directly
-	messages, err := langchaingokit.GetMessageFromRequest(req)
-	require.NoError(t, err)
+	messages := langchaingokit.GetMessageFromRequest(req)
 
 	// Verify that messages maintain order and correct roles
 	require.Len(t, messages, 4, "Should have 4 messages in proper order")

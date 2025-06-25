@@ -13,14 +13,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package langchaingokit provides integration with LangChain Go for conversation components.
+//
+// NOTE: This package contains several temporary workarounds for langchaingo compatibility issues.
+// See LANGCHAINGO_WORKAROUNDS.md for detailed documentation of these workarounds and the
+// plan for removing them once better native support is available in langchaingo.
+
 package langchaingokit
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -40,6 +44,8 @@ var ErrStreamingNotSupported = errors.New("streaming is not supported by this mo
 func (a *LLM) SupportsToolCalling() bool {
 	return true
 }
+
+// Use the shared provider-compatible tool call ID generator from conversation package
 
 // convertParametersToMap converts tool parameters from JSON string to map[string]any if needed
 // This ensures langchaingo receives parameters in the expected format
@@ -138,11 +144,12 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 		// Add tool calls if present
 		if len(resp.Choices[i].ToolCalls) > 0 {
-			for j, tc := range resp.Choices[i].ToolCalls {
-				// Generate ID if not provided by the provider (e.g., GoogleAI)
+			for _, tc := range resp.Choices[i].ToolCalls {
+				// Generate provider-compatible ID if not provided by the provider
+				// TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
 				toolCallID := tc.ID
 				if toolCallID == "" {
-					toolCallID = fmt.Sprintf("call_%d_%d_%d", time.Now().UnixNano(), i, j)
+					toolCallID = conversation.GenerateProviderCompatibleToolCallID()
 				}
 
 				parts = append(parts, conversation.ToolCallContentPart{

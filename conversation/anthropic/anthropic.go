@@ -34,6 +34,7 @@ type Anthropic struct {
 	logger logger.Logger
 }
 
+// usageGetter extracts usage information from Anthropic responses.
 func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
 	if resp == nil || len(resp.Choices) == 0 {
 		return nil

@@ -38,7 +38,7 @@ func TestInit(t *testing.T) {
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, o.llm)
+				assert.NotNil(t, o.LLM)
 			},
 		},
 		{
@@ -50,7 +50,7 @@ func TestInit(t *testing.T) {
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, o.llm)
+				assert.NotNil(t, o.LLM)
 				// Since we can't directly access the client's baseURL,
 				// we're mainly testing that initialization succeeds
 			},

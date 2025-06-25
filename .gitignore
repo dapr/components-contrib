@@ -9,3 +9,4 @@ go.work.sum
 component-metadata-bundle.json
 *.log
 metadataanalyzer
+**/.env

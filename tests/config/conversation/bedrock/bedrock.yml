@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: bedrock
+spec:
+  type: conversation.aws.bedrock
+  version: v1
+  metadata:
+    - name: accessKey
+      value: "${{AWS_ACCESS_KEY_ID}}"
+    - name: secretKey
+      value: "${{AWS_SECRET_ACCESS_KEY}}"
+    - name: region
+      value: "${{AWS_REGION}}"
+    - name: model
+      value: "anthropic.claude-3-haiku-20240307-v1:0" 

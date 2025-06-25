@@ -152,9 +152,16 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 					toolCallID = conversation.GenerateProviderCompatibleToolCallID()
 				}
 
+				// Fix for langchaingo Anthropic provider not setting Type field
+				// Default to "function" if Type is empty
+				toolCallType := tc.Type
+				if toolCallType == "" {
+					toolCallType = "function"
+				}
+
 				parts = append(parts, conversation.ToolCallContentPart{
 					ID:       toolCallID,
-					CallType: tc.Type,
+					CallType: toolCallType,
 					Function: conversation.ToolCallFunction{
 						Name:      tc.FunctionCall.Name,
 						Arguments: tc.FunctionCall.Arguments,

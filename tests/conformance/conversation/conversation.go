@@ -526,11 +526,30 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			// Add the original user request
 			step2Inputs = append(step2Inputs, step1Req.Inputs[0])
 
-			// Add the assistant's response (including tool call)
-			step2Inputs = append(step2Inputs, conversation.ConversationInput{
-				Role:  conversation.RoleAssistant,
-				Parts: allStep1Parts,
-			})
+			// For Anthropic, we need to follow the exact pattern from langchaingo example
+			// Create assistant message directly from the tool call, not from converted content parts
+			if component == "anthropic" {
+				// Create assistant message with tool call using the exact structure from langchaingo example
+				step2Inputs = append(step2Inputs, conversation.ConversationInput{
+					Role: conversation.RoleAssistant,
+					Parts: []conversation.ContentPart{
+						conversation.ToolCallContentPart{
+							ID:       weatherToolCall.ID,
+							CallType: weatherToolCall.CallType,
+							Function: conversation.ToolCallFunction{
+								Name:      weatherToolCall.Function.Name,
+								Arguments: weatherToolCall.Function.Arguments,
+							},
+						},
+					},
+				})
+			} else {
+				// For other providers, use the extracted parts
+				step2Inputs = append(step2Inputs, conversation.ConversationInput{
+					Role:  conversation.RoleAssistant,
+					Parts: allStep1Parts,
+				})
+			}
 
 			if component == "mistral" {
 				// For Mistral, don't include the assistant's tool call in conversation history
@@ -559,7 +578,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					},
 				}
 			} else {
-				// For other providers, provide formal tool result
+				// For all providers, provide formal tool result
 				step2Inputs = append(step2Inputs, conversation.ConversationInput{
 					Role: conversation.RoleTool,
 					Parts: []conversation.ContentPart{

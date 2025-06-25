@@ -352,3 +352,14 @@ metadata:
         The default is none.
       example: '"gzip"'
       default: "none"
+    - name: consumerGroupRebalanceStrategy
+      type: string
+      required: false
+      description: |
+        The strategy to use for consumer group rebalancing.
+      example: '"sticky"'
+      default: '"range"'
+      allowedValues:
+        - "range"
+        - "sticky"
+        - "roundrobin"

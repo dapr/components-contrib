@@ -432,3 +432,89 @@ func TestValidateAWS(t *testing.T) {
 		})
 	}
 }
+
+func TestInitConsumerGroupRebalanceStrategy(t *testing.T) {
+	tests := []struct {
+		name             string
+		metadata         map[string]string
+		expectedStrategy string
+	}{
+		{
+			name:             "missing consumerGroupRebalanceStrategy property defaults to Range",
+			metadata:         map[string]string{},
+			expectedStrategy: "range",
+		},
+		{
+			name: "empty consumerGroupRebalanceStrategy property defaults to Range",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "",
+			},
+			expectedStrategy: "range",
+		},
+		{
+			name: "valid sticky strategy",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "sticky",
+			},
+			expectedStrategy: "sticky",
+		},
+		{
+			name: "valid roundrobin strategy",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "roundrobin",
+			},
+			expectedStrategy: "roundrobin",
+		},
+		{
+			name: "valid range strategy",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "range",
+			},
+			expectedStrategy: "range",
+		},
+		{
+			name: "case insensitive strategy",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "sTickY",
+			},
+			expectedStrategy: "sticky",
+		},
+		{
+			name: "case insensitive strategy default",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "Range",
+			},
+			expectedStrategy: "range",
+		},
+		{
+			name: "invalid strategy defaults to Range with warning",
+			metadata: map[string]string{
+				"consumerGroupRebalanceStrategy": "invalid",
+			},
+			expectedStrategy: "range",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create Kafka instance with logger
+			k := &Kafka{
+				logger: logger.NewLogger("kafka_test"),
+			}
+
+			// Create sarama config
+			config := sarama.NewConfig()
+
+			// Call the method under test
+			k.initConsumerGroupRebalanceStrategy(config, tt.metadata)
+
+			// Verify the strategy was set correctly
+			require.Len(t, config.Consumer.Group.Rebalance.GroupStrategies, 1, "Expected exactly one rebalance strategy")
+
+			assert.Equal(t, tt.expectedStrategy, config.Consumer.Group.Rebalance.GroupStrategies[0].Name())
+
+			// Note: Warning verification would require a more sophisticated mock
+			// For now, we just verify the strategy is set correctly
+		})
+	}
+}

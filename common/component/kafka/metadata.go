@@ -27,29 +27,32 @@ import (
 )
 
 const (
-	key                  = "partitionKey"
-	keyMetadataKey       = "__key"
-	timestampMetadataKey = "__timestamp"
-	offsetMetadataKey    = "__offset"
-	partitionMetadataKey = "__partition"
-	topicMetadataKey     = "__topic"
-	skipVerify           = "skipVerify"
-	caCert               = "caCert"
-	certificateAuthType  = "certificate"
-	clientCert           = "clientCert"
-	clientKey            = "clientKey"
-	consumeRetryInterval = "consumeRetryInterval"
-	authType             = "authType"
-	passwordAuthType     = "password"
-	oidcAuthType         = "oidc"
-	mtlsAuthType         = "mtls"
-	awsIAMAuthType       = "awsiam"
-	noAuthType           = "none"
-	consumerFetchMin     = "consumerFetchMin"
-	consumerFetchDefault = "consumerFetchDefault"
-	channelBufferSize    = "channelBufferSize"
-	valueSchemaType      = "valueSchemaType"
-	compression          = "compression"
+	key                                      = "partitionKey"
+	keyMetadataKey                           = "__key"
+	timestampMetadataKey                     = "__timestamp"
+	offsetMetadataKey                        = "__offset"
+	partitionMetadataKey                     = "__partition"
+	topicMetadataKey                         = "__topic"
+	skipVerify                               = "skipVerify"
+	caCert                                   = "caCert"
+	certificateAuthType                      = "certificate"
+	clientCert                               = "clientCert"
+	clientKey                                = "clientKey"
+	consumeRetryInterval                     = "consumeRetryInterval"
+	authType                                 = "authType"
+	passwordAuthType                         = "password"
+	oidcAuthType                             = "oidc"
+	mtlsAuthType                             = "mtls"
+	awsIAMAuthType                           = "awsiam"
+	noAuthType                               = "none"
+	consumerFetchMin                         = "consumerFetchMin"
+	consumerFetchDefault                     = "consumerFetchDefault"
+	channelBufferSize                        = "channelBufferSize"
+	valueSchemaType                          = "valueSchemaType"
+	compression                              = "compression"
+	consumerGroupRebalanceStrategyRange      = "range"
+	consumerGroupRebalanceStrategySticky     = "sticky"
+	consumerGroupRebalanceStrategyRoundRobin = "roundrobin"
 
 	// Kafka client config default values.
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
@@ -99,8 +102,9 @@ type KafkaMetadata struct {
 
 	channelBufferSize int `mapstructure:"-"`
 
-	consumerFetchMin     int32 `mapstructure:"-"`
-	consumerFetchDefault int32 `mapstructure:"-"`
+	consumerFetchMin               int32  `mapstructure:"-"`
+	consumerFetchDefault           int32  `mapstructure:"-"`
+	ConsumerGroupRebalanceStrategy string `mapstructure:"consumerGroupRebalanceStrategy"`
 
 	// configs for kafka producer
 	Compression         string                  `mapstructure:"compression"`

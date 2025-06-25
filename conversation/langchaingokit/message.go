@@ -50,11 +50,10 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 					})
 				case conversation.ToolResultContentPart:
 					toolResults = append(toolResults, p)
-					// ToolDefinitionsContentPart is handled at the conversation level
 				}
 			}
 
-			// Create appropriate message type based on content
+			// Create messages based on content type
 			if len(toolResults) > 0 {
 				// Tool result messages
 				for _, result := range toolResults {
@@ -81,10 +80,7 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 					message.Parts = []llms.ContentPart{llms.TextPart(strings.Join(textParts, " "))}
 				}
 
-				// Include tool calls for multi-turn conversation context
-				// This ensures providers like Anthropic can find corresponding tool_use blocks
-				// when processing tool_result blocks in subsequent messages
-				// TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
+				// Add tool calls to Parts array (they implement ContentPart interface)
 				for _, toolCall := range toolCalls {
 					message.Parts = append(message.Parts, toolCall)
 				}
@@ -97,15 +93,14 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 					Parts: []llms.ContentPart{llms.TextPart(strings.Join(textParts, " "))},
 				})
 			}
-		} else if input.Message != "" {
-			// Fallback to legacy message processing for text backward compatibility only
-			// Regular legacy text message
-			messages = append(messages, llms.MessageContent{
-				Role: role,
-				Parts: []llms.ContentPart{
-					llms.TextPart(input.Message),
-				},
-			})
+		} else {
+			// Legacy message field support
+			if input.Message != "" {
+				messages = append(messages, llms.MessageContent{
+					Role:  role,
+					Parts: []llms.ContentPart{llms.TextPart(input.Message)},
+				})
+			}
 		}
 	}
 

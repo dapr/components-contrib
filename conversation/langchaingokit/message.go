@@ -84,6 +84,7 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 				// Include tool calls for multi-turn conversation context
 				// This ensures providers like Anthropic can find corresponding tool_use blocks
 				// when processing tool_result blocks in subsequent messages
+				// TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
 				for _, toolCall := range toolCalls {
 					message.Parts = append(message.Parts, toolCall)
 				}

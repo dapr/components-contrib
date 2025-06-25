@@ -67,6 +67,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
+	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support for HuggingFace
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(m.Key),

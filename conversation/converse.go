@@ -12,10 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package conversation provides interfaces and types for conversation components.
+//
+// This package includes content parts support for rich conversation content including
+// tool calling, tool results, and tool definitions. Some implementations include
+// temporary workarounds for langchaingo compatibility - see langchaingokit/LANGCHAINGO_WORKAROUNDS.md
+// for details.
 package conversation
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -305,4 +314,22 @@ func DefaultFinishReason(parts []ContentPart) string {
 		return "tool_calls"
 	}
 	return "stop"
+}
+
+// GenerateProviderCompatibleToolCallID generates a tool call ID that is compatible with strict providers
+// like Mistral which requires exactly 9 alphanumeric characters
+func GenerateProviderCompatibleToolCallID() string {
+	// Generate 5 random bytes (10 hex chars), then take first 9
+	bytes := make([]byte, 5)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a deterministic ID if crypto/rand fails
+		// Use a simple counter-based approach for reproducibility in tests
+		return "test00001"
+	}
+	hexStr := hex.EncodeToString(bytes)
+	if len(hexStr) >= 9 {
+		return hexStr[:9]
+	}
+	// Pad with zeros if needed (shouldn't happen with 5 bytes)
+	return fmt.Sprintf("%-9s", hexStr)
 }

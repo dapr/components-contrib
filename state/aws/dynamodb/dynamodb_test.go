@@ -452,6 +452,50 @@ func TestSet(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("Successfully set item with binary value", func(t *testing.T) {
+		mockedDB := &awsAuth.MockDynamoDB{
+			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
+				assert.Equal(t, dynamodb.AttributeValue{
+					S: aws.String("key"),
+				}, *input.Item["key"])
+				assert.Equal(t, dynamodb.AttributeValue{
+					B: []byte("value"),
+				}, *input.Item["value"])
+				assert.Len(t, input.Item, 3)
+
+				return &dynamodb.PutItemOutput{
+					Attributes: map[string]*dynamodb.AttributeValue{
+						"key": {
+							S: aws.String("value"),
+						},
+					},
+				}, nil
+			},
+		}
+
+		dynamo := awsAuth.DynamoDBClients{
+			DynamoDB: mockedDB,
+		}
+
+		mockedClients := awsAuth.Clients{
+			Dynamo: &dynamo,
+		}
+
+		mockAuthProvider := &awsAuth.StaticAuth{}
+		mockAuthProvider.WithMockClients(&mockedClients)
+		s := StateStore{
+			authProvider: mockAuthProvider,
+			partitionKey: defaultPartitionKeyName,
+		}
+
+		req := &state.SetRequest{
+			Key:   "key",
+			Value: []byte("value"),
+		}
+		err := s.Set(t.Context(), req)
+		require.NoError(t, err)
+	})
+
 	t.Run("Successfully set item with matching etag", func(t *testing.T) {
 		mockedDB := &awsAuth.MockDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {

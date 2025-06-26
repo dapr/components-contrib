@@ -36,15 +36,16 @@ import (
 )
 
 const (
-	defaultTTL               = 10 * time.Minute
-	defaultVisibilityTimeout = 30 * time.Second
-	defaultPollingInterval   = 10 * time.Second
-	dequeueCount             = "dequeueCount"
-	insertionTime            = "insertionTime"
-	expirationTime           = "expirationTime"
-	nextVisibleTime          = "nextVisibleTime"
-	popReceipt               = "popReceipt"
-	messageID                = "messageID"
+	defaultTTL                    = 10 * time.Minute
+	defaultVisibilityTimeout      = 30 * time.Second
+	defaultPollingInterval        = 10 * time.Second
+	defaultInitialVisibilityDelay = 0 * time.Second
+	dequeueCount                  = "dequeueCount"
+	insertionTime                 = "insertionTime"
+	expirationTime                = "expirationTime"
+	nextVisibleTime               = "nextVisibleTime"
+	popReceipt                    = "popReceipt"
+	messageID                     = "messageID"
 )
 
 type consumer struct {
@@ -54,7 +55,7 @@ type consumer struct {
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
 	Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error)
-	Write(ctx context.Context, data []byte, ttl *time.Duration) error
+	Write(ctx context.Context, data []byte, ttl *time.Duration, initialVisibilityDelay *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 	Close() error
 }
@@ -129,7 +130,7 @@ func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*s
 	return m, nil
 }
 
-func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
+func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration, initialVisibilityDelay *time.Duration) error {
 	var ttlSeconds *int32
 	if ttl != nil {
 		ttlSeconds = ptr.Of(int32(ttl.Seconds()))
@@ -146,9 +147,16 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 		s = base64.StdEncoding.EncodeToString([]byte(s))
 	}
 
-	_, err = d.queueClient.EnqueueMessage(ctx, s, &azqueue.EnqueueMessageOptions{
+	options := &azqueue.EnqueueMessageOptions{
 		TimeToLive: ttlSeconds,
-	})
+	}
+
+	// Add the initial visibility delay if specified
+	if initialVisibilityDelay != nil {
+		options.VisibilityTimeout = ptr.Of(int32(initialVisibilityDelay.Seconds()))
+	}
+
+	_, err = d.queueClient.EnqueueMessage(ctx, s, options)
 
 	return err
 }
@@ -248,15 +256,16 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	QueueName         string
-	QueueEndpoint     string
-	AccountName       string
-	AccountKey        string
-	DecodeBase64      bool
-	EncodeBase64      bool
-	PollingInterval   time.Duration  `mapstructure:"pollingInterval"`
-	TTL               *time.Duration `mapstructure:"ttl" mapstructurealiases:"ttlInSeconds"`
-	VisibilityTimeout *time.Duration
+	QueueName              string
+	QueueEndpoint          string
+	AccountName            string
+	AccountKey             string
+	DecodeBase64           bool
+	EncodeBase64           bool
+	PollingInterval        time.Duration  `mapstructure:"pollingInterval"`
+	TTL                    *time.Duration `mapstructure:"ttl" mapstructurealiases:"ttlInSeconds"`
+	VisibilityTimeout      *time.Duration
+	InitialVisibilityDelay *time.Duration `mapstructure:"initialVisibilityDelay"`
 }
 
 func (m *storageQueuesMetadata) GetQueueURL(azEnvSettings azauth.EnvironmentSettings) string {
@@ -350,7 +359,17 @@ func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeReq
 		ttlToUse = &ttl
 	}
 
-	err = a.helper.Write(ctx, req.Data, ttlToUse)
+	// Get the initial visibility delay from request metadata, or use the component's metadata
+	initialVisibilityDelayToUse := a.metadata.InitialVisibilityDelay
+	if val, ok := req.Metadata["initialVisibilityDelay"]; ok && val != "" {
+		duration, parseErr := time.ParseDuration(val)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid value for initialVisibilityDelay: %w", parseErr)
+		}
+		initialVisibilityDelayToUse = &duration
+	}
+
+	err = a.helper.Write(ctx, req.Data, ttlToUse, initialVisibilityDelayToUse)
 	if err != nil {
 		return nil, err
 	}

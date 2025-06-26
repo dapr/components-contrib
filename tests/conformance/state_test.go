@@ -32,6 +32,7 @@ import (
 	s_clickhouse "github.com/dapr/components-contrib/state/clickhouse"
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb_v1 "github.com/dapr/components-contrib/state/cockroachdb"
+	s_coherence "github.com/dapr/components-contrib/state/coherence"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
 	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
@@ -143,6 +144,8 @@ func loadStateStore(name string) state.Store {
 		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	case "gcp.firestore.cloud":
 		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "coherence":
+		return s_coherence.NewCoherenceStateStore(testLogger)
 	default:
 		return nil
 	}

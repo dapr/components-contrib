@@ -11,21 +11,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
 package clickhouse
 
 import (
-    "context"
-    "database/sql"
-    "fmt"
-    "testing"
+	"testing"
 
-    "github.com/stretchr/testify/assert"
-    "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-    "github.com/dapr/components-contrib/metadata"
-    "github.com/dapr/components-contrib/state"
-    "github.com/dapr/kit/logger"
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -43,17 +39,17 @@ func TestClickHouseIntegration(t *testing.T) {
 	}
 
 	store := NewClickHouseStateStore(logger.NewLogger("test"))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Initialize store with credentials
 	err := store.Init(ctx, state.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
 				"clickhouseURL": testURL,
-				"databaseName": testDatabase,
-				"tableName":    testTable,
-				"username":     testUsername,
-				"password":     testPassword,
+				"databaseName":  testDatabase,
+				"tableName":     testTable,
+				"username":      testUsername,
+				"password":      testPassword,
 			},
 		},
 	})
@@ -64,9 +60,9 @@ func TestClickHouseIntegration(t *testing.T) {
 		if s, ok := store.(*StateStore); ok {
 			// Drop test table
 			if s.db != nil {
-				_, _ = s.db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s.%s", testDatabase, testTable))
+				_, _ = s.db.ExecContext(ctx, "DROP TABLE IF EXISTS "+testDatabase+"."+testTable)
 				// Drop test database
-				_, _ = s.db.ExecContext(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", testDatabase))
+				_, _ = s.db.ExecContext(ctx, "DROP DATABASE IF EXISTS "+testDatabase)
 			}
 			// Close the connection
 			_ = store.Close()
@@ -178,20 +174,20 @@ func TestClickHouseIntegration(t *testing.T) {
 
 func TestParseAndValidateMetadata(t *testing.T) {
 	t.Run("With valid metadata", func(t *testing.T) {
-			properties := map[string]string{
-				"clickhouseURL": "tcp://127.0.0.1:9000",
-				"databaseName":  "default",
-				"tableName":     "statestore",
-			}
-			m := state.Metadata{
-				Base: metadata.Base{Properties: properties},
-			}
+		properties := map[string]string{
+			"clickhouseURL": "tcp://127.0.0.1:9000",
+			"databaseName":  "default",
+			"tableName":     "statestore",
+		}
+		m := state.Metadata{
+			Base: metadata.Base{Properties: properties},
+		}
 
-			metadata, err := parseAndValidateMetadata(m)
-			require.NoError(t, err)
-			assert.Equal(t, properties["clickhouseURL"], metadata.ClickHouseURL)
-			assert.Equal(t, properties["databaseName"], metadata.Database)
-			assert.Equal(t, properties["tableName"], metadata.Table)
+		metadata, err := parseAndValidateMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, properties["clickhouseURL"], metadata.ClickHouseURL)
+		assert.Equal(t, properties["databaseName"], metadata.Database)
+		assert.Equal(t, properties["tableName"], metadata.Table)
 	})
 
 	t.Run("Missing clickhouseURL", func(t *testing.T) {
@@ -235,12 +231,4 @@ func TestParseAndValidateMetadata(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, "ClickHouse table name is missing", err.Error())
 	})
-}
-
-// Helper function to create a test database connection
-func createTestConnection(t *testing.T) *sql.DB {
-	db, err := sql.Open("clickhouse", testURL)
-	require.NoError(t, err)
-	require.NoError(t, db.Ping())
-	return db
 }

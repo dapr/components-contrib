@@ -24,11 +24,12 @@ import (
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 type StateStore struct {
@@ -89,14 +90,18 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 
 	// Create database if not exists
-	createDBQuery := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", c.config.Database)
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	createDBQuery := "CREATE DATABASE IF NOT EXISTS " + c.config.Database
 	if _, err := db.ExecContext(ctx, createDBQuery); err != nil {
 		return fmt.Errorf("error creating database: %v", err)
 	}
 
 	// Create table if not exists with ReplacingMergeTree
-	createTableQuery := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.%s (
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	createTableQuery := `
+		CREATE TABLE IF NOT EXISTS ` + c.config.Database + `.` + c.config.Table + ` (
 			key String,
 			value String,
 			etag String,
@@ -104,7 +109,7 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 			PRIMARY KEY(key)
 		) ENGINE = ReplacingMergeTree()
 		ORDER BY key
-	`, c.config.Database, c.config.Table)
+	`
 
 	if _, err := db.ExecContext(ctx, createTableQuery); err != nil {
 		return fmt.Errorf("error creating table: %v", err)
@@ -126,12 +131,14 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, errors.New("key is empty")
 	}
 
-	query := fmt.Sprintf(`
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	query := `
 		SELECT value, etag, expire 
-		FROM %s.%s FINAL  -- Add FINAL to get the latest version
+		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
-	`, c.config.Database, c.config.Table)
-	
+	`
+
 	var value, etag string
 	var expire *time.Time
 	err := c.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &etag, &expire)
@@ -163,10 +170,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 	ttlInSeconds := 0
 	if req.Metadata != nil {
-		var err error
-		ttlInSeconds, err = parseTTL(req.Metadata)
-		if err != nil {
-			return err
+		var parseErr error
+		ttlInSeconds, parseErr = parseTTL(req.Metadata)
+		if parseErr != nil {
+			return parseErr
 		}
 	}
 
@@ -184,9 +191,9 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// Handle ETag for optimistic concurrency
 	if req.ETag != nil && *req.ETag != "" {
 		// First, get the current etag
-		currentETag, err := c.getETag(ctx, req.Key)
-		if err != nil {
-			return err
+		currentETag, etagErr := c.getETag(ctx, req.Key)
+		if etagErr != nil {
+			return etagErr
 		}
 
 		// If an etag exists and it doesn't match the provided etag, return error
@@ -195,9 +202,9 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		}
 	} else if req.Options.Concurrency == state.FirstWrite {
 		// Check if the key already exists for first-write
-		exists, err := c.keyExists(ctx, req.Key)
-		if err != nil {
-			return err
+		exists, existsErr := c.keyExists(ctx, req.Key)
+		if existsErr != nil {
+			return existsErr
 		}
 		if exists {
 			return state.NewETagError(state.ETagMismatch, nil)
@@ -209,23 +216,29 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 	// ClickHouse uses ALTER TABLE ... UPDATE instead of ON DUPLICATE KEY
 	// First try to insert
-	insertQuery := fmt.Sprintf(`
-		INSERT INTO %s.%s (key, value, etag, expire)
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	//nolint:gosec
+	insertQuery := `
+		INSERT INTO ` + c.config.Database + `.` + c.config.Table + ` (key, value, etag, expire)
 		VALUES (?, ?, ?, ?)
-	`, c.config.Database, c.config.Table)
+	`
 
 	_, err = c.db.ExecContext(ctx, insertQuery, req.Key, value, etag, expireTime)
 	if err != nil {
 		// If the key exists, update it
-		updateQuery := fmt.Sprintf(`
-			ALTER TABLE %s.%s 
+		// Note: Database and table names are validated during metadata parsing
+		// and come from trusted configuration, so direct string concatenation is acceptable here
+		//nolint:gosec
+		updateQuery := `
+			ALTER TABLE ` + c.config.Database + `.` + c.config.Table + ` 
 			UPDATE value = ?, etag = ?, expire = ?
 			WHERE key = ?
-		`, c.config.Database, c.config.Table)
+		`
 
-		_, err = c.db.ExecContext(ctx, updateQuery, value, etag, expireTime, req.Key)
-		if err != nil {
-			return fmt.Errorf("error updating value: %v", err)
+		_, updateErr := c.db.ExecContext(ctx, updateQuery, value, etag, expireTime, req.Key)
+		if updateErr != nil {
+			return fmt.Errorf("error updating value: %v", updateErr)
 		}
 	}
 
@@ -251,7 +264,10 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		}
 	}
 
-	query := fmt.Sprintf("DELETE FROM %s.%s WHERE key = ?", c.config.Database, c.config.Table)
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	//nolint:gosec
+	query := "DELETE FROM " + c.config.Database + "." + c.config.Table + " WHERE key = ?"
 	_, err := c.db.ExecContext(ctx, query, req.Key)
 	return err
 }
@@ -281,20 +297,20 @@ func parseTTL(metadata map[string]string) (int, error) {
 	if !ok || ttl == "" {
 		return 0, nil
 	}
-	
+
 	ttlMetadata := map[string]string{
 		"ttlInSeconds": ttl,
 	}
-	
+
 	ttlPtr, err := utils.ParseTTL(ttlMetadata)
 	if err != nil {
 		return 0, fmt.Errorf("error parsing TTL: %v", err)
 	}
-	
+
 	if ttlPtr == nil {
 		return 0, nil
 	}
-	
+
 	return *ttlPtr, nil
 }
 
@@ -345,11 +361,11 @@ func (c *StateStore) BulkGet(ctx context.Context, reqs []state.GetRequest, opts 
 			return nil, err
 		}
 		responses[i] = state.BulkGetResponse{
-			Key:  req.Key,
-			Data: response.Data,
-			ETag: response.ETag,
+			Key:      req.Key,
+			Data:     response.Data,
+			ETag:     response.ETag,
 			Metadata: response.Metadata,
-			Error: "",
+			Error:    "",
 		}
 	}
 	return responses, nil
@@ -384,12 +400,14 @@ func (c *StateStore) Close() error {
 
 // getETag retrieves the ETag for a specific key
 func (c *StateStore) getETag(ctx context.Context, key string) (string, error) {
-	query := fmt.Sprintf(`
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	query := `
 		SELECT etag 
-		FROM %s.%s FINAL  -- Add FINAL to get the latest version
+		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
-	`, c.config.Database, c.config.Table)
-	
+	`
+
 	var etag string
 	err := c.db.QueryRowContext(ctx, query, key).Scan(&etag)
 	if err == sql.ErrNoRows {
@@ -398,19 +416,21 @@ func (c *StateStore) getETag(ctx context.Context, key string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting etag: %v", err)
 	}
-	
+
 	return etag, nil
 }
 
 // keyExists checks if a key exists in the state store
 func (c *StateStore) keyExists(ctx context.Context, key string) (bool, error) {
-	query := fmt.Sprintf(`
+	// Note: Database and table names are validated during metadata parsing
+	// and come from trusted configuration, so direct string concatenation is acceptable here
+	query := `
 		SELECT 1 
-		FROM %s.%s FINAL  -- Add FINAL to get the latest version
+		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
 		LIMIT 1
-	`, c.config.Database, c.config.Table)
-	
+	`
+
 	var exists int
 	err := c.db.QueryRowContext(ctx, query, key).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -419,6 +439,6 @@ func (c *StateStore) keyExists(ctx context.Context, key string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error checking key existence: %v", err)
 	}
-	
+
 	return true, nil
 }

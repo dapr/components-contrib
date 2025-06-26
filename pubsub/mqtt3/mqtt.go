@@ -184,9 +184,9 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		}
 
 		m.subscribingLock.Lock()
-		defer m.subscribingLock.Unlock()
 		// Delete the topic from the map first, which stops routing messages to handlers
 		delete(m.topics, topic)
+		m.subscribingLock.Unlock()
 
 		// We will call Unsubscribe only if cleanSession is true or if "unsubscribeOnClose" in the request metadata is true
 		// Otherwise, calling this will make the broker lose the position of our subscription, which is not what we want if we are going to reconnect later

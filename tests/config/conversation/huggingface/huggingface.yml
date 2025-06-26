@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: huggingface
+spec:
+  type: conversation.openai
+  version: v1
+  metadata:
+    - name: key
+      value: "${{HUGGINGFACE_API_KEY}}"
+    - name: model
+      value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" 

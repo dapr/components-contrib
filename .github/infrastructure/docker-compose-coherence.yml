@@ -4,7 +4,7 @@ services:
     environment:
       - coherence.management.http=all
       - coherence.management.http.port=30000
-      - Dcoherence.health.http.port=6676
+      - coherence.health.http.port=6676
       - coherence.wka=127.0.0.1
     ports:
       - 30000:30000

@@ -27,7 +27,7 @@ This state store [supports the following features][features]:
 
 ## Out of scope
 
-1Tests for [features not implemented by Coherence][features] are out of scope. This includes
+1. Tests for [features not implemented by Coherence][features] are out of scope. This includes
     * Transactional
     * ETag
     * Actors

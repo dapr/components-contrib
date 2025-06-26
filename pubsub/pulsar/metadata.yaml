@@ -202,3 +202,12 @@ metadata:
     url: 
       title: "Pulsar SubscriptionInitialPosition"
       url: "https://pkg.go.dev/github.com/apache/pulsar-client-go/pulsar#SubscriptionInitialPosition"
+  - name: subscribeMode
+    type: string
+    description: |
+      Subscription mode indicates the cursor belongs to "durable" type or "non_durable" type, durable subscription retains messages and persists the current position. 
+    default: '"durable"'
+    example: '"durable"'
+    url: 
+      title: "Pulsar SubscriptionMode"
+      url: "https://pkg.go.dev/github.com/apache/pulsar-client-go/pulsar#SubscriptionMode"

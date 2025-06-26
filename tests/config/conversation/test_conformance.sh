@@ -9,7 +9,7 @@ echo ""
 
 # Run the conformance tests with 30s timeout
 cd "$(dirname "$0")/../../.."
-go test -tags conftests ./tests/conformance -run TestConversationConformance -v -timeout 30s
+go test -tags conftests ./tests/conformance -run TestConversationConformance -v -timeout 10s
 
 echo ""
 echo "To run tests with actual API keys, you have two options:"

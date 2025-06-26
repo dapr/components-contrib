@@ -45,9 +45,9 @@ func (m *MockHelper) Init(ctx context.Context, metadata bindings.Metadata) (*sto
 	return m.metadata, err
 }
 
-func (m *MockHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
+func (m *MockHelper) Write(ctx context.Context, data []byte, ttl *time.Duration, initialVisibilityDelay *time.Duration) error {
 	m.messages <- data
-	retvals := m.Called(data, ttl)
+	retvals := m.Called(data, ttl, initialVisibilityDelay)
 	return retvals.Error(0)
 }
 
@@ -89,6 +89,8 @@ func TestWriteQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in == nil
+	}), mock.MatchedBy(func(in *time.Duration) bool {
+		return in == nil
 	})).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
@@ -111,6 +113,8 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
+	}), mock.MatchedBy(func(in *time.Duration) bool {
+		return in == nil
 	})).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
@@ -133,6 +137,8 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
+	}), mock.MatchedBy(func(in *time.Duration) bool {
+		return in == nil
 	})).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
@@ -174,7 +180,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 
 func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
@@ -215,7 +221,7 @@ func TestReadQueue(t *testing.T) {
 
 func TestReadQueueDecode(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
@@ -286,7 +292,7 @@ func TestReadQueueDecode(t *testing.T) {
 */
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
@@ -316,70 +322,76 @@ func TestReadQueueNoMessage(t *testing.T) {
 
 func TestParseMetadata(t *testing.T) {
 	oneSecondDuration := time.Second
-
 	testCases := []struct {
 		name       string
 		properties map[string]string
 		// Account key is parsed in azauth
 		// expectedAccountKey       string
-		expectedQueueName         string
-		expectedQueueEndpointURL  string
-		expectedPollingInterval   time.Duration
-		expectedTTL               *time.Duration
-		expectedVisibilityTimeout *time.Duration
+		expectedQueueName              string
+		expectedQueueEndpointURL       string
+		expectedPollingInterval        time.Duration
+		expectedTTL                    *time.Duration
+		expectedVisibilityTimeout      *time.Duration
+		expectedInitialVisibilityDelay *time.Duration
 	}{
 		{
 			name:       "Account and key",
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:         "queue1",
-			expectedQueueEndpointURL:  "",
-			expectedPollingInterval:   defaultPollingInterval,
-			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
+			expectedQueueName:              "queue1",
+			expectedQueueEndpointURL:       "",
+			expectedPollingInterval:        defaultPollingInterval,
+			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "Accout, key, and endpoint",
 			properties: map[string]string{"accountKey": "myKey", "queueName": "queue1", "storageAccount": "someAccount", "queueEndpointUrl": "https://foo.example.com:10001"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:         "queue1",
-			expectedQueueEndpointURL:  "https://foo.example.com:10001",
-			expectedPollingInterval:   defaultPollingInterval,
-			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
+			expectedQueueName:              "queue1",
+			expectedQueueEndpointURL:       "https://foo.example.com:10001",
+			expectedPollingInterval:        defaultPollingInterval,
+			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "Empty TTL",
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:         "queue1",
-			expectedQueueEndpointURL:  "",
-			expectedPollingInterval:   defaultPollingInterval,
-			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
+			expectedQueueName:              "queue1",
+			expectedQueueEndpointURL:       "",
+			expectedPollingInterval:        defaultPollingInterval,
+			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "With TTL",
 			properties: map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:         "queue1",
-			expectedTTL:               &oneSecondDuration,
-			expectedQueueEndpointURL:  "",
-			expectedPollingInterval:   defaultPollingInterval,
-			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
+			expectedQueueName:              "queue1",
+			expectedTTL:                    &oneSecondDuration,
+			expectedQueueEndpointURL:       "",
+			expectedPollingInterval:        defaultPollingInterval,
+			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
-			name:                      "With visibility timeout",
-			properties:                map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "visibilityTimeout": "5s"},
-			expectedQueueName:         "queue1",
-			expectedPollingInterval:   defaultPollingInterval,
-			expectedVisibilityTimeout: ptr.Of(5 * time.Second),
+			name:                           "With visibility timeout",
+			properties:                     map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "visibilityTimeout": "5s"},
+			expectedQueueName:              "queue1",
+			expectedPollingInterval:        defaultPollingInterval,
+			expectedVisibilityTimeout:      ptr.Of(5 * time.Second),
+			expectedInitialVisibilityDelay: nil,
 		},
 		{
 			name:       "With polling interval",
 			properties: map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "pollingInterval": "2s"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:         "queue1",
-			expectedQueueEndpointURL:  "",
-			expectedPollingInterval:   2 * time.Second,
-			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
+			expectedQueueName:              "queue1",
+			expectedQueueEndpointURL:       "",
+			expectedPollingInterval:        2 * time.Second,
+			expectedVisibilityTimeout:      ptr.Of(defaultVisibilityTimeout),
+			expectedInitialVisibilityDelay: nil,
 		},
 	}
 
@@ -447,4 +459,32 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestWriteWithInitialVisibilityDelay(t *testing.T) {
+	mm := new(MockHelper)
+	expectedDelay := 5 * time.Second
+	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
+		return in == nil
+	}), mock.MatchedBy(func(in *time.Duration) bool {
+		return in != nil && *in == expectedDelay
+	})).Return(nil)
+
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
+
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
+
+	err := a.Init(t.Context(), m)
+	require.NoError(t, err)
+
+	r := bindings.InvokeRequest{
+		Data:     []byte("This is my message"),
+		Metadata: map[string]string{"initialVisibilityDelay": "5s"},
+	}
+
+	_, err = a.Invoke(t.Context(), &r)
+
+	require.NoError(t, err)
+	require.NoError(t, a.Close())
 }

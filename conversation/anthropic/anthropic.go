@@ -18,19 +18,50 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/anthropic"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
 type Anthropic struct {
 	langchaingokit.LLM
 
 	logger logger.Logger
+}
+
+// usageGetter extracts usage information from Anthropic responses.
+func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
+	if resp == nil || len(resp.Choices) == 0 {
+		return nil
+	}
+
+	choice := resp.Choices[0]
+	usage := conversation.UsageInfo{}
+	found := false
+
+	// Pattern 6: Anthropic direct fields in GenerationInfo
+	if inputTokens, ok := conversation.ExtractInt32(choice.GenerationInfo["InputTokens"]); ok {
+		usage.PromptTokens = inputTokens
+		found = true
+	}
+	if outputTokens, ok := conversation.ExtractInt32(choice.GenerationInfo["OutputTokens"]); ok {
+		usage.CompletionTokens = outputTokens
+		found = true
+	}
+	if !found {
+		return nil
+	}
+
+	return &conversation.UsageInfo{
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.PromptTokens + usage.CompletionTokens,
+	}
 }
 
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
@@ -41,7 +72,7 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	return a
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
+const defaultModel = "claude-sonnet-4-20250514"
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
@@ -64,6 +95,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	}
 
 	a.LLM.Model = llm
+	a.LLM.UsageGetterFunc = usageGetter
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.LLM.Model)

@@ -67,6 +67,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
+	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support for HuggingFace
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(m.Key),
@@ -79,6 +80,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 	}
 
 	h.LLM.Model = llm
+	h.LLM.StreamingDisabled = true // Disable streaming by default for HuggingFace as it is not supported in the OpenAI-compatible API and langchaingo also does not support streaming for HuggingFace models.
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)

@@ -623,6 +623,11 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh cassandra',
     },
+    'state.clickhouse': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh clickhouse',
+    },
     'state.cloudflare.workerskv': {
         conformance: true,
         requireCloudflareCredentials: true,

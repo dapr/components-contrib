@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: clickhouse
+version: v1
+status: stable
+title: "ClickHouse"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-clickhouse/
+capabilities:
+  - crud
+  - etag
+  - ttl
+authenticationProfiles:
+  - title: "Username and password"
+    description: "Authenticate using username and password."
+    metadata:
+      - name: username
+        type: string
+        required: false
+        description: |
+          Username for ClickHouse host. Defaults to empty.
+        example: "default"
+        default: ""
+      - name: password
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          Password for ClickHouse host. No default. Use secretKeyRef for
+          secret reference
+        example: "mypassword"
+        default: ""
+metadata:
+  - name: clickhouseURL
+    required: true
+    description: Connection string for the ClickHouse host
+    example: "tcp://localhost:9000"
+    type: string
+  - name: databaseName
+    required: true
+    description: The database name to use. Will be created if database does not exist.
+    example: "dapr_state_store"
+    type: string
+  - name: tableName
+    required: true
+    description: The table name to use. Will be created if table does not exist.
+    example: "state"
+    type: string 

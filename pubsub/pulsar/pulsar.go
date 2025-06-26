@@ -99,6 +99,11 @@ const (
 
 	subscribePositionEarliest = "earliest"
 	subscribePositionLatest   = "latest"
+
+	subscribeMode = "subscribeMode"
+
+	subscribeModeDurable    = "durable"
+	subscribeModeNonDurable = "non_durable"
 )
 
 type ProcessMode string
@@ -152,6 +157,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m.SubscriptionInitialPosition, err = parseSubscriptionPosition(meta.Properties[subscribeInitialPosition])
 	if err != nil {
 		return nil, errors.New("invalid subscription initial position. Accepted values are `latest` and `earliest`")
+	}
+
+	m.SubscriptionMode, err = parseSubscriptionMode(meta.Properties[subscribeMode])
+	if err != nil {
+		return nil, errors.New("invalid subscription mode")
 	}
 
 	for k, v := range meta.Properties {
@@ -455,6 +465,27 @@ func getSubscribePosition(subsPositionStr string) pulsar.SubscriptionInitialPosi
 	return subsPosition
 }
 
+func parseSubscriptionMode(in string) (string, error) {
+	subsMode := strings.ToLower(in)
+	switch subsMode {
+	case subscribeModeDurable, subscribeModeNonDurable:
+		return subsMode, nil
+	case "":
+		return subscribeModeDurable, nil
+	default:
+		return "", fmt.Errorf("invalid subscription mode: %s", subsMode)
+	}
+}
+
+func getSubscriptionMode(subsModeStr string) pulsar.SubscriptionMode {
+	switch subsModeStr {
+	case subscribeModeNonDurable:
+		return pulsar.NonDurable
+	default:
+		return pulsar.Durable
+	}
+}
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -474,6 +505,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		SubscriptionName:            p.metadata.ConsumerID,
 		Type:                        getSubscribeType(subscribeType),
 		SubscriptionInitialPosition: getSubscribePosition(subscribeInitialPosition),
+		SubscriptionMode:            getSubscriptionMode(subscribeMode),
 		MessageChannel:              channel,
 		NackRedeliveryDelay:         p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:           p.metadata.ReceiverQueueSize,

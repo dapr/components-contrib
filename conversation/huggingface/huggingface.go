@@ -17,18 +17,19 @@ package huggingface
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/huggingface"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 type Huggingface struct {
-	llm llms.Model
+	langchaingokit.LLM
 
 	logger logger.Logger
 }
@@ -41,7 +42,11 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	return h
 }
 
-const defaultModel = "meta-llama/Meta-Llama-3-8B"
+// Default model - using a popular and reliable model
+const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+
+// Default HuggingFace OpenAI-compatible endpoint
+const defaultEndpoint = "https://router.huggingface.co/hf-inference/models/{{model}}/v1"
 
 func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
@@ -55,23 +60,33 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		model = m.Model
 	}
 
-	llm, err := huggingface.New(
-		huggingface.WithModel(model),
-		huggingface.WithToken(m.Key),
-	)
+	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
+	if m.Endpoint != "" {
+		endpoint = m.Endpoint
+	}
+
+	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
+	// This is a workaround for issues with the native HuggingFace langchaingo implementation
+	options := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(m.Key),
+		openai.WithBaseURL(endpoint),
+	}
+
+	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}
 
-	h.llm = llm
+	h.LLM.Model = llm
 
 	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.llm)
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		h.llm = cachedModel
+		h.LLM.Model = cachedModel
 	}
 
 	return nil
@@ -81,47 +96,6 @@ func (h *Huggingface) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	metadataStruct := conversation.LangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
-}
-
-func (h *Huggingface) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := make([]llms.MessageContent, 0, len(r.Inputs))
-
-	for _, input := range r.Inputs {
-		role := conversation.ConvertLangchainRole(input.Role)
-
-		messages = append(messages, llms.MessageContent{
-			Role: role,
-			Parts: []llms.ContentPart{
-				llms.TextPart(input.Message),
-			},
-		})
-	}
-
-	opts := []llms.CallOption{}
-
-	if r.Temperature > 0 {
-		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
-	}
-
-	resp, err := h.llm.GenerateContent(ctx, messages, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
-
-	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
-	}
-
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
-	}
-
-	return res, nil
 }
 
 func (h *Huggingface) Close() error {

@@ -14,13 +14,19 @@ limitations under the License.
 package utils
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"path"
+	"runtime"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -42,6 +48,66 @@ var (
 	s          server
 	testLogger = logger.NewLogger("utils")
 )
+
+// loadEnvFile loads environment variables from a .env file and sets them in the current environment
+// This is a simple implementation that overrides existing environment variables
+func loadEnvFile(filepath string) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parse key=value pairs
+		if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+
+			// Remove surrounding quotes if present
+			if len(value) >= 2 {
+				if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
+					(strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`)) {
+					value = value[1 : len(value)-1]
+				}
+			}
+
+			// Set the environment variable (overriding existing value)
+			os.Setenv(key, value)
+		}
+	}
+
+	return scanner.Err()
+}
+
+// LoadEnvVars loads environment variables from a .env file and overrides existing ones
+// This will override any existing environment variables with values from the .env file
+func LoadEnvVars(relativePath string) error {
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		return errors.New("cannot get path to current file")
+	}
+
+	filepath := path.Join(path.Dir(filename), relativePath)
+
+	// Load .env file and override existing environment variables
+	err := loadEnvFile(filepath)
+	if err != nil {
+		log.Printf("Warning: Error loading .env file from %s: %v", filepath, err)
+		log.Printf("Continuing with existing environment variables...")
+		return err
+	}
+
+	return nil
+}
 
 func (cc CommonConfig) HasOperation(operation string) bool {
 	_, exists := cc.Operations[operation]

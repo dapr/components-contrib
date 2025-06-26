@@ -98,6 +98,7 @@ require (
 	github.com/nats-io/nats.go v1.31.0
 	github.com/nats-io/nkeys v0.4.6
 	github.com/open-policy-agent/opa v1.4.2
+	github.com/oracle/coherence-go-client/v2 v2.2.0
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible

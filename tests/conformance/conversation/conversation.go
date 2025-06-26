@@ -14,7 +14,9 @@ limitations under the License.
 package conversation
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
@@ -41,7 +43,10 @@ func NewTestConfig(componentName string) TestConfig {
 
 func ConformanceTests(t *testing.T, props map[string]string, conv conversation.Conversation, component string) {
 	t.Run("init", func(t *testing.T) {
-		err := conv.Init(t.Context(), conversation.Metadata{
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		err := conv.Init(ctx, conversation.Metadata{
 			Base: metadata.Base{
 				Properties: props,
 			},
@@ -55,6 +60,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 	t.Run("converse", func(t *testing.T) {
 		t.Run("get a non-empty response without errors", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+
 			req := &conversation.ConversationRequest{
 				Inputs: []conversation.ConversationInput{
 					{
@@ -62,8 +70,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					},
 				},
 			}
+			resp, err := conv.Converse(ctx, req)
 
-			resp, err := conv.Converse(t.Context(), req)
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)

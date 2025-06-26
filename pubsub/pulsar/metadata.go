@@ -39,6 +39,7 @@ type pulsarMetadata struct {
 	ReceiverQueueSize                int                       `mapstructure:"receiverQueueSize"`
 	SubscriptionType                 string                    `mapstructure:"subscribeType"`
 	SubscriptionInitialPosition      string                    `mapstructure:"subscribeInitialPosition"`
+	SubscriptionMode                 string                    `mapstructure:"subscribeMode"`
 	Token                            string                    `mapstructure:"token"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }

@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: googleai
+spec:
+  type: conversation.googleai
+  version: v1
+  metadata:
+    - name: key
+      value: "${{GOOGLE_AI_API_KEY}}"
+    - name: model
+      value: "gemini-1.5-flash" 

@@ -15,6 +15,7 @@ package cloudmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -56,7 +57,7 @@ func (r *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 		return fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
-	if err := meta.Validate(); err != nil {
+	if err = meta.Validate(); err != nil {
 		return fmt.Errorf("invalid metadata: %w", err)
 	}
 
@@ -111,10 +112,12 @@ func (r *Resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequ
 		return "", err
 	}
 	if len(addresses) == 0 {
-		return "", fmt.Errorf("no healthy instances found for service %s", req.ID)
+		return "", errors.New("no healthy instances found for service " + req.ID)
 	}
 
 	// Pick a random address for load balancing
+	// gosec is complaining that we are using a non-crypto-safe PRNG. This is fine in this scenario since we are using it only for selecting a random address for load-balancing.
+	//nolint:gosec
 	return addresses[rand.Intn(len(addresses))], nil
 }
 
@@ -165,7 +168,7 @@ func (r *Resolver) resolveIDMulti(ctx context.Context, req nameresolution.Resolv
 		// Get port from DAPR_PORT attribute or use default
 		port := r.defaultDaprPort
 		if daprPort, ok := instance.Attributes["DAPR_PORT"]; ok && daprPort != nil {
-			if p, err := strconv.Atoi(*daprPort); err == nil {
+			if p, parseErr := strconv.Atoi(*daprPort); parseErr == nil {
 				port = p
 			} else {
 				r.logger.Warnf("Invalid DAPR_PORT value for instance %s: %s, using default port %d", *instance.InstanceId, *daprPort, r.defaultDaprPort)
@@ -213,7 +216,7 @@ func (r *Resolver) validateAccess(ctx context.Context) error {
 
 	// Otherwise, look up namespace by name
 	if r.namespaceName == "" {
-		return fmt.Errorf("either namespaceName or namespaceId must be provided")
+		return errors.New("either namespaceName or namespaceId must be provided")
 	}
 
 	input := &servicediscovery.ListNamespacesInput{}

@@ -15,6 +15,7 @@ package nameformat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -53,12 +54,12 @@ func (r *NameFormatResolver) Init(ctx context.Context, metadata nr.Metadata) err
 	}
 
 	if meta.Format == "" {
-		return fmt.Errorf("format is required in metadata")
+		return errors.New("format is required in metadata")
 	}
 
 	// Validate that the format contains the appid placeholder
 	if !strings.Contains(meta.Format, "{appid}") {
-		return fmt.Errorf("format must contain {appid} placeholder")
+		return errors.New("format must contain {appid} placeholder")
 	}
 
 	// Store the format string
@@ -71,11 +72,11 @@ func (r *NameFormatResolver) Init(ctx context.Context, metadata nr.Metadata) err
 // ResolveID resolves a service ID to an address using the configured format.
 func (r *NameFormatResolver) ResolveID(ctx context.Context, req nr.ResolveRequest) (string, error) {
 	if req.ID == "" {
-		return "", fmt.Errorf("empty ID not allowed")
+		return "", errors.New("empty ID not allowed")
 	}
 
 	// Replace {appid} with the actual ID
-	resolvedAddress := strings.Replace(r.format, "{appid}", req.ID, -1)
+	resolvedAddress := strings.ReplaceAll(r.format, "{appid}", req.ID)
 	r.logger.Debugf("Resolved app ID '%s' to address: %s", req.ID, resolvedAddress)
 	return resolvedAddress, nil
 }

@@ -14,7 +14,6 @@ limitations under the License.
 package nameformat
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,7 +66,7 @@ func TestInit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewResolver(logger.NewLogger("test"))
-			err := r.Init(context.Background(), tt.metadata)
+			err := r.Init(t.Context(), tt.metadata)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -116,14 +115,14 @@ func TestResolveID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewResolver(logger.NewLogger("test"))
-			err := r.Init(context.Background(), nr.Metadata{
+			err := r.Init(t.Context(), nr.Metadata{
 				Configuration: map[string]string{
 					"format": tt.format,
 				},
 			})
 			require.NoError(t, err)
 
-			result, err := r.ResolveID(context.Background(), tt.request)
+			result, err := r.ResolveID(t.Context(), tt.request)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)

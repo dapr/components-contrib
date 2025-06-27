@@ -14,8 +14,7 @@ limitations under the License.
 package cloudmap
 
 import (
-	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -62,26 +61,6 @@ func (m *mockAuthProvider) Close() error {
 	return nil
 }
 
-type mockServiceDiscoveryClient struct {
-	servicediscoveryiface.ServiceDiscoveryAPI
-	t *testing.T
-
-	// Mock responses
-	discoverInstancesOutput *servicediscovery.DiscoverInstancesOutput
-	discoverInstancesError  error
-}
-
-func (m *mockServiceDiscoveryClient) DiscoverInstances(input *servicediscovery.DiscoverInstancesInput) (*servicediscovery.DiscoverInstancesOutput, error) {
-	// Validate input parameters
-	assert.NotNil(m.t, input.ServiceName)
-	assert.NotNil(m.t, input.NamespaceName)
-
-	if m.discoverInstancesError != nil {
-		return nil, m.discoverInstancesError
-	}
-	return m.discoverInstancesOutput, nil
-}
-
 func TestCloudMapResolver(t *testing.T) {
 	t.Run("init with valid namespace ID", func(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
@@ -95,7 +74,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.authProvider = &mockAuthProvider{}
 
-		err := r.Init(context.Background(), nameresolution.Metadata{
+		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
 				"namespaceId": "ns-test",
 				"region":      "us-west-2",
@@ -120,7 +99,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.authProvider = &mockAuthProvider{}
 
-		err := r.Init(context.Background(), nameresolution.Metadata{
+		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
 				"namespaceId":     "ns-test",
 				"region":          "us-west-2",
@@ -147,7 +126,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.authProvider = &mockAuthProvider{}
 
-		err := r.Init(context.Background(), nameresolution.Metadata{
+		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
 				"namespaceName": "test-namespace",
 				"region":        "us-west-2",
@@ -161,7 +140,7 @@ func TestCloudMapResolver(t *testing.T) {
 
 	t.Run("init with missing namespace", func(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
-		err := r.Init(context.Background(), nameresolution.Metadata{
+		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
 				"region": "us-west-2",
 			},
@@ -189,7 +168,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.namespaceName = "test-namespace"
 
-		addr, err := r.ResolveID(context.Background(), nameresolution.ResolveRequest{
+		addr, err := r.ResolveID(t.Context(), nameresolution.ResolveRequest{
 			ID: "test-service",
 		})
 
@@ -207,12 +186,12 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.namespaceName = "test-namespace"
 
-		_, err := r.ResolveID(context.Background(), nameresolution.ResolveRequest{
+		_, err := r.ResolveID(t.Context(), nameresolution.ResolveRequest{
 			ID: "test-service",
 		})
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no instances found")
+		assert.Contains(t, err.Error(), "no healthy instances found for service test-service")
 	})
 
 	t.Run("resolve service with discovery error", func(t *testing.T) {
@@ -223,12 +202,12 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.namespaceName = "test-namespace"
 
-		_, err := r.ResolveID(context.Background(), nameresolution.ResolveRequest{
+		_, err := r.ResolveID(t.Context(), nameresolution.ResolveRequest{
 			ID: "test-service",
 		})
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to discover instances")
+		assert.Contains(t, err.Error(), "failed to discover CloudMap instances")
 	})
 
 	t.Run("resolve service with DAPR_PORT", func(t *testing.T) {
@@ -249,7 +228,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.client = mockClient
 		r.namespaceName = "test-namespace"
 
-		addr, err := r.ResolveID(context.Background(), nameresolution.ResolveRequest{
+		addr, err := r.ResolveID(t.Context(), nameresolution.ResolveRequest{
 			ID: "test-service",
 		})
 
@@ -275,7 +254,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r.namespaceName = "test-namespace"
 		r.defaultDaprPort = 3500
 
-		addr, err := r.ResolveID(context.Background(), nameresolution.ResolveRequest{
+		addr, err := r.ResolveID(t.Context(), nameresolution.ResolveRequest{
 			ID: "test-service",
 		})
 
@@ -361,7 +340,7 @@ func TestResolve(t *testing.T) {
 			req: nameresolution.ResolveRequest{
 				ID: "test-service",
 			},
-			mockError:         fmt.Errorf("AWS error"),
+			mockError:         errors.New("AWS error"),
 			expectedAddresses: nil,
 			expectedError:     true,
 		},
@@ -381,12 +360,12 @@ func TestResolve(t *testing.T) {
 				defaultDaprPort: tc.defaultPort,
 			}
 
-			addresses, err := resolver.ResolveID(context.Background(), tc.req)
+			addresses, err := resolver.ResolveID(t.Context(), tc.req)
 
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				if len(tc.expectedAddresses) == 1 {
 					assert.Equal(t, tc.expectedAddresses[0], addresses)
 				} else {

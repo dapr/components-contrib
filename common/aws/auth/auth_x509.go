@@ -5,6 +5,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
@@ -12,7 +14,6 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/mikeee/aws_credential_helper"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"time"
 )
 
 func isX509Auth(m map[string]string) bool {
@@ -100,7 +101,8 @@ func marshalSvid(svid *x509svid.SVID) ([]byte, []byte, error) {
 }
 
 func getCertAndSigner(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, *aws_credential_helper.Signer,
-	error) {
+	error,
+) {
 	// obtain certs from spiffe via context
 	x509Svid, err := getSpiffeX509Svid(ctx)
 	if err != nil {
@@ -174,6 +176,9 @@ func newAuthX509(ctx context.Context, opts Options) (*X509, error) {
 	}
 
 	credentialProvider, err := aws_credential_helper.NewCredentialProvider(ctx, authInput)
+	if err != nil {
+		return nil, errors.New("failed to create new credential provider: " + err.Error())
+	}
 
 	// test credentialprovider
 	cred, err := credentialProvider.Retrieve(ctx)

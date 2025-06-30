@@ -331,8 +331,10 @@ func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQ
 
 func (s *snsSqs) getQueueArn(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	queueURLOutput, err := s.sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueName),
-		QueueOwnerAWSAccountId: aws.String(s.metadata.AccountID)})
+	queueURLOutput, err := s.sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+		QueueName:              aws.String(queueName),
+		QueueOwnerAWSAccountId: aws.String(s.metadata.AccountID),
+	})
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting url of queue: %s", err, queueName)
@@ -340,8 +342,10 @@ func (s *snsSqs) getQueueArn(parentCtx context.Context, queueName string) (*sqsQ
 	url := queueURLOutput.QueueUrl
 
 	ctx, cancel = context.WithTimeout(parentCtx, s.opsTimeout)
-	getQueueOutput, err := s.sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{QueueUrl: url,
-		AttributeNames: []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameQueueArn}})
+	getQueueOutput, err := s.sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+		QueueUrl:       url,
+		AttributeNames: []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameQueueArn},
+	})
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting information for queue: %s, with url: %s", err, queueName, *url)
@@ -517,7 +521,8 @@ func (s *snsSqs) parseReceiveCount(message *sqsTypes.Message) (int64, error) {
 }
 
 func (s *snsSqs) validateMessage(ctx context.Context, message *sqsTypes.Message, queueInfo,
-	deadLettersQueueInfo *sqsQueueInfo) error {
+	deadLettersQueueInfo *sqsQueueInfo,
+) error {
 	recvCount, err := s.parseReceiveCount(message)
 	if err != nil {
 		return err

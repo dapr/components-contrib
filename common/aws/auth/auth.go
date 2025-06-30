@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/dapr/kit/logger"
@@ -38,7 +39,8 @@ type CredentialProvider interface {
 }
 
 func NewCredentialProvider(ctx context.Context, opts Options, configOpts []func(*config.LoadOptions) error) (CredentialProvider,
-	error) {
+	error,
+) {
 	// TODO: Refactor this to search the opts structure for the right fields rather than the metadata map
 	if isX509Auth(opts.Properties) {
 		return newAuthX509(ctx, opts)

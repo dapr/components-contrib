@@ -19,14 +19,15 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	awsCommon "github.com/dapr/components-contrib/common/aws"
 	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
-	"reflect"
-	"strconv"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	jsoniterator "github.com/json-iterator/go"

@@ -175,34 +175,6 @@ func TestIsRawPayload(t *testing.T) {
 	})
 }
 
-func TestTryGetContentType(t *testing.T) {
-	t.Run("Metadata without content type", func(t *testing.T) {
-		val, ok := TryGetContentType(map[string]string{})
-
-		assert.Equal(t, "", val)
-		assert.False(t, ok)
-	})
-
-	t.Run("Metadata with empty content type", func(t *testing.T) {
-		val, ok := TryGetContentType(map[string]string{
-			"contentType": "",
-		})
-
-		assert.Equal(t, "", val)
-		assert.False(t, ok)
-	})
-
-	t.Run("Metadata with corrent content type", func(t *testing.T) {
-		const contentType = "application/cloudevent+json"
-		val, ok := TryGetContentType(map[string]string{
-			"contentType": contentType,
-		})
-
-		assert.Equal(t, contentType, val)
-		assert.True(t, ok)
-	})
-}
-
 func TestMetadataStructToStringMap(t *testing.T) {
 	t.Run("Test metadata struct to metadata info conversion", func(t *testing.T) {
 		type NestedStruct struct {

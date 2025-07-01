@@ -75,26 +75,19 @@ func TestMistralToolResultConversion(t *testing.T) {
 		// Verify the conversion
 		require.NotNil(t, converted)
 		assert.Equal(t, req.Temperature, converted.Temperature)
-		assert.Len(t, converted.Inputs, 3) // Should still have 3 inputs
 
-		// First input should be unchanged (user message)
-		assert.Equal(t, req.Inputs[0].Role, converted.Inputs[0].Role)
+		// With tool call history present, Mistral creates a fresh context with a single input
+		assert.Len(t, converted.Inputs, 1) // Should have 1 input (fresh context)
+
+		// The single input should be a user message with the fresh context
+		assert.Equal(t, "user", string(converted.Inputs[0].Role))
 		assert.Len(t, converted.Inputs[0].Parts, 1)
 		textPart, ok := converted.Inputs[0].Parts[0].(conversation.TextContentPart)
 		require.True(t, ok)
-		assert.Equal(t, "What's the weather like?", textPart.Text)
 
-		// Second input should be unchanged (assistant with tool call)
-		assert.Equal(t, req.Inputs[1].Role, converted.Inputs[1].Role)
-		assert.Len(t, converted.Inputs[1].Parts, 2)
-
-		// Third input should be converted from tool result to user text message
-		assert.Equal(t, req.Inputs[0].Role, converted.Inputs[2].Role) // Should be user role like first input
-		assert.Len(t, converted.Inputs[2].Parts, 1)
-		convertedTextPart, ok := converted.Inputs[2].Parts[0].(conversation.TextContentPart)
-		require.True(t, ok)
-		assert.Contains(t, convertedTextPart.Text, "get_weather function returned: Sunny, 72°F")
-		assert.Contains(t, convertedTextPart.Text, "Please use this information to respond")
+		// Should contain both the tool result and the original user request
+		assert.Contains(t, textPart.Text, "get_weather result: Sunny, 72°F")
+		assert.Contains(t, textPart.Text, "User's original request was: What's the weather like?")
 	})
 
 	t.Run("handles error tool results", func(t *testing.T) {
@@ -229,6 +222,9 @@ func TestMistralParameterConversion(t *testing.T) {
 	t.Run("handles invalid JSON gracefully", func(t *testing.T) {
 		invalidJSON := `{"invalid": json`
 		result := mistral.convertParametersToMap(invalidJSON)
-		assert.Equal(t, invalidJSON, result) // Should return original string
+		// Should return original string when JSON is invalid
+		resultStr, ok := result.(string)
+		require.True(t, ok, "result should be a string when JSON is invalid")
+		assert.Equal(t, invalidJSON, resultStr) //nolint:testifylint
 	})
 }

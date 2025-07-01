@@ -17,6 +17,7 @@ package deepseek
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -35,11 +36,9 @@ type Deepseek struct {
 }
 
 func NewDeepseek(logger logger.Logger) conversation.Conversation {
-	d := &Deepseek{
+	return &Deepseek{
 		logger: logger,
 	}
-
-	return d
 }
 
 // Default model for DeepSeek
@@ -65,10 +64,18 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		endpoint = m.Endpoint
 	}
 
+	key := m.Key
+	if key == "" {
+		key = conversation.GetEnvKey("DEEPSEEK_API_KEY")
+		if key == "" {
+			return errors.New("deepseek key is required")
+		}
+	}
+
 	// Create options for OpenAI client using DeepSeek's OpenAI-compatible API
 	options := []openai.Option{
 		openai.WithModel(model),
-		openai.WithToken(m.Key),
+		openai.WithToken(key),
 		openai.WithBaseURL(endpoint),
 	}
 
@@ -78,6 +85,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	d.LLM.Model = llm
+	d.LLM.ProviderModelName = "deepseek/" + model
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, d.LLM.Model)

@@ -34,11 +34,9 @@ type Ollama struct {
 }
 
 func NewOllama(logger logger.Logger) conversation.Conversation {
-	o := &Ollama{
+	return &Ollama{
 		logger: logger,
 	}
-
-	return o
 }
 
 const defaultModel = "llama3.2:latest"
@@ -63,6 +61,7 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	o.LLM.Model = llm
+	o.LLM.ProviderModelName = "ollama/" + model
 
 	if md.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)

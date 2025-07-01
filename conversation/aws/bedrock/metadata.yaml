@@ -21,9 +21,9 @@ metadata:
   - name: model
     required: false
     description: |
-      The LLM to use. Defaults to Bedrock's default provider model from Amazon.
+      The LLM to use. Defaults to Bedrock's default provider model from Amazon
     type: string
-    example: 'amazon.titan-text-express-v1'
+    example: 'amazon.nova-lite-v1:0'
   - name: cacheTTL
     required: false
     description: |

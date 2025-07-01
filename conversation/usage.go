@@ -21,10 +21,10 @@ import (
 
 // UsageInfo represents token usage information extracted from LLM responses
 type UsageInfo struct {
-	PromptTokens     int32
-	CompletionTokens int32
-	TotalTokens      int32 // Optional, calculated if not provided
-	ReasoningTokens  int32 // Optional, used by some models
+	PromptTokens     uint64
+	CompletionTokens uint64
+	TotalTokens      uint64 // Optional, calculated if not provided
+	ReasoningTokens  uint64 // Optional, used by some models
 }
 
 // ExtractUsageFromResponse extracts token usage information from a LangChain Go ContentResponse
@@ -45,11 +45,11 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 
 	// Try different common patterns for usage information
 	// Pattern 1: LangChain Go standard format (used by OpenAI and others)
-	if promptTokens, ok := ExtractInt32(choice.GenerationInfo["PromptTokens"]); ok {
+	if promptTokens, ok := ExtractUInt64(choice.GenerationInfo["PromptTokens"]); ok {
 		usage.PromptTokens = promptTokens
 		found = true
 	}
-	if completionTokens, ok := ExtractInt32(choice.GenerationInfo["CompletionTokens"]); ok {
+	if completionTokens, ok := ExtractUInt64(choice.GenerationInfo["CompletionTokens"]); ok {
 		usage.CompletionTokens = completionTokens
 		found = true
 	}
@@ -57,15 +57,15 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 	// Pattern 2: OpenAI-style usage in nested map
 	if !found {
 		if usageMap, ok := choice.GenerationInfo["usage"].(map[string]any); ok {
-			if promptTokens, ok := ExtractInt32(usageMap["prompt_tokens"]); ok {
+			if promptTokens, ok := ExtractUInt64(usageMap["prompt_tokens"]); ok {
 				usage.PromptTokens = promptTokens
 				found = true
 			}
-			if completionTokens, ok := ExtractInt32(usageMap["completion_tokens"]); ok {
+			if completionTokens, ok := ExtractUInt64(usageMap["completion_tokens"]); ok {
 				usage.CompletionTokens = completionTokens
 				found = true
 			}
-			if totalTokens, ok := ExtractInt32(usageMap["total_tokens"]); ok {
+			if totalTokens, ok := ExtractUInt64(usageMap["total_tokens"]); ok {
 				usage.TotalTokens = totalTokens
 			}
 		}
@@ -73,42 +73,42 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 
 	// Pattern 3: Direct fields in GenerationInfo (lowercase)
 	if !found {
-		if promptTokens, ok := ExtractInt32(choice.GenerationInfo["prompt_tokens"]); ok {
+		if promptTokens, ok := ExtractUInt64(choice.GenerationInfo["prompt_tokens"]); ok {
 			usage.PromptTokens = promptTokens
 			found = true
 		}
-		if completionTokens, ok := ExtractInt32(choice.GenerationInfo["completion_tokens"]); ok {
+		if completionTokens, ok := ExtractUInt64(choice.GenerationInfo["completion_tokens"]); ok {
 			usage.CompletionTokens = completionTokens
 			found = true
 		}
-		if totalTokens, ok := ExtractInt32(choice.GenerationInfo["total_tokens"]); ok {
+		if totalTokens, ok := ExtractUInt64(choice.GenerationInfo["total_tokens"]); ok {
 			usage.TotalTokens = totalTokens
 		}
 	}
 
 	// Pattern 4: Google AI/Vertex AI style
 	if !found {
-		if promptTokens, ok := ExtractInt32(choice.GenerationInfo["input_tokens"]); ok {
+		if promptTokens, ok := ExtractUInt64(choice.GenerationInfo["input_tokens"]); ok {
 			usage.PromptTokens = promptTokens
 			found = true
 		}
-		if completionTokens, ok := ExtractInt32(choice.GenerationInfo["output_tokens"]); ok {
+		if completionTokens, ok := ExtractUInt64(choice.GenerationInfo["output_tokens"]); ok {
 			usage.CompletionTokens = completionTokens
 			found = true
 		}
-		if totalTokens, ok := ExtractInt32(choice.GenerationInfo["total_tokens"]); ok {
+		if totalTokens, ok := ExtractUInt64(choice.GenerationInfo["total_tokens"]); ok {
 			usage.TotalTokens = totalTokens
 		}
 	}
 
 	// Pattern 5: Anthropic style (if they provide usage info)
 	if !found {
-		if usageInfo, ok := choice.GenerationInfo["usage"].(map[string]interface{}); ok {
-			if inputTokens, ok := ExtractInt32(usageInfo["input_tokens"]); ok {
+		if usageInfo, ok := choice.GenerationInfo["usage"].(map[string]any); ok {
+			if inputTokens, ok := ExtractUInt64(usageInfo["input_tokens"]); ok {
 				usage.PromptTokens = inputTokens
 				found = true
 			}
-			if outputTokens, ok := ExtractInt32(usageInfo["output_tokens"]); ok {
+			if outputTokens, ok := ExtractUInt64(usageInfo["output_tokens"]); ok {
 				usage.CompletionTokens = outputTokens
 				found = true
 			}
@@ -117,11 +117,11 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 
 	// Pattern 6: Anthropic direct fields in GenerationInfo
 	if !found {
-		if inputTokens, ok := ExtractInt32(choice.GenerationInfo["InputTokens"]); ok {
+		if inputTokens, ok := ExtractUInt64(choice.GenerationInfo["InputTokens"]); ok {
 			usage.PromptTokens = inputTokens
 			found = true
 		}
-		if outputTokens, ok := ExtractInt32(choice.GenerationInfo["OutputTokens"]); ok {
+		if outputTokens, ok := ExtractUInt64(choice.GenerationInfo["OutputTokens"]); ok {
 			usage.CompletionTokens = outputTokens
 			found = true
 		}
@@ -138,19 +138,19 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 	return nil
 }
 
-// ExtractInt32 safely extracts an int32 value from an interface{}
-func ExtractInt32(value any) (int32, bool) {
+// ExtractUInt64 safely extracts an int32 value from an interface{}
+func ExtractUInt64(value any) (uint64, bool) {
 	switch v := value.(type) {
 	case int:
-		return int32(v), true //nolint:gosec // This is a valid conversion
+		return uint64(v), true //nolint:gosec // This is a valid conversion
 	case int32:
-		return v, true
+		return uint64(v), true //nolint:gosec // This is a valid conversion
 	case int64:
-		return int32(v), true //nolint:gosec // This is a valid conversion
+		return uint64(v), true //nolint:gosec // This is a valid conversion
 	case float64:
-		return int32(v), true
+		return uint64(v), true
 	case float32:
-		return int32(v), true
+		return uint64(v), true
 	default:
 		return 0, false
 	}

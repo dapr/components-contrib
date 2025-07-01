@@ -13,19 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package echo provides a test double implementation of the conversation component interface.
-//
-// Echo is designed for predictable, reliable testing of conversation components in Dapr.
-// It provides deterministic responses while maintaining full structural compatibility with
-// real LLM providers.
-//
-// Key capabilities:
-//   - Echoes the last user message for predictable testing
-//   - Dynamic tool calling with schema-aware parameter generation
-//   - Streaming support with word-based chunking
-//   - Usage tracking and OpenAI-compatible response structure
-//
-// See README.md for comprehensive documentation and usage examples.
 package echo
 
 import (
@@ -46,18 +33,6 @@ import (
 )
 
 // Echo is a test double implementation of the conversation component interface.
-// It provides predictable, deterministic responses while maintaining full structural
-// compatibility with real LLM providers like OpenAI, GoogleAI, etc.
-//
-// Echo implements both the basic Conversation interface and the StreamingConversation
-// interface, providing comprehensive testing capabilities for conversation components.
-//
-// Key behaviors:
-//   - Echoes the last user message for predictable testing
-//   - Supports dynamic tool calling with any provided tool schemas
-//   - Provides realistic token counting and usage metrics
-//   - Maintains identical response structure to real LLM providers
-//   - Supports streaming with chunk-based response delivery
 type Echo struct {
 	model  string // Model name (optional, for compatibility)
 	logger logger.Logger
@@ -192,7 +167,6 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	output.Parts = responseParts
 	output.Result = conversation.ExtractTextFromParts(responseParts) //nolint:staticcheck // Backward compatibility
 
-	// Extract tool calls for finish reason determination
 	toolCalls := conversation.ExtractToolCallsFromParts(responseParts)
 
 	// Set finish reason based on whether tool calls were generated
@@ -283,6 +257,7 @@ func (e *Echo) processContentParts(input conversation.ConversationInput, allTool
 }
 
 // Process legacy text input (backward compatibility)
+// TODO: remove when we remove the legacy message field
 func (e *Echo) processLegacyTextInput(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) string {
 	// Simple echo for backward compatibility
 	if input.Message != "" { //nolint:staticcheck // Backward compatibility check

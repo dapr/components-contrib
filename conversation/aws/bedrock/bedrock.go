@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -44,14 +45,13 @@ type AWSBedrockMetadata struct {
 	SessionToken string `json:"sessionToken"`
 	Model        string `json:"model"`
 	CacheTTL     string `json:"cacheTTL"`
+	MaxTokens    int    `json:"maxTokens"`
 }
 
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
-	b := &AWSBedrock{
+	return &AWSBedrock{
 		logger: logger,
 	}
-
-	return b
 }
 
 func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error {
@@ -61,7 +61,23 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
-	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)
+	accessKey := m.AccessKey
+	if accessKey == "" {
+		accessKey = conversation.GetEnvKey("AWS_ACCESS_KEY_ID")
+		if accessKey == "" {
+			return errors.New("aws access key is required")
+		}
+	}
+
+	secretKey := m.SecretKey
+	if secretKey == "" {
+		secretKey = conversation.GetEnvKey("AWS_SECRET_ACCESS_KEY")
+		if secretKey == "" {
+			return errors.New("aws secret key is required")
+		}
+	}
+
+	awsConfig, err := awsAuth.GetConfigV2(accessKey, secretKey, m.SessionToken, m.Region, m.Endpoint)
 	if err != nil {
 		return err
 	}
@@ -82,6 +98,7 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 	}
 
 	b.LLM.Model = llm
+	b.LLM.ProviderModelName = "aws/" + m.Model
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)

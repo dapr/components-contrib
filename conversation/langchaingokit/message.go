@@ -18,8 +18,9 @@ package langchaingokit
 import (
 	"strings"
 
-	"github.com/dapr/components-contrib/conversation"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageContent {
@@ -93,14 +94,12 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 					Parts: []llms.ContentPart{llms.TextPart(strings.Join(textParts, " "))},
 				})
 			}
-		} else {
+		} else if input.Message != "" { //nolint:staticcheck // Backward compatibility check
 			// Legacy message field support
-			if input.Message != "" {
-				messages = append(messages, llms.MessageContent{
-					Role:  role,
-					Parts: []llms.ContentPart{llms.TextPart(input.Message)},
-				})
-			}
+			messages = append(messages, llms.MessageContent{
+				Role:  role,
+				Parts: []llms.ContentPart{llms.TextPart(input.Message)}, //nolint:staticcheck // Backward compatibility
+			})
 		}
 	}
 
@@ -114,6 +113,10 @@ func GetOptionsFromRequest(r *conversation.ConversationRequest, opts ...llms.Cal
 
 	if r.Temperature > 0 {
 		opts = append(opts, conversation.LangchainTemperature(r.Temperature))
+	}
+
+	if r.MaxTokens > 0 {
+		opts = append(opts, llms.WithMaxTokens(r.MaxTokens))
 	}
 
 	return opts

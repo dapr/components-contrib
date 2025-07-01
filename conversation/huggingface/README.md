@@ -86,8 +86,8 @@ func main() {
     c, _ := client.NewClient()
     defer c.Close()
 
-    resp, err := c.InvokeMethod(ctx, "conversation-app", "converse", map[string]interface{}{
-        "inputs": []map[string]interface{}{
+    resp, err := c.InvokeMethod(ctx, "conversation-app", "converse", map[string]any{
+        "inputs": []map[string]any{
             {
                 "message": "Hello! How can you help me today?",
                 "role": "user",

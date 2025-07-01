@@ -27,16 +27,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func TestEchoStreamingInterface(t *testing.T) {
-	testLogger := logger.NewLogger("test")
-	echoComponent := NewEcho(testLogger)
-
-	// Test that echo component implements StreamingConversation interface
-	streamingComponent, ok := echoComponent.(conversation.StreamingConversation)
-	assert.True(t, ok, "Echo component should implement StreamingConversation interface")
-	assert.NotNil(t, streamingComponent, "StreamingConversation interface should not be nil")
-}
-
 func TestEchoStreamingFunctionality(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	echoComponent := NewEcho(testLogger)
@@ -86,7 +76,7 @@ func TestEchoStreamingFunctionality(t *testing.T) {
 
 	// Verify response structure
 	assert.Len(t, resp.Outputs, 1)
-	assert.Equal(t, "Hello streaming world", resp.Outputs[0].Result)
+	assert.Equal(t, "Hello streaming world", conversation.ExtractTextFromParts(resp.Outputs[0].Parts))
 	assert.Equal(t, "test-context-123", resp.ConversationContext)
 
 	// Verify we got multiple chunks (streaming behavior)
@@ -139,7 +129,7 @@ func TestEchoStreamingWithMultipleInputs(t *testing.T) {
 
 	// Verify response has single output reflecting the conversation
 	assert.Len(t, resp.Outputs, 1)
-	assert.Equal(t, "Second message", resp.Outputs[0].Result) // Echoes the last user message
+	assert.Equal(t, "Second message", conversation.ExtractTextFromParts(resp.Outputs[0].Parts)) // Echoes the last user message
 }
 
 func TestEchoStreamingContextGeneration(t *testing.T) {

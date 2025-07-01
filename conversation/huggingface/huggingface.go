@@ -41,7 +41,6 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-// Default model - using a popular and reliable model
 const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 
 // Default HuggingFace OpenAI-compatible endpoint

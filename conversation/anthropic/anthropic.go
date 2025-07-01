@@ -19,7 +19,6 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -33,35 +32,6 @@ type Anthropic struct {
 	langchaingokit.LLM
 
 	logger logger.Logger
-}
-
-// usageGetter extracts usage information from Anthropic responses.
-func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
-	if resp == nil || len(resp.Choices) == 0 {
-		return nil
-	}
-
-	choice := resp.Choices[0]
-	usage := conversation.UsageInfo{}
-	found := false
-
-	if inputTokens, ok := conversation.ExtractUInt64(choice.GenerationInfo["InputTokens"]); ok {
-		usage.PromptTokens = inputTokens
-		found = true
-	}
-	if outputTokens, ok := conversation.ExtractUInt64(choice.GenerationInfo["OutputTokens"]); ok {
-		usage.CompletionTokens = outputTokens
-		found = true
-	}
-	if !found {
-		return nil
-	}
-
-	return &conversation.UsageInfo{
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		TotalTokens:      usage.PromptTokens + usage.CompletionTokens,
-	}
 }
 
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
@@ -102,7 +72,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 
 	a.LLM.Model = llm
 	a.LLM.ProviderModelName = "anthropic/" + model
-	a.LLM.UsageGetterFunc = usageGetter
+	a.LLM.UsageGetterFunc = conversation.ExtractUsageFromResponse
 	// TODO: Remove this once Anthropic supports tool call streaming
 	a.LLM.ToolCallStreamingDisabled = true
 

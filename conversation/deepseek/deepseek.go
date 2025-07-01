@@ -41,7 +41,6 @@ func NewDeepseek(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-// Default model for DeepSeek
 const defaultModel = "deepseek-chat"
 
 // Default DeepSeek API endpoint

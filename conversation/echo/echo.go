@@ -537,11 +537,12 @@ func (e *Echo) matchesToolKeywords(tool conversation.Tool, messageLower string) 
 
 // generateToolArguments creates appropriate arguments for a tool call
 func (e *Echo) generateToolArguments(tool conversation.Tool, userMessage string) string {
+	const simpleQueryFallback = `{"query": "%s"}`
 	// Normalize parameters to handle both map and JSON string formats
 	params, err := e.normalizeToolParameters(tool.Function.Parameters)
 	if err != nil {
 		// Fallback to simple arguments
-		return fmt.Sprintf(`{"query": "%s"}`, userMessage)
+		return fmt.Sprintf(simpleQueryFallback, userMessage)
 	}
 
 	args := make(map[string]any)
@@ -567,7 +568,7 @@ func (e *Echo) generateToolArguments(tool conversation.Tool, userMessage string)
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(args)
 	if err != nil {
-		return fmt.Sprintf(`{"query": "%s"}`, userMessage)
+		return fmt.Sprintf(simpleQueryFallback, userMessage)
 	}
 
 	return string(jsonBytes)

@@ -34,7 +34,8 @@ func ExtractUsageFromResponse(resp *llms.ContentResponse) *UsageInfo {
 		return nil
 	}
 
-	// Check the first choice for usage information
+	// Check the first choice for usage information. This is usually the only one that has usage information.
+	// or it is repeated for each choice as shown in https://github.com/tmc/langchaingo/blob/c544fb77bd3c20ee11c24dcc46c3b9fff32f2dda/llms/anthropic/anthropicllm.go#L159-L158
 	choice := resp.Choices[0]
 	if choice.GenerationInfo == nil {
 		return nil

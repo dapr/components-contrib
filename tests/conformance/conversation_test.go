@@ -43,8 +43,10 @@ import (
 func TestConversationConformance(t *testing.T) {
 	const configPath = "../config/conversation/"
 
-	// Try to load environment variables from .env file
-	// This will silently continue if the .env file doesn't exist
+	// Try to load environment variables from .env files
+	// Try .local/.env first (recommended), then fall back to .env
+	// This will silently continue if the .env files don't exist
+	utils.LoadEnvVars(configPath + ".local/.env")
 	utils.LoadEnvVars(configPath + ".env")
 
 	tc, err := NewTestConfiguration(filepath.Join(configPath, "tests.yml"))

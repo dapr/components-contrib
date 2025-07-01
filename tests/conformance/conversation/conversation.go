@@ -168,7 +168,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, output.Result, "Legacy result field should be populated") //nolint:staticcheck
 		})
 
-		t.Run("tools in request field (correct approach)", func(t *testing.T) {
+		t.Run("tools in request field", func(t *testing.T) {
 			ensureComponentInitialized()
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()

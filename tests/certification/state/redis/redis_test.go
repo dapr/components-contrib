@@ -231,6 +231,13 @@ func TestRedis(t *testing.T) {
 						"ttlInSeconds": "50",
 					},
 				},
+				state.SetRequest{
+					Key:   "reqKey4",
+					Value: `reqVal104`,
+					Metadata: map[string]string{
+						"contentType": "application/json",
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -245,6 +252,14 @@ func TestRedis(t *testing.T) {
 		})
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, `"reqVal103"`, string(resp3.Data))
+
+		resp4, err := stateStore.Get(t.Context(), &state.GetRequest{
+			Key: "reqKey4",
+			Metadata: map[string]string{
+				"contentType": "application/json",
+			},
+		})
+		assert.Equal(t, `"reqVal103"`, string(resp4.Data))
 		return nil
 	}
 

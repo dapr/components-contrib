@@ -203,14 +203,14 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 	}
 
 	// Get usage information
-	usageGetter := m.UsageGetterFunc
-	if usageGetter == nil {
-		usageGetter = conversation.ExtractUsageFromResponse
+	usgGetter := m.UsageGetterFunc
+	if usgGetter == nil {
+		usgGetter = conversation.ExtractUsageFromResponse
 	}
 
 	return &conversation.ConversationResponse{
 		Outputs: outputs,
-		Usage:   usageGetter(resp),
+		Usage:   usgGetter(resp),
 	}, nil
 }
 
@@ -354,8 +354,12 @@ func (m *Mistral) convertDaprToolsToLangchainTools(tools []conversation.Tool) []
 
 	langchainTools := make([]llms.Tool, len(tools))
 	for i, tool := range tools {
+		toolType := tool.ToolType
+		if toolType == "" {
+			toolType = "function"
+		}
 		langchainTools[i] = llms.Tool{
-			Type: tool.ToolType,
+			Type: toolType,
 			Function: &llms.FunctionDefinition{
 				Name:        tool.Function.Name,
 				Description: tool.Function.Description,

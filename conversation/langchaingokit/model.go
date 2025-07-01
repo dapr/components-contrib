@@ -14,10 +14,6 @@ limitations under the License.
 */
 
 // Package langchaingokit provides integration with LangChain Go for conversation components.
-//
-// NOTE: This package contains several temporary workarounds for langchaingo compatibility issues.
-// See LANGCHAINGO_WORKAROUNDS.md for detailed documentation of these workarounds and the
-// plan for removing them once better native support is available in langchaingo.
 
 package langchaingokit
 

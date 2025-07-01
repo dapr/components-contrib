@@ -509,6 +509,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		MessageChannel:              channel,
 		NackRedeliveryDelay:         p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:           p.metadata.ReceiverQueueSize,
+		ReplicateSubscriptionState:  p.metadata.ReplicateSubscriptionState,
 	}
 
 	// Handle KeySharedPolicy for key_shared subscription type

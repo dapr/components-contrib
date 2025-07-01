@@ -34,7 +34,7 @@ func TestInit(t *testing.T) {
 			name: "with default endpoint",
 			metadata: map[string]string{
 				"key":   "test-key",
-				"model": "gpt-4",
+				"model": "gpt-4.1-nano",
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestInit(t *testing.T) {
 			name: "with custom endpoint",
 			metadata: map[string]string{
 				"key":      "test-key",
-				"model":    "gpt-4",
+				"model":    "gpt-4.1-nano",
 				"endpoint": "https://api.openai.com/v1",
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {

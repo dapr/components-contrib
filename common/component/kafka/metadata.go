@@ -27,29 +27,32 @@ import (
 )
 
 const (
-	key                  = "partitionKey"
-	keyMetadataKey       = "__key"
-	timestampMetadataKey = "__timestamp"
-	offsetMetadataKey    = "__offset"
-	partitionMetadataKey = "__partition"
-	topicMetadataKey     = "__topic"
-	skipVerify           = "skipVerify"
-	caCert               = "caCert"
-	certificateAuthType  = "certificate"
-	clientCert           = "clientCert"
-	clientKey            = "clientKey"
-	consumeRetryEnabled  = "consumeRetryEnabled"
-	consumeRetryInterval = "consumeRetryInterval"
-	authType             = "authType"
-	passwordAuthType     = "password"
-	oidcAuthType         = "oidc"
-	mtlsAuthType         = "mtls"
-	awsIAMAuthType       = "awsiam"
-	noAuthType           = "none"
-	consumerFetchMin     = "consumerFetchMin"
-	consumerFetchDefault = "consumerFetchDefault"
-	channelBufferSize    = "channelBufferSize"
-	valueSchemaType      = "valueSchemaType"
+	key                                      = "partitionKey"
+	keyMetadataKey                           = "__key"
+	timestampMetadataKey                     = "__timestamp"
+	offsetMetadataKey                        = "__offset"
+	partitionMetadataKey                     = "__partition"
+	topicMetadataKey                         = "__topic"
+	skipVerify                               = "skipVerify"
+	caCert                                   = "caCert"
+	certificateAuthType                      = "certificate"
+	clientCert                               = "clientCert"
+	clientKey                                = "clientKey"
+	consumeRetryInterval                     = "consumeRetryInterval"
+	authType                                 = "authType"
+	passwordAuthType                         = "password"
+	oidcAuthType                             = "oidc"
+	mtlsAuthType                             = "mtls"
+	awsIAMAuthType                           = "awsiam"
+	noAuthType                               = "none"
+	consumerFetchMin                         = "consumerFetchMin"
+	consumerFetchDefault                     = "consumerFetchDefault"
+	channelBufferSize                        = "channelBufferSize"
+	valueSchemaType                          = "valueSchemaType"
+	compression                              = "compression"
+	consumerGroupRebalanceStrategyRange      = "range"
+	consumerGroupRebalanceStrategySticky     = "sticky"
+	consumerGroupRebalanceStrategyRoundRobin = "roundrobin"
 
 	// Kafka client config default values.
 	// Refresh interval < keep alive time so that way connection can be kept alive indefinitely if desired.
@@ -99,8 +102,13 @@ type KafkaMetadata struct {
 
 	channelBufferSize int `mapstructure:"-"`
 
-	consumerFetchMin     int32 `mapstructure:"-"`
-	consumerFetchDefault int32 `mapstructure:"-"`
+	consumerFetchMin               int32  `mapstructure:"-"`
+	consumerFetchDefault           int32  `mapstructure:"-"`
+	ConsumerGroupRebalanceStrategy string `mapstructure:"consumerGroupRebalanceStrategy"`
+
+	// configs for kafka producer
+	Compression         string                  `mapstructure:"compression"`
+	internalCompression sarama.CompressionCodec `mapstructure:"-"`
 
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
@@ -149,6 +157,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
 		ConsumeRetryInterval:                         100 * time.Millisecond,
 		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
+		internalCompression:                          sarama.CompressionNone,
 		channelBufferSize:                            256,
 		consumerFetchMin:                             1,
 		consumerFetchDefault:                         1024 * 1024,
@@ -292,6 +301,14 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("kafka error: invalid kafka version")
 		}
 		m.internalVersion = version
+	}
+
+	if m.Compression != "" {
+		compression, err := parseCompression(m.Compression)
+		if err != nil {
+			return nil, err
+		}
+		m.internalCompression = compression
 	}
 
 	if val, ok := meta[channelBufferSize]; ok && val != "" {

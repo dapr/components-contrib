@@ -343,6 +343,13 @@ metadata:
         It allows sending headers with special characters that are usually not allowed in HTTP headers.
       example: "true"
       default: "false"
+    - name: useAvroJSON
+      type: bool
+      required: false
+      description: |
+        Enables Avro JSON schema for serialization. Only applicable when the subscription uses valueSchemaType=Avro
+      example: "true"
+      default: "false"
     - name: compression
       type: string
       required: false

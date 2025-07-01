@@ -14,13 +14,13 @@ limitations under the License.
 package cloudmap
 
 import (
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/servicediscovery"
-	"github.com/aws/aws-sdk-go/service/servicediscovery/servicediscoveryiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
+	"github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +30,6 @@ import (
 )
 
 type mockServiceDiscoveryAPI struct {
-	servicediscoveryiface.ServiceDiscoveryAPI
 	getNamespaceResp      *servicediscovery.GetNamespaceOutput
 	getNamespaceErr       error
 	listNamespacesResp    *servicediscovery.ListNamespacesOutput
@@ -39,15 +38,15 @@ type mockServiceDiscoveryAPI struct {
 	discoverInstancesErr  error
 }
 
-func (m *mockServiceDiscoveryAPI) GetNamespaceWithContext(ctx aws.Context, input *servicediscovery.GetNamespaceInput, opts ...request.Option) (*servicediscovery.GetNamespaceOutput, error) {
+func (m *mockServiceDiscoveryAPI) GetNamespace(ctx context.Context, input *servicediscovery.GetNamespaceInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.GetNamespaceOutput, error) {
 	return m.getNamespaceResp, m.getNamespaceErr
 }
 
-func (m *mockServiceDiscoveryAPI) ListNamespacesWithContext(ctx aws.Context, input *servicediscovery.ListNamespacesInput, opts ...request.Option) (*servicediscovery.ListNamespacesOutput, error) {
+func (m *mockServiceDiscoveryAPI) ListNamespaces(ctx context.Context, input *servicediscovery.ListNamespacesInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.ListNamespacesOutput, error) {
 	return m.listNamespacesResp, m.listNamespacesErr
 }
 
-func (m *mockServiceDiscoveryAPI) DiscoverInstancesWithContext(ctx aws.Context, input *servicediscovery.DiscoverInstancesInput, opts ...request.Option) (*servicediscovery.DiscoverInstancesOutput, error) {
+func (m *mockServiceDiscoveryAPI) DiscoverInstances(ctx context.Context, input *servicediscovery.DiscoverInstancesInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.DiscoverInstancesOutput, error) {
 	return m.discoverInstancesResp, m.discoverInstancesErr
 }
 
@@ -66,7 +65,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			getNamespaceResp: &servicediscovery.GetNamespaceOutput{
-				Namespace: &servicediscovery.Namespace{
+				Namespace: &types.Namespace{
 					Name: aws.String("test-namespace"),
 				},
 			},
@@ -91,7 +90,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			getNamespaceResp: &servicediscovery.GetNamespaceOutput{
-				Namespace: &servicediscovery.Namespace{
+				Namespace: &types.Namespace{
 					Name: aws.String("test-namespace"),
 				},
 			},
@@ -115,7 +114,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			listNamespacesResp: &servicediscovery.ListNamespacesOutput{
-				Namespaces: []*servicediscovery.NamespaceSummary{
+				Namespaces: []types.NamespaceSummary{
 					{
 						Name: aws.String("test-namespace"),
 						Id:   aws.String("ns-test"),
@@ -154,12 +153,12 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			discoverInstancesResp: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{
+				Instances: []types.HttpInstanceSummary{
 					{
 						InstanceId: aws.String("i-1234"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("10.0.0.1"),
-							"DAPR_PORT":         aws.String("8080"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "10.0.0.1",
+							"DAPR_PORT":         "8080",
 						},
 					},
 				},
@@ -180,7 +179,7 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			discoverInstancesResp: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{},
+				Instances: []types.HttpInstanceSummary{},
 			},
 		}
 		r.client = mockClient
@@ -214,12 +213,12 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			discoverInstancesResp: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{
+				Instances: []types.HttpInstanceSummary{
 					{
 						InstanceId: aws.String("i-1234"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("10.0.0.1"),
-							"DAPR_PORT":         aws.String("5000"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "10.0.0.1",
+							"DAPR_PORT":         "5000",
 						},
 					},
 				},
@@ -240,11 +239,11 @@ func TestCloudMapResolver(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
 		mockClient := &mockServiceDiscoveryAPI{
 			discoverInstancesResp: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{
+				Instances: []types.HttpInstanceSummary{
 					{
 						InstanceId: aws.String("i-1234"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("10.0.0.1"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "10.0.0.1",
 						},
 					},
 				},
@@ -290,19 +289,19 @@ func TestResolve(t *testing.T) {
 				ID: "test-service",
 			},
 			mockResponse: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{
+				Instances: []types.HttpInstanceSummary{
 					{
 						InstanceId: aws.String("i-1234"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("192.0.2.1"),
-							"DAPR_PORT":         aws.String("5000"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "192.0.2.1",
+							"DAPR_PORT":         "5000",
 						},
 					},
 					{
 						InstanceId: aws.String("i-5678"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("192.0.2.2"),
-							"DAPR_PORT":         aws.String("5000"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "192.0.2.2",
+							"DAPR_PORT":         "5000",
 						},
 					},
 				},
@@ -317,17 +316,17 @@ func TestResolve(t *testing.T) {
 			},
 			defaultPort: 3500,
 			mockResponse: &servicediscovery.DiscoverInstancesOutput{
-				Instances: []*servicediscovery.HttpInstanceSummary{
+				Instances: []types.HttpInstanceSummary{
 					{
 						InstanceId: aws.String("i-1234"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("192.0.2.1"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "192.0.2.1",
 						},
 					},
 					{
 						InstanceId: aws.String("i-5678"),
-						Attributes: map[string]*string{
-							"AWS_INSTANCE_IPV4": aws.String("192.0.2.2"),
+						Attributes: map[string]string{
+							"AWS_INSTANCE_IPV4": "192.0.2.2",
 						},
 					},
 				},

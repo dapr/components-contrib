@@ -20,10 +20,9 @@ import (
 	"math/rand"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/servicediscovery"
-	"github.com/aws/aws-sdk-go/service/servicediscovery/servicediscoveryiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
+	"github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/nameresolution"
@@ -31,10 +30,17 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+// ServiceDiscoveryClient interface for mocking
+type ServiceDiscoveryClient interface {
+	GetNamespace(ctx context.Context, input *servicediscovery.GetNamespaceInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.GetNamespaceOutput, error)
+	ListNamespaces(ctx context.Context, input *servicediscovery.ListNamespacesInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.ListNamespacesOutput, error)
+	DiscoverInstances(ctx context.Context, input *servicediscovery.DiscoverInstancesInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.DiscoverInstancesOutput, error)
+}
+
 // Resolver is the AWS CloudMap name resolver.
 type Resolver struct {
 	authProvider    awsAuth.Provider
-	client          servicediscoveryiface.ServiceDiscoveryAPI
+	client          ServiceDiscoveryClient
 	logger          logger.Logger
 	namespaceID     string
 	namespaceName   string
@@ -82,15 +88,15 @@ func (r *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 	}
 	r.authProvider = provider
 
-	// Create AWS session
-	sess, err := session.NewSession(cfg)
+	// Create AWS SDK v2 config
+	awsCfg, err := awsAuth.GetConfigV2(meta.AccessKey, meta.SecretKey, meta.SessionToken, meta.Region, meta.Endpoint)
 	if err != nil {
-		return fmt.Errorf("failed to create AWS session: %w", err)
+		return fmt.Errorf("failed to create AWS config: %w", err)
 	}
 
 	// Create CloudMap client if not already set (for testing)
 	if r.client == nil {
-		r.client = servicediscovery.New(sess)
+		r.client = servicediscovery.NewFromConfig(awsCfg)
 	}
 
 	// Set namespace info
@@ -131,13 +137,13 @@ func (r *Resolver) resolveIDMulti(ctx context.Context, req nameresolution.Resolv
 	input := &servicediscovery.DiscoverInstancesInput{
 		NamespaceName: aws.String(r.namespaceName),
 		ServiceName:   aws.String(req.ID),
-		HealthStatus:  aws.String(servicediscovery.HealthStatusHealthy),
+		HealthStatus:  types.HealthStatusFilterHealthy,
 	}
 
 	r.logger.Debugf("Discovering instances in CloudMap: namespace=%s service=%s", *input.NamespaceName, *input.ServiceName)
 
 	// Call CloudMap API
-	result, err := r.client.DiscoverInstancesWithContext(ctx, input)
+	result, err := r.client.DiscoverInstances(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover CloudMap instances: %w", err)
 	}
@@ -154,12 +160,12 @@ func (r *Resolver) resolveIDMulti(ctx context.Context, req nameresolution.Resolv
 
 		// Get IP/hostname from attributes
 		var addr string
-		if ipv4, ok := instance.Attributes["AWS_INSTANCE_IPV4"]; ok && ipv4 != nil {
-			addr = *ipv4
-		} else if ipv6, ok := instance.Attributes["AWS_INSTANCE_IPV6"]; ok && ipv6 != nil {
-			addr = *ipv6
-		} else if cname, ok := instance.Attributes["AWS_INSTANCE_CNAME"]; ok && cname != nil {
-			addr = *cname
+		if ipv4, ok := instance.Attributes["AWS_INSTANCE_IPV4"]; ok && ipv4 != "" {
+			addr = ipv4
+		} else if ipv6, ok := instance.Attributes["AWS_INSTANCE_IPV6"]; ok && ipv6 != "" {
+			addr = ipv6
+		} else if cname, ok := instance.Attributes["AWS_INSTANCE_CNAME"]; ok && cname != "" {
+			addr = cname
 		} else {
 			r.logger.Warnf("Instance %s has no valid address attributes", *instance.InstanceId)
 			continue
@@ -167,11 +173,11 @@ func (r *Resolver) resolveIDMulti(ctx context.Context, req nameresolution.Resolv
 
 		// Get port from DAPR_PORT attribute or use default
 		port := r.defaultDaprPort
-		if daprPort, ok := instance.Attributes["DAPR_PORT"]; ok && daprPort != nil {
-			if p, parseErr := strconv.Atoi(*daprPort); parseErr == nil {
+		if daprPort, ok := instance.Attributes["DAPR_PORT"]; ok && daprPort != "" {
+			if p, parseErr := strconv.Atoi(daprPort); parseErr == nil {
 				port = p
 			} else {
-				r.logger.Warnf("Invalid DAPR_PORT value for instance %s: %s, using default port %d", *instance.InstanceId, *daprPort, r.defaultDaprPort)
+				r.logger.Warnf("Invalid DAPR_PORT value for instance %s: %s, using default port %d", *instance.InstanceId, daprPort, r.defaultDaprPort)
 			}
 		}
 
@@ -203,7 +209,7 @@ func (r *Resolver) validateAccess(ctx context.Context) error {
 		input := &servicediscovery.GetNamespaceInput{
 			Id: aws.String(r.namespaceID),
 		}
-		result, err := r.client.GetNamespaceWithContext(ctx, input)
+		result, err := r.client.GetNamespace(ctx, input)
 		if err != nil {
 			return fmt.Errorf("failed to get namespace with ID %s: %w", r.namespaceID, err)
 		}
@@ -220,7 +226,7 @@ func (r *Resolver) validateAccess(ctx context.Context) error {
 	}
 
 	input := &servicediscovery.ListNamespacesInput{}
-	result, err := r.client.ListNamespacesWithContext(ctx, input)
+	result, err := r.client.ListNamespaces(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to list namespaces: %w", err)
 	}

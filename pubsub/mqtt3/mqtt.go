@@ -46,6 +46,7 @@ type mqttPubSub struct {
 	logger          logger.Logger
 	topics          map[string]mqttPubSubSubscription
 	subscribingLock sync.RWMutex
+	deletionLock    sync.RWMutex
 	reconnectCh     chan struct{}
 	closeCh         chan struct{}
 	closed          atomic.Bool
@@ -142,13 +143,11 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	unsubscribeOnClose := kitstrings.IsTruthy(req.Metadata[unsubscribeOnCloseKey])
 
 	m.subscribingLock.Lock()
-
+	defer m.subscribingLock.Unlock()
 	// Add the topic then start the subscription
 	m.addTopic(topic, handler)
 
 	token := m.conn.Subscribe(topic, m.metadata.Qos, m.onMessage(ctx))
-
-	m.subscribingLock.Unlock()
 
 	var err error
 	select {
@@ -162,9 +161,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}
 	if err != nil {
 		// Return an error
-		m.subscribingLock.Lock()
 		delete(m.topics, topic)
-		m.subscribingLock.Unlock()
 		return fmt.Errorf("mqtt error from subscribe: %v", err)
 	}
 
@@ -183,10 +180,10 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 			return
 		}
 
-		m.subscribingLock.Lock()
 		// Delete the topic from the map first, which stops routing messages to handlers
+		m.deletionLock.Lock()
 		delete(m.topics, topic)
-		m.subscribingLock.Unlock()
+		m.deletionLock.Unlock()
 
 		// We will call Unsubscribe only if cleanSession is true or if "unsubscribeOnClose" in the request metadata is true
 		// Otherwise, calling this will make the broker lose the position of our subscription, which is not what we want if we are going to reconnect later

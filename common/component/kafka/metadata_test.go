@@ -16,6 +16,7 @@ package kafka
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -513,7 +514,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 5)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "MyKey", act["__key"])
@@ -530,7 +534,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 7)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "MyKey", act["__key"])
@@ -545,7 +552,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: nil, Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 4)
 		require.Equal(t, strconv.FormatInt(ts.UnixMilli(), 10), act["__timestamp"])
 		require.Equal(t, "0", act["__partition"])
@@ -554,7 +564,10 @@ func TestGetEventMetadata(t *testing.T) {
 	})
 
 	t.Run("null message", func(t *testing.T) {
-		act := GetEventMetadata(nil, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(nil, &k)
 		require.Nil(t, act)
 	})
 
@@ -565,7 +578,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: []byte(keyValue), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, true)
+		k := Kafka{
+			escapeHeaders: true,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Equal(t, escapedKeyValue, act[keyMetadataKey])
 	})
 
@@ -575,7 +591,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: nil, Timestamp: ts, Key: []byte(keyValue), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Equal(t, keyValue, act[keyMetadataKey])
 	})
 
@@ -590,7 +609,10 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, true)
+		k := Kafka{
+			escapeHeaders: true,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 6)
 		require.Equal(t, escapedHeaderValue, act[headerKey])
 	})
@@ -605,8 +627,47 @@ func TestGetEventMetadata(t *testing.T) {
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
 		}
-		act := GetEventMetadata(&m, false)
+		k := Kafka{
+			escapeHeaders: false,
+		}
+		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 6)
 		require.Equal(t, headerValue, act[headerKey])
+	})
+
+	t.Run("header with excluded key gets removed from metadata", func(t *testing.T) {
+		headers := []*sarama.RecordHeader{
+			{Key: []byte("valueSchemaType"), Value: []byte("Avro")},
+			{Key: []byte("rawPayload"), Value: []byte("true")},
+		}
+		k := Kafka{
+			escapeHeaders:                         false,
+			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType$"),
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, &k)
+		require.Len(t, act, 6)
+		require.NotContains(t, act, "valueSchemaType")
+		require.Contains(t, act, "rawPayload")
+	})
+
+	t.Run("header with excluded multiple keys gets removed from metadata", func(t *testing.T) {
+		headers := []*sarama.RecordHeader{
+			{Key: []byte("valueSchemaType"), Value: []byte("Avro")},
+			{Key: []byte("rawPayload"), Value: []byte("true")},
+		}
+		k := Kafka{
+			escapeHeaders:                         false,
+			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType|rawPayload$"),
+		}
+		m := sarama.ConsumerMessage{
+			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
+		}
+		act := GetEventMetadata(&m, &k)
+		require.Len(t, act, 5)
+		require.NotContains(t, act, "valueSchemaType")
+		require.NotContains(t, act, "rawPayload")
 	})
 }

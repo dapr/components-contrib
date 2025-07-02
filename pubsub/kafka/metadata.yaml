@@ -363,3 +363,10 @@ metadata:
         - "range"
         - "sticky"
         - "roundrobin"
+    - name: headerFromToMetadataExcludedKeysRegex
+      type: string
+      required: false
+      description: |
+        A regular expression to exclude keys from being converted to/from headers from/to metadata to avoid unwanted downstream side effects.
+      example: '"^rawPayload|valueSchemaType$"'
+      default: '""'

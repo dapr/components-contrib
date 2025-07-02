@@ -20,7 +20,7 @@ metadata:
     type: string
   - name: gatewayKeepAlive
     required: false
-    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    description: Sets how often keep alive messages should be sent to the gateway.
     example: "45s"
     type: duration
     default: "45s"
@@ -41,7 +41,7 @@ metadata:
     type: string
   - name: workerTimeout
     required: false
-    description: A job returned after this call will not be activated by another call until the timeout has been reached; defaults to 5 minutes
+    description: A job returned after this call will not be activated by another call until the timeout has been reached.
     example: "5m"
     type: duration
   - name: requestTimeout
@@ -57,25 +57,25 @@ metadata:
     type: string
   - name: maxJobsActive
     required: false
-    description: Set the maximum number of jobs which will be activated for this worker at the same time. Defaults to 32
+    description: Set the maximum number of jobs which will be activated for this worker at the same time.
     example: "32"
     type: number
     default: "32"
   - name: concurrency
     required: false
-    description: The maximum number of concurrent spawned goroutines to complete jobs. Defaults to 4
+    description: The maximum number of concurrent spawned goroutines to complete jobs.
     example: "4"
     default: "4"
     type: number
   - name: pollInterval
     required: false
-    description: Set the maximal interval between polling for new jobs. Defaults to 100 milliseconds
+    description: Set the maximal interval between polling for new jobs.
     example: "100ms"
     type: duration
     default: "100ms"
   - name: pollThreshold
     required: false
-    description: Set the threshold of buffered activated jobs before polling for new jobs, i.e. threshold * maxJobsActive. Defaults to 0.3
+    description: Set the threshold of buffered activated jobs before polling for new jobs, i.e. threshold * maxJobsActive.
     example: "0.3"
     type: number
     default: "0.3"

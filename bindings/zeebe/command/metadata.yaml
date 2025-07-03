@@ -46,9 +46,10 @@ metadata:
     type: string
   - name: gatewayKeepAlive
     required: false
-    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    description: Sets how often keep alive messages should be sent to the gateway.
     example: "45s"
     type: duration
+    default: "45s"
   - name: usePlainTextConnection	
     required: false
     description: Whether to use a plain text connection or not

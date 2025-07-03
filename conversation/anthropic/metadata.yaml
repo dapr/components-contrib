@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Anthropic LLM to use. Defaults to claude-3-5-sonnet-20240620
+      The Anthropic LLM to use.
     type: string
     example: 'claude-3-5-sonnet-20240620'
+    default: 'claude-3-5-sonnet-20240620'
   - name: cacheTTL
     required: false
     description: |

@@ -273,7 +273,7 @@ func TestMySQL(t *testing.T) {
 			// Should fail
 			err = component.Ping(t.Context())
 			require.Error(t, err)
-			assert.Contains(t, "connection refused", err.Error())
+			assert.Contains(t, err.Error(), "connection refused")
 
 			return nil
 		}

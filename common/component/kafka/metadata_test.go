@@ -516,6 +516,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 5)
@@ -536,6 +537,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 7)
@@ -554,6 +556,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 4)
@@ -566,6 +569,7 @@ func TestGetEventMetadata(t *testing.T) {
 	t.Run("null message", func(t *testing.T) {
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(nil, &k)
 		require.Nil(t, act)
@@ -580,6 +584,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: true,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Equal(t, escapedKeyValue, act[keyMetadataKey])
@@ -593,6 +598,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Equal(t, keyValue, act[keyMetadataKey])
@@ -611,6 +617,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: true,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 6)
@@ -629,6 +636,7 @@ func TestGetEventMetadata(t *testing.T) {
 		}
 		k := Kafka{
 			escapeHeaders: false,
+			logger:        logger.NewLogger("kafka_test"),
 		}
 		act := GetEventMetadata(&m, &k)
 		require.Len(t, act, 6)
@@ -643,6 +651,7 @@ func TestGetEventMetadata(t *testing.T) {
 		k := Kafka{
 			escapeHeaders:                         false,
 			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType$"),
+			logger:                                logger.NewLogger("kafka_test"),
 		}
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
@@ -661,6 +670,7 @@ func TestGetEventMetadata(t *testing.T) {
 		k := Kafka{
 			escapeHeaders:                         false,
 			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType|rawPayload$"),
+			logger:                                logger.NewLogger("kafka_test"),
 		}
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",

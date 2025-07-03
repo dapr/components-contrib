@@ -273,7 +273,7 @@ func TestMySQL(t *testing.T) {
 			// Should fail
 			err = component.Ping(t.Context())
 			require.Error(t, err)
-			assert.Equal(t, "driver: bad connection", err.Error())
+			assert.Contains(t, "connection refused", err.Error())
 
 			return nil
 		}

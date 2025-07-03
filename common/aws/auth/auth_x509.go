@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/mikeee/aws_credential_helper"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+
 	cryptopem "github.com/dapr/kit/crypto/pem"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	"github.com/mikeee/aws_credential_helper"
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 )
 
 func isX509Auth(m map[string]string) bool {

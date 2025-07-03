@@ -16,6 +16,7 @@ package googleai
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -24,7 +25,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
-	"github.com/tmc/langchaingo/llms/googleai"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 type GoogleAI struct {
@@ -34,14 +35,15 @@ type GoogleAI struct {
 }
 
 func NewGoogleAI(logger logger.Logger) conversation.Conversation {
-	g := &GoogleAI{
+	return &GoogleAI{
 		logger: logger,
 	}
-
-	return g
 }
 
-const defaultModel = "gemini-1.5-flash"
+const (
+	defaultModel                 = "gemini-2.5-pro"
+	googleAIOpenAICompatEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+)
 
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
@@ -55,19 +57,42 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		model = md.Model
 	}
 
-	opts := []googleai.Option{
-		googleai.WithAPIKey(md.Key),
-		googleai.WithDefaultModel(model),
+	key := md.Key
+	if key == "" {
+		key = conversation.GetEnvKey("GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY")
+		if key == "" {
+			return errors.New("google key is required")
+		}
 	}
-	llm, err := googleai.New(
-		ctx,
-		opts...,
-	)
+
+	g.logger.Infof("GoogleAI Init (OpenAI Compatibility): API Key length=%d, Model=%s", len(md.Key), model)
+
+	// Use OpenAI client with Google AI's OpenAI compatibility endpoint
+	// This provides much better tool calling support than the native langchaingo Google AI implementation
+	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support
+	options := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(key),
+		openai.WithBaseURL(googleAIOpenAICompatEndpoint),
+	}
+
+	// Allow custom endpoint override if provided
+	if md.Endpoint != "" {
+		options = options[:len(options)-1] // Remove the default base URL
+		options = append(options, openai.WithBaseURL(md.Endpoint))
+		g.logger.Infof("GoogleAI Init: Using custom endpoint: %s", md.Endpoint)
+	}
+
+	llm, err := openai.New(options...)
 	if err != nil {
+		g.logger.Errorf("GoogleAI Init: openai.New() failed: %v", err)
 		return err
 	}
 
 	g.LLM.Model = llm
+	g.LLM.ProviderModelName = "googleai/" + model
+
+	g.logger.Info("GoogleAI Init: Successfully initialized model using OpenAI compatibility layer")
 
 	if md.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, g.LLM.Model)

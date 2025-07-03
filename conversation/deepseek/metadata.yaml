@@ -21,9 +21,15 @@ authenticationProfiles:
         example:  "**********"
         default: ""
 metadata:
-  - name: maxTokens
+  - name: model
     required: false
     description: |
-      Max tokens for each request
-    type: int
-    example: 2048
+      The Deepseek LLM to use. Defaults to deepseek-chat
+    type: string
+    example: 'deepseek-reasoner'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

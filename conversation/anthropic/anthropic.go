@@ -16,15 +16,16 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"reflect"
+
+	"github.com/tmc/langchaingo/llms/anthropic"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
 type Anthropic struct {
@@ -34,14 +35,12 @@ type Anthropic struct {
 }
 
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
-	a := &Anthropic{
+	return &Anthropic{
 		logger: logger,
 	}
-
-	return a
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
+const defaultModel = "claude-sonnet-4-20250514"
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
@@ -55,15 +54,27 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		model = m.Model
 	}
 
+	key := m.Key
+	if key == "" {
+		key = conversation.GetEnvKey("ANTHROPIC_API_KEY")
+		if key == "" {
+			return errors.New("anthropic key is required")
+		}
+	}
+
 	llm, err := anthropic.New(
 		anthropic.WithModel(model),
-		anthropic.WithToken(m.Key),
+		anthropic.WithToken(key),
 	)
 	if err != nil {
 		return err
 	}
 
 	a.LLM.Model = llm
+	a.LLM.ProviderModelName = "anthropic/" + model
+	a.LLM.UsageGetterFunc = conversation.ExtractUsageFromResponse
+	// TODO: Remove this once Anthropic supports tool call streaming
+	a.LLM.ToolCallStreamingDisabled = true
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.LLM.Model)

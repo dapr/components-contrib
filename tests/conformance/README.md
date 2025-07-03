@@ -80,10 +80,19 @@
 4. To run specific tests, run:
 
     ```bash
-    # TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance or TestBindingsConformance
+    # TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance, or TestBindingsConformance
+    # For conversation real provider tests, see README_CONVERSATION_REAL_PROVIDERS.md
     # COMPONENT_NAME is the component name from the tests.yml file, e.g. azure.servicebus, redis, mongodb etc.
     go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_NAME}"
     ```
+
+## Running Conversation Real Provider Tests
+
+The conversation component includes special tests that validate functionality against actual LLM providers (OpenAI, Anthropic, Google AI). These tests require API keys and are **not part of regular CI**.
+
+**📖 See detailed documentation:** [README_CONVERSATION_REAL_PROVIDERS.md](./README_CONVERSATION_REAL_PROVIDERS.md)
+
+> **Note**: These tests make real API calls and incur costs. They are intended for local validation and debugging only.
 
 ### Debug conformance tests
 

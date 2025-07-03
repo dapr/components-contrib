@@ -16,6 +16,7 @@ package huggingface
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 
@@ -35,14 +36,11 @@ type Huggingface struct {
 }
 
 func NewHuggingface(logger logger.Logger) conversation.Conversation {
-	h := &Huggingface{
+	return &Huggingface{
 		logger: logger,
 	}
-
-	return h
 }
 
-// Default model - using a popular and reliable model
 const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 
 // Default HuggingFace OpenAI-compatible endpoint
@@ -65,11 +63,20 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		endpoint = m.Endpoint
 	}
 
+	key := m.Key
+	if key == "" {
+		key = conversation.GetEnvKey("HUGGINGFACE_API_KEY", "HF_TOKEN")
+		if key == "" {
+			return errors.New("huggingface key is required")
+		}
+	}
+
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
+	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support for HuggingFace
 	options := []openai.Option{
 		openai.WithModel(model),
-		openai.WithToken(m.Key),
+		openai.WithToken(key),
 		openai.WithBaseURL(endpoint),
 	}
 
@@ -79,6 +86,9 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 	}
 
 	h.LLM.Model = llm
+	h.LLM.ProviderModelName = "huggingface/" + model
+	// Disable streaming by default for HuggingFace as it is not supported in the OpenAI-compatible API and langchaingo also does not support streaming for HuggingFace models.
+	h.LLM.StreamingDisabled = true
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)

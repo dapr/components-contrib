@@ -111,7 +111,7 @@ func TestPublish(t *testing.T) {
 		}
 		messageAsserter := createMessageAsserter(t, sarama.StringEncoder("key"), metadataOut)
 		k := arrangeKafkaWithAssertions(t, messageAsserter)
-		k.headerFromToMetadataExcludedKeysRegex = regexp.MustCompile("^b|c$")
+		k.excludeHeaderMetaRegex = regexp.MustCompile("^b|c$")
 
 		// act
 		err := k.Publish(ctx, "a", []byte("a"), metadataIn)
@@ -235,7 +235,7 @@ func TestBulkPublish(t *testing.T) {
 			createMessageAsserter(t, nil, map[string]string{"common": "common"}),
 		}
 		k := arrangeKafkaWithAssertions(t, messageAsserters...)
-		k.headerFromToMetadataExcludedKeysRegex = regexp.MustCompile("^b|c$")
+		k.excludeHeaderMetaRegex = regexp.MustCompile("^b|c$")
 
 		// act
 		_, err := k.BulkPublish(ctx, "a", entries, metadata)

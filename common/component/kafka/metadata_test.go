@@ -649,9 +649,9 @@ func TestGetEventMetadata(t *testing.T) {
 			{Key: []byte("rawPayload"), Value: []byte("true")},
 		}
 		k := Kafka{
-			escapeHeaders:                         false,
-			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType$"),
-			logger:                                logger.NewLogger("kafka_test"),
+			escapeHeaders:          false,
+			excludeHeaderMetaRegex: regexp.MustCompile("^valueSchemaType$"),
+			logger:                 logger.NewLogger("kafka_test"),
 		}
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",
@@ -668,9 +668,9 @@ func TestGetEventMetadata(t *testing.T) {
 			{Key: []byte("rawPayload"), Value: []byte("true")},
 		}
 		k := Kafka{
-			escapeHeaders:                         false,
-			headerFromToMetadataExcludedKeysRegex: regexp.MustCompile("^valueSchemaType|rawPayload$"),
-			logger:                                logger.NewLogger("kafka_test"),
+			escapeHeaders:          false,
+			excludeHeaderMetaRegex: regexp.MustCompile("^valueSchemaType|rawPayload$"),
+			logger:                 logger.NewLogger("kafka_test"),
 		}
 		m := sarama.ConsumerMessage{
 			Headers: headers, Timestamp: ts, Key: []byte("MyKey"), Value: []byte("MyValue"), Partition: 0, Offset: 123, Topic: "TestTopic",

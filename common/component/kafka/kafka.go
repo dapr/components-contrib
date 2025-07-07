@@ -83,7 +83,7 @@ type Kafka struct {
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
 
-	headerFromToMetadataExcludedKeysRegex *regexp.Regexp
+	excludeHeaderMetaRegex *regexp.Regexp
 }
 
 type SchemaType int
@@ -259,8 +259,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		return errors.New("component is closed")
 	}
 
-	if meta.HeaderFromToMetadataExcludedKeysRegex != "" {
-		k.headerFromToMetadataExcludedKeysRegex = regexp.MustCompile(meta.HeaderFromToMetadataExcludedKeysRegex)
+	if meta.ExcludeHeaderMetaRegex != "" {
+		k.excludeHeaderMetaRegex = regexp.MustCompile(meta.ExcludeHeaderMetaRegex)
 	}
 
 	k.logger.Debug("Kafka message bus initialization complete")

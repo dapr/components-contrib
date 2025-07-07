@@ -230,7 +230,7 @@ func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]
 		metadata[partitionMetadataKey] = strconv.FormatInt(int64(message.Partition), 10)
 		for _, header := range message.Headers {
 			// skip headers that are excluded from metadata
-			if kafka.headerFromToMetadataExcludedKeysRegex != nil && kafka.headerFromToMetadataExcludedKeysRegex.MatchString(string(header.Key)) {
+			if kafka.excludeHeaderMetaRegex != nil && kafka.excludeHeaderMetaRegex.MatchString(string(header.Key)) {
 				kafka.logger.Debugf("Skipping header %v that is excluded from metadata", string(header.Key))
 				continue
 			}

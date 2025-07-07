@@ -372,7 +372,7 @@ metadata:
       - "range"
       - "sticky"
       - "roundrobin"
-  - name: headerFromToMetadataExcludedKeysRegex
+  - name: excludeHeaderMetaRegex
     type: string
     required: false
     description: |

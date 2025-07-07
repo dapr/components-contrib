@@ -396,7 +396,6 @@ func (m *Mistral) convertParametersToMap(params any) any {
 // around Mistral's limitation with simulated tool calls.
 // Groups consecutive tool results into a single text-based user message.
 // Also handles Mistral's API limitation with tool call history by creating fresh context.
-// TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
 func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) *conversation.ConversationRequest {
 	convertedInputs := make([]conversation.ConversationInput, 0, len(r.Inputs))
 

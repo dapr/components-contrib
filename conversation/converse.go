@@ -24,7 +24,6 @@ package conversation
 import (
 	"context"
 	"io"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -98,38 +97,6 @@ type ConversationResponse struct {
 	Usage   *UsageInfo           `json:"usage,omitempty"`
 }
 
-// ContentPart interface for type-safe content handling
-type ContentPart interface {
-	Type() ContentPartType
-	String() string
-	Validate() error
-}
-
-type ContentPartType string
-
-const (
-	ContentPartText            ContentPartType = "text"
-	ContentPartToolCall        ContentPartType = "tool_call"
-	ContentPartToolResult      ContentPartType = "tool_result"
-	ContentPartToolDefinitions ContentPartType = "tool_definitions"
-	ContentPartToolMessage     ContentPartType = "tool_message"
-	// Future: ContentPartImage, ContentPartDocument, etc.
-)
-
-// TextContentPart text content part implementation
-type TextContentPart struct {
-	Text string `json:"text"`
-}
-
-func (t TextContentPart) Type() ContentPartType { return ContentPartText }
-func (t TextContentPart) String() string        { return t.Text }
-func (t TextContentPart) Validate() error {
-	if t.Text == "" {
-		return nil // Allow empty text parts
-	}
-	return nil
-}
-
 // Role represents a conversation role
 type Role string
 
@@ -140,55 +107,6 @@ const (
 	RoleFunction  = "function"
 	RoleTool      = "tool"
 )
-
-// Utility functions for content parts processing
-
-// ExtractTextFromParts Extract all text content from parts
-func ExtractTextFromParts(parts []ContentPart) string {
-	var textParts []string
-	for _, part := range parts {
-		if textPart, ok := part.(TextContentPart); ok {
-			textParts = append(textParts, textPart.Text)
-		}
-	}
-	return strings.Join(textParts, " ")
-}
-
-// ExtractToolDefinitionsFromParts Extract tool definitions from parts
-func ExtractToolDefinitionsFromParts(parts []ContentPart) []Tool {
-	for _, part := range parts {
-		if toolDefPart, ok := part.(ToolDefinitionsContentPart); ok {
-			return toolDefPart.Tools
-		}
-	}
-	return nil
-}
-
-// ExtractToolCallsFromParts Extract tool calls from parts
-func ExtractToolCallsFromParts(parts []ContentPart) []ToolCall {
-	var toolCalls []ToolCall
-	for _, part := range parts {
-		if toolCallPart, ok := part.(ToolCallContentPart); ok {
-			toolCalls = append(toolCalls, ToolCall{
-				ID:       toolCallPart.ID,
-				CallType: toolCallPart.CallType,
-				Function: toolCallPart.Function,
-			})
-		}
-	}
-	return toolCalls
-}
-
-// ExtractToolResultsFromParts Extract tool results from parts
-func ExtractToolResultsFromParts(parts []ContentPart) []ToolResultContentPart {
-	var results []ToolResultContentPart
-	for _, part := range parts {
-		if resultPart, ok := part.(ToolResultContentPart); ok {
-			results = append(results, resultPart)
-		}
-	}
-	return results
-}
 
 // DefaultFinishReason determines the appropriate finish reason based on content parts if no other reason is provided
 func DefaultFinishReason(parts []ContentPart) string {

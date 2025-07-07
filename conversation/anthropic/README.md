@@ -25,7 +25,7 @@ spec:
   - name: key
     value: "your-anthropic-api-key"
   - name: model
-    value: "claude-3-haiku-20240307"  # Optional, defaults to claude-sonnet-4-20250514
+    value: "claude-3-haiku-20240307"  # Optional
   - name: cacheTTL
     value: "10m"  # Optional, enables response caching
   - name: endpoint  

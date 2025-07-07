@@ -15,38 +15,15 @@ limitations under the License.
 
 // Package echo provides a test double implementation of the conversation component interface.
 //
-// The Echo provider is designed for predictable, reliable testing of conversation components
-// in Dapr. It mimics the structure and behavior of real LLM providers while providing
-// deterministic responses that make it ideal for unit testing, integration testing, and
-// conformance testing.
+// Echo is designed for predictable, reliable testing of conversation components in Dapr.
+// It provides deterministic responses while maintaining full structural compatibility with
+// real LLM providers.
 //
-// # Design Philosophy
-//
-// Echo serves as a "perfect test double" with these core principles:
-//   - Predictability: Same input always produces the same output
-//   - Testability: Easy to assert expected responses
-//   - Structural Compatibility: Mimics real LLM response structure perfectly
-//   - Fast Execution: No network calls or complex processing
-//   - Tool Calling Support: Full support for function calling with dynamic tool matching
-//
-// # Hybrid Input Processing
-//
-// Echo uses a hybrid approach for handling conversation inputs:
-//   - For ECHOING: Uses last user message only (predictable testing)
-//   - For TOOL MATCHING: Uses concatenated user messages (better functionality)
-//
-// This design provides predictable responses for testing while enabling enhanced
-// tool calling capabilities with better context understanding.
-//
-// # Key Features
-//
-//   - Dynamic tool support: Works with any tool schemas provided by users
-//   - Case-agnostic tool matching: Handles snake_case, camelCase, PascalCase, kebab-case
-//   - Schema-aware parameter generation: Generates realistic arguments based on tool schemas
-//   - Parallel tool calling: Can call multiple tools simultaneously
-//   - Streaming support: Provides chunk-based response streaming
-//   - Usage tracking: Accurate token counting and usage metrics
-//   - OpenAI compatibility: Identical response structure and finishReason values
+// Key capabilities:
+//   - Echoes the last user message for predictable testing
+//   - Dynamic tool calling with schema-aware parameter generation
+//   - Streaming support with word-based chunking
+//   - Usage tracking and OpenAI-compatible response structure
 //
 // See README.md for comprehensive documentation and usage examples.
 package echo
@@ -82,9 +59,11 @@ import (
 //   - Maintains identical response structure to real LLM providers
 //   - Supports streaming with chunk-based response delivery
 type Echo struct {
-	model  string        // Model name (optional, for compatibility)
-	logger logger.Logger // Logger for debug and error messages
+	model  string // Model name (optional, for compatibility)
+	logger logger.Logger
 }
+
+var _ conversation.StreamingConversation = (*Echo)(nil)
 
 // NewEcho creates a new Echo conversation component instance.
 // The Echo component requires no configuration and is ready to use immediately.
@@ -146,8 +125,10 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	// Collect user messages and tools using parts-aware approach
 	var lastUserMessage string
 	var allUserMessages []string
-	totalInputTokens := int32(0)
-	var allTools []conversation.Tool
+	totalInputTokens := uint64(0)
+
+	// Get tools from the request (new API structure)
+	allTools := r.Tools
 
 	// Process all inputs with content parts support
 	for _, input := range r.Inputs {
@@ -156,20 +137,16 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 		if len(input.Parts) > 0 {
 			inputContent = conversation.ExtractTextFromParts(input.Parts)
 		} else {
-			inputContent = input.Message // Backward compatibility for text only
+			inputContent = input.Message //nolint:staticcheck // Backward compatibility for text only
 		}
 
 		// Simple token estimation: roughly 1 token per 4 characters
 		contentLen := len(inputContent)
-		var inputTokens int32
+		var inputTokens uint64
 		if contentLen > 0 {
 			// Safe conversion with bounds checking
-			tokens := contentLen / 4
-			if tokens > 2147483647 { // int32 max value
-				inputTokens = 2147483647 // Use int32 max value
-			} else {
-				inputTokens = int32(tokens)
-			}
+			tokens := uint64(contentLen) / 4
+			inputTokens = tokens
 		}
 		if inputTokens == 0 && len(inputContent) > 0 {
 			inputTokens = 1 // Minimum 1 token for non-empty input
@@ -177,9 +154,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 		totalInputTokens += inputTokens
 
-		// Extract tools from content parts (new feature)
-		tools := conversation.ExtractToolDefinitionsFromParts(input.Parts)
-		allTools = append(allTools, tools...)
+		// Note: Tools are now only supported in ConversationRequest.Tools field
 
 		// Collect user messages for tool matching context
 		if input.Role == conversation.RoleUser || input.Role == "" { // Empty role defaults to user
@@ -191,15 +166,15 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	lastInput := r.Inputs[len(r.Inputs)-1]
 
 	// Create output with content parts
-	output := conversation.ConversationResult{
+	output := conversation.ConversationOutput{
 		Parameters: r.Parameters,
 	}
 
 	var responseParts []conversation.ContentPart
 
 	// Prioritize legacy message field for simple echo backward compatibility
-	if lastInput.Message != "" {
-		responseText := e.processLegacyTextInput(lastInput, allTools, lastInput.Message, allUserMessages)
+	if lastInput.Message != "" { //nolint:staticcheck // Backward compatibility check
+		responseText := e.processLegacyTextInput(lastInput, allTools, lastInput.Message, allUserMessages) //nolint:staticcheck // Backward compatibility
 		responseParts = append(responseParts, conversation.TextContentPart{Text: responseText})
 	} else if len(lastInput.Parts) > 0 {
 		toolResults := conversation.ExtractToolResultsFromParts(lastInput.Parts)
@@ -215,37 +190,33 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	// Set content parts and legacy result field
 	output.Parts = responseParts
-	output.Result = conversation.ExtractTextFromParts(responseParts) // Backward compatibility
+	output.Result = conversation.ExtractTextFromParts(responseParts) //nolint:staticcheck // Backward compatibility
 
 	// Extract tool calls for finish reason determination
 	toolCalls := conversation.ExtractToolCallsFromParts(responseParts)
 
 	// Set finish reason based on whether tool calls were generated
 	if len(toolCalls) > 0 {
-		output.FinishReason = "tool_calls"
+		output.FinishReason = conversation.FinishReasonToolCalls
 	} else {
-		output.FinishReason = "stop"
+		output.FinishReason = conversation.FinishReasonStop
 	}
 
 	// Calculate output tokens
-	resultLen := len(output.Result)
-	var totalOutputTokens int32
+	resultLen := len(output.Result) //nolint:staticcheck // Backward compatibility usage
+	var totalOutputTokens uint64
 
 	if resultLen > 0 {
 		// Safe conversion with bounds checking
-		tokens := resultLen / 4
-		if tokens > 2147483647 { // int32 max value
-			totalOutputTokens = 2147483647 // Use int32 max value
-		} else {
-			totalOutputTokens = int32(tokens)
-		}
+		tokens := uint64(resultLen) / 4
+		totalOutputTokens = tokens
 	}
-	if totalOutputTokens == 0 && len(output.Result) > 0 {
+	if totalOutputTokens == 0 && len(output.Result) > 0 { //nolint:staticcheck // Backward compatibility usage
 		totalOutputTokens = 1
 	}
 
 	res = &conversation.ConversationResponse{
-		Outputs:             []conversation.ConversationResult{output},
+		Outputs:             []conversation.ConversationOutput{output},
 		ConversationContext: r.ConversationContext,
 		Usage: &conversation.UsageInfo{
 			PromptTokens:     totalInputTokens,
@@ -257,7 +228,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	return res, nil
 }
 
-// Process content parts (new feature)
+// Process content parts
 func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) []conversation.ContentPart {
 	var responseParts []conversation.ContentPart
 
@@ -272,10 +243,7 @@ func (e *Echo) processContentParts(input conversation.ConversationInput, allTool
 			responseParts = append(responseParts, conversation.TextContentPart{
 				Text: fmt.Sprintf("Part %d (text): %s", i+1, p.Text),
 			})
-		case conversation.ToolDefinitionsContentPart:
-			responseParts = append(responseParts, conversation.TextContentPart{
-				Text: fmt.Sprintf("Part %d (tools): %d tools available", i+1, len(p.Tools)),
-			})
+
 		case conversation.ToolCallContentPart:
 			responseParts = append(responseParts, conversation.TextContentPart{
 				Text: fmt.Sprintf("Part %d (tool call): %s", i+1, p.Function.Name),
@@ -317,21 +285,21 @@ func (e *Echo) processContentParts(input conversation.ConversationInput, allTool
 // Process legacy text input (backward compatibility)
 func (e *Echo) processLegacyTextInput(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) string {
 	// Simple echo for backward compatibility
-	if input.Message != "" {
-		return input.Message
+	if input.Message != "" { //nolint:staticcheck // Backward compatibility check
+		return input.Message //nolint:staticcheck // Backward compatibility
 	}
 	return "(empty message)"
 }
 
-// ConverseStream implements streaming conversation with chunk-based response delivery.
+// ConverseStream implements streaming conversation with word-based response delivery.
 //
 // Provides the same response logic as Converse() but delivers the content in multiple
-// chunks to simulate real LLM streaming behavior. This is essential for testing
+// word-based chunks to simulate real LLM streaming behavior. This is essential for testing
 // streaming conversation implementations.
 //
 // Streaming Behavior:
-//   - Breaks responses into 3-4 character chunks for realistic streaming
-//   - Tool calls are streamed as structured JSON chunks
+//   - Breaks responses into word-based chunks for realistic streaming
+//   - Tool calls are included in final response (not streamed incrementally)
 //   - Maintains identical final response structure to non-streaming version
 //   - Provides proper error handling for streaming failures
 //
@@ -356,7 +324,7 @@ func (e *Echo) ConverseStream(ctx context.Context, r *conversation.ConversationR
 
 	// Stream the response content
 	output := response.Outputs[0]
-	content := output.Result
+	content := output.Result //nolint:staticcheck // Backward compatibility usage
 
 	// Break content into words for more realistic streaming
 	words := strings.Fields(content)
@@ -472,18 +440,19 @@ func (e *Echo) extractWordsFromToolName(toolName string) []string {
 	var words []string
 
 	// Handle camelCase and PascalCase by splitting on capital letters
-	if e.isCamelOrPascalCase(toolName) {
+	switch {
+	case e.isCamelOrPascalCase(toolName):
 		words = e.splitCamelCase(toolName)
-	} else if strings.Contains(toolName, "_") {
+	case strings.Contains(toolName, "_"):
 		// snake_case
 		words = strings.Split(toolName, "_")
-	} else if strings.Contains(toolName, "-") {
+	case strings.Contains(toolName, "-"):
 		// kebab-case
 		words = strings.Split(toolName, "-")
-	} else if strings.Contains(toolName, " ") {
+	case strings.Contains(toolName, " "):
 		// space separated
 		words = strings.Fields(toolName)
-	} else {
+	default:
 		// Single word
 		words = []string{toolName}
 	}
@@ -757,7 +726,7 @@ func (e *Echo) extractNumber(message string) float64 {
 	return 0
 }
 
-// Generate tool result response from content part (new feature)
+// Generate tool result response from content part
 func (e *Echo) generateToolResultResponseFromPart(toolResult conversation.ToolResultContentPart) string {
 	if toolResult.IsError {
 		return fmt.Sprintf("Tool %s failed: %s", toolResult.Name, toolResult.Content)

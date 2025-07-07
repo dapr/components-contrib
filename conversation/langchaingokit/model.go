@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -34,8 +35,10 @@ import (
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
-	UsageGetterFunc   func(resp *llms.ContentResponse) *conversation.UsageInfo
-	StreamingDisabled bool // If true, disables streaming functionality (some providers do not support streaming)
+	UsageGetterFunc           func(resp *llms.ContentResponse) *conversation.UsageInfo
+	StreamingDisabled         bool   // If true, disables streaming functionality (some providers do not support streaming)
+	ToolCallStreamingDisabled bool   // If true, disables tool call streaming functionality (some providers do not support tool call with streaming)
+	ProviderModelName         string // The name of the model as provided by the provider
 }
 
 var ErrStreamingNotSupported = errors.New("streaming is not supported by this model or provider")
@@ -49,70 +52,83 @@ func (a *LLM) SupportsToolCalling() bool {
 
 // convertParametersToMap converts tool parameters from JSON string to map[string]any if needed
 // This ensures langchaingo receives parameters in the expected format
-func convertParametersToMap(params any) any {
+func convertParametersToMap(params any) (any, error) {
 	// If params is already a map, return it as-is
 	if paramMap, ok := params.(map[string]any); ok {
-		return paramMap
+		return paramMap, nil
 	}
 
 	// If params is a string, try to unmarshal it as JSON
 	if paramStr, ok := params.(string); ok {
 		var paramMap map[string]any
 		if err := json.Unmarshal([]byte(paramStr), &paramMap); err != nil {
-			// If unmarshaling fails, return original string
-			return params
+			return params, fmt.Errorf("tool parameters should be a json schema string: %w", err)
 		}
-		return paramMap
+		return paramMap, nil
 	}
 
-	// For other types, return as-is (let langchaingo handle it)
-	return params
+	return nil, errors.New("tool parameters should be a map or a json schema string")
 }
 
 // convertDaprToolsToLangchainTools converts Dapr tool definitions to langchaingo format
-func convertDaprToolsToLangchainTools(tools []conversation.Tool) []llms.Tool {
+func convertDaprToolsToLangchainTools(tools []conversation.Tool) ([]llms.Tool, error) {
 	if len(tools) == 0 {
-		return nil
+		return nil, nil
 	}
+
+	errList := []error{}
 
 	langchainTools := make([]llms.Tool, len(tools))
 	for i, tool := range tools {
+		parameters, err := convertParametersToMap(tool.Function.Parameters)
+		if err != nil {
+			errList = append(errList, fmt.Errorf("tool %s: %w", tool.Function.Name, err))
+			continue
+		}
 		langchainTools[i] = llms.Tool{
 			Type: tool.ToolType,
 			Function: &llms.FunctionDefinition{
 				Name:        tool.Function.Name,
 				Description: tool.Function.Description,
-				Parameters:  convertParametersToMap(tool.Function.Parameters),
+				Parameters:  parameters,
 			},
 		}
 	}
-	return langchainTools
+	if len(errList) > 0 {
+		return langchainTools, errors.Join(errList...)
+	}
+	return langchainTools, nil
 }
 
 // generateContent is a helper function that generates content using the LangChain Go model.
-func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationRequest, opts []llms.CallOption) (*conversation.ConversationResponse, error) {
+func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationRequest, opts []llms.CallOption, checkStreaming bool) (*conversation.ConversationResponse, error) {
 	if a.Model == nil {
 		return nil, errors.New("LLM Model is nil - component not initialized")
+	}
+
+	if checkStreaming && a.StreamingDisabled {
+		return nil, fmt.Errorf("%w: %s", conversation.ErrStreamingNotSupported, a.ProviderModelName)
 	}
 
 	// Build messages from all inputs using new content parts approach
 	messages := GetMessageFromRequest(r)
 
-	// Extract tools from inputs using new content parts approach
-	var tools []conversation.Tool
-	for _, input := range r.Inputs {
-		// Extract tools from content parts (new feature)
-		if len(input.Parts) > 0 {
-			if toolDefs := conversation.ExtractToolDefinitionsFromParts(input.Parts); len(toolDefs) > 0 {
-				tools = toolDefs
-				// Don't break - allow tools from multiple inputs to be combined
-			}
-		}
-	}
+	// Get tools from the request (new API structure)
+	tools := r.Tools
+
+	// Note: Tools are now only supported in ConversationRequest.Tools field
 
 	// Add tools if provided
 	if len(tools) > 0 {
-		langchainTools := convertDaprToolsToLangchainTools(tools)
+		// Some providers do not support tool call streaming, so we return error here so they can
+		// fallback to non-streaming mode.
+		if checkStreaming && a.ToolCallStreamingDisabled {
+			return nil, fmt.Errorf("%w: %s", conversation.ErrToolCallStreamingNotSupported, a.ProviderModelName)
+		}
+		langchainTools, err := convertDaprToolsToLangchainTools(tools)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tools to API format: %w", err)
+		}
 		opts = append(opts, llms.WithTools(langchainTools))
 	}
 
@@ -121,7 +137,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 		return nil, err
 	}
 
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
+	outputs := make([]conversation.ConversationOutput, 0, len(resp.Choices))
 
 	// Determine the primary finish reason from the first choice, as it's the most reliable.
 	var primaryFinishReason string
@@ -130,7 +146,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 	}
 
 	for i := range resp.Choices {
-		result := conversation.ConversationResult{
+		result := conversation.ConversationOutput{
 			Parameters: r.Parameters,
 		}
 
@@ -146,7 +162,6 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 		if len(resp.Choices[i].ToolCalls) > 0 {
 			for _, tc := range resp.Choices[i].ToolCalls {
 				// Generate provider-compatible ID if not provided by the provider
-				// TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
 				toolCallID := tc.ID
 				if toolCallID == "" {
 					toolCallID = conversation.GenerateProviderCompatibleToolCallID()
@@ -172,14 +187,14 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 		// Set content parts and legacy result field
 		result.Parts = parts
-		result.Result = conversation.ExtractTextFromParts(parts) // Legacy field for text backward compatibility
+		result.Result = conversation.ExtractTextFromParts(parts) //nolint:staticcheck // Legacy field for text backward compatibility
 
 		// Set finish reason: prioritize the primary reason from the first choice.
 		if primaryFinishReason != "" {
-			result.FinishReason = primaryFinishReason
+			result.FinishReason = conversation.NormalizeFinishReason(primaryFinishReason)
 		} else if resp.Choices[i].StopReason != "" {
 			// Fallback to the current choice's reason if the primary one was empty.
-			result.FinishReason = resp.Choices[i].StopReason
+			result.FinishReason = conversation.NormalizeFinishReason(resp.Choices[i].StopReason)
 		} else {
 			// If no reason is provided by the model, determine it from the content.
 			result.FinishReason = conversation.DefaultFinishReason(parts)
@@ -202,15 +217,11 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 // Converse executes a non-streaming conversation with the LangChain Go model.
 func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
 	opts := GetOptionsFromRequest(r)
-	return a.generateContent(ctx, r, opts)
+	return a.generateContent(ctx, r, opts, false)
 }
 
 // ConverseStream executes a streaming conversation with the LangChain Go model.
 func (a *LLM) ConverseStream(ctx context.Context, r *conversation.ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*conversation.ConversationResponse, error) {
-	if a.StreamingDisabled {
-		return nil, ErrStreamingNotSupported
-	}
 	opts := GetOptionsFromRequest(r, llms.WithStreamingFunc(streamFunc))
-
-	return a.generateContent(ctx, r, opts)
+	return a.generateContent(ctx, r, opts, true)
 }

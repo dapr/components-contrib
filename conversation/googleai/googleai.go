@@ -16,6 +16,7 @@ package googleai
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -34,15 +35,13 @@ type GoogleAI struct {
 }
 
 func NewGoogleAI(logger logger.Logger) conversation.Conversation {
-	g := &GoogleAI{
+	return &GoogleAI{
 		logger: logger,
 	}
-
-	return g
 }
 
 const (
-	defaultModel                 = "gemini-2.5-flash"
+	defaultModel                 = "gemini-2.5-pro"
 	googleAIOpenAICompatEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
 )
 
@@ -58,6 +57,14 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		model = md.Model
 	}
 
+	key := md.Key
+	if key == "" {
+		key = conversation.GetEnvKey("GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY")
+		if key == "" {
+			return errors.New("google key is required")
+		}
+	}
+
 	g.logger.Infof("GoogleAI Init (OpenAI Compatibility): API Key length=%d, Model=%s", len(md.Key), model)
 
 	// Use OpenAI client with Google AI's OpenAI compatibility endpoint
@@ -65,7 +72,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	// TODO: This is a temporary workaround until langchaingo provides better native tool calling support
 	options := []openai.Option{
 		openai.WithModel(model),
-		openai.WithToken(md.Key),
+		openai.WithToken(key),
 		openai.WithBaseURL(googleAIOpenAICompatEndpoint),
 	}
 
@@ -83,6 +90,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	g.LLM.Model = llm
+	g.LLM.ProviderModelName = "googleai/" + model
 
 	g.logger.Info("GoogleAI Init: Successfully initialized model using OpenAI compatibility layer")
 

@@ -17,20 +17,20 @@ package mistral
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
+	mistral2 "github.com/gage-technologies/mistral-go"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/mistral"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	mistral2 "github.com/gage-technologies/mistral-go"
-	"github.com/tmc/langchaingo/llms/mistral"
 )
 
 type Mistral struct {
@@ -51,21 +51,19 @@ func usageGetter(resp *llms.ContentResponse) *conversation.UsageInfo {
 	}
 
 	return &conversation.UsageInfo{
-		PromptTokens:     int32(usage.PromptTokens),     //nolint:gosec // This is a valid conversion
-		CompletionTokens: int32(usage.CompletionTokens), //nolint:gosec // This is a valid conversion
-		TotalTokens:      int32(usage.TotalTokens),      //nolint:gosec // This is a valid conversion
+		PromptTokens:     uint64(usage.PromptTokens),     //nolint:gosec // This is a valid conversion
+		CompletionTokens: uint64(usage.CompletionTokens), //nolint:gosec // This is a valid conversion
+		TotalTokens:      uint64(usage.TotalTokens),      //nolint:gosec // This is a valid conversion
 	}
 }
 
 func NewMistral(logger logger.Logger) conversation.Conversation {
-	m := &Mistral{
+	return &Mistral{
 		logger: logger,
 	}
-
-	return m
 }
 
-const defaultModel = "open-mistral-7b"
+const defaultModel = "mistral-medium-2505"
 
 func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
@@ -79,15 +77,24 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		model = md.Model
 	}
 
+	key := md.Key
+	if key == "" {
+		key = conversation.GetEnvKey("MISTRAL_API_KEY")
+		if key == "" {
+			return errors.New("mistral key is required")
+		}
+	}
+
 	llm, err := mistral.New(
 		mistral.WithModel(model),
-		mistral.WithAPIKey(md.Key),
+		mistral.WithAPIKey(key),
 	)
 	if err != nil {
 		return err
 	}
 
 	m.LLM.Model = llm
+	m.LLM.ProviderModelName = "mistral/" + model
 	m.LLM.UsageGetterFunc = usageGetter
 
 	if md.CacheTTL != "" {
@@ -108,7 +115,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 // TODO: This is a temporary workaround until langchaingo provides better native tool calling support for Mistral
 func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequest) (*conversation.ConversationResponse, error) {
 	if m.Model == nil {
-		return nil, fmt.Errorf("LLM Model is nil - component not initialized")
+		return nil, errors.New("LLM Model is nil - component not initialized")
 	}
 
 	// Convert tool results to text-based messages for Mistral compatibility
@@ -117,15 +124,10 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 	// Build messages using custom Mistral-compatible processing
 	messages := m.getMistralCompatibleMessages(convertedRequest)
 
-	// Extract tools from inputs
-	var tools []conversation.Tool
-	for _, input := range convertedRequest.Inputs {
-		if len(input.Parts) > 0 {
-			if toolDefs := conversation.ExtractToolDefinitionsFromParts(input.Parts); len(toolDefs) > 0 {
-				tools = toolDefs
-			}
-		}
-	}
+	// Get tools from the request (new API structure)
+	tools := convertedRequest.Tools
+
+	// Note: Tools are now only supported in ConversationRequest.Tools field
 
 	// Build options
 	opts := langchaingokit.GetOptionsFromRequest(convertedRequest)
@@ -143,7 +145,7 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 	}
 
 	// Process response
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
+	outputs := make([]conversation.ConversationOutput, 0, len(resp.Choices))
 
 	// Determine the primary finish reason from the first choice
 	var primaryFinishReason string
@@ -152,7 +154,7 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 	}
 
 	for i := range resp.Choices {
-		result := conversation.ConversationResult{
+		result := conversation.ConversationOutput{
 			Parameters: convertedRequest.Parameters,
 		}
 
@@ -186,13 +188,13 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 
 		// Set content parts and legacy result field
 		result.Parts = parts
-		result.Result = conversation.ExtractTextFromParts(parts)
+		result.Result = conversation.ExtractTextFromParts(parts) //nolint:staticcheck // Backward compatibility
 
 		// Set finish reason
 		if primaryFinishReason != "" {
-			result.FinishReason = primaryFinishReason
+			result.FinishReason = conversation.NormalizeFinishReason(primaryFinishReason)
 		} else if resp.Choices[i].StopReason != "" {
-			result.FinishReason = resp.Choices[i].StopReason
+			result.FinishReason = conversation.NormalizeFinishReason(resp.Choices[i].StopReason)
 		} else {
 			result.FinishReason = conversation.DefaultFinishReason(parts)
 		}
@@ -213,17 +215,20 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 }
 
 // getMistralCompatibleMessages builds messages with Mistral-specific processing
-// This ensures tool results are converted to text before reaching LangChain
+// This ensures tool results are processed correctly by langchaingo
 func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationRequest) []llms.MessageContent {
 	messages := make([]llms.MessageContent, 0, len(r.Inputs))
 
-	for _, input := range r.Inputs {
+	i := 0
+	for i < len(r.Inputs) {
+		input := r.Inputs[i]
 		role := langchaingokit.ConvertLangchainRole(input.Role)
 
 		// Process with native parts support if available
 		if len(input.Parts) > 0 {
 			var textParts []string
 			var toolCalls []llms.ToolCall
+			var toolResults []conversation.ToolResultContentPart
 
 			for _, part := range input.Parts {
 				switch p := part.(type) {
@@ -238,12 +243,63 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 							Arguments: p.Function.Arguments,
 						},
 					})
-					// Note: ToolResultContentPart should already be converted to text by convertToolResultsToText
+				case conversation.ToolResultContentPart:
+					toolResults = append(toolResults, p)
 				}
 			}
 
-			// Create appropriate message type based on content
-			if len(toolCalls) > 0 {
+			// Handle tool results - group consecutive tool result inputs
+			if len(toolResults) > 0 {
+				// Look ahead to collect all consecutive tool result inputs
+				allToolResults := toolResults
+				j := i + 1
+
+				// Collect consecutive tool result inputs
+				for j < len(r.Inputs) {
+					nextInput := r.Inputs[j]
+					if len(nextInput.Parts) > 0 {
+						var nextHasToolResults bool
+						var nextToolResults []conversation.ToolResultContentPart
+
+						for _, part := range nextInput.Parts {
+							if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+								nextHasToolResults = true
+								nextToolResults = append(nextToolResults, resultPart)
+							}
+						}
+
+						if nextHasToolResults && len(nextInput.Parts) == len(nextToolResults) {
+							// This input contains only tool results, collect them
+							allToolResults = append(allToolResults, nextToolResults...)
+							j++
+						} else {
+							// Mixed content or no tool results, stop collecting
+							break
+						}
+					} else {
+						// No parts, stop collecting
+						break
+					}
+				}
+
+				// Create a single tool message with all collected tool results
+				var toolParts []llms.ContentPart
+				for _, result := range allToolResults {
+					toolParts = append(toolParts, llms.ToolCallResponse{
+						ToolCallID: result.ToolCallID,
+						Name:       result.Name,
+						Content:    result.Content,
+					})
+				}
+
+				messages = append(messages, llms.MessageContent{
+					Role:  llms.ChatMessageTypeTool,
+					Parts: toolParts,
+				})
+
+				// Skip all the inputs we processed
+				i = j
+			} else if len(toolCalls) > 0 {
 				// Assistant message with tool calls
 				message := llms.MessageContent{
 					Role: llms.ChatMessageTypeAI,
@@ -260,21 +316,30 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 				}
 
 				messages = append(messages, message)
+				i++
 			} else if len(textParts) > 0 {
 				// Regular text message
 				messages = append(messages, llms.MessageContent{
 					Role:  role,
 					Parts: []llms.ContentPart{llms.TextPart(strings.Join(textParts, " "))},
 				})
+				i++
+			} else {
+				// Empty message, skip
+				i++
 			}
-		} else if input.Message != "" {
+		} else if input.Message != "" { //nolint:staticcheck // Backward compatibility check
 			// Fallback to legacy message processing
 			messages = append(messages, llms.MessageContent{
 				Role: role,
 				Parts: []llms.ContentPart{
-					llms.TextPart(input.Message),
+					llms.TextPart(input.Message), //nolint:staticcheck // Backward compatibility
 				},
 			})
+			i++
+		} else {
+			// Empty input, skip
+			i++
 		}
 	}
 
@@ -325,17 +390,115 @@ func (m *Mistral) convertParametersToMap(params any) any {
 // convertToolResultsToText converts formal tool results to text-based messages
 // that Mistral can process. This maintains the conversation flow while working
 // around Mistral's limitation with simulated tool calls.
+// Groups consecutive tool results into a single text-based user message.
+// Also handles Mistral's API limitation with tool call history by creating fresh context.
 // TODO: This is a temporary workaround. See conversation/langchaingokit/LANGCHAINGO_WORKAROUNDS.md
 func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) *conversation.ConversationRequest {
 	convertedInputs := make([]conversation.ConversationInput, 0, len(r.Inputs))
 
+	// Check if conversation history contains tool calls (Mistral API limitation)
+	hasToolCallHistory := false
 	for _, input := range r.Inputs {
+		if input.Role == conversation.RoleAssistant && len(input.Parts) > 0 {
+			for _, part := range input.Parts {
+				if _, ok := part.(conversation.ToolCallContentPart); ok {
+					hasToolCallHistory = true
+					break
+				}
+			}
+		}
+		if hasToolCallHistory {
+			break
+		}
+	}
+
+	// If we have tool call history, create a fresh conversation context
+	if hasToolCallHistory {
+		m.logger.Debugf("Mistral: Detected tool call history, creating fresh conversation context")
+
+		// Extract the original user request and convert tool results to context
+		var originalUserRequest string
+		var toolResultTexts []string
+		var lastUserInput conversation.ConversationInput
+
+		for _, input := range r.Inputs {
+			switch input.Role {
+			case conversation.RoleUser:
+				// Keep track of the last user input as it might be the current request
+				lastUserInput = input
+				if len(input.Parts) > 0 {
+					for _, part := range input.Parts {
+						if textPart, ok := part.(conversation.TextContentPart); ok {
+							originalUserRequest = textPart.Text
+						}
+					}
+				}
+			case conversation.RoleTool:
+				// Extract tool result information
+				for _, part := range input.Parts {
+					if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+						var resultText string
+						if resultPart.IsError {
+							resultText = fmt.Sprintf("Error from %s: %s", resultPart.Name, resultPart.Content)
+						} else {
+							resultText = fmt.Sprintf("%s result: %s", resultPart.Name, resultPart.Content)
+						}
+						toolResultTexts = append(toolResultTexts, resultText)
+					}
+				}
+			}
+		}
+
+		// Create a fresh conversation with tool results as context
+		if len(toolResultTexts) > 0 {
+			contextText := fmt.Sprintf("Based on previous tool execution results: %s. ", strings.Join(toolResultTexts, ". "))
+			if originalUserRequest != "" {
+				contextText += "User's original request was: " + originalUserRequest
+			} else if len(lastUserInput.Parts) > 0 {
+				// Use the last user input if available
+				for _, part := range lastUserInput.Parts {
+					if textPart, ok := part.(conversation.TextContentPart); ok {
+						contextText += "User's current request: " + textPart.Text
+						break
+					}
+				}
+			}
+
+			// Create fresh conversation input
+			convertedInputs = append(convertedInputs, conversation.ConversationInput{
+				Role: conversation.RoleUser,
+				Parts: []conversation.ContentPart{
+					conversation.TextContentPart{Text: contextText},
+				},
+			})
+
+			m.logger.Debugf("Mistral: Created fresh context with tool results: %s", contextText)
+		} else {
+			// No tool results found, just use the last user input
+			convertedInputs = append(convertedInputs, lastUserInput)
+		}
+
+		// Return new request with fresh context
+		return &conversation.ConversationRequest{
+			Inputs:              convertedInputs,
+			Parameters:          r.Parameters,
+			Temperature:         r.Temperature,
+			ConversationContext: r.ConversationContext,
+			Tools:               r.Tools,
+		}
+	}
+
+	// If no tool call history, proceed with normal tool result conversion
+	i := 0
+	for i < len(r.Inputs) {
+		input := r.Inputs[i]
+
 		// Check if this input contains tool results
 		if len(input.Parts) > 0 {
 			var hasToolResults bool
 			var toolResults []conversation.ToolResultContentPart
 
-			// Identify tool result parts
+			// Identify tool result parts in current input
 			for _, part := range input.Parts {
 				if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
 					hasToolResults = true
@@ -344,10 +507,42 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 			}
 
 			if hasToolResults {
-				// Convert tool results to text-based user message
+				// Look ahead to collect all consecutive tool result inputs
+				allToolResults := toolResults
+				j := i + 1
+
+				// Collect consecutive tool result inputs
+				for j < len(r.Inputs) {
+					nextInput := r.Inputs[j]
+					if len(nextInput.Parts) > 0 {
+						var nextHasToolResults bool
+						var nextToolResults []conversation.ToolResultContentPart
+
+						for _, part := range nextInput.Parts {
+							if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+								nextHasToolResults = true
+								nextToolResults = append(nextToolResults, resultPart)
+							}
+						}
+
+						if nextHasToolResults && len(nextInput.Parts) == len(nextToolResults) {
+							// This input contains only tool results, collect them
+							allToolResults = append(allToolResults, nextToolResults...)
+							j++
+						} else {
+							// Mixed content or no tool results, stop collecting
+							break
+						}
+					} else {
+						// No parts, stop collecting
+						break
+					}
+				}
+
+				// Convert all collected tool results to a single text-based user message
 				var textParts []string
 
-				for _, result := range toolResults {
+				for _, result := range allToolResults {
 					var resultText string
 					if result.IsError {
 						resultText = fmt.Sprintf("The %s function returned an error: %s", result.Name, result.Content)
@@ -360,7 +555,7 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				// Add instruction for the AI to use this information
 				textParts = append(textParts, "Please use this information to respond to the user.")
 
-				// Create a text-based user message
+				// Create a single text-based user message for all tool results
 				convertedInput := conversation.ConversationInput{
 					Role: conversation.RoleUser,
 					Parts: []conversation.ContentPart{
@@ -371,14 +566,19 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				}
 				convertedInputs = append(convertedInputs, convertedInput)
 
-				m.logger.Debugf("Converted tool result to text for Mistral: %s", convertedInput.Parts[0].(conversation.TextContentPart).Text)
+				m.logger.Debugf("Converted %d tool result(s) to text for Mistral: %s", len(allToolResults), convertedInput.Parts[0].(conversation.TextContentPart).Text)
+
+				// Skip all the inputs we processed
+				i = j
 			} else {
 				// No tool results, keep the input as-is
 				convertedInputs = append(convertedInputs, input)
+				i++
 			}
 		} else {
 			// No parts or legacy message, keep as-is
 			convertedInputs = append(convertedInputs, input)
+			i++
 		}
 	}
 
@@ -388,6 +588,7 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 		Parameters:          r.Parameters,
 		Temperature:         r.Temperature,
 		ConversationContext: r.ConversationContext,
+		Tools:               r.Tools,
 	}
 }
 

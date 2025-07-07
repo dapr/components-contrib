@@ -45,8 +45,8 @@ func TestEchoUsageInformation(t *testing.T) {
 		require.NotNil(t, resp.Usage, "Usage information should be present")
 
 		// Verify usage information is reasonable
-		assert.Greater(t, resp.Usage.PromptTokens, int32(0), "Should have prompt tokens")
-		assert.Greater(t, resp.Usage.CompletionTokens, int32(0), "Should have completion tokens")
+		assert.Greater(t, resp.Usage.PromptTokens, uint64(0), "Should have prompt tokens")
+		assert.Greater(t, resp.Usage.CompletionTokens, uint64(0), "Should have completion tokens")
 		assert.Equal(t, resp.Usage.TotalTokens, resp.Usage.PromptTokens+resp.Usage.CompletionTokens, "Total should equal sum")
 	})
 
@@ -75,8 +75,8 @@ func TestEchoUsageInformation(t *testing.T) {
 		require.NotNil(t, finalResp.Usage, "Usage information should be present in streaming response")
 
 		// Verify usage information is reasonable
-		assert.Greater(t, finalResp.Usage.PromptTokens, int32(0), "Should have prompt tokens")
-		assert.Greater(t, finalResp.Usage.CompletionTokens, int32(0), "Should have completion tokens")
+		assert.Greater(t, finalResp.Usage.PromptTokens, uint64(0), "Should have prompt tokens")
+		assert.Greater(t, finalResp.Usage.CompletionTokens, uint64(0), "Should have completion tokens")
 		assert.Equal(t, finalResp.Usage.TotalTokens, finalResp.Usage.PromptTokens+finalResp.Usage.CompletionTokens, "Total should equal sum")
 	})
 

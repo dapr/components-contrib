@@ -104,11 +104,11 @@ Tools Called: [get_weather, get_time, calculate]  // All in parallel
 Echo generates unique, deterministic tool call IDs using a timestamp-based approach:
 
 ```go
-// Format: call_echo_{timestamp+index}
+// Format: call_echo_{nanosecond_timestamp + index}
 // Examples:
-"call_echo_1703123456789000000"  // First tool call
-"call_echo_1703123456789000001"  // Second tool call (same request)
-"call_echo_1703123456789000002"  // Third tool call (same request)
+"call_echo_1703123456789012345"  // First tool call
+"call_echo_1703123456789012346"  // Second tool call (same request)
+"call_echo_1703123456789012347"  // Third tool call (same request)
 ```
 
 **Key features:**
@@ -221,23 +221,14 @@ Generated parameters:
 
 ### Streaming Behavior
 
-Echo supports streaming with realistic chunk generation:
+Echo supports streaming with realistic word-based chunk generation:
 
 ```go
 message := "Hello, world!"
-chunks := ["Hel", "lo, ", "wor", "ld!"]  // ~3-4 character chunks
+chunks := ["Hello", " world!"]  // Word-based chunking
 ```
 
-### Streaming Tool Calls
-
-Tool calls are streamed as structured chunks:
-
-```go
-// Tool call chunks
-chunk1: {"tool_calls": [{"function": {"name": "get_weather"}}]}
-chunk2: {"tool_calls": [{"function": {"arguments": "{\"location\""}}]}
-chunk3: {"tool_calls": [{"function": {"arguments": ":\"San Francisco\"}"}}]}
-```
+**Note**: Echo currently only streams text content. Tool calls are returned as complete structures in the final response, not streamed incrementally. This matches the behavior of most real LLM providers where tool calls need to be complete and valid JSON.
 
 ## 🧪 Testing Best Practices
 
@@ -395,33 +386,6 @@ spec:
   metadata: []  # No configuration required
 ```
 
-## 🧩 Integration with Dapr
-
-### Component Registration
-
-```go
-import "github.com/dapr/components-contrib/conversation/echo"
-
-// Register the echo component
-registry.RegisterConversation("echo", echo.NewEcho)
-```
-
-### Component Interface
-
-Echo implements the full conversation component interface:
-
-```go
-type Conversation interface {
-    Converse(ctx context.Context, r *ConversationRequest) (*ConversationResponse, error)
-    Close() error
-}
-
-type StreamingConversation interface {
-    Conversation
-    ConverseStream(ctx context.Context, r *ConversationRequest, streamFunc func(ctx context.Context, chunk []byte) error) (*ConversationResponse, error)
-}
-```
-
 ## 🔍 Debugging and Troubleshooting
 
 ### Common Issues
@@ -430,16 +394,6 @@ type StreamingConversation interface {
 2. **Unexpected parameters**: Review tool schema definition
 3. **Wrong echo response**: Verify you're checking the last user message
 4. **Token count mismatch**: Remember 1 token ≈ 4 characters
-
-### Debug Logging
-
-Enable debug logging to see Echo's decision process:
-
-```go
-logger := logger.NewLogger("echo")
-logger.SetLevel(logger.DebugLevel)
-echo := NewEcho(logger)
-```
 
 ## 📚 Related Documentation
 
@@ -456,7 +410,7 @@ When modifying Echo, remember:
 2. **Preserve compatibility**: Don't break existing test expectations  
 3. **Document changes**: Update this README with behavior changes
 4. **Add tests**: Include comprehensive test coverage
-5. **Consider tool calling**: Ensure new features work with function calling
+5. **Consider tool calling**: Ensure features work with function calling
 
 ## 📝 Version History
 
@@ -466,7 +420,4 @@ When modifying Echo, remember:
 - **v1.3**: Implemented hybrid input processing for better tool context
 - **v1.4**: Added comprehensive streaming support and usage tracking
 - **v1.5**: Improved tool call ID generation with unique timestamp-based IDs, fixed parallel tool calling duplicate ID issues
-
----
-
-*The Echo provider is designed to be the perfect test double for conversation components. It provides predictable, reliable behavior while maintaining full compatibility with real LLM providers.* 
+- **v1.6**: Documentation cleanup - fixed streaming behavior descriptions, corrected tool call ID format examples, reduced code duplication

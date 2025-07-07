@@ -1,13 +1,12 @@
 //go:build conftests
+// +build conftests
 
 /*
 Copyright 2024 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
+    http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
+// TestOpenAITrueMultiTurn tests OpenAI's true multi-turn conversation behavior
 func TestOpenAITrueMultiTurn(t *testing.T) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -49,7 +49,7 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 	}
 
 	comp := openai.NewOpenAI(testLogger)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
 	defer cancel()
 
 	err := comp.Init(ctx, metadata)
@@ -85,11 +85,13 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 			Role: conversation.RoleUser,
 			Parts: []conversation.ContentPart{
 				conversation.TextContentPart{Text: "What's the weather like in San Francisco?"},
-				conversation.ToolDefinitionsContentPart{Tools: []conversation.Tool{weatherTool}},
 			},
 		})
 
-		turn1Req := &conversation.ConversationRequest{Inputs: conversationHistory}
+		turn1Req := &conversation.ConversationRequest{
+			Tools:  []conversation.Tool{weatherTool}, // Tools in request field (correct approach)
+			Inputs: conversationHistory,
+		}
 		turn1Resp, err := comp.Converse(ctx, turn1Req)
 		require.NoError(t, err)
 
@@ -133,9 +135,12 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 
 			// ========== TURN 2: Process tool results ==========
 			t.Log("🔄 TURN 2: Process tool results")
-			turn2Req := &conversation.ConversationRequest{Inputs: conversationHistory}
-			turn2Resp, err := comp.Converse(ctx, turn2Req)
-			require.NoError(t, err)
+			turn2Req := &conversation.ConversationRequest{
+				Tools:  []conversation.Tool{weatherTool}, // Keep tools available
+				Inputs: conversationHistory,
+			}
+			turn2Resp, err2 := comp.Converse(ctx, turn2Req)
+			require.NoError(t, err2)
 
 			turn2Text := conversation.ExtractTextFromParts(turn2Resp.Outputs[0].Parts)
 			t.Logf("📤 Turn 2 Response: %s", turn2Text)
@@ -147,21 +152,24 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 			// ========== TURN 3: Follow-up question ==========
 			t.Log("🔄 TURN 3: Follow-up question about clothing recommendations")
 
-			conversationHistory = append(conversationHistory, conversation.ConversationInput{
-				Role:  conversation.RoleAssistant,
-				Parts: turn2Resp.Outputs[0].Parts,
-			})
-
-			conversationHistory = append(conversationHistory, conversation.ConversationInput{
-				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
-					conversation.TextContentPart{Text: "Based on that weather, what should I wear?"},
+			conversationHistory = append(conversationHistory,
+				conversation.ConversationInput{
+					Role:  conversation.RoleAssistant,
+					Parts: turn2Resp.Outputs[0].Parts,
 				},
-			})
+				conversation.ConversationInput{
+					Role: conversation.RoleUser,
+					Parts: []conversation.ContentPart{
+						conversation.TextContentPart{Text: "Based on that weather, what should I wear?"},
+					},
+				})
 
-			turn3Req := &conversation.ConversationRequest{Inputs: conversationHistory}
-			turn3Resp, err := comp.Converse(ctx, turn3Req)
-			require.NoError(t, err)
+			turn3Req := &conversation.ConversationRequest{
+				Tools:  []conversation.Tool{weatherTool}, // Keep tools available
+				Inputs: conversationHistory,
+			}
+			turn3Resp, err3 := comp.Converse(ctx, turn3Req)
+			require.NoError(t, err3)
 
 			turn3Text := conversation.ExtractTextFromParts(turn3Resp.Outputs[0].Parts)
 			t.Logf("📤 Turn 3 Response: %s", turn3Text)
@@ -196,9 +204,12 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 			},
 		})
 
-		turn2Req := &conversation.ConversationRequest{Inputs: conversationHistory}
-		turn2Resp, err := comp.Converse(ctx, turn2Req)
-		require.NoError(t, err)
+		turn2Req := &conversation.ConversationRequest{
+			Tools:  []conversation.Tool{weatherTool}, // Keep tools available
+			Inputs: conversationHistory,
+		}
+		turn2Resp, err2 := comp.Converse(ctx, turn2Req)
+		require.NoError(t, err2)
 
 		turn2Text := conversation.ExtractTextFromParts(turn2Resp.Outputs[0].Parts)
 		turn2ToolCalls := conversation.ExtractToolCallsFromParts(turn2Resp.Outputs[0].Parts)
@@ -266,8 +277,8 @@ func TestOpenAITrueMultiTurn(t *testing.T) {
 			},
 		}
 
-		resp2, err := comp.Converse(ctx, req2)
-		require.NoError(t, err)
+		resp2, err2 := comp.Converse(ctx, req2)
+		require.NoError(t, err2)
 
 		text2 := conversation.ExtractTextFromParts(resp2.Outputs[0].Parts)
 		preview2 := text2

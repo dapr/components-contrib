@@ -13,4 +13,4 @@ spec:
     - name: region
       value: "${{AWS_REGION}}"
     - name: model
-      value: "anthropic.claude-3-haiku-20240307-v1:0" 
+      value: "arn:aws:bedrock:us-west-1:123456789:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"

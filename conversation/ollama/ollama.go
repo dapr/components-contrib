@@ -39,7 +39,10 @@ func NewOllama(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-const defaultModel = "llama3.2:latest"
+const (
+	defaultModel   = "llama3.2:latest"
+	ollamaProvider = "ollama"
+)
 
 func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
@@ -61,7 +64,7 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	o.LLM.Model = llm
-	o.LLM.ProviderModelName = "ollama/" + model
+	o.LLM.SetProviderModelName(ollamaProvider, model)
 
 	if md.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)

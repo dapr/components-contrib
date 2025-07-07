@@ -63,7 +63,10 @@ func NewMistral(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-const defaultModel = "mistral-medium-2505"
+const (
+	defaultModel    = "mistral-medium-2505"
+	mistralProvider = "mistral"
+)
 
 func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
@@ -94,7 +97,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	m.LLM.Model = llm
-	m.LLM.ProviderModelName = "mistral/" + model
+	m.LLM.SetProviderModelName(mistralProvider, model)
 	m.LLM.UsageGetterFunc = usageGetter
 
 	if md.CacheTTL != "" {

@@ -39,6 +39,10 @@ type LLM struct {
 
 var ErrStreamingNotSupported = errors.New("streaming is not supported by this model or provider")
 
+func (a *LLM) SetProviderModelName(provider, model string) {
+	a.ProviderModelName = provider + "/" + model
+}
+
 // SupportsToolCalling returns true to indicate this component supports tool calling
 func (a *LLM) SupportsToolCalling() bool {
 	return true

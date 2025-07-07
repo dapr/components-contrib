@@ -43,6 +43,7 @@ func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 const (
 	defaultModel                 = "gemini-2.5-pro"
 	googleAIOpenAICompatEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+	googleaiProvider             = "googleai"
 )
 
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
@@ -90,7 +91,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	g.LLM.Model = llm
-	g.LLM.ProviderModelName = "googleai/" + model
+	g.LLM.SetProviderModelName(googleaiProvider, model)
 
 	g.logger.Info("GoogleAI Init: Successfully initialized model using OpenAI compatibility layer")
 

@@ -30,11 +30,16 @@ import (
 	"github.com/tmc/langchaingo/llms/bedrock"
 )
 
+const (
+	awsProvider  = "aws"
+	defaultModel = "amazon.titan-text-lite-v1"
+)
+
 type AWSBedrock struct {
 	model string
 	langchaingokit.LLM
-
-	logger logger.Logger
+	authProvider awsAuth.Provider
+	logger       logger.Logger
 }
 
 type AWSBedrockMetadata struct {
@@ -61,6 +66,9 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
+	// TODO: This needs to be cleaned up. We should not have custom aws env var logic outside of the common aws pkg.
+	// TODO: We need to update common aws pkg to use aws pkg v2 so that bedrock can be supported in our common aws pkg setup,
+	// and provide all forms of authentication via aws.
 	accessKey := m.AccessKey
 	if accessKey == "" {
 		accessKey = conversation.GetEnvKey("AWS_ACCESS_KEY_ID")
@@ -84,9 +92,13 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 	bedrockClient := bedrockruntime.NewFromConfig(awsConfig)
 
-	opts := []bedrock.Option{bedrock.WithClient(bedrockClient)}
-	if m.Model != "" {
-		opts = append(opts, bedrock.WithModel(m.Model))
+	if m.Model == "" {
+		m.Model = defaultModel
+	}
+
+	opts := []bedrock.Option{
+		bedrock.WithClient(bedrockClient),
+		bedrock.WithModel(m.Model),
 	}
 	b.model = m.Model
 
@@ -98,7 +110,7 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 	}
 
 	b.LLM.Model = llm
-	b.LLM.ProviderModelName = "aws/" + m.Model
+	b.LLM.SetProviderModelName(awsProvider, m.Model)
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)

@@ -102,10 +102,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	var allUserMessages []string
 	totalInputTokens := uint64(0)
 
-	// Get tools from the request (new API structure)
 	allTools := r.Tools
 
-	// Process all inputs with content parts support
 	for _, input := range r.Inputs {
 		// Get text content (with backward compatibility for Message field)
 		var inputContent string
@@ -176,7 +174,6 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 		output.FinishReason = conversation.FinishReasonStop
 	}
 
-	// Calculate output tokens
 	resultLen := len(output.Result) //nolint:staticcheck // Backward compatibility usage
 	var totalOutputTokens uint64
 
@@ -203,7 +200,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 }
 
 // Process content parts
-func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, lastUserMessage string, allUserMessages []string) []conversation.ContentPart {
+func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, _ string, allUserMessages []string) []conversation.ContentPart {
 	var responseParts []conversation.ContentPart
 
 	// Echo back information about the parts received
@@ -239,7 +236,6 @@ func (e *Echo) processContentParts(input conversation.ConversationInput, allTool
 				Text: fmt.Sprintf("Echo detected %d matching tools, generating calls:", len(toolsToCall)),
 			})
 
-			// Generate tool calls
 			for i, tool := range toolsToCall {
 				responseParts = append(responseParts, conversation.ToolCallContentPart{
 					ID:       fmt.Sprintf("call_echo_%d", time.Now().UnixNano()+int64(i)),
@@ -390,7 +386,6 @@ func (e *Echo) generateToolNameVariations(toolName string) []string {
 	// Add original name (lowercase)
 	variations[strings.ToLower(toolName)] = true
 
-	// Extract words from the tool name
 	words := e.extractWordsFromToolName(toolName)
 
 	if len(words) > 1 {
@@ -401,7 +396,6 @@ func (e *Echo) generateToolNameVariations(toolName string) []string {
 		variations[e.wordsToCamelCase(words)] = true // camelCase (from words)
 	}
 
-	// Convert map keys to slice
 	result := make([]string, 0, len(variations))
 	for variation := range variations {
 		result = append(result, variation)
@@ -540,7 +534,6 @@ func (e *Echo) generateToolArguments(tool conversation.Tool, userMessage string)
 		args["query"] = userMessage
 	}
 
-	// Marshal to JSON
 	jsonBytes, err := json.Marshal(args)
 	if err != nil {
 		return fmt.Sprintf(simpleQueryFallback, userMessage)
@@ -600,7 +593,6 @@ func (e *Echo) generateArgumentValue(paramName, paramType, description, userMess
 		return userMessage
 
 	case "integer", "number":
-		// Try to extract numbers from the message
 		if number := e.extractNumber(userMessage); number != 0 {
 			return number
 		}

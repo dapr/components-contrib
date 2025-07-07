@@ -112,13 +112,8 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 
 	// Build messages from all inputs using new content parts approach
 	messages := GetMessageFromRequest(r)
-
-	// Get tools from the request (new API structure)
 	tools := r.Tools
 
-	// Note: Tools are now only supported in ConversationRequest.Tools field
-
-	// Add tools if provided
 	if len(tools) > 0 {
 		// Some providers do not support tool call streaming, so we return error here so they can
 		// fallback to non-streaming mode.
@@ -150,7 +145,6 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 			Parameters: r.Parameters,
 		}
 
-		// Create response parts
 		var parts []conversation.ContentPart
 
 		// Add text content if available
@@ -158,7 +152,6 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 			parts = append(parts, conversation.TextContentPart{Text: resp.Choices[i].Content})
 		}
 
-		// Add tool calls if present
 		if len(resp.Choices[i].ToolCalls) > 0 {
 			for _, tc := range resp.Choices[i].ToolCalls {
 				// Generate provider-compatible ID if not provided by the provider
@@ -185,7 +178,6 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 			}
 		}
 
-		// Set content parts and legacy result field
 		result.Parts = parts
 		result.Result = conversation.ExtractTextFromParts(parts) //nolint:staticcheck // Legacy field for text backward compatibility
 

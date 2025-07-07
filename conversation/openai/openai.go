@@ -43,7 +43,10 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-const defaultModel = "gpt-4.1-2025-04-14"
+const (
+	defaultModel   = "gpt-4.1-2025-04-14"
+	openaiProvider = "openai"
+)
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
@@ -81,7 +84,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	o.LLM.Model = llm
-	o.LLM.ProviderModelName = "openai/" + model
+	o.LLM.SetProviderModelName(openaiProvider, model)
 
 	if md.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)

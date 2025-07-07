@@ -41,6 +41,7 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 }
 
 const defaultModel = "claude-sonnet-4-20250514"
+const anthropicProvider = "anthropic"
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
@@ -71,7 +72,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	}
 
 	a.LLM.Model = llm
-	a.LLM.ProviderModelName = "anthropic/" + model
+	a.LLM.SetProviderModelName(anthropicProvider, model)
 	a.LLM.UsageGetterFunc = conversation.ExtractUsageFromResponse
 	// TODO: Remove this once Anthropic supports tool call streaming
 	a.LLM.ToolCallStreamingDisabled = true

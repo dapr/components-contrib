@@ -41,7 +41,10 @@ func NewDeepseek(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-const defaultModel = "deepseek-chat"
+const (
+	defaultModel     = "deepseek-chat"
+	deepseekProvider = "deepseek"
+)
 
 // Default DeepSeek API endpoint
 const defaultEndpoint = "https://api.deepseek.com"
@@ -84,7 +87,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	d.LLM.Model = llm
-	d.LLM.ProviderModelName = "deepseek/" + model
+	d.LLM.SetProviderModelName(deepseekProvider, model)
 
 	if m.CacheTTL != "" {
 		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, d.LLM.Model)

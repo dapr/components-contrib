@@ -41,7 +41,10 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	}
 }
 
-const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+const (
+	defaultModel        = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+	huggingfaceProvider = "huggingface"
+)
 
 // Default HuggingFace OpenAI-compatible endpoint
 const defaultEndpoint = "https://router.huggingface.co/hf-inference/models/{{model}}/v1"
@@ -86,7 +89,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 	}
 
 	h.LLM.Model = llm
-	h.LLM.ProviderModelName = "huggingface/" + model
+	h.LLM.SetProviderModelName(huggingfaceProvider, model)
 	// Disable streaming by default for HuggingFace as it is not supported in the OpenAI-compatible API and langchaingo also does not support streaming for HuggingFace models.
 	h.LLM.StreamingDisabled = true
 

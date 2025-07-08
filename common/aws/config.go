@@ -59,7 +59,7 @@ func NewConfig(ctx context.Context, authOptions auth.Options, opts ...ConfigOpti
 		} else if credentialsProvider.Type() != auth.ProviderTypeUnknown {
 			configLoadOptions = append(
 				configLoadOptions,
-				config.WithCredentialsProvider(credentialsProvider),
+				config.WithCredentialsProvider(aws.NewCredentialsCache(credentialsProvider)),
 			)
 		}
 		// else use the sdk default external config if possible

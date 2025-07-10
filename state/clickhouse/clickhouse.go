@@ -30,6 +30,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type StateStore struct {
@@ -39,9 +40,9 @@ type StateStore struct {
 }
 
 type clickhouseMetadata struct {
-	ClickHouseURL string
-	Database      string
-	Table         string
+	ClickhouseURL string
+	DatabaseName  string
+	TableName     string
 	Username      string
 	Password      string
 }
@@ -60,7 +61,7 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	c.config = config
 
 	// Construct DSN with authentication if provided
-	dsn := c.config.ClickHouseURL
+	dsn := c.config.ClickhouseURL
 	// If username and password are provided and not already in the URL, add them to the DSN
 	if c.config.Username != "" && !strings.Contains(dsn, "username=") {
 		if !strings.Contains(dsn, "?") {
@@ -92,7 +93,7 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	// Create database if not exists
 	// Note: Database and table names are validated during metadata parsing
 	// and come from trusted configuration, so direct string concatenation is acceptable here
-	createDBQuery := "CREATE DATABASE IF NOT EXISTS " + c.config.Database
+	createDBQuery := "CREATE DATABASE IF NOT EXISTS " + c.config.DatabaseName
 	if _, err := db.ExecContext(ctx, createDBQuery); err != nil {
 		return fmt.Errorf("error creating database: %v", err)
 	}
@@ -101,7 +102,7 @@ func (c *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	// Note: Database and table names are validated during metadata parsing
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	createTableQuery := `
-		CREATE TABLE IF NOT EXISTS ` + c.config.Database + `.` + c.config.Table + ` (
+		CREATE TABLE IF NOT EXISTS ` + c.config.DatabaseName + `.` + c.config.TableName + ` (
 			key String,
 			value String,
 			etag String,
@@ -135,7 +136,7 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	query := `
 		SELECT value, etag, expire 
-		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
+		FROM ` + c.config.DatabaseName + `.` + c.config.TableName + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
 	`
 
@@ -220,7 +221,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	//nolint:gosec
 	insertQuery := `
-		INSERT INTO ` + c.config.Database + `.` + c.config.Table + ` (key, value, etag, expire)
+		INSERT INTO ` + c.config.DatabaseName + `.` + c.config.TableName + ` (key, value, etag, expire)
 		VALUES (?, ?, ?, ?)
 	`
 
@@ -231,7 +232,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		// and come from trusted configuration, so direct string concatenation is acceptable here
 		//nolint:gosec
 		updateQuery := `
-			ALTER TABLE ` + c.config.Database + `.` + c.config.Table + ` 
+			ALTER TABLE ` + c.config.DatabaseName + `.` + c.config.TableName + ` 
 			UPDATE value = ?, etag = ?, expire = ?
 			WHERE key = ?
 		`
@@ -267,7 +268,7 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	// Note: Database and table names are validated during metadata parsing
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	//nolint:gosec
-	query := "DELETE FROM " + c.config.Database + "." + c.config.Table + " WHERE key = ?"
+	query := "DELETE FROM " + c.config.DatabaseName + "." + c.config.TableName + " WHERE key = ?"
 	_, err := c.db.ExecContext(ctx, query, req.Key)
 	return err
 }
@@ -317,31 +318,21 @@ func parseTTL(metadata map[string]string) (int, error) {
 func parseAndValidateMetadata(metadata state.Metadata) (clickhouseMetadata, error) {
 	config := clickhouseMetadata{}
 
-	if val, ok := metadata.Properties["clickhouseURL"]; ok && val != "" {
-		config.ClickHouseURL = val
-	} else {
+	err := kitmd.DecodeMetadata(metadata.Properties, &config)
+	if err != nil {
+		return config, err
+	}
+
+	if config.ClickhouseURL == "" {
 		return config, errors.New("ClickHouse URL is missing")
 	}
 
-	if val, ok := metadata.Properties["databaseName"]; ok && val != "" {
-		config.Database = val
-	} else {
+	if config.DatabaseName == "" {
 		return config, errors.New("ClickHouse database name is missing")
 	}
 
-	if val, ok := metadata.Properties["tableName"]; ok && val != "" {
-		config.Table = val
-	} else {
+	if config.TableName == "" {
 		return config, errors.New("ClickHouse table name is missing")
-	}
-
-	// Get username and password if provided
-	if val, ok := metadata.Properties["username"]; ok {
-		config.Username = val
-	}
-
-	if val, ok := metadata.Properties["password"]; ok {
-		config.Password = val
 	}
 
 	return config, nil
@@ -404,7 +395,7 @@ func (c *StateStore) getETag(ctx context.Context, key string) (string, error) {
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	query := `
 		SELECT etag 
-		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
+		FROM ` + c.config.DatabaseName + `.` + c.config.TableName + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
 	`
 
@@ -426,7 +417,7 @@ func (c *StateStore) keyExists(ctx context.Context, key string) (bool, error) {
 	// and come from trusted configuration, so direct string concatenation is acceptable here
 	query := `
 		SELECT 1 
-		FROM ` + c.config.Database + `.` + c.config.Table + ` FINAL
+		FROM ` + c.config.DatabaseName + `.` + c.config.TableName + ` FINAL
 		WHERE key = ? AND (expire IS NULL OR expire > now64())
 		LIMIT 1
 	`

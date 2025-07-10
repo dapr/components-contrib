@@ -45,11 +45,11 @@ func TestClickHouseIntegration(t *testing.T) {
 	err := store.Init(ctx, state.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"clickhouseURL": testURL,
-				"databaseName":  testDatabase,
-				"tableName":     testTable,
-				"username":      testUsername,
-				"password":      testPassword,
+				"ClickhouseURL": testURL,
+				"DatabaseName":  testDatabase,
+				"TableName":     testTable,
+				"Username":      testUsername,
+				"Password":      testPassword,
 			},
 		},
 	})
@@ -175,9 +175,9 @@ func TestClickHouseIntegration(t *testing.T) {
 func TestParseAndValidateMetadata(t *testing.T) {
 	t.Run("With valid metadata", func(t *testing.T) {
 		properties := map[string]string{
-			"clickhouseURL": "tcp://127.0.0.1:9000",
-			"databaseName":  "default",
-			"tableName":     "statestore",
+			"ClickhouseURL": "tcp://127.0.0.1:9000",
+			"DatabaseName":  "default",
+			"TableName":     "statestore",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
@@ -185,15 +185,15 @@ func TestParseAndValidateMetadata(t *testing.T) {
 
 		metadata, err := parseAndValidateMetadata(m)
 		require.NoError(t, err)
-		assert.Equal(t, properties["clickhouseURL"], metadata.ClickHouseURL)
-		assert.Equal(t, properties["databaseName"], metadata.Database)
-		assert.Equal(t, properties["tableName"], metadata.Table)
+		assert.Equal(t, properties["ClickhouseURL"], metadata.ClickhouseURL)
+		assert.Equal(t, properties["DatabaseName"], metadata.DatabaseName)
+		assert.Equal(t, properties["TableName"], metadata.TableName)
 	})
 
-	t.Run("Missing clickhouseURL", func(t *testing.T) {
+	t.Run("Missing ClickhouseURL", func(t *testing.T) {
 		properties := map[string]string{
-			"databaseName": "default",
-			"tableName":    "statestore",
+			"DatabaseName": "default",
+			"TableName":    "statestore",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
@@ -204,10 +204,10 @@ func TestParseAndValidateMetadata(t *testing.T) {
 		assert.Equal(t, "ClickHouse URL is missing", err.Error())
 	})
 
-	t.Run("Missing databaseName", func(t *testing.T) {
+	t.Run("Missing DatabaseName", func(t *testing.T) {
 		properties := map[string]string{
-			"clickhouseURL": "tcp://127.0.0.1:9000",
-			"tableName":     "statestore",
+			"ClickhouseURL": "tcp://127.0.0.1:9000",
+			"TableName":     "statestore",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
@@ -218,10 +218,10 @@ func TestParseAndValidateMetadata(t *testing.T) {
 		assert.Equal(t, "ClickHouse database name is missing", err.Error())
 	})
 
-	t.Run("Missing tableName", func(t *testing.T) {
+	t.Run("Missing TableName", func(t *testing.T) {
 		properties := map[string]string{
-			"clickhouseURL": "tcp://127.0.0.1:9000",
-			"databaseName":  "default",
+			"ClickhouseURL": "tcp://127.0.0.1:9000",
+			"DatabaseName":  "default",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},

@@ -416,8 +416,8 @@ github.com/dapr/durabletask-go v0.6.5 h1:aWcxMfYudojpgRjJRdUr7yyZ7rGcvLtWXUuA4cG
 github.com/dapr/durabletask-go v0.6.5/go.mod h1:nTZ5fCbJLnZbVdi6Z2YxdDF1OgQZL3LroogGuetrwuA=
 github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46 h1:0/WKEqAfTGnFAiFrqMpIEBMkCHaAqt5H9efU0hyKiG4=
 github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46/go.mod h1:b86mngq2m71QqKtL48whlXIPWHgoXIH0Z3BrHwE6P9U=
-github.com/dapr/kit v0.15.3-0.20250522135818-baea6263991d h1:8/Qhy5T6mb49KipoHnWQaG+uQ5Cjo9/tRaL8MFojG+g=
-github.com/dapr/kit v0.15.3-0.20250522135818-baea6263991d/go.mod h1:6w2Pr38zOAtBn+ld/jknwI4kgMfwanCIcFVnPykdPZQ=
+github.com/dapr/kit v0.15.3-0.20250616160611-598b032bce69 h1:I1Uoy3fn906AZZdG8+n8fHitgY7Wn9c+smz4WQdOy1Q=
+github.com/dapr/kit v0.15.3-0.20250616160611-598b032bce69/go.mod h1:6w2Pr38zOAtBn+ld/jknwI4kgMfwanCIcFVnPykdPZQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

@@ -77,7 +77,7 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 			err  error
 		}{resp: nil, err: ErrInvalidRequestData}},
 		{"invoke valid request metadata", &bindings.InvokeRequest{
-			Data:      []byte(`{"measurement":"a", "tags":"a", "values":"a"}`),
+			Data:      []byte(`{"measurement":"a", "tags":{"a":"a"}, "fields":{"a":1}}`),
 			Operation: bindings.CreateOperation,
 		}, struct {
 			resp *bindings.InvokeResponse
@@ -89,7 +89,7 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	w := NewMockWriteAPIBlocking(ctrl)
-	w.EXPECT().WriteRecord(gomock.Eq(t.Context()), gomock.Eq("a,a a")).Return(nil)
+	w.EXPECT().WriteRecord(gomock.Eq(t.Context()), gomock.Eq("a,a=a a=1")).Return(nil)
 	influx := &Influx{
 		writeAPI: w,
 	}

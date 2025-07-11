@@ -262,6 +262,18 @@ func TestPostgres(t *testing.T) {
 		// Should return the value with version 2
 		require.Equal(t, "val-version-2", items[key1].Value)
 
+		// Add two versions of key1, first with 1.0.0, second with 1.1.0
+		err = addKey(key1, "exact-string-version-match-1", "1.0.0")
+		require.NoError(t, err, "error adding key")
+		err = addKey(key1, "exact-string-version-match-2", "1.1.0")
+		require.NoError(t, err, "error adding key")
+		opt := dapr.WithConfigurationMetadata("version", "1.0.0")
+		items, err = client.GetConfigurationItems(ctx, storeName, []string{key1}, opt)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(items))
+		// Should return the value with version 1.0.0
+		require.Equal(t, "exact-string-version-match-1", items[key1].Value)
+
 		// Delete key1
 		err = updater.DeleteKey([]string{key1})
 		require.NoError(t, err, "error deleting key")

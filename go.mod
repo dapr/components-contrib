@@ -98,6 +98,7 @@ require (
 	github.com/nats-io/nats.go v1.31.0
 	github.com/nats-io/nkeys v0.4.6
 	github.com/open-policy-agent/opa v1.4.2
+	github.com/oracle/coherence-go-client/v2 v2.3.1
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -130,7 +131,7 @@ require (
 	golang.org/x/net v0.41.0
 	golang.org/x/oauth2 v0.30.0
 	google.golang.org/api v0.218.0
-	google.golang.org/grpc v1.72.0
+	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/couchbase/gocb.v1 v1.6.7
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
@@ -145,7 +146,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.20.0 // indirect
+	cel.dev/expr v0.23.0 // indirect
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/auth v0.14.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
@@ -163,7 +164,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.26.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1 // indirect
 	github.com/RoaringBitmap/roaring v1.1.0 // indirect
@@ -211,7 +212,7 @@ require (
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
-	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
+	github.com/cncf/xds/go v0.0.0-20250326154945-ae57f3c0d45f // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
@@ -237,7 +238,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -394,7 +395,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.10 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.34.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.36.0 // indirect
@@ -415,7 +416,7 @@ require (
 	golang.org/x/tools v0.33.0 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250505200425-f936aa4a68b2 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250505200425-f936aa4a68b2 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/grpc/examples v0.0.0-20230224211313-3775f633ce20 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect

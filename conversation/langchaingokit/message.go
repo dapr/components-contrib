@@ -28,19 +28,17 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 
 	for _, input := range r.Inputs {
 		role := ConvertLangchainRole(input.Role)
-
-		// Process with native parts support if available
-		if len(input.Parts) > 0 {
+		if len(input.Content) > 0 {
 			// Handle different combinations of parts
 			var textParts []string
 			var toolCalls []llms.ToolCall
-			var toolResults []conversation.ToolResultContentPart
+			var toolResults []conversation.ToolCallResponse
 
-			for _, part := range input.Parts {
+			for _, part := range input.Content {
 				switch p := part.(type) {
 				case conversation.TextContentPart:
 					textParts = append(textParts, p.Text)
-				case conversation.ToolCallContentPart:
+				case conversation.ToolCallRequest:
 					toolCalls = append(toolCalls, llms.ToolCall{
 						ID:   p.ID,
 						Type: p.CallType,
@@ -49,7 +47,7 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 							Arguments: p.Function.Arguments,
 						},
 					})
-				case conversation.ToolResultContentPart:
+				case conversation.ToolCallResponse:
 					toolResults = append(toolResults, p)
 				}
 			}
@@ -94,12 +92,6 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 					Parts: []llms.ContentPart{llms.TextPart(strings.Join(textParts, " "))},
 				})
 			}
-		} else if input.Message != "" { //nolint:staticcheck // Backward compatibility check
-			// Legacy message field support
-			messages = append(messages, llms.MessageContent{
-				Role:  role,
-				Parts: []llms.ContentPart{llms.TextPart(input.Message)}, //nolint:staticcheck // Backward compatibility
-			})
 		}
 	}
 

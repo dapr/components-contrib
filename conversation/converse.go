@@ -56,21 +56,19 @@ type ToolCallSupport interface {
 }
 
 type ConversationInput struct {
-	// Deprecated: Use Parts instead for new implementations (text backward compatibility only)
-	Message string `json:"string"`
-	Role    Role   `json:"role"`
+	Role Role `json:"role"`
 
 	// Content parts for rich content within each LLM request/response
-	Parts []ContentPart `json:"parts,omitempty"`
+	Content []ConversationContent `json:"content,omitempty"`
 }
 
 type ConversationRequest struct {
-	Inputs              []ConversationInput   `json:"inputs"`
-	Parameters          map[string]*anypb.Any `json:"parameters"`
-	ConversationContext string                `json:"conversationContext"`
-	Temperature         float64               `json:"temperature"`
-	MaxTokens           int                   `json:"maxTokens"`
-	Tools               []Tool                `json:"tools,omitempty"`
+	Inputs      []ConversationInput   `json:"inputs"`
+	Parameters  map[string]*anypb.Any `json:"parameters"`
+	Context     string                `json:"context"`
+	Temperature float64               `json:"temperature"`
+	MaxTokens   int                   `json:"maxTokens"`
+	Tools       []Tool                `json:"tools,omitempty"`
 
 	// from metadata
 	Key       string   `json:"key"`
@@ -80,17 +78,13 @@ type ConversationRequest struct {
 }
 
 type ConversationOutput struct {
-	// Deprecated: Use Parts instead for new implementations (text backward compatibility only)
-	Result     string                `json:"result"`
-	Parameters map[string]*anypb.Any `json:"parameters"`
-
-	// Content parts in response
-	Parts        []ContentPart `json:"parts,omitempty"`
-	FinishReason string        `json:"finish_reason,omitempty"`
+	Parameters   map[string]*anypb.Any `json:"parameters"`
+	Content      []ConversationContent `json:"content,omitempty"`
+	FinishReason string                `json:"finish_reason,omitempty"`
 }
 
 type ConversationResponse struct {
-	ConversationContext string `json:"conversationContext"`
+	Context string `json:"context"`
 	// Outputs is the list of outputs from the LLM. Usually there is only one output. This is more like candidates in Google AI.
 	// each output can have multiple parts (for example, a list of tool calls, text, etc.)
 	Outputs []ConversationOutput `json:"outputs"`
@@ -109,7 +103,7 @@ const (
 )
 
 // DefaultFinishReason determines the appropriate finish reason based on content parts if no other reason is provided
-func DefaultFinishReason(parts []ContentPart) string {
+func DefaultFinishReason(parts []ConversationContent) string {
 	toolCalls := ExtractToolCallsFromParts(parts)
 	if len(toolCalls) > 0 {
 		return "tool_calls"

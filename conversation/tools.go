@@ -22,19 +22,19 @@ import (
 	"fmt"
 )
 
-// ToolCallContentPart Tool call content part (assistant generates these)
-type ToolCallContentPart struct {
+// ToolCallRequest Tool call content part (assistant generates these)
+type ToolCallRequest struct {
 	ID       string           `json:"id"`
 	CallType string           `json:"type"`
 	Function ToolCallFunction `json:"function"`
 }
 
-func (tc ToolCallContentPart) Type() ContentPartType { return ContentPartToolCall }
-func (tc ToolCallContentPart) String() string {
+func (tc ToolCallRequest) Type() ContentType { return ContentPartToolCall }
+func (tc ToolCallRequest) String() string {
 	return "ToolCall: " + tc.Function.Name + "(" + tc.Function.Arguments + ")"
 }
 
-func (tc ToolCallContentPart) Validate() error {
+func (tc ToolCallRequest) Validate() error {
 	if tc.ID == "" {
 		return errors.New("tool call ID cannot be empty")
 	}
@@ -44,24 +44,24 @@ func (tc ToolCallContentPart) Validate() error {
 	return nil
 }
 
-// ToolResultContentPart Tool result content part (tool execution results for an LLM tool call)
-type ToolResultContentPart struct {
+// ToolCallResponse Tool result content part (tool execution results for an LLM tool call)
+type ToolCallResponse struct {
 	ToolCallID string `json:"tool_call_id"`
 	Name       string `json:"name"`
 	Content    string `json:"content"`
 	IsError    bool   `json:"is_error,omitempty"`
 }
 
-func (tr ToolResultContentPart) Type() ContentPartType { return ContentPartToolResult }
-func (tr ToolResultContentPart) String() string {
+func (tr ToolCallResponse) Type() ContentType { return ContentPartToolResult }
+func (tr ToolCallResponse) String() string {
 	status := "success"
 	if tr.IsError {
 		status = "error"
 	}
-	return "ToolResult[" + tr.ToolCallID + "]: " + tr.Name + " (" + status + ")"
+	return "ToolCallResponse[" + tr.ToolCallID + "]: " + tr.Name + " (" + status + ")"
 }
 
-func (tr ToolResultContentPart) Validate() error {
+func (tr ToolCallResponse) Validate() error {
 	if tr.ToolCallID == "" {
 		return errors.New("tool result call ID cannot be empty")
 	}
@@ -76,7 +76,7 @@ type ToolDefinitionsContentPart struct {
 	Tools []Tool `json:"tools"`
 }
 
-func (td ToolDefinitionsContentPart) Type() ContentPartType { return ContentPartToolDefinitions }
+func (td ToolDefinitionsContentPart) Type() ContentType { return ContentPartToolDefinitions }
 func (td ToolDefinitionsContentPart) String() string {
 	return "ToolDefinitions: " + fmt.Sprintf("%d tools available", len(td.Tools))
 }
@@ -94,7 +94,7 @@ type ToolMessageContentPart struct {
 	Content    string `json:"content"`
 }
 
-func (tm ToolMessageContentPart) Type() ContentPartType { return ContentPartToolMessage }
+func (tm ToolMessageContentPart) Type() ContentType { return ContentPartToolMessage }
 func (tm ToolMessageContentPart) String() string {
 	return "ToolMessage[" + tm.ToolCallID + "]: " + tm.Content
 }
@@ -108,7 +108,7 @@ func (tm ToolMessageContentPart) Validate() error {
 
 // Tool calling types (matching Dapr protobuf structure)
 type Tool struct {
-	ToolType string       `json:"type"` // Always "function" for now, but in the future it can be other
+	Type     string       `json:"type"` // Always "function" for now, but in the future it can be other
 	Function ToolFunction `json:"function"`
 }
 

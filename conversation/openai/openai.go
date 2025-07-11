@@ -25,7 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
-	langchaingointernalchat "github.com/dapr/components-contrib/conversation/openai/lanchaingointernalchat"
+	langchaingointernalchat "github.com/dapr/components-contrib/conversation/openai/langchaingointernalchat"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"

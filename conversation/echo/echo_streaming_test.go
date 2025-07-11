@@ -52,7 +52,7 @@ func TestEchoStreamingFunctionality(t *testing.T) {
 				Role:    "user",
 			},
 		},
-		ConversationContext: "test-context-123",
+		Context: "test-context-123",
 	}
 
 	// Collect streaming chunks
@@ -77,7 +77,7 @@ func TestEchoStreamingFunctionality(t *testing.T) {
 	// Verify response structure
 	assert.Len(t, resp.Outputs, 1)
 	assert.Equal(t, "Hello streaming world", conversation.ExtractTextFromParts(resp.Outputs[0].Parts))
-	assert.Equal(t, "test-context-123", resp.ConversationContext)
+	assert.Equal(t, "test-context-123", resp.Context)
 
 	// Verify we got multiple chunks (streaming behavior)
 	assert.Greater(t, len(chunks), 1, "Should receive multiple chunks for streaming")
@@ -167,7 +167,7 @@ func TestEchoStreamingContextGeneration(t *testing.T) {
 	require.NotNil(t, resp)
 
 	// Echo now returns empty context when none provided (like real LLM providers)
-	assert.Equal(t, "", resp.ConversationContext, "Should return empty context when none provided")
+	assert.Equal(t, "", resp.Context, "Should return empty context when none provided")
 }
 
 func TestEchoStreamingErrorHandling(t *testing.T) {

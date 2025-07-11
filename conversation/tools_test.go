@@ -24,7 +24,7 @@ import (
 
 func TestToolCallContentPart_Validate(t *testing.T) {
 	t.Run("valid tool call", func(t *testing.T) {
-		p := ToolCallContentPart{
+		p := ToolCallRequest{
 			ID: "call_123",
 			Function: ToolCallFunction{
 				Name:      "get_weather",
@@ -35,7 +35,7 @@ func TestToolCallContentPart_Validate(t *testing.T) {
 	})
 
 	t.Run("missing id", func(t *testing.T) {
-		p := ToolCallContentPart{
+		p := ToolCallRequest{
 			Function: ToolCallFunction{
 				Name: "get_weather",
 			},
@@ -46,7 +46,7 @@ func TestToolCallContentPart_Validate(t *testing.T) {
 	})
 
 	t.Run("missing function name", func(t *testing.T) {
-		p := ToolCallContentPart{
+		p := ToolCallRequest{
 			ID: "call_123",
 			Function: ToolCallFunction{
 				Arguments: `{"location": "Seattle"}`,
@@ -60,16 +60,16 @@ func TestToolCallContentPart_Validate(t *testing.T) {
 
 func TestToolResultContentPart_Validate(t *testing.T) {
 	t.Run("valid tool result", func(t *testing.T) {
-		p := ToolResultContentPart{
-			ToolCallID: "call_123",
-			Name:       "get_weather",
-			Content:    "Sunny",
+		p := ToolCallResponse{
+			ID:      "call_123",
+			Name:    "get_weather",
+			Content: "Sunny",
 		}
 		require.NoError(t, p.Validate())
 	})
 
 	t.Run("missing tool call id", func(t *testing.T) {
-		p := ToolResultContentPart{
+		p := ToolCallResponse{
 			Name:    "get_weather",
 			Content: "Sunny",
 		}
@@ -79,9 +79,9 @@ func TestToolResultContentPart_Validate(t *testing.T) {
 	})
 
 	t.Run("missing name", func(t *testing.T) {
-		p := ToolResultContentPart{
-			ToolCallID: "call_123",
-			Content:    "Sunny",
+		p := ToolCallResponse{
+			ID:      "call_123",
+			Content: "Sunny",
 		}
 		err := p.Validate()
 		require.Error(t, err)

@@ -17,21 +17,21 @@ package conversation
 
 import "strings"
 
-// ContentPart interface for type-safe content handling
-type ContentPart interface {
-	Type() ContentPartType
+// ConversationContent interface for type-safe content handling
+type ConversationContent interface {
+	Type() ContentType
 	String() string
 	Validate() error
 }
 
-type ContentPartType string
+type ContentType string
 
 const (
-	ContentPartText            ContentPartType = "text"
-	ContentPartToolCall        ContentPartType = "tool_call"
-	ContentPartToolResult      ContentPartType = "tool_result"
-	ContentPartToolDefinitions ContentPartType = "tool_definitions"
-	ContentPartToolMessage     ContentPartType = "tool_message"
+	ContentPartText            ContentType = "text"
+	ContentPartToolCall        ContentType = "tool_call"
+	ContentPartToolResult      ContentType = "tool_result"
+	ContentPartToolDefinitions ContentType = "tool_definitions"
+	ContentPartToolMessage     ContentType = "tool_message"
 	// Future: ContentPartImage, ContentPartDocument, etc.
 )
 
@@ -40,8 +40,8 @@ type TextContentPart struct {
 	Text string `json:"text"`
 }
 
-func (t TextContentPart) Type() ContentPartType { return ContentPartText }
-func (t TextContentPart) String() string        { return t.Text }
+func (t TextContentPart) Type() ContentType { return ContentPartText }
+func (t TextContentPart) String() string    { return t.Text }
 func (t TextContentPart) Validate() error {
 	if t.Text == "" {
 		return nil // Allow empty text parts
@@ -50,7 +50,7 @@ func (t TextContentPart) Validate() error {
 }
 
 // ExtractTextFromParts Extract all text content from parts
-func ExtractTextFromParts(parts []ContentPart) string {
+func ExtractTextFromParts(parts []ConversationContent) string {
 	var textParts []string
 	for _, part := range parts {
 		if textPart, ok := part.(TextContentPart); ok {
@@ -61,7 +61,7 @@ func ExtractTextFromParts(parts []ContentPart) string {
 }
 
 // ExtractToolDefinitionsFromParts Extract tool definitions from parts
-func ExtractToolDefinitionsFromParts(parts []ContentPart) []Tool {
+func ExtractToolDefinitionsFromParts(parts []ConversationContent) []Tool {
 	for _, part := range parts {
 		if toolDefPart, ok := part.(ToolDefinitionsContentPart); ok {
 			return toolDefPart.Tools
@@ -71,10 +71,10 @@ func ExtractToolDefinitionsFromParts(parts []ContentPart) []Tool {
 }
 
 // ExtractToolCallsFromParts Extract tool calls from parts
-func ExtractToolCallsFromParts(parts []ContentPart) []ToolCall {
+func ExtractToolCallsFromParts(parts []ConversationContent) []ToolCall {
 	var toolCalls []ToolCall
 	for _, part := range parts {
-		if toolCallPart, ok := part.(ToolCallContentPart); ok {
+		if toolCallPart, ok := part.(ToolCallRequest); ok {
 			toolCalls = append(toolCalls, ToolCall{
 				ID:       toolCallPart.ID,
 				CallType: toolCallPart.CallType,
@@ -86,10 +86,10 @@ func ExtractToolCallsFromParts(parts []ContentPart) []ToolCall {
 }
 
 // ExtractToolResultsFromParts Extract tool results from parts
-func ExtractToolResultsFromParts(parts []ContentPart) []ToolResultContentPart {
-	var results []ToolResultContentPart
+func ExtractToolResultsFromParts(parts []ConversationContent) []ToolCallResponse {
+	var results []ToolCallResponse
 	for _, part := range parts {
-		if resultPart, ok := part.(ToolResultContentPart); ok {
+		if resultPart, ok := part.(ToolCallResponse); ok {
 			results = append(results, resultPart)
 		}
 	}

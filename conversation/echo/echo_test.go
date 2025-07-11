@@ -107,7 +107,7 @@ func TestEchoVsRealLLMBehavior(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hello with parts"},
 					},
 				},
@@ -120,7 +120,7 @@ func TestEchoVsRealLLMBehavior(t *testing.T) {
 
 		// Test tool calling - should have "tool_calls"
 		weatherTool := conversation.Tool{
-			ToolType: "function",
+			Type: "function",
 			Function: conversation.ToolFunction{
 				Name:        "get_weather",
 				Description: "Get weather information",
@@ -138,7 +138,7 @@ func TestEchoVsRealLLMBehavior(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "What's the weather like?"},
 					},
 				},
@@ -165,10 +165,10 @@ func TestEchoVsRealLLMBehavior(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{Message: "Test", Role: conversation.RoleUser},
 			},
-			ConversationContext: "test-context-123",
+			Context: "test-context-123",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "test-context-123", resp1.ConversationContext)
+		assert.Equal(t, "test-context-123", resp1.Context)
 
 		// Test 2: Without context (empty)
 		resp2, err := e.Converse(t.Context(), &conversation.ConversationRequest{
@@ -178,7 +178,7 @@ func TestEchoVsRealLLMBehavior(t *testing.T) {
 			// No ConversationContext provided
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "", resp2.ConversationContext, "Should return empty context when none provided")
+		assert.Equal(t, "", resp2.Context, "Should return empty context when none provided")
 	})
 
 	t.Run("usage_information_like_real_llms", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestEchoContentPartsToolSupport(t *testing.T) {
 
 	// Test tool definitions in content parts
 	tool := conversation.Tool{
-		ToolType: "function",
+		Type: "function",
 		Function: conversation.ToolFunction{
 			Name:        "test_tool",
 			Description: "Test tool with count parameter",
@@ -228,7 +228,7 @@ func TestEchoContentPartsToolSupport(t *testing.T) {
 		Inputs: []conversation.ConversationInput{
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Call test_tool"},
 				},
 			},
@@ -254,7 +254,7 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 	// Simulate a multi-turn conversation with accumulated context
 	// Turn 1: User asks about weather with tool definitions
 	weatherTool := conversation.Tool{
-		ToolType: "function",
+		Type: "function",
 		Function: conversation.ToolFunction{
 			Name:        "get_weather",
 			Description: "Get current weather in a location",
@@ -272,7 +272,7 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 	}
 
 	timeTool := conversation.Tool{
-		ToolType: "function",
+		Type: "function",
 		Function: conversation.ToolFunction{
 			Name:        "get_time",
 			Description: "Get current time in a timezone",
@@ -295,7 +295,7 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 		Inputs: []conversation.ConversationInput{
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "What's the weather like in New York? I'm planning my day."},
 				},
 			},
@@ -330,16 +330,16 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 			// Include previous conversation context
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "What's the weather like in New York? I'm planning my day."},
 				},
 			},
 			// Assistant's response with tool call (simplified for echo)
 			{
 				Role: conversation.RoleAssistant,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "I'll check the weather in New York for you."},
-					conversation.ToolCallContentPart{
+					conversation.ToolCallRequest{
 						ID:       weatherToolCall.ID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
@@ -352,19 +352,19 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 			// Tool result
 			{
 				Role: conversation.RoleTool,
-				Parts: []conversation.ContentPart{
-					conversation.ToolResultContentPart{
-						ToolCallID: weatherToolCall.ID,
-						Name:       "get_weather",
-						Content:    `{"temperature": 72, "condition": "sunny", "humidity": 45, "wind": "8 mph NW"}`,
-						IsError:    false,
+				Content: []conversation.ConversationContent{
+					conversation.ToolCallResponse{
+						ID:      weatherToolCall.ID,
+						Name:    "get_weather",
+						Content: `{"temperature": 72, "condition": "sunny", "humidity": 45, "wind": "8 mph NW"}`,
+						IsError: false,
 					},
 				},
 			},
 			// User's follow-up question
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Great! Now what time is it there? I need to know if shops are open."},
 				},
 			},
@@ -399,16 +399,16 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 			// Previous context (abbreviated for test)
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Great! Now what time is it there? I need to know if shops are open."},
 				},
 			},
 			// Assistant's time tool call response
 			{
 				Role: conversation.RoleAssistant,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "I'll check the current time in New York for you."},
-					conversation.ToolCallContentPart{
+					conversation.ToolCallRequest{
 						ID:       timeToolCall.ID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
@@ -421,19 +421,19 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 			// Time tool result
 			{
 				Role: conversation.RoleTool,
-				Parts: []conversation.ContentPart{
-					conversation.ToolResultContentPart{
-						ToolCallID: timeToolCall.ID,
-						Name:       "get_time",
-						Content:    `{"time": "2:30 PM", "timezone": "EST", "date": "2024-01-15", "day_of_week": "Monday"}`,
-						IsError:    false,
+				Content: []conversation.ConversationContent{
+					conversation.ToolCallResponse{
+						ID:      timeToolCall.ID,
+						Name:    "get_time",
+						Content: `{"time": "2:30 PM", "timezone": "EST", "date": "2024-01-15", "day_of_week": "Monday"}`,
+						IsError: false,
 					},
 				},
 			},
 			// User's final message
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Perfect! Thank you for the weather and time information. That helps a lot with my planning."},
 				},
 			},
@@ -457,9 +457,9 @@ func TestMultiTurnContentPartsContextAccumulation(t *testing.T) {
 	t.Logf("Turn 3: Final response completed conversation appropriately")
 
 	// Verify the conversation context handling (echo returns what was provided)
-	assert.Empty(t, turn1Resp.ConversationContext, "Echo returns empty context when none provided")
-	assert.Empty(t, turn2Resp.ConversationContext, "Echo returns empty context when none provided")
-	assert.Empty(t, turn3Resp.ConversationContext, "Echo returns empty context when none provided")
+	assert.Empty(t, turn1Resp.Context, "Echo returns empty context when none provided")
+	assert.Empty(t, turn2Resp.Context, "Echo returns empty context when none provided")
+	assert.Empty(t, turn3Resp.Context, "Echo returns empty context when none provided")
 
 	t.Log("✅ Multi-turn content parts context accumulation test completed successfully")
 }
@@ -489,7 +489,7 @@ func TestMultiTurnWithOpenAIRealData(t *testing.T) {
 
 	// Define tools for the conversation
 	weatherTool := conversation.Tool{
-		ToolType: "function",
+		Type: "function",
 		Function: conversation.ToolFunction{
 			Name:        "get_weather",
 			Description: "Get current weather in a location",
@@ -513,7 +513,7 @@ func TestMultiTurnWithOpenAIRealData(t *testing.T) {
 			{
 				Role:    conversation.RoleUser,
 				Message: "What's the weather like in San Francisco? I'm deciding what to wear today.",
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "What's the weather like in San Francisco? I'm deciding what to wear today."},
 				},
 			},
@@ -539,14 +539,14 @@ func TestMultiTurnWithOpenAIRealData(t *testing.T) {
 		// Original user message
 		{
 			Role: conversation.RoleUser,
-			Parts: []conversation.ContentPart{
+			Content: []conversation.ConversationContent{
 				conversation.TextContentPart{Text: "What's the weather like in San Francisco? I'm deciding what to wear today."},
 			},
 		},
 		// OpenAI's actual response
 		{
-			Role:  conversation.RoleAssistant,
-			Parts: openaiOutput.Parts, // Use OpenAI's actual response parts
+			Role:    conversation.RoleAssistant,
+			Content: openaiOutput.Parts, // Use OpenAI's actual response parts
 		},
 	}
 
@@ -565,12 +565,12 @@ func TestMultiTurnWithOpenAIRealData(t *testing.T) {
 			// Add tool result to conversation
 			conversationHistory = append(conversationHistory, conversation.ConversationInput{
 				Role: conversation.RoleTool,
-				Parts: []conversation.ContentPart{
-					conversation.ToolResultContentPart{
-						ToolCallID: toolCall.ID,
-						Name:       toolCall.Function.Name,
-						Content:    toolResult,
-						IsError:    false,
+				Content: []conversation.ConversationContent{
+					conversation.ToolCallResponse{
+						ID:      toolCall.ID,
+						Name:    toolCall.Function.Name,
+						Content: toolResult,
+						IsError: false,
 					},
 				},
 			})
@@ -580,7 +580,7 @@ func TestMultiTurnWithOpenAIRealData(t *testing.T) {
 	// Add user follow-up
 	conversationHistory = append(conversationHistory, conversation.ConversationInput{
 		Role: conversation.RoleUser,
-		Parts: []conversation.ContentPart{
+		Content: []conversation.ConversationContent{
 			conversation.TextContentPart{Text: "Thanks! Based on that weather, what should I wear?"},
 		},
 	})
@@ -625,7 +625,7 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 	echo := &Echo{}
 
 	weatherTool := conversation.Tool{
-		ToolType: "function",
+		Type: "function",
 		Function: conversation.ToolFunction{
 			Name:        "get_weather",
 			Description: "Get current weather in a location",
@@ -648,7 +648,7 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 		Inputs: []conversation.ConversationInput{
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Tell me about New York"},
 				},
 			},
@@ -668,14 +668,14 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 			// First message mentions location but not weather
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "I'm planning a trip to Boston"},
 				},
 			},
 			// Second message mentions weather but not location
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Should I check the weather conditions?"},
 				},
 			},
@@ -713,16 +713,16 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 			// User message
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Check the weather in Seattle"},
 				},
 			},
 			// Assistant response with tool call
 			{
 				Role: conversation.RoleAssistant,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "I'll check the weather for you."},
-					conversation.ToolCallContentPart{
+					conversation.ToolCallRequest{
 						ID:       varietyToolCallID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
@@ -735,19 +735,19 @@ func TestEchoContextAccumulationDemo(t *testing.T) {
 			// Tool result
 			{
 				Role: conversation.RoleTool,
-				Parts: []conversation.ContentPart{
-					conversation.ToolResultContentPart{
-						ToolCallID: varietyToolCallID,
-						Name:       "get_weather",
-						Content:    `{"temperature": 60, "condition": "rainy"}`,
-						IsError:    false,
+				Content: []conversation.ConversationContent{
+					conversation.ToolCallResponse{
+						ID:      varietyToolCallID,
+						Name:    "get_weather",
+						Content: `{"temperature": 60, "condition": "rainy"}`,
+						IsError: false,
 					},
 				},
 			},
 			// User's final message
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Thanks! That's helpful for my planning."},
 				},
 			},
@@ -786,7 +786,7 @@ func TestOrderPreservationBugFix(t *testing.T) {
 	req := &conversation.ConversationRequest{
 		Tools: []conversation.Tool{
 			{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_weather",
 					Description: "Get current weather",
@@ -797,16 +797,16 @@ func TestOrderPreservationBugFix(t *testing.T) {
 			// 1. User asks about weather
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "What's the weather in Boston?"},
 				},
 			},
 			// 2. Assistant calls weather tool
 			{
 				Role: conversation.RoleAssistant,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "I'll check the weather for you."},
-					conversation.ToolCallContentPart{
+					conversation.ToolCallRequest{
 						ID:       orderTestToolCallID,
 						CallType: "function",
 						Function: conversation.ToolCallFunction{
@@ -819,18 +819,18 @@ func TestOrderPreservationBugFix(t *testing.T) {
 			// 3. Tool returns result
 			{
 				Role: conversation.RoleTool,
-				Parts: []conversation.ContentPart{
-					conversation.ToolResultContentPart{
-						ToolCallID: orderTestToolCallID,
-						Name:       "get_weather",
-						Content:    "Sunny, 72°F in Boston",
+				Content: []conversation.ConversationContent{
+					conversation.ToolCallResponse{
+						ID:      orderTestToolCallID,
+						Name:    "get_weather",
+						Content: "Sunny, 72°F in Boston",
 					},
 				},
 			},
 			// 4. User asks follow-up
 			{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Great! What time is it there?"},
 				},
 			},

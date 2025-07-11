@@ -149,7 +149,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "Hello"},
 							conversation.TextContentPart{Text: "World"},
 						},
@@ -177,7 +177,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.ConversationRequest{
 				Tools: []conversation.Tool{
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "test_tool",
 							Description: "A test tool",
@@ -197,7 +197,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "What can you do?"},
 						},
 					},
@@ -214,10 +214,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 		t.Run("content parts utility functions", func(t *testing.T) {
 			// Test the utility functions work correctly with proper content part types
-			parts := []conversation.ContentPart{
+			parts := []conversation.ConversationContent{
 				conversation.TextContentPart{Text: "Hello"},
 				conversation.TextContentPart{Text: "World"},
-				conversation.ToolCallContentPart{
+				conversation.ToolCallRequest{
 					ID:       "test_call_id",
 					CallType: "function",
 					Function: conversation.ToolCallFunction{
@@ -225,11 +225,11 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						Arguments: `{"param": "value"}`,
 					},
 				},
-				conversation.ToolResultContentPart{
-					ToolCallID: "test_call_id",
-					Name:       "test_tool",
-					Content:    "Test result",
-					IsError:    false,
+				conversation.ToolCallResponse{
+					ID:      "test_call_id",
+					Name:    "test_tool",
+					Content: "Test result",
+					IsError: false,
 				},
 			}
 
@@ -254,7 +254,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.ConversationRequest{
 				Tools: []conversation.Tool{
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "get_weather",
 							Description: "Get current weather",
@@ -274,7 +274,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "What's the weather like?"},
 						},
 					},
@@ -286,7 +286,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs, "Should have at least one output")
 
 			// Collect all parts from all outputs (some providers may return multiple outputs)
-			var allParts []conversation.ContentPart
+			var allParts []conversation.ConversationContent
 			for _, output := range resp.Outputs {
 				assert.NotEmpty(t, output.Parts, "Each output should have content parts")
 				allParts = append(allParts, output.Parts...)
@@ -312,7 +312,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.ConversationRequest{
 				Tools: []conversation.Tool{
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "get_weather",
 							Description: "Get current weather for a location",
@@ -329,7 +329,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "get_time",
 							Description: "Get current time for a location",
@@ -349,7 +349,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "I need the weather in New York and the time in London"},
 						},
 					},
@@ -361,7 +361,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs, "Should have at least one output")
 
 			// Collect all parts from all outputs
-			var allParts []conversation.ContentPart
+			var allParts []conversation.ConversationContent
 			for _, output := range resp.Outputs {
 				assert.NotEmpty(t, output.Parts, "Each output should have content parts")
 				allParts = append(allParts, output.Parts...)
@@ -406,21 +406,21 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					// User's initial message
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "Hello, how are you?"},
 						},
 					},
 					// Assistant's response
 					{
 						Role: conversation.RoleAssistant,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "I'm doing well, thank you!"},
 						},
 					},
 					// User's follow-up
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "What can you help me with?"},
 						},
 					},
@@ -448,7 +448,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			step1Req := &conversation.ConversationRequest{
 				Tools: []conversation.Tool{
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "get_weather",
 							Description: "Get current weather for a location",
@@ -468,7 +468,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "What's the weather like in San Francisco?"},
 						},
 					},
@@ -480,7 +480,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NotEmpty(t, step1Resp.Outputs, "Should have at least one output")
 
 			// Extract tool calls from the response
-			var allStep1Parts []conversation.ContentPart
+			var allStep1Parts []conversation.ConversationContent
 			for _, output := range step1Resp.Outputs {
 				allStep1Parts = append(allStep1Parts, output.Parts...)
 			}
@@ -509,8 +509,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				// Create assistant message with tool call using the exact structure from langchaingo example
 				step2Inputs = append(step2Inputs, conversation.ConversationInput{
 					Role: conversation.RoleAssistant,
-					Parts: []conversation.ContentPart{
-						conversation.ToolCallContentPart{
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallRequest{
 							ID:       weatherToolCall.ID,
 							CallType: weatherToolCall.CallType,
 							Function: conversation.ToolCallFunction{
@@ -523,8 +523,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			} else {
 				// For other providers, use the extracted parts
 				step2Inputs = append(step2Inputs, conversation.ConversationInput{
-					Role:  conversation.RoleAssistant,
-					Parts: allStep1Parts,
+					Role:    conversation.RoleAssistant,
+					Content: allStep1Parts,
 				})
 			}
 
@@ -532,18 +532,18 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			step2Inputs = append(step2Inputs,
 				conversation.ConversationInput{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: weatherToolCall.ID,
-							Name:       weatherToolCall.Function.Name,
-							Content:    "Sunny, 72°F in San Francisco",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      weatherToolCall.ID,
+							Name:    weatherToolCall.Function.Name,
+							Content: "Sunny, 72°F in San Francisco",
+							IsError: false,
 						},
 					},
 				},
 				conversation.ConversationInput{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "What should I wear for this weather?"},
 					},
 				},
@@ -552,7 +552,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			step2Req := &conversation.ConversationRequest{
 				Tools: []conversation.Tool{
 					{
-						ToolType: "function",
+						Type: "function",
 						Function: conversation.ToolFunction{
 							Name:        "get_weather",
 							Description: "Get current weather for a location",
@@ -577,7 +577,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NotEmpty(t, step2Resp.Outputs, "Should have response to follow-up question")
 
 			// Verify the response acknowledges both the weather and provides clothing advice
-			var allStep2Parts []conversation.ContentPart
+			var allStep2Parts []conversation.ConversationContent
 			for _, output := range step2Resp.Outputs {
 				allStep2Parts = append(allStep2Parts, output.Parts...)
 			}
@@ -605,7 +605,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			// Define multiple tools that could be called in parallel
 			weatherTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_weather",
 					Description: "Get current weather information for a specific location",
@@ -623,7 +623,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			timeTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_time",
 					Description: "Get current time for a specific location or timezone",
@@ -641,7 +641,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			exchangeRateTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_exchange_rate",
 					Description: "Get current exchange rate between two currencies",
@@ -670,7 +670,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleSystem,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "You are a helpful assistant with access to tools. " +
 								"When the user requests information that requires using available tools, call all appropriate tools (for maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially) " +
 								"Do not provide status updates like 'I'll check that for you' or 'Let me get that information'. " +
@@ -679,7 +679,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					},
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "I'm planning a trip to Tokyo. Can you get me the current weather in Tokyo, the current time there, and the USD to JPY exchange rate?"},
 						},
 					},
@@ -730,7 +730,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				// User's question
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "I'm planning a trip to Tokyo. Can you get me the current weather in Tokyo, the current time there, and the USD to JPY exchange rate?"},
 					},
 				},
@@ -740,8 +740,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			for i, output := range turn1Resp.Outputs {
 				t.Logf("🔄 Adding assistant output %d with %d parts to conversation history", i+1, len(output.Parts))
 				conversationHistory = append(conversationHistory, conversation.ConversationInput{
-					Role:  conversation.RoleAssistant,
-					Parts: output.Parts, // Each output separately
+					Role:    conversation.RoleAssistant,
+					Content: output.Parts, // Each output separately
 				})
 			}
 
@@ -765,12 +765,12 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 					conversationHistory = append(conversationHistory, conversation.ConversationInput{
 						Role: conversation.RoleTool,
-						Parts: []conversation.ContentPart{
-							conversation.ToolResultContentPart{
-								ToolCallID: toolCall.ID,
-								Name:       toolCall.Function.Name,
-								Content:    toolResult,
-								IsError:    false,
+						Content: []conversation.ConversationContent{
+							conversation.ToolCallResponse{
+								ID:      toolCall.ID,
+								Name:    toolCall.Function.Name,
+								Content: toolResult,
+								IsError: false,
 							},
 						},
 					})
@@ -807,8 +807,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 					// Add each assistant output separately to conversation history
 					conversationHistory = append(conversationHistory, conversation.ConversationInput{
-						Role:  conversation.RoleAssistant,
-						Parts: output.Parts,
+						Role:    conversation.RoleAssistant,
+						Content: output.Parts,
 					})
 				}
 
@@ -838,12 +838,12 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 						conversationHistory = append(conversationHistory, conversation.ConversationInput{
 							Role: conversation.RoleTool,
-							Parts: []conversation.ContentPart{
-								conversation.ToolResultContentPart{
-									ToolCallID: toolCall.ID,
-									Name:       toolCall.Function.Name,
-									Content:    toolResult,
-									IsError:    false,
+							Content: []conversation.ConversationContent{
+								conversation.ToolCallResponse{
+									ID:      toolCall.ID,
+									Name:    toolCall.Function.Name,
+									Content: toolResult,
+									IsError: false,
 								},
 							},
 						})
@@ -901,7 +901,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			// Add follow-up to encourage tool usage
 			conversationHistory = append(conversationHistory, conversation.ConversationInput{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Please get that information for me using the available tools."},
 				},
 			})
@@ -961,7 +961,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			// Define multiple tools that could be called in parallel
 			weatherTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_weather",
 					Description: "Get current weather information for a specific location",
@@ -979,7 +979,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			timeTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_time",
 					Description: "Get current time for a specific location or timezone",
@@ -997,7 +997,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			exchangeRateTool := conversation.Tool{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_exchange_rate",
 					Description: "Get current exchange rate between two currencies",
@@ -1026,7 +1026,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleSystem,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "You are a helpful assistant with access to tools. " +
 								"When the user requests information that requires using available tools, call all appropriate tools (for maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially) " +
 								"Do not provide status updates like 'I'll check that for you' or 'Let me get that information'. " +
@@ -1035,7 +1035,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					},
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "I'm planning a trip to Tokyo. Can you get me the current weather in Tokyo, the current time there, and the USD to JPY exchange rate?"},
 						},
 					},
@@ -1107,7 +1107,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				// User's question
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "I'm planning a trip to Tokyo. Can you get me the current weather in Tokyo, the current time there, and the USD to JPY exchange rate?"},
 					},
 				},
@@ -1117,8 +1117,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			for i, output := range turn1Resp.Outputs {
 				t.Logf("🔄 Adding assistant output %d with %d parts to conversation history", i+1, len(output.Parts))
 				conversationHistory = append(conversationHistory, conversation.ConversationInput{
-					Role:  conversation.RoleAssistant,
-					Parts: output.Parts, // Each output separately
+					Role:    conversation.RoleAssistant,
+					Content: output.Parts, // Each output separately
 				})
 			}
 
@@ -1142,12 +1142,12 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 					conversationHistory = append(conversationHistory, conversation.ConversationInput{
 						Role: conversation.RoleTool,
-						Parts: []conversation.ContentPart{
-							conversation.ToolResultContentPart{
-								ToolCallID: toolCall.ID,
-								Name:       toolCall.Function.Name,
-								Content:    toolResult,
-								IsError:    false,
+						Content: []conversation.ConversationContent{
+							conversation.ToolCallResponse{
+								ID:      toolCall.ID,
+								Name:    toolCall.Function.Name,
+								Content: toolResult,
+								IsError: false,
 							},
 						},
 					})
@@ -1229,7 +1229,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			// Add follow-up to encourage tool usage
 			conversationHistory = append(conversationHistory, conversation.ConversationInput{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: "Please get that information for me using the available tools."},
 				},
 			})
@@ -1320,7 +1320,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				Inputs: []conversation.ConversationInput{
 					{
 						Role: conversation.RoleUser,
-						Parts: []conversation.ContentPart{
+						Content: []conversation.ConversationContent{
 							conversation.TextContentPart{Text: "Count to five"},
 						},
 					},

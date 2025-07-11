@@ -17,10 +17,10 @@ package conversation
 
 // mockContentPart is a simple implementation for testing purposes
 type mockContentPart struct {
-	partType ContentPartType
+	partType ContentType
 	content  string
 }
 
-func (m mockContentPart) Type() ContentPartType { return m.partType }
-func (m mockContentPart) String() string        { return m.content }
-func (m mockContentPart) Validate() error       { return nil }
+func (m mockContentPart) Type() ContentType { return m.partType }
+func (m mockContentPart) String() string    { return m.content }
+func (m mockContentPart) Validate() error   { return nil }

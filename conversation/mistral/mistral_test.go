@@ -38,15 +38,15 @@ func TestMistralToolResultConversion(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "What's the weather like?"},
 					},
 				},
 				{
 					Role: conversation.RoleAssistant,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "I'll check the weather for you."},
-						conversation.ToolCallContentPart{
+						conversation.ToolCallRequest{
 							ID:       "call_123",
 							CallType: "function",
 							Function: conversation.ToolCallFunction{
@@ -58,12 +58,12 @@ func TestMistralToolResultConversion(t *testing.T) {
 				},
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_123",
-							Name:       "get_weather",
-							Content:    "Sunny, 72°F",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_123",
+							Name:    "get_weather",
+							Content: "Sunny, 72°F",
+							IsError: false,
 						},
 					},
 				},
@@ -83,8 +83,8 @@ func TestMistralToolResultConversion(t *testing.T) {
 
 		// The single input should be a user message with the fresh context
 		assert.Equal(t, "user", string(converted.Inputs[0].Role))
-		assert.Len(t, converted.Inputs[0].Parts, 1)
-		textPart, ok := converted.Inputs[0].Parts[0].(conversation.TextContentPart)
+		assert.Len(t, converted.Inputs[0].Content, 1)
+		textPart, ok := converted.Inputs[0].Content[0].(conversation.TextContentPart)
 		require.True(t, ok)
 
 		// Should contain both the tool result and the original user request
@@ -97,12 +97,12 @@ func TestMistralToolResultConversion(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_456",
-							Name:       "get_weather",
-							Content:    "Location not found",
-							IsError:    true,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_456",
+							Name:    "get_weather",
+							Content: "Location not found",
+							IsError: true,
 						},
 					},
 				},
@@ -115,7 +115,7 @@ func TestMistralToolResultConversion(t *testing.T) {
 		assert.Len(t, converted.Inputs, 1)
 		assert.Equal(t, conversation.Role("user"), converted.Inputs[0].Role) // Should be converted to user role
 
-		textPart, ok := converted.Inputs[0].Parts[0].(conversation.TextContentPart)
+		textPart, ok := converted.Inputs[0].Content[0].(conversation.TextContentPart)
 		require.True(t, ok)
 		assert.Contains(t, textPart.Text, "get_weather function returned an error: Location not found")
 	})
@@ -125,13 +125,13 @@ func TestMistralToolResultConversion(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hello"},
 					},
 				},
 				{
 					Role: conversation.RoleAssistant,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hi there!"},
 					},
 				},
@@ -145,9 +145,9 @@ func TestMistralToolResultConversion(t *testing.T) {
 
 		// Inputs should be unchanged
 		assert.Equal(t, req.Inputs[0].Role, converted.Inputs[0].Role)
-		assert.Equal(t, req.Inputs[0].Parts, converted.Inputs[0].Parts)
+		assert.Equal(t, req.Inputs[0].Content, converted.Inputs[0].Content)
 		assert.Equal(t, req.Inputs[1].Role, converted.Inputs[1].Role)
-		assert.Equal(t, req.Inputs[1].Parts, converted.Inputs[1].Parts)
+		assert.Equal(t, req.Inputs[1].Content, converted.Inputs[1].Content)
 	})
 
 	t.Run("handles multiple tool results in one input", func(t *testing.T) {
@@ -155,18 +155,18 @@ func TestMistralToolResultConversion(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_1",
-							Name:       "get_weather",
-							Content:    "Sunny, 72°F",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_1",
+							Name:    "get_weather",
+							Content: "Sunny, 72°F",
+							IsError: false,
 						},
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_2",
-							Name:       "get_time",
-							Content:    "3:30 PM",
-							IsError:    false,
+						conversation.ToolCallResponse{
+							ID:      "call_2",
+							Name:    "get_time",
+							Content: "3:30 PM",
+							IsError: false,
 						},
 					},
 				},
@@ -179,7 +179,7 @@ func TestMistralToolResultConversion(t *testing.T) {
 		assert.Len(t, converted.Inputs, 1)
 		assert.Equal(t, conversation.Role("user"), converted.Inputs[0].Role) // Should be converted to user role
 
-		textPart, ok := converted.Inputs[0].Parts[0].(conversation.TextContentPart)
+		textPart, ok := converted.Inputs[0].Content[0].(conversation.TextContentPart)
 		require.True(t, ok)
 		assert.Contains(t, textPart.Text, "get_weather function returned: Sunny, 72°F")
 		assert.Contains(t, textPart.Text, "get_time function returned: 3:30 PM")
@@ -310,7 +310,7 @@ func TestConvertDaprToolsToLangchainTools(t *testing.T) {
 	t.Run("converts tools with all fields", func(t *testing.T) {
 		tools := []conversation.Tool{
 			{
-				ToolType: "function",
+				Type: "function",
 				Function: conversation.ToolFunction{
 					Name:        "get_weather",
 					Description: "Get weather information",
@@ -394,13 +394,13 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hello"},
 					},
 				},
 				{
 					Role: conversation.RoleAssistant,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hi there!"},
 					},
 				},
@@ -428,7 +428,7 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hello"},
 						conversation.TextContentPart{Text: "World"},
 					},
@@ -451,9 +451,9 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleAssistant,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "I'll check the weather."},
-						conversation.ToolCallContentPart{
+						conversation.ToolCallRequest{
 							ID:       "call_123",
 							CallType: "function",
 							Function: conversation.ToolCallFunction{
@@ -491,12 +491,12 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_123",
-							Name:       "get_weather",
-							Content:    "Sunny, 72°F",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_123",
+							Name:    "get_weather",
+							Content: "Sunny, 72°F",
+							IsError: false,
 						},
 					},
 				},
@@ -521,23 +521,23 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 			Inputs: []conversation.ConversationInput{
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_1",
-							Name:       "get_weather",
-							Content:    "Sunny",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_1",
+							Name:    "get_weather",
+							Content: "Sunny",
+							IsError: false,
 						},
 					},
 				},
 				{
 					Role: conversation.RoleTool,
-					Parts: []conversation.ContentPart{
-						conversation.ToolResultContentPart{
-							ToolCallID: "call_2",
-							Name:       "get_time",
-							Content:    "3:30 PM",
-							IsError:    false,
+					Content: []conversation.ConversationContent{
+						conversation.ToolCallResponse{
+							ID:      "call_2",
+							Name:    "get_time",
+							Content: "3:30 PM",
+							IsError: false,
 						},
 					},
 				},
@@ -564,12 +564,12 @@ func TestGetMistralCompatibleMessages(t *testing.T) {
 		req := &conversation.ConversationRequest{
 			Inputs: []conversation.ConversationInput{
 				{
-					Role:  conversation.RoleUser,
-					Parts: []conversation.ContentPart{},
+					Role:    conversation.RoleUser,
+					Content: []conversation.ConversationContent{},
 				},
 				{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{Text: "Hello"},
 					},
 				},

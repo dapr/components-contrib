@@ -162,7 +162,7 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 		}
 
 		// Create response parts
-		var parts []conversation.ContentPart
+		var parts []conversation.ConversationContent
 
 		// Add text content if available
 		if resp.Choices[i].Content != "" {
@@ -178,7 +178,7 @@ func (m *Mistral) Converse(ctx context.Context, r *conversation.ConversationRequ
 					toolCallID = conversation.GenerateProviderCompatibleToolCallID()
 				}
 
-				parts = append(parts, conversation.ToolCallContentPart{
+				parts = append(parts, conversation.ToolCallRequest{
 					ID:       toolCallID,
 					CallType: tc.Type,
 					Function: conversation.ToolCallFunction{
@@ -228,16 +228,16 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 		role := langchaingokit.ConvertLangchainRole(input.Role)
 
 		// Process with native parts support if available
-		if len(input.Parts) > 0 {
+		if len(input.Content) > 0 {
 			var textParts []string
 			var toolCalls []llms.ToolCall
-			var toolResults []conversation.ToolResultContentPart
+			var toolResults []conversation.ToolCallResponse
 
-			for _, part := range input.Parts {
+			for _, part := range input.Content {
 				switch p := part.(type) {
 				case conversation.TextContentPart:
 					textParts = append(textParts, p.Text)
-				case conversation.ToolCallContentPart:
+				case conversation.ToolCallRequest:
 					toolCalls = append(toolCalls, llms.ToolCall{
 						ID:   p.ID,
 						Type: p.CallType,
@@ -246,7 +246,7 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 							Arguments: p.Function.Arguments,
 						},
 					})
-				case conversation.ToolResultContentPart:
+				case conversation.ToolCallResponse:
 					toolResults = append(toolResults, p)
 				}
 			}
@@ -260,18 +260,18 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 				// Collect consecutive tool result inputs
 				for j < len(r.Inputs) {
 					nextInput := r.Inputs[j]
-					if len(nextInput.Parts) > 0 {
+					if len(nextInput.Content) > 0 {
 						var nextHasToolResults bool
-						var nextToolResults []conversation.ToolResultContentPart
+						var nextToolResults []conversation.ToolCallResponse
 
-						for _, part := range nextInput.Parts {
-							if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+						for _, part := range nextInput.Content {
+							if resultPart, ok := part.(conversation.ToolCallResponse); ok {
 								nextHasToolResults = true
 								nextToolResults = append(nextToolResults, resultPart)
 							}
 						}
 
-						if nextHasToolResults && len(nextInput.Parts) == len(nextToolResults) {
+						if nextHasToolResults && len(nextInput.Content) == len(nextToolResults) {
 							// This input contains only tool results, collect them
 							allToolResults = append(allToolResults, nextToolResults...)
 							j++
@@ -289,7 +289,7 @@ func (m *Mistral) getMistralCompatibleMessages(r *conversation.ConversationReque
 				var toolParts []llms.ContentPart
 				for _, result := range allToolResults {
 					toolParts = append(toolParts, llms.ToolCallResponse{
-						ToolCallID: result.ToolCallID,
+						ToolCallID: result.ID,
 						Name:       result.Name,
 						Content:    result.Content,
 					})
@@ -357,7 +357,7 @@ func (m *Mistral) convertDaprToolsToLangchainTools(tools []conversation.Tool) []
 
 	langchainTools := make([]llms.Tool, len(tools))
 	for i, tool := range tools {
-		toolType := tool.ToolType
+		toolType := tool.Type
 		if toolType == "" {
 			toolType = "function"
 		}
@@ -405,9 +405,9 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 	// Check if conversation history contains tool calls (Mistral API limitation)
 	hasToolCallHistory := false
 	for _, input := range r.Inputs {
-		if input.Role == conversation.RoleAssistant && len(input.Parts) > 0 {
-			for _, part := range input.Parts {
-				if _, ok := part.(conversation.ToolCallContentPart); ok {
+		if input.Role == conversation.RoleAssistant && len(input.Content) > 0 {
+			for _, part := range input.Content {
+				if _, ok := part.(conversation.ToolCallRequest); ok {
 					hasToolCallHistory = true
 					break
 				}
@@ -432,8 +432,8 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 			case conversation.RoleUser:
 				// Keep track of the last user input as it might be the current request
 				lastUserInput = input
-				if len(input.Parts) > 0 {
-					for _, part := range input.Parts {
+				if len(input.Content) > 0 {
+					for _, part := range input.Content {
 						if textPart, ok := part.(conversation.TextContentPart); ok {
 							originalUserRequest = textPart.Text
 						}
@@ -441,8 +441,8 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				}
 			case conversation.RoleTool:
 				// Extract tool result information
-				for _, part := range input.Parts {
-					if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+				for _, part := range input.Content {
+					if resultPart, ok := part.(conversation.ToolCallResponse); ok {
 						var resultText string
 						if resultPart.IsError {
 							resultText = fmt.Sprintf("Error from %s: %s", resultPart.Name, resultPart.Content)
@@ -460,9 +460,9 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 			contextText := fmt.Sprintf("Based on previous tool execution results: %s. ", strings.Join(toolResultTexts, ". "))
 			if originalUserRequest != "" {
 				contextText += "User's original request was: " + originalUserRequest
-			} else if len(lastUserInput.Parts) > 0 {
+			} else if len(lastUserInput.Content) > 0 {
 				// Use the last user input if available
-				for _, part := range lastUserInput.Parts {
+				for _, part := range lastUserInput.Content {
 					if textPart, ok := part.(conversation.TextContentPart); ok {
 						contextText += "User's current request: " + textPart.Text
 						break
@@ -473,7 +473,7 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 			// Create fresh conversation input
 			convertedInputs = append(convertedInputs, conversation.ConversationInput{
 				Role: conversation.RoleUser,
-				Parts: []conversation.ContentPart{
+				Content: []conversation.ConversationContent{
 					conversation.TextContentPart{Text: contextText},
 				},
 			})
@@ -486,11 +486,11 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 
 		// Return new request with fresh context
 		return &conversation.ConversationRequest{
-			Inputs:              convertedInputs,
-			Parameters:          r.Parameters,
-			Temperature:         r.Temperature,
-			ConversationContext: r.ConversationContext,
-			Tools:               r.Tools,
+			Inputs:      convertedInputs,
+			Parameters:  r.Parameters,
+			Temperature: r.Temperature,
+			Context:     r.Context,
+			Tools:       r.Tools,
 		}
 	}
 
@@ -500,13 +500,13 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 		input := r.Inputs[i]
 
 		// Check if this input contains tool results
-		if len(input.Parts) > 0 {
+		if len(input.Content) > 0 {
 			var hasToolResults bool
-			var toolResults []conversation.ToolResultContentPart
+			var toolResults []conversation.ToolCallResponse
 
 			// Identify tool result parts in current input
-			for _, part := range input.Parts {
-				if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+			for _, part := range input.Content {
+				if resultPart, ok := part.(conversation.ToolCallResponse); ok {
 					hasToolResults = true
 					toolResults = append(toolResults, resultPart)
 				}
@@ -520,18 +520,18 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				// Collect consecutive tool result inputs
 				for j < len(r.Inputs) {
 					nextInput := r.Inputs[j]
-					if len(nextInput.Parts) > 0 {
+					if len(nextInput.Content) > 0 {
 						var nextHasToolResults bool
-						var nextToolResults []conversation.ToolResultContentPart
+						var nextToolResults []conversation.ToolCallResponse
 
-						for _, part := range nextInput.Parts {
-							if resultPart, ok := part.(conversation.ToolResultContentPart); ok {
+						for _, part := range nextInput.Content {
+							if resultPart, ok := part.(conversation.ToolCallResponse); ok {
 								nextHasToolResults = true
 								nextToolResults = append(nextToolResults, resultPart)
 							}
 						}
 
-						if nextHasToolResults && len(nextInput.Parts) == len(nextToolResults) {
+						if nextHasToolResults && len(nextInput.Content) == len(nextToolResults) {
 							// This input contains only tool results, collect them
 							allToolResults = append(allToolResults, nextToolResults...)
 							j++
@@ -564,7 +564,7 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				// Create a single text-based user message for all tool results
 				convertedInput := conversation.ConversationInput{
 					Role: conversation.RoleUser,
-					Parts: []conversation.ContentPart{
+					Content: []conversation.ConversationContent{
 						conversation.TextContentPart{
 							Text: strings.Join(textParts, " "),
 						},
@@ -572,7 +572,7 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 				}
 				convertedInputs = append(convertedInputs, convertedInput)
 
-				m.logger.Debugf("Converted %d tool result(s) to text for Mistral: %s", len(allToolResults), convertedInput.Parts[0].(conversation.TextContentPart).Text)
+				m.logger.Debugf("Converted %d tool result(s) to text for Mistral: %s", len(allToolResults), convertedInput.Content[0].(conversation.TextContentPart).Text)
 
 				// Skip all the inputs we processed
 				i = j
@@ -590,11 +590,11 @@ func (m *Mistral) convertToolResultsToText(r *conversation.ConversationRequest) 
 
 	// Return new request with converted inputs
 	return &conversation.ConversationRequest{
-		Inputs:              convertedInputs,
-		Parameters:          r.Parameters,
-		Temperature:         r.Temperature,
-		ConversationContext: r.ConversationContext,
-		Tools:               r.Tools,
+		Inputs:      convertedInputs,
+		Parameters:  r.Parameters,
+		Temperature: r.Temperature,
+		Context:     r.Context,
+		Tools:       r.Tools,
 	}
 }
 

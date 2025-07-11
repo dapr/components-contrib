@@ -43,7 +43,6 @@ func (a *LLM) SetProviderModelName(provider, model string) {
 	a.ProviderModelName = provider + "/" + model
 }
 
-// SupportsToolCalling returns true to indicate this component supports tool calling
 func (a *LLM) SupportsToolCalling() bool {
 	return true
 }
@@ -86,7 +85,7 @@ func convertDaprToolsToLangchainTools(tools []conversation.Tool) ([]llms.Tool, e
 			continue
 		}
 		langchainTools[i] = llms.Tool{
-			Type: tool.ToolType,
+			Type: tool.Type,
 			Function: &llms.FunctionDefinition{
 				Name:        tool.Function.Name,
 				Description: tool.Function.Description,
@@ -110,17 +109,15 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 		return nil, fmt.Errorf("%w: %s", conversation.ErrStreamingNotSupported, a.ProviderModelName)
 	}
 
-	// Build messages from all inputs using new content parts approach
 	messages := GetMessageFromRequest(r)
-	tools := r.Tools
 
-	if len(tools) > 0 {
+	if len(r.Tools) > 0 {
 		// Some providers do not support tool call streaming, so we return error here so they can
 		// fallback to non-streaming mode.
 		if checkStreaming && a.ToolCallStreamingDisabled {
 			return nil, fmt.Errorf("%w: %s", conversation.ErrToolCallStreamingNotSupported, a.ProviderModelName)
 		}
-		langchainTools, err := convertDaprToolsToLangchainTools(tools)
+		langchainTools, err := convertDaprToolsToLangchainTools(r.Tools)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert tools to API format: %w", err)
 		}
@@ -145,7 +142,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 			Parameters: r.Parameters,
 		}
 
-		var parts []conversation.ContentPart
+		var parts []conversation.ConversationContent
 
 		// Add text content if available
 		if resp.Choices[i].Content != "" {
@@ -167,7 +164,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 					toolCallType = "function"
 				}
 
-				parts = append(parts, conversation.ToolCallContentPart{
+				parts = append(parts, conversation.ToolCallRequest{
 					ID:       toolCallID,
 					CallType: toolCallType,
 					Function: conversation.ToolCallFunction{
@@ -178,9 +175,7 @@ func (a *LLM) generateContent(ctx context.Context, r *conversation.ConversationR
 			}
 		}
 
-		result.Parts = parts
-		result.Result = conversation.ExtractTextFromParts(parts) //nolint:staticcheck // Legacy field for text backward compatibility
-
+		result.Content = parts
 		// Set finish reason: prioritize the primary reason from the first choice.
 		if primaryFinishReason != "" {
 			result.FinishReason = conversation.NormalizeFinishReason(primaryFinishReason)

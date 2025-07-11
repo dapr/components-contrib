@@ -107,8 +107,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	for _, input := range r.Inputs {
 		// Get text content (with backward compatibility for Message field)
 		var inputContent string
-		if len(input.Parts) > 0 {
-			inputContent = conversation.ExtractTextFromParts(input.Parts)
+		if len(input.Content) > 0 {
+			inputContent = conversation.ExtractTextFromParts(input.Content)
 		} else {
 			inputContent = input.Message //nolint:staticcheck // Backward compatibility for text only
 		}
@@ -143,14 +143,10 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 		Parameters: r.Parameters,
 	}
 
-	var responseParts []conversation.ContentPart
+	var responseParts []conversation.ConversationContent
 
-	// Prioritize legacy message field for simple echo backward compatibility
-	if lastInput.Message != "" { //nolint:staticcheck // Backward compatibility check
-		responseText := e.processLegacyTextInput(lastInput, allTools, lastInput.Message, allUserMessages) //nolint:staticcheck // Backward compatibility
-		responseParts = append(responseParts, conversation.TextContentPart{Text: responseText})
-	} else if len(lastInput.Parts) > 0 {
-		toolResults := conversation.ExtractToolResultsFromParts(lastInput.Parts)
+	if len(lastInput.Content) > 0 {
+		toolResults := conversation.ExtractToolResultsFromParts(lastInput.Content)
 		if len(toolResults) > 0 {
 			// Handle tool result
 			responseText := e.generateToolResultResponseFromPart(toolResults[0])
@@ -160,11 +156,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 			responseParts = e.processContentParts(lastInput, allTools, lastUserMessage, allUserMessages)
 		}
 	}
-
-	// Set content parts and legacy result field
 	output.Parts = responseParts
-	output.Result = conversation.ExtractTextFromParts(responseParts) //nolint:staticcheck // Backward compatibility
-
 	toolCalls := conversation.ExtractToolCallsFromParts(responseParts)
 
 	// Set finish reason based on whether tool calls were generated
@@ -187,8 +179,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	}
 
 	res = &conversation.ConversationResponse{
-		Outputs:             []conversation.ConversationOutput{output},
-		ConversationContext: r.ConversationContext,
+		Outputs: []conversation.ConversationOutput{output},
+		Context: r.Context,
 		Usage: &conversation.UsageInfo{
 			PromptTokens:     totalInputTokens,
 			CompletionTokens: totalOutputTokens,
@@ -199,27 +191,26 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 	return res, nil
 }
 
-// Process content parts
-func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, _ string, allUserMessages []string) []conversation.ContentPart {
-	var responseParts []conversation.ContentPart
+func (e *Echo) processContentParts(input conversation.ConversationInput, allTools []conversation.Tool, _ string, allUserMessages []string) []conversation.ConversationContent {
+	var responseParts []conversation.ConversationContent
 
 	// Echo back information about the parts received
 	responseParts = append(responseParts, conversation.TextContentPart{
-		Text: fmt.Sprintf("Echo received %d content parts:", len(input.Parts)),
+		Text: fmt.Sprintf("Echo received %d content parts:", len(input.Content)),
 	})
 
-	for i, part := range input.Parts {
+	for i, part := range input.Content {
 		switch p := part.(type) {
 		case conversation.TextContentPart:
 			responseParts = append(responseParts, conversation.TextContentPart{
 				Text: fmt.Sprintf("Part %d (text): %s", i+1, p.Text),
 			})
 
-		case conversation.ToolCallContentPart:
+		case conversation.ToolCallRequest:
 			responseParts = append(responseParts, conversation.TextContentPart{
 				Text: fmt.Sprintf("Part %d (tool call): %s", i+1, p.Function.Name),
 			})
-		case conversation.ToolResultContentPart:
+		case conversation.ToolCallResponse:
 			responseParts = append(responseParts, conversation.TextContentPart{
 				Text: fmt.Sprintf("Part %d (tool result): %s returned %s", i+1, p.Name, p.Content),
 			})
@@ -237,7 +228,7 @@ func (e *Echo) processContentParts(input conversation.ConversationInput, allTool
 			})
 
 			for i, tool := range toolsToCall {
-				responseParts = append(responseParts, conversation.ToolCallContentPart{
+				responseParts = append(responseParts, conversation.ToolCallRequest{
 					ID:       fmt.Sprintf("call_echo_%d", time.Now().UnixNano()+int64(i)),
 					CallType: "function",
 					Function: conversation.ToolCallFunction{
@@ -695,7 +686,7 @@ func (e *Echo) extractNumber(message string) float64 {
 }
 
 // Generate tool result response from content part
-func (e *Echo) generateToolResultResponseFromPart(toolResult conversation.ToolResultContentPart) string {
+func (e *Echo) generateToolResultResponseFromPart(toolResult conversation.ToolCallResponse) string {
 	if toolResult.IsError {
 		return fmt.Sprintf("Tool %s failed: %s", toolResult.Name, toolResult.Content)
 	}

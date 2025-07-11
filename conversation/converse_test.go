@@ -23,15 +23,15 @@ import (
 
 func TestDefaultFinishReason(t *testing.T) {
 	t.Run("returns tool_calls when tool calls are present", func(t *testing.T) {
-		parts := []ContentPart{
-			ToolCallContentPart{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
+		parts := []ConversationContent{
+			ToolCallRequest{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
 		}
 		reason := DefaultFinishReason(parts)
 		assert.Equal(t, "tool_calls", reason)
 	})
 
 	t.Run("returns stop when no tool calls are present", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 		}
 		reason := DefaultFinishReason(parts)
@@ -39,7 +39,7 @@ func TestDefaultFinishReason(t *testing.T) {
 	})
 
 	t.Run("returns stop for empty parts", func(t *testing.T) {
-		parts := []ContentPart{}
+		parts := []ConversationContent{}
 		reason := DefaultFinishReason(parts)
 		assert.Equal(t, "stop", reason)
 	})

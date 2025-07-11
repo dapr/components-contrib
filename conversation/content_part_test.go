@@ -23,13 +23,13 @@ import (
 
 func TestExtractTextFromParts(t *testing.T) {
 	t.Run("extracts single text part", func(t *testing.T) {
-		parts := []ContentPart{TextContentPart{Text: "Hello"}}
+		parts := []ConversationContent{TextContentPart{Text: "Hello"}}
 		text := ExtractTextFromParts(parts)
 		assert.Equal(t, "Hello", text)
 	})
 
 	t.Run("extracts multiple text parts", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 			TextContentPart{Text: "world"},
 		}
@@ -38,7 +38,7 @@ func TestExtractTextFromParts(t *testing.T) {
 	})
 
 	t.Run("mixed content parts", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 			mockContentPart{partType: "other", content: "ignore"},
 			TextContentPart{Text: "world"},
@@ -48,7 +48,7 @@ func TestExtractTextFromParts(t *testing.T) {
 	})
 
 	t.Run("no text parts", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			mockContentPart{partType: "other", content: "ignore"},
 		}
 		text := ExtractTextFromParts(parts)
@@ -56,7 +56,7 @@ func TestExtractTextFromParts(t *testing.T) {
 	})
 
 	t.Run("empty parts slice", func(t *testing.T) {
-		parts := []ContentPart{}
+		parts := []ConversationContent{}
 		text := ExtractTextFromParts(parts)
 		assert.Equal(t, "", text)
 	})
@@ -65,7 +65,7 @@ func TestExtractTextFromParts(t *testing.T) {
 func TestExtractToolDefinitionsFromParts(t *testing.T) {
 	t.Run("extracts tool definitions", func(t *testing.T) {
 		tools := []Tool{{Function: ToolFunction{Name: "get_weather"}}}
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			ToolDefinitionsContentPart{Tools: tools},
 		}
 		extracted := ExtractToolDefinitionsFromParts(parts)
@@ -73,7 +73,7 @@ func TestExtractToolDefinitionsFromParts(t *testing.T) {
 	})
 
 	t.Run("no tool definitions", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 		}
 		extracted := ExtractToolDefinitionsFromParts(parts)
@@ -83,7 +83,7 @@ func TestExtractToolDefinitionsFromParts(t *testing.T) {
 	t.Run("multiple tool definition parts (returns first)", func(t *testing.T) {
 		tools1 := []Tool{{Function: ToolFunction{Name: "get_weather"}}}
 		tools2 := []Tool{{Function: ToolFunction{Name: "get_time"}}}
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			ToolDefinitionsContentPart{Tools: tools1},
 			ToolDefinitionsContentPart{Tools: tools2},
 		}
@@ -94,8 +94,8 @@ func TestExtractToolDefinitionsFromParts(t *testing.T) {
 
 func TestExtractToolCallsFromParts(t *testing.T) {
 	t.Run("extracts single tool call", func(t *testing.T) {
-		parts := []ContentPart{
-			ToolCallContentPart{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
+		parts := []ConversationContent{
+			ToolCallRequest{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
 		}
 		calls := ExtractToolCallsFromParts(parts)
 		assert.Len(t, calls, 1)
@@ -103,9 +103,9 @@ func TestExtractToolCallsFromParts(t *testing.T) {
 	})
 
 	t.Run("extracts multiple tool calls", func(t *testing.T) {
-		parts := []ContentPart{
-			ToolCallContentPart{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
-			ToolCallContentPart{ID: "2", Function: ToolCallFunction{Name: "get_time"}},
+		parts := []ConversationContent{
+			ToolCallRequest{ID: "1", Function: ToolCallFunction{Name: "get_weather"}},
+			ToolCallRequest{ID: "2", Function: ToolCallFunction{Name: "get_time"}},
 		}
 		calls := ExtractToolCallsFromParts(parts)
 		assert.Len(t, calls, 2)
@@ -114,7 +114,7 @@ func TestExtractToolCallsFromParts(t *testing.T) {
 	})
 
 	t.Run("no tool calls", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 		}
 		calls := ExtractToolCallsFromParts(parts)
@@ -124,8 +124,8 @@ func TestExtractToolCallsFromParts(t *testing.T) {
 
 func TestExtractToolResultsFromParts(t *testing.T) {
 	t.Run("extracts single tool result", func(t *testing.T) {
-		parts := []ContentPart{
-			ToolResultContentPart{ToolCallID: "1", Name: "get_weather", Content: "Sunny"},
+		parts := []ConversationContent{
+			ToolCallResponse{ID: "1", Name: "get_weather", Content: "Sunny"},
 		}
 		results := ExtractToolResultsFromParts(parts)
 		assert.Len(t, results, 1)
@@ -133,9 +133,9 @@ func TestExtractToolResultsFromParts(t *testing.T) {
 	})
 
 	t.Run("extracts multiple tool results", func(t *testing.T) {
-		parts := []ContentPart{
-			ToolResultContentPart{ToolCallID: "1", Name: "get_weather", Content: "Sunny"},
-			ToolResultContentPart{ToolCallID: "2", Name: "get_time", Content: "10:00 AM"},
+		parts := []ConversationContent{
+			ToolCallResponse{ID: "1", Name: "get_weather", Content: "Sunny"},
+			ToolCallResponse{ID: "2", Name: "get_time", Content: "10:00 AM"},
 		}
 		results := ExtractToolResultsFromParts(parts)
 		assert.Len(t, results, 2)
@@ -144,7 +144,7 @@ func TestExtractToolResultsFromParts(t *testing.T) {
 	})
 
 	t.Run("no tool results", func(t *testing.T) {
-		parts := []ContentPart{
+		parts := []ConversationContent{
 			TextContentPart{Text: "Hello"},
 		}
 		results := ExtractToolResultsFromParts(parts)

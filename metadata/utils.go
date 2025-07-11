@@ -160,7 +160,8 @@ func (t ComponentType) IsValid() bool {
 		SecretStoreType, PubSubType,
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
-		NameResolutionType, WorkflowType:
+		NameResolutionType, WorkflowType,
+		ConversationType:
 		return true
 	default:
 		return false

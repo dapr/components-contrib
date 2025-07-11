@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Mistral LLM to use. Defaults to open-mistral-7b
+      The Mistral LLM to use.
     type: string
     example: 'open-mistral-7b'
+    default: 'open-mistral-7b'
   - name: cacheTTL
     required: false
     description: |

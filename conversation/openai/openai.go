@@ -41,7 +41,7 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
-const defaultModel = "gpt-4o"
+const defaultModel = "gpt-4.1-nano"
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}

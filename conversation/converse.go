@@ -34,8 +34,12 @@ type Conversation interface {
 }
 
 type ConversationInput struct {
-	Message string `json:"string"`
+	Content string `json:"string"`
 	Role    Role   `json:"role"`
+
+	// ToolCallName is an optional field, that when set,
+	// indicates that the content contains a tool call response to send back to the LLM.
+	ToolCallName string `json:"toolCallName"`
 }
 
 type ConversationRequest struct {
@@ -54,6 +58,10 @@ type ConversationRequest struct {
 type ConversationResult struct {
 	Result     string                `json:"result"`
 	Parameters map[string]*anypb.Any `json:"parameters"`
+
+	// ToolCallName is an optional field, that when set,
+	// indicates that the parameters contains a tool call request to send back to the client to execute.
+	ToolCallName string `json:"toolCallName"`
 }
 
 type ConversationResponse struct {

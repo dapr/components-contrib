@@ -66,7 +66,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.ConversationRequest{
 				Inputs: []conversation.ConversationInput{
 					{
-						Message: "what is the time?",
+						Content: "what is the time?",
 					},
 				},
 			}
@@ -75,6 +75,26 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
+		})
+		t.Run("get a non-empty response without errors for a tool call", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+			toolName := "mytool"
+
+			req := &conversation.ConversationRequest{
+				Inputs: []conversation.ConversationInput{
+					{
+						Content:      "what is the time?",
+						ToolCallName: toolName,
+					},
+				},
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
+			assert.Equal(t, toolName, resp.Outputs[0].ToolCallName)
 		})
 	})
 }

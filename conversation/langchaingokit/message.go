@@ -29,7 +29,7 @@ func GetMessageFromRequest(r *conversation.ConversationRequest) []llms.MessageCo
 		messages = append(messages, llms.MessageContent{
 			Role: role,
 			Parts: []llms.ContentPart{
-				llms.TextPart(input.Message),
+				llms.TextPart(input.Content),
 			},
 		})
 	}

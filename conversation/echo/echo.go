@@ -62,13 +62,15 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	for _, input := range r.Inputs {
 		outputs = append(outputs, conversation.ConversationResult{
-			Result:     input.Message,
-			Parameters: r.Parameters,
+			Result:       input.Content,
+			Parameters:   r.Parameters,
+			ToolCallName: input.ToolCallName,
 		})
 	}
 
 	res = &conversation.ConversationResponse{
 		Outputs: outputs,
+		// TODO: why is Content not here??
 	}
 
 	return res, nil

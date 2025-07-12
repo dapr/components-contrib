@@ -66,7 +66,7 @@ func (d *Deepseek) Converse(ctx context.Context, r *conversation.ConversationReq
 	for _, input := range r.Inputs {
 		messages = append(messages, deepseek_go.ChatCompletionMessage{
 			Role:    string(input.Role),
-			Content: input.Message,
+			Content: input.Content,
 		})
 	}
 

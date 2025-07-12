@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -81,6 +82,8 @@ type Kafka struct {
 	DefaultConsumeRetryEnabled bool
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
+
+	excludeHeaderMetaRegex *regexp.Regexp
 }
 
 type SchemaType int
@@ -254,6 +257,10 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 	if clients.consumerGroup == nil {
 		return errors.New("component is closed")
+	}
+
+	if meta.ExcludeHeaderMetaRegex != "" {
+		k.excludeHeaderMetaRegex = regexp.MustCompile(meta.ExcludeHeaderMetaRegex)
 	}
 
 	k.logger.Debug("Kafka message bus initialization complete")

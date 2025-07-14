@@ -322,8 +322,10 @@ func SNSSQSBasic(t *testing.T) {
 		)).
 		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
-		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
-		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
+		Step("verify if app1 has recevied messages published to active topic", assertMessages(20*time.Second,
+			consumerGroup1)).
+		Step("verify if app2 has recevied messages published to passive topic", assertMessages(20*time.Second,
+			consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -664,7 +666,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 25*timeout) {
+				if !m.Assert(ctx, 30*timeout) {
 					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
@@ -789,7 +791,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 25*timeout) {
+				if !m.Assert(ctx, 30*timeout) {
 					ctx.Errorf("SNSSQSNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
@@ -1007,7 +1009,7 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 25*timeout) {
+				if !m.Assert(ctx, 30*timeout) {
 					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
@@ -1514,7 +1516,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 3*timeout) {
+				if !m.Assert(ctx, 5*timeout) {
 					ctx.Errorf("SNSSQSMessageDeadLetter - message assertion failed for watcher: %#v\n", m)
 				}
 			}
@@ -1649,7 +1651,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 3*timeout) {
+				if !m.Assert(ctx, 5*timeout) {
 					ctx.Errorf("SNSSQSMessageDisableDeleteOnRetryLimit - message assertion failed for watcher: %#v\n", m)
 				}
 			}

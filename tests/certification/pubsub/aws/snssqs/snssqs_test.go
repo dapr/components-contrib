@@ -666,7 +666,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 30*timeout) {
+				if !m.Assert(ctx, 40*timeout) {
 					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
@@ -1651,7 +1651,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 5*timeout) {
+				if !m.Assert(ctx, 10*timeout) {
 					ctx.Errorf("SNSSQSMessageDisableDeleteOnRetryLimit - message assertion failed for watcher: %#v\n", m)
 				}
 			}

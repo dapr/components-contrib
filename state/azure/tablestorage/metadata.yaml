@@ -34,16 +34,16 @@ metadata:
     type: string
     example: '"table"'
   - name: cosmosDbMode
-    description: "If enabled, connects to Cosmos DB Table API instead of Azure Tables (Storage Accounts). Defaults to `false`."
+    description: "If enabled, connects to Cosmos DB Table API instead of Azure Tables (Storage Accounts)."
     example: '"false"'
     type: bool
-    default: 'false'
+    default: '"false"'
   - name: serviceURL
     description: "The full storage service endpoint URL. Useful for Azure environments other than public cloud."
     example: '"https://mystorageaccount.table.core.windows.net/"'
     type: string
   - name: skipCreateTable
-    description: "Skips the check for and, if necessary, creation of the specified storage table. This is useful when using active directory authentication with minimal privileges. Defaults to `false`."
+    description: "Skips the check for and, if necessary, creation of the specified storage table. This is useful when using active directory authentication with minimal privileges."
     example: '"true"'
     type: bool
-    default: 'false'
+    default: '"false"'

@@ -78,6 +78,11 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		if msg.Headers == nil {
 			msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
 		}
+		// skip metadata that is excluded from headers
+		if k.excludeHeaderMetaRegex != nil && k.excludeHeaderMetaRegex.MatchString(name) {
+			k.logger.Debugf("Skipping metadata %v that is excluded from headers", name)
+			continue
+		}
 		msg.Headers = append(msg.Headers, sarama.RecordHeader{
 			Key:   []byte(name),
 			Value: []byte(value),
@@ -140,6 +145,11 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 
 			if msg.Headers == nil {
 				msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+			}
+			// skip metadata that is excluded from headers
+			if k.excludeHeaderMetaRegex != nil && k.excludeHeaderMetaRegex.MatchString(name) {
+				k.logger.Debugf("Skipping metadata %v that is excluded from headers", name)
+				continue
 			}
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
 				Key:   []byte(name),

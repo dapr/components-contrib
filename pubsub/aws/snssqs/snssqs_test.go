@@ -75,10 +75,10 @@ func Test_getSnsSqsMetadata_AllConfiguration(t *testing.T) {
 	r.Equal("t", md.SessionToken)
 	r.Equal("r", md.Region)
 	r.Equal("q", md.SqsDeadLettersQueueName)
-	r.Equal(int64(2), md.MessageVisibilityTimeout)
+	r.Equal(int32(2), md.MessageVisibilityTimeout)
 	r.Equal(int64(3), md.MessageRetryLimit)
-	r.Equal(int64(4), md.MessageWaitTimeSeconds)
-	r.Equal(int64(5), md.MessageMaxNumber)
+	r.Equal(int32(4), md.MessageWaitTimeSeconds)
+	r.Equal(int32(5), md.MessageMaxNumber)
 	r.Equal(int64(6), md.MessageReceiveLimit)
 }
 
@@ -108,10 +108,10 @@ func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	r.Equal("r", md.Region)
 	r.Equal(pubsub.Parallel, md.ConcurrencyMode)
 	r.Equal(0, md.ConcurrencyLimit)
-	r.Equal(int64(10), md.MessageVisibilityTimeout)
+	r.Equal(int32(10), md.MessageVisibilityTimeout)
 	r.Equal(int64(10), md.MessageRetryLimit)
-	r.Equal(int64(2), md.MessageWaitTimeSeconds)
-	r.Equal(int64(10), md.MessageMaxNumber)
+	r.Equal(int32(2), md.MessageWaitTimeSeconds)
+	r.Equal(int32(10), md.MessageMaxNumber)
 	r.False(md.DisableEntityManagement)
 	r.EqualValues(float64(5), md.AssetsManagementTimeoutSeconds)
 	r.False(md.DisableDeleteOnRetryLimit)
@@ -140,10 +140,10 @@ func Test_getSnsSqsMetadata_legacyaliases(t *testing.T) {
 	r.Equal("acctId", md.AccessKey)
 	r.Equal("secret", md.SecretKey)
 	r.Equal("region", md.Region)
-	r.Equal(int64(10), md.MessageVisibilityTimeout)
+	r.Equal(int32(10), md.MessageVisibilityTimeout)
 	r.Equal(int64(10), md.MessageRetryLimit)
-	r.Equal(int64(2), md.MessageWaitTimeSeconds)
-	r.Equal(int64(10), md.MessageMaxNumber)
+	r.Equal(int32(2), md.MessageWaitTimeSeconds)
+	r.Equal(int32(10), md.MessageMaxNumber)
 }
 
 func testMetadataParsingShouldFail(t *testing.T, metadata pubsub.Metadata, l logger.Logger) {

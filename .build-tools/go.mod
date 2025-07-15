@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/build-tools
 
-go 1.24.1
+go 1.24.4
 
 require (
 	github.com/dapr/components-contrib v0.0.0
@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/dapr/kit v0.15.3-0.20250516121556-bc7dc566c45d // indirect
+	github.com/dapr/kit v0.15.3-0.20250616160611-598b032bce69 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect

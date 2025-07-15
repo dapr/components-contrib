@@ -1,0 +1,13 @@
+services:
+  coherence:
+    image: 'ghcr.io/oracle/coherence-ce:14.1.2-0-2-java17'
+    environment:
+      - coherence.management.http=all
+      - coherence.management.http.port=30000
+      - coherence.health.http.port=6676
+      - coherence.wka=127.0.0.1
+    ports:
+      - 30000:30000
+      - 1408:1408
+      - 9612:9612
+      - 6676:6676

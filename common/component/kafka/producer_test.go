@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/IBM/sarama"
@@ -94,6 +95,30 @@ func TestPublish(t *testing.T) {
 		// assert
 		require.NoError(t, err)
 	})
+
+	t.Run("produce message with excluded headers", func(t *testing.T) {
+		// arrange
+		metadataIn := map[string]string{
+			"a":     "a",
+			"b":     "bVal",
+			"c":     "cVal",
+			"__key": "key",
+		}
+
+		metadataOut := map[string]string{
+			"a":     "a",
+			"__key": "key",
+		}
+		messageAsserter := createMessageAsserter(t, sarama.StringEncoder("key"), metadataOut)
+		k := arrangeKafkaWithAssertions(t, messageAsserter)
+		k.excludeHeaderMetaRegex = regexp.MustCompile("^b|c$")
+
+		// act
+		err := k.Publish(ctx, "a", []byte("a"), metadataIn)
+
+		// assert
+		require.NoError(t, err)
+	})
 }
 
 func TestBulkPublish(t *testing.T) {
@@ -181,6 +206,36 @@ func TestBulkPublish(t *testing.T) {
 			createMessageAsserter(t, nil, map[string]string{"c": "c", "common": "common"}),
 		}
 		k := arrangeKafkaWithAssertions(t, messageAsserters...)
+
+		// act
+		_, err := k.BulkPublish(ctx, "a", entries, metadata)
+
+		// assert
+		require.NoError(t, err)
+	})
+
+	t.Run("bulk produce messages with excluded headers", func(t *testing.T) {
+		// arrange
+		entries := []pubsub.BulkMessageEntry{
+			{
+				EntryId:     "0",
+				Event:       []byte("a"),
+				ContentType: "a",
+				Metadata:    map[string]string{"__key": "key", "a": "a", "b": "b", "c": "c"},
+			},
+			{
+				EntryId:     "0",
+				Event:       []byte("a"),
+				ContentType: "a",
+				Metadata:    map[string]string{"c": "c"},
+			},
+		}
+		messageAsserters := []saramamocks.MessageChecker{
+			createMessageAsserter(t, sarama.StringEncoder("key"), map[string]string{"__key": "key", "common": "common", "a": "a"}),
+			createMessageAsserter(t, nil, map[string]string{"common": "common"}),
+		}
+		k := arrangeKafkaWithAssertions(t, messageAsserters...)
+		k.excludeHeaderMetaRegex = regexp.MustCompile("^b|c$")
 
 		// act
 		_, err := k.BulkPublish(ctx, "a", entries, metadata)

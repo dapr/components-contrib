@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: coherence
+version: v1
+status: alpha
+title: "Coherence"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-coherence/
+capabilities:
+  - crud
+  - ttl
+metadata:
+  - name: serverAddress
+    type: string
+    required: true
+    description: Coherence gRPC Server Address.
+    default: "localhost:1408"
+    example: "localhost:1408"
+  - name: tlsEnabled
+    type: bool
+    required: false
+    example: "false"
+    default: "false"
+    description: Indicates if TLS should be enabled.
+  - name: tlsClientCertPath
+    required: false
+    description: Client certificate path for Coherence. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
+  - name: tlsClientKey
+    required: false
+    description: Client key for Coherence. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
+  - name: tlsCertsPath
+    required: false
+    description: Additional certificates for Coherence. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
+  - name: ignoreInvalidCerts
+    type: bool
+    required: false
+    example: "false"
+    default: "false"
+    description: Indicates if to ignore self-signed certificates for testing only, not to be used in production.
+  - name: scopeName
+    type: string
+    description: A scope name to use for the internal cache. This allows you to set multiple scopes and have different state sessions at a time.
+    default: ""
+    example: "scope1"
+  - name: requestTimeout
+    type: duration
+    description: Timeout for calls to the cluster.
+    default: "30s"
+    example: "30s"
+  - name: nearCacheTTL
+    type: duration
+    description: If non zero a near cache will be used and the TTL of the near cache will be this value.
+    default: "0"
+    example: "30s"
+  - name: nearCacheUnits
+    type: number
+    description: If non zero a near cache will be used and the maximum size of the near cache will be this value in units.
+    default: "0"
+    example: "1000"
+  - name: nearCacheMemory
+    type: number
+    description: If non zero a near cache will be used and the maximum size of the near cache will be this value in bytes.
+    default: "0"
+    example: "1000"

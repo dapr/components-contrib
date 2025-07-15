@@ -25,5 +25,5 @@ metadata:
     required: false
     description: |
       Max tokens for each request
-    type: int
-    example: 2048
+    type: number
+    example: "2048"

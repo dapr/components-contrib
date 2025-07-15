@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The OpenAI LLM to use. Defaults to gpt-4o
+      The OpenAI LLM to use.
     type: string
     example: 'gpt-4-turbo'
+    default: 'gpt-4o'
   - name: endpoint
     required: false
     description: |

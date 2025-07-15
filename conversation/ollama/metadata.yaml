@@ -12,9 +12,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Ollama LLM to use. Defaults to llama3.2:latest
+      The Ollama LLM to use.
     type: string
     example: 'llama3.2:latest'
+    default: 'llama3.2:latest'
   - name: cacheTTL
     required: false
     description: |

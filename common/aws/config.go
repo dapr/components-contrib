@@ -14,7 +14,7 @@ type ConfigOption func(*ConfigOptions)
 
 type ConfigOptions struct {
 	CredentialProvider aws.CredentialsProvider
-	HttpClient         *http.Client
+	HTTPClient         *http.Client
 }
 
 // WithCredentialProvider allows for passing a custom credential provider,
@@ -27,7 +27,7 @@ func WithCredentialProvider(provider aws.CredentialsProvider) func(*ConfigOption
 
 func WithHTTPClient(client *http.Client) func(*ConfigOptions) {
 	return func(opts *ConfigOptions) {
-		opts.HttpClient = client
+		opts.HTTPClient = client
 	}
 }
 
@@ -54,10 +54,10 @@ func NewConfig(ctx context.Context, authOptions auth.Options, opts ...ConfigOpti
 		)
 	}
 
-	if options.HttpClient != nil {
+	if options.HTTPClient != nil {
 		configLoadOptions = append(
 			configLoadOptions,
-			config.WithHTTPClient(options.HttpClient),
+			config.WithHTTPClient(options.HTTPClient),
 		)
 	}
 

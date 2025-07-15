@@ -142,9 +142,9 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		})
 	}
 
-	if s.metadata.ForcePathStyle {
+	if !s.metadata.ForcePathStyle {
 		s3Options = append(s3Options, func(options *s3.Options) {
-			options.UsePathStyle = false
+			options.UsePathStyle = true
 		})
 	}
 

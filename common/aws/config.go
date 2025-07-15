@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -13,6 +14,7 @@ type ConfigOption func(*ConfigOptions)
 
 type ConfigOptions struct {
 	CredentialProvider aws.CredentialsProvider
+	HttpClient         *http.Client
 }
 
 // WithCredentialProvider allows for passing a custom credential provider,
@@ -20,6 +22,12 @@ type ConfigOptions struct {
 func WithCredentialProvider(provider aws.CredentialsProvider) func(*ConfigOptions) {
 	return func(opts *ConfigOptions) {
 		opts.CredentialProvider = provider
+	}
+}
+
+func WithHTTPClient(client *http.Client) func(*ConfigOptions) {
+	return func(opts *ConfigOptions) {
+		opts.HttpClient = client
 	}
 }
 
@@ -39,11 +47,17 @@ func NewConfig(ctx context.Context, authOptions auth.Options, opts ...ConfigOpti
 	var configLoadOptions ConfigLoadOptions
 
 	// Deal with options
-	switch {
-	case authOptions.Endpoint != "":
+	if authOptions.Endpoint != "" {
 		configLoadOptions = append(
 			configLoadOptions,
 			config.WithBaseEndpoint(authOptions.Endpoint),
+		)
+	}
+
+	if options.HttpClient != nil {
+		configLoadOptions = append(
+			configLoadOptions,
+			config.WithHTTPClient(options.HttpClient),
 		)
 	}
 

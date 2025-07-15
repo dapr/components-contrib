@@ -344,10 +344,10 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	var query string
 	var params []interface{}
 	if len(req.Keys) == 0 {
-		query = "SELECT * FROM " + configTable
+		query = "SELECT * FROM " + pgx.Identifier{configTable}.Sanitize()
 	} else {
 		var queryBuilder strings.Builder
-		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN (")
+		queryBuilder.WriteString("SELECT * FROM " + pgx.Identifier{configTable}.Sanitize() + " WHERE KEY IN (")
 		var paramWildcard []string
 		paramPosition := 1
 		for _, v := range req.Keys {
@@ -364,10 +364,9 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 			i, j := len(req.Metadata), 0
 			s.WriteString(" AND ")
 			for k, v := range req.Metadata {
-				temp := "$" + strconv.Itoa(paramPosition) + " = " + "$" + strconv.Itoa(paramPosition+1)
-				s.WriteString(temp)
-				params = append(params, k, v)
-				paramPosition += 2
+				s.WriteString(pgx.Identifier{k}.Sanitize() + " = $" + strconv.Itoa(paramPosition))
+				params = append(params, v)
+				paramPosition++
 				if j++; j < i {
 					s.WriteString(" AND ")
 				}
@@ -432,7 +431,8 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 // GetComponentMetadata returns the metadata of the component.
 func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo,
+		contribMetadata.ConfigurationStoreType)
 	return
 }
 

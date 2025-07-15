@@ -95,7 +95,7 @@ Requires a local Ollama server running with the `llama3.2:latest` model availabl
 Each component has its own configuration file in this directory:
 
 - `echo/echo.yml` - Echo component configuration
-- `openai/openai.yml` - OpenAI configuration with gpt-4o-mini model
+- `openai/openai.yml` - OpenAI configuration with gpt-4.1-nano model
 - `anthropic/anthropic.yml` - Anthropic configuration with Claude 3 Haiku
 - `googleai/googleai.yml` - Google AI configuration with Gemini 1.5 Flash
 - `mistral/mistral.yml` - Mistral configuration with open-mistral-7b

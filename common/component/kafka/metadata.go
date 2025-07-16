@@ -116,6 +116,9 @@ type KafkaMetadata struct {
 	SchemaRegistryAPISecret     string        `mapstructure:"schemaRegistryAPISecret"`
 	SchemaCachingEnabled        bool          `mapstructure:"schemaCachingEnabled"`
 	SchemaLatestVersionCacheTTL time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
+
+	// header from/to metadata excluded keys regex
+	ExcludeHeaderMetaRegex string `mapstructure:"excludeHeaderMetaRegex"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -168,6 +171,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		SchemaCachingEnabled:                         true,
 		SchemaLatestVersionCacheTTL:                  5 * time.Minute,
 		EscapeHeaders:                                false,
+		ExcludeHeaderMetaRegex:                       "",
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)
@@ -345,6 +349,10 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 
 	if m.ClientConnectionKeepAliveInterval < 0 {
 		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+	}
+
+	if val, ok := meta["excludeHeaderMetaRegex"]; ok && val != "" {
+		m.ExcludeHeaderMetaRegex = val
 	}
 
 	return &m, nil

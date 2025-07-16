@@ -164,7 +164,7 @@ metadata:
   - name: getAllMessageProperties
     type: bool
     required: false
-    default: false
+    default: "false"
     example: "false"
     binding:
       input: true

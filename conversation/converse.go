@@ -18,8 +18,6 @@ import (
 	"context"
 	"io"
 
-	"google.golang.org/protobuf/types/known/anypb"
-
 	"github.com/dapr/components-contrib/metadata"
 )
 
@@ -28,45 +26,19 @@ type Conversation interface {
 
 	Init(ctx context.Context, meta Metadata) error
 
+	// Deprecating
 	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
+
+	ConverseV1Alpha2(ctx context.Context, req *ConversationRequestV1Alpha2) (*ConversationResponseV1Alpha2, error)
 
 	io.Closer
 }
 
-type ConversationInput struct {
-	Content string `json:"string"`
-	Role    Role   `json:"role"`
-
-	// ToolCallName is an optional field, that when set,
-	// indicates that the content contains a tool call response to send back to the LLM.
-	ToolCallName string `json:"toolCallName"`
-}
-
-type ConversationRequest struct {
-	Inputs              []ConversationInput   `json:"inputs"`
-	Parameters          map[string]*anypb.Any `json:"parameters"`
-	ConversationContext string                `json:"conversationContext"`
-	Temperature         float64               `json:"temperature"`
-
-	// from metadata
+type ConversationMetadata struct {
 	Key       string   `json:"key"`
 	Model     string   `json:"model"`
 	Endpoints []string `json:"endpoints"`
 	Policy    string   `json:"loadBalancingPolicy"`
-}
-
-type ConversationResult struct {
-	Result     string                `json:"result"`
-	Parameters map[string]*anypb.Any `json:"parameters"`
-
-	// ToolCallName is an optional field, that when set,
-	// indicates that the parameters contains a tool call request to send back to the client to execute.
-	ToolCallName string `json:"toolCallName"`
-}
-
-type ConversationResponse struct {
-	ConversationContext string               `json:"conversationContext"`
-	Outputs             []ConversationResult `json:"outputs"`
 }
 
 type Role string

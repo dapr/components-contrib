@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -204,33 +204,36 @@ func (r *Resolver) Close() error {
 
 // validateAccess validates access to AWS CloudMap and resolves namespace if needed.
 func (r *Resolver) validateAccess(ctx context.Context) error {
-	// If we have namespace ID, validate it and get the name
 	if r.namespaceID != "" {
-		input := &servicediscovery.GetNamespaceInput{
-			Id: aws.String(r.namespaceID),
-		}
-		result, err := r.client.GetNamespace(ctx, input)
-		if err != nil {
-			return fmt.Errorf("failed to get namespace with ID %s: %w", r.namespaceID, err)
-		}
-		if result.Namespace != nil && result.Namespace.Name != nil {
-			r.namespaceName = *result.Namespace.Name
-			return nil
-		}
-		return fmt.Errorf("namespace ID %s exists but has no name", r.namespaceID)
+		return r.validateAccessByID(ctx)
 	}
-
-	// Otherwise, look up namespace by name
 	if r.namespaceName == "" {
 		return errors.New("either namespaceName or namespaceId must be provided")
 	}
+	return r.validateAccessByName(ctx)
+}
 
+func (r *Resolver) validateAccessByID(ctx context.Context) error {
+	input := &servicediscovery.GetNamespaceInput{
+		Id: aws.String(r.namespaceID),
+	}
+	result, err := r.client.GetNamespace(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to get namespace with ID %s: %w", r.namespaceID, err)
+	}
+	if result.Namespace != nil && result.Namespace.Name != nil {
+		r.namespaceName = *result.Namespace.Name
+		return nil
+	}
+	return fmt.Errorf("namespace ID %s exists but has no name", r.namespaceID)
+}
+
+func (r *Resolver) validateAccessByName(ctx context.Context) error {
 	input := &servicediscovery.ListNamespacesInput{}
 	result, err := r.client.ListNamespaces(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to list namespaces: %w", err)
 	}
-
 	for _, ns := range result.Namespaces {
 		if ns.Name != nil && *ns.Name == r.namespaceName {
 			if ns.Id != nil {

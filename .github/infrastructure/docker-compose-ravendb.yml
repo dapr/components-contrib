@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - RAVEN_LICENSE={"Id":"1bcf6b3f-cd52-488c-9aa2-c982d6e57c78","Name":"RavenDB","Keys":["CtmBDhwRJAJIDOHv+Pev+B8o4","A5l3K4n1z2FbtgHsKPl1QkQNx","LPqr9nkPEq5MUCHQZ0XkkP5BY","Czc9DkF33Y8mNFemJZl8tkGm6","DY2Q6YyYtEt/jQayDOUVUtUlY","FC4inkD4zkb3Ii2WEbyv5RRew","jzoKxeOVYXQsToAMe6xG9ABYE","DNy4wBSYoSQMqKywtLi8wJzEy","MzQVFjc4OTo7PD0+nwIfIJ8CI","CCfAiEgnwIjIJ8CJCCfAiUgnw","ImIJ8CJyCfAiggnwIpIJ8CKiC","fAisgnwIsIJ8CLSCfAi4gnwIv","IJ8CMCCfAzZAAZ8CQiBDJEQJY","htbnwRBYBhb"]}
+      - RAVEN_LICENSE=${RavenDbLicense}
       - RAVEN_DATABASE=testdapr
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true

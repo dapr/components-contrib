@@ -64,10 +64,13 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
+			req := &conversation.Request{
+				Message: &[]llms.MessageContent{
 					{
-						Message: "what is the time?",
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "what is the time?"},
+						},
 					},
 				},
 			}
@@ -89,10 +92,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				},
 			}
 
-			req := &conversation.ConversationRequestV1Alpha2{
+			req := &conversation.Request{
 				Message: &userMsgs,
 			}
-			resp, err := conv.ConverseV1Alpha2(ctx, req)
+			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
@@ -111,10 +114,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				},
 			}
 
-			req := &conversation.ConversationRequestV1Alpha2{
+			req := &conversation.Request{
 				Message: &systemMsgs,
 			}
-			resp, err := conv.ConverseV1Alpha2(ctx, req)
+			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
@@ -133,10 +136,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				},
 			}
 
-			req := &conversation.ConversationRequestV1Alpha2{
+			req := &conversation.Request{
 				Message: &assistantMsgs,
 			}
-			resp, err := conv.ConverseV1Alpha2(ctx, req)
+			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
@@ -159,10 +162,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				},
 			}
 
-			req := &conversation.ConversationRequestV1Alpha2{
+			req := &conversation.Request{
 				Message: &toolResponseMsgs,
 			}
-			resp, err := conv.ConverseV1Alpha2(ctx, req)
+			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)

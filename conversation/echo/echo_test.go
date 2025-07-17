@@ -14,60 +14,87 @@ import (
 func TestConverse(t *testing.T) {
 	tests := []struct {
 		name     string
-		inputs   []conversation.ConversationInput
-		expected *conversation.ConversationResponse
+		inputs   []llms.MessageContent
+		expected *conversation.Response
 	}{
 		{
 			name: "basic input",
-			inputs: []conversation.ConversationInput{
+			inputs: []llms.MessageContent{
 				{
-					Message: "hello",
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "hello"},
+					},
 				},
 			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
-						Result:     "hello",
-						Parameters: nil,
+						Result:          "hello",
+						Parameters:      nil,
+						ToolCallRequest: []llms.ToolCall{},
+						StopReason:      "done",
 					},
 				},
 			},
 		},
 		{
 			name: "empty input",
-			inputs: []conversation.ConversationInput{
+			inputs: []llms.MessageContent{
 				{
-					Message: "",
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: ""},
+					},
 				},
 			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
-						Result:     "",
-						Parameters: nil,
+						Result:          "",
+						Parameters:      nil,
+						ToolCallRequest: []llms.ToolCall{},
+						StopReason:      "done",
 					},
 				},
 			},
 		},
 		{
-			name: "multiple inputs - echo comp returns 1st input only",
-			inputs: []conversation.ConversationInput{
+			name: "multiple inputs with multiple content parts",
+			inputs: []llms.MessageContent{
 				{
-					Message: "first message",
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "first message"},
+						llms.TextContent{Text: "second message"},
+					},
 				},
 				{
-					Message: "second message",
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "third message"},
+					},
 				},
 			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
-						Result:     "first message",
-						Parameters: nil,
+						Result:          "first message",
+						Parameters:      nil,
+						ToolCallRequest: []llms.ToolCall{},
+						StopReason:      "done",
 					},
 					{
-						Result:     "second message",
-						Parameters: nil,
+						Result:          "second message",
+						Parameters:      nil,
+						ToolCallRequest: []llms.ToolCall{},
+						StopReason:      "done",
+					},
+					{
+						Result:          "third message",
+						Parameters:      nil,
+						ToolCallRequest: []llms.ToolCall{},
+						StopReason:      "done",
 					},
 				},
 			},
@@ -79,11 +106,14 @@ func TestConverse(t *testing.T) {
 			e := NewEcho(logger.NewLogger("echo test"))
 			e.Init(t.Context(), conversation.Metadata{})
 
-			r, err := e.Converse(t.Context(), &conversation.ConversationRequest{
-				Inputs: tt.inputs,
+			messages := make([]llms.MessageContent, len(tt.inputs))
+			copy(messages, tt.inputs)
+
+			r, err := e.Converse(t.Context(), &conversation.Request{
+				Message: &messages,
 			})
 			require.NoError(t, err)
-			assert.Len(t, r.Outputs, len(tt.inputs))
+			assert.Len(t, r.Outputs, len(tt.expected.Outputs))
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
 		})
 	}
@@ -93,7 +123,7 @@ func TestConverseV1Alpha2(t *testing.T) {
 	tests := []struct {
 		name     string
 		messages []llms.MessageContent
-		expected *conversation.ConversationResponseV1Alpha2
+		expected *conversation.Response
 	}{
 		{
 			name: "tool call request",
@@ -112,8 +142,8 @@ func TestConverseV1Alpha2(t *testing.T) {
 					},
 				},
 			},
-			expected: &conversation.ConversationResponseV1Alpha2{
-				Outputs: []conversation.ConversationResultV1Alpha2{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
 						Result: "",
 						ToolCallRequest: []llms.ToolCall{
@@ -145,8 +175,8 @@ func TestConverseV1Alpha2(t *testing.T) {
 					},
 				},
 			},
-			expected: &conversation.ConversationResponseV1Alpha2{
-				Outputs: []conversation.ConversationResultV1Alpha2{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
 						Result: "Dapr",
 						ToolCallRequest: []llms.ToolCall{
@@ -182,8 +212,8 @@ func TestConverseV1Alpha2(t *testing.T) {
 					},
 				},
 			},
-			expected: &conversation.ConversationResponseV1Alpha2{
-				Outputs: []conversation.ConversationResultV1Alpha2{
+			expected: &conversation.Response{
+				Outputs: []conversation.Result{
 					{
 						Result: "text msg",
 						ToolCallRequest: []llms.ToolCall{
@@ -208,7 +238,7 @@ func TestConverseV1Alpha2(t *testing.T) {
 			e := NewEcho(logger.NewLogger("echo test"))
 			e.Init(t.Context(), conversation.Metadata{})
 
-			r, err := e.ConverseV1Alpha2(t.Context(), &conversation.ConversationRequestV1Alpha2{
+			r, err := e.Converse(t.Context(), &conversation.Request{
 				Message: &tt.messages,
 			})
 			require.NoError(t, err)

@@ -40,7 +40,7 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 }
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.ConversationRequest{}
+	r := &conversation.Request{}
 	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
@@ -52,23 +52,41 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 }
 
 func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.ConversationRequest{}
+	metadataStruct := conversation.Request{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
 // Converse returns inputs directly.
-func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	outputs := make([]conversation.ConversationResult, 0, len(r.Inputs))
+func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	outputs := make([]conversation.Result, 0, len(*r.Message))
 
-	for _, input := range r.Inputs {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     input.Message,
-			Parameters: r.Parameters,
-		})
+	for _, msg := range *r.Message {
+		for _, part := range msg.Parts {
+			var content string
+			switch p := part.(type) {
+			case llms.TextContent:
+				content += p.Text
+			case *llms.ToolCall:
+				if p.FunctionCall != nil {
+					content += p.FunctionCall.Name + "(" + p.FunctionCall.Arguments + ")"
+				}
+			case llms.ToolCallResponse:
+				content += p.Content
+			default:
+				content += "unknown content type"
+			}
+
+			outputs = append(outputs, conversation.Result{
+				Result:          content,
+				Parameters:      r.Parameters,
+				ToolCallRequest: []llms.ToolCall{},
+				StopReason:      "done",
+			})
+		}
 	}
 
-	res = &conversation.ConversationResponse{
+	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}
@@ -81,10 +99,10 @@ func (e *Echo) Close() error {
 }
 
 // ConverseV1Alpha2 returns inputs directly.
-func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
-	var outputs []conversation.ConversationResultV1Alpha2
+func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	var outputs []conversation.Result
 	if r.Message != nil {
-		outputs = make([]conversation.ConversationResultV1Alpha2, 0, len(*r.Message))
+		outputs = make([]conversation.Result, 0, len(*r.Message))
 
 		for _, message := range *r.Message {
 			var content string
@@ -95,7 +113,7 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Conversatio
 				}
 			}
 
-			result := conversation.ConversationResultV1Alpha2{
+			result := conversation.Result{
 				Result:     content,
 				Parameters: r.Parameters,
 			}
@@ -122,7 +140,7 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Conversatio
 		}
 	}
 
-	res = &conversation.ConversationResponseV1Alpha2{
+	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}

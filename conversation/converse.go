@@ -19,6 +19,8 @@ import (
 	"io"
 
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/tmc/langchaingo/llms"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Conversation interface {
@@ -26,27 +28,35 @@ type Conversation interface {
 
 	Init(ctx context.Context, meta Metadata) error
 
-	// Deprecating
-	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
-
-	ConverseV1Alpha2(ctx context.Context, req *ConversationRequestV1Alpha2) (*ConversationResponseV1Alpha2, error)
+	Converse(ctx context.Context, req *Request) (*Response, error)
 
 	io.Closer
 }
 
-type ConversationMetadata struct {
+type Request struct {
+	// Message can be user input prompt/instructions and/or tool call responses.
+	Message             *[]llms.MessageContent
+	Tools               *[]llms.Tool
+	Parameters          map[string]*anypb.Any `json:"parameters"`
+	ConversationContext string                `json:"conversationContext"`
+	Temperature         float64               `json:"temperature"`
+
+	// from metadata
 	Key       string   `json:"key"`
 	Model     string   `json:"model"`
 	Endpoints []string `json:"endpoints"`
 	Policy    string   `json:"loadBalancingPolicy"`
 }
 
-type Role string
+// TODO: Double check if i need these fields given the api updates i made
+type Response struct {
+	ConversationContext string   `json:"conversationContext"`
+	Outputs             []Result `json:"outputs"`
+}
 
-const (
-	RoleSystem    = "system"
-	RoleUser      = "user"
-	RoleAssistant = "assistant"
-	RoleFunction  = "function"
-	RoleTool      = "tool"
-)
+type Result struct {
+	Result          string                `json:"result"`
+	Parameters      map[string]*anypb.Any `json:"parameters"`
+	ToolCallRequest []llms.ToolCall
+	StopReason      string `json:"stopReason"`
+}

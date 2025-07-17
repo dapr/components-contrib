@@ -62,13 +62,24 @@ func (d *Deepseek) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
-func (d *Deepseek) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := make([]deepseek_go.ChatCompletionMessage, 0, len(r.Inputs))
+func (d *Deepseek) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	messages := make([]deepseek_go.ChatCompletionMessage, 0, len(*r.Message))
 
-	for _, input := range r.Inputs {
+	for _, input := range *r.Message {
+		var content string
+		for _, part := range input.Parts {
+			switch p := part.(type) {
+			case llms.TextContent:
+				content += p.Text
+			// TODO(@Sicoyle): update this to use openai or langchaingo llm instead so i dont have to duplicate logic here for tool calls
+			default:
+				content += "unknown content type"
+			}
+		}
+
 		messages = append(messages, deepseek_go.ChatCompletionMessage{
 			Role:    string(input.Role),
-			Content: input.Message,
+			Content: content,
 		})
 	}
 
@@ -90,23 +101,23 @@ func (d *Deepseek) Converse(ctx context.Context, r *conversation.ConversationReq
 		return nil, err
 	}
 
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
+	outputs := make([]conversation.Result, 0, len(resp.Choices))
 
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
+		outputs = append(outputs, conversation.Result{
 			Result:     resp.Choices[i].Message.Content,
 			Parameters: r.Parameters,
 		})
 	}
 
-	res = &conversation.ConversationResponse{
+	res = &conversation.Response{
 		Outputs: outputs,
 	}
 
 	return res, nil
 }
 
-func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
+func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	if r.Message == nil {
 		return nil, errors.New("message is nil")
 	}
@@ -169,16 +180,16 @@ func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.Convers
 		return nil, err
 	}
 
-	outputs := make([]conversation.ConversationResultV1Alpha2, 0, len(resp.Choices))
+	outputs := make([]conversation.Result, 0, len(resp.Choices))
 
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResultV1Alpha2{
+		outputs = append(outputs, conversation.Result{
 			Result:     resp.Choices[i].Message.Content,
 			Parameters: r.Parameters,
 		})
 	}
 
-	res = &conversation.ConversationResponseV1Alpha2{
+	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}

@@ -312,13 +312,15 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 		token, _, err := signer.GenerateAuthTokenFromRole(ctx, m.region, m.awsIamRoleArn, m.awsStsSessionName)
 		return &sarama.AccessToken{Token: token}, err
 	case m.accessKey != "" && m.secretKey != "":
-		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
-			return aws2.Credentials{
-				AccessKeyID:     m.accessKey,
-				SecretAccessKey: m.secretKey,
-				SessionToken:    m.sessionToken,
-			}, nil
-		}))
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(ctx, m.region, aws2.NewCredentialsCache(
+			aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+				return aws2.Credentials{
+					AccessKeyID:     m.accessKey,
+					SecretAccessKey: m.secretKey,
+					SessionToken:    m.sessionToken,
+				}, nil
+			}),
+		))
 		return &sarama.AccessToken{Token: token}, err
 
 	default: // load default aws creds

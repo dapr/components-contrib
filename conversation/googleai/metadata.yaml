@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The GoogleAI LLM to use. Defaults to gemini-1.5-flash
+      The GoogleAI LLM to use.
     type: string
     example: 'gemini-2.0-flash'
+    default: 'gemini-2.0-flash'
   - name: cacheTTL
     required: false
     description: |

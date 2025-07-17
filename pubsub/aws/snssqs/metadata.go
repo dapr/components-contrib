@@ -37,7 +37,7 @@ type snsSqsMetadata struct {
 	// see: https://aws.amazon.com/blogs/compute/solving-complex-ordering-challenges-with-amazon-sqs-fifo-queues/
 	FifoMessageGroupID string `mapstructure:"fifoMessageGroupID"`
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10.
-	MessageVisibilityTimeout int64 `mapstructure:"messageVisibilityTimeout"`
+	MessageVisibilityTimeout int32 `mapstructure:"messageVisibilityTimeout"`
 	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10.
 	MessageRetryLimit int64 `mapstructure:"messageRetryLimit"`
 	// upon reaching the messageRetryLimit, disables the default deletion behaviour of the message from the SQS queue, and resetting the message visibilty on SQS
@@ -47,9 +47,9 @@ type snsSqsMetadata struct {
 	// before it is moved to the dead-letters queue. This value must be smaller than messageRetryLimit.
 	MessageReceiveLimit int64 `mapstructure:"messageReceiveLimit"`
 	// amount of time to await receipt of a message before making another request. Default: 2.
-	MessageWaitTimeSeconds int64 `mapstructure:"messageWaitTimeSeconds"`
+	MessageWaitTimeSeconds int32 `mapstructure:"messageWaitTimeSeconds"`
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10.
-	MessageMaxNumber int64 `mapstructure:"messageMaxNumber"`
+	MessageMaxNumber int32 `mapstructure:"messageMaxNumber"`
 	// disable resource provisioning of SNS and SQS.
 	DisableEntityManagement bool `mapstructure:"disableEntityManagement"`
 	// assets creation timeout.

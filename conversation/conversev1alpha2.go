@@ -19,20 +19,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type ConversationInputV1Alpha2 struct {
-	// Message can be user input prompt/instructions and/or tool call responses.
-	Message string `json:"message"`
-
-	// TODO(@Sicoyle): go back and update runtime logic to rm role logic and make these typed and pass the diff types
-	// of msg content and just do role stuff here. That does not need to be in runtime, just here for llm provider.
-	// Then, this role can just go away i think maybe.
-	Role Role `json:"role"`
-
-	ToolCalls []*ConversationInputToolCalls `json:"toolCalls"`
-	Refusal   *string                       `json:"refusal,omitempty"`
-	ToolId    *string                       `json:"toolId,omitempty"`
-}
-
 type ConversationInputToolCalls struct {
 	Id string `json:"id"`
 	ToolCallFunction
@@ -43,30 +29,27 @@ type ToolCallFunction struct {
 	Arguments *string `json:"arguments"` // can be empty
 }
 
-// TODO(@Sicoyle): update these fields with new api
 type ConversationRequestV1Alpha2 struct {
-	Inputs              []ConversationInputV1Alpha2 `json:"inputs"`
-	Parameters          map[string]*anypb.Any       `json:"parameters"`
-	ConversationContext string                      `json:"conversationContext"`
-	Temperature         float64                     `json:"temperature"`
+	// Message can be user input prompt/instructions and/or tool call responses.
+	Message             []*llms.MessageContent
+	Tools               []*llms.Tool
+	Parameters          map[string]*anypb.Any `json:"parameters"`
+	ConversationContext string                `json:"conversationContext"`
+	Temperature         float64               `json:"temperature"`
 
 	// from metadata
 	ConversationMetadata
 }
 
-// TODO(@Sicoyle): update these fields with new api
+// TODO: Double check if i need these fields given the api updates i made
 type ConversationResponseV1Alpha2 struct {
-	ConversationContext string               `json:"conversationContext"`
-	Outputs             []ConversationResult `json:"outputs"`
+	ConversationContext string                       `json:"conversationContext"`
+	Outputs             []ConversationResultV1Alpha2 `json:"outputs"`
 }
 
 type ConversationResultV1Alpha2 struct {
-	Result     string                `json:"result"`
-	Parameters map[string]*anypb.Any `json:"parameters"`
-
-	// ToolCallName is an optional field, that when set,
-	// indicates that the parameters contains a tool call request to send back to the client to execute.
-	// ToolCallName string `json:"toolCallName"`
+	Result          string                `json:"result"`
+	Parameters      map[string]*anypb.Any `json:"parameters"`
 	ToolCallRequest []llms.ToolCall
 	StopReason      string `json:"stopReason"`
 }

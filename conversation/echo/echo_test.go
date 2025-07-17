@@ -5,6 +5,7 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,15 +21,14 @@ func TestConverse(t *testing.T) {
 			name: "basic input",
 			inputs: []conversation.ConversationInput{
 				{
-					Content: "hello",
+					Message: "hello",
 				},
 			},
 			expected: &conversation.ConversationResponse{
 				Outputs: []conversation.ConversationResult{
 					{
-						Result:       "hello",
-						ToolCallName: "",
-						Parameters:   nil,
+						Result:     "hello",
+						Parameters: nil,
 					},
 				},
 			},
@@ -37,15 +37,14 @@ func TestConverse(t *testing.T) {
 			name: "empty input",
 			inputs: []conversation.ConversationInput{
 				{
-					Content: "",
+					Message: "",
 				},
 			},
 			expected: &conversation.ConversationResponse{
 				Outputs: []conversation.ConversationResult{
 					{
-						Result:       "",
-						ToolCallName: "",
-						Parameters:   nil,
+						Result:     "",
+						Parameters: nil,
 					},
 				},
 			},
@@ -54,94 +53,21 @@ func TestConverse(t *testing.T) {
 			name: "multiple inputs - echo comp returns 1st input only",
 			inputs: []conversation.ConversationInput{
 				{
-					Content: "first message",
+					Message: "first message",
 				},
 				{
-					Content: "second message",
+					Message: "second message",
 				},
 			},
 			expected: &conversation.ConversationResponse{
 				Outputs: []conversation.ConversationResult{
 					{
-						Result:       "first message",
-						ToolCallName: "",
-						Parameters:   nil,
+						Result:     "first message",
+						Parameters: nil,
 					},
 					{
-						Result:       "second message",
-						ToolCallName: "",
-						Parameters:   nil,
-					},
-				},
-			},
-		},
-		{
-			name: "tool call input",
-			inputs: []conversation.ConversationInput{
-				{
-					Content:      "first message",
-					ToolCallName: "mytool",
-				},
-			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
-					{
-						Result:       "first message",
-						ToolCallName: "mytool",
-						Parameters:   nil,
-					},
-				},
-			},
-		},
-		{
-			name: "tool call input",
-			inputs: []conversation.ConversationInput{
-				{
-					Content:      "first message",
-					ToolCallName: "mytool",
-				},
-				{
-					Content:      "second message",
-					ToolCallName: "mysecond",
-				},
-			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
-					{
-						Result:       "first message",
-						ToolCallName: "mytool",
-						Parameters:   nil,
-					},
-					{
-						Result:       "second message",
-						ToolCallName: "mysecond",
-						Parameters:   nil,
-					},
-				},
-			},
-		},
-		{
-			name: "mixed - normal input content and then a tool call input",
-			inputs: []conversation.ConversationInput{
-				{
-					Content: "first message",
-				},
-				{
-					Content:      "second message",
-					ToolCallName: "mysecond",
-				},
-			},
-			expected: &conversation.ConversationResponse{
-				Outputs: []conversation.ConversationResult{
-					{
-						Result:       "first message",
-						ToolCallName: "",
-						Parameters:   nil,
-					},
-					{
-						Result:       "second message",
-						ToolCallName: "mysecond",
-						Parameters:   nil,
+						Result:     "second message",
+						Parameters: nil,
 					},
 				},
 			},
@@ -158,6 +84,135 @@ func TestConverse(t *testing.T) {
 			})
 			require.NoError(t, err)
 			assert.Len(t, r.Outputs, len(tt.inputs))
+			assert.Equal(t, tt.expected.Outputs, r.Outputs)
+		})
+	}
+}
+
+func TestConverseV1Alpha2(t *testing.T) {
+	tests := []struct {
+		name     string
+		messages []*llms.MessageContent
+		expected *conversation.ConversationResponseV1Alpha2
+	}{
+		{
+			name: "tool call request",
+			messages: []*llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeAI,
+					Parts: []llms.ContentPart{
+						&llms.ToolCall{
+							ID:   "myid",
+							Type: "function",
+							FunctionCall: &llms.FunctionCall{
+								Name:      "myfunc",
+								Arguments: `{"name": "Dapr"}`,
+							},
+						},
+					},
+				},
+			},
+			expected: &conversation.ConversationResponseV1Alpha2{
+				Outputs: []conversation.ConversationResultV1Alpha2{
+					{
+						Result: "",
+						ToolCallRequest: []llms.ToolCall{
+							{
+								ID:   "myid",
+								Type: "function",
+								FunctionCall: &llms.FunctionCall{
+									Name:      "myfunc",
+									Arguments: `{"name": "Dapr"}`,
+								},
+							},
+						},
+						Parameters: nil,
+					},
+				},
+			},
+		},
+		{
+			name: "tool call response",
+			messages: []*llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeTool,
+					Parts: []llms.ContentPart{
+						llms.ToolCallResponse{
+							ToolCallID: "myid",
+							Content:    "Dapr",
+							Name:       "myfunc",
+						},
+					},
+				},
+			},
+			expected: &conversation.ConversationResponseV1Alpha2{
+				Outputs: []conversation.ConversationResultV1Alpha2{
+					{
+						Result: "Dapr",
+						ToolCallRequest: []llms.ToolCall{
+							{
+								ID:   "myid",
+								Type: "function",
+								FunctionCall: &llms.FunctionCall{
+									Name:      "myfunc",
+									Arguments: "Dapr",
+								},
+							},
+						},
+						Parameters: nil,
+					},
+				},
+			},
+		},
+		{
+			name: "mixed content with text and tool call",
+			messages: []*llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeAI,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "text msg"},
+						&llms.ToolCall{
+							ID:   "myid",
+							Type: "function",
+							FunctionCall: &llms.FunctionCall{
+								Name:      "myfunc",
+								Arguments: `{"name": "Dapr"}`,
+							},
+						},
+					},
+				},
+			},
+			expected: &conversation.ConversationResponseV1Alpha2{
+				Outputs: []conversation.ConversationResultV1Alpha2{
+					{
+						Result: "text msg",
+						ToolCallRequest: []llms.ToolCall{
+							{
+								ID:   "myid",
+								Type: "function",
+								FunctionCall: &llms.FunctionCall{
+									Name:      "myfunc",
+									Arguments: `{"name": "Dapr"}`,
+								},
+							},
+						},
+						Parameters: nil,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewEcho(logger.NewLogger("echo test"))
+			e.Init(t.Context(), conversation.Metadata{})
+
+			r, err := e.ConverseV1Alpha2(t.Context(), &conversation.ConversationRequestV1Alpha2{
+				Message: tt.messages,
+			})
+			require.NoError(t, err)
+			assert.Len(t, r.Outputs, len(tt.messages))
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
 		})
 	}

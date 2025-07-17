@@ -90,14 +90,24 @@
 To run all conformance tests
 
 ```bash
- dlv test --build-flags '-v -tags=conftests' ./tests/conformance
+dlv test --build-flags '-v -tags=conftests' ./tests/conformance
 ```
 
 To run a specific conformance test
 
 ```bash
- dlv test --build-flags '-v -tags=conftests' ./tests/conformance -- -test.run "TestStateConformance/redis"
- ```
+// in debugger
+dlv test --build-flags '-v -tags=conftests' ./tests/conformance -- -test.run "TestStateConformance/redis"
+
+// with go test
+go test -v -tags=conftests -count=1 ./tests/conformance -run="TestStateConformance/redis"
+```
+
+Noting, the pattern to run other specific conformance tests
+
+```bash
+go test -v -tags=conftests -count=1 ./tests/conformance -run="Test<api capitalized>Conformance/<component name>"
+```
  
 If you want to combine VS Code & dlv for debugging so you can set breakpoints in the IDE, create a debug launch configuration as follows:
 

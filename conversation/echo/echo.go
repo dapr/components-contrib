@@ -22,6 +22,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
+	"github.com/tmc/langchaingo/llms"
 )
 
 // Echo implement is only for test.
@@ -62,15 +63,14 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 	for _, input := range r.Inputs {
 		outputs = append(outputs, conversation.ConversationResult{
-			Result:       input.Content,
-			Parameters:   r.Parameters,
-			ToolCallName: input.ToolCallName,
+			Result:     input.Message,
+			Parameters: r.Parameters,
 		})
 	}
 
 	res = &conversation.ConversationResponse{
-		Outputs: outputs,
-		// TODO: why is Content not here??
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil
@@ -78,4 +78,51 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest
 
 func (e *Echo) Close() error {
 	return nil
+}
+
+// ConverseV1Alpha2 returns inputs directly.
+func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
+	outputs := make([]conversation.ConversationResultV1Alpha2, 0, len(r.Message))
+
+	for _, message := range r.Message {
+		var content string
+		for _, part := range message.Parts {
+			switch p := part.(type) {
+			case llms.TextContent:
+				content += p.Text
+			}
+		}
+
+		result := conversation.ConversationResultV1Alpha2{
+			Result:     content,
+			Parameters: r.Parameters,
+		}
+
+		for _, part := range message.Parts {
+			switch p := part.(type) {
+			// TODO: doulbe check this is right or if tool calls by assistant should just be a message content or special msg type
+			case *llms.ToolCall:
+				result.ToolCallRequest = append(result.ToolCallRequest, *p)
+			case llms.ToolCallResponse:
+				result.ToolCallRequest = append(result.ToolCallRequest, llms.ToolCall{
+					ID:   p.ToolCallID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      p.Name,
+						Arguments: p.Content,
+					},
+				})
+				result.Result = p.Content
+			}
+		}
+
+		outputs = append(outputs, result)
+	}
+
+	res = &conversation.ConversationResponseV1Alpha2{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
+	}
+
+	return res, nil
 }

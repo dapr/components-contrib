@@ -25,6 +25,7 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 
 	deepseek_go "github.com/cohesion-org/deepseek-go"
+	"github.com/tmc/langchaingo/llms"
 )
 
 type Deepseek struct {
@@ -99,6 +100,83 @@ func (d *Deepseek) Converse(ctx context.Context, r *conversation.ConversationReq
 
 	res = &conversation.ConversationResponse{
 		Outputs: outputs,
+	}
+
+	return res, nil
+}
+
+func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
+	messages := make([]deepseek_go.ChatCompletionMessage, 0, len(r.Message))
+
+	// TODO: mv this translation logic elsewhere to clean this up
+
+	// contrib types are specific to langchaingo since most of the components use this;
+	// however, deepseek does not, so we must translate to deepseek_go.ChatCompletionMessage
+	for _, input := range r.Message {
+		var content string
+		for _, part := range input.Parts {
+			switch p := part.(type) {
+			case llms.TextContent:
+				content += p.Text
+			}
+		}
+
+		messages = append(messages, deepseek_go.ChatCompletionMessage{
+			Role:    string(input.Role),
+			Content: content,
+		})
+	}
+
+	request := &deepseek_go.ChatCompletionRequest{
+		Model:    deepseek_go.DeepSeekChat,
+		Messages: messages,
+	}
+
+	if d.md.MaxTokens > 0 {
+		request.MaxTokens = d.md.MaxTokens
+	}
+
+	if r.Temperature > 0 {
+		request.Temperature = float32(r.Temperature)
+	}
+
+	if r.Tools != nil {
+		deepseekTools := make([]deepseek_go.Tool, 0, len(r.Tools))
+		for _, tool := range r.Tools {
+			deepseekTool := deepseek_go.Tool{
+				Type: tool.Type,
+			}
+			if tool.Function != nil {
+				deepseekTool.Function = deepseek_go.Function{
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
+					Parameters:  tool.Function.Parameters.(*deepseek_go.FunctionParameters), // TODO: double check this...
+				}
+			}
+			deepseekTools = append(deepseekTools, deepseekTool)
+		}
+		request.Tools = deepseekTools
+	}
+
+	// TODO(@Sicoyle): do tool choice opt too for all of these!
+
+	resp, err := d.llm.CreateChatCompletion(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	outputs := make([]conversation.ConversationResultV1Alpha2, 0, len(resp.Choices))
+
+	for i := range resp.Choices {
+		outputs = append(outputs, conversation.ConversationResultV1Alpha2{
+			Result:     resp.Choices[i].Message.Content,
+			Parameters: r.Parameters,
+		})
+	}
+
+	res = &conversation.ConversationResponseV1Alpha2{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil

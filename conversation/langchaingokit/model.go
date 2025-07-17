@@ -28,8 +28,8 @@ type LLM struct {
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := GetMessageFromRequest(r)
-	opts := GetOptionsFromRequest(r)
+	messages := getMessageFromRequest(r)
+	opts := getOptionsFromRequest(r)
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
@@ -39,14 +39,53 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest)
 	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
 
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
+		output := conversation.ConversationResult{}
+		if resp.Choices[i].Content != "" {
+			output.Result = resp.Choices[i].Content
+			output.Parameters = r.Parameters
+		}
+		outputs = append(outputs, output)
 	}
 
 	res = &conversation.ConversationResponse{
 		Outputs: outputs,
+	}
+
+	return res, nil
+}
+
+func (a *LLM) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
+	opts := getOptionsFromRequestV1Alpha2(r)
+
+	// TODO: go back and maybe make this a pointer to slice of messages instead?
+	messages := make([]llms.MessageContent, len(r.Message))
+	for i, msg := range r.Message {
+		messages[i] = *msg
+	}
+
+	resp, err := a.GenerateContent(ctx, messages, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	outputs := make([]conversation.ConversationResultV1Alpha2, 0, len(resp.Choices))
+	for i := range resp.Choices {
+		// regular text output
+		output := conversation.ConversationResultV1Alpha2{}
+		if resp.Choices[i].Content != "" {
+			output.Result = resp.Choices[i].Content
+		} else if resp.Choices[i].ToolCalls != nil {
+			output.ToolCallRequest = resp.Choices[i].ToolCalls
+		}
+
+		output.StopReason = resp.Choices[i].StopReason
+		output.Parameters = r.Parameters
+		outputs = append(outputs, output)
+	}
+
+	res = &conversation.ConversationResponseV1Alpha2{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil

@@ -80,7 +80,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		t.Run("v1alpha2 api - test user message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
-			userMsgs := []*llms.MessageContent{
+			userMsgs := []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeHuman,
 					Parts: []llms.ContentPart{
@@ -90,7 +90,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			req := &conversation.ConversationRequestV1Alpha2{
-				Message: userMsgs,
+				Message: &userMsgs,
 			}
 			resp, err := conv.ConverseV1Alpha2(ctx, req)
 
@@ -102,7 +102,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		t.Run("v1alpha2 api - test system message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
-			systemMsgs := []*llms.MessageContent{
+			systemMsgs := []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeSystem,
 					Parts: []llms.ContentPart{
@@ -112,7 +112,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			req := &conversation.ConversationRequestV1Alpha2{
-				Message: systemMsgs,
+				Message: &systemMsgs,
 			}
 			resp, err := conv.ConverseV1Alpha2(ctx, req)
 
@@ -124,7 +124,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		t.Run("v1alpha2 api - test assistant message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
-			assistantMsgs := []*llms.MessageContent{
+			assistantMsgs := []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
@@ -134,7 +134,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			req := &conversation.ConversationRequestV1Alpha2{
-				Message: assistantMsgs,
+				Message: &assistantMsgs,
 			}
 			resp, err := conv.ConverseV1Alpha2(ctx, req)
 
@@ -146,7 +146,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		t.Run("v1alpha2 api - test tool call response", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
-			toolResponseMsgs := []*llms.MessageContent{
+			toolResponseMsgs := []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeTool,
 					Parts: []llms.ContentPart{
@@ -160,7 +160,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 
 			req := &conversation.ConversationRequestV1Alpha2{
-				Message: toolResponseMsgs,
+				Message: &toolResponseMsgs,
 			}
 			resp, err := conv.ConverseV1Alpha2(ctx, req)
 

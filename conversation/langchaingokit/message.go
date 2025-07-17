@@ -59,12 +59,7 @@ func getOptionsFromRequestV1Alpha2(r *conversation.ConversationRequestV1Alpha2, 
 	}
 
 	if r.Tools != nil {
-		// TODO: go back and maybe make this a pointer to slice of tools instead?
-		tools := make([]llms.Tool, len(r.Tools))
-		for i, tool := range r.Tools {
-			tools[i] = *tool
-		}
-		opts = append(opts, llms.WithTools(tools))
+		opts = append(opts, llms.WithTools(*r.Tools))
 	}
 
 	return opts

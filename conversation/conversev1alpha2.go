@@ -31,8 +31,8 @@ type ToolCallFunction struct {
 
 type ConversationRequestV1Alpha2 struct {
 	// Message can be user input prompt/instructions and/or tool call responses.
-	Message             []*llms.MessageContent
-	Tools               []*llms.Tool
+	Message             *[]llms.MessageContent
+	Tools               *[]llms.Tool
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
 	Temperature         float64               `json:"temperature"`

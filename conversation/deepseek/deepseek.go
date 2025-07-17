@@ -17,6 +17,7 @@ package deepseek
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -106,13 +107,16 @@ func (d *Deepseek) Converse(ctx context.Context, r *conversation.ConversationReq
 }
 
 func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
-	messages := make([]deepseek_go.ChatCompletionMessage, 0, len(r.Message))
+	if r.Message == nil {
+		return nil, errors.New("message is nil")
+	}
+	messages := make([]deepseek_go.ChatCompletionMessage, 0, len(*r.Message))
 
 	// TODO: mv this translation logic elsewhere to clean this up
 
 	// contrib types are specific to langchaingo since most of the components use this;
 	// however, deepseek does not, so we must translate to deepseek_go.ChatCompletionMessage
-	for _, input := range r.Message {
+	for _, input := range *r.Message {
 		var content string
 		for _, part := range input.Parts {
 			switch p := part.(type) {
@@ -141,8 +145,8 @@ func (d *Deepseek) ConverseV1Alpha2(ctx context.Context, r *conversation.Convers
 	}
 
 	if r.Tools != nil {
-		deepseekTools := make([]deepseek_go.Tool, 0, len(r.Tools))
-		for _, tool := range r.Tools {
+		deepseekTools := make([]deepseek_go.Tool, 0, len(*r.Tools))
+		for _, tool := range *r.Tools {
 			deepseekTool := deepseek_go.Tool{
 				Type: tool.Type,
 			}

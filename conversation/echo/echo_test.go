@@ -92,12 +92,12 @@ func TestConverse(t *testing.T) {
 func TestConverseV1Alpha2(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []*llms.MessageContent
+		messages []llms.MessageContent
 		expected *conversation.ConversationResponseV1Alpha2
 	}{
 		{
 			name: "tool call request",
-			messages: []*llms.MessageContent{
+			messages: []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
@@ -133,7 +133,7 @@ func TestConverseV1Alpha2(t *testing.T) {
 		},
 		{
 			name: "tool call response",
-			messages: []*llms.MessageContent{
+			messages: []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeTool,
 					Parts: []llms.ContentPart{
@@ -166,7 +166,7 @@ func TestConverseV1Alpha2(t *testing.T) {
 		},
 		{
 			name: "mixed content with text and tool call",
-			messages: []*llms.MessageContent{
+			messages: []llms.MessageContent{
 				{
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
@@ -209,7 +209,7 @@ func TestConverseV1Alpha2(t *testing.T) {
 			e.Init(t.Context(), conversation.Metadata{})
 
 			r, err := e.ConverseV1Alpha2(t.Context(), &conversation.ConversationRequestV1Alpha2{
-				Message: tt.messages,
+				Message: &tt.messages,
 			})
 			require.NoError(t, err)
 			assert.Len(t, r.Outputs, len(tt.messages))

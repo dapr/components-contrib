@@ -57,10 +57,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest)
 func (a *LLM) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
 	opts := getOptionsFromRequestV1Alpha2(r)
 
-	// TODO: go back and maybe make this a pointer to slice of messages instead?
-	messages := make([]llms.MessageContent, len(r.Message))
-	for i, msg := range r.Message {
-		messages[i] = *msg
+	var messages []llms.MessageContent
+	if r.Message != nil {
+		messages = *r.Message
 	}
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)

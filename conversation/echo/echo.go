@@ -82,41 +82,44 @@ func (e *Echo) Close() error {
 
 // ConverseV1Alpha2 returns inputs directly.
 func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.ConversationRequestV1Alpha2) (res *conversation.ConversationResponseV1Alpha2, err error) {
-	outputs := make([]conversation.ConversationResultV1Alpha2, 0, len(r.Message))
+	var outputs []conversation.ConversationResultV1Alpha2
+	if r.Message != nil {
+		outputs = make([]conversation.ConversationResultV1Alpha2, 0, len(*r.Message))
 
-	for _, message := range r.Message {
-		var content string
-		for _, part := range message.Parts {
-			switch p := part.(type) {
-			case llms.TextContent:
-				content += p.Text
+		for _, message := range *r.Message {
+			var content string
+			for _, part := range message.Parts {
+				switch p := part.(type) {
+				case llms.TextContent:
+					content += p.Text
+				}
 			}
-		}
 
-		result := conversation.ConversationResultV1Alpha2{
-			Result:     content,
-			Parameters: r.Parameters,
-		}
-
-		for _, part := range message.Parts {
-			switch p := part.(type) {
-			// TODO: doulbe check this is right or if tool calls by assistant should just be a message content or special msg type
-			case *llms.ToolCall:
-				result.ToolCallRequest = append(result.ToolCallRequest, *p)
-			case llms.ToolCallResponse:
-				result.ToolCallRequest = append(result.ToolCallRequest, llms.ToolCall{
-					ID:   p.ToolCallID,
-					Type: "function",
-					FunctionCall: &llms.FunctionCall{
-						Name:      p.Name,
-						Arguments: p.Content,
-					},
-				})
-				result.Result = p.Content
+			result := conversation.ConversationResultV1Alpha2{
+				Result:     content,
+				Parameters: r.Parameters,
 			}
-		}
 
-		outputs = append(outputs, result)
+			for _, part := range message.Parts {
+				switch p := part.(type) {
+				// TODO: doulbe check this is right or if tool calls by assistant should just be a message content or special msg type
+				case *llms.ToolCall:
+					result.ToolCallRequest = append(result.ToolCallRequest, *p)
+				case llms.ToolCallResponse:
+					result.ToolCallRequest = append(result.ToolCallRequest, llms.ToolCall{
+						ID:   p.ToolCallID,
+						Type: "function",
+						FunctionCall: &llms.FunctionCall{
+							Name:      p.Name,
+							Arguments: p.Content,
+						},
+					})
+					result.Result = p.Content
+				}
+			}
+
+			outputs = append(outputs, result)
+		}
 	}
 
 	res = &conversation.ConversationResponseV1Alpha2{

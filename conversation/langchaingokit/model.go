@@ -27,7 +27,7 @@ type LLM struct {
 	llms.Model
 }
 
-func (a *LLM) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	opts := getOptionsFromRequest(r)
 
 	var messages []llms.MessageContent

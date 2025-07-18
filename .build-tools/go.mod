@@ -2,8 +2,6 @@ module github.com/dapr/components-contrib/build-tools
 
 go 1.24.4
 
-toolchain go1.24.5
-
 require (
 	github.com/dapr/components-contrib v0.0.0
 	github.com/invopop/jsonschema v0.6.0

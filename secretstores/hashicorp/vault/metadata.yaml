@@ -12,9 +12,10 @@ metadata:
   - name: vaultAddr
     required: false
     description: |
-      The address of the Vault server. Defaults to "https://127.0.0.1:8200"
+      The address of the Vault server.
     example: "https://127.0.0.1:8200"
     type: string
+    default: "https://127.0.0.1:8200"
   - name: caPem
     required: false
     description: |
@@ -34,8 +35,9 @@ metadata:
     type: string
   - name: skipVerify
     required: false
-    description: Skip TLS verification. Defaults to false
+    description: Skip TLS verification.
     example: "true"
+    default: "false"
     type: string
   - name: tlsServerName
     required: false
@@ -55,8 +57,9 @@ metadata:
   - name: vaultKVPrefix
     required: false
     description: |
-      The prefix in vault. Defaults to "dapr"
+      The prefix in vault.
     example: "myprefix"
+    default: "dapr"
     type: string
   - name: vaultKVUsePrefix
     required: false
@@ -66,12 +69,14 @@ metadata:
   - name: enginePath
     required: false
     description: |
-      The engine path in vault. Defaults to "secret"
+      The engine path in vault.
     example: "kv"
     type: string
+    default: "secret"
   - name: vaultValueType
     required: false
     description: |
-      Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. "map" sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics. Defaults to "map"
+      Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. "map" sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics.
     example: "map"
+    default: "map"
     type: string

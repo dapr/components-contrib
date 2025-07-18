@@ -16,7 +16,6 @@ package servicebus
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
@@ -189,15 +188,6 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		return m, err
 	}
 
-	if isAzureEmulator(m.ConnectionString) && !m.DisableEntityManagement {
-			logger.Warn(
-				"UseDevelopmentEmulator=true detected in connection string. " +
-					"Azure emulator does not support topic management APIs. " +
-					"Dapr will skip admin operations. " +
-					"To suppress this warning, explicitly set disableEntityManagement: true.")
-		}
-		m.DisableEntityManagement = true
-
 	/* Nullable configuration settings - defaults will be set by the server. */
 
 	if m.DefaultMessageTimeToLiveInSec == nil {
@@ -276,8 +266,4 @@ func toDurationISOString(valInSec int) *string {
 		Duration: time.Duration(valInSec) * time.Second,
 	}
 	return ptr.Of(valDuration.ToISOString())
-}
-
-func isAzureEmulator(connectionString string) bool {
-	return strings.Contains(strings.ToLower(connectionString), "usedevelopmentemulator=true")
 }

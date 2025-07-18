@@ -18,9 +18,9 @@ import (
 	"context"
 	"io"
 
-	"google.golang.org/protobuf/types/known/anypb"
-
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/tmc/langchaingo/llms"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Conversation interface {
@@ -28,18 +28,15 @@ type Conversation interface {
 
 	Init(ctx context.Context, meta Metadata) error
 
-	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
+	Converse(ctx context.Context, req *Request) (*Response, error)
 
 	io.Closer
 }
 
-type ConversationInput struct {
-	Message string `json:"string"`
-	Role    Role   `json:"role"`
-}
-
-type ConversationRequest struct {
-	Inputs              []ConversationInput   `json:"inputs"`
+type Request struct {
+	// Message can be user input prompt/instructions and/or tool call responses.
+	Message             *[]llms.MessageContent
+	Tools               *[]llms.Tool
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
 	Temperature         float64               `json:"temperature"`
@@ -51,22 +48,15 @@ type ConversationRequest struct {
 	Policy    string   `json:"loadBalancingPolicy"`
 }
 
-type ConversationResult struct {
-	Result     string                `json:"result"`
-	Parameters map[string]*anypb.Any `json:"parameters"`
+// TODO: Double check if i need these fields given the api updates i made
+type Response struct {
+	ConversationContext string   `json:"conversationContext"`
+	Outputs             []Result `json:"outputs"`
 }
 
-type ConversationResponse struct {
-	ConversationContext string               `json:"conversationContext"`
-	Outputs             []ConversationResult `json:"outputs"`
+type Result struct {
+	Result          string                `json:"result"`
+	Parameters      map[string]*anypb.Any `json:"parameters"`
+	ToolCallRequest []llms.ToolCall
+	StopReason      string `json:"stopReason"`
 }
-
-type Role string
-
-const (
-	RoleSystem    = "system"
-	RoleUser      = "user"
-	RoleAssistant = "assistant"
-	RoleFunction  = "function"
-	RoleTool      = "tool"
-)

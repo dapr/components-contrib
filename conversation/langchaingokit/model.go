@@ -27,27 +27,54 @@ type LLM struct {
 	llms.Model
 }
 
-func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := GetMessageFromRequest(r)
-	opts := GetOptionsFromRequest(r)
+func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	opts := getOptionsFromRequest(r)
+
+	var messages []llms.MessageContent
+	if r.Message != nil {
+		messages = *r.Message
+	}
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
-
+	outputs := make([]conversation.Result, 0, len(resp.Choices))
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
+		// regular text output
+		output := conversation.Result{}
+		if resp.Choices[i].Content != "" {
+			output.Result = resp.Choices[i].Content
+		} else if resp.Choices[i].ToolCalls != nil {
+			output.ToolCallRequest = resp.Choices[i].ToolCalls
+		}
+
+		output.StopReason = resp.Choices[i].StopReason
+		output.Parameters = r.Parameters
+		outputs = append(outputs, output)
 	}
 
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
+	res = &conversation.Response{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil
+}
+
+func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
+	if opts == nil {
+		opts = make([]llms.CallOption, 0)
+	}
+
+	if r.Temperature > 0 {
+		opts = append(opts, llms.WithTemperature(r.Temperature))
+	}
+
+	if r.Tools != nil {
+		opts = append(opts, llms.WithTools(*r.Tools))
+	}
+
+	return opts
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,10 +64,13 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 
-			req := &conversation.ConversationRequest{
-				Inputs: []conversation.ConversationInput{
+			req := &conversation.Request{
+				Message: &[]llms.MessageContent{
 					{
-						Message: "what is the time?",
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "what is the time?"},
+						},
 					},
 				},
 			}
@@ -76,5 +80,105 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
 		})
+		t.Run("v1alpha2 api - test user message type", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+			userMsgs := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "user msg"},
+					},
+				},
+			}
+
+			req := &conversation.Request{
+				Message: &userMsgs,
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
+			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			assert.Empty(t, resp.Outputs[0].Parameters)
+			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
+		})
+		t.Run("v1alpha2 api - test system message type", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+			systemMsgs := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeSystem,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "system msg"},
+					},
+				},
+			}
+
+			req := &conversation.Request{
+				Message: &systemMsgs,
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
+			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			assert.Empty(t, resp.Outputs[0].Parameters)
+			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
+		})
+		t.Run("v1alpha2 api - test assistant message type", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+			assistantMsgs := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeAI,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "assistant msg"},
+					},
+				},
+			}
+
+			req := &conversation.Request{
+				Message: &assistantMsgs,
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
+			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			assert.Empty(t, resp.Outputs[0].Parameters)
+			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
+		})
+		// TODO: fix this in morning - must have a a preceeding msg with 'tool_calls'.
+		// t.Run("v1alpha2 api - test tool call response", func(t *testing.T) {
+		// 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+		// 	defer cancel()
+		// 	toolResponseMsgs := []llms.MessageContent{
+		// 		{
+		// 			Role: llms.ChatMessageTypeTool,
+		// 			Parts: []llms.ContentPart{
+		// 				llms.ToolCallResponse{
+		// 					ToolCallID: "tool_id",
+		// 					Name:       "get_name",
+		// 					Content:    "Dapr",
+		// 				},
+		// 			},
+		// 		},
+		// 	}
+
+		// 	req := &conversation.Request{
+		// 		Message: &toolResponseMsgs,
+		// 	}
+		// 	resp, err := conv.Converse(ctx, req)
+
+		// 	require.NoError(t, err)
+		// 	assert.Len(t, resp.Outputs, 1)
+
+		// 	assert.Equal(t, "tool_id", resp.Outputs[0].ToolCallRequest[0].ID)
+		// 	assert.Equal(t, "get_name", resp.Outputs[0].ToolCallRequest[0].FunctionCall.Name)
+		// })
 	})
 }

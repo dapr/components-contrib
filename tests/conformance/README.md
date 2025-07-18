@@ -90,7 +90,11 @@
 To run all conformance tests
 
 ```bash
+// in debugger
 dlv test --build-flags '-v -tags=conftests' ./tests/conformance
+
+// with go test
+go test --build-flags '-v -tags=conftests' ./tests/conformance
 ```
 
 To run a specific conformance test

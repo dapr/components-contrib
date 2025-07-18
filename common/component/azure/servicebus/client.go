@@ -16,6 +16,7 @@ package servicebus
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,7 +41,7 @@ type Client struct {
 }
 
 // NewClient creates a new Client object.
-func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, error) {
+func NewClient(metadata *Metadata, rawMetadata map[string]string, log logger.Logger) (*Client, error) {
 	client := &Client{
 		metadata: metadata,
 		lock:     &sync.RWMutex{},
@@ -86,9 +87,17 @@ func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, erro
 		}
 
 		if !metadata.DisableEntityManagement {
-			client.adminClient, err = sbadmin.NewClient(metadata.NamespaceName, token, nil)
-			if err != nil {
-				return nil, err
+			if isAzureEmulator(metadata.ConnectionString) {
+				log.Warn(
+					"UseDevelopmentEmulator=true detected in connection string. " +
+						"Azure emulator does not support topic management APIs. " +
+						"Dapr will skip admin operations. " +
+						"To suppress this warning, explicitly set disableEntityManagement: true.")
+			} else {
+				client.adminClient, err = sbadmin.NewClient(metadata.NamespaceName, token, nil)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -393,4 +402,8 @@ func notEqual(a, b *bool) bool {
 		return true
 	}
 	return *a != *b
+}
+
+func isAzureEmulator(connectionString string) bool {
+	return strings.Contains(strings.ToLower(connectionString), "usedevelopmentemulator=true")
 }

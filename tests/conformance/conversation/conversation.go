@@ -15,10 +15,12 @@ package conversation
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/tmc/langchaingo/llms"
@@ -80,7 +82,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
 		})
-		t.Run("v1alpha2 api - test user message type", func(t *testing.T) {
+		t.Run("test user message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 			userMsgs := []llms.MessageContent{
@@ -100,11 +102,12 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
-			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
 			assert.Empty(t, resp.Outputs[0].Parameters)
 			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
 		})
-		t.Run("v1alpha2 api - test system message type", func(t *testing.T) {
+		t.Run("test system message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 			systemMsgs := []llms.MessageContent{
@@ -112,6 +115,14 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					Role: llms.ChatMessageTypeSystem,
 					Parts: []llms.ContentPart{
 						llms.TextContent{Text: "system msg"},
+					},
+				},
+				// The user msg is required as anthropic is unique in the sense that they require a user msg in addition to a system msg.
+				// While other providers such as openai do not have this requirement.
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "user msg"},
 					},
 				},
 			}
@@ -124,11 +135,12 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
-			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
 			assert.Empty(t, resp.Outputs[0].Parameters)
 			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
 		})
-		t.Run("v1alpha2 api - test assistant message type", func(t *testing.T) {
+		t.Run("test assistant message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 			assistantMsgs := []llms.MessageContent{
@@ -136,6 +148,15 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
 						llms.TextContent{Text: "assistant msg"},
+					},
+				},
+				// anthropic expects a conversation to end with a user message to generate a response,
+				// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
+				// otherwise it assumes the conversation is over.
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "continue the conversation"},
 					},
 				},
 			}
@@ -148,37 +169,224 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Result)
-			assert.Equal(t, "stop", resp.Outputs[0].StopReason)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
 			assert.Empty(t, resp.Outputs[0].Parameters)
 			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
 		})
-		// TODO: fix this in morning - must have a a preceeding msg with 'tool_calls'.
-		// t.Run("v1alpha2 api - test tool call response", func(t *testing.T) {
-		// 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
-		// 	defer cancel()
-		// 	toolResponseMsgs := []llms.MessageContent{
-		// 		{
-		// 			Role: llms.ChatMessageTypeTool,
-		// 			Parts: []llms.ContentPart{
-		// 				llms.ToolCallResponse{
-		// 					ToolCallID: "tool_id",
-		// 					Name:       "get_name",
-		// 					Content:    "Dapr",
-		// 				},
-		// 			},
-		// 		},
-		// 	}
 
-		// 	req := &conversation.Request{
-		// 		Message: &toolResponseMsgs,
-		// 	}
-		// 	resp, err := conv.Converse(ctx, req)
+		// TODO: add of developer test too!
 
-		// 	require.NoError(t, err)
-		// 	assert.Len(t, resp.Outputs, 1)
+		t.Run("test active tool calling capability", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
 
-		// 	assert.Equal(t, "tool_id", resp.Outputs[0].ToolCallRequest[0].ID)
-		// 	assert.Equal(t, "get_name", resp.Outputs[0].ToolCallRequest[0].FunctionCall.Name)
-		// })
+			messages := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "What is this open source project called?"},
+					},
+				},
+			}
+
+			tools := []llms.Tool{
+				{
+					Type: "function",
+					Function: &llms.FunctionDefinition{
+						Name:        "get_project_name",
+						Description: "Get the name of an open source project",
+						Parameters: map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"repo_link": map[string]any{
+									"type":        "string",
+									"description": "The repository link",
+								},
+							},
+							"required": []string{"repo_link"},
+						},
+					},
+				},
+			}
+
+			req := &conversation.Request{
+				Message: &messages,
+				Tools:   &tools,
+			}
+
+			resp, err := conv.Converse(ctx, req)
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+
+			if len(resp.Outputs[0].ToolCallRequest) > 0 {
+				assert.Len(t, resp.Outputs[0].ToolCallRequest, 1)
+				toolCall := resp.Outputs[0].ToolCallRequest[0]
+				assert.Equal(t, "get_project_name", toolCall.FunctionCall.Name)
+				assert.Contains(t, toolCall.FunctionCall.Arguments, "repo_link")
+
+				toolResponse := llms.ToolCallResponse{
+					ToolCallID: toolCall.ID,
+					Name:       "get_project_name",
+					Content:    "The open source project name is Dapr.",
+				}
+
+				responseMessages := []llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "What is the project name?"},
+						},
+					},
+				}
+
+				// mistral must have tool info wrapped as text
+				if component != "mistral" {
+					responseMessages = append(responseMessages, llms.MessageContent{
+						Role:  llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{&toolCall},
+					})
+					responseMessages = append(responseMessages, llms.MessageContent{
+						Role:  llms.ChatMessageTypeTool,
+						Parts: []llms.ContentPart{toolResponse},
+					})
+				} else {
+					responseMessages = append(responseMessages, llms.MessageContent{
+						Role:  llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
+					})
+					responseMessages = append(responseMessages, mistral.CreateToolResponseMessage(toolResponse))
+				}
+
+				req2 := &conversation.Request{
+					Message: &responseMessages,
+				}
+
+				resp2, err2 := conv.Converse(ctx, req2)
+				require.NoError(t, err2)
+				assert.Len(t, resp2.Outputs, 1)
+				assert.NotEmpty(t, resp2.Outputs[0].Result)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp2.Outputs[0].StopReason))
+			} else {
+				assert.NotEmpty(t, resp.Outputs[0].Result)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+			}
+		})
+
+		t.Run("test conversation history with tool calls", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+
+			// Note: this subtest is created based on mistral tool calling docs example:
+			// https://docs.mistral.ai/capabilities/function_calling/
+			messages := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "What's the status of my transaction T1001?"},
+					},
+				},
+			}
+
+			tools := []llms.Tool{
+				{
+					Type: "function",
+					Function: &llms.FunctionDefinition{
+						Name:        "retrieve_payment_status",
+						Description: "Get payment status of a transaction",
+						Parameters: map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"transaction_id": map[string]any{
+									"type":        "string",
+									"description": "The transaction id.",
+								},
+							},
+							"required": []string{"transaction_id"},
+						},
+					},
+				},
+			}
+
+			req1 := &conversation.Request{
+				Message: &messages,
+				Tools:   &tools,
+			}
+
+			resp1, err := conv.Converse(ctx, req1)
+			require.NoError(t, err)
+
+			// handle potentially multiple outputs from llm provider
+			var toolCall *llms.ToolCall
+			for _, output := range resp1.Outputs {
+				if len(output.ToolCallRequest) > 0 {
+					toolCall = &output.ToolCallRequest[0]
+					break
+				}
+			}
+
+			// check if we got a tool call request
+			if toolCall != nil {
+				assert.Equal(t, "retrieve_payment_status", toolCall.FunctionCall.Name)
+				assert.Contains(t, toolCall.FunctionCall.Arguments, "T1001")
+
+				toolResponse := llms.ToolCallResponse{
+					ToolCallID: toolCall.ID,
+					Name:       "retrieve_payment_status",
+					Content:    `{"status": "Paid"}`,
+				}
+
+				var toolResponseMessages []llms.MessageContent
+				if component != "mistral" {
+					toolResponseMessages = []llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "What's the status of my transaction T1001?"},
+							},
+						},
+						{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{*toolCall},
+						},
+						{
+							Role: llms.ChatMessageTypeTool, // needs to be human for openai?
+							Parts: []llms.ContentPart{
+								toolResponse,
+							},
+						},
+					}
+				} else {
+					toolResponseMessages = []llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "What's the status of my transaction T1001?"},
+							},
+						},
+						{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{mistral.CreateToolCallPart(toolCall)},
+						},
+						mistral.CreateToolResponseMessage(toolResponse),
+					}
+				}
+
+				req2 := &conversation.Request{
+					Message: &toolResponseMessages,
+				}
+
+				resp2, err := conv.Converse(ctx, req2)
+				require.NoError(t, err)
+				assert.Len(t, resp2.Outputs, 1)
+				assert.NotEmpty(t, resp2.Outputs[0].Result)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp2.Outputs[0].StopReason))
+			} else {
+				// it is valid too if no tool call was generated
+				assert.NotEmpty(t, resp1.Outputs[0].Result)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp1.Outputs[0].StopReason))
+			}
+		})
 	})
+
 }

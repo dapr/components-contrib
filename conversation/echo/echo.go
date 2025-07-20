@@ -120,7 +120,7 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (r
 
 			for _, part := range message.Parts {
 				switch p := part.(type) {
-				// TODO: doulbe check this is right or if tool calls by assistant should just be a message content or special msg type
+				// TODO: double check this is right or if tool calls by assistant should just be a message content or special msg type
 				case *llms.ToolCall:
 					result.ToolCallRequest = append(result.ToolCallRequest, *p)
 				case llms.ToolCallResponse:

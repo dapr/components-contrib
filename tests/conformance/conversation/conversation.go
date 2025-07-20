@@ -19,11 +19,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tmc/langchaingo/llms"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/tmc/langchaingo/llms"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -242,20 +243,24 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 				// mistral must have tool info wrapped as text
 				if component != "mistral" {
-					responseMessages = append(responseMessages, llms.MessageContent{
-						Role:  llms.ChatMessageTypeAI,
-						Parts: []llms.ContentPart{&toolCall},
-					})
-					responseMessages = append(responseMessages, llms.MessageContent{
-						Role:  llms.ChatMessageTypeTool,
-						Parts: []llms.ContentPart{toolResponse},
-					})
+					responseMessages = append(responseMessages,
+						llms.MessageContent{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{&toolCall},
+						},
+						llms.MessageContent{
+							Role:  llms.ChatMessageTypeTool,
+							Parts: []llms.ContentPart{toolResponse},
+						},
+					)
 				} else {
-					responseMessages = append(responseMessages, llms.MessageContent{
-						Role:  llms.ChatMessageTypeAI,
-						Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
-					})
-					responseMessages = append(responseMessages, mistral.CreateToolResponseMessage(toolResponse))
+					responseMessages = append(responseMessages,
+						llms.MessageContent{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
+						},
+						mistral.CreateToolResponseMessage(toolResponse),
+					)
 				}
 
 				req2 := &conversation.Request{
@@ -388,5 +393,4 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 		})
 	})
-
 }

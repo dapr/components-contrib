@@ -18,9 +18,10 @@ import (
 	"context"
 	"io"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/tmc/langchaingo/llms"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 type Conversation interface {

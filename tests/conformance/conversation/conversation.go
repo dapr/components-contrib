@@ -176,9 +176,33 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
 		})
 
-		// TODO: add of developer test too!
+		t.Run("test developer message type", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+			developerMsgs := []llms.MessageContent{
+				{
+					Role: llms.ChatMessageTypeHuman,
+					Parts: []llms.ContentPart{
+						llms.TextContent{Text: "developer msg"},
+					},
+				},
+			}
 
-		t.Run("test active tool calling capability", func(t *testing.T) {
+			req := &conversation.Request{
+				Message: &developerMsgs,
+			}
+			resp, err := conv.Converse(ctx, req)
+
+			require.NoError(t, err)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Result)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+			assert.Empty(t, resp.Outputs[0].Parameters)
+			assert.Empty(t, resp.Outputs[0].ToolCallRequest)
+		})
+
+		t.Run("test tool message type - confirming active tool calling capability", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 

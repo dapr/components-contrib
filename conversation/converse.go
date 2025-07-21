@@ -56,8 +56,21 @@ type Response struct {
 }
 
 type Result struct {
-	Result          string                `json:"result"`
-	Parameters      map[string]*anypb.Any `json:"parameters"`
-	ToolCallRequest []llms.ToolCall
-	StopReason      string `json:"stopReason"`
+	StopReason string   `json:"stopReason"`
+	Choices    []Choice `json:"choices,omitempty"`
+}
+
+type Choice struct {
+	FinishReason string  `json:"finishReason"`
+	Index        int64   `json:"index"`
+	Message      Message `json:"message"`
+}
+
+// Message represents the content of a choice
+// where it can be a text message or a tool call.
+type Message struct {
+	Content         string           `json:"content,omitempty"`
+	ToolCallRequest *[]llms.ToolCall `json:"toolCallRequest,omitempty"`
+
+	// Note: we do not have refusal passed back bc langchain does not support it.
 }

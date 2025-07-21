@@ -63,7 +63,7 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	outputs := make([]conversation.Result, 0, len(*r.Message))
 
-	for _, msg := range *r.Message {
+	for i, msg := range *r.Message {
 		for _, part := range msg.Parts {
 			var content string
 			switch p := part.(type) {
@@ -79,11 +79,18 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 
+			choice := conversation.Choice{
+				FinishReason: "stop",
+				Index:        int64(i),
+				Message: conversation.Message{
+					Content: content,
+				},
+			}
+
 			outputs = append(outputs, conversation.Result{
-				Result:          content,
-				Parameters:      r.Parameters,
-				ToolCallRequest: []llms.ToolCall{},
-				StopReason:      "done",
+				Parameters: r.Parameters,
+				StopReason: "done",
+				Choices:    []conversation.Choice{choice},
 			})
 		}
 	}
@@ -115,17 +122,21 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (r
 				}
 			}
 
-			result := conversation.Result{
-				Result:     content,
-				Parameters: r.Parameters,
+			choice := conversation.Choice{
+				FinishReason: "stop",
+				Index:        int64(len(outputs)),
+				Message: conversation.Message{
+					Content: content,
+				},
 			}
 
+			var toolCalls []llms.ToolCall
 			for _, part := range message.Parts {
 				switch p := part.(type) {
 				case *llms.ToolCall:
-					result.ToolCallRequest = append(result.ToolCallRequest, *p)
+					toolCalls = append(toolCalls, *p)
 				case llms.ToolCallResponse:
-					result.ToolCallRequest = append(result.ToolCallRequest, llms.ToolCall{
+					toolCalls = append(toolCalls, llms.ToolCall{
 						ID:   p.ToolCallID,
 						Type: "function",
 						FunctionCall: &llms.FunctionCall{
@@ -133,8 +144,18 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (r
 							Arguments: p.Content,
 						},
 					})
-					result.Result = p.Content
+					choice.Message.Content = p.Content
 				}
+			}
+
+			if len(toolCalls) > 0 {
+				choice.Message.ToolCallRequest = &toolCalls
+			}
+
+			result := conversation.Result{
+				Parameters: r.Parameters,
+				StopReason: "stop",
+				Choices:    []conversation.Choice{choice},
 			}
 
 			outputs = append(outputs, result)

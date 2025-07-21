@@ -42,20 +42,29 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	outputs := make([]conversation.Result, 0, len(resp.Choices))
 	for i := range resp.Choices {
-		// regular text output
-		output := conversation.Result{}
-		if resp.Choices[i].Content != "" {
-			output.Result = resp.Choices[i].Content
-		} else if resp.Choices[i].ToolCalls != nil {
-			output.ToolCallRequest = resp.Choices[i].ToolCalls
+		choice := conversation.Choice{
+			FinishReason: resp.Choices[i].StopReason,
+			Index:        int64(i),
 		}
 
-		output.StopReason = resp.Choices[i].StopReason
-		output.Parameters = r.Parameters
+		if resp.Choices[i].Content != "" {
+			choice.Message.Content = resp.Choices[i].Content
+		}
+
+		if resp.Choices[i].ToolCalls != nil {
+			choice.Message.ToolCallRequest = &resp.Choices[i].ToolCalls
+		}
+
+		output := conversation.Result{
+			StopReason: resp.Choices[i].StopReason,
+			Choices:    []conversation.Choice{choice},
+		}
+
 		outputs = append(outputs, output)
 	}
 
 	res = &conversation.Response{
+		// TODO(Sicoyle): I am not updating conversation context here and I need to
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}
@@ -76,7 +85,9 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		opts = append(opts, llms.WithTools(*r.Tools))
 	}
 
-	opts = append(opts, llms.WithToolChoice(r.ToolChoice))
+	if r.ToolChoice != "" {
+		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
+	}
 
 	return opts
 }

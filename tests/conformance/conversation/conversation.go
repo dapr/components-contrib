@@ -379,7 +379,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 							Parts: []llms.ContentPart{*toolCall},
 						},
 						{
-							Role: llms.ChatMessageTypeTool, // needs to be human for openai?
+							Role: llms.ChatMessageTypeTool,
 							Parts: []llms.ContentPart{
 								toolResponse,
 							},

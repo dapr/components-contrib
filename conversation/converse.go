@@ -50,7 +50,6 @@ type Request struct {
 	Policy    string   `json:"loadBalancingPolicy"`
 }
 
-// TODO: Double check if i need these fields given the api updates i made
 type Response struct {
 	ConversationContext string   `json:"conversationContext"`
 	Outputs             []Result `json:"outputs"`

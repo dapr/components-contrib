@@ -3,11 +3,12 @@ package echo
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/conversation"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/kit/logger"
 )
 
 func TestConverse(t *testing.T) {

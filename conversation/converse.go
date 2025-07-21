@@ -38,6 +38,7 @@ type Request struct {
 	// Message can be user input prompt/instructions and/or tool call responses.
 	Message             *[]llms.MessageContent
 	Tools               *[]llms.Tool
+	ToolChoice          string
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
 	Temperature         float64               `json:"temperature"`

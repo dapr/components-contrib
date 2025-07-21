@@ -76,5 +76,7 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		opts = append(opts, llms.WithTools(*r.Tools))
 	}
 
+	opts = append(opts, llms.WithToolChoice(r.ToolChoice))
+
 	return opts
 }

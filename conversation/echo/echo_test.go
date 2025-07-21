@@ -5,10 +5,9 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
-	"github.com/tmc/langchaingo/llms"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms"
 )
 
 func TestConverse(t *testing.T) {

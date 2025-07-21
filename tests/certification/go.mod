@@ -131,7 +131,7 @@ require (
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
-	github.com/dapr/durabletask-go v0.6.5 // indirect
+	github.com/dapr/durabletask-go v0.7.3-0.20250711135247-7a35af6fe0e5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -150,6 +150,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/go-chi/cors v1.2.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
@@ -287,7 +288,7 @@ require (
 	github.com/spf13/cast v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/stoewer/go-strcase v1.2.0 // indirect
+	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
 	github.com/tidwall/gjson v1.17.0 // indirect
@@ -363,3 +364,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+replace github.com/dapr/dapr => github.com/sicoyle/dapr v0.0.0-20250721133219-ae723285c0e3

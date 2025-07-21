@@ -412,6 +412,5 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp1.Outputs[0].StopReason))
 			}
 		})
-
 	})
 }

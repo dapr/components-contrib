@@ -88,7 +88,6 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			}
 
 			outputs = append(outputs, conversation.Result{
-				Parameters: r.Parameters,
 				StopReason: "done",
 				Choices:    []conversation.Choice{choice},
 			})
@@ -153,7 +152,6 @@ func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (r
 			}
 
 			result := conversation.Result{
-				Parameters: r.Parameters,
 				StopReason: "stop",
 				Choices:    []conversation.Choice{choice},
 			}

@@ -16,6 +16,7 @@ package echo
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/tmc/langchaingo/llms"
@@ -75,7 +76,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			case llms.ToolCallResponse:
 				content += p.Content
 			default:
-				content += "unknown content type"
+				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 
 			outputs = append(outputs, conversation.Result{

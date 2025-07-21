@@ -30,10 +30,16 @@ func TestConverse(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result:          "hello",
-						Parameters:      nil,
-						ToolCallRequest: []llms.ToolCall{},
-						StopReason:      "done",
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "hello",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -51,10 +57,16 @@ func TestConverse(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result:          "",
-						Parameters:      nil,
-						ToolCallRequest: []llms.ToolCall{},
-						StopReason:      "done",
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -79,22 +91,40 @@ func TestConverse(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result:          "first message",
-						Parameters:      nil,
-						ToolCallRequest: []llms.ToolCall{},
-						StopReason:      "done",
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "first message",
+								},
+							},
+						},
 					},
 					{
-						Result:          "second message",
-						Parameters:      nil,
-						ToolCallRequest: []llms.ToolCall{},
-						StopReason:      "done",
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "second message",
+								},
+							},
+						},
 					},
 					{
-						Result:          "third message",
-						Parameters:      nil,
-						ToolCallRequest: []llms.ToolCall{},
-						StopReason:      "done",
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        1,
+								Message: conversation.Message{
+									Content: "third message",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -145,18 +175,25 @@ func TestConverseV1Alpha2(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result: "",
-						ToolCallRequest: []llms.ToolCall{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
 							{
-								ID:   "myid",
-								Type: "function",
-								FunctionCall: &llms.FunctionCall{
-									Name:      "myfunc",
-									Arguments: `{"name": "Dapr"}`,
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									ToolCallRequest: &[]llms.ToolCall{
+										{
+											ID:   "myid",
+											Type: "function",
+											FunctionCall: &llms.FunctionCall{
+												Name:      "myfunc",
+												Arguments: `{"name": "Dapr"}`,
+											},
+										},
+									},
 								},
 							},
 						},
-						Parameters: nil,
 					},
 				},
 			},
@@ -178,18 +215,26 @@ func TestConverseV1Alpha2(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result: "Dapr",
-						ToolCallRequest: []llms.ToolCall{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
 							{
-								ID:   "myid",
-								Type: "function",
-								FunctionCall: &llms.FunctionCall{
-									Name:      "myfunc",
-									Arguments: "Dapr",
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "Dapr",
+									ToolCallRequest: &[]llms.ToolCall{
+										{
+											ID:   "myid",
+											Type: "function",
+											FunctionCall: &llms.FunctionCall{
+												Name:      "myfunc",
+												Arguments: "Dapr",
+											},
+										},
+									},
 								},
 							},
 						},
-						Parameters: nil,
 					},
 				},
 			},
@@ -215,18 +260,26 @@ func TestConverseV1Alpha2(t *testing.T) {
 			expected: &conversation.Response{
 				Outputs: []conversation.Result{
 					{
-						Result: "text msg",
-						ToolCallRequest: []llms.ToolCall{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
 							{
-								ID:   "myid",
-								Type: "function",
-								FunctionCall: &llms.FunctionCall{
-									Name:      "myfunc",
-									Arguments: `{"name": "Dapr"}`,
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
+									Content: "text msg",
+									ToolCallRequest: &[]llms.ToolCall{
+										{
+											ID:   "myid",
+											Type: "function",
+											FunctionCall: &llms.FunctionCall{
+												Name:      "myfunc",
+												Arguments: `{"name": "Dapr"}`,
+											},
+										},
+									},
 								},
 							},
 						},
-						Parameters: nil,
 					},
 				},
 			},

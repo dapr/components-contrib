@@ -64,7 +64,7 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	}
 
 	res = &conversation.Response{
-		// TODO(Sicoyle): I am not updating conversation context here and I need to
+		// TODO: Fix this, we never used this ConversationContext field to begin with. This is an existing bug.
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}

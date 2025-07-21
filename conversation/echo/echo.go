@@ -65,30 +65,37 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 	for i, msg := range *r.Message {
 		for _, part := range msg.Parts {
-			var content string
+			choice := conversation.Choice{
+				FinishReason: "stop",
+				Index:        int64(i),
+				Message:      conversation.Message{},
+			}
+
 			switch p := part.(type) {
 			case llms.TextContent:
-				content += p.Text
+				choice.Message.Content = p.Text
 			case *llms.ToolCall:
-				if p.FunctionCall != nil {
-					content += p.FunctionCall.Name + "(" + p.FunctionCall.Arguments + ")"
-				}
+				toolCalls := []llms.ToolCall{*p}
+				choice.Message.ToolCallRequest = &toolCalls
 			case llms.ToolCallResponse:
-				content += p.Content
+				choice.Message.Content = p.Content
+				toolCalls := []llms.ToolCall{
+					{
+						ID:   p.ToolCallID,
+						Type: "function",
+						FunctionCall: &llms.FunctionCall{
+							Name:      p.Name,
+							Arguments: p.Content,
+						},
+					},
+				}
+				choice.Message.ToolCallRequest = &toolCalls
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 
-			choice := conversation.Choice{
-				FinishReason: "stop",
-				Index:        int64(i),
-				Message: conversation.Message{
-					Content: content,
-				},
-			}
-
 			outputs = append(outputs, conversation.Result{
-				StopReason: "done",
+				StopReason: "stop",
 				Choices:    []conversation.Choice{choice},
 			})
 		}

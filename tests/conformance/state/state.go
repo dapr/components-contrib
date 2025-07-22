@@ -296,8 +296,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			query: `
 			{
 				"filter": {
-					"OR": [ 
-						{ 
+					"OR": [
+						{
 							"AND": [
 								{
 									"EQ": {"message": "` + key + `message"}
@@ -310,7 +310,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 								}
 							]
 						},
-						{ 
+						{
 							"AND": [
 								{
 									"EQ": {"message": "` + key + `message"}
@@ -702,6 +702,27 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		})
 
+		t.Run("delete non-existent key", func(t *testing.T) {
+			// for CosmosDB
+			partitionMetadata := map[string]string{
+				"partitionKey": "myPartition",
+			}
+			operations := []state.TransactionalStateOperation{
+				state.DeleteRequest{
+					Key: "non-existent-key",
+				},
+			}
+
+			transactionStore, ok := statestore.(state.TransactionalStore)
+			require.True(t, ok)
+
+			err := transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
+				Operations: operations,
+				Metadata:   partitionMetadata,
+			})
+			require.NoError(t, err)
+		})
+
 		t.Run("transaction-order", func(t *testing.T) {
 			// Arrange
 			firstKey := key + "-key1"
@@ -796,6 +817,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				metadataTest1 := map[string]string{
 					"contentType": "application/json",
+					// for CosmosDB
+					"partitionKey": "myPartition",
+				}
+				metadataTest2 := map[string]string{
+					// for CosmosDB
+					"partitionKey": "myPartition",
 				}
 
 				operations := []state.TransactionalStateOperation{
@@ -817,6 +844,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				expectedMetadata := map[string]map[string]string{
 					keyTest1: metadataTest1,
+					keyTest2: metadataTest2,
 				}
 
 				// Act
@@ -824,6 +852,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assert.True(t, ok)
 				err := transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
 					Operations: operations,
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
 				})
 				require.NoError(t, err)
 
@@ -833,17 +864,16 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key:      k,
 						Metadata: expectedMetadata[k],
 					})
-					expectedValue := res.Data
+					require.NoError(t, err)
+					receivedValue := res.Data
 
 					// In redisjson when set the value with contentType = application/Json store the value in base64
-					if strings.HasPrefix(string(expectedValue), "\"ey") {
-						valueBase64 := strings.Trim(string(expectedValue), "\"")
-						expectedValueDecoded, _ := base64.StdEncoding.DecodeString(valueBase64)
-						require.NoError(t, err)
-						assert.Equal(t, expectedValueDecoded, v)
+					if strings.HasPrefix(string(receivedValue), "\"ey") {
+						valueBase64 := strings.Trim(string(receivedValue), "\"")
+						receivedValueDecoded, _ := base64.StdEncoding.DecodeString(valueBase64)
+						assert.JSONEq(t, string(v), string(receivedValueDecoded))
 					} else {
-						require.NoError(t, err)
-						assert.Equal(t, expectedValue, v)
+						assert.JSONEq(t, string(v), string(receivedValue))
 					}
 				}
 			}

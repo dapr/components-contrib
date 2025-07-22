@@ -230,7 +230,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
 				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
-				require.Equal(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
+				require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
 			}
 		})
 

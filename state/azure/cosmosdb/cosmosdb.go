@@ -567,14 +567,27 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	}
 
 	if !batchResponse.Success {
-		// Transaction failed, look for the offending operation
+		var transactionError error
+
 		for index, operation := range batchResponse.OperationResults {
+			// delete operations with no etag check are allowed to fail with a 404
+			deleteReq, isDelete := request.Operations[index].(state.DeleteRequest)
+			if isDelete && operation.StatusCode == http.StatusNotFound && !deleteReq.HasETag() {
+				continue
+			}
+
 			if operation.StatusCode != http.StatusFailedDependency {
 				c.logger.Errorf("Transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
 				return fmt.Errorf("transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
 			}
+			transactionError = errors.New("transaction failed")
 		}
-		return errors.New("transaction failed")
+
+		// If all errors are from delete operations with a 404 (and no etag check), we end up here with a nil error.
+		// This is expected, as we allow delete operations to fail with a 404.
+		if transactionError != nil {
+			return transactionError
+		}
 	}
 
 	// Transaction succeeded

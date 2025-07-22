@@ -150,7 +150,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/go-chi/cors v1.2.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
@@ -364,5 +363,3 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
-
-replace github.com/dapr/dapr => github.com/sicoyle/dapr v0.0.0-20250722122733-479306fa7bcd

@@ -148,7 +148,7 @@ func TestActivateJobs(t *testing.T) {
 		payload := activateJobsPayload{
 			JobType:           "a",
 			MaxJobsToActivate: new(int32),
-			Timeout:           kitmd.Duration{Duration: 1 * time.Second},
+			Timeout:           &kitmd.Duration{Duration: 1 * time.Second},
 			WorkerName:        "b",
 			FetchVariables:    []string{"a", "b", "c"},
 		}

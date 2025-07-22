@@ -88,12 +88,38 @@ func (s *Store) Init(ctx context.Context, metadataRaw secretstores.Metadata) err
 }
 
 func (s *Store) getClient(ctx context.Context, metadata *GcpSecretManagerMetadata) (*secretmanager.Client, error) {
-	b, _ := json.Marshal(metadata)
-	clientOptions := option.WithCredentialsJSON(b)
+	var client *secretmanager.Client
+	var err error
 
-	client, err := secretmanager.NewClient(ctx, clientOptions)
-	if err != nil {
-		return nil, err
+	if metadata.ProjectID == "" {
+		return nil, errors.New("missing property `project_id` in metadata")
+	}
+
+	// Explicit authentication
+	if metadata.PrivateKeyID != "" {
+		if metadata.Type == "" {
+			return nil, errors.New("missing property `type` in metadata")
+		}
+		if metadata.PrivateKey == "" {
+			return nil, errors.New("missing property `private_key` in metadata")
+		}
+		if metadata.ClientEmail == "" {
+			return nil, errors.New("missing property `client_email` in metadata")
+		}
+
+		b, _ := json.Marshal(metadata)
+		clientOptions := option.WithCredentialsJSON(b)
+		client, err = secretmanager.NewClient(ctx, clientOptions)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Implicit authentication, using GCP Application Default Credentials (ADC)
+		// Credentials search order: https://cloud.google.com/docs/authentication/application-default-credentials#order
+		client, err = secretmanager.NewClient(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return client, nil
@@ -183,17 +209,8 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 		return nil, fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
-	if meta.Type == "" {
-		return nil, errors.New("missing property `type` in metadata")
-	}
 	if meta.ProjectID == "" {
 		return nil, errors.New("missing property `project_id` in metadata")
-	}
-	if meta.PrivateKey == "" {
-		return nil, errors.New("missing property `private_key` in metadata")
-	}
-	if meta.ClientEmail == "" {
-		return nil, errors.New("missing property `client_email` in metadata")
 	}
 
 	return &meta, nil

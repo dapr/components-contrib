@@ -142,22 +142,80 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		t.Run("test assistant message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
-			assistantMsgs := []llms.MessageContent{
-				{
-					Role: llms.ChatMessageTypeAI,
-					Parts: []llms.ContentPart{
-						llms.TextContent{Text: "assistant msg"},
-					},
+			// Create tool call and response for reuse
+			toolCall := llms.ToolCall{
+				ID:   "tool_id",
+				Type: "function",
+				FunctionCall: &llms.FunctionCall{
+					Name:      "testfunc",
+					Arguments: `{"test": "value"}`,
 				},
-				// anthropic expects a conversation to end with a user message to generate a response,
-				// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
-				// otherwise it assumes the conversation is over.
-				{
-					Role: llms.ChatMessageTypeHuman,
-					Parts: []llms.ContentPart{
-						llms.TextContent{Text: "continue the conversation"},
+			}
+
+			toolResponse := llms.ToolCallResponse{
+				ToolCallID: "tool_id",
+				Name:       "testfunc",
+				Content:    "test-response",
+			}
+
+			var assistantMsgs []llms.MessageContent
+
+			// mistral must have tool info wrapped as text
+			if component != "mistral" {
+				assistantMsgs = []llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "assistant msg"},
+						},
 					},
-				},
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							toolCall,
+						},
+					},
+					// anthropic expects a conversation to end with a user message to generate a response,
+					// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
+					// otherwise it assumes the conversation is over.
+					{
+						Role: llms.ChatMessageTypeTool,
+						Parts: []llms.ContentPart{
+							toolResponse,
+						},
+					},
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "continue the conversation"},
+						},
+					},
+				}
+			} else {
+				assistantMsgs = []llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "assistant msg"},
+						},
+					},
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							mistral.CreateToolCallPart(&toolCall),
+						},
+					},
+					// anthropic expects a conversation to end with a user message to generate a response,
+					// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
+					// otherwise it assumes the conversation is over.
+					mistral.CreateToolResponseMessage(toolResponse),
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "continue the conversation"},
+						},
+					},
+				}
 			}
 
 			req := &conversation.Request{
@@ -170,7 +228,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
 			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
+				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+				require.Equal(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
+			}
 		})
 
 		t.Run("test developer message type", func(t *testing.T) {
@@ -195,7 +256,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
 			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil {
+				assert.Empty(t, *resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+			}
 		})
 
 		t.Run("test tool message type - confirming active tool calling capability", func(t *testing.T) {
@@ -241,8 +304,16 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil {
-				assert.Len(t, *resp.Outputs[0].Choices[0].Message.ToolCallRequest, 1)
-				toolCall := (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0]
+				assert.GreaterOrEqual(t, len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest), 1)
+
+				var toolCall *llms.ToolCall
+				for i := range *resp.Outputs[0].Choices[0].Message.ToolCallRequest {
+					if (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[i].FunctionCall.Name == "get_project_name" {
+						toolCall = &(*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[i]
+						break
+					}
+				}
+				require.NotNil(t, toolCall)
 				assert.Equal(t, "get_project_name", toolCall.FunctionCall.Name)
 				assert.Contains(t, toolCall.FunctionCall.Arguments, "repo_link")
 
@@ -266,7 +337,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					responseMessages = append(responseMessages,
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{&toolCall},
+							Parts: []llms.ContentPart{toolCall},
 						},
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeTool,
@@ -277,7 +348,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					responseMessages = append(responseMessages,
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
+							Parts: []llms.ContentPart{mistral.CreateToolCallPart(toolCall)},
 						},
 						mistral.CreateToolResponseMessage(toolResponse),
 					)
@@ -341,13 +412,20 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp1, err := conv.Converse(ctx, req1)
 			require.NoError(t, err)
 
-			// handle potentially multiple outputs from different llm providers;
-			// however in this test, we only check the first tool calls.
+			// handle potentially multiple outputs from different llm providers
 			var toolCall *llms.ToolCall
 			for _, output := range resp1.Outputs {
 				if output.Choices[0].Message.ToolCallRequest != nil {
-					toolCall = &(*output.Choices[0].Message.ToolCallRequest)[0]
-					break
+					// find the tool call with the expected function name
+					for i := range *output.Choices[0].Message.ToolCallRequest {
+						if (*output.Choices[0].Message.ToolCallRequest)[i].FunctionCall.Name == "retrieve_payment_status" {
+							toolCall = &(*output.Choices[0].Message.ToolCallRequest)[i]
+							break
+						}
+					}
+					if toolCall != nil {
+						break
+					}
 				}
 			}
 

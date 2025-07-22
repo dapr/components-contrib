@@ -27,11 +27,11 @@ import (
 var ErrMissingMessageName = errors.New("messageName is a required attribute")
 
 type publishMessagePayload struct {
-	MessageName    string            `json:"messageName"`
-	CorrelationKey string            `json:"correlationKey"`
-	MessageID      string            `json:"messageId"`
-	TimeToLive     metadata.Duration `json:"timeToLive"`
-	Variables      interface{}       `json:"variables"`
+	MessageName    string             `json:"messageName"`
+	CorrelationKey string             `json:"correlationKey"`
+	MessageID      string             `json:"messageId"`
+	TimeToLive     *metadata.Duration `json:"timeToLive,omitempty"`
+	Variables      interface{}        `json:"variables"`
 }
 
 func (z *ZeebeCommand) publishMessage(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -53,7 +53,7 @@ func (z *ZeebeCommand) publishMessage(ctx context.Context, req *bindings.InvokeR
 		cmd = cmd.MessageId(payload.MessageID)
 	}
 
-	if payload.TimeToLive.Duration != time.Duration(0) {
+	if payload.TimeToLive != nil && payload.TimeToLive.Duration != time.Duration(0) {
 		cmd = cmd.TimeToLive(payload.TimeToLive.Duration)
 	}
 

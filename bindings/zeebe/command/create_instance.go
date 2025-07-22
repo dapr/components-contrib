@@ -32,13 +32,13 @@ var (
 )
 
 type createInstancePayload struct {
-	BpmnProcessID        string            `json:"bpmnProcessId"`
-	ProcessDefinitionKey *int64            `json:"processDefinitionKey"`
-	Version              *int32            `json:"version"`
-	Variables            interface{}       `json:"variables"`
-	WithResult           bool              `json:"withResult"`
-	FetchVariables       []string          `json:"fetchVariables"`
-	RequestTimeout       metadata.Duration `json:"requestTimeout"`
+	BpmnProcessID        string             `json:"bpmnProcessId"`
+	ProcessDefinitionKey *int64             `json:"processDefinitionKey"`
+	Version              *int32             `json:"version"`
+	Variables            interface{}        `json:"variables"`
+	WithResult           bool               `json:"withResult"`
+	FetchVariables       []string           `json:"fetchVariables"`
+	RequestTimeout       *metadata.Duration `json:"requestTimeout,omitempty"`
 }
 
 func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -87,7 +87,7 @@ func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeR
 	//
 	// From a code perspective, there are two Send methods in the Zeebe client. One if WithResult was used and
 	// which extracts the request timeout from the context and another one which will not use any timeout.
-	if payload.WithResult && payload.RequestTimeout.Duration != time.Duration(0) {
+	if payload.WithResult && payload.RequestTimeout != nil && payload.RequestTimeout.Duration != time.Duration(0) {
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, payload.RequestTimeout.Duration)
 		defer cancel()
 		response, err = cmd3.WithResult().FetchVariables(payload.FetchVariables...).Send(ctxWithTimeout)

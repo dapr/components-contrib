@@ -16,7 +16,6 @@ package mistral
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -98,16 +97,12 @@ func CreateToolCallPart(toolCall *llms.ToolCall) llms.ContentPart {
 
 	if toolCall.FunctionCall == nil {
 		return llms.TextContent{
-			Text: fmt.Sprintf("Tool call [ID: %s]: <no function call>",
-				toolCall.ID),
+			Text: "Tool call [ID: " + toolCall.ID + "]: <no function call>",
 		}
 	}
 
 	return llms.TextContent{
-		Text: fmt.Sprintf("Tool call [ID: %s]: %s(%s)",
-			toolCall.ID,
-			toolCall.FunctionCall.Name,
-			toolCall.FunctionCall.Arguments),
+		Text: "Tool call [ID: " + toolCall.ID + "]: " + toolCall.FunctionCall.Name + "(" + toolCall.FunctionCall.Arguments + ")",
 	}
 }
 
@@ -120,10 +115,7 @@ func CreateToolResponseMessage(response llms.ToolCallResponse) llms.MessageConte
 		Role: llms.ChatMessageTypeHuman,
 		Parts: []llms.ContentPart{
 			llms.TextContent{
-				Text: fmt.Sprintf("Tool response [ID: %s, Name: %s]: %s",
-					response.ToolCallID,
-					response.Name,
-					response.Content),
+				Text: "Tool response [ID: " + response.ToolCallID + ", Name: " + response.Name + "]: " + response.Content,
 			},
 		},
 	}

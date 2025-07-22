@@ -61,44 +61,49 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 // Converse returns inputs directly.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	outputs := make([]conversation.Result, 0, len(*r.Message))
+	var content string
+	var toolCalls []llms.ToolCall
 
-	for i, msg := range *r.Message {
+	for _, msg := range *r.Message {
 		for _, part := range msg.Parts {
-			choice := conversation.Choice{
-				FinishReason: "stop",
-				Index:        int64(i),
-				Message:      conversation.Message{},
-			}
-
 			switch p := part.(type) {
 			case llms.TextContent:
-				choice.Message.Content = p.Text
+				content += p.Text
 			case *llms.ToolCall:
-				toolCalls := []llms.ToolCall{*p}
-				choice.Message.ToolCallRequest = &toolCalls
+				toolCalls = append(toolCalls, *p)
 			case llms.ToolCallResponse:
-				choice.Message.Content = p.Content
-				toolCalls := []llms.ToolCall{
-					{
-						ID:   p.ToolCallID,
-						Type: "function",
-						FunctionCall: &llms.FunctionCall{
-							Name:      p.Name,
-							Arguments: p.Content,
-						},
+				content = p.Content
+				toolCalls = append(toolCalls, llms.ToolCall{
+					ID:   p.ToolCallID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      p.Name,
+						Arguments: p.Content,
 					},
-				}
-				choice.Message.ToolCallRequest = &toolCalls
+				})
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
-
-			outputs = append(outputs, conversation.Result{
-				StopReason: "stop",
-				Choices:    []conversation.Choice{choice},
-			})
 		}
+	}
+
+	choice := conversation.Choice{
+		FinishReason: "stop",
+		Index:        0,
+		Message: conversation.Message{
+			Content: content,
+		},
+	}
+
+	if len(toolCalls) > 0 {
+		choice.Message.ToolCallRequest = &toolCalls
+	}
+
+	outputs := []conversation.Result{
+		{
+			StopReason: "stop",
+			Choices:    []conversation.Choice{choice},
+		},
 	}
 
 	res = &conversation.Response{

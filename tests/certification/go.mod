@@ -20,7 +20,7 @@ require (
 	github.com/dapr/components-contrib v1.15.2
 	github.com/dapr/dapr v1.15.4-0.20250522161419-bbf2e482dc39
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
-	github.com/dapr/kit v0.15.3-0.20250710140356-9d4f384c5763
+	github.com/dapr/kit v0.15.3-0.20250717140748-8b780b4d81c5
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-redis/redis/v8 v8.11.5
@@ -365,4 +365,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr => github.com/sicoyle/dapr v0.0.0-20250721133219-ae723285c0e3
+replace github.com/dapr/dapr => github.com/sicoyle/dapr v0.0.0-20250722122733-479306fa7bcd

@@ -341,7 +341,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp1, err := conv.Converse(ctx, req1)
 			require.NoError(t, err)
 
-			// handle potentially multiple outputs from llm provider
+			// handle potentially multiple outputs from different llm providers;
+			// however in this test, we only check the first tool calls.
 			var toolCall *llms.ToolCall
 			for _, output := range resp1.Outputs {
 				if output.Choices[0].Message.ToolCallRequest != nil {

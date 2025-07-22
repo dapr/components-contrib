@@ -64,7 +64,8 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	}
 
 	res = &conversation.Response{
-		// TODO: Fix this, we never used this ConversationContext field to begin with. This is an existing bug.
+		// TODO: Fix this, we never used this ConversationContext field to begin with.
+		// This needs improvements to be useful.
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
 	}
@@ -85,7 +86,7 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		opts = append(opts, llms.WithTools(*r.Tools))
 	}
 
-	if r.ToolChoice != "" {
+	if r.ToolChoice != nil {
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 

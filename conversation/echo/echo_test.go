@@ -135,12 +135,8 @@ func TestConverse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := NewEcho(logger.NewLogger("echo test"))
 			e.Init(t.Context(), conversation.Metadata{})
-
-			messages := make([]llms.MessageContent, len(tt.inputs))
-			copy(messages, tt.inputs)
-
 			r, err := e.Converse(t.Context(), &conversation.Request{
-				Message: &messages,
+				Message: &tt.inputs,
 			})
 			require.NoError(t, err)
 			assert.Len(t, r.Outputs, len(tt.expected.Outputs))
@@ -149,7 +145,7 @@ func TestConverse(t *testing.T) {
 	}
 }
 
-func TestConverseV1Alpha2(t *testing.T) {
+func TestConverseAlpha2(t *testing.T) {
 	tests := []struct {
 		name     string
 		messages []llms.MessageContent
@@ -267,6 +263,17 @@ func TestConverseV1Alpha2(t *testing.T) {
 								Index:        0,
 								Message: conversation.Message{
 									Content: "text msg",
+								},
+							},
+						},
+					},
+					{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
 									ToolCallRequest: &[]llms.ToolCall{
 										{
 											ID:   "myid",
@@ -295,8 +302,44 @@ func TestConverseV1Alpha2(t *testing.T) {
 				Message: &tt.messages,
 			})
 			require.NoError(t, err)
-			assert.Len(t, r.Outputs, len(tt.messages))
+
+			// Calculate expected number of outputs based on parts
+			expectedOutputCount := 0
+			for _, msg := range tt.messages {
+				expectedOutputCount += len(msg.Parts)
+			}
+			assert.Len(t, r.Outputs, expectedOutputCount, "Output count should match total number of parts across all messages")
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
+
+			for i, output := range r.Outputs {
+				assert.Len(t, output.Choices, 1) // each test has one choice per output
+				choice := output.Choices[0]
+				expectedOutput := tt.expected.Outputs[i]
+				expectedChoice := expectedOutput.Choices[0]
+
+				if expectedChoice.Message.ToolCallRequest != nil {
+					assert.NotNil(t, choice.Message.ToolCallRequest)
+					assert.Len(t, *choice.Message.ToolCallRequest, len(*expectedChoice.Message.ToolCallRequest))
+
+					for j, toolCall := range *choice.Message.ToolCallRequest {
+						expectedToolCall := (*expectedChoice.Message.ToolCallRequest)[j]
+						assert.Equal(t, expectedToolCall.ID, toolCall.ID)
+						assert.Equal(t, expectedToolCall.Type, toolCall.Type)
+
+						if expectedToolCall.FunctionCall != nil {
+							assert.NotNil(t, toolCall.FunctionCall)
+							assert.Equal(t, expectedToolCall.FunctionCall.Name, toolCall.FunctionCall.Name)
+							assert.Equal(t, expectedToolCall.FunctionCall.Arguments, toolCall.FunctionCall.Arguments)
+						}
+					}
+				} else {
+					assert.Nil(t, choice.Message.ToolCallRequest)
+				}
+
+				if expectedChoice.Message.Content != "" {
+					assert.Equal(t, expectedChoice.Message.Content, choice.Message.Content)
+				}
+			}
 		})
 	}
 }

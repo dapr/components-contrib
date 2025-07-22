@@ -97,31 +97,7 @@ func TestConverse(t *testing.T) {
 								FinishReason: "stop",
 								Index:        0,
 								Message: conversation.Message{
-									Content: "first message",
-								},
-							},
-						},
-					},
-					{
-						StopReason: "stop",
-						Choices: []conversation.Choice{
-							{
-								FinishReason: "stop",
-								Index:        0,
-								Message: conversation.Message{
-									Content: "second message",
-								},
-							},
-						},
-					},
-					{
-						StopReason: "stop",
-						Choices: []conversation.Choice{
-							{
-								FinishReason: "stop",
-								Index:        1,
-								Message: conversation.Message{
-									Content: "third message",
+									Content: "first messagesecond messagethird message",
 								},
 							},
 						},
@@ -263,17 +239,6 @@ func TestConverseAlpha2(t *testing.T) {
 								Index:        0,
 								Message: conversation.Message{
 									Content: "text msg",
-								},
-							},
-						},
-					},
-					{
-						StopReason: "stop",
-						Choices: []conversation.Choice{
-							{
-								FinishReason: "stop",
-								Index:        0,
-								Message: conversation.Message{
 									ToolCallRequest: &[]llms.ToolCall{
 										{
 											ID:   "myid",
@@ -303,42 +268,36 @@ func TestConverseAlpha2(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// Calculate expected number of outputs based on parts
-			expectedOutputCount := 0
-			for _, msg := range tt.messages {
-				expectedOutputCount += len(msg.Parts)
-			}
-			assert.Len(t, r.Outputs, expectedOutputCount, "Output count should match total number of parts across all messages")
+			assert.Len(t, r.Outputs, 1)
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
 
-			for i, output := range r.Outputs {
-				assert.Len(t, output.Choices, 1) // each test has one choice per output
-				choice := output.Choices[0]
-				expectedOutput := tt.expected.Outputs[i]
-				expectedChoice := expectedOutput.Choices[0]
+			output := r.Outputs[0]
+			assert.Len(t, output.Choices, 1) // each test has one choice per output
+			choice := output.Choices[0]
+			expectedOutput := tt.expected.Outputs[0]
+			expectedChoice := expectedOutput.Choices[0]
 
-				if expectedChoice.Message.ToolCallRequest != nil {
-					assert.NotNil(t, choice.Message.ToolCallRequest)
-					assert.Len(t, *choice.Message.ToolCallRequest, len(*expectedChoice.Message.ToolCallRequest))
+			if expectedChoice.Message.ToolCallRequest != nil {
+				assert.NotNil(t, choice.Message.ToolCallRequest)
+				assert.Len(t, *choice.Message.ToolCallRequest, len(*expectedChoice.Message.ToolCallRequest))
 
-					for j, toolCall := range *choice.Message.ToolCallRequest {
-						expectedToolCall := (*expectedChoice.Message.ToolCallRequest)[j]
-						assert.Equal(t, expectedToolCall.ID, toolCall.ID)
-						assert.Equal(t, expectedToolCall.Type, toolCall.Type)
+				for j, toolCall := range *choice.Message.ToolCallRequest {
+					expectedToolCall := (*expectedChoice.Message.ToolCallRequest)[j]
+					assert.Equal(t, expectedToolCall.ID, toolCall.ID)
+					assert.Equal(t, expectedToolCall.Type, toolCall.Type)
 
-						if expectedToolCall.FunctionCall != nil {
-							assert.NotNil(t, toolCall.FunctionCall)
-							assert.Equal(t, expectedToolCall.FunctionCall.Name, toolCall.FunctionCall.Name)
-							assert.Equal(t, expectedToolCall.FunctionCall.Arguments, toolCall.FunctionCall.Arguments)
-						}
+					if expectedToolCall.FunctionCall != nil {
+						assert.NotNil(t, toolCall.FunctionCall)
+						assert.Equal(t, expectedToolCall.FunctionCall.Name, toolCall.FunctionCall.Name)
+						assert.Equal(t, expectedToolCall.FunctionCall.Arguments, toolCall.FunctionCall.Arguments)
 					}
-				} else {
-					assert.Nil(t, choice.Message.ToolCallRequest)
 				}
+			} else {
+				assert.Nil(t, choice.Message.ToolCallRequest)
+			}
 
-				if expectedChoice.Message.Content != "" {
-					assert.Equal(t, expectedChoice.Message.Content, choice.Message.Content)
-				}
+			if expectedChoice.Message.Content != "" {
+				assert.Equal(t, expectedChoice.Message.Content, choice.Message.Content)
 			}
 		})
 	}

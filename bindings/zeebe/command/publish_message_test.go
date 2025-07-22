@@ -136,7 +136,7 @@ func TestPublishMessage(t *testing.T) {
 			MessageName:    "a",
 			CorrelationKey: "b",
 			MessageID:      "c",
-			TimeToLive:     kitmd.Duration{Duration: 1 * time.Second},
+			TimeToLive:     &kitmd.Duration{Duration: 1 * time.Second},
 			Variables: map[string]interface{}{
 				"key": "value",
 			},

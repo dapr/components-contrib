@@ -59,13 +59,15 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
-// Converse returns inputs directly.
+// Converse returns the last message's content directly.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	var content string
 	var toolCalls []llms.ToolCall
 
-	for _, msg := range *r.Message {
-		for _, part := range msg.Parts {
+	if r.Message != nil && len(*r.Message) > 0 {
+		lastMessage := (*r.Message)[len(*r.Message)-1]
+
+		for _, part := range lastMessage.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
 				content += p.Text
@@ -116,66 +118,4 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 func (e *Echo) Close() error {
 	return nil
-}
-
-// ConverseV1Alpha2 returns inputs directly.
-func (e *Echo) ConverseV1Alpha2(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	var outputs []conversation.Result
-	if r.Message != nil {
-		outputs = make([]conversation.Result, 0, len(*r.Message))
-
-		for _, message := range *r.Message {
-			var content string
-			for _, part := range message.Parts {
-				switch p := part.(type) {
-				case llms.TextContent:
-					content += p.Text
-				}
-			}
-
-			choice := conversation.Choice{
-				FinishReason: "stop",
-				Index:        int64(len(outputs)),
-				Message: conversation.Message{
-					Content: content,
-				},
-			}
-
-			var toolCalls []llms.ToolCall
-			for _, part := range message.Parts {
-				switch p := part.(type) {
-				case *llms.ToolCall:
-					toolCalls = append(toolCalls, *p)
-				case llms.ToolCallResponse:
-					toolCalls = append(toolCalls, llms.ToolCall{
-						ID:   p.ToolCallID,
-						Type: "function",
-						FunctionCall: &llms.FunctionCall{
-							Name:      p.Name,
-							Arguments: p.Content,
-						},
-					})
-					choice.Message.Content = p.Content
-				}
-			}
-
-			if len(toolCalls) > 0 {
-				choice.Message.ToolCallRequest = &toolCalls
-			}
-
-			result := conversation.Result{
-				StopReason: "stop",
-				Choices:    []conversation.Choice{choice},
-			}
-
-			outputs = append(outputs, result)
-		}
-	}
-
-	res = &conversation.Response{
-		ConversationContext: r.ConversationContext,
-		Outputs:             outputs,
-	}
-
-	return res, nil
 }

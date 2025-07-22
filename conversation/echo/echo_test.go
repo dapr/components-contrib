@@ -97,7 +97,7 @@ func TestConverse(t *testing.T) {
 								FinishReason: "stop",
 								Index:        0,
 								Message: conversation.Message{
-									Content: "first messagesecond messagethird message",
+									Content: "third message",
 								},
 							},
 						},

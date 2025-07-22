@@ -117,7 +117,7 @@ func TestGetX509Client(t *testing.T) {
 			require.NoError(t, err)
 
 			// inject the SVID source into the context
-			ctx = spiffecontext.With(ctx, s)
+			ctx = spiffecontext.WithX509(ctx, s.X509SVIDSource())
 			session, err := mockAWS.createOrRefreshSession(ctx)
 
 			require.NoError(t, err)

@@ -97,6 +97,18 @@ func TestConverse(t *testing.T) {
 								FinishReason: "stop",
 								Index:        0,
 								Message: conversation.Message{
+									Content: "first message second message",
+								},
+							},
+						},
+					},
+					{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
 									Content: "third message",
 								},
 							},

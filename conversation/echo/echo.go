@@ -59,20 +59,31 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
-// Converse returns the last message's content directly.
+// Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	var content string
-	var toolCalls []llms.ToolCall
+	if r.Message == nil {
+		return &conversation.Response{
+			ConversationContext: r.ConversationContext,
+			Outputs:             []conversation.Result{},
+		}, nil
+	}
 
-	if r.Message != nil && len(*r.Message) > 0 {
-		lastMessage := (*r.Message)[len(*r.Message)-1]
+	outputs := make([]conversation.Result, 0, len(*r.Message))
 
-		for _, part := range lastMessage.Parts {
+	for _, message := range *r.Message {
+		var content string
+		var toolCalls []llms.ToolCall
+
+		for i, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
+				// end with space if not the first part
+				if i > 0 && content != "" {
+					content += " "
+				}
 				content += p.Text
-			case *llms.ToolCall:
-				toolCalls = append(toolCalls, *p)
+			case llms.ToolCall:
+				toolCalls = append(toolCalls, p)
 			case llms.ToolCallResponse:
 				content = p.Content
 				toolCalls = append(toolCalls, llms.ToolCall{
@@ -87,25 +98,25 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 		}
-	}
 
-	choice := conversation.Choice{
-		FinishReason: "stop",
-		Index:        0,
-		Message: conversation.Message{
-			Content: content,
-		},
-	}
+		choice := conversation.Choice{
+			FinishReason: "stop",
+			Index:        0,
+			Message: conversation.Message{
+				Content: content,
+			},
+		}
 
-	if len(toolCalls) > 0 {
-		choice.Message.ToolCallRequest = &toolCalls
-	}
+		if len(toolCalls) > 0 {
+			choice.Message.ToolCallRequest = &toolCalls
+		}
 
-	outputs := []conversation.Result{
-		{
+		output := conversation.Result{
 			StopReason: "stop",
 			Choices:    []conversation.Choice{choice},
-		},
+		}
+
+		outputs = append(outputs, output)
 	}
 
 	res = &conversation.Response{

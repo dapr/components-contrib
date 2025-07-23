@@ -133,11 +133,20 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
-			assert.Len(t, resp.Outputs, 1)
-			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-			// anthropic responds with end_turn but other llm providers return with stop
-			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+			// Echo component returns one output per message, other components return one output
+			if component == "echo" {
+				assert.Len(t, resp.Outputs, 2)
+				// Check the last output - system message
+				assert.NotEmpty(t, resp.Outputs[1].Choices[0].Message.Content)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[1].StopReason))
+				assert.Empty(t, resp.Outputs[1].Choices[0].Message.ToolCallRequest)
+			} else {
+				assert.Len(t, resp.Outputs, 1)
+				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+				// anthropic responds with end_turn but other llm providers return with stop
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+				assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+			}
 		})
 		t.Run("test assistant message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
@@ -224,13 +233,26 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
-			assert.Len(t, resp.Outputs, 1)
-			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-			// anthropic responds with end_turn but other llm providers return with stop
-			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
-				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
-				require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
+			// Echo component returns one output per message, other components return one output
+			if component == "echo" {
+				assert.Len(t, resp.Outputs, 4)
+				// Check the last output - human message
+				assert.NotEmpty(t, resp.Outputs[3].Choices[0].Message.Content)
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[3].StopReason))
+				// Check the tool call output - second output
+				if resp.Outputs[1].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[1].Choices[0].Message.ToolCallRequest) > 0 {
+					assert.NotEmpty(t, resp.Outputs[1].Choices[0].Message.ToolCallRequest)
+					require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[1].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
+				}
+			} else {
+				assert.Len(t, resp.Outputs, 1)
+				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+				// anthropic responds with end_turn but other llm providers return with stop
+				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+				if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
+					assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+					require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
+				}
 			}
 		})
 
@@ -306,14 +328,14 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil {
 				assert.GreaterOrEqual(t, len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest), 1)
 
-				var toolCall *llms.ToolCall
+				var toolCall llms.ToolCall
 				for i := range *resp.Outputs[0].Choices[0].Message.ToolCallRequest {
 					if (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[i].FunctionCall.Name == "get_project_name" {
-						toolCall = &(*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[i]
+						toolCall = (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[i]
 						break
 					}
 				}
-				require.NotNil(t, toolCall)
+				require.NotEmpty(t, toolCall.ID)
 				assert.Equal(t, "get_project_name", toolCall.FunctionCall.Name)
 				assert.Contains(t, toolCall.FunctionCall.Arguments, "repo_link")
 
@@ -348,7 +370,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					responseMessages = append(responseMessages,
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{mistral.CreateToolCallPart(toolCall)},
+							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
 						},
 						mistral.CreateToolResponseMessage(toolResponse),
 					)
@@ -413,24 +435,26 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 
 			// handle potentially multiple outputs from different llm providers
-			var toolCall *llms.ToolCall
+			var toolCall llms.ToolCall
+			found := false
 			for _, output := range resp1.Outputs {
 				if output.Choices[0].Message.ToolCallRequest != nil {
 					// find the tool call with the expected function name
 					for i := range *output.Choices[0].Message.ToolCallRequest {
 						if (*output.Choices[0].Message.ToolCallRequest)[i].FunctionCall.Name == "retrieve_payment_status" {
-							toolCall = &(*output.Choices[0].Message.ToolCallRequest)[i]
+							toolCall = (*output.Choices[0].Message.ToolCallRequest)[i]
+							found = true
 							break
 						}
 					}
-					if toolCall != nil {
+					if found {
 						break
 					}
 				}
 			}
 
 			// check if we got a tool call request
-			if toolCall != nil {
+			if found {
 				assert.Equal(t, "retrieve_payment_status", toolCall.FunctionCall.Name)
 				assert.Contains(t, toolCall.FunctionCall.Arguments, "T1001")
 
@@ -451,7 +475,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 						{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{*toolCall},
+							Parts: []llms.ContentPart{toolCall},
 						},
 						{
 							Role: llms.ChatMessageTypeTool,
@@ -470,7 +494,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 						{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{mistral.CreateToolCallPart(toolCall)},
+							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
 						},
 						mistral.CreateToolResponseMessage(toolResponse),
 					}

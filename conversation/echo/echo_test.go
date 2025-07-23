@@ -97,6 +97,18 @@ func TestConverse(t *testing.T) {
 								FinishReason: "stop",
 								Index:        0,
 								Message: conversation.Message{
+									Content: "first message second message",
+								},
+							},
+						},
+					},
+					{
+						StopReason: "stop",
+						Choices: []conversation.Choice{
+							{
+								FinishReason: "stop",
+								Index:        0,
+								Message: conversation.Message{
 									Content: "third message",
 								},
 							},
@@ -133,7 +145,7 @@ func TestConverseAlpha2(t *testing.T) {
 				{
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
-						&llms.ToolCall{
+						llms.ToolCall{
 							ID:   "myid",
 							Type: "function",
 							FunctionCall: &llms.FunctionCall{
@@ -218,7 +230,7 @@ func TestConverseAlpha2(t *testing.T) {
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
 						llms.TextContent{Text: "text msg"},
-						&llms.ToolCall{
+						llms.ToolCall{
 							ID:   "myid",
 							Type: "function",
 							FunctionCall: &llms.FunctionCall{

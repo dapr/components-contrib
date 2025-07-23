@@ -16,7 +16,10 @@ package echo
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,7 +42,7 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 }
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.ConversationRequest{}
+	r := &conversation.Request{}
 	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
@@ -51,24 +54,63 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 }
 
 func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.ConversationRequest{}
+	metadataStruct := conversation.Request{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
-// Converse returns inputs directly.
-func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	outputs := make([]conversation.ConversationResult, 0, len(r.Inputs))
+// Converse returns the last message's content directly.
+func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	var content string
+	var toolCalls []llms.ToolCall
 
-	for _, input := range r.Inputs {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     input.Message,
-			Parameters: r.Parameters,
-		})
+	if r.Message != nil && len(*r.Message) > 0 {
+		lastMessage := (*r.Message)[len(*r.Message)-1]
+
+		for _, part := range lastMessage.Parts {
+			switch p := part.(type) {
+			case llms.TextContent:
+				content += p.Text
+			case *llms.ToolCall:
+				toolCalls = append(toolCalls, *p)
+			case llms.ToolCallResponse:
+				content = p.Content
+				toolCalls = append(toolCalls, llms.ToolCall{
+					ID:   p.ToolCallID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      p.Name,
+						Arguments: p.Content,
+					},
+				})
+			default:
+				return nil, fmt.Errorf("found invalid content type as input for %v", p)
+			}
+		}
 	}
 
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
+	choice := conversation.Choice{
+		FinishReason: "stop",
+		Index:        0,
+		Message: conversation.Message{
+			Content: content,
+		},
+	}
+
+	if len(toolCalls) > 0 {
+		choice.Message.ToolCallRequest = &toolCalls
+	}
+
+	outputs := []conversation.Result{
+		{
+			StopReason: "stop",
+			Choices:    []conversation.Choice{choice},
+		},
+	}
+
+	res = &conversation.Response{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil

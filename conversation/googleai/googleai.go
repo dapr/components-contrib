@@ -16,6 +16,7 @@ package googleai
 
 import (
 	"context"
+	"os"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -53,6 +54,22 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	model := defaultModel
 	if md.Model != "" {
 		model = md.Model
+	}
+
+	if md.Key == "" {
+		envKey, ok := os.LookupEnv("GOOGLE_API_KEY")
+		if ok {
+			md.Key = envKey
+		} else {
+			envKey, ok = os.LookupEnv("GEMINI_API_KEY")
+			if ok {
+				md.Key = envKey
+			} else {
+				if envKey, ok := os.LookupEnv("GOOGLE_AI_API_KEY"); ok {
+					md.Key = envKey
+				}
+			}
+		}
 	}
 
 	opts := []googleai.Option{

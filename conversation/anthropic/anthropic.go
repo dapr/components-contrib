@@ -16,6 +16,7 @@ package anthropic
 
 import (
 	"context"
+	"os"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -53,6 +54,13 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	model := defaultModel
 	if m.Model != "" {
 		model = m.Model
+	}
+
+	if m.Key == "" {
+		envKey, ok := os.LookupEnv("ANTHROPIC_API_KEY")
+		if ok {
+			m.Key = envKey
+		}
 	}
 
 	llm, err := anthropic.New(

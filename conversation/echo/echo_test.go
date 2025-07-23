@@ -145,7 +145,7 @@ func TestConverseAlpha2(t *testing.T) {
 				{
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
-						&llms.ToolCall{
+						llms.ToolCall{
 							ID:   "myid",
 							Type: "function",
 							FunctionCall: &llms.FunctionCall{
@@ -230,7 +230,7 @@ func TestConverseAlpha2(t *testing.T) {
 					Role: llms.ChatMessageTypeAI,
 					Parts: []llms.ContentPart{
 						llms.TextContent{Text: "text msg"},
-						&llms.ToolCall{
+						llms.ToolCall{
 							ID:   "myid",
 							Type: "function",
 							FunctionCall: &llms.FunctionCall{

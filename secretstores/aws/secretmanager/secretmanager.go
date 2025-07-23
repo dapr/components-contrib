@@ -66,12 +66,15 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 	}
 
 	configOpts := awsCommonAuth.Options{
-		Logger:       s.logger,
+		Logger: s.logger,
+
+		Properties: metadata.Properties,
+
 		Region:       meta.Region,
+		Endpoint:     meta.Endpoint,
 		AccessKey:    meta.AccessKey,
 		SecretKey:    meta.SecretKey,
 		SessionToken: meta.SessionToken,
-		Endpoint:     meta.Endpoint,
 	}
 	s.multipleKeyValuesPerSecret = meta.MultipleKeyValuesPerSecret
 

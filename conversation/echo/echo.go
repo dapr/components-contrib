@@ -61,7 +61,7 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 // Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	if r.Message == nil || len(*r.Message) == 0 {
+	if r.Message == nil {
 		return &conversation.Response{
 			ConversationContext: r.ConversationContext,
 			Outputs:             []conversation.Result{},
@@ -77,8 +77,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		for i, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
-				// end with space if not the first part,
-				// so if appending then doesn't look odd in output.
+				// end with space if not the first part
 				if i > 0 && content != "" {
 					content += " "
 				}

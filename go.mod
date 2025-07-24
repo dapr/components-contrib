@@ -54,6 +54,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ses v1.34.18
 	github.com/aws/aws-sdk-go-v2/service/sns v1.34.7
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.8
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/aws/rolesanywhere-credential-helper v1.0.4
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874

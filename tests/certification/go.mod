@@ -18,7 +18,7 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.15.2
-	github.com/dapr/dapr v1.15.4-0.20250522161419-bbf2e482dc39
+	github.com/dapr/dapr v1.16.0-rc.1.0.20250723233324-b5569ff8862e
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
 	github.com/dapr/kit v0.15.3-0.20250717140748-8b780b4d81c5
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -150,6 +150,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/go-chi/cors v1.2.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect

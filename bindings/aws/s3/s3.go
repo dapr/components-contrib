@@ -28,14 +28,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
-	awsCommon "github.com/dapr/components-contrib/common/aws"
-	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
-
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
 	"github.com/google/uuid"
+
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 
 	"github.com/dapr/components-contrib/bindings"
 	commonutils "github.com/dapr/components-contrib/common/utils"
@@ -351,9 +352,9 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	buff := &aws.WriteAtBuffer{}
+	buff := manager.WriteAtBuffer{}
 	_, err = s.s3Downloader.Download(ctx,
-		buff,
+		&buff,
 		&s3.GetObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
 			Key:    ptr.Of(key),

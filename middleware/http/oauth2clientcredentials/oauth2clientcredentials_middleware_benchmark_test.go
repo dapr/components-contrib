@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/middleware"
-	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
-	"github.com/dapr/kit/logger"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+
+	"github.com/dapr/components-contrib/middleware"
+	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
+	"github.com/dapr/kit/logger"
 )
 
 func BenchmarkTestOAuth2ClientCredentialsGetHandler(b *testing.B) {
@@ -60,7 +61,7 @@ func BenchmarkTestOAuth2ClientCredentialsGetHandler(b *testing.B) {
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(b.Context(), metadata)
 	require.NoError(b, err)
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		url := fmt.Sprintf("http://dapr.io/api/v1/users/%d", i)
 		r := httptest.NewRequest(http.MethodGet, url, nil)
 		w := httptest.NewRecorder()
@@ -101,7 +102,7 @@ func BenchmarkTestOAuth2ClientCredentialsGetHandlerWithPathFilter(b *testing.B) 
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(b.Context(), metadata)
 	require.NoError(b, err)
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		url := fmt.Sprintf("http://dapr.io/api/v1/users/%d", i)
 		r := httptest.NewRequest(http.MethodGet, url, nil)
 		w := httptest.NewRecorder()

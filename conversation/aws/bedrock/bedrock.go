@@ -16,9 +16,10 @@ package bedrock
 
 import (
 	"context"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"reflect"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
@@ -61,7 +62,23 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
-	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)
+	configOpts := awsCommonAuth.Options{
+		Logger:       b.logger,
+		Properties:   nil,
+		Region:       m.Region,
+		AccessKey:    m.AccessKey,
+		SecretKey:    m.SecretKey,
+		SessionToken: m.SessionToken,
+
+		// TODO: Implement
+		//AssumeRoleArn:   "",
+		//TrustAnchorArn:  "",
+		//TrustProfileArn: "",
+
+		Endpoint: m.Endpoint,
+	}
+
+	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
 	if err != nil {
 		return err
 	}

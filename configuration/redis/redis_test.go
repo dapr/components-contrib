@@ -244,6 +244,8 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties := make(map[string]string)
 	testProperties["redisHost"] = "testHost"
 	testProperties["redisPassword"] = "testPassword"
+	testProperties["sentinelUsername"] = "testSentinelUsername"
+	testProperties["sentinelPassword"] = "testSentinelPassword"
 	testProperties["enableTLS"] = "true"
 	testProperties["redisMaxRetries"] = "10"
 	testProperties["redisMaxRetryInterval"] = "100ms"
@@ -254,6 +256,8 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testSettings := redisComponent.Settings{
 		Host:                  "testHost",
 		Password:              "testPassword",
+		SentinelUsername:      "testSentinelUsername",
+		SentinelPassword:      "testSentinelPassword",
 		EnableTLS:             true,
 		RedisMaxRetries:       10,
 		RedisMaxRetryInterval: redisComponent.Duration(100 * time.Millisecond),
@@ -268,6 +272,8 @@ func Test_parseRedisMetadata(t *testing.T) {
 	defaultSettings := redisComponent.Settings{
 		Host:                  "testHost",
 		Password:              "",
+		SentinelUsername:      "",
+		SentinelPassword:      "",
 		EnableTLS:             false,
 		RedisMaxRetries:       3,
 		RedisMaxRetryInterval: redisComponent.Duration(time.Second * 2),
@@ -311,6 +317,8 @@ func Test_parseRedisMetadata(t *testing.T) {
 			}
 			assert.Equal(t, tt.want.Host, got.Host)
 			assert.Equal(t, tt.want.Password, got.Password)
+			assert.Equal(t, tt.want.SentinelUsername, got.SentinelUsername)
+			assert.Equal(t, tt.want.SentinelPassword, got.SentinelPassword)
 			assert.Equal(t, tt.want.EnableTLS, got.EnableTLS)
 			assert.Equal(t, tt.want.RedisMaxRetries, got.RedisMaxRetries)
 			assert.Equal(t, tt.want.RedisMaxRetryInterval, got.RedisMaxRetryInterval)

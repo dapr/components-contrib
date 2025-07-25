@@ -159,7 +159,7 @@ func (a *x509) Close() error {
 
 func (a *x509) getCertPEM(ctx context.Context) error {
 	// retrieve svid from spiffe context
-	svid, ok := spiffecontext.From(ctx)
+	svid, ok := spiffecontext.X509From(ctx)
 	if !ok {
 		return errors.New("no SVID found in context")
 	}

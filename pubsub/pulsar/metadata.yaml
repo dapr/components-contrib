@@ -202,6 +202,17 @@ metadata:
     url: 
       title: "Pulsar SubscriptionInitialPosition"
       url: "https://pkg.go.dev/github.com/apache/pulsar-client-go/pulsar#SubscriptionInitialPosition"
+  - name: replicateSubscriptionState
+    type: bool
+    description: |
+      Enable replication of subscription state across geo-replicated Pulsar clusters.
+      When enabled, subscription state (such as cursor positions and acknowledgments) will be replicated to other clusters in a geo-replicated setup.
+      This is useful for maintaining subscription consistency during cluster failovers.
+    default: 'false'
+    example: '"true", "false"'
+    url:
+      title: "Pulsar Geo-Replication"
+      url: "https://pulsar.apache.org/docs/administration-geo/"
   - name: subscribeMode
     type: string
     description: |

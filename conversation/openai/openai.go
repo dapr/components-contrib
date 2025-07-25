@@ -16,6 +16,7 @@ package openai
 
 import (
 	"context"
+	"os"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -54,6 +55,14 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	if md.Model != "" {
 		model = md.Model
 	}
+
+	if md.Key == "" {
+		envKey, ok := os.LookupEnv("OPENAI_API_KEY")
+		if ok {
+			md.Key = envKey
+		}
+	}
+
 	// Create options for OpenAI client
 	options := []openai.Option{
 		openai.WithModel(model),

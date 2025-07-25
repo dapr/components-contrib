@@ -16,6 +16,7 @@ package huggingface
 
 import (
 	"context"
+	"os"
 	"reflect"
 	"strings"
 
@@ -63,6 +64,13 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {
 		endpoint = m.Endpoint
+	}
+
+	if m.Key == "" {
+		envKey, ok := os.LookupEnv("HUGGINGFACE_API_KEY")
+		if ok {
+			m.Key = envKey
+		}
 	}
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API

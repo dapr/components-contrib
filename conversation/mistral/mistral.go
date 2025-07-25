@@ -16,6 +16,7 @@ package mistral
 
 import (
 	"context"
+	"os"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -54,6 +55,13 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	model := defaultModel
 	if md.Model != "" {
 		model = md.Model
+	}
+
+	if md.Key == "" {
+		envKey, ok := os.LookupEnv("MISTRAL_API_KEY")
+		if ok {
+			md.Key = envKey
+		}
 	}
 
 	llm, err := mistral.New(

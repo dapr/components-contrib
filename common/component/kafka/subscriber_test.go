@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/common/component/kafka/mocks"
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
@@ -233,6 +235,115 @@ func Test_reloadConsumerGroup(t *testing.T) {
 		k.reloadConsumerGroup()
 		assert.Equal(t, int64(2), cancelCalled.Load())
 		assert.Equal(t, int64(2), consumeCalled.Load())
+	})
+
+	t.Run("Cancel context whit shutdown error closes consumer group with one subscriber", func(t *testing.T) {
+		var consumeCalled atomic.Int64
+		var cancelCalled atomic.Int64
+		var closeCalled atomic.Int64
+		waitCh := make(chan struct{})
+		cg := mocks.NewConsumerGroup().
+			WithConsumeFn(func(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
+				consumeCalled.Add(1)
+				<-ctx.Done()
+				cancelCalled.Add(1)
+				return nil
+			}).WithCloseFn(func() error {
+			closeCalled.Add(1)
+			waitCh <- struct{}{}
+			return nil
+		})
+
+		k := &Kafka{
+			logger:               logger.NewLogger("test"),
+			mockConsumerGroup:    cg,
+			consumerCancel:       nil,
+			closeCh:              make(chan struct{}),
+			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumeRetryInterval: time.Millisecond,
+		}
+		c, err := k.latestClients()
+		require.NoError(t, err)
+
+		k.clients = c
+		ctx, cancel := context.WithCancelCause(t.Context())
+		k.Subscribe(ctx, SubscriptionHandlerConfig{}, "foo")
+		assert.Eventually(t, func() bool {
+			return consumeCalled.Load() == 1
+		}, time.Second, time.Millisecond)
+		assert.Equal(t, int64(0), cancelCalled.Load())
+		cancel(pubsub.ErrGracefulShutdown)
+		<-waitCh
+		assert.Equal(t, int64(1), closeCalled.Load())
+	})
+
+	t.Run("Cancel context whit shutdown error closes consumer group with multiple subscriber", func(t *testing.T) {
+		var closeCalled atomic.Int64
+		waitCh := make(chan struct{})
+		cg := mocks.NewConsumerGroup().WithCloseFn(func() error {
+			closeCalled.Add(1)
+			waitCh <- struct{}{}
+			return nil
+		})
+
+		k := &Kafka{
+			logger:               logger.NewLogger("test"),
+			mockConsumerGroup:    cg,
+			consumerCancel:       nil,
+			closeCh:              make(chan struct{}),
+			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumeRetryInterval: time.Millisecond,
+		}
+		c, err := k.latestClients()
+		require.NoError(t, err)
+
+		k.clients = c
+
+		cancelFns := make([]context.CancelCauseFunc, 0, 100)
+		for i := range 100 {
+			ctx, cancel := context.WithCancelCause(t.Context())
+			cancelFns = append(cancelFns, cancel)
+			k.Subscribe(ctx, SubscriptionHandlerConfig{}, fmt.Sprintf("foo%d", i))
+		}
+		cancelFns[0](pubsub.ErrGracefulShutdown)
+		<-waitCh
+		assert.Equal(t, int64(1), closeCalled.Load())
+	})
+
+	t.Run("Closing subscriptions with no error or no ErrGracefulShutdown does not close consumer group", func(t *testing.T) {
+		var closeCalled atomic.Int64
+		waitCh := make(chan struct{})
+		cg := mocks.NewConsumerGroup().WithCloseFn(func() error {
+			closeCalled.Add(1)
+			waitCh <- struct{}{}
+			return nil
+		})
+
+		k := &Kafka{
+			logger:               logger.NewLogger("test"),
+			mockConsumerGroup:    cg,
+			consumerCancel:       nil,
+			closeCh:              make(chan struct{}),
+			subscribeTopics:      map[string]SubscriptionHandlerConfig{"foo": {}},
+			consumeRetryInterval: time.Millisecond,
+		}
+		c, err := k.latestClients()
+		require.NoError(t, err)
+
+		k.clients = c
+		cancelFns := make([]context.CancelCauseFunc, 0, 100)
+		for i := range 100 {
+			ctx, cancel := context.WithCancelCause(t.Context())
+			cancelFns = append(cancelFns, cancel)
+			k.Subscribe(ctx, SubscriptionHandlerConfig{}, fmt.Sprintf("foo%d", i))
+		}
+		cancelFns[0](errors.New("some error"))
+		time.Sleep(1 * time.Second)
+		assert.Equal(t, int64(0), closeCalled.Load())
+
+		cancelFns[4](nil)
+		time.Sleep(1 * time.Second)
+		assert.Equal(t, int64(0), closeCalled.Load())
 	})
 }
 

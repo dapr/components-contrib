@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/fasthttp-contrib/sessions"
@@ -42,6 +43,9 @@ type oAuth2MiddlewareMetadata struct {
 	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
 	RedirectURL    string `json:"redirectURL" mapstructure:"redirectURL"`
 	ForceHTTPS     string `json:"forceHTTPS" mapstructure:"forceHTTPS"`
+	PathFilter     string `json:"pathFilter" mapstructure:"pathFilter"`
+
+	pathFilterRegex *regexp.Regexp
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
@@ -84,6 +88,15 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if meta.pathFilterRegex != nil {
+				matched := meta.pathFilterRegex.MatchString(r.URL.Path)
+				if !matched {
+					m.logger.Debugf("PathFilter %s didn't match %s! Skipping!", meta.PathFilter, r.URL.Path)
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
@@ -153,6 +166,15 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 	if err != nil {
 		return nil, err
 	}
+
+	if middlewareMetadata.PathFilter != "" {
+		rx, err := regexp.Compile(middlewareMetadata.PathFilter)
+		if err != nil {
+			return nil, err
+		}
+		middlewareMetadata.pathFilterRegex = rx
+	}
+
 	return &middlewareMetadata, nil
 }
 

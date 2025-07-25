@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
+	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/mistral"
 )
 
@@ -84,4 +85,38 @@ func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 func (m *Mistral) Close() error {
 	return nil
+}
+
+// CreateToolCallPart creates mistral api compatible tool call messages.
+// Most LLM providers can handle tool calls using the tool call object;
+// however, mistral requires it as text in conversation history.
+func CreateToolCallPart(toolCall *llms.ToolCall) llms.ContentPart {
+	if toolCall == nil {
+		return nil
+	}
+
+	if toolCall.FunctionCall == nil {
+		return llms.TextContent{
+			Text: "Tool call [ID: " + toolCall.ID + "]: <no function call>",
+		}
+	}
+
+	return llms.TextContent{
+		Text: "Tool call [ID: " + toolCall.ID + "]: " + toolCall.FunctionCall.Name + "(" + toolCall.FunctionCall.Arguments + ")",
+	}
+}
+
+// CreateToolResponseMessage creates mistral api compatible tool response message
+// using the human role specifically otherwise mistral will reject the tool response message.
+// Most LLM providers can handle tool call responses using the tool call response object;
+// however, mistral requires it as text in conversation history.
+func CreateToolResponseMessage(response llms.ToolCallResponse) llms.MessageContent {
+	return llms.MessageContent{
+		Role: llms.ChatMessageTypeHuman,
+		Parts: []llms.ContentPart{
+			llms.TextContent{
+				Text: "Tool response [ID: " + response.ToolCallID + ", Name: " + response.Name + "]: " + response.Content,
+			},
+		},
+	}
 }

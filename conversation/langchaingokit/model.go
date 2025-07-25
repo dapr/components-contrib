@@ -27,27 +27,68 @@ type LLM struct {
 	llms.Model
 }
 
-func (a *LLM) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	messages := GetMessageFromRequest(r)
-	opts := GetOptionsFromRequest(r)
+func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	opts := getOptionsFromRequest(r)
+
+	var messages []llms.MessageContent
+	if r.Message != nil {
+		messages = *r.Message
+	}
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	outputs := make([]conversation.ConversationResult, 0, len(resp.Choices))
-
+	outputs := make([]conversation.Result, 0, len(resp.Choices))
 	for i := range resp.Choices {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     resp.Choices[i].Content,
-			Parameters: r.Parameters,
-		})
+		choice := conversation.Choice{
+			FinishReason: resp.Choices[i].StopReason,
+			Index:        int64(i),
+		}
+
+		if resp.Choices[i].Content != "" {
+			choice.Message.Content = resp.Choices[i].Content
+		}
+
+		if resp.Choices[i].ToolCalls != nil {
+			choice.Message.ToolCallRequest = &resp.Choices[i].ToolCalls
+		}
+
+		output := conversation.Result{
+			StopReason: resp.Choices[i].StopReason,
+			Choices:    []conversation.Choice{choice},
+		}
+
+		outputs = append(outputs, output)
 	}
 
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
+	res = &conversation.Response{
+		// TODO: Fix this, we never used this ConversationContext field to begin with.
+		// This needs improvements to be useful.
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil
+}
+
+func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
+	if opts == nil {
+		opts = make([]llms.CallOption, 0)
+	}
+
+	if r.Temperature > 0 {
+		opts = append(opts, llms.WithTemperature(r.Temperature))
+	}
+
+	if r.Tools != nil {
+		opts = append(opts, llms.WithTools(*r.Tools))
+	}
+
+	if r.ToolChoice != nil {
+		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
+	}
+
+	return opts
 }

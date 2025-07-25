@@ -61,3 +61,52 @@ func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 
 	assert.Equal(t, "Bearer abcd", r.Header.Get("someHeader"))
 }
+
+func TestOAuth2CreatesAuthorizationHeaderGetNativeMetadata(t *testing.T) {
+	var metadata middleware.Metadata
+	metadata.Properties = map[string]string{
+		"clientID":       "testId",
+		"clientSecret":   "testSecret",
+		"scopes":         "ascope",
+		"authURL":        "https://idp:9999",
+		"tokenURL":       "https://idp:9999",
+		"redirectUrl":    "https://localhost:9999",
+		"authHeaderName": "someHeader",
+	}
+
+	log := logger.NewLogger("oauth2.test")
+	oauth2Middleware, ok := NewOAuth2Middleware(log).(*Middleware)
+	require.True(t, ok)
+
+	tc := []struct {
+		name       string
+		pathFilter string
+		wantErr    bool
+	}{
+		{name: "empty pathFilter", pathFilter: "", wantErr: false},
+		{name: "wildcard pathFilter", pathFilter: ".*", wantErr: false},
+		{name: "api path pathFilter", pathFilter: "/api/v1/users", wantErr: false},
+		{name: "debug endpoint pathFilter", pathFilter: "^/debug/?$", wantErr: false},
+		{name: "user id pathFilter", pathFilter: "^/user/[0-9]+$", wantErr: false},
+		{name: "invalid wildcard pathFilter", pathFilter: "*invalid", wantErr: true},
+		{name: "unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
+		{name: "unopened parenthesis pathFilter", pathFilter: "invalid)", wantErr: true},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			metadata.Properties["pathFilter"] = tt.pathFilter
+			nativeMetadata, err := oauth2Middleware.getNativeMetadata(metadata)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				if tt.pathFilter != "" {
+					require.NotNil(t, nativeMetadata.pathFilterRegex)
+				} else {
+					require.Nil(t, nativeMetadata.pathFilterRegex)
+				}
+			}
+		})
+	}
+}

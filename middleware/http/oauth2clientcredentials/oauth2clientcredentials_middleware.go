@@ -114,7 +114,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 			// Check if valid token is in the cache
 			cachedToken, found := m.tokenCache.Get(cacheKey)
 			if found {
-				m.log.Infof("Cached token found for key %s", cacheKey)
+				m.log.Debugf("Cached token found for key %s", cacheKey)
 				headerValue = cachedToken.(string)
 				r.Header.Add(meta.HeaderName, headerValue)
 				next.ServeHTTP(w, r)

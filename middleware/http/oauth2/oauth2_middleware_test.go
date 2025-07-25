@@ -101,7 +101,11 @@ func TestOAuth2CreatesAuthorizationHeaderGetNativeMetadata(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, nativeMetadata.pathFilterRegex)
+				if tt.pathFilter != "" {
+					require.NotNil(t, nativeMetadata.pathFilterRegex)
+				} else {
+					require.Nil(t, nativeMetadata.pathFilterRegex)
+				}
 			}
 		})
 	}

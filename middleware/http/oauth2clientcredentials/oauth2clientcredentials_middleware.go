@@ -121,7 +121,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 				return
 			}
 
-			m.log.Infof("Cached token not found, try get one")
+			m.log.Infof("Cached token not found, attempting to retrieve a new one")
 			token, err := m.tokenProvider.GetToken(r.Context(), conf)
 			if err != nil {
 				m.log.Errorf("Error acquiring token: %s", err)
@@ -160,7 +160,7 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Cli
 	if middlewareMetadata.PathFilter != "" {
 		rx, err := regexp.Compile(middlewareMetadata.PathFilter)
 		if err != nil {
-			errorString += fmt.Sprintf("Parameter 'pathFilter' is not a valid regex: %s. ", err)
+			errorString += "Parameter 'pathFilter' is not a valid regex: " + err.Error() + ". "
 		}
 		middlewareMetadata.pathFilterRegex = rx
 	}

@@ -75,7 +75,8 @@ func TestOAuth2CreatesAuthorizationHeaderGetNativeMetadata(t *testing.T) {
 	}
 
 	log := logger.NewLogger("oauth2.test")
-	oauth2Middleware, _ := NewOAuth2Middleware(log).(*Middleware)
+	oauth2Middleware, ok := NewOAuth2Middleware(log).(*Middleware)
+	require.True(t, ok)
 
 	tc := []struct {
 		name       string
@@ -90,7 +91,6 @@ func TestOAuth2CreatesAuthorizationHeaderGetNativeMetadata(t *testing.T) {
 		{name: "invalid wildcard pathFilter", pathFilter: "*invalid", wantErr: true},
 		{name: "unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
 		{name: "unopened parenthesis pathFilter", pathFilter: "invalid)", wantErr: true},
-		{name: "duplicate unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
 	}
 
 	for _, tt := range tc {

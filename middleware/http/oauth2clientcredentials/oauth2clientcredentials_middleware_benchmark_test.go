@@ -56,7 +56,8 @@ func BenchmarkTestOAuth2ClientCredentialsGetHandler(b *testing.B) {
 	}
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(b, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(b.Context(), metadata)
 	require.NoError(b, err)
@@ -97,7 +98,8 @@ func BenchmarkTestOAuth2ClientCredentialsGetHandlerWithPathFilter(b *testing.B) 
 	}
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(b, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(b.Context(), metadata)
 	require.NoError(b, err)

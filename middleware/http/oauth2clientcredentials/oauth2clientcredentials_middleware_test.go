@@ -108,7 +108,8 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
 	require.NoError(t, err)
@@ -168,7 +169,8 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
 	require.NoError(t, err)
@@ -203,7 +205,8 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 func TestOAuth2ClientCredentialsPathFilterGetNativeMetadata(t *testing.T) {
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	m, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	m, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 
 	baseMiddlewareMetadata := middleware.Metadata{
 		Base: metadata.Base{
@@ -231,7 +234,6 @@ func TestOAuth2ClientCredentialsPathFilterGetNativeMetadata(t *testing.T) {
 		{name: "invalid wildcard pathFilter", pathFilter: "*invalid", wantErr: true},
 		{name: "unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
 		{name: "unopened parenthesis pathFilter", pathFilter: "invalid)", wantErr: true},
-		{name: "duplicate unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
 	}
 
 	for _, tt := range tc {
@@ -280,7 +282,8 @@ func TestOAuth2ClientCredentialsPathFilterGetHandler(t *testing.T) {
 	}
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
 	require.NoError(t, err)

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	oauth2 "golang.org/x/oauth2"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
 	"github.com/dapr/kit/logger"
@@ -107,7 +108,8 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
 	require.NoError(t, err)
@@ -167,7 +169,8 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
 	require.NoError(t, err)
@@ -198,4 +201,104 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 	// Assertion
 	assert.Equal(t, "MAC def", r.Header.Get("someHeader"))
+}
+
+func TestOAuth2ClientCredentialsPathFilterGetNativeMetadata(t *testing.T) {
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	m, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
+
+	baseMiddlewareMetadata := middleware.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"clientID":     "testId",
+				"clientSecret": "testSecret",
+				"scopes":       "ascope",
+				"tokenURL":     "https://localhost:9999",
+				"headerName":   "someHeader",
+				"authStyle":    "1",
+			},
+		},
+	}
+
+	tc := []struct {
+		name       string
+		pathFilter string
+		wantErr    bool
+	}{
+		{name: "empty pathFilter", pathFilter: "", wantErr: false},
+		{name: "wildcard pathFilter", pathFilter: ".*", wantErr: false},
+		{name: "api path pathFilter", pathFilter: "/api/v1/users", wantErr: false},
+		{name: "debug endpoint pathFilter", pathFilter: "^/debug/?$", wantErr: false},
+		{name: "user id pathFilter", pathFilter: "^/user/[0-9]+$", wantErr: false},
+		{name: "invalid wildcard pathFilter", pathFilter: "*invalid", wantErr: true},
+		{name: "unclosed parenthesis pathFilter", pathFilter: "invalid(", wantErr: true},
+		{name: "unopened parenthesis pathFilter", pathFilter: "invalid)", wantErr: true},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			baseMiddlewareMetadata.Properties["pathFilter"] = tt.pathFilter
+			_, err := m.getNativeMetadata(baseMiddlewareMetadata)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestOAuth2ClientCredentialsPathFilterGetHandler(t *testing.T) {
+	// Setup
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	// Mock mockTokenProvider
+	mockTokenProvider := mock.NewMockTokenProviderInterface(mockCtrl)
+
+	gomock.InOrder(
+		// First call returning abc and Bearer, expires within 1 second
+		mockTokenProvider.
+			EXPECT().
+			GetToken(gomock.Any()).
+			Return(&oauth2.Token{
+				AccessToken: "abcd",
+				TokenType:   "Bearer",
+				Expiry:      time.Now().In(time.UTC).Add(1 * time.Second),
+			}, nil).
+			Times(1),
+	)
+
+	var metadata middleware.Metadata
+	metadata.Properties = map[string]string{
+		"clientID":     "testId",
+		"clientSecret": "testSecret",
+		"scopes":       "ascope",
+		"tokenURL":     "https://localhost:9999",
+		"headerName":   "authorization",
+		"authStyle":    "1",
+		"pathFilter":   "/api/v1/users/.*",
+	}
+
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	oauth2clientcredentialsMiddleware, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
+	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(t.Context(), metadata)
+	require.NoError(t, err)
+
+	// pathFilter should match
+	r := httptest.NewRequest(http.MethodGet, "http://dapr.io/api/v1/users/123", nil)
+	w := httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+	assert.Equal(t, "Bearer abcd", r.Header.Get("authorization"))
+
+	// pathFilter should not match
+	r = httptest.NewRequest(http.MethodGet, "http://dapr.io/api/v1/tokens/123", nil)
+	w = httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+	assert.Equal(t, "", r.Header.Get("authorization"))
 }

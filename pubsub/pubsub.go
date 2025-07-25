@@ -22,6 +22,8 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
+var ErrGracefulShutdown = errors.New("pubsub shutdown")
+
 // PubSub is the interface for message buses.
 type PubSub interface {
 	metadata.ComponentWithMetadata

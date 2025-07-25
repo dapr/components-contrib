@@ -49,7 +49,7 @@ func newAuthStatic(ctx context.Context, opts Options, configOpts []func(*config.
 	}
 
 	switch {
-	case static.AccessKey != "" && static.SecretKey != "" && static.SessionToken != "":
+	case static.AccessKey != "" && static.SecretKey != "":
 		static.ProviderType = StaticProviderTypeStatic
 		static.CredentialProvider = credentials.NewStaticCredentialsProvider(opts.AccessKey, opts.SecretKey,
 			opts.SessionToken)

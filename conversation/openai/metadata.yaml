@@ -40,3 +40,17 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: apiVersion
+    required: false
+    description: |
+      The API version to use for the Azure OpenAI service. This is required when using Azure OpenAI.
+    type: string
+    example: '2025-01-01-preview'
+    default: '2025-01-01-preview'
+  - name: apiType
+    required: false
+    description: |
+      The type of API to use for the OpenAI service. This is required when using Azure OpenAI.
+    type: string
+    example: 'azure'
+    default: 'openai'

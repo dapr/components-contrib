@@ -42,9 +42,10 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 }
 
 const defaultModel = "gpt-4o"
+const defaultApiType = openai.APITypeOpenAI
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	md := conversation.LangchainMetadata{}
+	md := OpenAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
@@ -63,6 +64,27 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Add custom endpoint if provided
 	if md.Endpoint != "" {
 		options = append(options, openai.WithBaseURL(md.Endpoint))
+	}
+
+	// Identify correct Api Type
+	// ToDo: Enhance with Azure AD support
+	switch md.ApiType {
+	case "openai":
+		options = append(options, openai.WithAPIType(defaultApiType))
+	case "azure":
+		options = append(options, openai.WithAPIType(openai.APITypeAzure))
+	default:
+		options = append(options, openai.WithAPIType(defaultApiType))
+	}
+
+	// Set api version if provided
+	if md.ApiVersion != "" {
+		options = append(options, openai.WithAPIVersion(md.ApiVersion))
+	}
+
+	// Set embedding model if provided
+	if md.EmbeddingModel != "" {
+		options = append(options, openai.WithEmbeddingModel(md.EmbeddingModel))
 	}
 
 	llm, err := openai.New(options...)
@@ -84,7 +106,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 }
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
+	metadataStruct := OpenAILangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }

@@ -210,7 +210,7 @@ metadata:
   - name: sentinelMasterName
     required: false
     description: The sentinel master name. See Redis Sentinel Documentation.
-    example: "127.0.0.1:6379"
+    example: "mymaster"
     type: string
   - name: maxLenApprox
     required: false

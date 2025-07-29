@@ -15,13 +15,12 @@ limitations under the License.
 
 package openai
 
-// OpenAIMetadata extends LangchainMetadata with OpenAI-specific properties.
+// OpenAILangchainMetadata extends LangchainMetadata with OpenAI-specific properties.
 type OpenAILangchainMetadata struct {
-	Key            string `json:"key"`
-	Model          string `json:"model"`
-	CacheTTL       string `json:"cacheTTL"`
-	Endpoint       string `json:"endpoint"`
-	ApiType        string `json:"apiType"`
-	ApiVersion     string `json:"apiVersion"`
-	EmbeddingModel string `json:"embeddingModel"`
+	Key        string `json:"key"`
+	Model      string `json:"model"`
+	CacheTTL   string `json:"cacheTTL"`
+	Endpoint   string `json:"endpoint"`
+	ApiType    string `json:"apiType"`
+	ApiVersion string `json:"apiVersion"`
 }

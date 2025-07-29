@@ -16,6 +16,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -67,24 +68,23 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	// Identify correct Api Type
-	// ToDo: Enhance with Azure AD support
 	switch md.ApiType {
-	case "openai":
+	case "", "openai":
 		options = append(options, openai.WithAPIType(defaultApiType))
 	case "azure":
 		options = append(options, openai.WithAPIType(openai.APITypeAzure))
 	default:
-		options = append(options, openai.WithAPIType(defaultApiType))
+		return errors.New("apiType must be 'openai' or 'azure'")
+	}
+
+	// Return error when apiType is azure but apiVersion isn't provided
+	if md.ApiType == "azure" && md.ApiVersion == "" {
+		return errors.New("apiVersion must be provided when apiType is set to 'azure'")
 	}
 
 	// Set api version if provided
 	if md.ApiVersion != "" {
 		options = append(options, openai.WithAPIVersion(md.ApiVersion))
-	}
-
-	// Set embedding model if provided
-	if md.EmbeddingModel != "" {
-		options = append(options, openai.WithEmbeddingModel(md.EmbeddingModel))
 	}
 
 	llm, err := openai.New(options...)

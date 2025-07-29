@@ -43,7 +43,7 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 }
 
 const defaultModel = "gpt-4o"
-const defaultApiType = openai.APITypeOpenAI
+const defaultAPIType = openai.APITypeOpenAI
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := OpenAILangchainMetadata{}
@@ -70,7 +70,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Identify correct API Type
 	switch md.APIType {
 	case "", "openai":
-		options = append(options, openai.WithAPIType(defaultApiType))
+		options = append(options, openai.WithAPIType(defaultAPIType))
 	case "azure":
 		options = append(options, openai.WithAPIType(openai.APITypeAzure))
 	default:

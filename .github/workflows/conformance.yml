@@ -96,6 +96,7 @@ jobs:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
       GOCOV_VER: "v1.1.0"
       GOTESTSUM_VER: "v1.9.0"
+      RAVENDBLICENSE: ${{ secrets.RAVENDBLICENSE }}
     defaults:
       run:
         shell: bash

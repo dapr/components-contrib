@@ -67,8 +67,8 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		options = append(options, openai.WithBaseURL(md.Endpoint))
 	}
 
-	// Identify correct Api Type
-	switch md.ApiType {
+	// Identify correct API Type
+	switch md.APIType {
 	case "", "openai":
 		options = append(options, openai.WithAPIType(defaultApiType))
 	case "azure":
@@ -78,18 +78,18 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	// Return error when apiType is azure but apiVersion isn't provided
-	if md.ApiType == "azure" && md.ApiVersion == "" {
+	if md.APIType == "azure" && md.APIVersion == "" {
 		return errors.New("apiVersion must be provided when apiType is set to 'azure'")
 	}
 
 	// Return error when api Type is azure but the endpoint is not provided
-	if md.ApiType == "azure" && md.Endpoint == "" {
+	if md.APIType == "azure" && md.Endpoint == "" {
 		return errors.New("endpoint must be provided when apiType is set to 'azure'")
 	}
 
 	// Set api version if provided
-	if md.ApiVersion != "" {
-		options = append(options, openai.WithAPIVersion(md.ApiVersion))
+	if md.APIVersion != "" {
+		options = append(options, openai.WithAPIVersion(md.APIVersion))
 	}
 
 	llm, err := openai.New(options...)

@@ -28,8 +28,8 @@ func TestOpenaiLangchainMetadata(t *testing.T) {
 			Model:      "gpt-4",
 			CacheTTL:   "10m",
 			Endpoint:   "https://custom-endpoint.openai.azure.com/",
-			ApiType:    "azure",
-			ApiVersion: "2025-01-01-preview",
+			APIType:    "azure",
+			APIVersion: "2025-01-01-preview",
 		}
 
 		bytes, err := json.Marshal(metadata)
@@ -43,8 +43,8 @@ func TestOpenaiLangchainMetadata(t *testing.T) {
 		assert.Equal(t, metadata.Model, unmarshaled.Model)
 		assert.Equal(t, metadata.CacheTTL, unmarshaled.CacheTTL)
 		assert.Equal(t, metadata.Endpoint, unmarshaled.Endpoint)
-		assert.Equal(t, metadata.ApiType, unmarshaled.ApiType)
-		assert.Equal(t, metadata.ApiVersion, unmarshaled.ApiVersion)
+		assert.Equal(t, metadata.APIType, unmarshaled.APIType)
+		assert.Equal(t, metadata.APIVersion, unmarshaled.APIVersion)
 	})
 
 	t.Run("json unmarshaling with endpoint", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestOpenaiLangchainMetadata(t *testing.T) {
 		assert.Equal(t, "test-key", metadata.Key)
 		assert.Equal(t, "gpt-4", metadata.Model)
 		assert.Equal(t, "https://custom-endpoint.openai.azure.com/", metadata.Endpoint)
-		assert.Equal(t, "azure", metadata.ApiType)
-		assert.Equal(t, "2025-01-01-preview", metadata.ApiVersion)
+		assert.Equal(t, "azure", metadata.APIType)
+		assert.Equal(t, "2025-01-01-preview", metadata.APIVersion)
 	})
 }

@@ -21,6 +21,6 @@ type OpenAILangchainMetadata struct {
 	Model      string `json:"model"`
 	CacheTTL   string `json:"cacheTTL"`
 	Endpoint   string `json:"endpoint"`
-	ApiType    string `json:"apiType"`
-	ApiVersion string `json:"apiVersion"`
+	APIType    string `json:"apiType"`
+	APIVersion string `json:"apiVersion"`
 }

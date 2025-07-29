@@ -82,6 +82,11 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return errors.New("apiVersion must be provided when apiType is set to 'azure'")
 	}
 
+	// Return error when api Type is azure but the endpoint is not provided
+	if md.ApiType == "azure" && md.Endpoint == "" {
+		return errors.New("endpoint must be provided when apiType is set to 'azure'")
+	}
+
 	// Set api version if provided
 	if md.ApiVersion != "" {
 		options = append(options, openai.WithAPIVersion(md.ApiVersion))

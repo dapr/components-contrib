@@ -94,6 +94,19 @@ func TestInit(t *testing.T) {
 				assert.EqualError(t, err, "apiVersion must be provided when apiType is set to 'azure'")
 			},
 		},
+		{
+			name: "with apiType azure but missing endpoint",
+			metadata: map[string]string{
+				"key":        "test-key",
+				"model":      "gpt-4",
+				"apiType":    "azure",
+				"apiVersion": "2025-01-01-preview",
+			},
+			testFn: func(t *testing.T, o *OpenAI, err error) {
+				require.Error(t, err)
+				assert.EqualError(t, err, "endpoint must be provided when apiType is set to 'azure'")
+			},
+		},
 	}
 
 	for _, tc := range testCases {

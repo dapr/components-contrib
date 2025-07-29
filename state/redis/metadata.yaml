@@ -72,7 +72,7 @@ metadata:
     required: false
     description: |
       The Redis sentinel master name. Required when "failover" is enabled.
-    example:  "127.0.0.1:6379"
+    example:  "mymaster"
     type: string
     url:
       title: "Redis Sentinel documentation"

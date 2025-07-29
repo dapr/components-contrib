@@ -20,4 +20,6 @@ package deepseek
 type DeepseekMetadata struct {
 	Key       string `json:"key"`
 	MaxTokens int    `json:"maxTokens"`
+	Model     string `json:"model"`
+	Endpoint  string `json:"endpoint"`
 }

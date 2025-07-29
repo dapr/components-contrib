@@ -24,11 +24,6 @@ import (
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
 )
 
-// LangchainTemperature returns a langchain compliant LLM temperature
-func LangchainTemperature(temperature float64) llms.CallOption {
-	return llms.WithTemperature(temperature)
-}
-
 // CacheModel creates a prompt query cache with a configured TTL
 func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, error) {
 	d, err := time.ParseDuration(ttl)

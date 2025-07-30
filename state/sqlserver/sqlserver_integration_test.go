@@ -33,7 +33,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/dapr/components-contrib/common/proto/state/sqlserver"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -77,6 +79,7 @@ func TestIntegrationCases(t *testing.T) {
 	t.Run("Multi operations", testMultiOperations)
 	t.Run("Insert and Update Set Record Dates", testInsertAndUpdateSetRecordDates)
 	t.Run("Multiple initializations", testMultipleInitializations)
+	t.Run("Should preserve byte data when not base64 encoded", testNonBase64ByteData)
 
 	// Run concurrent set tests 10 times
 	const executions = 10
@@ -599,4 +602,24 @@ func testMultipleInitializations(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func testNonBase64ByteData(t *testing.T) {
+	t.Run("Set And Get", func(t *testing.T) {
+		store := getTestStore(t, "")
+		request := &sqlserver.TestEvent{
+			EventId: -1,
+		}
+		requestBytes, err := proto.Marshal(request)
+		require.NoError(t, err)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "1", Value: requestBytes}))
+		resp, err := store.Get(t.Context(), &state.GetRequest{Key: "1"})
+		require.NoError(t, err)
+
+		response := &sqlserver.TestEvent{}
+		err = proto.Unmarshal(resp.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+	})
 }

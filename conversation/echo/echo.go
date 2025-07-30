@@ -16,7 +16,10 @@ package echo
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,7 +42,7 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 }
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.ConversationRequest{}
+	r := &conversation.Request{}
 	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
@@ -51,24 +54,74 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 }
 
 func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.ConversationRequest{}
+	metadataStruct := conversation.Request{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
-// Converse returns inputs directly.
-func (e *Echo) Converse(ctx context.Context, r *conversation.ConversationRequest) (res *conversation.ConversationResponse, err error) {
-	outputs := make([]conversation.ConversationResult, 0, len(r.Inputs))
-
-	for _, input := range r.Inputs {
-		outputs = append(outputs, conversation.ConversationResult{
-			Result:     input.Message,
-			Parameters: r.Parameters,
-		})
+// Converse returns one output per input message.
+func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	if r.Message == nil {
+		return &conversation.Response{
+			ConversationContext: r.ConversationContext,
+			Outputs:             []conversation.Result{},
+		}, nil
 	}
 
-	res = &conversation.ConversationResponse{
-		Outputs: outputs,
+	outputs := make([]conversation.Result, 0, len(*r.Message))
+
+	for _, message := range *r.Message {
+		var content string
+		var toolCalls []llms.ToolCall
+
+		for i, part := range message.Parts {
+			switch p := part.(type) {
+			case llms.TextContent:
+				// end with space if not the first part
+				if i > 0 && content != "" {
+					content += " "
+				}
+				content += p.Text
+			case llms.ToolCall:
+				toolCalls = append(toolCalls, p)
+			case llms.ToolCallResponse:
+				content = p.Content
+				toolCalls = append(toolCalls, llms.ToolCall{
+					ID:   p.ToolCallID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      p.Name,
+						Arguments: p.Content,
+					},
+				})
+			default:
+				return nil, fmt.Errorf("found invalid content type as input for %v", p)
+			}
+		}
+
+		choice := conversation.Choice{
+			FinishReason: "stop",
+			Index:        0,
+			Message: conversation.Message{
+				Content: content,
+			},
+		}
+
+		if len(toolCalls) > 0 {
+			choice.Message.ToolCallRequest = &toolCalls
+		}
+
+		output := conversation.Result{
+			StopReason: "stop",
+			Choices:    []conversation.Choice{choice},
+		}
+
+		outputs = append(outputs, output)
+	}
+
+	res = &conversation.Response{
+		ConversationContext: r.ConversationContext,
+		Outputs:             outputs,
 	}
 
 	return res, nil

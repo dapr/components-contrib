@@ -145,7 +145,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	for i, message := range messages {
 		if message != nil {
-			metadata := GetEventMetadata(message, consumer.k.escapeHeaders)
+			metadata := GetEventMetadata(message, consumer.k)
 			handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
 			if err != nil {
 				return err
@@ -205,7 +205,7 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		Topic: message.Topic,
 		Data:  messageVal,
 	}
-	event.Metadata = GetEventMetadata(message, consumer.k.escapeHeaders)
+	event.Metadata = GetEventMetadata(message, consumer.k)
 
 	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
@@ -214,11 +214,11 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	return err
 }
 
-func GetEventMetadata(message *sarama.ConsumerMessage, escapeHeaders bool) map[string]string {
+func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]string {
 	if message != nil {
 		metadata := make(map[string]string, len(message.Headers)+5)
 		if message.Key != nil {
-			if escapeHeaders {
+			if kafka.escapeHeaders {
 				metadata[keyMetadataKey] = url.QueryEscape(string(message.Key))
 			} else {
 				metadata[keyMetadataKey] = string(message.Key)
@@ -229,7 +229,12 @@ func GetEventMetadata(message *sarama.ConsumerMessage, escapeHeaders bool) map[s
 		metadata[timestampMetadataKey] = strconv.FormatInt(message.Timestamp.UnixMilli(), 10)
 		metadata[partitionMetadataKey] = strconv.FormatInt(int64(message.Partition), 10)
 		for _, header := range message.Headers {
-			if escapeHeaders {
+			// skip headers that are excluded from metadata
+			if kafka.excludeHeaderMetaRegex != nil && kafka.excludeHeaderMetaRegex.MatchString(string(header.Key)) {
+				kafka.logger.Debugf("Skipping header %v that is excluded from metadata", string(header.Key))
+				continue
+			}
+			if kafka.escapeHeaders {
 				metadata[string(header.Key)] = url.QueryEscape(string(header.Value))
 			} else {
 				metadata[string(header.Key)] = string(header.Value)

@@ -29,11 +29,11 @@ import (
 var ErrMissingRetries = errors.New("retries is a required attribute")
 
 type failJobPayload struct {
-	JobKey       *int64            `json:"jobKey"`
-	Retries      *int32            `json:"retries"`
-	ErrorMessage string            `json:"errorMessage"`
-	RetryBackOff metadata.Duration `json:"retryBackOff"`
-	Variables    interface{}       `json:"variables"`
+	JobKey       *int64             `json:"jobKey"`
+	Retries      *int32             `json:"retries"`
+	ErrorMessage string             `json:"errorMessage"`
+	RetryBackOff *metadata.Duration `json:"retryBackOff,omitempty"`
+	Variables    interface{}        `json:"variables"`
 }
 
 func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -59,7 +59,7 @@ func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest)
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	if payload.RetryBackOff.Duration != time.Duration(0) {
+	if payload.RetryBackOff != nil && payload.RetryBackOff.Duration != time.Duration(0) {
 		cmd = cmd.RetryBackoff(payload.RetryBackOff.Duration)
 	}
 

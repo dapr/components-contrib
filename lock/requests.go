@@ -15,13 +15,15 @@ package lock
 
 // TryLockRequest is a lock acquire request.
 type TryLockRequest struct {
-	ResourceID      string `json:"resourceId"`
-	LockOwner       string `json:"lockOwner"`
-	ExpiryInSeconds int32  `json:"expiryInSeconds"`
+	ResourceID      string            `json:"resourceId"`
+	LockOwner       string            `json:"lockOwner"`
+	ExpiryInSeconds int32             `json:"expiryInSeconds"`
+	Metadata        map[string]string `json:"metadata"`
 }
 
 // UnlockRequest is a lock release request.
 type UnlockRequest struct {
-	ResourceID string `json:"resourceId"`
-	LockOwner  string `json:"lockOwner"`
+	ResourceID string            `json:"resourceId"`
+	LockOwner  string            `json:"lockOwner"`
+	Metadata   map[string]string `json:"metadata"`
 }

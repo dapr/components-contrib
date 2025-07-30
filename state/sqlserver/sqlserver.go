@@ -313,7 +313,6 @@ type dbExecutor interface {
 }
 
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
-	var err error
 	var reqValue string
 
 	bytes, ok := req.Value.([]byte)
@@ -330,7 +329,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.HasETag() {
 		var b []byte
-		b, err = hex.DecodeString(*req.ETag)
+		b, err := hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
@@ -343,6 +342,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	var res sql.Result
+	var err error
 	if req.Options.Concurrency == state.FirstWrite {
 		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
 			sql.Named("Data", reqValue), etag,

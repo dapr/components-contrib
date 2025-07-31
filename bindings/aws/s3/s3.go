@@ -136,15 +136,23 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	var s3Options []func(options *s3.Options)
 
+	if s.metadata.Region != "" {
+		s3Options = append(s3Options, func(options *s3.Options) {
+			options.Region = s.metadata.Region
+		})
+	}
+
+	// TODO: Double check this config
 	if s.metadata.DisableSSL {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.EndpointOptions.DisableHTTPS = true
 		})
 	}
 
-	if !s.metadata.ForcePathStyle {
+	if s.metadata.ForcePathStyle {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.UsePathStyle = true
+			options.EndpointOptions.ResolvedRegion = s.metadata.Region
 		})
 	}
 
@@ -173,6 +181,8 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	s.s3Downloader = manager.NewDownloader(s.s3Client)
 
 	s.s3PresignClient = s3.NewPresignClient(s.s3Client)
+
+	s.logger.Debugf("s3 binding: initialized with region %s", s.s3Client.Options().Region)
 
 	return nil
 }

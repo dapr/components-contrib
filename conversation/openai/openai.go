@@ -43,7 +43,6 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 }
 
 const defaultModel = "gpt-4o"
-const defaultAPIType = openai.APITypeOpenAI
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := OpenAILangchainMetadata{}
@@ -67,27 +66,18 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		options = append(options, openai.WithBaseURL(md.Endpoint))
 	}
 
-	// Identify correct API Type
-	switch md.APIType {
-	case "", "openai":
-		options = append(options, openai.WithAPIType(defaultAPIType))
-	case "azure":
+	if md.APIType == "azure" {
 		options = append(options, openai.WithAPIType(openai.APITypeAzure))
-	default:
-		return errors.New("apiType must be 'openai' or 'azure'")
 	}
 
-	// Return error when apiType is azure but apiVersion isn't provided
 	if md.APIType == "azure" && md.APIVersion == "" {
 		return errors.New("apiVersion must be provided when apiType is set to 'azure'")
 	}
 
-	// Return error when api Type is azure but the endpoint is not provided
 	if md.APIType == "azure" && md.Endpoint == "" {
 		return errors.New("endpoint must be provided when apiType is set to 'azure'")
 	}
 
-	// Set api version if provided
 	if md.APIVersion != "" {
 		options = append(options, openai.WithAPIVersion(md.APIVersion))
 	}

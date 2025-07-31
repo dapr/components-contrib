@@ -15,12 +15,11 @@ limitations under the License.
 
 package openai
 
+import "github.com/dapr/components-contrib/conversation"
+
 // OpenAILangchainMetadata extends LangchainMetadata with OpenAI-specific properties.
 type OpenAILangchainMetadata struct {
-	Key        string `json:"key"`
-	Model      string `json:"model"`
-	CacheTTL   string `json:"cacheTTL"`
-	Endpoint   string `json:"endpoint"`
-	APIType    string `json:"apiType"`
-	APIVersion string `json:"apiVersion"`
+	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
+	APIType                        string `json:"apiType" mapstructure:"apiType"`
+	APIVersion                     string `json:"apiVersion" mapstructure:"apiVersion"`
 }

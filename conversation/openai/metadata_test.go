@@ -19,15 +19,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func TestOpenaiLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
 		metadata := OpenAILangchainMetadata{
-			Key:        "test-key",
-			Model:      "gpt-4",
-			CacheTTL:   "10m",
-			Endpoint:   "https://custom-endpoint.openai.azure.com/",
+			LangchainMetadata: conversation.LangchainMetadata{
+				Key:      "test-key",
+				Model:    "gpt-4",
+				CacheTTL: "10m",
+				Endpoint: "https://custom-endpoint.openai.azure.com/",
+			},
 			APIType:    "azure",
 			APIVersion: "2025-01-01-preview",
 		}

@@ -46,7 +46,7 @@ metadata:
       The API version to use for the Azure OpenAI service. This is required when using Azure OpenAI.
     type: string
     example: '2025-01-01-preview'
-    default: '2025-01-01-preview'
+    default: ''
   - name: apiType
     required: false
     description: |

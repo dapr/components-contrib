@@ -56,18 +56,6 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
-			name: "with apiType openai",
-			metadata: map[string]string{
-				"key":     "test-key",
-				"model":   "gpt-4",
-				"apiType": "openai",
-			},
-			testFn: func(t *testing.T, o *OpenAI, err error) {
-				require.NoError(t, err)
-				assert.NotNil(t, o.LLM)
-			},
-		},
-		{
 			name: "with apiType azure",
 			metadata: map[string]string{
 				"key":        "test-key",

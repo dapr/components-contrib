@@ -56,7 +56,20 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
-			name: "with apiType azure",
+			name: "with apiType azure and missing apiVersion",
+			metadata: map[string]string{
+				"key":      "test-key",
+				"model":    "gpt-4",
+				"apiType":  "azure",
+				"endpoint": "https://custom-endpoint.openai.azure.com/",
+			},
+			testFn: func(t *testing.T, o *OpenAI, err error) {
+				require.Error(t, err)
+				assert.EqualError(t, err, "endpoint and apiVersion must be provided when apiType is set to 'azure'")
+			},
+		},
+		{
+			name: "with apiType azure and custom apiVersion",
 			metadata: map[string]string{
 				"key":        "test-key",
 				"model":      "gpt-4",
@@ -70,19 +83,6 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
-			name: "with apiType azure but missing apiVersion",
-			metadata: map[string]string{
-				"key":      "test-key",
-				"model":    "gpt-4",
-				"apiType":  "azure",
-				"endpoint": "https://custom-endpoint.openai.azure.com/",
-			},
-			testFn: func(t *testing.T, o *OpenAI, err error) {
-				require.Error(t, err)
-				assert.EqualError(t, err, "apiVersion must be provided when apiType is set to 'azure'")
-			},
-		},
-		{
 			name: "with apiType azure but missing endpoint",
 			metadata: map[string]string{
 				"key":        "test-key",
@@ -92,11 +92,10 @@ func TestInit(t *testing.T) {
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.Error(t, err)
-				assert.EqualError(t, err, "endpoint must be provided when apiType is set to 'azure'")
+				assert.EqualError(t, err, "endpoint and apiVersion must be provided when apiType is set to 'azure'")
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			o := NewOpenAI(logger.NewLogger("openai test"))

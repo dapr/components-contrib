@@ -53,4 +53,4 @@ metadata:
       The type of API to use for the OpenAI service. This is required when using Azure OpenAI.
     type: string
     example: 'azure'
-    default: 'openai'
+    default: ''

@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"context"
+	"os"
 	"reflect"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -59,6 +60,25 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 	err := kmeta.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
+	}
+
+	if m.Region == "" {
+		region, ok := os.LookupEnv("AWS_REGION")
+		if ok {
+			m.Region = region
+		}
+	}
+	if m.AccessKey == "" {
+		accessKey, ok := os.LookupEnv("AWS_ACCESS_KEY_ID")
+		if ok {
+			m.AccessKey = accessKey
+		}
+	}
+	if m.SecretKey == "" {
+		secretKey, ok := os.LookupEnv("AWS_SECRET_ACCESS_KEY")
+		if ok {
+			m.SecretKey = secretKey
+		}
 	}
 
 	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)

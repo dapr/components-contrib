@@ -71,8 +71,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 			return errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
 		}
 
-		options = append(options, openai.WithAPIType(openai.APITypeAzure))
-		options = append(options, openai.WithAPIVersion(md.APIVersion))
+		options = append(options, openai.WithAPIType(openai.APITypeAzure), openai.WithAPIVersion(md.APIVersion))
 	}
 
 	llm, err := openai.New(options...)

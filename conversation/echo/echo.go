@@ -85,7 +85,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			case llms.ToolCall:
 				toolCalls = append(toolCalls, p)
 			case llms.ToolCallResponse:
-				content += fmt.Sprintf("Tool Response for tool '%s' with ID '%s': %s", p.Name, p.ToolCallID, p.Content)
+				content += fmt.Sprintf("Tool Response for tool ID '%s' with name '%s': %s", p.ToolCallID, p.Name, p.Content)
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}

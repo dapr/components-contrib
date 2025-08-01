@@ -503,7 +503,14 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		return nil
 	}
 
-	partitionKey := request.Metadata[metadataPartitionKey]
+	partitionKey, partitionKeySet := request.Metadata[metadataPartitionKey]
+	if !partitionKeySet {
+		// Fallback to using the key of the first operation for consistency with single operations
+		// Often there's only one operation in a transaction.
+		firstOp := request.Operations[0]
+		partitionKey = populatePartitionMetadata(firstOp.GetKey(), firstOp.GetMetadata())
+	}
+
 	batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
 
 	numOperations := 0

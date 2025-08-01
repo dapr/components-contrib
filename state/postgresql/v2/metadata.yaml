@@ -7,7 +7,7 @@ status: stable
 title: "PostgreSQL"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-postgresql/
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-postgresql-v2/
 capabilities:
   # If actorStateStore is present, the metadata key actorStateStore can be used
   - actorStateStore

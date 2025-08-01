@@ -878,6 +878,70 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 		})
+
+		if config.HasOperation("etag") {
+			t.Run("single-set-then-transaction-update", func(t *testing.T) {
+				features := statestore.Features()
+				assert.True(t, state.FeatureTransactional.IsPresent(features))
+				assert.True(t, state.FeatureETag.IsPresent(features))
+
+				transactionStore, ok := statestore.(state.TransactionalStore)
+				require.True(t, ok)
+
+				testKey := key + "-single-tx-update"
+				initialValue := "initial-value"
+				updatedValue := "updated-value"
+
+				// Step 1: Set the key with a single set operation
+				t.Logf("Setting key %s with single operation", testKey)
+				err := statestore.Set(t.Context(), &state.SetRequest{
+					Key:   testKey,
+					Value: initialValue,
+				})
+				require.NoError(t, err)
+
+				// Verify the initial value was set
+				res, err := statestore.Get(t.Context(), &state.GetRequest{
+					Key: testKey,
+				})
+				require.NoError(t, err)
+				assertDataEquals(t, initialValue, res.Data)
+
+				// Step 2: Update the key using a transaction
+				t.Logf("Updating key %s with transaction", testKey)
+				err = transactionStore.Multi(t.Context(), &state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						state.SetRequest{
+							Key:   testKey,
+							Value: updatedValue,
+							ETag:  res.ETag,
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				// Verify the updated value
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
+					Key: testKey,
+				})
+				require.NoError(t, err)
+				assertDataEquals(t, updatedValue, res.Data)
+
+				// Clean up
+				err = statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key:  testKey,
+					ETag: res.ETag,
+				})
+				require.NoError(t, err)
+
+				// Verify it's deleted
+				res, err = statestore.Get(t.Context(), &state.GetRequest{
+					Key: testKey,
+				})
+				require.NoError(t, err)
+				assert.Nil(t, res.Data)
+			})
+		}
 	} else {
 		t.Run("component does not implement TransactionalStore interface", func(t *testing.T) {
 			_, ok := statestore.(state.TransactionalStore)

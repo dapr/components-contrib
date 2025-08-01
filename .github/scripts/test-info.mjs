@@ -814,6 +814,7 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh ravendb',
+        requireRavenDBCredentials: true,
     },
 }
 

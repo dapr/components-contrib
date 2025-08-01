@@ -2,7 +2,9 @@ componentType: conversation
 components:
   - component: echo
     operations: []
-  - component: openai
+  - component: openai.openai
+    operations: []
+  - component: openai.azure
     operations: []
   - component: anthropic
     operations: []

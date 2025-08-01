@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option go_package = "github.com/dapr/components-contrib/common/proto/state/sqlserver";
+
+import "google/protobuf/timestamp.proto";
+
+message TestEvent {
+  int32 eventId = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}

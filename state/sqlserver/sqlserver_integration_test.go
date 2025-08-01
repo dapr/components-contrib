@@ -30,10 +30,12 @@ import (
 	"testing"
 	"time"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/dapr/components-contrib/common/proto/state/sqlserver"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -42,7 +44,7 @@ import (
 const (
 	// connectionStringEnvKey defines the key containing the integration test connection string
 	// To use docker, server=localhost;user id=sa;password=Pass@Word1;port=1433;
-	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;.
+	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;User id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;.
 	connectionStringEnvKey = "DAPR_TEST_SQL_CONNSTRING"
 	usersTableName         = "Users"
 	beverageTea            = "tea"
@@ -77,6 +79,7 @@ func TestIntegrationCases(t *testing.T) {
 	t.Run("Multi operations", testMultiOperations)
 	t.Run("Insert and Update Set Record Dates", testInsertAndUpdateSetRecordDates)
 	t.Run("Multiple initializations", testMultipleInitializations)
+	t.Run("Should preserve byte data when not base64 encoded", testNonBase64ByteData)
 
 	// Run concurrent set tests 10 times
 	const executions = 10
@@ -112,6 +115,9 @@ func createMetadata(schema string, kt KeyType, indexedProperties string) state.M
 
 // Ensure the database is running
 // For docker, use: docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Pass@Word1" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04.
+// For azure-sql-edge use:
+// docker volume create sqlvolume
+// docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=Pass@Word1" -e "MSSQL_PID=Developer" -e "MSSQL_AGENT_ENABLED=TRUE" -e "MSSQL_COLLATION=SQL_Latin1_General_CP1_CI_AS" -e "MSSQL_LCID=1033" -p 1433:1433 -v sqlvolume:/var/opt/mssql -d mcr.microsoft.com/azure-sql-edge:latest
 func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 	return getTestStoreWithKeyType(t, StringKeyType, indexedProperties)
 }
@@ -596,4 +602,24 @@ func testMultipleInitializations(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func testNonBase64ByteData(t *testing.T) {
+	t.Run("Set And Get", func(t *testing.T) {
+		store := getTestStore(t, "")
+		request := &sqlserver.TestEvent{
+			EventId: -1,
+		}
+		requestBytes, err := proto.Marshal(request)
+		require.NoError(t, err)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "1", Value: requestBytes}))
+		resp, err := store.Get(t.Context(), &state.GetRequest{Key: "1"})
+		require.NoError(t, err)
+
+		response := &sqlserver.TestEvent{}
+		err = proto.Unmarshal(resp.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+	})
 }

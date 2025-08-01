@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/tmc/langchaingo/llms"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -28,18 +29,16 @@ type Conversation interface {
 
 	Init(ctx context.Context, meta Metadata) error
 
-	Converse(ctx context.Context, req *ConversationRequest) (*ConversationResponse, error)
+	Converse(ctx context.Context, req *Request) (*Response, error)
 
 	io.Closer
 }
 
-type ConversationInput struct {
-	Message string `json:"string"`
-	Role    Role   `json:"role"`
-}
-
-type ConversationRequest struct {
-	Inputs              []ConversationInput   `json:"inputs"`
+type Request struct {
+	// Message can be user input prompt/instructions and/or tool call responses.
+	Message             *[]llms.MessageContent
+	Tools               *[]llms.Tool
+	ToolChoice          *string
 	Parameters          map[string]*anypb.Any `json:"parameters"`
 	ConversationContext string                `json:"conversationContext"`
 	Temperature         float64               `json:"temperature"`
@@ -51,22 +50,27 @@ type ConversationRequest struct {
 	Policy    string   `json:"loadBalancingPolicy"`
 }
 
-type ConversationResult struct {
-	Result     string                `json:"result"`
-	Parameters map[string]*anypb.Any `json:"parameters"`
+type Response struct {
+	ConversationContext string   `json:"conversationContext"`
+	Outputs             []Result `json:"outputs"`
 }
 
-type ConversationResponse struct {
-	ConversationContext string               `json:"conversationContext"`
-	Outputs             []ConversationResult `json:"outputs"`
+type Result struct {
+	StopReason string   `json:"stopReason"`
+	Choices    []Choice `json:"choices,omitempty"`
 }
 
-type Role string
+type Choice struct {
+	FinishReason string  `json:"finishReason"`
+	Index        int64   `json:"index"`
+	Message      Message `json:"message"`
+}
 
-const (
-	RoleSystem    = "system"
-	RoleUser      = "user"
-	RoleAssistant = "assistant"
-	RoleFunction  = "function"
-	RoleTool      = "tool"
-)
+// Message represents the content of a choice
+// where it can be a text message or a tool call.
+type Message struct {
+	Content         string           `json:"content,omitempty"`
+	ToolCallRequest *[]llms.ToolCall `json:"toolCallRequest,omitempty"`
+
+	// Note: we do not have refusal passed back bc langchain does not support it.
+}

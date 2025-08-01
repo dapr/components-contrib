@@ -20,9 +20,10 @@ metadata:
     type: string
   - name: gatewayKeepAlive
     required: false
-    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    description: Sets how often keep alive messages should be sent to the gateway.
     example: "45s"
     type: duration
+    default: "45s"
   - name: usePlainTextConnection	
     required: false
     description: Whether to use a plain text connection or not
@@ -40,7 +41,7 @@ metadata:
     type: string
   - name: workerTimeout
     required: false
-    description: A job returned after this call will not be activated by another call until the timeout has been reached; defaults to 5 minutes
+    description: A job returned after this call will not be activated by another call until the timeout has been reached.
     example: "5m"
     type: duration
   - name: requestTimeout
@@ -48,6 +49,7 @@ metadata:
     description: The request will be completed when at least one job is activated or after the requestTimeout. If the requestTimeout = 0, a default timeout is used. If the requestTimeout < 0, long polling is disabled and the request is completed immediately, even when no job is activated. Defaults to 10 seconds
     example: "30s"
     type: duration
+    default: "10s"
   - name: jobType
     required: true
     description: the job type, as defined in the BPMN process (e.g. <zeebe:taskDefinition type=\"fetch-products\" />)
@@ -55,24 +57,28 @@ metadata:
     type: string
   - name: maxJobsActive
     required: false
-    description: Set the maximum number of jobs which will be activated for this worker at the same time. Defaults to 32
+    description: Set the maximum number of jobs which will be activated for this worker at the same time.
     example: "32"
     type: number
+    default: "32"
   - name: concurrency
     required: false
-    description: The maximum number of concurrent spawned goroutines to complete jobs. Defaults to 4
+    description: The maximum number of concurrent spawned goroutines to complete jobs.
     example: "4"
+    default: "4"
     type: number
   - name: pollInterval
     required: false
-    description: Set the maximal interval between polling for new jobs. Defaults to 100 milliseconds
+    description: Set the maximal interval between polling for new jobs.
     example: "100ms"
     type: duration
+    default: "100ms"
   - name: pollThreshold
     required: false
-    description: Set the threshold of buffered activated jobs before polling for new jobs, i.e. threshold * maxJobsActive. Defaults to 0.3
+    description: Set the threshold of buffered activated jobs before polling for new jobs, i.e. threshold * maxJobsActive.
     example: "0.3"
     type: number
+    default: "0.3"
   - name: fetchVariables
     required: false
     description: A list of variables to fetch as the job variables; if empty, all visible variables at the time of activation for the scope of the job will be returned

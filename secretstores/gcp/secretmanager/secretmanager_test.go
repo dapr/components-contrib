@@ -76,17 +76,60 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with missing `type` metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"dummy": "a",
+			"dummy":          "a",
+			"private_key_id": "a",
+			"project_id":     "a",
 		}
 		err := sm.Init(ctx, m)
 		require.Error(t, err)
-		assert.Equal(t, err, errors.New("missing property `type` in metadata"))
+		assert.Equal(t, errors.New("failed to setup secretmanager client: missing property `type` in metadata"), err)
+	})
+
+	t.Run("Init with missing `private_key` metadata", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"dummy":          "a",
+			"private_key_id": "a",
+			"type":           "a",
+			"project_id":     "a",
+		}
+		err := sm.Init(ctx, m)
+		require.Error(t, err)
+		assert.Equal(t, errors.New("failed to setup secretmanager client: missing property `private_key` in metadata"), err)
+	})
+
+	t.Run("Init with missing `client_email` metadata", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"dummy":          "a",
+			"private_key_id": "a",
+			"private_key":    "a",
+			"type":           "a",
+			"project_id":     "a",
+		}
+		err := sm.Init(ctx, m)
+		require.Error(t, err)
+		assert.Equal(t, errors.New("failed to setup secretmanager client: missing property `client_email` in metadata"), err)
 	})
 
 	t.Run("Init with missing `project_id` metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"type": "service_account",
 		}
+		err := sm.Init(ctx, m)
+		require.Error(t, err)
+		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))
+	})
+
+	t.Run("Init with missing `project_id` metadata", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"type": "service_account",
+		}
+		err := sm.Init(ctx, m)
+		require.Error(t, err)
+		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))
+	})
+
+	t.Run("Init with empty metadata", func(t *testing.T) {
+		m.Properties = map[string]string{}
 		err := sm.Init(ctx, m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing property `project_id` in metadata"))

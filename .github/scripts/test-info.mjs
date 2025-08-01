@@ -838,6 +838,7 @@ const components = {
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
  * @property {string|string[]?} sourcePkg If set, sets the specified source package
+ * @property {boolean} requireRavenDBCredentials If true, sets RavenDB license environment variable
  */
 
 /**
@@ -930,6 +931,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'source-pkg': comp.sourcePkg
                 .map((p) => 'github.com/dapr/components-contrib/' + p)
                 .join(','),
+            'require-ravendb-credentials': comp.requireRavenDBCredentials || true,
         })
     }
 

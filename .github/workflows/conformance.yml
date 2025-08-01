@@ -96,7 +96,6 @@ jobs:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
       GOCOV_VER: "v1.1.0"
       GOTESTSUM_VER: "v1.9.0"
-      RAVENDBLICENSE: ${{ secrets.RAVENDBLICENSE }}
     defaults:
       run:
         shell: bash
@@ -218,6 +217,11 @@ jobs:
       run: |
         echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> $GITHUB_ENV
         echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
+
+    - name: Set RavenDB env vars
+      if: matrix.require-ravendb-credentials == 'true'
+      run: |
+        echo "RAVENDBLICENSE=${{ secrets.RAVENDBLICENSE }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'

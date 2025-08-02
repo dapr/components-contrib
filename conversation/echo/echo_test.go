@@ -97,19 +97,7 @@ func TestConverse(t *testing.T) {
 								FinishReason: "stop",
 								Index:        0,
 								Message: conversation.Message{
-									Content: "first message second message",
-								},
-							},
-						},
-					},
-					{
-						StopReason: "stop",
-						Choices: []conversation.Choice{
-							{
-								FinishReason: "stop",
-								Index:        0,
-								Message: conversation.Message{
-									Content: "third message",
+									Content: "first message\nsecond message\nthird message",
 								},
 							},
 						},
@@ -127,7 +115,7 @@ func TestConverse(t *testing.T) {
 				Message: &tt.inputs,
 			})
 			require.NoError(t, err)
-			assert.Len(t, r.Outputs, len(tt.expected.Outputs))
+			assert.Len(t, r.Outputs, 1)
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
 		})
 	}

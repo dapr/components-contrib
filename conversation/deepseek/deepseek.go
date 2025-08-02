@@ -59,6 +59,10 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		model = md.Model
 	}
 
+	if md.Endpoint == "" {
+		md.Endpoint = defaultEndpoint
+	}
+
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(md.Key),

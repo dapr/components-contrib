@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{HUGGINGFACE_API_KEY}}"
     - name: model
-      value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" 
+      value: "HuggingFaceTB/SmolLM3-3B"

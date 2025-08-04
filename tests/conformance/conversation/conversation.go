@@ -227,7 +227,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			require.NoError(t, err)
 
-			// We expect a single output. In the future, depending on request (so probably a different test), we might get more than one (https://platform.openai.com/docs/api-reference/responses/object)
+			// We expect a single output. In the future, depending on request (so probably a different test),
+			// we might get more than one as shown in new API platform.openai.com/docs/api-reference/responses/object
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop

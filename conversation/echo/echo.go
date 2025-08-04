@@ -121,7 +121,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		for _, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
-				// end with space if not the first part
+				// append to slice that we'll join later with new line separators
 				contentFromMessaged = append(contentFromMessaged, p.Text)
 			case llms.ToolCall:
 				// in case we added explicit tool calls on the request like on multi-turn conversations. We still append tool calls for each tool defined in the request.

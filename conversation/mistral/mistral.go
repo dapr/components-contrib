@@ -118,8 +118,7 @@ func CreateToolResponseMessage(responses ...llms.ContentPart) llms.MessageConten
 	if len(responses) == 0 {
 		return msg
 	}
-	toolID := ""
-	name := ""
+	var toolID, name string
 
 	mistralContentParts := make([]string, 0, len(responses))
 	for _, response := range responses {

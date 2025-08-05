@@ -106,7 +106,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			}
 
 			toolCalls = append(toolCalls, llms.ToolCall{
-				ID: strconv.Itoa(id),
+				ID:   strconv.Itoa(id),
+				Type: tool.Type,
 				FunctionCall: &llms.FunctionCall{
 					Name:      tool.Function.Name,
 					Arguments: strings.Join(argNames, ","),
@@ -134,8 +135,14 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			}
 		}
 	}
+
+	stopReason := "stop"
+	if len(toolCalls) > 0 {
+		stopReason = "tool_calls"
+		// follows openai spec for tool_calls finish reason https://platform.openai.com/docs/api-reference/chat/object
+	}
 	choice := conversation.Choice{
-		FinishReason: "stop",
+		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
 			Content: strings.Join(contentFromMessaged, "\n"),
@@ -147,7 +154,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	}
 
 	output := conversation.Result{
-		StopReason: "stop",
+		StopReason: stopReason,
 		Choices:    []conversation.Choice{choice},
 	}
 

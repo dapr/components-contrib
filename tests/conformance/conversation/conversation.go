@@ -46,7 +46,7 @@ func NewTestConfig(componentName string) TestConfig {
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, conv conversation.Conversation, component string) {
-	providerStopReasons := []string{"stop", "end_turn", "FinishReasonStop"}
+	providerStopReasons := []string{"stop", "end_turn", "FinishReasonStop", "tool_calls"}
 
 	t.Run("init", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

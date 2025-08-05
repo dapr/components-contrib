@@ -205,9 +205,14 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-		if stream != nil {
-			return stream.StreamDescription.StreamARN, err
+		/**
+		 * If the error is not nil, do not proceed to the next step
+		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
+		 */
+		if err != nil {
+			return nil, err
 		}
+		return stream.StreamDescription.StreamARN, err
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")

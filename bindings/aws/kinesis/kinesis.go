@@ -156,8 +156,8 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
-
-	if a.metadata.KinesisConsumerMode == SharedThroughput {
+	switch a.metadata.KinesisConsumerMode {
+	case SharedThroughput:
 		// Configure the KCL worker with custom endpoints for LocalStack
 		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
 		if a.metadata.Endpoint != "" {
@@ -169,7 +169,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		if err != nil {
 			return err
 		}
-	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
+	case ExtendedFanout:
 		var stream *kinesis.DescribeStreamOutput
 		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
@@ -181,10 +181,18 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
-	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
-	if err != nil {
-		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+	var stream *string
+	/**
+	 * Invoke this only when KinesisConsumerMode is set to 'extended' to avoid unnecessary calls.
+	 */
+	if a.metadata.KinesisConsumerMode == ExtendedFanout {
+		streamARN, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+		if err != nil {
+			return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+		}
+		stream = streamARN
 	}
+
 	// Wait for context cancelation then stop
 	a.wg.Add(1)
 	go func() {
@@ -193,9 +201,10 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		case <-ctx.Done():
 		case <-a.closeCh:
 		}
-		if a.metadata.KinesisConsumerMode == SharedThroughput {
+		switch a.metadata.KinesisConsumerMode {
+		case SharedThroughput:
 			a.worker.Shutdown()
-		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
+		case ExtendedFanout:
 			a.deregisterConsumer(ctx, stream, a.consumerARN)
 		}
 	}()

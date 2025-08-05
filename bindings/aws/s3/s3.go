@@ -136,15 +136,26 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	var s3Options []func(options *s3.Options)
 
+	if s.metadata.Region != "" {
+		s3Options = append(s3Options, func(options *s3.Options) {
+			options.Region = s.metadata.Region
+			options.EndpointOptions.ResolvedRegion = s.metadata.Region
+			options.BaseEndpoint = aws.String(s.metadata.Region)
+
+		})
+	}
+
+	// TODO: Double check this config
 	if s.metadata.DisableSSL {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.EndpointOptions.DisableHTTPS = true
 		})
 	}
 
-	if !s.metadata.ForcePathStyle {
+	if s.metadata.ForcePathStyle {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.UsePathStyle = true
+			options.EndpointOptions.ResolvedRegion = s.metadata.Region
 		})
 	}
 
@@ -168,7 +179,6 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
-
 	s.s3Uploader = manager.NewUploader(s.s3Client)
 	s.s3Downloader = manager.NewDownloader(s.s3Client)
 

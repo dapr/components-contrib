@@ -41,7 +41,7 @@ require (
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.1-0.20241125194140-078c08b8574a
 	github.com/aws/aws-sdk-go v1.55.6
-	github.com/aws/aws-sdk-go-v2 v1.36.5
+	github.com/aws/aws-sdk-go-v2 v1.36.6
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.3
@@ -52,6 +52,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.34.7
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.8
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/aws/rolesanywhere-credential-helper v1.0.4
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
@@ -198,8 +199,8 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.37 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.36 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.6 // indirect

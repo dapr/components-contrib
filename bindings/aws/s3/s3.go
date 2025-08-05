@@ -136,12 +136,17 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	var s3Options []func(options *s3.Options)
 
+	if s.metadata.Endpoint != "" {
+		s3Options = append(s3Options, func(options *s3.Options) {
+			options.BaseEndpoint = aws.String(s.metadata.Endpoint)
+		})
+	}
+
 	if s.metadata.Region != "" {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.Region = s.metadata.Region
 			options.EndpointOptions.ResolvedRegion = s.metadata.Region
-			options.BaseEndpoint = aws.String(s.metadata.Region)
-
+			options.UseARNRegion = true
 		})
 	}
 

@@ -156,8 +156,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
-	switch a.metadata.KinesisConsumerMode {
-	case SharedThroughput:
+	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		// Configure the KCL worker with custom endpoints for LocalStack
 		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
 		if a.metadata.Endpoint != "" {
@@ -169,7 +168,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		if err != nil {
 			return err
 		}
-	case ExtendedFanout:
+	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
 		var stream *kinesis.DescribeStreamOutput
 		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
@@ -201,10 +200,9 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		case <-ctx.Done():
 		case <-a.closeCh:
 		}
-		switch a.metadata.KinesisConsumerMode {
-		case SharedThroughput:
+		if a.metadata.KinesisConsumerMode == SharedThroughput {
 			a.worker.Shutdown()
-		case ExtendedFanout:
+		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
 			a.deregisterConsumer(ctx, stream, a.consumerARN)
 		}
 	}()

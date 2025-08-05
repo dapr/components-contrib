@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: rethinkdb
+version: v1
+status: beta
+title: "RethinkDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-rethinkdb/
+authenticationProfiles:
+  - title: "Basic Authentication"
+    description: "Authenticate using username and password."
+    metadata:
+      - name: address
+        type: string
+        required: false
+        description: The RethinkDB server address.
+        example: "localhost:28015"
+      - name: addresses
+        type: string
+        required: false
+        description: Comma-separated list of RethinkDB server addresses.
+        example: "localhost:28015,localhost:28016"
+      - name: database
+        type: string
+        required: true
+        description: The RethinkDB database name.
+        example: "dapr"
+        default: ""
+      - name: username
+        type: string
+        required: false
+        description: The username for authentication. If not provided, the admin user is used for v1 handshake protocol.
+        example: "admin"
+      - name: password
+        type: string
+        required: false
+        description: The password for authentication. This is only used for v1 handshake protocol.
+        example: "password"
+metadata:
+  - name: table
+    type: string
+    required: false
+    description: The table name to store state data.
+    example: "daprstate"
+    default: "daprstate"
+  - name: archive
+    type: bool
+    required: false
+    description: Whether to archive changes to a separate table.
+    example: false
+    default: false
+  - name: timeout
+    type: string
+    required: false
+    description: Connection timeout duration.
+    example: "10s"
+  - name: useJSONNumber
+    type: bool
+    required: false
+    description: Whether to use json.Number instead of float64.
+    example: false
+    default: false
+  - name: numRetries
+    type: int
+    required: false
+    description: Number of times to retry queries on connection errors.
+    example: 3
+  - name: hostDecayDuration
+    type: string
+    required: false
+    description: Host decay duration for weighted host selection.
+    example: "5m"
+    default: "5m"
+  - name: useOpentracing
+    type: bool
+    required: false
+    description: Whether to enable opentracing for queries.
+    example: false
+    default: false 

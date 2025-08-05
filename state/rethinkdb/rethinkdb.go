@@ -32,9 +32,12 @@ import (
 )
 
 const (
-	stateTableNameDefault   = "daprstate"
-	stateTablePKName        = "id"
-	stateArchiveTableName   = "daprstate_archive"
+	stateTableNameDefault = "daprstate"
+	// TODO: this needs to be exposed as a metadata option?
+	stateTablePKName = "id"
+	// TODO: this needs to be exposed as a metadata option
+	stateArchiveTableName = "daprstate_archive"
+	// TODO: this needs to be exposed as a metadata option?
 	stateArchiveTablePKName = "key"
 )
 

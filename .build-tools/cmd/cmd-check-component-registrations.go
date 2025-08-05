@@ -48,8 +48,9 @@ This is a required step before an official Dapr release.`,
 
 		checkConversationComponents()
 		checkStateComponents()
+		checkPubSubComponents()
 
-		// TODO: secretstore, pubsub, binding, config
+		// TODO: secretstore, binding, config
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -72,6 +73,15 @@ func checkStateComponents() {
 	ignoreDaprComponents := []string{"yugabyte", "yugabytedb", "postgres"}
 	ignoreContribComponents := []string{"azure.blobstorage.internal"}
 	checkComponents("state", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkPubSubComponents() {
+	fmt.Println("\nChecking pubsub components...")
+
+	// mqtt3 = mqtt, so ignore mqtt3 for now in this cli
+	ignoreDaprComponents := []string{"mqtt3"}
+	ignoreContribComponents := []string{"mqtt3"}
+	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -152,7 +162,24 @@ func checkRegistry(componentType string) error {
 
 func findComponentsInBothRepos(componentType string, ignoreContribComponents []string) ([]string, []string, error) {
 	// Find all components in components-contrib, excluding utility files
-	contribCmd := exec.Command("grep", "-rl", "--include=*.go", "--exclude=errors.go", "--exclude=bulk.go", "--exclude=query.go", "func New", componentType)
+	// Configure exclude list based on component type
+	var excludeFiles []string
+	// keeping this here for now since not all components exclude files... will make func param if needed.
+	switch componentType {
+	case "state":
+		excludeFiles = []string{"--exclude=errors.go", "--exclude=bulk.go", "--exclude=query.go"}
+	case "pubsub":
+		excludeFiles = []string{"--exclude=envelope.go", "--exclude=responses.go"}
+	default:
+		excludeFiles = []string{}
+	}
+
+	// Build the grep command with dynamic excludes
+	grepArgs := []string{"-rl", "--include=*.go"}
+	grepArgs = append(grepArgs, excludeFiles...)
+	grepArgs = append(grepArgs, "func New", componentType)
+
+	contribCmd := exec.Command("grep", grepArgs...)
 	contribOutput, err := contribCmd.Output()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find components within components-contrib: %v", err)

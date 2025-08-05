@@ -16,6 +16,7 @@ package cmd
 import (
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -60,28 +61,45 @@ func init() {
 
 func checkConversationComponents() {
 	fmt.Println("\nChecking conversation components...")
-	checkComponents("conversation")
+	checkComponents("conversation", []string{}, []string{})
 }
 
 func checkStateComponents() {
 	fmt.Println("\nChecking state components...")
 
-	// ignoreDaprComponents := []string{"yugabyte, yugabytedb"}
-	checkComponents("state")
+	// Yugabyte are supported via the postgres component, so in contrib this is covered by the postgresql component in the contrib list.
+	// Also, postgres = postgresql, so we can ignore postgres.
+	ignoreDaprComponents := []string{"yugabyte", "yugabytedb", "postgres"}
+	ignoreContribComponents := []string{"azure.blobstorage.internal"}
+	checkComponents("state", ignoreDaprComponents, ignoreContribComponents)
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
-func checkComponents(componentType string) {
+func checkComponents(componentType string, ignoreDaprComponents []string, ignoreContribComponents []string) {
 	if err := checkRegistry(componentType); err != nil {
 		fmt.Printf("Registry check failed: %v\n", err)
 		return
 	}
 
-	contribComponents, daprComponents, err := findComponentsInBothRepos(componentType)
+	contribComponents, daprComponents, err := findComponentsInBothRepos(componentType, ignoreContribComponents)
 	if err != nil {
 		fmt.Printf("Component discovery across repos failed: %v\n", err)
 		return
 	}
+
+	fmt.Printf("Components to ignore: %v\n", ignoreDaprComponents)
+	fmt.Printf("Dapr components before filtering: %v\n", daprComponents)
+
+	// Filter out components to ignore
+	filteredDaprComponents := make([]string, 0, len(daprComponents))
+	for _, comp := range daprComponents {
+		if !slices.Contains(ignoreDaprComponents, comp) {
+			filteredDaprComponents = append(filteredDaprComponents, comp)
+		} else {
+			fmt.Printf("Ignoring component: %s\n", comp)
+		}
+	}
+	daprComponents = filteredDaprComponents
 
 	// Apply vendor prefix mapping and deduplication to both lists.
 	// This removes things like the CSP prefixing.
@@ -92,19 +110,19 @@ func checkComponents(componentType string) {
 	fmt.Printf("Components registered: %d\n", len(mappedDaprComponents))
 
 	if len(mappedContribComponents) != len(mappedDaprComponents) {
-		fmt.Printf("Number of components in contrib and dapr/dapr do not match")
+		fmt.Printf("\nNumber of components in contrib and dapr/dapr do not match")
 		fmt.Printf("Contrib: %v\n", mappedContribComponents)
 		fmt.Printf("Dapr: %v\n", mappedDaprComponents)
 		return
 	}
 
-	missing, err := validateComponents(contribComponents, componentType)
+	missingRegistrations, missingBuildTags, missingMetadata, err := validateComponents(contribComponents, componentType)
 	if err != nil {
 		fmt.Printf("Component validation failed: %v\n", err)
 		return
 	}
 
-	reportResults(missing, componentType)
+	reportResults(missingRegistrations, missingBuildTags, missingMetadata, componentType)
 }
 
 func checkRegistry(componentType string) error {
@@ -132,9 +150,9 @@ func checkRegistry(componentType string) error {
 	return nil
 }
 
-func findComponentsInBothRepos(componentType string) ([]string, []string, error) {
-	// Find all components in components-contrib
-	contribCmd := exec.Command("grep", "-rl", "--include=*.go", "func New", componentType)
+func findComponentsInBothRepos(componentType string, ignoreContribComponents []string) ([]string, []string, error) {
+	// Find all components in components-contrib, excluding utility files
+	contribCmd := exec.Command("grep", "-rl", "--include=*.go", "--exclude=errors.go", "--exclude=bulk.go", "--exclude=query.go", "func New", componentType)
 	contribOutput, err := contribCmd.Output()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find components within components-contrib: %v", err)
@@ -147,45 +165,42 @@ func findComponentsInBothRepos(componentType string) ([]string, []string, error)
 		return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
 	}
 
-	contribComponents := parseContribComponents(string(contribOutput), componentType)
+	contribComponents := parseContribComponents(string(contribOutput), componentType, ignoreContribComponents)
 	registeredComponents := parseRegisteredComponents(string(registeredOutput))
 
 	return contribComponents, registeredComponents, nil
 }
 
-func validateComponents(contribComponents []string, componentType string) ([]string, error) {
-	missing := []string{}
+func validateComponents(contribComponents []string, componentType string) ([]string, []string, []string, error) {
+	missingRegistrations := []string{}
+	missingBuildTags := []string{}
+	missingMetadata := []string{}
 
 	for _, contrib := range contribComponents {
-		if err := validateComponent(contrib, componentType); err != nil {
-			missing = append(missing, contrib)
+		registrationErr := checkComponentRegistration(contrib, componentType)
+		buildTagErr := checkBuildTag(contrib, componentType)
+		metadataErr := checkMetadataFile(contrib, componentType)
+
+		if registrationErr != nil {
+			missingRegistrations = append(missingRegistrations, contrib)
+		}
+		if buildTagErr != nil {
+			missingBuildTags = append(missingBuildTags, contrib)
+		}
+		if metadataErr != nil {
+			missingMetadata = append(missingMetadata, contrib)
 		}
 	}
 
-	return missing, nil
-}
-
-func validateComponent(contrib, componentType string) error {
-	if err := checkComponentRegistration(contrib, componentType); err != nil {
-		return err
-	}
-
-	if err := checkBuildTag(contrib, componentType); err != nil {
-		return err
-	}
-
-	if err := checkMetadataFile(contrib, componentType); err != nil {
-		return err
-	}
-
-	return nil
+	return missingRegistrations, missingBuildTags, missingMetadata, nil
 }
 
 func checkComponentRegistration(contrib, componentType string) error {
-	// For registration files, use the normalized component name
+	// For registration files, convert component name to file naming convention
 	// EX: aws.bedrock -> conversation_bedrock.go
-	compName := normalizeComponentName(contrib)
-	compFileName := fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, compName)
+	// EX: alicloud.tablestore -> state_alicloud_tablestore.go
+	compFileName := getRegistrationFileName(contrib, componentType)
+	fmt.Printf("sam the comp file name: %s\n", compFileName)
 
 	fileExistsCmd := exec.Command("ls", compFileName)
 	_, err := fileExistsCmd.Output()
@@ -228,7 +243,9 @@ func checkComponentIsActuallyRegisteredInFile(contrib, registrationFile string) 
 					}
 					// Check vendor prefix mapping (e.g., hashicorp.consul -> consul)
 					normalizedName := normalizeComponentName(contrib)
-					if registeredName == normalizedName {
+					fmt.Printf("sam the normalized name: %s with registered name: %s\n", normalizedName, registeredName)
+					// registeredName can be something like azure.blobstorage, so need to see if contains too
+					if registeredName == normalizedName || strings.Contains(registeredName, normalizedName) {
 						return nil
 					}
 				}
@@ -236,12 +253,11 @@ func checkComponentIsActuallyRegisteredInFile(contrib, registrationFile string) 
 		}
 	}
 
-	return fmt.Errorf("component not found in registration file")
+	return fmt.Errorf("component '%s' not found in registration file '%s'", contrib, registrationFile)
 }
 
 func checkBuildTag(contrib, componentType string) error {
-	compName := normalizeComponentName(contrib)
-	compFileName := fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, compName)
+	compFileName := getRegistrationFileName(contrib, componentType)
 
 	buildTagCmd := exec.Command("grep", "-q", "go:build allcomponents", compFileName)
 	_, err := buildTagCmd.Output()
@@ -256,23 +272,48 @@ func checkBuildTag(contrib, componentType string) error {
 // normalizeComponentName strips vendor prefixes and versions from component names
 // EX: aws.bedrock -> bedrock
 // EX: postgresql.v1 -> postgresql
+// EX: azure.blobstorage.v1 -> blobstorage
 // EX: hashicorp.consul -> consul
 func normalizeComponentName(contrib string) string {
-	if strings.Contains(contrib, ".") {
-		parts := strings.Split(contrib, ".")
-		if len(parts) == 2 {
-			vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare"}
-			for _, prefix := range vendorPrefixes {
-				if parts[0] == prefix {
-					return parts[1]
-				}
-			}
-			// Strip version suffixes
-			if parts[1] == "v1" || parts[1] == "v2" {
-				return parts[0]
-			}
+	if !strings.Contains(contrib, ".") {
+		return contrib
+	}
+
+	parts := strings.Split(contrib, ".")
+	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare"}
+	versionSuffixes := []string{"v1", "v2", "internal"}
+
+	// Handle 2-part names (vendor.component)
+	if len(parts) == 2 {
+		// Strip vendor prefixes
+		if slices.Contains(vendorPrefixes, parts[0]) {
+			return parts[1]
+		}
+		// Strip version suffixes
+		if slices.Contains(versionSuffixes, parts[1]) {
+			return parts[0]
 		}
 	}
+
+	// Handle 3+ part names (vendor.component.version)
+	if len(parts) >= 3 {
+		// Check if first part is a vendor prefix
+		if slices.Contains(vendorPrefixes, parts[0]) {
+			// Check if last part is a version suffix
+			if slices.Contains(versionSuffixes, parts[len(parts)-1]) {
+				// Return middle parts: azure.blobstorage.v1 -> blobstorage
+				return strings.Join(parts[1:len(parts)-1], ".")
+			}
+			// Return all parts except vendor: azure.cosmosdb -> cosmosdb
+			return strings.Join(parts[1:], ".")
+		}
+		// Check if last part is a version suffix
+		if slices.Contains(versionSuffixes, parts[len(parts)-1]) {
+			// Return all parts except version: component.v1 -> component
+			return strings.Join(parts[:len(parts)-1], ".")
+		}
+	}
+
 	return contrib
 }
 
@@ -314,18 +355,38 @@ func getMetadataFilePath(contrib, componentType string) string {
 	return fmt.Sprintf("%s/%s/metadata.yaml", componentType, contrib)
 }
 
-func reportResults(missing []string, componentType string) {
-	if len(missing) > 0 {
-		fmt.Printf("Missing registrations: %d\n", len(missing))
-		for _, m := range missing {
-			fmt.Printf("  - %s\n", m)
+func reportResults(missingRegistrations, missingBuildTags, missingMetadata []string, componentType string) {
+	totalIssues := len(missingRegistrations) + len(missingBuildTags) + len(missingMetadata)
+
+	if totalIssues > 0 {
+		fmt.Printf("\nValidation Results for %s components:\n", componentType)
+
+		if len(missingRegistrations) > 0 {
+			fmt.Printf("Missing registrations: %d\n", len(missingRegistrations))
+			for _, m := range missingRegistrations {
+				fmt.Printf("  - %s\n", m)
+			}
+		}
+
+		if len(missingBuildTags) > 0 {
+			fmt.Printf("Missing build tags: %d\n", len(missingBuildTags))
+			for _, m := range missingBuildTags {
+				fmt.Printf("  - %s\n", m)
+			}
+		}
+
+		if len(missingMetadata) > 0 {
+			fmt.Printf("Missing metadata files: %d\n", len(missingMetadata))
+			for _, m := range missingMetadata {
+				fmt.Printf("  - %s\n", m)
+			}
 		}
 	} else {
-		fmt.Printf("All %s components are registered\n", componentType)
+		fmt.Printf("All %s components are properly configured\n", componentType)
 	}
 }
 
-func parseContribComponents(output, componentType string) []string {
+func parseContribComponents(output, componentType string, ignoreContribComponents []string) []string {
 	components := []string{}
 	lines := strings.FieldsFunc(output, func(r rune) bool {
 		return r == '\n'
@@ -339,7 +400,9 @@ func parseContribComponents(output, componentType string) []string {
 
 		componentName := extractComponentNameFromPath(line, componentType)
 		if componentName != "" {
-			components = append(components, componentName)
+			if !slices.Contains(ignoreContribComponents, componentName) {
+				components = append(components, componentName)
+			}
 		}
 	}
 
@@ -375,6 +438,41 @@ func extractComponentNameFromPath(filePath, componentType string) string {
 	}
 
 	return ""
+}
+
+// getRegistrationFileName converts a component name to its registration file name.
+// Note: runtime does not deliniate versions in file names so we ignore that in pathing.
+// EX: aws.bedrock -> ../dapr/cmd/daprd/components/conversation_bedrock.go
+// EX: alicloud.tablestore -> ../dapr/cmd/daprd/components/state_alicloud_tablestore.go
+// EX: postgresql.v1 -> ../dapr/cmd/daprd/components/state_postgres.go
+func getRegistrationFileName(contrib, componentType string) string {
+	// For versioned components, strip the version suffix
+	parts := strings.Split(contrib, ".")
+	if len(parts) >= 2 {
+		// Check if the last part is a version (v1, v2, etc.)
+		lastPart := parts[len(parts)-1]
+		if strings.HasPrefix(lastPart, "v") && len(lastPart) <= 3 {
+			// Remove the version part
+			baseName := strings.Join(parts[:len(parts)-1], ".")
+			fileName := strings.ReplaceAll(baseName, ".", "_")
+			// TODO: update runtime file names to match this
+			if fileName == "postgresql" {
+				fileName = "postgres"
+			}
+			fmt.Printf("sam the file name: %s\n", fileName)
+			return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
+		}
+	}
+
+	// TODO: update runtime to match??? it's bc contrib has it as hashicorp.consul but runtime has it as "consul"
+	if contrib == "hashicorp.consul" {
+		normalizedName := normalizeComponentName(contrib)
+		fileName := strings.ReplaceAll(normalizedName, ".", "_")
+		return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
+	}
+
+	fileName := strings.ReplaceAll(contrib, ".", "_")
+	return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
 }
 
 // parseRegisteredComponents parses the output of the grep command to find all registered components

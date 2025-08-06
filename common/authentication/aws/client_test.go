@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -28,7 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 )
 
 type mockedSQS struct {
@@ -186,12 +187,13 @@ func TestKinesisClients_Stream(t *testing.T) {
 func TestKinesisClients_WorkerCfg(t *testing.T) {
 	testCreds := credentials.NewStaticCredentials("accessKey", "secretKey", "")
 	tests := []struct {
-		name           string
-		kinesisClient  *KinesisClients
-		streamName     string
-		consumer       string
-		mode           string
-		expectedConfig *config.KinesisClientLibConfiguration
+		name            string
+		kinesisClient   *KinesisClients
+		streamName      string
+		consumer        string
+		applicationName string
+		mode            string
+		expectedConfig  *config.KinesisClientLibConfiguration
 	}{
 		{
 			name: "successfully creates shared mode worker config",
@@ -208,9 +210,10 @@ func TestKinesisClients_WorkerCfg(t *testing.T) {
 				Region:      "us-west-1",
 				Credentials: testCreds,
 			},
-			streamName: "existing-stream",
-			consumer:   "consumer1",
-			mode:       "shared",
+			streamName:      "existing-stream",
+			applicationName: "test-application",
+			consumer:        "consumer1",
+			mode:            "shared",
 			expectedConfig: config.NewKinesisClientLibConfigWithCredential(
 				"consumer1", "existing-stream", "us-west-1", "consumer1", testCreds,
 			),
@@ -230,10 +233,11 @@ func TestKinesisClients_WorkerCfg(t *testing.T) {
 				Region:      "us-west-1",
 				Credentials: testCreds,
 			},
-			streamName:     "existing-stream",
-			consumer:       "consumer1",
-			mode:           "exclusive",
-			expectedConfig: nil,
+			streamName:      "existing-stream",
+			applicationName: "test-application",
+			consumer:        "consumer1",
+			mode:            "exclusive",
+			expectedConfig:  nil,
 		},
 		{
 			name: "returns nil when client is nil",
@@ -242,16 +246,17 @@ func TestKinesisClients_WorkerCfg(t *testing.T) {
 				Region:      "us-west-1",
 				Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
 			},
-			streamName:     "existing-stream",
-			consumer:       "consumer1",
-			mode:           "shared",
-			expectedConfig: nil,
+			streamName:      "existing-stream",
+			applicationName: "test-application",
+			consumer:        "consumer1",
+			mode:            "shared",
+			expectedConfig:  nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.consumer, tt.mode)
+			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.mode, tt.applicationName)
 			if tt.expectedConfig == nil {
 				assert.Equal(t, tt.expectedConfig, cfg)
 				return

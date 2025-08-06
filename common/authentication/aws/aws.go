@@ -115,14 +115,3 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 
 	return es, nil
 }
-
-// Coalesce is a helper function to return the first non-empty string from the inputs
-// This helps us to migrate away from the deprecated duplicate aws auth profile metadata fields in Dapr 1.17.
-func Coalesce(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}

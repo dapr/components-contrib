@@ -40,12 +40,12 @@ type Data struct {
 }
 
 type commercetoolsMetadata struct {
-	Region       string
-	Provider     string
-	ProjectKey   string
-	ClientID     string
-	ClientSecret string
-	Scopes       string
+	Region       string `json:"region"`
+	Provider     string `json:"provider"`
+	ProjectKey   string `json:"projectKey"`
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+	Scopes       string `json:"scopes"`
 }
 
 func NewCommercetools(logger logger.Logger) bindings.OutputBinding {

@@ -49,8 +49,10 @@ This is a required step before an official Dapr release.`,
 		checkConversationComponents()
 		checkStateComponents()
 		checkPubSubComponents()
+		checkSecretStoreComponents()
+		checkBindingComponents()
 
-		// TODO: secretstore, binding, config
+		// TODO:  config
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -82,6 +84,16 @@ func checkPubSubComponents() {
 	ignoreDaprComponents := []string{"mqtt3"}
 	ignoreContribComponents := []string{"mqtt3"}
 	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkSecretStoreComponents() {
+	fmt.Println("\nChecking secretstore components...")
+	checkComponents("secretstores", []string{}, []string{})
+}
+
+func checkBindingComponents() {
+	fmt.Println("\nChecking binding components...")
+	checkComponents("binding", []string{}, []string{})
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -489,13 +501,6 @@ func getRegistrationFileName(contrib, componentType string) string {
 			fmt.Printf("sam the file name: %s\n", fileName)
 			return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
 		}
-	}
-
-	// TODO: update runtime to match??? it's bc contrib has it as hashicorp.consul but runtime has it as "consul"
-	if contrib == "hashicorp.consul" {
-		normalizedName := normalizeComponentName(contrib)
-		fileName := strings.ReplaceAll(normalizedName, ".", "_")
-		return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
 	}
 
 	fileName := strings.ReplaceAll(contrib, ".", "_")

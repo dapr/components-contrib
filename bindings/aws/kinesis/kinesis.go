@@ -160,27 +160,43 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
-	// initalize worker configuration
-	config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
-	config.WithKinesisEndpoint(a.metadata.Endpoint)
-	config.WithDynamoDBEndpoint(a.metadata.Endpoint)
 
 	switch a.metadata.KinesisConsumerMode {
 	case SharedThroughput:
+		// initalize worker configuration
+		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
 		// Configure the KCL worker with custom endpoints for LocalStack
+		if a.metadata.Endpoint != "" {
+			config.WithKinesisEndpoint(a.metadata.Endpoint)
+			config.WithDynamoDBEndpoint(a.metadata.Endpoint)
+		}
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
 		err = a.worker.Start()
 		if err != nil {
 			return err
 		}
 	case ExtendedFanout:
-		config.WithEnhancedFanOutConsumer(true)
-		config.WithEnhancedFanOutConsumerName(a.consumerName)
-		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
-		err := a.worker.Start()
+		var stream *kinesis.DescribeStreamOutput
+		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
 			return err
 		}
+		err = a.Subscribe(ctx, *stream.StreamDescription, handler)
+		if err != nil {
+			return err
+		}
+	}
+
+	var stream *string
+	/**
+	 * Invoke this only when KinesisConsumerMode is set to 'extended' to avoid unnecessary calls.
+	 */
+	if a.metadata.KinesisConsumerMode == ExtendedFanout {
+		streamARN, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+		if err != nil {
+			return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+		}
+		stream = streamARN
 	}
 
 	// Wait for context cancelation then stop
@@ -191,8 +207,10 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		case <-ctx.Done():
 		case <-a.closeCh:
 		}
-		if a.worker != nil {
+		if a.metadata.KinesisConsumerMode == SharedThroughput {
 			a.worker.Shutdown()
+		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
+			a.deregisterConsumer(ctx, stream, a.consumerARN)
 		}
 	}()
 

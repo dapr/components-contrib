@@ -121,7 +121,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		&corev1.Event{},
 		k.metadata.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
+			AddFunc: func(obj any) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "add",
@@ -132,7 +132,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 					k.logger.Warnf("Nil Object in Add handle %v", obj)
 				}
 			},
-			DeleteFunc: func(obj interface{}) {
+			DeleteFunc: func(obj any) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "delete",
@@ -143,7 +143,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 					k.logger.Warnf("Nil Object in Delete handle %v", obj)
 				}
 			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
+			UpdateFunc: func(oldObj, newObj any) {
 				if oldObj != nil && newObj != nil {
 					resultChan <- EventResponse{
 						Event:  "update",

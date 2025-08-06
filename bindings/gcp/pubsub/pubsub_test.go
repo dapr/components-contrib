@@ -40,9 +40,9 @@ func TestInit(t *testing.T) {
 
 	assert.Equal(t, "s1", pubsubMeta.Subscription)
 	assert.Equal(t, "t1", pubsubMeta.Topic)
-	assert.Equal(t, "https://auth", pubsubMeta.AuthProviderCertURL)
+	assert.Equal(t, "https://auth", pubsubMeta.AuthProviderX509CertURL)
 	assert.Equal(t, "https://auth", pubsubMeta.AuthURI)
-	assert.Equal(t, "https://cert", pubsubMeta.ClientCertURL)
+	assert.Equal(t, "https://cert", pubsubMeta.ClientX509CertURL)
 	assert.Equal(t, "test@test.com", pubsubMeta.ClientEmail)
 	assert.Equal(t, "id", pubsubMeta.ClientID)
 	assert.Equal(t, "****", pubsubMeta.PrivateKey)

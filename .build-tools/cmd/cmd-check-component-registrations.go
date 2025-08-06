@@ -92,8 +92,11 @@ func checkSecretStoreComponents() {
 }
 
 func checkBindingComponents() {
-	fmt.Println("\nChecking binding components...")
-	checkComponents("binding", []string{}, []string{})
+	fmt.Println("\nChecking bindings components...")
+	// ignore servicebus.queues as runtime has an alias on this so we're checking for servicebusqueues
+	ignoreDaprComponents := []string{"mqtt3", "azure.servicebus.queues", "postgresql"}
+	ignoreContribComponents := []string{} //[]string{"postgresql"}
+	checkComponents("bindings", ignoreDaprComponents, ignoreContribComponents)
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -123,17 +126,27 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 	}
 	daprComponents = filteredDaprComponents
 
+	filteredContribComponents := make([]string, 0, len(contribComponents))
+	for _, comp := range contribComponents {
+		if !slices.Contains(ignoreContribComponents, comp) {
+			filteredContribComponents = append(filteredContribComponents, comp)
+		} else {
+			fmt.Printf("Ignoring component: %s\n", comp)
+		}
+	}
+	contribComponents = filteredContribComponents
+
 	// Apply vendor prefix mapping and deduplication to both lists.
 	// This removes things like the CSP prefixing.
 	mappedContribComponents := mapAndDeduplicateComponents(contribComponents)
 	mappedDaprComponents := mapAndDeduplicateComponents(daprComponents)
 
 	fmt.Printf("Components in contrib: %d\n", len(mappedContribComponents))
-	fmt.Printf("Components registered: %d\n", len(mappedDaprComponents))
+	fmt.Printf("Components registered in runtime: %d\n", len(mappedDaprComponents))
 
 	if len(mappedContribComponents) != len(mappedDaprComponents) {
-		fmt.Printf("\nNumber of components in contrib and dapr/dapr do not match")
-		fmt.Printf("Contrib: %v\n", mappedContribComponents)
+		fmt.Println("\nNumber of components in contrib and dapr/dapr do not match")
+		fmt.Printf("Contrib: %v\n\n", mappedContribComponents)
 		fmt.Printf("Dapr: %v\n", mappedDaprComponents)
 		return
 	}
@@ -156,17 +169,44 @@ func checkRegistry(componentType string) error {
 	}
 
 	// Check for RegisterComponent()
-	registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
-	_, err = registerComponentCmd.Output()
-	if err != nil {
-		return fmt.Errorf("could not find RegisterComponent method: %v", err)
-	}
+	if componentType != "bindings" {
+		registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = registerComponentCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find RegisterComponent method: %v", err)
+		}
 
-	// Check for Create()
-	createCmd := exec.Command("grep", "-r", `Registry) Create(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
-	_, err = createCmd.Output()
-	if err != nil {
-		return fmt.Errorf("could not find Create method: %v", err)
+		// Check for Create()
+		createCmd := exec.Command("grep", "-r", `Registry) Create(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = createCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find Create method: %v", err)
+		}
+	} else {
+		registerInputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterInputBinding(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = registerInputBindingCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find registerInputBindingCmd method: %v", err)
+		}
+
+		registerOutputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterOutputBinding(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = registerOutputBindingCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find registerOutputBindingCmd method: %v", err)
+		}
+
+		// Check for Creates
+		createInputBindingCmd := exec.Command("grep", "-r", `Registry) CreateInputBinding(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = createInputBindingCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find CreateInputBinding method: %v", err)
+		}
+
+		createOutputBindingCmd := exec.Command("grep", "-r", `Registry) CreateOutputBinding(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		_, err = createOutputBindingCmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not find CreateInputBinding method: %v", err)
+		}
 	}
 
 	return nil
@@ -182,6 +222,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=errors.go", "--exclude=bulk.go", "--exclude=query.go"}
 	case "pubsub":
 		excludeFiles = []string{"--exclude=envelope.go", "--exclude=responses.go"}
+	case "bindings":
+		excludeFiles = []string{"--exclude=client.go"}
 	default:
 		excludeFiles = []string{}
 	}
@@ -198,14 +240,24 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 	}
 
 	// Find all registered components in dapr/dapr
-	registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" ../dapr/cmd/daprd/components/%s_*.go`, componentType))
-	registeredOutput, err := registeredCmd.Output()
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
+	var registeredOutput []byte
+	if componentType != "bindings" {
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" ../dapr/cmd/daprd/components/%s_*.go`, componentType))
+		registeredOutput, err = registeredCmd.Output()
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
+		}
+	} else {
+		// For bindings, capture both RegisterInputBinding and RegisterOutputBinding
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterInputBinding\|RegisterOutputBinding" ../dapr/cmd/daprd/components/%s_*.go`, componentType))
+		registeredOutput, err = registeredCmd.Output()
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
+		}
 	}
 
 	contribComponents := parseContribComponents(string(contribOutput), componentType, ignoreContribComponents)
-	registeredComponents := parseRegisteredComponents(string(registeredOutput))
+	registeredComponents := parseRegisteredComponents(string(registeredOutput), componentType)
 
 	return contribComponents, registeredComponents, nil
 }
@@ -221,12 +273,15 @@ func validateComponents(contribComponents []string, componentType string) ([]str
 		metadataErr := checkMetadataFile(contrib, componentType)
 
 		if registrationErr != nil {
+			fmt.Printf("sam the registration err: %v\n", registrationErr)
 			missingRegistrations = append(missingRegistrations, contrib)
 		}
 		if buildTagErr != nil {
+			fmt.Printf("sam the build tag err: %v\n", buildTagErr)
 			missingBuildTags = append(missingBuildTags, contrib)
 		}
 		if metadataErr != nil {
+			fmt.Printf("sam the metadata err: %v\n", metadataErr)
 			missingMetadata = append(missingMetadata, contrib)
 		}
 	}
@@ -236,10 +291,8 @@ func validateComponents(contribComponents []string, componentType string) ([]str
 
 func checkComponentRegistration(contrib, componentType string) error {
 	// For registration files, convert component name to file naming convention
-	// EX: aws.bedrock -> conversation_bedrock.go
 	// EX: alicloud.tablestore -> state_alicloud_tablestore.go
 	compFileName := getRegistrationFileName(contrib, componentType)
-	fmt.Printf("sam the comp file name: %s\n", compFileName)
 
 	fileExistsCmd := exec.Command("ls", compFileName)
 	_, err := fileExistsCmd.Output()
@@ -258,53 +311,25 @@ func checkComponentRegistration(contrib, componentType string) error {
 // checkComponentIsActuallyRegisteredInFile basically checks for if the component name string is within the file
 // to ensure it is properly registered within runtime.
 func checkComponentIsActuallyRegisteredInFile(contrib, registrationFile string) error {
-	registrationCheckCmd := exec.Command("grep", "-r", `"`, registrationFile)
-	registrationOutput, err := registrationCheckCmd.Output()
+	// Use grep to find the exact component name in quotes
+	grepCmd := exec.Command("grep", "-q", fmt.Sprintf(`"%s"`, contrib), registrationFile)
+	_, err := grepCmd.Output()
 	if err != nil {
-		return fmt.Errorf("could not read registration file: %v", err)
+		return fmt.Errorf("component '%s' not found in registration file '%s'", contrib, registrationFile)
 	}
 
-	lines := strings.FieldsFunc(string(registrationOutput), func(r rune) bool {
-		return r == '\n'
-	})
-
-	for _, line := range lines {
-		if strings.Contains(line, "RegisterComponent") {
-			quoteIndex := strings.Index(line, "\"")
-			if quoteIndex > 0 {
-				rest := line[quoteIndex+1:]
-				endQuoteIndex := strings.Index(rest, "\"")
-				if endQuoteIndex > 0 {
-					registeredName := rest[:endQuoteIndex]
-					// Check exact match
-					if registeredName == contrib {
-						return nil
-					}
-					// Check vendor prefix mapping (e.g., hashicorp.consul -> consul)
-					normalizedName := normalizeComponentName(contrib)
-					fmt.Printf("sam the normalized name: %s with registered name: %s\n", normalizedName, registeredName)
-					// registeredName can be something like azure.blobstorage, so need to see if contains too
-					if registeredName == normalizedName || strings.Contains(registeredName, normalizedName) {
-						return nil
-					}
-				}
-			}
-		}
-	}
-
-	return fmt.Errorf("component '%s' not found in registration file '%s'", contrib, registrationFile)
+	return nil
 }
 
 func checkBuildTag(contrib, componentType string) error {
 	compFileName := getRegistrationFileName(contrib, componentType)
 
-	buildTagCmd := exec.Command("grep", "-q", "go:build allcomponents", compFileName)
+	// Check for "go:build allcomponents" (with or without additional conditions)
+	buildTagCmd := exec.Command("grep", "-q", "allcomponents", compFileName)
 	_, err := buildTagCmd.Output()
 	if err != nil {
-		return fmt.Errorf("build tag 'go:build allcomponents' not found in %s", compFileName)
+		return fmt.Errorf("build tag for 'allcomponents' not found in %s", compFileName)
 	}
-
-	fmt.Printf("Build tag found in %s\n", compFileName)
 	return nil
 }
 
@@ -312,24 +337,27 @@ func checkBuildTag(contrib, componentType string) error {
 // EX: aws.bedrock -> bedrock
 // EX: postgresql.v1 -> postgresql
 // EX: azure.blobstorage.v1 -> blobstorage
-// EX: hashicorp.consul -> consul
 func normalizeComponentName(contrib string) string {
+	// fmt.Printf("sam the contrib: %s\n", contrib)
 	if !strings.Contains(contrib, ".") {
 		return contrib
 	}
 
 	parts := strings.Split(contrib, ".")
-	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare"}
+	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare", "ibm", "tencentcloud", "huaweicloud", "twilio"}
 	versionSuffixes := []string{"v1", "v2", "internal"}
 
 	// Handle 2-part names (vendor.component)
 	if len(parts) == 2 {
+		// fmt.Printf("sam the parts: %v\n", parts)
 		// Strip vendor prefixes
 		if slices.Contains(vendorPrefixes, parts[0]) {
+			// fmt.Printf("sam the parts[1]: %s\n", parts[1])
 			return parts[1]
 		}
 		// Strip version suffixes
 		if slices.Contains(versionSuffixes, parts[1]) {
+			// fmt.Printf("sam the parts[0]: %s\n", parts[0])
 			return parts[0]
 		}
 	}
@@ -352,6 +380,8 @@ func normalizeComponentName(contrib string) string {
 			return strings.Join(parts[:len(parts)-1], ".")
 		}
 	}
+
+	fmt.Printf("sam the contrib normalized: %s\n", contrib)
 
 	return contrib
 }
@@ -498,7 +528,6 @@ func getRegistrationFileName(contrib, componentType string) string {
 			if fileName == "postgresql" {
 				fileName = "postgres"
 			}
-			fmt.Printf("sam the file name: %s\n", fileName)
 			return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
 		}
 	}
@@ -508,25 +537,102 @@ func getRegistrationFileName(contrib, componentType string) string {
 }
 
 // parseRegisteredComponents parses the output of the grep command to find all registered components
-func parseRegisteredComponents(output string) []string {
+func parseRegisteredComponents(output string, componentType string) []string {
 	components := []string{}
 	lines := strings.FieldsFunc(output, func(r rune) bool {
 		return r == '\n'
 	})
 
+	// Group lines by file to handle multi-line registrations
+	fileGroups := make(map[string]bool)
 	for _, line := range lines {
-		if strings.Contains(line, "RegisterComponent") {
-			quoteIndex := strings.Index(line, "\"")
-			if quoteIndex > 0 {
-				rest := line[quoteIndex+1:]
-				endQuoteIndex := strings.Index(rest, "\"")
-				if endQuoteIndex > 0 {
-					componentName := rest[:endQuoteIndex]
-					components = append(components, componentName)
+		// Extract file path from the line (format: filepath:content)
+		colonIndex := strings.Index(line, ":")
+		if colonIndex == -1 {
+			continue
+		}
+		filePath := line[:colonIndex]
+		fileGroups[filePath] = true
+	}
+
+	// Process each file's content
+	for filePath := range fileGroups {
+
+		// Read the entire file content
+		cmd := exec.Command("cat", filePath)
+		fileContent, err := cmd.Output()
+		if err != nil {
+			fmt.Printf("sam the err: %v\n", err)
+			continue
+		}
+
+		fileLines := strings.FieldsFunc(string(fileContent), func(r rune) bool {
+			return r == '\n'
+		})
+
+		// Check if this file contains registration calls
+		componentRegistration := false
+		lineToContinueFrom := 0
+		for i, line := range fileLines {
+			if componentType == "bindings" {
+				if strings.Contains(line, "RegisterInputBinding") {
+					componentRegistration = true
+					lineToContinueFrom = i
+					break
+				} else if strings.Contains(line, "RegisterOutputBinding") {
+					componentRegistration = true
+					lineToContinueFrom = i
+					break
+				}
+			} else {
+				if strings.Contains(line, "RegisterComponent") {
+					componentRegistration = true
+					lineToContinueFrom = i
+					break
+				}
+			}
+		}
+
+		// If file has registration calls, extract all quoted strings from the entire file
+		if componentRegistration {
+			for i, line := range fileLines {
+				if i < lineToContinueFrom {
+					continue
+				}
+				quotedStrings := extractAllQuotedStrings(line)
+				if len(quotedStrings) > 0 {
+					components = append(components, quotedStrings...)
 				}
 			}
 		}
 	}
 
 	return components
+}
+
+// extractAllQuotedStrings extracts all quoted strings from a line
+func extractAllQuotedStrings(line string) []string {
+	var quotedStrings []string
+	start := 0
+	for {
+		quoteIndex := strings.Index(line[start:], "\"")
+		if quoteIndex == -1 {
+			break
+		}
+		quoteIndex += start
+
+		rest := line[quoteIndex+1:]
+		endQuoteIndex := strings.Index(rest, "\"")
+		if endQuoteIndex == -1 {
+			break
+		}
+
+		quotedString := rest[:endQuoteIndex]
+		quotedStrings = append(quotedStrings, quotedString)
+
+		start = quoteIndex + 1 + endQuoteIndex + 1
+	}
+
+	fmt.Printf("sam the quotedStrings: %v\n", quotedStrings)
+	return quotedStrings
 }

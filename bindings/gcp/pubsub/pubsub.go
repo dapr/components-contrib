@@ -46,19 +46,20 @@ type GCPPubSub struct {
 	wg       sync.WaitGroup
 }
 
+// These JSON tags directly match the builtin auth provider metadata fields for GCP.
 type pubSubMetadata struct {
-	Topic               string `json:"topic"`
-	Subscription        string `json:"subscription"`
-	Type                string `json:"type"`
-	ProjectID           string `json:"project_id"`
-	PrivateKeyID        string `json:"private_key_id"`
-	PrivateKey          string `json:"private_key"`
-	ClientEmail         string `json:"client_email"`
-	ClientID            string `json:"client_id"`
-	AuthURI             string `json:"auth_uri"`
-	TokenURI            string `json:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url"`
+	Topic                   string `json:"topic"`
+	Subscription            string `json:"subscription"`
+	Type                    string `json:"type"`
+	ProjectID               string `json:"projectID"`
+	PrivateKeyID            string `json:"privateKeyID"`
+	PrivateKey              string `json:"privateKey"`
+	ClientEmail             string `json:"clientEmail"`
+	ClientID                string `json:"clientID"`
+	AuthURI                 string `json:"authURI"`
+	TokenURI                string `json:"tokenURI"`
+	AuthProviderX509CertURL string `json:"authProviderX509CertURL"`
+	ClientX509CertURL       string `json:"clientX509CertURL"`
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance.

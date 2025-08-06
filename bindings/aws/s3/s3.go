@@ -137,29 +137,17 @@ func (s *s3resolver) ResolveEndpoint(ctx context.Context, params s3.EndpointPara
 	}
 	bucket := *params.Bucket
 
-	var uriFormat string
-	var uriValue string
+	var rawURI string
 
 	switch {
 	case region == "" && s.forcePathStyle:
-		uriFormat = "https://s3.amazonaws.com/%s/"
-		uriValue = bucket
+		rawURI = fmt.Sprintf("https://s3.amazonaws.com/%s/", bucket)
 	case region == "":
-		uriFormat = "https://%s.s3.amazonaws.com/"
-		uriValue = bucket
+		rawURI = fmt.Sprintf("https://%s.s3.amazonaws.com/", bucket)
 	case s.forcePathStyle:
-		uriFormat = "https://s3.%s.amazonaws.com/%s/"
-		uriValue = fmt.Sprintf("%s/%s", region, bucket)
+		rawURI = fmt.Sprintf("https://s3.%s.amazonaws.com/%s/", region, bucket)
 	default:
-		uriFormat = "https://%s.s3.%s.amazonaws.com/"
-		uriValue = fmt.Sprintf("%s/%s", bucket, region)
-	}
-
-	var rawURI string
-	if region == "" || s.forcePathStyle == false {
-		rawURI = fmt.Sprintf(uriFormat, uriValue)
-	} else {
-		rawURI = fmt.Sprintf(uriFormat, region, bucket)
+		rawURI = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/", bucket, region)
 	}
 
 	uri, err := url.Parse(rawURI)

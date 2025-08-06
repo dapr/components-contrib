@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"slices"
@@ -30,6 +31,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws"
+	smithyEndpoints "github.com/aws/smithy-go/endpoints"
+
 	awsCommon "github.com/dapr/components-contrib/common/aws"
 	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 
@@ -112,6 +115,70 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
+type s3resolver struct {
+	region         string
+	endpoint       string
+	forcePathStyle bool
+}
+
+func (s *s3resolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyEndpoints.Endpoint, error) {
+	if s.endpoint != "" {
+		uri, err := url.Parse(s.endpoint)
+		if err != nil {
+			return smithyEndpoints.Endpoint{}, err
+		}
+		return smithyEndpoints.Endpoint{URI: *uri}, nil
+	}
+
+	region := s.region
+
+	if params.Bucket == nil {
+		return smithyEndpoints.Endpoint{}, errors.New("empty bucket name provided")
+	}
+	bucket := *params.Bucket
+
+	var uriFormat string
+	var uriValue string
+
+	switch {
+	case region == "" && s.forcePathStyle:
+		uriFormat = "https://s3.amazonaws.com/%s/"
+		uriValue = bucket
+	case region == "":
+		uriFormat = "https://%s.s3.amazonaws.com/"
+		uriValue = bucket
+	case s.forcePathStyle:
+		uriFormat = "https://s3.%s.amazonaws.com/%s/"
+		uriValue = fmt.Sprintf("%s/%s", region, bucket)
+	default:
+		uriFormat = "https://%s.s3.%s.amazonaws.com/"
+		uriValue = fmt.Sprintf("%s/%s", bucket, region)
+	}
+
+	var rawURI string
+	if region == "" || s.forcePathStyle == false {
+		rawURI = fmt.Sprintf(uriFormat, uriValue)
+	} else {
+		rawURI = fmt.Sprintf(uriFormat, region, bucket)
+	}
+
+	uri, err := url.Parse(rawURI)
+	if err != nil {
+		return smithyEndpoints.Endpoint{}, fmt.Errorf("s3 binding error: failed to parse endpoint URL %s: %w", rawURI, err)
+	}
+
+	return smithyEndpoints.Endpoint{URI: *uri}, nil
+}
+
+// endpoint resolver specifically for s3
+func endpointSetter(region, endpoint string, forcePathStyle bool) s3.EndpointResolverV2 {
+	return &s3resolver{
+		region:         region,
+		endpoint:       endpoint,
+		forcePathStyle: forcePathStyle,
+	}
+}
+
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -136,17 +203,13 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	var s3Options []func(options *s3.Options)
 
-	if s.metadata.Endpoint != "" {
-		s3Options = append(s3Options, func(options *s3.Options) {
-			options.BaseEndpoint = aws.String(s.metadata.Endpoint)
-		})
-	}
+	s3Options = append(s3Options, func(options *s3.Options) {
+		options.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+	})
 
 	if s.metadata.Region != "" {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.Region = s.metadata.Region
-			options.EndpointOptions.ResolvedRegion = s.metadata.Region
-			options.UseARNRegion = true
 		})
 	}
 
@@ -160,7 +223,6 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if s.metadata.ForcePathStyle {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.UsePathStyle = true
-			options.EndpointOptions.ResolvedRegion = s.metadata.Region
 		})
 	}
 

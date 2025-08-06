@@ -13,13 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// DeepseekMetadata is a common metadata structure for langchain supported implementations.
+package openai
 
-package deepseek
+import "github.com/dapr/components-contrib/conversation"
 
-type DeepseekMetadata struct {
-	Key       string `json:"key"`
-	MaxTokens int    `json:"maxTokens"`
-	Model     string `json:"model"`
-	Endpoint  string `json:"endpoint"`
+// OpenAILangchainMetadata extends LangchainMetadata with OpenAI-specific properties.
+type OpenAILangchainMetadata struct {
+	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
+	APIType                        string `json:"apiType" mapstructure:"apiType"`
+	APIVersion                     string `json:"apiVersion" mapstructure:"apiVersion"`
 }

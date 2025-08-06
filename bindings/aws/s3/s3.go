@@ -130,7 +130,10 @@ func (s *s3resolver) ResolveEndpoint(ctx context.Context, params s3.EndpointPara
 		return smithyEndpoints.Endpoint{URI: *uri}, nil
 	}
 
-	region := s.region
+	region := *params.Region
+	if s.region != "" {
+		region = s.region
+	}
 
 	if params.Bucket == nil {
 		return smithyEndpoints.Endpoint{}, errors.New("empty bucket name provided")

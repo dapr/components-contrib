@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -61,67 +63,104 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 // Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	if r.Message == nil {
+	if r == nil || r.Message == nil {
 		return &conversation.Response{
 			ConversationContext: r.ConversationContext,
 			Outputs:             []conversation.Result{},
 		}, nil
 	}
 
-	outputs := make([]conversation.Result, 0, len(*r.Message))
+	// if we get tools, respond with tool calls for each tool
+	var toolCalls []llms.ToolCall
+	if r.Tools != nil {
+		// create tool calls for each tool
+		toolCalls = make([]llms.ToolCall, 0, len(*r.Tools))
+		for id, tool := range *r.Tools {
+			// extract argument names from parameters.properties
+			if tool.Function == nil {
+				continue // skip if no function
+			}
+			// try to get parameters/arg-names from tool function if any
+			var parameters map[string]any
+			var argNames []string
+			if tool.Function.Parameters != nil {
+				// ensure parameters are a map
+				ok := false
+				parameters, ok = tool.Function.Parameters.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("tool function parameters must be a map[string]any, got %T", tool.Function.Parameters)
+				}
+			}
+			// try get arg names from properties
+			if properties, ok := parameters["properties"]; ok {
+				_, ok = properties.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("tool function properties must be a map[string]any, got %T", properties)
+				}
+				if propMap, ok := properties.(map[string]any); ok && len(propMap) != 0 {
+					argNames = make([]string, 0, len(propMap))
+					for argName := range propMap {
+						argNames = append(argNames, argName)
+					}
+				}
+			}
 
+			toolCalls = append(toolCalls, llms.ToolCall{
+				ID:   strconv.Itoa(id),
+				Type: tool.Type,
+				FunctionCall: &llms.FunctionCall{
+					Name:      tool.Function.Name,
+					Arguments: strings.Join(argNames, ","),
+				},
+			})
+		}
+	}
+
+	// iterate over each message in the request to echo back the content in the response. We respond with the acummulated content of the message parts and tool responses
+	contentFromMessaged := make([]string, 0, len(*r.Message))
 	for _, message := range *r.Message {
-		var content string
-		var toolCalls []llms.ToolCall
-
-		for i, part := range message.Parts {
+		for _, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
-				// end with space if not the first part
-				if i > 0 && content != "" {
-					content += " "
-				}
-				content += p.Text
+				// append to slice that we'll join later with new line separators
+				contentFromMessaged = append(contentFromMessaged, p.Text)
 			case llms.ToolCall:
+				// in case we added explicit tool calls on the request like on multi-turn conversations. We still append tool calls for each tool defined in the request.
 				toolCalls = append(toolCalls, p)
 			case llms.ToolCallResponse:
-				content = p.Content
-				toolCalls = append(toolCalls, llms.ToolCall{
-					ID:   p.ToolCallID,
-					Type: "function",
-					FunctionCall: &llms.FunctionCall{
-						Name:      p.Name,
-						Arguments: p.Content,
-					},
-				})
+				// show tool responses on the request like on multi-turn conversations
+				contentFromMessaged = append(contentFromMessaged, fmt.Sprintf("Tool Response for tool ID '%s' with name '%s': %s", p.ToolCallID, p.Name, p.Content))
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 		}
+	}
 
-		choice := conversation.Choice{
-			FinishReason: "stop",
-			Index:        0,
-			Message: conversation.Message{
-				Content: content,
-			},
-		}
+	stopReason := "stop"
+	if len(toolCalls) > 0 {
+		stopReason = "tool_calls"
+		// follows openai spec for tool_calls finish reason https://platform.openai.com/docs/api-reference/chat/object
+	}
+	choice := conversation.Choice{
+		FinishReason: stopReason,
+		Index:        0,
+		Message: conversation.Message{
+			Content: strings.Join(contentFromMessaged, "\n"),
+		},
+	}
 
-		if len(toolCalls) > 0 {
-			choice.Message.ToolCallRequest = &toolCalls
-		}
+	if len(toolCalls) > 0 {
+		choice.Message.ToolCallRequest = &toolCalls
+	}
 
-		output := conversation.Result{
-			StopReason: "stop",
-			Choices:    []conversation.Choice{choice},
-		}
-
-		outputs = append(outputs, output)
+	output := conversation.Result{
+		StopReason: stopReason,
+		Choices:    []conversation.Choice{choice},
 	}
 
 	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
-		Outputs:             outputs,
+		Outputs:             []conversation.Result{output},
 	}
 
 	return res, nil

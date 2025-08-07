@@ -16,39 +16,8 @@ metadata:
     type: string
     required: true
     description: "The Rego policy code that will be evaluated for each request. The policy package must be http and the policy must set data.http.allow"
-    example: |
-      package http
-
-      default allow = true
-
-      # Allow may also be an object and include other properties
-
-      # For example, if you wanted to redirect on a policy failure, you could set the status code to 301 and set the location header on the response:
-      allow = {
-          "status_code": 301,
-          "additional_headers": {
-              "location": "https://my.site/authorize"
-          }
-      } {
-          not jwt.payload["my-claim"]
-      }
-
-      # You can also allow the request and add additional headers to it:
-      allow = {
-          "allow": true,
-          "additional_headers": {
-              "x-my-claim": my_claim
-          }
-      } {
-          my_claim := jwt.payload["my-claim"]
-      }
-      jwt = { "payload": payload } {
-          auth_header := input.request.headers["Authorization"]
-          [_, jwt] := split(auth_header, " ")
-          [_, payload, _] := io.jwt.decode(jwt)
-      }
   - name: defaultStatus
-    type: integer
+    type: number
     required: false
     description: "The status code to return for denied responses"
     example: 403

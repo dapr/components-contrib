@@ -69,7 +69,7 @@ metadata:
     example: false
     default: false
   - name: numRetries
-    type: int
+    type: number
     required: false
     description: Number of times to retry queries on connection errors.
     example: 3

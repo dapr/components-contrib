@@ -34,7 +34,7 @@ authenticationProfiles:
         example: '"-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg..."'
 metadata:
   - name: development
-    type: boolean
+    type: bool
     required: false
     description: "The APNS environment is development or not"
     example: true

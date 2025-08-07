@@ -59,7 +59,7 @@ metadata:
     description: The RocketMQ name server domain.
     example: "rocketmq.example.com"
   - name: retries
-    type: integer
+    type: number
     required: false
     description: The number of retry attempts for sending messages.
     example: 3
@@ -102,17 +102,17 @@ metadata:
     example: false
     default: false
   - name: consumeMessageBatchMaxSize
-    type: integer
+    type: number
     required: false
     description: The maximum batch size for message consumption.
     example: 10
   - name: consumeConcurrentlyMaxSpan
-    type: integer
+    type: number
     required: false
     description: The maximum span for concurrent consumption.
     example: 10
   - name: maxReconsumeTimes
-    type: integer
+    type: number
     required: false
     description: The maximum number of reconsume times. -1 means 16 times.
     example: 10000
@@ -123,49 +123,49 @@ metadata:
     example: true
     default: false
   - name: consumeTimeout
-    type: integer
+    type: number
     required: false
     description: The consume timeout in minutes.
     example: 10
   - name: consumerPullTimeout
-    type: integer
+    type: number
     required: false
     description: The consumer pull timeout in milliseconds.
     example: 30
     default: 30
   - name: pullInterval
-    type: integer
+    type: number
     required: false
     description: The pull interval in minutes.
     example: 100
     default: 100
   - name: consumerBatchSize
-    type: integer
+    type: number
     required: false
     description: The consumer batch size.
     example: 10
   - name: pullBatchSize
-    type: integer
+    type: number
     required: false
     description: The pull batch size.
     example: 10
   - name: pullThresholdForQueue
-    type: integer
+    type: number
     required: false
     description: The pull threshold for queue.
     example: 100
   - name: pullThresholdForTopic
-    type: integer
+    type: number
     required: false
     description: The pull threshold for topic.
     example: 100
   - name: pullThresholdSizeForQueue
-    type: integer
+    type: number
     required: false
     description: The pull threshold size for queue.
     example: 10
   - name: pullThresholdSizeForTopic
-    type: integer
+    type: number
     required: false
     description: The pull threshold size for topic.
     example: 10
@@ -175,7 +175,7 @@ metadata:
     description: The content type for messages.
     example: "json"
   - name: sendTimeOutSec
-    type: integer
+    type: number
     required: false
     description: The send timeout in seconds.
     example: 10

@@ -56,7 +56,7 @@ authenticationProfiles:
         description: Path to the client private key file.
         example: "/path/to/client.key"
       - name: insecureSkipVerify
-        type: boolean
+        type: bool
         required: false
         description: Skip TLS certificate verification.
         example: false
@@ -95,50 +95,28 @@ metadata:
     example: "DAPR_PORT"
     default: "DAPR_PORT"
   - name: selfRegister
-    type: boolean
+    type: bool
     required: false
     description: Whether to register this service with Consul.
     example: true
     default: false
   - name: selfDeregister
-    type: boolean
+    type: bool
     required: false
     description: Whether to deregister this service from Consul on shutdown.
     example: true
     default: false
   - name: useCache
-    type: boolean
+    type: bool
     required: false
     description: Whether to use caching for service lookups.
     example: true
     default: false
   - name: tags
-    type: array
+    type: string
     required: false
     description: Tags to associate with the service registration.
-    example: ["dapr", "v1"]
-  - name: meta
-    type: object
-    required: false
-    description: Metadata to associate with the service registration.
-    example: |
-      {
-        "version": "v1",
-        "environment": "production"
-      }
-  - name: checks
-    type: array
-    required: false
-    description: Health checks to associate with the service registration.
-    example: |
-      [
-        {
-          "name": "dapr-health",
-          "http": "http://localhost:3500/health",
-          "interval": "10s",
-          "timeout": "5s"
-        }
-      ]
+    example: "dapr,v1"
   - name: namespace
     type: string
     required: false
@@ -166,13 +144,13 @@ metadata:
     description: The wait time for Consul queries.
     example: "5s"
   - name: allowStale
-    type: boolean
+    type: bool
     required: false
     description: Whether to allow stale results in queries.
     example: true
     default: false
   - name: requireConsistent
-    type: boolean
+    type: bool
     required: false
     description: Whether to require consistent reads in queries.
     example: false

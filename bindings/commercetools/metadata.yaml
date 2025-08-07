@@ -37,7 +37,8 @@ metadata:
     required: true
     description: "The Commercetools region"
     example: '"gcp-europe-west1"'
-    default: '"gcp-europe-west1"'  - name: provider
+    default: '"gcp-europe-west1"'  
+  - name: provider
     required: true
     description: "The Commercetools provider"
     example: '"gcp"'

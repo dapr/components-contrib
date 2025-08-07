@@ -3,7 +3,7 @@ schemaVersion: v1
 type: nameresolution
 name: sqlite
 version: v1
-status: stable
+status: alpha
 title: "SQLite"
 urls:
   - title: Reference

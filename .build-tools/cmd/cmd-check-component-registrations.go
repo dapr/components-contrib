@@ -55,8 +55,7 @@ This is a required step before an official Dapr release.`,
 		checkLockComponents()
 		checkCryptographyComponents()
 		checkNameResolutionComponents()
-
-		// TODO: name resolution, middleware
+		checkMiddlewareComponents()
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -125,8 +124,16 @@ func checkCryptographyComponents() {
 
 func checkNameResolutionComponents() {
 	fmt.Println("\nChecking name resolution components...")
-	ignoreDaprComponents := []string{}
-	checkComponents("nameresolution", ignoreDaprComponents, []string{})
+	checkComponents("nameresolution", []string{}, []string{})
+}
+
+func checkMiddlewareComponents() {
+	fmt.Println("\nChecking middleware components...")
+	// uppercase is a component only in runtime which doesn't make sense give the nameresolution components have no real metadata of their own for the most part;
+	// however, it's definition is only in runtime and not in contrib so we must ignore it.
+	ignoreDaprComponents := []string{"uppercase"}
+	ignoreContribComponents := []string{}
+	checkComponents("middleware", ignoreDaprComponents, ignoreContribComponents)
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -190,9 +197,18 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 	reportResults(missingRegistrations, missingBuildTags, missingMetadata, componentType)
 }
 
+func getRegistryPath(componentType string) string {
+	if componentType == "middleware" {
+		return fmt.Sprintf("../dapr/pkg/components/%s/http/registry.go", componentType)
+	}
+	return fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType)
+}
+
 func checkRegistry(componentType string) error {
+	registryPath := getRegistryPath(componentType)
+
 	// Check for default registry singleton
-	registryCmd := exec.Command("grep", "-r", `var DefaultRegistry \*Registry = NewRegistry\(\)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+	registryCmd := exec.Command("grep", "-r", `var DefaultRegistry \*Registry = NewRegistry\(\)`, registryPath)
 	_, err := registryCmd.Output()
 	if err != nil {
 		return fmt.Errorf("could not find default registry: %v", err)
@@ -200,39 +216,39 @@ func checkRegistry(componentType string) error {
 
 	// Check for RegisterComponent()
 	if componentType != "bindings" {
-		registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
-		_, err = registerComponentCmd.Output()
+		registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory`, registryPath)
+		_, err := registerComponentCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find RegisterComponent method: %v", err)
 		}
 
 		// Check for Create()
-		createCmd := exec.Command("grep", "-r", `Registry) Create(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		createCmd := exec.Command("grep", "-r", `Registry) Create(name, version`, registryPath)
 		_, err = createCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find Create method: %v", err)
 		}
 	} else {
-		registerInputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterInputBinding(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
-		_, err = registerInputBindingCmd.Output()
+		registerInputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterInputBinding(componentFactory func(logger.Logger)`, registryPath)
+		_, err := registerInputBindingCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find registerInputBindingCmd method: %v", err)
 		}
 
-		registerOutputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterOutputBinding(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		registerOutputBindingCmd := exec.Command("grep", "-r", `Registry) RegisterOutputBinding(componentFactory func(logger.Logger)`, registryPath)
 		_, err = registerOutputBindingCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find registerOutputBindingCmd method: %v", err)
 		}
 
 		// Check for Creates
-		createInputBindingCmd := exec.Command("grep", "-r", `Registry) CreateInputBinding(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		createInputBindingCmd := exec.Command("grep", "-r", `Registry) CreateInputBinding(name, version, logName string)`, registryPath)
 		_, err = createInputBindingCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find CreateInputBinding method: %v", err)
 		}
 
-		createOutputBindingCmd := exec.Command("grep", "-r", `Registry) CreateOutputBinding(name, version, logName string)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		createOutputBindingCmd := exec.Command("grep", "-r", `Registry) CreateOutputBinding(name, version, logName string)`, registryPath)
 		_, err = createOutputBindingCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find CreateInputBinding method: %v", err)
@@ -256,6 +272,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=client.go"}
 	case "cryptography":
 		excludeFiles = []string{"--exclude=key.go", "--exclude=pubkey_cache.go"}
+	case "middleware":
+		excludeFiles = []string{"--exclude=mock*"}
 	default:
 		excludeFiles = []string{}
 	}
@@ -274,7 +292,13 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 	// Find all registered components in dapr/dapr
 	var registeredOutput []byte
 	if componentType != "bindings" {
-		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" ../dapr/cmd/daprd/components/%s_*.go`, componentType))
+		var searchPattern string
+		if componentType == "middleware" {
+			searchPattern = "../dapr/cmd/daprd/components/middleware_http_*.go"
+		} else {
+			searchPattern = fmt.Sprintf("../dapr/cmd/daprd/components/%s_*.go", componentType)
+		}
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" %s`, searchPattern))
 		registeredOutput, err = registeredCmd.Output()
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
@@ -376,7 +400,9 @@ func normalizeComponentName(contrib string) string {
 	}
 
 	parts := strings.Split(contrib, ".")
-	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare", "ibm", "tencentcloud", "huaweicloud", "twilio"}
+	// Note: I am putting http as a vendor prefix, but that should be removed and all http middleware components should be http.blah bc
+	// in future we could add grpc middleware components.
+	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare", "ibm", "tencentcloud", "huaweicloud", "twilio", "http"}
 	versionSuffixes := []string{"v1", "v2", "internal"}
 
 	// Handle 2-part names (vendor.component)
@@ -447,6 +473,12 @@ func checkMetadataFile(contrib, componentType string) error {
 }
 
 func getMetadataFilePath(contrib, componentType string) string {
+	// Special handling for HTTP middleware components
+	// The metadata files are located at middleware/http/componentname/metadata.yaml
+	if componentType == "middleware" {
+		return fmt.Sprintf("%s/http/%s/metadata.yaml", componentType, contrib)
+	}
+
 	if strings.Contains(contrib, ".") {
 		// For nested components like "aws.bedrock", split and join with "/"
 		parts := strings.Split(contrib, ".")
@@ -531,6 +563,13 @@ func extractComponentNameFromPath(filePath, componentType string) string {
 		// For nested components: aws/bedrock/bedrock.go -> aws.bedrock
 		// Take all parts except the last (which is the filename)
 		dirParts := parts[:len(parts)-1]
+
+		// Special handling for HTTP middleware components
+		// middleware/http/componentname/ -> componentname (not http.componentname)
+		if componentType == "middleware" && len(dirParts) >= 2 && dirParts[0] == "http" {
+			return strings.Join(dirParts[1:], ".")
+		}
+
 		return strings.Join(dirParts, ".")
 	} else if len(parts) == 1 {
 		// For simple components: echo/echo.go -> echo
@@ -565,6 +604,13 @@ func getRegistrationFileName(contrib, componentType string) string {
 	}
 
 	fileName := strings.ReplaceAll(contrib, ".", "_")
+
+	// Special handling for HTTP middleware components
+	// The registration files are named middleware_http_componentname.go
+	if componentType == "middleware" {
+		return fmt.Sprintf("../dapr/cmd/daprd/components/%s_http_%s.go", componentType, fileName)
+	}
+
 	return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
 }
 
@@ -589,6 +635,11 @@ func parseRegisteredComponents(output string, componentType string) []string {
 
 	// Process each file's content
 	for filePath := range fileGroups {
+		// skip the uppercase component as it has a ton of magic strings that we must ignore.
+		// all other components only have the component registration string in this file so it is an outlier.
+		if strings.Contains(filePath, "uppercase") {
+			continue
+		}
 
 		// Read the entire file content
 		cmd := exec.Command("cat", filePath)

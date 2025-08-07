@@ -22,11 +22,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	contribCrypto "github.com/dapr/components-contrib/crypto"
-	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
-	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
-	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
-	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
+	contribCrypto "github.com/dapr/components-contrib/cryptography"
+	cr_azurekeyvault "github.com/dapr/components-contrib/cryptography/azure/keyvault"
+	cr_jwks "github.com/dapr/components-contrib/cryptography/jwks"
+	cr_localstorage "github.com/dapr/components-contrib/cryptography/localstorage"
+	conf_crypto "github.com/dapr/components-contrib/tests/conformance/cryptography"
 )
 
 func TestCryptoConformance(t *testing.T) {

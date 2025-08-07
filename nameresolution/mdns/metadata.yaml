@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: nameresolution
+name: mdns
+version: v1
+status: stable
+title: "mDNS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/nr-mdns/
+metadata: []

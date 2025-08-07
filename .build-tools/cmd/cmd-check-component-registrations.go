@@ -51,8 +51,12 @@ This is a required step before an official Dapr release.`,
 		checkPubSubComponents()
 		checkSecretStoreComponents()
 		checkBindingComponents()
+		checkConfigurationComponents()
+		checkLockComponents()
+		checkCryptographyComponents()
+		checkNameResolutionComponents()
 
-		// TODO:  config
+		// TODO: name resolution, middleware
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -97,6 +101,32 @@ func checkBindingComponents() {
 	ignoreDaprComponents := []string{"mqtt3", "azure.servicebus.queues", "postgresql"}
 	ignoreContribComponents := []string{} //[]string{"postgresql"}
 	checkComponents("bindings", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkConfigurationComponents() {
+	fmt.Println("\nChecking configuration components...")
+	ignoreDaprComponents := []string{"postgresql"}
+	checkComponents("configuration", ignoreDaprComponents, []string{})
+}
+
+func checkLockComponents() {
+	fmt.Println("\nChecking lock components...")
+	checkComponents("lock", []string{}, []string{})
+}
+
+func checkCryptographyComponents() {
+	fmt.Println("\nChecking cryptography components...")
+	// below is not actually a component. Cryptography section in contrib needs quite a bit of clean up/organization to clean this up so I don't have to "ignore" it.
+	ignoreContribComponents := []string{"pubkey_cache"}
+	// TODO: in future rm the aliases with the dapr prefix in runtime to clean this up!
+	ignoreDaprComponents := []string{"dapr.localstorage", "dapr.kubernetes.secrets", "dapr.jwks"}
+	checkComponents("cryptography", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkNameResolutionComponents() {
+	fmt.Println("\nChecking name resolution components...")
+	ignoreDaprComponents := []string{}
+	checkComponents("nameresolution", ignoreDaprComponents, []string{})
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -170,7 +200,7 @@ func checkRegistry(componentType string) error {
 
 	// Check for RegisterComponent()
 	if componentType != "bindings" {
-		registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory func(logger.Logger)`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
+		registerComponentCmd := exec.Command("grep", "-r", `Registry) RegisterComponent(componentFactory`, fmt.Sprintf("../dapr/pkg/components/%s/registry.go", componentType))
 		_, err = registerComponentCmd.Output()
 		if err != nil {
 			return fmt.Errorf("could not find RegisterComponent method: %v", err)
@@ -224,6 +254,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=envelope.go", "--exclude=responses.go"}
 	case "bindings":
 		excludeFiles = []string{"--exclude=client.go"}
+	case "cryptography":
+		excludeFiles = []string{"--exclude=key.go", "--exclude=pubkey_cache.go"}
 	default:
 		excludeFiles = []string{}
 	}

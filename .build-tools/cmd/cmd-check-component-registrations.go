@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var verbose bool
+
 // checkComponentRegistrationsCmd represents the check-component-registrations command
 // go run . check-component-registrations
 // This automates an endgame task that must be completed before a release.
@@ -62,6 +64,7 @@ This is a required step before an official Dapr release.`,
 }
 
 func init() {
+	checkComponentRegistrationsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.AddCommand(checkComponentRegistrationsCmd)
 }
 
@@ -75,7 +78,8 @@ func checkStateComponents() {
 
 	// Yugabyte are supported via the postgres component, so in contrib this is covered by the postgresql component in the contrib list.
 	// Also, postgres = postgresql, so we can ignore postgres.
-	ignoreDaprComponents := []string{"yugabyte", "yugabytedb", "postgres"}
+	// also sqlite3 is an alias for sqlite so we can ignore one.
+	ignoreDaprComponents := []string{"yugabyte", "yugabytedb", "postgres", "sqlite3"}
 	ignoreContribComponents := []string{"azure.blobstorage.internal"}
 	checkComponents("state", ignoreDaprComponents, ignoreContribComponents)
 }
@@ -83,9 +87,11 @@ func checkStateComponents() {
 func checkPubSubComponents() {
 	fmt.Println("\nChecking pubsub components...")
 
-	// mqtt3 = mqtt, so ignore mqtt3 for now in this cli
-	ignoreDaprComponents := []string{"mqtt3"}
-	ignoreContribComponents := []string{"mqtt3"}
+	// mqtt3 = mqtt, so ignore mqtt (keep mqtt3 since it exists in contrib)
+	// azure.servicebusqueues is an alias for azure.servicebus.queues (keep azure.servicebus.queues) so ignore it
+	// azure.servicebus is an alias for azure.servicebus.topics (keep azure.servicebus.topics) so ignore it
+	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus"}
+	ignoreContribComponents := []string{}
 	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
 }
 
@@ -149,8 +155,10 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 		return
 	}
 
-	fmt.Printf("Components to ignore: %v\n", ignoreDaprComponents)
-	fmt.Printf("Dapr components before filtering: %v\n", daprComponents)
+	if verbose {
+		fmt.Printf("Components to ignore: %v\n", ignoreDaprComponents)
+		fmt.Printf("Dapr components before filtering: %v\n", daprComponents)
+	}
 
 	// Filter out components to ignore
 	filteredDaprComponents := make([]string, 0, len(daprComponents))
@@ -158,7 +166,9 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 		if !slices.Contains(ignoreDaprComponents, comp) {
 			filteredDaprComponents = append(filteredDaprComponents, comp)
 		} else {
-			fmt.Printf("Ignoring component: %s\n", comp)
+			if verbose {
+				fmt.Printf("Ignoring component: %s\n", comp)
+			}
 		}
 	}
 	daprComponents = filteredDaprComponents
@@ -168,7 +178,9 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 		if !slices.Contains(ignoreContribComponents, comp) {
 			filteredContribComponents = append(filteredContribComponents, comp)
 		} else {
-			fmt.Printf("Ignoring component: %s\n", comp)
+			if verbose {
+				fmt.Printf("Ignoring component: %s\n", comp)
+			}
 		}
 	}
 	contribComponents = filteredContribComponents
@@ -329,15 +341,12 @@ func validateComponents(contribComponents []string, componentType string) ([]str
 		metadataErr := checkMetadataFile(contrib, componentType)
 
 		if registrationErr != nil {
-			fmt.Printf("sam the registration err: %v\n", registrationErr)
 			missingRegistrations = append(missingRegistrations, contrib)
 		}
 		if buildTagErr != nil {
-			fmt.Printf("sam the build tag err: %v\n", buildTagErr)
 			missingBuildTags = append(missingBuildTags, contrib)
 		}
 		if metadataErr != nil {
-			fmt.Printf("sam the metadata err: %v\n", metadataErr)
 			missingMetadata = append(missingMetadata, contrib)
 		}
 	}
@@ -356,11 +365,31 @@ func checkComponentRegistration(contrib, componentType string) error {
 		return fmt.Errorf("registration file for '%s' not found: %s", contrib, compFileName)
 	}
 
+	// Check if this is a versioned component
+	// EX: postgresql.v1, azure.blobstorage.v2
+	parts := strings.Split(contrib, ".")
+	if len(parts) >= 2 {
+		lastPart := parts[len(parts)-1]
+		if strings.HasPrefix(lastPart, "v") && len(lastPart) <= 3 {
+			// This is a versioned component, check if the base component is registered
+			baseComponent := strings.Join(parts[:len(parts)-1], ".")
+			if err := checkComponentIsActuallyRegisteredInFile(baseComponent, compFileName); err != nil {
+				return fmt.Errorf("versioned component '%s' base component '%s' not registered in %s: %v", contrib, baseComponent, compFileName, err)
+			}
+			if verbose {
+				fmt.Printf("Versioned component '%s' properly registered via base component '%s' in %s\n", contrib, baseComponent, compFileName)
+			}
+			return nil
+		}
+	}
+
 	if err := checkComponentIsActuallyRegisteredInFile(contrib, compFileName); err != nil {
 		return fmt.Errorf("component '%s' not registered in %s: %v", contrib, compFileName, err)
 	}
 
-	fmt.Printf("Component '%s' properly registered in %s\n", contrib, compFileName)
+	if verbose {
+		fmt.Printf("Component '%s' properly registered in %s\n", contrib, compFileName)
+	}
 	return nil
 }
 
@@ -394,7 +423,6 @@ func checkBuildTag(contrib, componentType string) error {
 // EX: postgresql.v1 -> postgresql
 // EX: azure.blobstorage.v1 -> blobstorage
 func normalizeComponentName(contrib string) string {
-	// fmt.Printf("sam the contrib: %s\n", contrib)
 	if !strings.Contains(contrib, ".") {
 		return contrib
 	}
@@ -407,15 +435,12 @@ func normalizeComponentName(contrib string) string {
 
 	// Handle 2-part names (vendor.component)
 	if len(parts) == 2 {
-		// fmt.Printf("sam the parts: %v\n", parts)
 		// Strip vendor prefixes
 		if slices.Contains(vendorPrefixes, parts[0]) {
-			// fmt.Printf("sam the parts[1]: %s\n", parts[1])
 			return parts[1]
 		}
 		// Strip version suffixes
 		if slices.Contains(versionSuffixes, parts[1]) {
-			// fmt.Printf("sam the parts[0]: %s\n", parts[0])
 			return parts[0]
 		}
 	}
@@ -438,8 +463,6 @@ func normalizeComponentName(contrib string) string {
 			return strings.Join(parts[:len(parts)-1], ".")
 		}
 	}
-
-	fmt.Printf("sam the contrib normalized: %s\n", contrib)
 
 	return contrib
 }
@@ -468,7 +491,9 @@ func checkMetadataFile(contrib, componentType string) error {
 		return fmt.Errorf("metadata file for '%s' not found: %s", contrib, metadataFile)
 	}
 
-	fmt.Printf("Metadata file for '%s' found: %s\n", contrib, metadataFile)
+	if verbose {
+		fmt.Printf("Metadata file for '%s' found: %s\n", contrib, metadataFile)
+	}
 	return nil
 }
 
@@ -621,22 +646,20 @@ func parseRegisteredComponents(output string, componentType string) []string {
 		return r == '\n'
 	})
 
-	// Group lines by file to handle multi-line registrations
-	fileGroups := make(map[string]bool)
+	// Extract unique file paths from grep output
+	uniqueFiles := make(map[string]bool)
 	for _, line := range lines {
-		// Extract file path from the line (format: filepath:content)
 		colonIndex := strings.Index(line, ":")
 		if colonIndex == -1 {
 			continue
 		}
 		filePath := line[:colonIndex]
-		fileGroups[filePath] = true
+		uniqueFiles[filePath] = true
 	}
 
-	// Process each file's content
-	for filePath := range fileGroups {
-		// skip the uppercase component as it has a ton of magic strings that we must ignore.
-		// all other components only have the component registration string in this file so it is an outlier.
+	// Process each registration file
+	for filePath := range uniqueFiles {
+		// Skip uppercase component as it contains many magic strings that aren't component names
 		if strings.Contains(filePath, "uppercase") {
 			continue
 		}
@@ -645,7 +668,6 @@ func parseRegisteredComponents(output string, componentType string) []string {
 		cmd := exec.Command("cat", filePath)
 		fileContent, err := cmd.Output()
 		if err != nil {
-			fmt.Printf("sam the err: %v\n", err)
 			continue
 		}
 
@@ -653,31 +675,27 @@ func parseRegisteredComponents(output string, componentType string) []string {
 			return r == '\n'
 		})
 
-		// Check if this file contains registration calls
-		componentRegistration := false
+		// Check if this file contains registration calls and find the starting line
+		hasRegistrationCalls := false
 		lineToContinueFrom := 0
 		for i, line := range fileLines {
 			if componentType == "bindings" {
-				if strings.Contains(line, "RegisterInputBinding") {
-					componentRegistration = true
-					lineToContinueFrom = i
-					break
-				} else if strings.Contains(line, "RegisterOutputBinding") {
-					componentRegistration = true
+				if strings.Contains(line, "RegisterInputBinding") || strings.Contains(line, "RegisterOutputBinding") {
+					hasRegistrationCalls = true
 					lineToContinueFrom = i
 					break
 				}
 			} else {
 				if strings.Contains(line, "RegisterComponent") {
-					componentRegistration = true
+					hasRegistrationCalls = true
 					lineToContinueFrom = i
 					break
 				}
 			}
 		}
 
-		// If file has registration calls, extract all quoted strings from the entire file
-		if componentRegistration {
+		// Extract component names from lines starting from the first registration call
+		if hasRegistrationCalls {
 			for i, line := range fileLines {
 				if i < lineToContinueFrom {
 					continue
@@ -711,11 +729,12 @@ func extractAllQuotedStrings(line string) []string {
 		}
 
 		quotedString := rest[:endQuoteIndex]
-		quotedStrings = append(quotedStrings, quotedString)
+		if quotedString != "v1" && quotedString != "v2" {
+			quotedStrings = append(quotedStrings, quotedString)
+		}
 
 		start = quoteIndex + 1 + endQuoteIndex + 1
 	}
 
-	fmt.Printf("sam the quotedStrings: %v\n", quotedStrings)
 	return quotedStrings
 }

@@ -34,5 +34,5 @@ go run . check-component-registrations
 ./build-tools check-component-registrations
 ```
 
-This command will scan all component types (conversation, state, secretstores, pubsub, bindings, configuration) and report any missing registrations.
+This command will scan all component types (conversation, state, secretstores, pubsub, bindings, configuration, nameresolution, middleware, cryptography, lock) and report any missing registrations.
 This is part of the release endgame tasking to ensure all components properly register within runtime as expected.

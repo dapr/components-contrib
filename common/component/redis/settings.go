@@ -29,6 +29,10 @@ type Settings struct {
 	Password string `mapstructure:"redisPassword"`
 	// The Redis username
 	Username string `mapstructure:"redisUsername"`
+	// The Redis Sentinel password
+	SentinelPassword string `mapstructure:"sentinelPassword"`
+	// The Redis Sentinel username
+	SentinelUsername string `mapstructure:"sentinelUsername"`
 	// Database to be selected after connecting to the server.
 	DB int `mapstructure:"redisDB"`
 	// The redis type node or cluster

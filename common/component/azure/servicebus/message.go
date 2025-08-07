@@ -122,7 +122,7 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 
 		switch k {
 		// Common keys
-		case mdutils.TTLMetadataKey:
+		case mdutils.TTLMetadataKey, mdutils.TTLInSecondsMetadataKey:
 			// Ignore v here and use TryGetTTL for the validation it performs
 			ttl, ok, _ := mdutils.TryGetTTL(metadata)
 			if ok {

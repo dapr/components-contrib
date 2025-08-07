@@ -29,6 +29,30 @@ authenticationProfiles:
           secret reference
         example:  "KeFg23!"
         default: ""
+      - name: sentinelUsername
+        type: string
+        required: false
+        description: |
+          Username for Redis Sentinel. Applicable only when "failover" is true, and
+          Redis Sentinel has authentication enabled. Defaults to empty.
+        example: "my-sentinel-username"
+        default: ""
+        url:
+          title: "Redis Sentinel authentication documentation"
+          url: "https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/#configuring-sentinel-instances-with-authentication"
+      - name: sentinelPassword
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          Password for Redis Sentinel. Applicable only when "failover" is true, and
+          Redis Sentinel has authentication enabled. Use secretKeyRef for
+          secret reference. Defaults to empty.
+        example: "KeFg23!"
+        default: ""
+        url:
+          title: "Redis Sentinel authentication documentation"
+          url: "https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/#configuring-sentinel-instances-with-authentication"
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:
@@ -58,6 +82,16 @@ metadata:
     example: "false"
     type: bool
     default: "false"
+  - name: clientCert
+    required: false
+    description: Client certificate for Redis host. No Default. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
+  - name: clientKey
+    required: false
+    description: Client key for Redis host. No Default. Can be secretKeyRef to use a secret reference
+    example: ""
+    type: string
   - name: maxRetries
     required: "false"
     type: number

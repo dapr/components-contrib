@@ -26,10 +26,12 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/dapr/components-contrib/common/aws"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -53,7 +55,6 @@ type Kafka struct {
 	initialOffset   int64
 	config          *sarama.Config
 	escapeHeaders   bool
-	awsAuthProvider awsAuth.Provider
 
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
@@ -84,6 +85,7 @@ type Kafka struct {
 	consumeRetryInterval       time.Duration
 
 	excludeHeaderMetaRegex *regexp.Regexp
+	awsConfig              *aws2.Config
 }
 
 type SchemaType int
@@ -194,27 +196,17 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		// already handled in updateTLSConfig
 	case awsIAMAuthType:
 		k.logger.Info("Configuring AWS IAM authentication")
-		kafkaIAM, validateErr := k.ValidateAWS(metadata)
+		opts, validateErr := k.ValidateAWS(metadata)
 		if validateErr != nil {
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
-		opts := awsAuth.Options{
-			Logger:        k.logger,
-			Properties:    metadata,
-			Region:        kafkaIAM.Region,
-			Endpoint:      "",
-			AccessKey:     kafkaIAM.AccessKey,
-			SecretKey:     kafkaIAM.SecretKey,
-			SessionToken:  kafkaIAM.SessionToken,
-			AssumeRoleARN: kafkaIAM.IamRoleArn,
-			SessionName:   kafkaIAM.StsSessionName,
+
+		awsConfig, configErr := aws.NewConfig(ctx, opts)
+		if configErr != nil {
+			return configErr
 		}
-		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
-		if err != nil {
-			return err
-		}
-		k.awsAuthProvider = provider
+
+		k.awsConfig = &awsConfig
 	}
 
 	k.config = config
@@ -287,7 +279,7 @@ func (k *Kafka) initConsumerGroupRebalanceStrategy(config *sarama.Config, metada
 	k.logger.Infof("Consumer group rebalance strategy set to '%s'", config.Consumer.Group.Rebalance.GroupStrategies[0].Name())
 }
 
-func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafkaIAM, error) {
+func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error) {
 	const defaultSessionName = "DaprDefaultSession"
 	// This is needed as we remove the aws prefixed fields to use the builtin AWS profile fields instead.
 	region := awsAuth.Coalesce(metadata["region"], metadata["awsRegion"])
@@ -298,16 +290,16 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (*awsAuth.DeprecatedKafk
 	token := awsAuth.Coalesce(metadata["sessionToken"], metadata["awsSessionToken"])
 
 	if region == "" {
-		return nil, errors.New("metadata property AWSRegion is missing")
+		return awsAuth.Options{}, errors.New("metadata property AWSRegion is missing")
 	}
 
-	return &awsAuth.DeprecatedKafkaIAM{
-		Region:         region,
-		AccessKey:      accessKey,
-		SecretKey:      secretKey,
-		IamRoleArn:     role,
-		StsSessionName: session,
-		SessionToken:   token,
+	return awsAuth.Options{
+		Region:                region,
+		AccessKey:             accessKey,
+		SecretKey:             secretKey,
+		AssumeRoleArn:         role,
+		AssumeRoleSessionName: session,
+		SessionToken:          token,
 	}, nil
 }
 
@@ -339,10 +331,6 @@ func (k *Kafka) Close() error {
 				errs[1] = k.clients.consumerGroup.Close()
 				k.clients.consumerGroup = nil
 			}
-		}
-		if k.awsAuthProvider != nil {
-			errs[2] = k.awsAuthProvider.Close()
-			k.awsAuthProvider = nil
 		}
 	}
 

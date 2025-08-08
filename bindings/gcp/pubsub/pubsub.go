@@ -100,7 +100,7 @@ func parseMetadata(metadata bindings.Metadata) (*pubSubMetadata, error) {
 	}
 
 	if result.ProjectID == "" {
-		return nil, fmt.Errorf("missing attribute projectID")
+		return nil, errors.New("missing attribute projectID")
 	}
 
 	return &result, nil

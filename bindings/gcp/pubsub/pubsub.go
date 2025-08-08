@@ -47,6 +47,8 @@ type GCPPubSub struct {
 }
 
 // These JSON tags directly match the builtin auth provider metadata fields for GCP.
+// TODO: in future, this needs to use the same setup that pubsub gcp pubsub component uses,
+// so we can embed the builtin auth profile instead...
 type pubSubMetadata struct {
 	Topic                   string `json:"topic"`
 	Subscription            string `json:"subscription"`

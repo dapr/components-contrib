@@ -85,53 +85,53 @@ metadata:
     description: Whether to enable opentracing for queries.
     example: false
     default: false
-  - name: write_timeout
+  - name: writeTimeout
     type: string
     required: false
     description: Write timeout duration."
     example: "10s"
-  - name: read_timeout
+  - name: readTimeout
     type: string
     required: false
     description: Read timeout duration."
     example: "10s"
-  - name: handshake_version
+  - name: handshakeVersion
     type: number
     required: false
     description: Handshake version for RethinkDB."
     example: 1
-  - name: keep_alive_timeout
+  - name: keepAlivePeriod
     type: string
     required: false
     description: Keep alive period duration."
     example: "30s"
-  - name: max_idle
+  - name: maxIdle
     type: number
     required: false
     description: Maximum number of idle connections."
     example: 5
-  - name: auth_key
+  - name: authKey
     type: string
     required: false
     description: The authentication key for RethinkDB. This field is now deprecated."
     example: "auth-key"
     sensitive: true
-  - name: initial_cap
+  - name: initialCap
     type: number
     required: false
     description: Initial connection pool capacity."
     example: 5
-  - name: max_open
+  - name: maxOpen
     type: number
     required: false
     description: Maximum number of open connections."
     example: 10
-  - name: discover_hosts
+  - name: discoverHosts
     type: bool
     required: false
     description: Whether to discover hosts."
     example: false
-  - name: node_refresh_interval
+  - name: nodeRefreshInterval
     type: string
     required: false
     description: Node refresh interval duration."

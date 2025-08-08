@@ -237,8 +237,22 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
-	s.s3Uploader = manager.NewUploader(s.s3Client)
-	s.s3Downloader = manager.NewDownloader(s.s3Client)
+	s.s3Uploader = manager.NewUploader(
+		s.s3Client,
+		func(o *manager.Uploader) {
+			o.ClientOptions = append(o.ClientOptions, func(co *s3.Options) {
+				co.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+			})
+		},
+	)
+	s.s3Downloader = manager.NewDownloader(
+		s.s3Client,
+		func(o *manager.Downloader) {
+			o.ClientOptions = append(o.ClientOptions, func(co *s3.Options) {
+				co.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+			})
+		},
+	)
 
 	s.s3PresignClient = s3.NewPresignClient(
 		s.s3Client,

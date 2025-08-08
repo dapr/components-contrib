@@ -53,3 +53,11 @@ metadata:
     required: false
     description: "The dynamic template ID"
     example: '"your-template-id"'
+  - name: emailFromName
+    required: false
+    description: "The sender name"
+    example: '"John Doe"'
+  - name: emailToName
+    required: false
+    description: "The recipient name"
+    example: '"Jane Smith"'

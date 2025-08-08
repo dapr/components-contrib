@@ -19,6 +19,11 @@ authenticationProfiles:
     description: |
       Authenticate using AliCloud access key credentials.
     metadata:
+      - name: accessKey
+        required: false
+        description: "The AliCloud access key"
+        example: '"your-access-key"'
+        sensitive: true
       - name: accessKeyID
         required: false
         description: "The AliCloud access key ID"

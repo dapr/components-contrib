@@ -107,7 +107,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	go func() {
 		defer b.wg.Done()
 		for readCtx.Err() == nil {
-			var change interface{}
+			var change any
 			ok := cursor.Next(&change)
 			if !ok {
 				b.logger.Errorf("error detecting change: %v", cursor.Err())
@@ -149,7 +149,7 @@ func (b *Binding) Close() error {
 	return b.session.Close()
 }
 
-func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig, error) {
+func metadataToConfig(cfg map[string]string, _ logger.Logger) (StateConfig, error) {
 	c := StateConfig{}
 
 	// prepare metadata keys for decoding

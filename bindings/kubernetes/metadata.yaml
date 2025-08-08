@@ -25,7 +25,7 @@ metadata:
     description: "The path to the kubeconfig file"
     example: '"~/.kube/config"'
     default: '"~/.kube/config"'
-  - name: resyncPeriodInSec
+  - name: resyncPeriod
     required: false
     type: duration
     description: "The resync period in seconds"

@@ -42,3 +42,7 @@ metadata:
     required: true
     description: "The DynamoDB table name"
     example: '"my-table"'
+  - name: endpoint
+    required: false
+    description: "The AWS DynamoDB endpoint"
+    example: '"https://dynamodb.us-east-1.amazonaws.com"'

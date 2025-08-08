@@ -80,4 +80,20 @@ metadata:
     required: false
     description: The entity kind (collection name) for storing state data.
     example: "dapr-state"
-    default: "DaprState" 
+    default: "DaprState"
+  - name: type
+    type: string
+    required: false
+    description: The type of service account.
+    example: "service_account"
+  - name: connectionEndpoint
+    type: string
+    required: false
+    description: The Firestore connection endpoint.
+    example: "https://firestore.googleapis.com"
+  - name: noIndex
+    type: bool
+    required: false
+    description: Whether to disable indexing for the entity.
+    example: false
+    default: false 

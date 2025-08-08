@@ -62,3 +62,7 @@ metadata:
     description: "Timeout for network requests in seconds"
     example: '20'
     default: '20'
+  - name: queueName
+    required: true
+    description: "The Cloudflare queue name"
+    example: '"my-queue"'

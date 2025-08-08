@@ -44,3 +44,7 @@ metadata:
     required: true
     description: "The SQS queue name"
     example: '"my-queue"'
+  - name: endpoint
+    required: false
+    description: "The AWS SQS endpoint"
+    example: '"https://sqs.us-east-1.amazonaws.com"'

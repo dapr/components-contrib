@@ -189,4 +189,14 @@ metadata:
     type: string
     required: false
     description: The message properties to pass to the application (comma-separated).
-    example: "UNIQ_KEY,MSG_ID" 
+    example: "UNIQ_KEY,MSG_ID"
+  - name: groupName
+    type: string
+    required: false
+    description: The consumer group name (deprecated, use consumerGroup instead).
+    example: "dapr-consumer-group"
+  - name: sendTimeOut
+    type: number
+    required: false
+    description: The send timeout in nanoseconds (deprecated, use sendTimeOutSec instead).
+    example: 10000000000 

@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	contribCrypto "github.com/dapr/components-contrib/cryptography"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/kit/metadata"
 )
 

@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
-	contribCrypto "github.com/dapr/components-contrib/cryptography"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/kit/metadata"
 )
 

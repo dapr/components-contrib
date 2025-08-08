@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
-	contribCrypto "github.com/dapr/components-contrib/cryptography"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"

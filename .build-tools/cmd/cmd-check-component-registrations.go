@@ -125,7 +125,8 @@ func checkCryptographyComponents() {
 	ignoreContribComponents := []string{"pubkey_cache"}
 	// TODO: in future rm the aliases with the dapr prefix in runtime to clean this up!
 	ignoreDaprComponents := []string{"dapr.localstorage", "dapr.kubernetes.secrets", "dapr.jwks"}
-	checkComponents("cryptography", ignoreDaprComponents, ignoreContribComponents)
+	// TODO: in future update this to cryptography once we have a cryptography component in contrib and not crypto components
+	checkComponents("crypto", ignoreDaprComponents, ignoreContribComponents)
 }
 
 func checkNameResolutionComponents() {
@@ -282,7 +283,7 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=envelope.go", "--exclude=responses.go"}
 	case "bindings":
 		excludeFiles = []string{"--exclude=client.go"}
-	case "cryptography":
+	case "crypto":
 		excludeFiles = []string{"--exclude=key.go", "--exclude=pubkey_cache.go"}
 	case "middleware":
 		excludeFiles = []string{"--exclude=mock*"}

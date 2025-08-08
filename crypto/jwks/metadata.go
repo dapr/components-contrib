@@ -17,7 +17,7 @@ import (
 	"errors"
 	"time"
 
-	contribCrypto "github.com/dapr/components-contrib/cryptography"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/kit/metadata"
 )
 

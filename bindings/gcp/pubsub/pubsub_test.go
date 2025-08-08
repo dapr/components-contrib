@@ -14,28 +14,33 @@ limitations under the License.
 package pubsub
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 )
 
 func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"auth_provider_x509_cert_url": "https://auth", "auth_uri": "https://auth", "client_x509_cert_url": "https://cert", "client_email": "test@test.com", "client_id": "id", "private_key": "****",
-		"private_key_id": "key_id", "project_id": "project1", "token_uri": "https://token", "type": "serviceaccount", "topic": "t1", "subscription": "s1",
+		"authProviderX509CertURL": "https://auth",
+		"authURI":                 "https://auth",
+		"clientX509CertURL":       "https://cert",
+		"clientEmail":             "test@test.com",
+		"clientID":                "id",
+		"privateKey":              "****",
+		"privateKeyID":            "key_id",
+		"projectID":               "project1",
+		"tokenURI":                "https://token",
+		"type":                    "serviceaccount",
+		"topic":                   "t1",
+		"subscription":            "s1",
 	}
-	ps := GCPPubSub{logger: logger.NewLogger("test")}
-	b, err := ps.parseMetadata(m)
-	require.NoError(t, err)
 
-	var pubsubMeta pubSubMetadata
-	err = json.Unmarshal(b, &pubsubMeta)
+	// Test metadata parsing only
+	pubsubMeta, err := parseMetadata(m)
 	require.NoError(t, err)
 
 	assert.Equal(t, "s1", pubsubMeta.Subscription)

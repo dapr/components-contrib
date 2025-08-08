@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: hashicorp.consul
+version: v1
+status: alpha
+title: "Echo"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-consul/
+metadata:
+  - name: datacenter
+    type: string
+    required: true
+    description: The datacenter to use.
+    example: "dc1"
+  - name: httpAddr
+    type: string
+    required: true
+    description: The HTTP address of the Consul server.
+    example: "http://localhost:8500"
+  - name: aclToken
+    type: string
+    required: true
+    description: The ACL token to use.
+    example: "my_acl_token"
+  - name: scheme
+    type: string
+    required: true
+    description: The scheme to use.
+    example: "http"
+  - name: keyPrefixPath
+    type: string
+    required: true
+    description: The key prefix path to use.
+    example: "my_key_prefix_path"

@@ -170,7 +170,7 @@ func (g *GCPPubSub) Init(ctx context.Context, meta pubsub.Metadata) error {
 	return nil
 }
 
-func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*gcppubsub.Client, error) {
+func (g *GCPPubSub) getPubSubClient(_ context.Context, metadata *metadata) (*gcppubsub.Client, error) {
 	var pubsubClient *gcppubsub.Client
 	var err error
 

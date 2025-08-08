@@ -55,6 +55,7 @@ type AWSKinesis struct {
 	wg      sync.WaitGroup
 }
 
+// TODO: we need to clean up the metadata fields here and update this binding to use the builtin aws auth provider and reflect in metadata.yaml
 type kinesisMetadata struct {
 	StreamName          string `json:"streamName" mapstructure:"streamName"`
 	ConsumerName        string `json:"consumerName" mapstructure:"consumerName"`
@@ -73,7 +74,7 @@ const (
 	// SharedThroughput - shared throughput using checkpoint and monitoring.
 	SharedThroughput = "shared"
 
-	partitionKeyName = "partitionKey"
+	partitionKeyName = "partitionKey" // TODO: mv to metadata field instead
 )
 
 // recordProcessorFactory.

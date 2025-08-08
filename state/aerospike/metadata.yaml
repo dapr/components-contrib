@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: aerospike
+version: v1
+status: alpha
+title: "Aerospike"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-aerospike/
+metadata:
+  - name: hosts
+    type: string
+    required: true
+    description: Comma-separated list of Aerospike hosts.
+    example: "localhost:3000,aerospike:3000"
+  - name: namespace
+    type: string
+    required: true
+    description: The Aerospike namespace.
+    example: "test"
+  - name: set
+    type: string
+    required: false
+    description: The Aerospike set name.
+    example: "dapr-state" 

@@ -388,7 +388,7 @@ func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, 
 	if fromTransaction {
 		var itemToDelete *Item
 		err = session.Load(&itemToDelete, req.Key)
-		if err == nil {
+		if err == nil && itemToDelete != nil {
 			err = session.Delete(itemToDelete)
 		}
 	} else {

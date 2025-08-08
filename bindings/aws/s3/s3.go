@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"slices"
@@ -30,6 +31,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws"
+	smithyEndpoints "github.com/aws/smithy-go/endpoints"
+
 	awsCommon "github.com/dapr/components-contrib/common/aws"
 	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 
@@ -112,6 +115,61 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
+type s3resolver struct {
+	region         string
+	endpoint       string
+	forcePathStyle bool
+}
+
+func (s *s3resolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyEndpoints.Endpoint, error) {
+	if s.endpoint != "" {
+		uri, err := url.Parse(s.endpoint)
+		if err != nil {
+			return smithyEndpoints.Endpoint{}, err
+		}
+		return smithyEndpoints.Endpoint{URI: *uri}, nil
+	}
+
+	region := *params.Region
+	if s.region != "" {
+		region = s.region
+	}
+
+	if params.Bucket == nil {
+		return smithyEndpoints.Endpoint{}, errors.New("empty bucket name provided")
+	}
+	bucket := *params.Bucket
+
+	var rawURI string
+
+	switch {
+	case region == "" && s.forcePathStyle:
+		rawURI = fmt.Sprintf("https://s3.amazonaws.com/%s/", bucket)
+	case region == "":
+		rawURI = fmt.Sprintf("https://%s.s3.amazonaws.com/", bucket)
+	case s.forcePathStyle:
+		rawURI = fmt.Sprintf("https://s3.%s.amazonaws.com/%s/", region, bucket)
+	default:
+		rawURI = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/", bucket, region)
+	}
+
+	uri, err := url.Parse(rawURI)
+	if err != nil {
+		return smithyEndpoints.Endpoint{}, fmt.Errorf("s3 binding error: failed to parse endpoint URL %s: %w", rawURI, err)
+	}
+
+	return smithyEndpoints.Endpoint{URI: *uri}, nil
+}
+
+// endpoint resolver specifically for s3
+func endpointSetter(region, endpoint string, forcePathStyle bool) s3.EndpointResolverV2 {
+	return &s3resolver{
+		region:         region,
+		endpoint:       endpoint,
+		forcePathStyle: forcePathStyle,
+	}
+}
+
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -136,13 +194,24 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	var s3Options []func(options *s3.Options)
 
+	s3Options = append(s3Options, func(options *s3.Options) {
+		options.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+	})
+
+	if s.metadata.Region != "" {
+		s3Options = append(s3Options, func(options *s3.Options) {
+			options.Region = s.metadata.Region
+		})
+	}
+
+	// TODO: Double check this config
 	if s.metadata.DisableSSL {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.EndpointOptions.DisableHTTPS = true
 		})
 	}
 
-	if !s.metadata.ForcePathStyle {
+	if s.metadata.ForcePathStyle {
 		s3Options = append(s3Options, func(options *s3.Options) {
 			options.UsePathStyle = true
 		})
@@ -168,11 +237,31 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
+	s.s3Uploader = manager.NewUploader(
+		s.s3Client,
+		func(o *manager.Uploader) {
+			o.ClientOptions = append(o.ClientOptions, func(co *s3.Options) {
+				co.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+			})
+		},
+	)
+	s.s3Downloader = manager.NewDownloader(
+		s.s3Client,
+		func(o *manager.Downloader) {
+			o.ClientOptions = append(o.ClientOptions, func(co *s3.Options) {
+				co.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+			})
+		},
+	)
 
-	s.s3Uploader = manager.NewUploader(s.s3Client)
-	s.s3Downloader = manager.NewDownloader(s.s3Client)
-
-	s.s3PresignClient = s3.NewPresignClient(s.s3Client)
+	s.s3PresignClient = s3.NewPresignClient(
+		s.s3Client,
+		func(o *s3.PresignOptions) {
+			o.ClientOptions = append(o.ClientOptions, func(co *s3.Options) {
+				co.EndpointResolverV2 = endpointSetter(m.Region, m.Endpoint, m.ForcePathStyle)
+			})
+		},
+	)
 
 	return nil
 }

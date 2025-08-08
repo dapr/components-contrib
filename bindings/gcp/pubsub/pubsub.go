@@ -51,18 +51,20 @@ type GCPPubSub struct {
 // TODO: in future, this needs to use the same setup that pubsub gcp pubsub component uses,
 // so we can embed the builtin auth profile instead...
 type pubSubMetadata struct {
-	Topic                   string `json:"topic"`
-	Subscription            string `json:"subscription"`
-	Type                    string `json:"type"`
-	ProjectID               string `json:"projectID"`
-	PrivateKeyID            string `json:"privateKeyID"`
-	PrivateKey              string `json:"privateKey"`
-	ClientEmail             string `json:"clientEmail"`
-	ClientID                string `json:"clientID"`
-	AuthURI                 string `json:"authURI"`
-	TokenURI                string `json:"tokenURI"`
-	AuthProviderX509CertURL string `json:"authProviderX509CertURL"`
-	ClientX509CertURL       string `json:"clientX509CertURL"`
+	Topic        string `json:"topic"`
+	Subscription string `json:"subscription"`
+
+	// metadata analyzer needs to ignore these fields as they are part of the builtin auth profile
+	Type                    string `json:"type" mdignore:"true"`
+	ProjectID               string `json:"projectID" mdignore:"true"`
+	PrivateKeyID            string `json:"privateKeyID" mdignore:"true"`
+	PrivateKey              string `json:"privateKey" mdignore:"true"`
+	ClientEmail             string `json:"clientEmail" mdignore:"true"`
+	ClientID                string `json:"clientID" mdignore:"true"`
+	AuthURI                 string `json:"authURI" mdignore:"true"`
+	TokenURI                string `json:"tokenURI" mdignore:"true"`
+	AuthProviderX509CertURL string `json:"authProviderX509CertURL" mdignore:"true"`
+	ClientX509CertURL       string `json:"clientX509CertURL" mdignore:"true"`
 }
 
 // TODO: in future, we need to clean this up to rm duplication between this and the pubsub gcp pubsub component

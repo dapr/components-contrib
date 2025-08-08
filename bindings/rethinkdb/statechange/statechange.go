@@ -121,9 +121,9 @@ func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	// Configure TLS if enabled
 	if cfg.EnableTLS {
-		tlsConfig, err := createTLSConfig(cfg.ClientCert, cfg.ClientKey)
-		if err != nil {
-			return fmt.Errorf("error creating TLS config: %w", err)
+		tlsConfig, tlsErr := createTLSConfig(cfg.ClientCert, cfg.ClientKey)
+		if tlsErr != nil {
+			return fmt.Errorf("error creating TLS config: %w", tlsErr)
 		}
 		connectOpts.TLSConfig = tlsConfig
 	}
@@ -140,7 +140,7 @@ func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 // createTLSConfig creates a tls.Config from client certificate and key
 func createTLSConfig(clientCert, clientKey string) (*tls.Config, error) {
 	if clientCert == "" || clientKey == "" {
-		return nil, fmt.Errorf("both client certificate and key are required for TLS")
+		return nil, errors.New("both client certificate and key are required for TLS")
 	}
 
 	cert, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
@@ -150,6 +150,7 @@ func createTLSConfig(clientCert, clientKey string) (*tls.Config, error) {
 
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}, nil
 }
 

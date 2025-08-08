@@ -51,12 +51,12 @@ authenticationProfiles:
         type: string
         required: true
         description: The client certificate for TLS authentication.
-        example: "-----BEGIN CERTIFICATE-----\nXXX...""
+        example: "-----BEGIN CERTIFICATE-----\nXXX..."
       - name: clientKey
         type: string
         required: true
         description: The client key for TLS authentication.
-        example: "-----BEGIN PRIVATE KEY-----\nXXX...""
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
         sensitive: true
 metadata:
   - name: table

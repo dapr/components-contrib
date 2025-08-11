@@ -16,6 +16,7 @@ package sqlserver
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -287,8 +288,15 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		}
 	}
 
+	bytes, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		s.logger.
+			WithFields(map[string]any{"error": err}).
+			Debug("error decoding base64 data. Fallback to []byte")
+		bytes = []byte(data)
+	}
 	return &state.GetResponse{
-		Data:     []byte(data),
+		Data:     bytes,
 		ETag:     ptr.Of(etag),
 		Metadata: metadata,
 	}, nil
@@ -305,16 +313,23 @@ type dbExecutor interface {
 }
 
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
-	var err error
-	var bytes []byte
-	bytes, err = utils.Marshal(req.Value, json.Marshal)
-	if err != nil {
-		return err
+	var reqValue string
+
+	bytes, ok := req.Value.([]byte)
+	if !ok {
+		bt, err := json.Marshal(req.Value)
+		if err != nil {
+			return err
+		}
+		reqValue = string(bt)
+	} else {
+		reqValue = base64.StdEncoding.EncodeToString(bytes)
 	}
+
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.HasETag() {
 		var b []byte
-		b, err = hex.DecodeString(*req.ETag)
+		b, err := hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
@@ -327,13 +342,14 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	var res sql.Result
+	var err error
 	if req.Options.Concurrency == state.FirstWrite {
 		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", string(bytes)), etag,
+			sql.Named("Data", reqValue), etag,
 			sql.Named("FirstWrite", 1), sql.Named("TTL", ttl))
 	} else {
 		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", string(bytes)), etag,
+			sql.Named("Data", reqValue), etag,
 			sql.Named("FirstWrite", 0), sql.Named("TTL", ttl))
 	}
 

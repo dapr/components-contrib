@@ -110,13 +110,7 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 		return err
 	}
 
-	b, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	clientOptions := option.WithCredentialsJSON(b)
-	client, err := storage.NewClient(ctx, clientOptions)
+	client, err := g.getClient(ctx, m)
 	if err != nil {
 		return err
 	}
@@ -125,6 +119,41 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 	g.client = client
 
 	return nil
+}
+
+func (g *GCPStorage) getClient(ctx context.Context, m *gcpMetadata) (*storage.Client, error) {
+	var client *storage.Client
+	var err error
+
+	if m.Bucket == "" {
+		return nil, errors.New("missing property `bucket` in metadata")
+	}
+	if m.ProjectID == "" {
+		return nil, errors.New("missing property `project_id` in metadata")
+	}
+
+	// Explicit authentication
+	if m.PrivateKeyID != "" {
+		var b []byte
+		b, err = json.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOptions := option.WithCredentialsJSON(b)
+		client, err = storage.NewClient(ctx, clientOptions)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Implicit authentication, using GCP Application Default Credentials (ADC)
+		// Credentials search order: https://cloud.google.com/docs/authentication/application-default-credentials#order
+		client, err = storage.NewClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
 func (g *GCPStorage) parseMetadata(meta bindings.Metadata) (*gcpMetadata, error) {

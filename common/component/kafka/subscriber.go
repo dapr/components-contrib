@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 // Subscribe adds a handler and configuration for a topic, and subscribes.
@@ -35,9 +37,26 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 	k.wg.Add(1)
 	go func() {
 		defer k.wg.Done()
+		postAction := func() {}
+
 		select {
 		case <-ctx.Done():
+			err := context.Cause(ctx)
+			if errors.Is(err, pubsub.ErrGracefulShutdown) {
+				k.logger.Debugf("Kafka component is closing. Context is done due to shutdown process.")
+				postAction = func() {
+					if k.clients != nil && k.clients.consumerGroup != nil {
+						k.logger.Debugf("Kafka component is closing. Closing consumer group.")
+						err := k.clients.consumerGroup.Close()
+						if err != nil {
+							k.logger.Errorf("failed to close consumer group: %w", err)
+						}
+					}
+				}
+			}
+
 		case <-k.closeCh:
+			k.logger.Debugf("Kafka component is closing. Channel is closed.")
 		}
 
 		k.subscribeLock.Lock()
@@ -50,6 +69,7 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		}
 
 		k.reloadConsumerGroup()
+		postAction()
 	}()
 }
 
@@ -87,9 +107,11 @@ func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer
 		clients, err := k.latestClients()
 		if err != nil || clients == nil {
 			k.logger.Errorf("failed to get latest Kafka clients: %w", err)
+			return
 		}
 		if clients.consumerGroup == nil {
 			k.logger.Errorf("component is closed")
+			return
 		}
 		err = clients.consumerGroup.Consume(ctx, topics, consumer)
 		if errors.Is(err, context.Canceled) {

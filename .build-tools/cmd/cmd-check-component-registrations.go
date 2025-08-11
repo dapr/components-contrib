@@ -104,7 +104,7 @@ func checkBindingComponents() {
 	fmt.Println("\nChecking bindings components...")
 	// ignore servicebus.queues as runtime has an alias on this so we're checking for servicebusqueues
 	ignoreDaprComponents := []string{"mqtt3", "azure.servicebus.queues", "postgresql"}
-	ignoreContribComponents := []string{} //[]string{"postgresql"}
+	ignoreContribComponents := []string{}
 	checkComponents("bindings", ignoreDaprComponents, ignoreContribComponents)
 }
 
@@ -123,7 +123,7 @@ func checkCryptographyComponents() {
 	fmt.Println("\nChecking cryptography components...")
 	// below is not actually a component. Cryptography section in contrib needs quite a bit of clean up/organization to clean this up so I don't have to "ignore" it.
 	ignoreContribComponents := []string{"pubkey_cache"}
-	// TODO: in future rm the aliases with the dapr prefix in runtime to clean this up!
+	// We ignore the dapr prefixes here bc they are captured properly without the dapr prefix.
 	ignoreDaprComponents := []string{"dapr.localstorage", "dapr.kubernetes.secrets", "dapr.jwks"}
 	// TODO: in future update this to cryptography once we have a cryptography component in contrib and not crypto components
 	checkComponents("crypto", ignoreDaprComponents, ignoreContribComponents)
@@ -187,7 +187,7 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 	contribComponents = filteredContribComponents
 
 	// Apply vendor prefix mapping and deduplication to both lists.
-	// This removes things like the CSP prefixing.
+	// This removes things like the CSP and/or vendor prefixing.
 	mappedContribComponents := mapAndDeduplicateComponents(contribComponents)
 	mappedDaprComponents := mapAndDeduplicateComponents(daprComponents)
 
@@ -210,6 +210,8 @@ func checkComponents(componentType string, ignoreDaprComponents []string, ignore
 	reportResults(missingRegistrations, missingBuildTags, missingMetadata, componentType)
 }
 
+// getRegistryPath is needed to get the correct registry file for the component,
+// and middleware components are nested under a specific http dir, so we must handle this case.
 func getRegistryPath(componentType string) string {
 	if componentType == "middleware" {
 		return fmt.Sprintf("../dapr/pkg/components/%s/http/registry.go", componentType)
@@ -275,7 +277,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 	// Find all components in components-contrib, excluding utility files
 	// Configure exclude list based on component type
 	var excludeFiles []string
-	// keeping this here for now since not all components exclude files... will make func param if needed.
+	// we have to exclude certain files that match the grep, but are not components.
+	// In future, this can be cleaned up if files are moved to proper pkg like directories.
 	switch componentType {
 	case "state":
 		excludeFiles = []string{"--exclude=errors.go", "--exclude=bulk.go", "--exclude=query.go"}
@@ -291,7 +294,6 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{}
 	}
 
-	// Build the grep command with dynamic excludes
 	grepArgs := []string{"-rl", "--include=*.go"}
 	grepArgs = append(grepArgs, excludeFiles...)
 	grepArgs = append(grepArgs, "func New", componentType)
@@ -306,6 +308,7 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 	var registeredOutput []byte
 	if componentType != "bindings" {
 		var searchPattern string
+		// bc middleware components are nested under a specific http dir, we must handle this case.
 		if componentType == "middleware" {
 			searchPattern = "../dapr/cmd/daprd/components/middleware_http_*.go"
 		} else {
@@ -410,12 +413,14 @@ func checkComponentIsActuallyRegisteredInFile(contrib, registrationFile string) 
 func checkBuildTag(contrib, componentType string) error {
 	compFileName := getRegistrationFileName(contrib, componentType)
 
-	// Check for "go:build allcomponents" (with or without additional conditions)
+	// Check for "go:build allcomponents"
 	buildTagCmd := exec.Command("grep", "-q", "allcomponents", compFileName)
 	_, err := buildTagCmd.Output()
 	if err != nil {
 		return fmt.Errorf("build tag for 'allcomponents' not found in %s", compFileName)
 	}
+
+	// TODO: in future, add check for stable components
 	return nil
 }
 
@@ -448,7 +453,6 @@ func normalizeComponentName(contrib string) string {
 
 	// Handle 3+ part names (vendor.component.version)
 	if len(parts) >= 3 {
-		// Check if first part is a vendor prefix
 		if slices.Contains(vendorPrefixes, parts[0]) {
 			// Check if last part is a version suffix
 			if slices.Contains(versionSuffixes, parts[len(parts)-1]) {

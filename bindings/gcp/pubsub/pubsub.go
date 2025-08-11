@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -48,18 +49,31 @@ type GCPPubSub struct {
 
 // These JSON tags directly match the builtin auth provider metadata fields for GCP.
 type pubSubMetadata struct {
-	Topic                   string `json:"topic"`
-	Subscription            string `json:"subscription"`
-	Type                    string `json:"type"`
-	ProjectID               string `json:"projectID"`
-	PrivateKeyID            string `json:"privateKeyID"`
-	PrivateKey              string `json:"privateKey"`
-	ClientEmail             string `json:"clientEmail"`
-	ClientID                string `json:"clientID"`
-	AuthURI                 string `json:"authURI"`
-	TokenURI                string `json:"tokenURI"`
-	AuthProviderX509CertURL string `json:"authProviderX509CertURL"`
-	ClientX509CertURL       string `json:"clientX509CertURL"`
+	Topic                   string `json:"topic" mapstructure:"topic"`
+	Subscription            string `json:"subscription" mapstructure:"subscription"`
+	Type                    string `json:"type" mapstructure:"type"`
+	ProjectID               string `json:"projectID" mapstructure:"project_id" mapstructurealiases:"projectID"`
+	PrivateKeyID            string `json:"privateKeyID" mapstructure:"private_key_id" mapstructurealiases:"privateKeyID"`
+	PrivateKey              string `json:"privateKey" mapstructure:"private_key" mapstructurealiases:"privateKey"`
+	ClientEmail             string `json:"clientEmail" mapstructure:"client_email" mapstructurealiases:"clientEmail"`
+	ClientID                string `json:"clientID" mapstructure:"client_id" mapstructurealiases:"clientID"`
+	AuthURI                 string `json:"authURI" mapstructure:"auth_uri" mapstructurealiases:"authURI"`
+	TokenURI                string `json:"tokenURI" mapstructure:"token_uri" mapstructurealiases:"tokenURI"`
+	AuthProviderX509CertURL string `json:"authProviderX509CertURL" mapstructure:"auth_provider_x509_cert_url" mapstructurealiases:"authProviderX509CertURL"`
+	ClientX509CertURL       string `json:"clientX509CertURL" mapstructure:"client_x509_cert_url" mapstructurealiases:"clientX509CertURL"`
+}
+
+type GCPAuthJSON struct {
+	ProjectID           string `json:"project_id"`
+	PrivateKeyID        string `json:"private_key_id"`
+	PrivateKey          string `json:"private_key"`
+	ClientEmail         string `json:"client_email"`
+	ClientID            string `json:"client_id"`
+	AuthURI             string `json:"auth_uri"`
+	TokenURI            string `json:"token_uri"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `json:"client_x509_cert_url"`
+	Type                string `json:"type"`
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance.
@@ -72,30 +86,45 @@ func NewGCPPubSub(logger logger.Logger) bindings.InputOutputBinding {
 
 // Init parses metadata and creates a new Pub Sub client.
 func (g *GCPPubSub) Init(ctx context.Context, metadata bindings.Metadata) error {
-	b, err := g.parseMetadata(metadata)
+	var (
+		pubsubMeta   pubSubMetadata
+		pubsubClient *pubsub.Client
+	)
+	err := kitmd.DecodeMetadata(metadata.Properties, &pubsubMeta)
 	if err != nil {
 		return err
 	}
 
-	var pubsubMeta pubSubMetadata
-	err = json.Unmarshal(b, &pubsubMeta)
-	if err != nil {
-		return err
-	}
-	clientOptions := option.WithCredentialsJSON(b)
-	pubsubClient, err := pubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
-	if err != nil {
-		return fmt.Errorf("error creating pubsub client: %s", err)
+	if pubsubMeta.PrivateKeyID != "" {
+		authJSON := &GCPAuthJSON{
+			ProjectID:           pubsubMeta.ProjectID,
+			PrivateKeyID:        pubsubMeta.PrivateKeyID,
+			PrivateKey:          pubsubMeta.PrivateKey,
+			ClientEmail:         pubsubMeta.ClientEmail,
+			ClientID:            pubsubMeta.ClientID,
+			AuthURI:             pubsubMeta.AuthURI,
+			TokenURI:            pubsubMeta.TokenURI,
+			AuthProviderCertURL: pubsubMeta.AuthProviderX509CertURL,
+			ClientCertURL:       pubsubMeta.ClientX509CertURL,
+			Type:                pubsubMeta.Type,
+		}
+		gcpCompatibleJSON, _ := json.Marshal(authJSON)
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
+		pubsubClient, err = pubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
+		if err != nil {
+			return fmt.Errorf("error creating pubsub client: %s", err)
+		}
+	} else {
+		pubsubClient, err = pubsub.NewClient(ctx, pubsubMeta.ProjectID)
+		if err != nil {
+			return fmt.Errorf("error creating pubsub client: %s", err)
+		}
 	}
 
 	g.client = pubsubClient
 	g.metadata = &pubsubMeta
 
 	return nil
-}
-
-func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
-	return json.Marshal(metadata.Properties)
 }
 
 func (g *GCPPubSub) Read(ctx context.Context, handler bindings.Handler) error {

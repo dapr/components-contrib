@@ -42,7 +42,6 @@ import (
 type Status int
 
 type middlewareMetadata struct {
-	// TODO: rego field needs to be updated to support the objects as input that the docs show for this field as inputs
 	Rego                          string   `json:"rego" mapstructure:"rego"`
 	DefaultStatus                 Status   `json:"defaultStatus,omitempty" mapstructure:"defaultStatus"`
 	IncludedHeaders               string   `json:"includedHeaders,omitempty" mapstructure:"includedHeaders"`

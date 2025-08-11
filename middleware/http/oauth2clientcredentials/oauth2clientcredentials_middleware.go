@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
@@ -44,9 +43,6 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	HeaderName          string `json:"headerName" mapstructure:"headerName"`
 	EndpointParamsQuery string `json:"endpointParamsQuery,omitempty" mapstructure:"endpointParamsQuery"`
 	AuthStyle           int    `json:"authStyle" mapstructure:"authStyle"`
-	PathFilter          string `json:"pathFilter" mapstructure:"pathFilter"`
-
-	pathFilterRegex *regexp.Regexp
 }
 
 // TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests.
@@ -73,7 +69,7 @@ type Middleware struct {
 	tokenProvider TokenProviderInterface
 }
 
-// GetHandler returns the HTTP handler provided by the middleware.
+// GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
@@ -102,37 +98,26 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var headerValue string
 
-			if meta.pathFilterRegex != nil {
-				matched := meta.pathFilterRegex.MatchString(r.URL.Path)
-				if !matched {
-					m.log.Debugf("PathFilter %s didn't match %s! Skipping!", meta.PathFilter, r.URL.Path)
-					next.ServeHTTP(w, r)
-					return
-				}
-			}
-
 			// Check if valid token is in the cache
 			cachedToken, found := m.tokenCache.Get(cacheKey)
-			if found {
+			if !found {
+				m.log.Debugf("Cached token not found, try get one")
+
+				token, err := m.tokenProvider.GetToken(r.Context(), conf)
+				if err != nil {
+					m.log.Errorf("Error acquiring token: %s", err)
+					return
+				}
+
+				tokenExpirationDuration := time.Until(token.Expiry)
+				m.log.Debugf("Token expires at %s (%s from now)", token.Expiry, tokenExpirationDuration)
+
+				headerValue = token.Type() + " " + token.AccessToken
+				m.tokenCache.Set(cacheKey, headerValue, tokenExpirationDuration)
+			} else {
 				m.log.Debugf("Cached token found for key %s", cacheKey)
 				headerValue = cachedToken.(string)
-				r.Header.Add(meta.HeaderName, headerValue)
-				next.ServeHTTP(w, r)
-				return
 			}
-
-			m.log.Infof("Cached token not found, attempting to retrieve a new one")
-			token, err := m.tokenProvider.GetToken(r.Context(), conf)
-			if err != nil {
-				m.log.Errorf("Error acquiring token: %s", err)
-				return
-			}
-
-			tokenExpirationDuration := time.Until(token.Expiry)
-			m.log.Infof("Token expires at %s (%s from now)", token.Expiry, tokenExpirationDuration)
-
-			headerValue = token.Type() + " " + token.AccessToken
-			m.tokenCache.Set(cacheKey, headerValue, tokenExpirationDuration)
 
 			r.Header.Add(meta.HeaderName, headerValue)
 			next.ServeHTTP(w, r)
@@ -156,14 +141,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Cli
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientSecret, "clientSecret")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.Scopes, "scopes")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.TokenURL, "tokenURL")
-
-	if middlewareMetadata.PathFilter != "" {
-		rx, err := regexp.Compile(middlewareMetadata.PathFilter)
-		if err != nil {
-			errorString += "Parameter 'pathFilter' is not a valid regex: " + err.Error() + ". "
-		}
-		middlewareMetadata.pathFilterRegex = rx
-	}
 
 	// Value-check AuthStyle
 	if middlewareMetadata.AuthStyle < 0 || middlewareMetadata.AuthStyle > 2 {

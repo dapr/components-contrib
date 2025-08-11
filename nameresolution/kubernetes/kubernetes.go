@@ -69,7 +69,7 @@ func (k *resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 		return err
 	}
 
-	if cfg, ok := configInterface.(map[string]any); ok {
+	if cfg, ok := configInterface.(map[string]interface{}); ok {
 		clusterDomainAny := cfg[ClusterDomainKey]
 		tmplStrAny := cfg[TemplateKey]
 

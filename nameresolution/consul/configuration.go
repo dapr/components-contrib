@@ -30,7 +30,7 @@ const defaultDaprPortMetaKey string = "DAPR_PORT" // default key for DaprPort in
 // that way breaking changes in future versions of the consul api cannot break user configuration.
 type intermediateConfig struct {
 	Client               *Config
-	Checks               []*AgentServiceCheck // TODO: update this to bring properly to metadata
+	Checks               []*AgentServiceCheck
 	Tags                 []string
 	Meta                 map[string]string
 	QueryOptions         *QueryOptions
@@ -43,7 +43,7 @@ type intermediateConfig struct {
 
 type configSpec struct {
 	Client               *consul.Config
-	Checks               []*consul.AgentServiceCheck // TODO: update this to bring properly to metadata
+	Checks               []*consul.AgentServiceCheck
 	Tags                 []string
 	Meta                 map[string]string
 	QueryOptions         *consul.QueryOptions
@@ -60,7 +60,7 @@ func newIntermediateConfig() intermediateConfig {
 	}
 }
 
-func parseConfig(rawConfig any) (configSpec, error) {
+func parseConfig(rawConfig interface{}) (configSpec, error) {
 	var result configSpec
 	rawConfig, err := config.Normalize(rawConfig)
 	if err != nil {

@@ -37,7 +37,7 @@ func TestResolve(t *testing.T) {
 func TestResolveWithCustomClusterDomain(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
 	_ = resolver.Init(t.Context(), nameresolution.Metadata{
-		Configuration: map[string]any{
+		Configuration: map[string]interface{}{
 			"clusterDomain": "mydomain.com",
 		},
 	})
@@ -53,7 +53,7 @@ func TestResolveWithCustomClusterDomain(t *testing.T) {
 func TestResolveWithTemplate(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
 	_ = resolver.Init(t.Context(), nameresolution.Metadata{
-		Configuration: map[string]any{
+		Configuration: map[string]interface{}{
 			"template": "{{.ID}}-{{.Namespace}}.internal:{{.Port}}",
 		},
 	})
@@ -69,7 +69,7 @@ func TestResolveWithTemplate(t *testing.T) {
 func TestResolveWithTemplateAndData(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
 	_ = resolver.Init(t.Context(), nameresolution.Metadata{
-		Configuration: map[string]any{
+		Configuration: map[string]interface{}{
 			"template": "{{.ID}}-{{.Data.region}}.internal:{{.Port}}",
 		},
 	})

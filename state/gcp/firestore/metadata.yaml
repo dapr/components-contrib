@@ -12,11 +12,6 @@ authenticationProfiles:
   - title: "Service Account Authentication"
     description: "Authenticate using a GCP service account JSON key."
     metadata:
-      - name: project_id
-        type: string
-        required: true
-        description: The GCP project ID.
-        example: "my-project"
       - name: private_key_id
         type: string
         required: true
@@ -28,8 +23,7 @@ authenticationProfiles:
         description: The private key from the service account JSON.
         example: |
           -----BEGIN PRIVATE KEY-----
-          MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC6VJUIbJjbCWsN
-          # ... (truncated) ...
+          XXX
           -----END PRIVATE KEY-----
       - name: client_email
         type: string
@@ -61,23 +55,20 @@ authenticationProfiles:
         required: true
         description: The client certificate URL from the service account JSON.
         example: "https://www.googleapis.com/robot/v1/metadata/x509/firestore%40my-project.iam.gserviceaccount.com"
-  - title: "Implicit Credentials"
-    description: "Authenticate using implicit credentials (Application Default Credentials) for local development."
-    metadata:
-      - name: project_id
-        type: string
-        required: true
-        description: The GCP project ID.
-        example: "my-project"
-      - name: endpoint
-        type: string
-        required: false
-        description: The Firestore endpoint URL (for custom endpoints or emulator).
-        example: "https://firestore.googleapis.com"
 metadata:
+  - name: project_id
+    type: string
+    required: true
+    description: The GCP project ID.
+    example: "my-project"
+  - name: endpoint
+    type: string
+    required: false
+    description: The Firestore endpoint URL (for custom endpoints or emulator).
+    example: "https://firestore.googleapis.com"
   - name: entity_kind
     type: string
     required: false
     description: The entity kind (collection name) for storing state data.
     example: "dapr-state"
-    default: "DaprState" 
+    default: "DaprState"

@@ -9,22 +9,9 @@ urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-etcd/
 authenticationProfiles:
-  - title: "Basic Authentication"
-    description: "Connect to etcd without TLS encryption."
-    metadata:
-      - name: endpoints
-        type: string
-        required: true
-        description: Comma-separated list of etcd endpoints.
-        example: "localhost:2379"
   - title: "TLS Authentication"
     description: "Connect to etcd using TLS encryption with certificates."
     metadata:
-      - name: endpoints
-        type: string
-        required: true
-        description: Comma-separated list of etcd endpoints.
-        example: "localhost:2379"
       - name: tlsEnable
         type: string
         required: true
@@ -55,6 +42,11 @@ authenticationProfiles:
           XXX
           -----END PRIVATE KEY-----
 metadata:
+  - name: endpoints
+    type: string
+    required: true
+    description: Comma-separated list of etcd endpoints.
+    example: "localhost:2379"
   - name: keyPrefixPath
     type: string
     required: false
@@ -66,4 +58,4 @@ metadata:
     required: false
     description: Maximum number of operations allowed in a transaction.
     example: 128
-    default: 128 
+    default: 128

@@ -76,4 +76,4 @@ metadata:
     type: string
     required: true
     description: The OCID of the compartment containing the bucket.
-    example: "ocid1.compartment.oc1..example" 
+    example: "ocid1.compartment.oc1..example"

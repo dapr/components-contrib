@@ -8,4 +8,4 @@ title: "Echo"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-conversation/echo/
-metadata:
+metadata: []

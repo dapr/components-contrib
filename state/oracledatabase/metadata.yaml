@@ -28,4 +28,3 @@ metadata:
     description: The location of the Oracle wallet.
     example: "/path/to/wallet"
     default: ""
-      

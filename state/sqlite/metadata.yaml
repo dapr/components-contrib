@@ -50,4 +50,4 @@ metadata:
     required: false
     description: Interval for cleanup operations in seconds. Set to 0 to disable.
     example: "0s"
-    default: "0s" 
+    default: "0s"

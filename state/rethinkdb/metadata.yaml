@@ -9,7 +9,7 @@ urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-rethinkdb/
 authenticationProfiles:
-  - title: "Basic Authentication"
+  - title: "Username/Password Authentication"
     description: "Authenticate using username and password."
     metadata:
       - name: address
@@ -78,4 +78,4 @@ metadata:
     required: false
     description: Whether to enable opentracing for queries.
     example: false
-    default: false 
+    default: false

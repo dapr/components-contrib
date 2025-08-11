@@ -77,3 +77,8 @@ metadata:
     required: true
     description: The OCID of the compartment containing the bucket.
     example: "ocid1.compartment.oc1..example"
+  - name: namespace
+    type: string
+    required: false
+    description: The OCI namespace for the object storage.
+    example: "my-namespace"

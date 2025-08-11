@@ -22,23 +22,23 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The AWS access key"
-        example: '"AKIAIOSFODNN7EXAMPLE"'
+        example: "AKIAIOSFODNN7EXAMPLE"
       - name: secretKey
         required: true
         sensitive: true
         description: "The AWS secret key"
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       - name: sessionToken
         required: false
         sensitive: true
         description: "The AWS session token"
-        example: '"TOKEN"'
+        example: "TOKEN"
       - name: region
         required: true
         description: "The AWS region"
-        example: '"us-east-1"'
+        example: "us-east-1"
 metadata:
   - name: table
     required: true
     description: "The DynamoDB table name"
-    example: '"my-table"'
+    example: "my-table"

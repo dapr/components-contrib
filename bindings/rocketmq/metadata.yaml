@@ -24,17 +24,17 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The access key for authentication"
-        example: '"your-access-key"'
+        example: "access-key"
       - name: secretKey
         required: true
         sensitive: true
         description: "The secret key for authentication"
-        example: '"your-secret-key"'
+        example: "secret-key"
 metadata:
   - name: accessProto
     required: false
     description: "SDK protocol"
-    example: '"tcp"'
+    example: "tcp"
     allowedValues:
       - "tcp"
       - "tcp-cgo"
@@ -42,15 +42,15 @@ metadata:
   - name: nameServer
     required: false
     description: "The RocketMQ name server address"
-    example: '"localhost:9876"'
+    example: "localhost:9876"
   - name: endpoint
     required: false
     description: "The RocketMQ endpoint (for http proto)"
-    example: '"http://localhost:8080"'
+    example: "http://localhost:8080"
   - name: consumerGroup
     required: false
     description: "Consumer group for RocketMQ subscribers"
-    example: '"my-consumer-group"'
+    example: "my-consumer-group"
   - name: consumerBatchSize
     required: false
     description: "Consumer batch size"
@@ -62,11 +62,11 @@ metadata:
   - name: instanceId
     required: false
     description: "RocketMQ namespace"
-    example: '"my-instance"'
+    example: "my-instance"
   - name: nameServerDomain
     required: false
     description: "RocketMQ name server domain"
-    example: '"rocketmq.example.com"'
+    example: "rocketmq.example.com"
   - name: retries
     required: false
     description: "Retry times to connect to RocketMQ broker"
@@ -74,4 +74,4 @@ metadata:
   - name: topics
     required: true
     description: "Topics to subscribe (comma-separated for multiple topics)"
-    example: '"topic1,topic2,topic3"'
+    example: "topic1,topic2,topic3"

@@ -20,7 +20,7 @@ metadata:
   - name: id
     required: true
     description: "The webhook ID"
-    example: '"your-webhook-id"'
+    example: "your-webhook-id"
   - name: url
     required: true
     description: "The webhook URL"
@@ -28,4 +28,4 @@ metadata:
   - name: secret
     required: false
     description: "The webhook secret for signature verification"
-    example: '"your-webhook-secret"'
+    example: "your-webhook-secret"

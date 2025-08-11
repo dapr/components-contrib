@@ -18,23 +18,23 @@ metadata:
   - name: interfaceName
     required: true
     description: "The Dubbo interface name"
-    example: '"com.example.UserService"'
+    example: "com.example.UserService"
   - name: methodName
     required: true
     description: "The method name to invoke"
-    example: '"getUser"'
+    example: "getUser"
   - name: version
     required: false
     description: "The service version"
-    example: '"1.0.0"'
+    example: "1.0.0"
   - name: group
     required: false
     description: "The service group"
-    example: '"mygroup"'
+    example: "mygroup"
   - name: providerHostname
     required: false
     description: "The provider hostname"
-    example: '"localhost"'
+    example: "localhost"
   - name: providerPort
     required: false
     description: "The provider port"

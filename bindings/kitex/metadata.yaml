@@ -18,16 +18,16 @@ metadata:
   - name: serviceName
     required: true
     description: "The Kitex service name"
-    example: '"my-service"'
+    example: "my-service"
   - name: methodName
     required: true
     description: "The method name to invoke"
-    example: '"getUser"'
+    example: "getUser"
   - name: destService
     required: true
     description: "The destination service name"
-    example: '"my-service"'
+    example: "my-service"
   - name: hostPorts
     required: true
     description: "The service address"
-    example: '"localhost:8080"'
+    example: "localhost:8080"

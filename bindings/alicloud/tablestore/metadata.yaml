@@ -1,3 +1,4 @@
+
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: bindings
@@ -22,12 +23,12 @@ authenticationProfiles:
       - name: accessKeyID
         required: true
         description: "The AliCloud access key ID"
-        example: '"your-access-key-id"'
+        example: "access-key-id"
       - name: accessKeySecret
         required: true
         sensitive: true
         description: "The AliCloud access key secret"
-        example: '"your-access-key-secret"'
+        example: "access-key-secret"
 metadata:
   - name: endpoint
     required: true
@@ -36,8 +37,8 @@ metadata:
   - name: instanceName
     required: true
     description: "The Table Store instance name"
-    example: '"your-instance-name"'
+    example: "instance-name"
   - name: tableName
     required: true
     description: "The table name to write to"
-    example: '"your-table-name"'
+    example: "table-name"

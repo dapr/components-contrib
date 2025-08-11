@@ -24,7 +24,7 @@ authenticationProfiles:
         type: string
         required: true
         description: The authentication token for KubeMQ.
-        example: "your-auth-token"
+        example: "auth-token"
 metadata:
   - name: address
     type: string

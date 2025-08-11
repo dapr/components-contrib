@@ -18,13 +18,13 @@ metadata:
   - name: namespace
     required: false
     description: "The Kubernetes namespace"
-    example: '"default"'
-    default: '"default"'
+    example: "default"
+    default: "default"
   - name: kubeconfigPath
     required: false
     description: "The path to the kubeconfig file"
-    example: '"~/.kube/config"'
-    default: '"~/.kube/config"'
+    example: "~/.kube/config"
+    default: "~/.kube/config"
   - name: resyncPeriodInSec
     required: false
     type: duration

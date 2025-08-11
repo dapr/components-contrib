@@ -18,8 +18,8 @@ metadata:
   - name: rootPath
     required: true
     description: "The root directory path"
-    example: '"/tmp/dapr"'
+    example: "/tmp/dapr"
   - name: fileName
     required: true
     description: "The file name to write"
-    example: '"data.txt"'
+    example: "data.txt"

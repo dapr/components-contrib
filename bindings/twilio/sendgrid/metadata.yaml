@@ -23,33 +23,33 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The SendGrid API key"
-        example: '"SG.your-api-key"'
+        example: "SG.api-key"
 metadata:
   - name: emailFrom
     required: true
     description: "The sender email address"
-    example: '"sender@example.com"'
+    example: "sender@example.com"
   - name: emailTo
     required: true
     description: "The recipient email address"
-    example: '"recipient@example.com"'
+    example: "recipient@example.com"
   - name: subject
     required: true
     description: "The email subject"
-    example: '"Hello from Dapr"'
+    example: "Hello from Dapr"
   - name: emailCc
     required: false
     description: "The CC email address"
-    example: '"cc@example.com"'
+    example: "cc@example.com"
   - name: emailBcc
     required: false
     description: "The BCC email address"
-    example: '"bcc@example.com"'
+    example: "bcc@example.com"
   - name: dynamicTemplateData
     required: false
     description: "The dynamic template data"
-    example: '"{"name":"John","age":30}"'
+    example: '{"name":"John","age":30}'
   - name: dynamicTemplateId
     required: false
     description: "The dynamic template ID"
-    example: '"your-template-id"'
+    example: "your-template-id"

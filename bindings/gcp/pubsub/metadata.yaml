@@ -22,8 +22,8 @@ metadata:
   - name: topic
     required: true
     description: "The Pub/Sub topic name"
-    example: '"my-topic"'
+    example: "my-topic"
   - name: subscription
     required: false
     description: "The Pub/Sub subscription name"
-    example: '"my-subscription"'
+    example: "my-subscription"

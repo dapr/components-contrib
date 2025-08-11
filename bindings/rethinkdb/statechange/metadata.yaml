@@ -84,4 +84,4 @@ metadata:
     required: false
     description: Whether to enable opentracing for queries.
     example: false
-    default: false 
+    default: false

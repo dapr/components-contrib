@@ -22,21 +22,21 @@ authenticationProfiles:
       - name: accountSid
         required: true
         description: "The Twilio account SID"
-        example: '"AC1234567890abcdef"'
+        example: "AC1234567890abcdef"
       - name: authToken
         required: true
         sensitive: true
         description: "The Twilio auth token"
-        example: '"your-auth-token"'
+        example: "auth-token"
 metadata:
   - name: fromNumber
     required: true
     description: "The sender phone number"
-    example: '"+1234567890"'
+    example: "+1234567890"
   - name: toNumber
     required: true
     description: "The recipient phone number"
-    example: '"+0987654321"'
+    example: "+0987654321"
   - name: timeout
     required: false
     type: duration

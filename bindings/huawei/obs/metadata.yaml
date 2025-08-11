@@ -22,22 +22,22 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The Huawei Cloud access key ID"
-        example: '"your-access-key-id"'
+        example: "access-key-id"
       - name: secretKey
         required: true
         sensitive: true
         description: "The Huawei Cloud secret access key"
-        example: '"your-secret-access-key"'
+        example: "secret-access-key"
       - name: region
         required: true
         description: "The Huawei Cloud region"
-        example: '"cn-north-4"'
+        example: "cn-north-4"
 metadata:
   - name: endpoint
     required: true
     description: "The OBS endpoint"
-    example: '"https://obs.cn-north-4.myhuaweicloud.com"'
+    example: "https://obs.cn-north-4.myhuaweicloud.com"
   - name: bucket
     required: true
     description: "The OBS bucket name"
-    example: '"your-bucket-name"'
+    example: "bucket-name"

@@ -25,20 +25,20 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The Cloudflare API token"
-        example: '"your-api-token"'
+        example: "api-token"
       - name: cfAccountID
         required: true
         description: "The Cloudflare account ID"
-        example: '"your-account-id"'
+        example: "account-id"
       - name: key
         required: true
         sensitive: true
         description: "The Ed25519 private key in PKCS#8 PEM format for JWT signing"
-        example: '"-----BEGIN PRIVATE KEY-----\nXXX..."'
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
       - name: workerName
         required: true
         description: "The worker name for JWT token audience"
-        example: '"my-worker"'
+        example: "worker"
   - title: "Connect to Pre-deployed Worker"
     description: |
       Connect to a worker that has been pre-deployed and is ready to use. No API tokens needed.
@@ -46,16 +46,16 @@ authenticationProfiles:
       - name: workerUrl
         required: true
         description: "The Cloudflare worker URL"
-        example: '"https://your-worker.your-subdomain.workers.dev"'
+        example: "https://your-worker.your-subdomain.workers.dev"
       - name: key
         required: true
         sensitive: true
         description: "The Ed25519 private key in PKCS#8 PEM format for JWT signing"
-        example: '"-----BEGIN PRIVATE KEY-----\nXXX..."'
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
       - name: workerName
         required: true
         description: "The worker name for JWT token audience"
-        example: '"my-worker"'
+        example: "my-worker"
 metadata:
   - name: timeoutInSeconds
     required: false

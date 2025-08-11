@@ -24,39 +24,39 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The AWS access key"
-        example: '"AKIAIOSFODNN7EXAMPLE"'
+        example: "AKIAIOSFODNN7EXAMPLE"
       - name: secretKey
         required: true
         sensitive: true
         description: "The AWS secret key"
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       - name: sessionToken
         required: false
         sensitive: true
         description: "The AWS session token"
-        example: '"TOKEN"'
+        example: "TOKEN"
       - name: region
         required: true
         description: "The AWS region"
-        example: '"us-east-1"'
+        example: "us-east-1"
 metadata:
   - name: streamName
     required: true
     description: "The Kinesis stream name"
-    example: '"my-stream"'
+    example: "my-stream"
   - name: consumerName
     required: false
     description: "The consumer name for input binding"
-    example: '"my-consumer"'
+    example: "my-consumer"
   - name: mode
     required: false
     description: "The consumer mode"
-    example: '"shared"'
-    default: '"shared"'
+    example: "shared"
+    default: "shared"
     allowedValues:
       - "shared"
       - "extended"
   - name: partitionKey
     required: false
     description: "The partition key for the Kinesis stream"
-    example: '"my-partition-key"'
+    example: "partition-key"

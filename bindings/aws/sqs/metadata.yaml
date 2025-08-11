@@ -24,12 +24,12 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The AWS access key"
-        example: '"AKIAIOSFODNN7EXAMPLE"'
-      - name: secretKey
+        example: "AKIAIOSFODNN7EXAMPLE"
+    - name: secretKey
         required: true
         sensitive: true
         description: "The AWS secret key"
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       - name: sessionToken
         required: false
         sensitive: true
@@ -38,9 +38,9 @@ authenticationProfiles:
       - name: region
         required: true
         description: "The AWS region"
-        example: '"us-east-1"'
+        example: "us-east-1"
 metadata:
   - name: queueName
     required: true
     description: "The SQS queue name"
-    example: '"my-queue"'
+    example: "my-queue"

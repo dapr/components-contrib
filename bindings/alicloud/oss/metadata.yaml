@@ -33,12 +33,12 @@ metadata:
   - name: endpoint
     required: true
     description: "The OSS endpoint"
-    example: '"https://oss-cn-hangzhou.aliyuncs.com"'
+    example: "https://oss-cn-hangzhou.aliyuncs.com"
   - name: bucket
     required: true
     description: "The OSS bucket name"
-    example: '"your-bucket-name"'
+    example: "your-bucket-name"
   - name: objectKey
     required: true
     description: "The object key in the bucket"
-    example: '"path/to/file.txt"'
+    example: "path/to/file.txt"

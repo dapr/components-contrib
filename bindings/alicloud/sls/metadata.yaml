@@ -23,17 +23,17 @@ authenticationProfiles:
         required: false
         sensitive: true
         description: "The AliCloud access key ID"
-        example: '"your-access-key-id"'
+        example: "your-access-key-id"
       - name: accessKeySecret
         required: false
         sensitive: true
         description: "The AliCloud access key secret"
-        example: '"your-access-key-secret"'
+        example: "your-access-key-secret"
 metadata:
   - name: endpoint
     required: true
     description: "The SLS endpoint"
-    example: '"https://your-project.cn-hangzhou.log.aliyuncs.com"'
+    example: "https://your-project.cn-hangzhou.log.aliyuncs.com"
   - name: project
     required: true
     description: "The SLS project name"
@@ -41,12 +41,12 @@ metadata:
   - name: logstore
     required: true
     description: "The SLS logstore name"
-    example: '"your-logstore-name"'
+    example: "your-logstore-name"
   - name: topic
     required: true
     description: "The SLS topic name"
-    example: '"your-topic-name"'
+    example: "your-topic-name"
   - name: source
     required: true
     description: "The SLS source name"
-    example: '"your-source-name"'
+    example: "your-source-name"

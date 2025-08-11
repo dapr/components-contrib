@@ -23,21 +23,21 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The InfluxDB authentication token"
-        example: '"your-influxdb-token"'
+        example: "your-influxdb-token"
 metadata:
   - name: url
     required: true
     description: "The InfluxDB server URL"
-    example: '"http://localhost:8086"'
+    example: "http://localhost:8086"
   - name: org
     required: true
     description: "The InfluxDB organization name"
-    example: '"your-org"'
+    example: "your-org"
   - name: bucket
     required: true
     description: "The InfluxDB bucket name"
-    example: '"your-bucket"'
+    example: "your-bucket"
   - name: measurement
     required: true
     description: "The measurement name"
-    example: '"cpu_usage"' 
+    example: "cpu_usage"

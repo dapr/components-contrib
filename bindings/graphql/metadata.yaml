@@ -18,4 +18,4 @@ metadata:
   - name: endpoint
     required: true
     description: "The GraphQL endpoint URL"
-    example: '"https://api.example.com/graphql"'
+    example: "https://api.example.com/graphql"

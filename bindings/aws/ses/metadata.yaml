@@ -22,39 +22,39 @@ authenticationProfiles:
       - name: accessKey
         required: true
         description: "The AWS access key"
-        example: '"AKIAIOSFODNN7EXAMPLE"'
+        example: "AKIAIOSFODNN7EXAMPLE"
       - name: secretKey
         required: true
         sensitive: true
         description: "The AWS secret key"
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       - name: sessionToken
         required: false
         sensitive: true
         description: "The AWS session token"
-        example: '"TOKEN"'
+        example: "TOKEN"
       - name: region
         required: true
         description: "The AWS region"
-        example: '"us-east-1"'
+        example: "us-east-1"
 metadata:
   - name: emailFrom
     required: true
     description: "The sender email address"
-    example: '"sender@example.com"'
+    example: "sender@example.com"
   - name: emailTo
     required: true
     description: "The recipient email address"
-    example: '"recipient@example.com"'
+    example: "recipient@example.com"
   - name: subject
     required: true
     description: "The email subject"
-    example: '"Hello from Dapr"' 
+    example: "Hello from Dapr"
   - name: emailCc
     required: false
     description: "The email CC address"
-    example: '"cc@example.com"'
+    example: "cc@example.com"
   - name: emailBcc
     required: false
     description: "The email BCC address"
-    example: '"bcc@example.com"'
+    example: "bcc@example.com"

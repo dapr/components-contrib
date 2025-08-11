@@ -15,7 +15,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -319,36 +318,6 @@ func (a *StaticAuth) getDatabaseToken(ctx context.Context, poolConfig *pgxpool.C
 	return authenticationToken, nil
 }
 
-func (a *StaticAuth) Kafka(opts KafkaOptions) (*KafkaClients, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// This means we've already set the config in our New function
-	// to use the SASL token provider.
-	if a.clients.kafka != nil {
-		return a.clients.kafka, nil
-	}
-
-	a.clients.kafka = initKafkaClients(opts)
-	// static auth has additional fields we need added,
-	// so we add those static auth specific fields here,
-	// and the rest of the token provider fields are added in New()
-	tokenProvider := mskTokenProvider{}
-	if a.assumeRoleARN != nil {
-		tokenProvider.awsIamRoleArn = *a.assumeRoleARN
-	}
-	if a.sessionName != "" {
-		tokenProvider.awsStsSessionName = a.sessionName
-	}
-
-	err := a.clients.kafka.New(a.session, &tokenProvider)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS IAM Kafka config: %w", err)
-	}
-
-	return a.clients.kafka, nil
-}
-
 func (a *StaticAuth) createSession() (*session.Session, error) {
 	var awsConfig *aws.Config
 	if a.cfg == nil {
@@ -390,21 +359,7 @@ func (a *StaticAuth) createSession() (*session.Session, error) {
 }
 
 func (a *StaticAuth) Close() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	errs := make([]error, 2)
-	if a.clients.kafka != nil {
-		if a.clients.kafka.Producer != nil {
-			errs[0] = a.clients.kafka.Producer.Close()
-			a.clients.kafka.Producer = nil
-		}
-		if a.clients.kafka.ConsumerGroup != nil {
-			errs[1] = a.clients.kafka.ConsumerGroup.Close()
-			a.clients.kafka.ConsumerGroup = nil
-		}
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func GetConfigV2(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (awsv2.Config, error) {

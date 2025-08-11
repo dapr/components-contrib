@@ -19,16 +19,47 @@ authenticationProfiles:
     description: |
       Authenticate using Redis password.
     metadata:
+      - name: redisUsername
+        required: false
+        description: "The Redis username"
+        example: "redis-user"
       - name: redisPassword
         required: false
         sensitive: true
         description: "The Redis password"
         example: "redis-password"
+  - title: "Sentinel Authentication"
+    description: |
+      Authenticate using Redis Sentinel password.
+    metadata:
+      - name: sentinelUsername
+        required: false
+        description: "The Redis Sentinel username"
+        example: "sentinel-user"
+      - name: sentinelPassword
+        required: false
+        sensitive: true
+        description: "The Redis Sentinel password"
+        example: "sentinel-password"
+  - title: "TLS Authentication"
+    description: |
+      Authenticate using Redis TLS certificate.
+    metadata:
+      - name: clientCert
+        required: false
+        sensitive: true
+        description: "The Redis client certificate"
+        example: '"-----BEGIN CERTIFICATE-----\nXXX..."'
+      - name: clientKey
+        required: false
+        sensitive: true
+        description: "The Redis client key"
+        example: '"-----BEGIN PRIVATE KEY-----\nXXX..."'
 metadata:
   - name: redisHost
     required: true
     description: "The Redis host address"
-    example: "localhost:6379"
+    example: '"localhost:6379"'
   - name: redisType
     required: false
     description: "The Redis type"

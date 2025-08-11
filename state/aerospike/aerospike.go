@@ -34,9 +34,9 @@ import (
 )
 
 type aerospikeMetadata struct {
-	Hosts     string `json:"hosts"`
-	Namespace string `json:"namespace"`
-	Set       string `json:"set"` // optional
+	Hosts     string
+	Namespace string
+	Set       string // optional
 }
 
 var (

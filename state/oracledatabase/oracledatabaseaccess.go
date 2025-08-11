@@ -50,9 +50,9 @@ type oracleDatabaseAccess struct {
 }
 
 type oracleDatabaseMetadata struct {
-	ConnectionString     string `json:"connectionString"`
-	OracleWalletLocation string `json:"oracleWalletLocation"`
-	TableName            string `json:"tableName"`
+	ConnectionString     string
+	OracleWalletLocation string
+	TableName            string
 }
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.
@@ -514,16 +514,8 @@ func (o *oracleDatabaseAccess) ensureStateTable(stateTableName string) error {
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
-	//nolint:gosec
-	query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM = 1", tableName)
-
-	var dummy int
-	err := db.QueryRow(query).Scan(&dummy)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return true, nil // Table exists but is empty
-		}
-		return false, nil // Likely a table does not exist error
-	}
-	return true, nil
+	var tblCount int32
+	err := db.QueryRow("SELECT count(table_name) tbl_count FROM user_tables WHERE table_name = upper(:tablename)", tableName).Scan(&tblCount)
+	exists := tblCount > 0
+	return exists, err
 }

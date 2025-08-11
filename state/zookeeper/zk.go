@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-// TODO: I think we need more defaults set on these metadata fields.
 const (
 	anyVersion               = -1
 	defaultMaxBufferSize     = 1024 * 1024

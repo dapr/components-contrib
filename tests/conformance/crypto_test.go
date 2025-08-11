@@ -26,7 +26,7 @@ import (
 	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
 	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
 	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
-	conf_crypto "github.com/dapr/components-contrib/tests/conformance/cryptography"
+	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
 )
 
 func TestCryptoConformance(t *testing.T) {

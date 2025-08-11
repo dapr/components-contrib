@@ -18,7 +18,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	// Name resolutions.
-	nrConsul "github.com/dapr/components-contrib/nameresolution/hashicorp/consul"
+	nrConsul "github.com/dapr/components-contrib/nameresolution/consul"
 	nrKubernetes "github.com/dapr/components-contrib/nameresolution/kubernetes"
 	nrMdns "github.com/dapr/components-contrib/nameresolution/mdns"
 

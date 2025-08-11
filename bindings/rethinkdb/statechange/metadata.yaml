@@ -44,6 +44,26 @@ authenticationProfiles:
         required: false
         description: The password for authentication. This is only used for v1 handshake protocol.
         example: "password"
+  - title: "TLS Authentication"
+    description: "Authenticate using client certificate and key."
+    metadata:
+      - name: enableTLS
+        type: bool
+        required: false
+        description: Whether to enable TLS encryption.
+        example: false
+        default: false
+      - name: clientCert
+        type: string
+        required: true
+        description: The client certificate for TLS authentication.
+        example: "-----BEGIN CERTIFICATE-----\nXXX..."
+      - name: clientKey
+        type: string
+        required: true
+        description: The client key for TLS authentication.
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
+        sensitive: true
 metadata:
   - name: table
     type: string
@@ -69,7 +89,7 @@ metadata:
     example: false
     default: false
   - name: numRetries
-    type: int
+    type: number
     required: false
     description: Number of times to retry queries on connection errors.
     example: 3
@@ -85,3 +105,54 @@ metadata:
     description: Whether to enable opentracing for queries.
     example: false
     default: false
+  - name: writeTimeout
+    type: string
+    required: false
+    description: Write timeout duration."
+    example: "10s"
+  - name: readTimeout
+    type: string
+    required: false
+    description: Read timeout duration."
+    example: "10s"
+  - name: handshakeVersion
+    type: number
+    required: false
+    description: Handshake version for RethinkDB."
+    example: 1
+  - name: keepAlivePeriod
+    type: string
+    required: false
+    description: Keep alive period duration."
+    example: "30s"
+  - name: maxIdle
+    type: number
+    required: false
+    description: Maximum number of idle connections."
+    example: 5
+  - name: authKey
+    type: string
+    required: false
+    description: The authentication key for RethinkDB. This field is now deprecated."
+    example: "auth-key"
+    sensitive: true
+  - name: initialCap
+    type: number
+    required: false
+    description: Initial connection pool capacity."
+    example: 5
+  - name: maxOpen
+    type: number
+    required: false
+    description: Maximum number of open connections."
+    example: 10
+  - name: discoverHosts
+    type: bool
+    required: false
+    description: Whether to discover hosts."
+    example: false
+  - name: nodeRefreshInterval
+    type: string
+    required: false
+    description: Node refresh interval duration."
+    example: "5m"

@@ -23,17 +23,12 @@ authenticationProfiles:
         required: false
         sensitive: true
         description: "The Redis password"
-        example: '"your-redis-password"'
+        example: "redis-password"
 metadata:
   - name: redisHost
     required: true
     description: "The Redis host address"
-    example: '"localhost:6379"'
-  - name: redisPassword
-    required: false
-    sensitive: true
-    description: "The Redis password"
-    example: '"your-redis-password"'
+    example: "localhost:6379"
   - name: redisType
     required: false
     description: "The Redis type"
@@ -149,4 +144,4 @@ metadata:
   - name: sentinelMasterName
     required: false
     description: "The Sentinel master name (used if redisType is 'sentinel')"
-    example: '"mymaster"'
+    example: "mymaster"

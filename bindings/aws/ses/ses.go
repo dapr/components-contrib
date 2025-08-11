@@ -43,7 +43,6 @@ type AWSSES struct {
 	logger       logger.Logger
 }
 
-// TODO: the metadata fields need updating to use the builtin aws auth provider fully and reflect in metadata.yaml
 type sesMetadata struct {
 	Region       string `json:"region"`
 	AccessKey    string `json:"accessKey"`

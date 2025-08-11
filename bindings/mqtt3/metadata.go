@@ -25,14 +25,16 @@ import (
 
 const (
 	// Keys.
-	mqttURL          = "url"
-	mqttTopic        = "topic"
-	mqttQOS          = "qos" // This key is deprecated
-	mqttRetain       = "retain"
-	mqttCleanSession = "cleanSession"
-	mqttCACert       = "caCert"
-	mqttClientCert   = "clientCert"
-	mqttClientKey    = "clientKey"
+	mqttURL               = "url"
+	mqttTopic             = "topic"
+	mqttQOS               = "qos" // This key is deprecated
+	mqttRetain            = "retain"
+	mqttClientID          = "consumerID"
+	mqttCleanSession      = "cleanSession"
+	mqttCACert            = "caCert"
+	mqttClientCert        = "clientCert"
+	mqttClientKey         = "clientKey"
+	mqttBackOffMaxRetries = "backOffMaxRetries"
 
 	// Defaults.
 	defaultQOS          = 1

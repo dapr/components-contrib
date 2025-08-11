@@ -28,7 +28,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -47,28 +46,10 @@ type GCPPubSub struct {
 	wg       sync.WaitGroup
 }
 
-// These JSON tags directly match the builtin auth provider metadata fields for GCP.
-// TODO: in future, this needs to use the same setup that pubsub gcp pubsub component uses,
-// so we can embed the builtin auth profile instead...
 type pubSubMetadata struct {
-	Topic        string `json:"topic"`
-	Subscription string `json:"subscription"`
-
-	// metadata analyzer needs to ignore these fields as they are part of the builtin auth profile
-	Type                    string `json:"type" mdignore:"true"`
-	ProjectID               string `json:"projectID" mdignore:"true"`
-	PrivateKeyID            string `json:"privateKeyID" mdignore:"true"`
-	PrivateKey              string `json:"privateKey" mdignore:"true"`
-	ClientEmail             string `json:"clientEmail" mdignore:"true"`
-	ClientID                string `json:"clientID" mdignore:"true"`
-	AuthURI                 string `json:"authURI" mdignore:"true"`
-	TokenURI                string `json:"tokenURI" mdignore:"true"`
-	AuthProviderX509CertURL string `json:"authProviderX509CertURL" mdignore:"true"`
-	ClientX509CertURL       string `json:"clientX509CertURL" mdignore:"true"`
-}
-
-// TODO: in future, we need to clean this up to rm duplication between this and the pubsub gcp pubsub component
-type GCPAuthJSON struct {
+	Topic               string `json:"topic"`
+	Subscription        string `json:"subscription"`
+	Type                string `json:"type"`
 	ProjectID           string `json:"project_id"`
 	PrivateKeyID        string `json:"private_key_id"`
 	PrivateKey          string `json:"private_key"`
@@ -78,7 +59,6 @@ type GCPAuthJSON struct {
 	TokenURI            string `json:"token_uri"`
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url"`
-	Type                string `json:"type"`
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance.
@@ -89,74 +69,32 @@ func NewGCPPubSub(logger logger.Logger) bindings.InputOutputBinding {
 	}
 }
 
-func parseMetadata(metadata bindings.Metadata) (*pubSubMetadata, error) {
-	result := pubSubMetadata{
-		Type: "service_account",
-	}
-
-	err := kitmd.DecodeMetadata(metadata.Properties, &result)
-	if err != nil {
-		return nil, err
-	}
-
-	if result.ProjectID == "" {
-		return nil, errors.New("missing attribute projectID")
-	}
-
-	return &result, nil
-}
-
 // Init parses metadata and creates a new Pub Sub client.
 func (g *GCPPubSub) Init(ctx context.Context, metadata bindings.Metadata) error {
-	pubsubMeta, err := parseMetadata(metadata)
+	b, err := g.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	pubsubClient, err := g.getPubSubClient(ctx, pubsubMeta)
+	var pubsubMeta pubSubMetadata
+	err = json.Unmarshal(b, &pubsubMeta)
+	if err != nil {
+		return err
+	}
+	clientOptions := option.WithCredentialsJSON(b)
+	pubsubClient, err := pubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
 	if err != nil {
 		return fmt.Errorf("error creating pubsub client: %s", err)
 	}
 
 	g.client = pubsubClient
-	g.metadata = pubsubMeta
+	g.metadata = &pubsubMeta
 
 	return nil
 }
 
-func (g *GCPPubSub) getPubSubClient(_ context.Context, metadata *pubSubMetadata) (*pubsub.Client, error) {
-	var pubsubClient *pubsub.Client
-	var err error
-
-	if metadata.PrivateKeyID != "" {
-		// TODO: validate that all auth json fields are filled
-		authJSON := &GCPAuthJSON{
-			ProjectID:           metadata.ProjectID,
-			PrivateKeyID:        metadata.PrivateKeyID,
-			PrivateKey:          metadata.PrivateKey,
-			ClientEmail:         metadata.ClientEmail,
-			ClientID:            metadata.ClientID,
-			AuthURI:             metadata.AuthURI,
-			TokenURI:            metadata.TokenURI,
-			AuthProviderCertURL: metadata.AuthProviderX509CertURL,
-			ClientCertURL:       metadata.ClientX509CertURL,
-			Type:                metadata.Type,
-		}
-		gcpCompatibleJSON, _ := json.Marshal(authJSON)
-		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
-		pubsubClient, err = pubsub.NewClient(context.Background(), metadata.ProjectID, clientOptions)
-		if err != nil {
-			return pubsubClient, err
-		}
-	} else {
-		// Use implicit credentials
-		pubsubClient, err = pubsub.NewClient(context.Background(), metadata.ProjectID)
-		if err != nil {
-			return pubsubClient, err
-		}
-	}
-
-	return pubsubClient, nil
+func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
+	return json.Marshal(metadata.Properties)
 }
 
 func (g *GCPPubSub) Read(ctx context.Context, handler bindings.Handler) error {

@@ -36,7 +36,6 @@ type DynamoDB struct {
 	logger       logger.Logger
 }
 
-// TODO: the metadata fields need updating to use the builtin aws auth provider fully and reflect in metadata.yaml
 type dynamoDBMetadata struct {
 	Region       string `json:"region" mapstructure:"region"`
 	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`

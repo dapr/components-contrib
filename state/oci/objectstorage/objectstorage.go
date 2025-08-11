@@ -79,7 +79,7 @@ type objectStoreMetadata struct {
 	InstancePrincipalAuthentication bool
 	ConfigFileAuthentication        bool
 
-	OCIObjectStorageClient *objectstorage.ObjectStorageClient
+	OCIObjectStorageClient *objectstorage.ObjectStorageClient `mapstructure:"-"`
 }
 
 type objectStoreClient interface {

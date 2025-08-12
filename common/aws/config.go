@@ -54,6 +54,13 @@ func NewConfig(ctx context.Context, authOptions auth.Options, opts ...ConfigOpti
 		)
 	}
 
+	if authOptions.Region != "" {
+		configLoadOptions = append(
+			configLoadOptions,
+			config.WithRegion(authOptions.Region),
+		)
+	}
+
 	if options.HTTPClient != nil {
 		configLoadOptions = append(
 			configLoadOptions,

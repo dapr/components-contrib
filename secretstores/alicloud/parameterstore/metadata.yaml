@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: alicloud.parameterstore
+version: v1
+status: alpha
+title: "AliCloud OSS Parameter Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/alicloud-oss-parameter-store/
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: "Authenticate using AliCloud access key and secret."
+    metadata:
+      - name: regionId
+        type: string
+        required: true
+        description: The AliCloud region ID.
+        example: "cn-hangzhou"
+      - name: accessKeyId
+        type: string
+        required: true
+        description: The AliCloud access key ID.
+        example: "access-key-id"
+      - name: accessKeySecret
+        type: string
+        required: true
+        description: The AliCloud access key secret.
+        example: "access-key-secret"
+      - name: securityToken
+        type: string
+        required: false
+        description: The AliCloud security token for temporary credentials.
+        example: "security-token"
+metadata:
+  - name: version_id
+    type: string
+    required: false
+    description: The version ID of the parameter to retrieve. If not specified, the latest version is used.
+    example: "1"
+  - name: path
+    type: string
+    required: false
+    description: The path prefix for bulk operations. If not specified, root path (/) is used.
+    example: "/myapp/"

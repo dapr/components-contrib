@@ -48,9 +48,9 @@ type csmsSecretStore struct {
 }
 
 type CsmsSecretStoreMetadata struct {
-	Region          string
-	AccessKey       string
-	SecretAccessKey string
+	Region          string `json:"region"`
+	AccessKey       string `json:"accessKey"`
+	SecretAccessKey string `json:"secretAccessKey"`
 }
 
 // NewHuaweiCsmsSecretStore returns a new Huawei csms secret store.
@@ -114,7 +114,7 @@ func (c *csmsSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bu
 		secret, err := c.GetSecret(ctx, secretstores.GetSecretRequest{
 			Name: secretName,
 			Metadata: map[string]string{
-				versionID: latestVersion,
+				versionID: latestVersion, // TODO: make this configurable
 			},
 		})
 		if err != nil {
@@ -130,7 +130,7 @@ func (c *csmsSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bu
 // Get all secret names recursively.
 func (c *csmsSecretStore) getSecretNames(ctx context.Context, marker *string) ([]string, error) {
 	request := &model.ListSecretsRequest{}
-	limit := pageLimit
+	limit := pageLimit // TODO: make this configurable
 	request.Limit = &limit
 	request.Marker = marker
 

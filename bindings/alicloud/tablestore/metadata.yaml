@@ -29,6 +29,10 @@ authenticationProfiles:
         sensitive: true
         description: "The AliCloud access key secret"
         example: "access-key-secret"
+      - name: accessKey
+        required: true
+        description: "The AliCloud access key"
+        example: "access-key"
 metadata:
   - name: endpoint
     required: true

@@ -44,3 +44,7 @@ metadata:
     required: true
     description: "The SQS queue name"
     example: "my-queue"
+  - name: endpoint
+    required: false
+    description: "The SQS endpoint URL"
+    example: "http://localhost:4566"

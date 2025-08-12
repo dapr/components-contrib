@@ -42,3 +42,7 @@ metadata:
     required: true
     description: "The DynamoDB table name"
     example: "my-table"
+  - name: endpoint
+    required: false
+    description: "The DynamoDB endpoint URL"
+    example: "http://localhost:8000"

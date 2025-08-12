@@ -29,10 +29,18 @@ metadata:
     required: true
     description: "The sender email address"
     example: "sender@example.com"
+  - name: emailFromName
+    required: false
+    description: "The sender name"
+    example: "John Doe"
   - name: emailTo
     required: true
     description: "The recipient email address"
     example: "recipient@example.com"
+  - name: emailToName
+    required: false
+    description: "The recipient name"
+    example: "Jane Smith"
   - name: subject
     required: true
     description: "The email subject"

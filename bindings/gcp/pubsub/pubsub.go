@@ -49,18 +49,22 @@ type GCPPubSub struct {
 
 // These JSON tags directly match the builtin auth provider metadata fields for GCP.
 type pubSubMetadata struct {
-	Topic                   string `json:"topic" mapstructure:"topic"`
-	Subscription            string `json:"subscription" mapstructure:"subscription"`
-	Type                    string `json:"type" mapstructure:"type"`
+	Topic        string `json:"topic" mapstructure:"topic"`
+	Subscription string `json:"subscription" mapstructure:"subscription"`
+	Type         string `json:"type" mapstructure:"type"`
+
+	// Note: the mdignore is to ignore these fields on the metadata analyzer,
+	// as these fields are parsed and used by the builtin auth provider,
+	// so they are still captured in the metadata.yaml file and in parsing.
 	ProjectID               string `json:"projectID" mapstructure:"project_id" mapstructurealiases:"projectID"`
-	PrivateKeyID            string `json:"privateKeyID" mapstructure:"private_key_id" mapstructurealiases:"privateKeyID"`
+	PrivateKeyID            string `json:"privateKeyID" mapstructure:"private_key_id" mapstructurealiases:"privateKeyID" mdignore:"true"`
 	PrivateKey              string `json:"privateKey" mapstructure:"private_key" mapstructurealiases:"privateKey"`
-	ClientEmail             string `json:"clientEmail" mapstructure:"client_email" mapstructurealiases:"clientEmail"`
-	ClientID                string `json:"clientID" mapstructure:"client_id" mapstructurealiases:"clientID"`
-	AuthURI                 string `json:"authURI" mapstructure:"auth_uri" mapstructurealiases:"authURI"`
-	TokenURI                string `json:"tokenURI" mapstructure:"token_uri" mapstructurealiases:"tokenURI"`
-	AuthProviderX509CertURL string `json:"authProviderX509CertURL" mapstructure:"auth_provider_x509_cert_url" mapstructurealiases:"authProviderX509CertURL"`
-	ClientX509CertURL       string `json:"clientX509CertURL" mapstructure:"client_x509_cert_url" mapstructurealiases:"clientX509CertURL"`
+	ClientEmail             string `json:"clientEmail" mapstructure:"client_email" mapstructurealiases:"clientEmail" mdignore:"true"`
+	ClientID                string `json:"clientID" mapstructure:"client_id" mapstructurealiases:"clientID" mdignore:"true"`
+	AuthURI                 string `json:"authURI" mapstructure:"auth_uri" mapstructurealiases:"authURI" mdignore:"true"`
+	TokenURI                string `json:"tokenURI" mapstructure:"token_uri" mapstructurealiases:"tokenURI" mdignore:"true"`
+	AuthProviderX509CertURL string `json:"authProviderX509CertURL" mapstructure:"auth_provider_x509_cert_url" mapstructurealiases:"authProviderX509CertURL" mdignore:"true"`
+	ClientX509CertURL       string `json:"clientX509CertURL" mapstructure:"client_x509_cert_url" mapstructurealiases:"clientX509CertURL" mdignore:"true"`
 }
 
 type GCPAuthJSON struct {

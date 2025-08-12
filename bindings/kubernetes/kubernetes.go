@@ -52,9 +52,12 @@ type EventResponse struct {
 }
 
 type kubernetesMetadata struct {
-	Namespace      string        `mapstructure:"namespace"`
-	KubeconfigPath string        `mapstructure:"kubeconfigPath"`
-	ResyncPeriod   time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec"`
+	Namespace      string `mapstructure:"namespace"`
+	KubeconfigPath string `mapstructure:"kubeconfigPath"`
+	// Note: we add mdignore to this so the metadata parser doesn't throw an error if resyncPeriodInSec on the metadata.yaml file.
+	// It has the ResyncPeriodInSec as a field, but we don't need users to see both resyncPeriod and resyncPeriodInSec,
+	// so the mdignore is just to make CI happy since we support both representations.
+	ResyncPeriod time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec" mdignore:"true"`
 }
 
 // NewKubernetes returns a new Kubernetes event input binding.

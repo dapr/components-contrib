@@ -57,6 +57,10 @@ authenticationProfiles:
         description: "The worker name for JWT token audience"
         example: "my-worker"
 metadata:
+  - name: queueName
+    required: true
+    description: "The Cloudflare queue name"
+    example: "my-queue"
   - name: timeoutInSeconds
     required: false
     description: "Timeout for network requests in seconds"

@@ -60,3 +60,7 @@ metadata:
     required: false
     description: "The partition key for the Kinesis stream"
     example: "partition-key"
+  - name: endpoint
+    required: false
+    description: "The Kinesis endpoint URL"
+    example: "http://localhost:4566"

@@ -51,14 +51,14 @@ type GCPPubSub struct {
 type pubSubMetadata struct {
 	Topic        string `json:"topic" mapstructure:"topic"`
 	Subscription string `json:"subscription" mapstructure:"subscription"`
-	Type         string `json:"type" mapstructure:"type"`
 
 	// Note: the mdignore is to ignore these fields on the metadata analyzer,
 	// as these fields are parsed and used by the builtin auth provider,
 	// so they are still captured in the metadata.yaml file and in parsing.
-	ProjectID               string `json:"projectID" mapstructure:"project_id" mapstructurealiases:"projectID"`
+	Type                    string `json:"type" mapstructure:"type" mdignore:"true"`
+	ProjectID               string `json:"projectID" mapstructure:"project_id" mapstructurealiases:"projectID" mdignore:"true"`
 	PrivateKeyID            string `json:"privateKeyID" mapstructure:"private_key_id" mapstructurealiases:"privateKeyID" mdignore:"true"`
-	PrivateKey              string `json:"privateKey" mapstructure:"private_key" mapstructurealiases:"privateKey"`
+	PrivateKey              string `json:"privateKey" mapstructure:"private_key" mapstructurealiases:"privateKey" mdignore:"true"`
 	ClientEmail             string `json:"clientEmail" mapstructure:"client_email" mapstructurealiases:"clientEmail" mdignore:"true"`
 	ClientID                string `json:"clientID" mapstructure:"client_id" mapstructurealiases:"clientID" mdignore:"true"`
 	AuthURI                 string `json:"authURI" mapstructure:"auth_uri" mapstructurealiases:"authURI" mdignore:"true"`

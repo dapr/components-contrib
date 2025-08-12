@@ -21,11 +21,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ses"
+	"github.com/aws/aws-sdk-go-v2/service/ses/types"
+
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -38,9 +42,10 @@ const (
 
 // AWSSES is an AWS SNS binding.
 type AWSSES struct {
-	authProvider awsAuth.Provider
-	metadata     *sesMetadata
-	logger       logger.Logger
+	metadata *sesMetadata
+	logger   logger.Logger
+
+	sesClient *ses.Client
 }
 
 type sesMetadata struct {
@@ -70,21 +75,21 @@ func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 	a.metadata = m
 
-	opts := awsAuth.Options{
+	configOpts := awsCommonAuth.Options{
 		Logger:       a.logger,
 		Properties:   metadata.Properties,
 		Region:       m.Region,
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
-		SessionToken: "",
+		SessionToken: m.SessionToken,
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
-	if err != nil {
-		return err
-	}
-	a.authProvider = provider
 
+	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create AWS config: %w", err)
+	}
+
+	a.sesClient = ses.NewFromConfig(awsConfig)
 	return nil
 }
 
@@ -117,19 +122,30 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		return nil, fmt.Errorf("SES binding error. Can't unquote data field: %w", err)
 	}
 
+	// Create destination email addresses.
+	var destination types.Destination
+
+	if metadata.EmailTo != "" {
+		destination.ToAddresses = strings.Split(metadata.EmailTo, ";")
+	}
+	if metadata.EmailCc != "" {
+		destination.CcAddresses = strings.Split(metadata.EmailCc, ";")
+	}
+	if metadata.EmailBcc != "" {
+		destination.BccAddresses = strings.Split(metadata.EmailBcc, ";")
+	}
+
 	// Assemble the email.
 	input := &ses.SendEmailInput{
-		Destination: &ses.Destination{
-			ToAddresses: aws.StringSlice(strings.Split(metadata.EmailTo, ";")),
-		},
-		Message: &ses.Message{
-			Body: &ses.Body{
-				Html: &ses.Content{
+		Destination: &destination,
+		Message: &types.Message{
+			Body: &types.Body{
+				Html: &types.Content{
 					Charset: aws.String(CharSet),
 					Data:    aws.String(body),
 				},
 			},
-			Subject: &ses.Content{
+			Subject: &types.Content{
 				Charset: aws.String(CharSet),
 				Data:    aws.String(metadata.Subject),
 			},
@@ -139,19 +155,8 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		// ConfigurationSetName: aws.String(ConfigurationSet),
 	}
 
-	if metadata.EmailCc != "" {
-		input.SetDestination(&ses.Destination{
-			CcAddresses: aws.StringSlice(strings.Split(metadata.EmailCc, ";")),
-		})
-	}
-	if metadata.EmailBcc != "" {
-		input.SetDestination(&ses.Destination{
-			BccAddresses: aws.StringSlice(strings.Split(metadata.EmailBcc, ";")),
-		})
-	}
-
 	// Attempt to send the email.
-	result, err := a.authProvider.Ses().Ses.SendEmail(input)
+	result, err := a.sesClient.SendEmail(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error. Sending email failed: %w", err)
 	}
@@ -176,8 +181,6 @@ func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMa
 }
 
 func (a *AWSSES) Close() error {
-	if a.authProvider != nil {
-		return a.authProvider.Close()
-	}
+	// Removed authprovider close method
 	return nil
 }

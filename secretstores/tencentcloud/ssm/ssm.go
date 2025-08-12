@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	// TODO: lowercase these and add to metadata struct eventually
 	VersionID        = "VersionID"
 	RequestID        = "RequestID"
 	ValueType        = "SecretValueType"
@@ -56,10 +57,10 @@ type ssmSecretStore struct {
 }
 
 type SsmMetadata struct {
-	SecretID  string
-	SecretKey string
-	Token     string
-	Region    string
+	SecretID  string `json:"secretId"`
+	SecretKey string `json:"secretKey"`
+	Token     string `json:"token"`
+	Region    string `json:"region"`
 }
 
 // NewSSM returns a new TencentCloud ssm secret store.

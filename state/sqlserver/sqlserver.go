@@ -288,12 +288,24 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		}
 	}
 
+	s.logger.WithFields(map[string]any{
+		"key":     req.Key,
+		"rawData": data,
+	}).Info("Get: raw data from DB")
+
 	bytes, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		s.logger.
-			WithFields(map[string]any{"error": err}).
-			Debug("error decoding base64 data. Fallback to []byte")
+		s.logger.WithFields(map[string]any{
+			"key":     req.Key,
+			"error":   err,
+			"rawData": data,
+		}).Info("Get: error decoding base64 data. Fallback to []byte")
 		bytes = []byte(data)
+	} else {
+		s.logger.WithFields(map[string]any{
+			"key":          req.Key,
+			"decodedBytes": bytes,
+		}).Info("Get: successfully decoded base64")
 	}
 	return &state.GetResponse{
 		Data:     bytes,
@@ -315,15 +327,30 @@ type dbExecutor interface {
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
 	var reqValue string
 
+	s.logger.WithFields(map[string]any{
+		"key":          req.Key,
+		"valueType":    fmt.Sprintf("%T", req.Value),
+		"valueContent": fmt.Sprintf("%v", req.Value),
+	}).Info("executeSet: incoming data")
+
 	if bytes, ok := req.Value.([]byte); ok {
 		reqValue = base64.StdEncoding.EncodeToString(bytes)
+		s.logger.WithFields(map[string]any{
+			"key":      req.Key,
+			"rawBytes": bytes,
+			"base64":   reqValue,
+		}).Info("executeSet: bytes path")
 	} else {
 		bt, err := json.Marshal(req.Value)
 		if err != nil {
 			return err
 		}
 		reqValue = base64.StdEncoding.EncodeToString(bt)
-
+		s.logger.WithFields(map[string]any{
+			"key":       req.Key,
+			"jsonBytes": string(bt),
+			"base64":    reqValue,
+		}).Info("executeSet: JSON path")
 	}
 
 	etag := sql.Named(rowVersionColumnName, nil)

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/bindings/wasm/testdata/http
 
-go 1.20
+go 1.24.6
 
 // This is the last version building with
 // stealthrocket/wasi-go host ABI.

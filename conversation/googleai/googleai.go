@@ -16,8 +16,9 @@ package googleai
 
 import (
 	"context"
-	"github.com/tmc/langchaingo/llms/openai"
 	"reflect"
+
+	"github.com/tmc/langchaingo/llms/openai"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"

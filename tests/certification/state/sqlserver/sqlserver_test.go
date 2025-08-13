@@ -187,9 +187,14 @@ func TestSqlServer(t *testing.T) {
 		data, err := json.Marshal(order)
 		assert.NoError(ctx.T, err)
 
+		fmt.Println("Saving state with data: ", string(data))
+
 		// save state with the key certificationkey1, default options: strong, last-write
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data, nil)
 		require.NoError(ctx.T, err)
+
+		fmt.Println("Saved state with data: ", string(data))
+		fmt.Println("Getting state with data: ", string(data))
 
 		// get state for key certificationkey1
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)

@@ -315,15 +315,15 @@ type dbExecutor interface {
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
 	var reqValue string
 
-	bytes, ok := req.Value.([]byte)
-	if !ok {
+	if bytes, ok := req.Value.([]byte); ok {
+		reqValue = base64.StdEncoding.EncodeToString(bytes)
+	} else {
 		bt, err := json.Marshal(req.Value)
 		if err != nil {
 			return err
 		}
-		reqValue = string(bt)
-	} else {
-		reqValue = base64.StdEncoding.EncodeToString(bytes)
+		reqValue = base64.StdEncoding.EncodeToString(bt)
+
 	}
 
 	etag := sql.Named(rowVersionColumnName, nil)

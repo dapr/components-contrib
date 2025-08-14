@@ -346,7 +346,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 	// For concurrency testing, we don't need actual mDNS network discovery.
 	// Instead, manually populate the cache to focus on testing concurrent access patterns.
 	appABPQDN := "127.0.0.1:1234"
-	appBBPQDN := "127.0.0.1:5678"  
+	appBBPQDN := "127.0.0.1:5678"
 	appCBPQDN := "127.0.0.1:3456"
 
 	resolver.ipv4Mu.Lock()
@@ -437,9 +437,9 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 			// On different platforms, mDNS may return different error messages:
 			// "couldn't find service: <appID>" or "timeout waiting for address for app id <appID>"
 			// Both are valid for a service that doesn't exist
-			require.True(t, 
-				err.Error() == "couldn't find service: "+appID || 
-				err.Error() == "timeout waiting for address for app id "+appID,
+			require.True(t,
+				err.Error() == "couldn't find service: "+appID ||
+					err.Error() == "timeout waiting for address for app id "+appID,
 				"Unexpected error: %v", err)
 			assert.Equal(t, "", pt)
 			assert.Less(t, elapsed, 3*time.Second) // Allow more time for timeout-based errors

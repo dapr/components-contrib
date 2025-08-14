@@ -270,7 +270,7 @@ func (m *Resolver) startRefreshers() {
 }
 
 // Init registers service for mDNS.
-func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
+func (m *Resolver) Init(_ context.Context, metadata nameresolution.Metadata) error {
 	if metadata.Instance.AppID == "" {
 		return errors.New("name is missing")
 	}

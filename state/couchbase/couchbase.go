@@ -57,12 +57,12 @@ type Couchbase struct {
 }
 
 type couchbaseMetadata struct {
-	CouchbaseURL                  string
-	Username                      string
-	Password                      string
-	BucketName                    string
-	NumReplicasDurableReplication uint
-	NumReplicasDurablePersistence uint
+	CouchbaseURL                  string `json:"couchbaseURL"`
+	Username                      string `json:"username"`
+	Password                      string `json:"password"`
+	BucketName                    string `json:"bucketName"`
+	NumReplicasDurableReplication uint   `json:"numReplicasDurableReplication"`
+	NumReplicasDurablePersistence uint   `json:"numReplicasDurablePersistence"`
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store.

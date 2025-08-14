@@ -123,7 +123,7 @@ func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, 
 
 	config := clientv3.Config{
 		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
+		DialTimeout: 5 * time.Second, // TODO: make this configurable
 		TLS:         tlsConfig,
 	}
 	client, err := clientv3.New(config)

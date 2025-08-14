@@ -50,9 +50,9 @@ type oracleDatabaseAccess struct {
 }
 
 type oracleDatabaseMetadata struct {
-	ConnectionString     string
-	OracleWalletLocation string
-	TableName            string
+	ConnectionString     string `json:"connectionString"`
+	OracleWalletLocation string `json:"oracleWalletLocation"`
+	TableName            string `json:"tableName"`
 }
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.

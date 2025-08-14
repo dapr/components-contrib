@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: twilio.sms
+version: v1
+status: stable
+title: "Twilio SMS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/twilio/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send SMS via Twilio"
+authenticationProfiles:
+  - title: "Twilio Authentication"
+    description: |
+      Authenticate using Twilio account credentials.
+    metadata:
+      - name: accountSid
+        required: true
+        description: "The Twilio account SID"
+        example: "AC1234567890abcdef"
+      - name: authToken
+        required: true
+        sensitive: true
+        description: "The Twilio auth token"
+        example: "auth-token"
+metadata:
+  - name: fromNumber
+    required: true
+    description: "The sender phone number"
+    example: "+1234567890"
+  - name: toNumber
+    required: true
+    description: "The recipient phone number"
+    example: "+0987654321"
+  - name: timeout
+    required: false
+    type: duration
+    description: "The timeout for the SMS request"
+    example: '30s'
+    default: '30s'

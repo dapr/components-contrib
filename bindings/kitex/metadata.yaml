@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kitex
+version: v1
+status: alpha
+title: "Kitex"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kitex/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Invoke Kitex service"
+metadata:
+  - name: serviceName
+    required: true
+    description: "The Kitex service name"
+    example: "my-service"
+  - name: methodName
+    required: true
+    description: "The method name to invoke"
+    example: "getUser"
+  - name: destService
+    required: true
+    description: "The destination service name"
+    example: "my-service"
+  - name: hostPorts
+    required: true
+    description: "The service address"
+    example: "localhost:8080"

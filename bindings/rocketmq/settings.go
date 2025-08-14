@@ -62,7 +62,7 @@ type Settings struct {
 	Topics TopicsDelimited `mapstructure:"topics"`
 }
 
-func (s *Settings) Decode(in interface{}) error {
+func (s *Settings) Decode(in any) error {
 	if err := metadata.DecodeMetadata(in, s); err != nil {
 		return fmt.Errorf("decode error: %w", err)
 	}

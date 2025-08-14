@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.sqs
+version: v1
+status: alpha
+title: "AWS SQS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sqs/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send message to SQS queue"
+    - name: read
+      description: "Receive messages from SQS queue"
+authenticationProfiles:
+  - title: "AWS Access Key Authentication"
+    description: |
+      Authenticate using AWS access key credentials.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The AWS access key"
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The AWS secret key"
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: "The AWS session token"
+        example: '"TOKEN"'
+      - name: region
+        required: true
+        description: "The AWS region"
+        example: "us-east-1"
+metadata:
+  - name: queueName
+    required: true
+    description: "The SQS queue name"
+    example: "my-queue"
+  - name: endpoint
+    required: false
+    description: "The SQS endpoint URL"
+    example: "http://localhost:4566"

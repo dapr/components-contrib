@@ -111,12 +111,14 @@ func (a *AzureEventGrid) Init(_ context.Context, metadata bindings.Metadata) err
 
 var matchAuthHeader = regexp.MustCompile(`(?i)^(Bearer )?(([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+)$`)
 
-func (a *AzureEventGrid) validateAuthHeader(ctx context.Context, authorizationHeader string) bool {
+func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 	// Extract the bearer token from the header
+	authorizationHeader := string(ctx.Request.Header.Peek("authorization"))
 	if authorizationHeader == "" {
 		a.logger.Error("Incoming webhook request does not contain an Authorization header")
 		return false
 	}
+
 	match := matchAuthHeader.FindStringSubmatch(authorizationHeader)
 	if len(match) < 3 {
 		a.logger.Error("Incoming webhook request does not contain a valid bearer token in the Authorization header")
@@ -124,20 +126,39 @@ func (a *AzureEventGrid) validateAuthHeader(ctx context.Context, authorizationHe
 	}
 	token := match[2]
 
-	// Validate the JWT
+	// Azure eventgrid webhook JWT tokens use different claims than service principal tokens
+	// issuer: https://eventgrid.azure.net (eventgrid service, not tenant)
+	// audience: The webhook endpoint url (not service principal ID)
+
+	// Validate the JWT with eventgrid webhook claims
 	_, err := jwt.ParseString(
+		token,
+		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+		jwt.WithAudience(a.metadata.SubscriberEndpoint),
+		jwt.WithIssuer("https://eventgrid.azure.net"),
+		jwt.WithAcceptableSkew(5*time.Minute),
+		jwt.WithContext(context.Background()),
+	)
+	if err == nil {
+		a.logger.Debug("Webhook request authenticated using webhook JWT claims")
+		return true
+	}
+
+	// Alternatively validate the jwt with service principal claims
+	_, err = jwt.ParseString(
 		token,
 		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
 		jwt.WithAudience(a.metadata.azureClientID),
 		jwt.WithIssuer(fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)),
 		jwt.WithAcceptableSkew(5*time.Minute),
-		jwt.WithContext(ctx),
+		jwt.WithContext(context.Background()),
 	)
 	if err != nil {
 		a.logger.Errorf("Failed to validate JWT in the incoming webhook request: %v", err)
 		return false
 	}
 
+	a.logger.Debug("Webhook request authenticated using service principal JWT claims")
 	return true
 }
 
@@ -289,9 +310,8 @@ func (a *AzureEventGrid) requestHandler(handler bindings.Handler) fasthttp.Reque
 		if method == http.MethodOptions {
 			// Skip authentication for options requests
 		} else {
-			authorizationHeader := string(ctx.Request.Header.Peek("authorization"))
 			// Note that ctx is a fasthttp context so it's actually tied to the server's lifecycle and not the request's
-			if !a.validateAuthHeader(ctx, authorizationHeader) {
+			if !a.validateAuthHeader(ctx) {
 				ctx.Response.Header.SetStatusCode(http.StatusUnauthorized)
 				_, err = ctx.Response.BodyWriter().Write([]byte("401 Unauthorized"))
 				if err != nil {

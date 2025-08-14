@@ -156,6 +156,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
+
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		// Configure the KCL worker with custom endpoints for LocalStack
 		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)

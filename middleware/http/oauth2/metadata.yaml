@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: oauth2
+version: v1
+status: alpha
+title: "OAuth2 Authentication"
+description: |
+  The OAuth2 middleware provides OAuth2 authentication for HTTP requests.
+  It handles OAuth2 flows and token validation for securing API endpoints.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-oauth2/
+authenticationProfiles:
+  - title: "OAuth2 Authentication"
+    description: "Configure OAuth2 authentication with any OAuth2 provider"
+    metadata:
+      - name: clientID
+        type: string
+        required: true
+        description: "The OAuth2 client ID from your OAuth2 provider"
+        example: "client-id"
+      - name: clientSecret
+        type: string
+        required: true
+        description: "The OAuth2 client secret from your OAuth2 provider"
+        sensitive: true
+        example: "client-secret"
+      - name: authURL
+        type: string
+        required: true
+        description: "The OAuth2 authorization URL from your provider"
+        example: "https://accounts.google.com/o/oauth2/v2/auth"
+      - name: tokenURL
+        type: string
+        required: true
+        description: "The OAuth2 token URL from your provider"
+        example: "https://oauth2.googleapis.com/token"
+      - name: scopes
+        type: string
+        required: false
+        description: "OAuth2 scopes to request from your provider"
+        example: "openid profile email"
+metadata:
+  - name: redirectURL
+    type: string
+    required: false
+    description: "The OAuth2 redirect URL for your application"
+    example: "http://localhost:8080/callback"
+  - name: authHeaderName
+    type: string
+    required: false
+    description: "The name of the authorization header to use"
+    example: "Authorization"
+    default: "Authorization"
+  - name: forceHTTPS
+    type: string
+    required: false
+    description: "Whether to force HTTPS for the redirect URL"
+    example: "true"
+    default: "false"
+  - name: pathFilter
+    type: string
+    required: false
+    description: "Regular expression to filter which paths require authentication"
+    example: "^/api/.*"

@@ -330,6 +330,8 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		DB:                    s.DB,
 		MasterName:            s.SentinelMasterName,
 		SentinelAddrs:         []string{s.Host},
+		SentinelUsername:      s.SentinelUsername,
+		SentinelPassword:      s.SentinelPassword,
 		Password:              s.Password,
 		Username:              s.Username,
 		MaxRetries:            s.RedisMaxRetries,

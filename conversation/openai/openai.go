@@ -16,6 +16,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -44,7 +45,7 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 const defaultModel = "gpt-4o"
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	md := conversation.LangchainMetadata{}
+	md := OpenAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
@@ -63,6 +64,14 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Add custom endpoint if provided
 	if md.Endpoint != "" {
 		options = append(options, openai.WithBaseURL(md.Endpoint))
+	}
+
+	if md.APIType == "azure" {
+		if md.Endpoint == "" || md.APIVersion == "" {
+			return errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
+		}
+
+		options = append(options, openai.WithAPIType(openai.APITypeAzure), openai.WithAPIVersion(md.APIVersion))
 	}
 
 	llm, err := openai.New(options...)
@@ -84,7 +93,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 }
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
+	metadataStruct := OpenAILangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }

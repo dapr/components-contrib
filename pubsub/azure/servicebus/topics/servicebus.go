@@ -58,7 +58,7 @@ func (a *azureServiceBus) Init(_ context.Context, metadata pubsub.Metadata) (err
 		return err
 	}
 
-	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
+	a.client, err = impl.NewClient(a.metadata, metadata.Properties, a.logger)
 	if err != nil {
 		return err
 	}

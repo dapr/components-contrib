@@ -16,6 +16,7 @@ package tablestore
 import (
 	"bytes"
 	"encoding/binary"
+	"sync"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
@@ -24,6 +25,7 @@ type mockClient struct {
 	tablestore.TableStoreClient
 
 	data map[string][]byte
+	mu   sync.RWMutex
 }
 
 func (m *mockClient) DeleteRow(request *tablestore.DeleteRowRequest) (*tablestore.DeleteRowResponse, error) {
@@ -36,7 +38,9 @@ func (m *mockClient) DeleteRow(request *tablestore.DeleteRowRequest) (*tablestor
 		}
 	}
 
+	m.mu.Lock()
 	delete(m.data, key)
+	m.mu.Unlock()
 
 	return nil, nil
 }
@@ -51,7 +55,9 @@ func (m *mockClient) GetRow(request *tablestore.GetRowRequest) (*tablestore.GetR
 		}
 	}
 
+	m.mu.RLock()
 	val := m.data[key]
+	m.mu.RUnlock()
 
 	resp := &tablestore.GetRowResponse{
 		Columns: []*tablestore.AttributeColumn{{
@@ -87,7 +93,9 @@ func (m *mockClient) UpdateRow(req *tablestore.UpdateRowRequest) (*tablestore.Up
 		}
 	}
 
+	m.mu.Lock()
 	m.data[key] = val
+	m.mu.Unlock()
 
 	return nil, nil
 }
@@ -97,6 +105,7 @@ func (m *mockClient) BatchGetRow(request *tablestore.BatchGetRowRequest) (*table
 		TableToRowsResult: map[string][]tablestore.RowResult{},
 	}
 
+	m.mu.RLock()
 	for _, criteria := range request.MultiRowQueryCriteria {
 		tableRes := resp.TableToRowsResult[criteria.TableName]
 		if tableRes == nil {
@@ -136,12 +145,14 @@ func (m *mockClient) BatchGetRow(request *tablestore.BatchGetRowRequest) (*table
 			}
 		}
 	}
+	m.mu.RUnlock()
 
 	return resp, nil
 }
 
 func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*tablestore.BatchWriteRowResponse, error) {
 	resp := &tablestore.BatchWriteRowResponse{}
+	m.mu.Lock()
 	for _, changes := range request.RowChangesGroupByTable {
 		for _, change := range changes {
 			switch inst := change.(type) {
@@ -174,6 +185,7 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 			}
 		}
 	}
+	m.mu.Unlock()
 
 	return resp, nil
 }

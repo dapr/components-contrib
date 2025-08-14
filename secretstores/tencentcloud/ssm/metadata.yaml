@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: tencentcloud.ssm
+version: v1
+status: alpha
+title: "TencentCloud Secret Manager"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/
+authenticationProfiles:
+  - title: "Secret Key Authentication"
+    description: "Authenticate using TencentCloud secret ID and key."
+    metadata:
+      - name: secretId
+        type: string
+        required: true
+        description: The TencentCloud secret ID.
+        example: "secret-id"
+      - name: secretKey
+        type: string
+        required: true
+        description: The TencentCloud secret key.
+        example: "secret-key"
+      - name: token
+        type: string
+        required: false
+        description: The TencentCloud temporary token for temporary credentials.
+        example: "token"
+      - name: region
+        type: string
+        required: true
+        description: The TencentCloud region.
+        example: "ap-guangzhou"
+metadata:
+  - name: VersionID
+    type: string
+    required: false
+    description: The version ID of the secret to retrieve.
+    example: "1"

@@ -8,7 +8,7 @@ tar -xzf ngrok-v3-stable-linux-amd64.tgz
 ./ngrok authtoken ${AzureEventGridNgrokToken}
 
 echo "Starting ngrok tunnel..."
-./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log 2>&1 &
+./ngrok http --log=stdout --log-level=debug --host-header=localhost 9000 > /tmp/ngrok.log 2>&1 &
 NGROK_PID=$!
 
 echo "Waiting for ngrok to start..."

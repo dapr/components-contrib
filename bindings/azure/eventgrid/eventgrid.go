@@ -372,16 +372,14 @@ func (a *AzureEventGrid) requestHandler(handler bindings.Handler) fasthttp.Reque
 		// Azure Event Grid sends options requests without authorization header during initial validation
 		if method == http.MethodOptions {
 			// Skip authentication for options requests
-		} else {
+		} else if !a.validateAuthHeader(ctx) {
 			// Note that ctx is a fasthttp context so it's actually tied to the server's lifecycle and not the request's
-			if !a.validateAuthHeader(ctx) {
-				ctx.Response.Header.SetStatusCode(http.StatusUnauthorized)
-				_, err = ctx.Response.BodyWriter().Write([]byte("401 Unauthorized"))
-				if err != nil {
-					a.logger.Errorf("Error writing response: %v", err)
-				}
-				return
+			ctx.Response.Header.SetStatusCode(http.StatusUnauthorized)
+			_, err = ctx.Response.BodyWriter().Write([]byte("401 Unauthorized"))
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
 			}
+			return
 		}
 
 		switch method {

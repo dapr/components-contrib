@@ -68,19 +68,20 @@ jobs:
       GOLANGCI_LINT_VER: "v1.64.6"
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        # TODO: @nelson-parente Upgrade macos latest once dns is fixed.
+        os: [ubuntu-latest, windows-latest, macos-14]
         target_arch: [arm, amd64]
         include:
           - os: ubuntu-latest
             target_os: linux
           - os: windows-latest
             target_os: windows
-          - os: macOS-latest
+          - os: macos-14
             target_os: darwin
         exclude:
           - os: windows-latest
             target_arch: arm
-          - os: macOS-latest
+          - os: macos-14
             target_arch: arm
     steps:
       - name: Set default payload repo and ref

@@ -51,9 +51,14 @@ const (
 	// Format for the "jwks_uri" endpoint
 	// The %s refers to the tenant ID
 	jwksURIFormat = "https://login.microsoftonline.com/%s/discovery/v2.0/keys"
-	// Format for the "iss" claim in the JWT
+	// Format for the "iss" claim in the JWT (Azure AD v2.0)
 	// The %s refers to the tenant ID
 	jwtIssuerFormat = "https://login.microsoftonline.com/%s/v2.0"
+	// Format for the "iss" claim in the JWT (Azure AD v1.0 - legacy)
+	// The %s refers to the tenant ID
+	jwtIssuerV1Format = "https://sts.windows.net/%s/"
+	// Eventgrid managed identity issuer
+	eventGridIssuer = "https://eventgrid.azure.net"
 )
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
@@ -135,18 +140,19 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 
 	actualIssuer := parsedToken.Issuer()
 	actualAudience := parsedToken.Audience()
-	expectedIssuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
+	azureADV2Issuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
 	expectedAudience := a.metadata.azureClientID
 	a.logger.Infof("JWT validation - Actual issuer: %s, Actual audience: %v", actualIssuer, actualAudience)
-	a.logger.Infof("JWT validation - Expected issuer: %s, Expected audience: %s", expectedIssuer, expectedAudience)
+	a.logger.Infof("JWT validation - Expected issuer: %s, Expected audience: %s", azureADV2Issuer, expectedAudience)
 
 	switch actualIssuer {
-	case expectedIssuer:
+	case azureADV2Issuer:
+		// AzureAD v2.0 issuer
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
 			jwt.WithAudience(expectedAudience),
-			jwt.WithIssuer(expectedIssuer),
+			jwt.WithIssuer(azureADV2Issuer),
 			jwt.WithAcceptableSkew(5*time.Minute),
 			jwt.WithContext(context.Background()),
 		)
@@ -156,11 +162,12 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 		}
 
 		a.logger.Infof("JWT validation with client ID failed, trying webhook URL audience: %v", err)
+		// Try webhook URL as audience
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
 			jwt.WithAudience(a.metadata.SubscriberEndpoint),
-			jwt.WithIssuer(expectedIssuer),
+			jwt.WithIssuer(azureADV2Issuer),
 			jwt.WithAcceptableSkew(5*time.Minute),
 			jwt.WithContext(context.Background()),
 		)
@@ -169,17 +176,50 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			return true
 		}
 
-		a.logger.Errorf("JWT validation failed for AzureAD issuer")
+		a.logger.Errorf("JWT validation failed for AzureAD v2.0 issuer")
 		return false
 
-	case "https://eventgrid.azure.net":
-		// Event Grid managed identity issuer - use webhook URL as audience
+	case fmt.Sprintf(jwtIssuerV1Format, a.metadata.azureTenantID):
+		// AzureAD v1.0 issuer
+		a.logger.Infof("Detected AzureAD v1.0 issuer, validating...")
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(expectedAudience),
+			jwt.WithIssuer(actualIssuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			a.logger.Infof("JWT validation succeeded with AzureAD v1.0 issuer and client ID audience")
+			return true
+		}
+
+		a.logger.Infof("JWT validation with client ID failed, trying webhook URL audience: %v", err)
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(a.metadata.SubscriberEndpoint),
+			jwt.WithIssuer(actualIssuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			a.logger.Infof("JWT validation succeeded with AzureAD v1.0 issuer and webhook URL audience")
+			return true
+		}
+
+		a.logger.Errorf("JWT validation failed for AzureAD v1.0 issuer")
+		return false
+
+	case eventGridIssuer:
+		// eventgrid managed identity issuer - use webhook URL as audience
 		a.logger.Infof("Detected eventgrid issuer, validating with webhook URL audience")
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
 			jwt.WithAudience(a.metadata.SubscriberEndpoint),
-			jwt.WithIssuer("https://eventgrid.azure.net"),
+			jwt.WithIssuer(eventGridIssuer),
 			jwt.WithAcceptableSkew(5*time.Minute),
 			jwt.WithContext(context.Background()),
 		)
@@ -192,8 +232,8 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 		return false
 
 	default:
-		a.logger.Errorf("Unexpected JWT issuer: %s. Expected either '%s' or 'https://eventgrid.azure.net'",
-			actualIssuer, expectedIssuer)
+		a.logger.Errorf("Unexpected JWT issuer: %s. Expected either '%s', '%s', or '%s'",
+			actualIssuer, azureADV2Issuer, fmt.Sprintf(jwtIssuerV1Format, a.metadata.azureTenantID), eventGridIssuer)
 		return false
 	}
 }

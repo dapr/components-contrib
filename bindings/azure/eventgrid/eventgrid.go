@@ -134,17 +134,13 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 	// First, parse the JWT to see what claims we received
 	parsedToken, err := jwt.ParseString(token, jwt.WithVerify(false))
 	if err != nil {
-		a.logger.Errorf("Failed to parse JWT (without validation): %v", err)
+		a.logger.Errorf("Failed to parse JWT: %v", err)
 		return false
 	}
 
 	actualIssuer := parsedToken.Issuer()
-	actualAudience := parsedToken.Audience()
 	azureADV2Issuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
 	expectedAudience := a.metadata.azureClientID
-	a.logger.Infof("JWT validation - Actual issuer: %s, Actual audience: %v", actualIssuer, actualAudience)
-	a.logger.Infof("JWT validation - Expected issuer: %s, Expected audience: %s", azureADV2Issuer, expectedAudience)
-
 	switch actualIssuer {
 	case azureADV2Issuer:
 		// AzureAD v2.0 issuer
@@ -157,12 +153,10 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			jwt.WithContext(context.Background()),
 		)
 		if err == nil {
-			a.logger.Infof("JWT validation succeeded with client ID audience")
 			return true
 		}
 
-		a.logger.Infof("JWT validation with client ID failed, trying webhook URL audience: %v", err)
-		// Try webhook URL as audience
+		// Also check webhook URL as audience
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
@@ -172,7 +166,6 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			jwt.WithContext(context.Background()),
 		)
 		if err == nil {
-			a.logger.Infof("JWT validation succeeded with webhook URL audience")
 			return true
 		}
 
@@ -191,11 +184,8 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			jwt.WithContext(context.Background()),
 		)
 		if err == nil {
-			a.logger.Infof("JWT validation succeeded with AzureAD v1.0 issuer and client ID audience")
 			return true
 		}
-
-		a.logger.Infof("JWT validation with client ID failed, trying webhook URL audience: %v", err)
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
@@ -205,7 +195,6 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			jwt.WithContext(context.Background()),
 		)
 		if err == nil {
-			a.logger.Infof("JWT validation succeeded with AzureAD v1.0 issuer and webhook URL audience")
 			return true
 		}
 
@@ -214,7 +203,6 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 
 	case eventGridIssuer:
 		// eventgrid managed identity issuer - use webhook URL as audience
-		a.logger.Infof("Detected eventgrid issuer, validating with webhook URL audience")
 		_, err = jwt.ParseString(
 			token,
 			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
@@ -224,7 +212,6 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 			jwt.WithContext(context.Background()),
 		)
 		if err == nil {
-			a.logger.Infof("JWT validation succeeded with eventgrid issuer")
 			return true
 		}
 

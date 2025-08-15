@@ -126,39 +126,27 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 	}
 	token := match[2]
 
-	// Azure eventgrid webhook JWT tokens use different claims than service principal tokens
-	// issuer: https://eventgrid.azure.net (eventgrid service, not tenant)
-	// audience: The webhook endpoint url (not service principal ID)
+	// Validate the JWT using Azure AD claims
+	expectedIssuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
+	expectedAudience := a.metadata.azureClientID
 
-	// Validate the JWT with eventgrid webhook claims
+	a.logger.Infof("Validating JWT - expected issuer: %s, expected audience: %s", expectedIssuer, expectedAudience)
+
 	_, err := jwt.ParseString(
 		token,
 		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
-		jwt.WithAudience(a.metadata.SubscriberEndpoint),
-		jwt.WithIssuer("https://eventgrid.azure.net"),
-		jwt.WithAcceptableSkew(5*time.Minute),
-		jwt.WithContext(context.Background()),
-	)
-	if err == nil {
-		a.logger.Debug("Webhook request authenticated using webhook JWT claims")
-		return true
-	}
-
-	// Alternatively validate the jwt with service principal claims
-	_, err = jwt.ParseString(
-		token,
-		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
-		jwt.WithAudience(a.metadata.azureClientID),
-		jwt.WithIssuer(fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)),
+		jwt.WithAudience(expectedAudience),
+		jwt.WithIssuer(expectedIssuer),
 		jwt.WithAcceptableSkew(5*time.Minute),
 		jwt.WithContext(context.Background()),
 	)
 	if err != nil {
 		a.logger.Errorf("Failed to validate JWT in the incoming webhook request: %v", err)
+		a.logger.Errorf("Expected issuer: %s, expected audience: %s", expectedIssuer, expectedAudience)
 		return false
 	}
 
-	a.logger.Debug("Webhook request authenticated using service principal JWT claims")
+	a.logger.Infof("Webhook request authenticated using AzureAD JWT claims")
 	return true
 }
 

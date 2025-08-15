@@ -51,9 +51,14 @@ const (
 	// Format for the "jwks_uri" endpoint
 	// The %s refers to the tenant ID
 	jwksURIFormat = "https://login.microsoftonline.com/%s/discovery/v2.0/keys"
-	// Format for the "iss" claim in the JWT
+	// Format for the "iss" claim in the JWT (Azure AD v2.0)
 	// The %s refers to the tenant ID
 	jwtIssuerFormat = "https://login.microsoftonline.com/%s/v2.0"
+	// Format for the "iss" claim in the JWT (Azure AD v1.0 - legacy)
+	// The %s refers to the tenant ID
+	jwtIssuerV1Format = "https://sts.windows.net/%s/"
+	// Eventgrid managed identity issuer
+	eventGridIssuer = "https://eventgrid.azure.net"
 )
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
@@ -111,12 +116,14 @@ func (a *AzureEventGrid) Init(_ context.Context, metadata bindings.Metadata) err
 
 var matchAuthHeader = regexp.MustCompile(`(?i)^(Bearer )?(([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+)$`)
 
-func (a *AzureEventGrid) validateAuthHeader(ctx context.Context, authorizationHeader string) bool {
+func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 	// Extract the bearer token from the header
+	authorizationHeader := string(ctx.Request.Header.Peek("authorization"))
 	if authorizationHeader == "" {
 		a.logger.Error("Incoming webhook request does not contain an Authorization header")
 		return false
 	}
+
 	match := matchAuthHeader.FindStringSubmatch(authorizationHeader)
 	if len(match) < 3 {
 		a.logger.Error("Incoming webhook request does not contain a valid bearer token in the Authorization header")
@@ -124,21 +131,98 @@ func (a *AzureEventGrid) validateAuthHeader(ctx context.Context, authorizationHe
 	}
 	token := match[2]
 
-	// Validate the JWT
-	_, err := jwt.ParseString(
-		token,
-		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
-		jwt.WithAudience(a.metadata.azureClientID),
-		jwt.WithIssuer(fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)),
-		jwt.WithAcceptableSkew(5*time.Minute),
-		jwt.WithContext(ctx),
-	)
+	// First, parse the JWT to see what claims we received
+	parsedToken, err := jwt.ParseString(token, jwt.WithVerify(false))
 	if err != nil {
-		a.logger.Errorf("Failed to validate JWT in the incoming webhook request: %v", err)
+		a.logger.Errorf("Failed to parse JWT: %v", err)
 		return false
 	}
 
-	return true
+	actualIssuer := parsedToken.Issuer()
+	azureADV2Issuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
+	expectedAudience := a.metadata.azureClientID
+	switch actualIssuer {
+	case azureADV2Issuer:
+		// AzureAD v2.0 issuer
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(expectedAudience),
+			jwt.WithIssuer(azureADV2Issuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			return true
+		}
+
+		// Also check webhook URL as audience
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(a.metadata.SubscriberEndpoint),
+			jwt.WithIssuer(azureADV2Issuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			return true
+		}
+
+		a.logger.Errorf("JWT validation failed for AzureAD v2.0 issuer")
+		return false
+
+	case fmt.Sprintf(jwtIssuerV1Format, a.metadata.azureTenantID):
+		// AzureAD v1.0 issuer
+		a.logger.Infof("Detected AzureAD v1.0 issuer, validating...")
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(expectedAudience),
+			jwt.WithIssuer(actualIssuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			return true
+		}
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(a.metadata.SubscriberEndpoint),
+			jwt.WithIssuer(actualIssuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			return true
+		}
+
+		a.logger.Errorf("JWT validation failed for AzureAD v1.0 issuer")
+		return false
+
+	case eventGridIssuer:
+		// eventgrid managed identity issuer - use webhook URL as audience
+		_, err = jwt.ParseString(
+			token,
+			jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+			jwt.WithAudience(a.metadata.SubscriberEndpoint),
+			jwt.WithIssuer(eventGridIssuer),
+			jwt.WithAcceptableSkew(5*time.Minute),
+			jwt.WithContext(context.Background()),
+		)
+		if err == nil {
+			return true
+		}
+
+		a.logger.Errorf("JWT validation failed for eventgrid issuer: %v", err)
+		return false
+
+	default:
+		a.logger.Errorf("Unexpected JWT issuer: %s. Expected either '%s', '%s', or '%s'",
+			actualIssuer, azureADV2Issuer, fmt.Sprintf(jwtIssuerV1Format, a.metadata.azureTenantID), eventGridIssuer)
+		return false
+	}
 }
 
 // Initializes the JWKS cache
@@ -284,10 +368,12 @@ func (a *AzureEventGrid) requestHandler(handler bindings.Handler) fasthttp.Reque
 			return
 		}
 
-		// Validate the Authorization header
-		authorizationHeader := string(ctx.Request.Header.Peek("authorization"))
-		// Note that ctx is a fasthttp context so it's actually tied to the server's lifecycle and not the request's
-		if !a.validateAuthHeader(ctx, authorizationHeader) {
+		// Options requests (webhook validation handshake) don't require authentication
+		// Azure Event Grid sends options requests without authorization header during initial validation
+		if method == http.MethodOptions {
+			// Skip authentication for options requests
+		} else if !a.validateAuthHeader(ctx) {
+			// Note that ctx is a fasthttp context so it's actually tied to the server's lifecycle and not the request's
 			ctx.Response.Header.SetStatusCode(http.StatusUnauthorized)
 			_, err = ctx.Response.BodyWriter().Write([]byte("401 Unauthorized"))
 			if err != nil {

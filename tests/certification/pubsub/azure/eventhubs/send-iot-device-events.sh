@@ -34,9 +34,10 @@ az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $
 
 # Create test device ID if not already present
 IOT_HUB_TEST_DEVICE_NAME="certification-test-device"
-if [[ -z "$(az iot hub device-identity show -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME})" ]]; then
+az iot hub device-identity show -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME} >/dev/null 2>&1
+if [[ $? -ne 0 ]]; then
     az iot hub device-identity create -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME}
-    sleep 5
+    sleep 10
 fi
 
 # Send the test IoT device messages to the IoT Hub.`testmessageForEventHubCertificationTest` is being asserted in the certification test

@@ -88,7 +88,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	return NewPostgresConfigurationStoreWithOptions(logger, Options{})
 }
 
-// NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL state store with options.
+// NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL store with options.
 func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) state.Store {
 	return &ConfigurationStore{
 		logger: logger,

@@ -31,9 +31,9 @@ import (
 )
 
 type localSecretStoreMetaData struct {
-	SecretsFile     string
-	NestedSeparator string
-	MultiValued     bool
+	SecretsFile     string `json:"secretsFile"`
+	NestedSeparator string `json:"nestedSeparator"`
+	MultiValued     bool   `json:"multiValued"`
 }
 
 var _ secretstores.SecretStore = (*localSecretStore)(nil)

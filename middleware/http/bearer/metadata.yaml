@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: bearer
+version: v1
+status: stable
+title: "Bearer Token Authentication"
+description: |
+  The Bearer middleware provides JWT token authentication for HTTP requests.
+  It validates Bearer tokens in the Authorization header and can extract claims for downstream processing.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-bearer/
+metadata:
+  - name: jwksURL
+    type: string
+    required: true
+    description: "The URL of the JSON Web Key Set (JWKS) endpoint"
+    example: "https://accounts.google.com/.well-known/jwks.json"
+  - name: issuer
+    type: string
+    required: true
+    description: "The expected issuer of the JWT tokens"
+    example: "https://accounts.google.com"
+  - name: audience
+    type: string
+    required: true
+    description: "The expected audience of the JWT tokens"
+    example: "my-app"

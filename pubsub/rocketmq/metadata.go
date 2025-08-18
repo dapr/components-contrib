@@ -42,6 +42,9 @@ const (
 	DaprQueueSelector       QueueSelectorType = "dapr"
 )
 
+// TODO: the time fields in the metadata need to be standardized on either seconds or milliseconds or minutes.
+// Right now, it's a mix of all three.
+
 // RocketMQ Go Client Options
 type rocketMQMetaData struct {
 	// rocketmq instance name, it will be registered to the broker

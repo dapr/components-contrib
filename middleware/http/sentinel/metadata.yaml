@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: sentinel
+version: v1
+status: alpha
+title: "Sentinel"
+description: |
+  Use Sentinel middleware to guarantee the reliability and resiliency of your application.
+  Sentinel is a powerful fault-tolerance component that takes "flow" as the breakthrough point and covers multiple fields including flow control, traffic shaping, concurrency limiting, circuit breaking, and adaptive system protection to guarantee the reliability and resiliency of microservices.
+  
+  The Sentinel HTTP middleware enables Dapr to facilitate Sentinel's powerful abilities to protect your application. You can refer to Sentinel Wiki for more details on Sentinel.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-sentinel/
+metadata:
+  - name: appName
+    type: string
+    required: true
+    description: "The application name for Sentinel"
+    example: "nodeapp"
+  - name: logDir
+    type: string
+    required: false
+    description: "Directory for Sentinel log files"
+    example: "/var/tmp"
+  - name: flowRules
+    type: string
+    required: false
+    description: "JSON array of flow control rules to limit request rate"
+    example: |
+      [
+        {
+          "resource": "POST:/v1.0/invoke/nodeapp/method/neworder",
+          "threshold": 10,
+          "tokenCalculateStrategy": 0,
+          "controlBehavior": 0
+        }
+      ]
+  - name: circuitBreakerRules
+    type: string
+    required: false
+    description: "JSON array of circuit breaker rules to handle failures"
+    example: |
+      [
+        {
+          "resource": "POST:/v1.0/invoke/nodeapp/method/neworder",
+          "minRequestAmount": 5,
+          "statIntervalMs": 1000,
+          "maxAllowedRtMs": 50,
+          "maxSlowRequestRatio": 0.5
+        }
+      ]
+  - name: hotSpotParamRules
+    type: string
+    required: false
+    description: "JSON array of hotspot parameter rules for parameter-based flow control"
+    example: |
+      [
+        {
+          "resource": "POST:/v1.0/invoke/nodeapp/method/neworder",
+          "paramIdx": 0,
+          "threshold": 10,
+          "maxQueueingTimeMs": 500
+        }
+      ]
+  - name: isolationRules
+    type: string
+    required: false
+    description: "JSON array of isolation rules for thread pool isolation"
+    example: |
+      [
+        {
+          "resource": "POST:/v1.0/invoke/nodeapp/method/neworder",
+          "maxConcurrency": 10,
+          "maxQueueingTimeMs": 500
+        }
+      ]
+  - name: systemRules
+    type: string
+    required: false
+    description: "JSON array of system protection rules for overall system protection"
+    example: |
+      [
+        {
+          "avgRt": 50,
+          "maxThread": 10,
+          "qps": 20
+        }
+      ]

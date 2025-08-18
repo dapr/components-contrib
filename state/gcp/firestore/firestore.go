@@ -47,6 +47,9 @@ type Firestore struct {
 }
 
 type firestoreMetadata struct {
+	// TODO: update these to use camel case instead in future
+
+	// TODO: rm type field? It's stable component but this field is NOT used anywhere except in tests.
 	Type                string `json:"type"`
 	ProjectID           string `json:"project_id" mapstructure:"project_id"`
 	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
@@ -219,7 +222,7 @@ func (f *Firestore) Close() error {
 	return nil
 }
 
-func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Logger) (*datastore.Client, error) {
+func getGCPClient(_ context.Context, metadata *firestoreMetadata, l logger.Logger) (*datastore.Client, error) {
 	var gcpClient *datastore.Client
 	var err error
 

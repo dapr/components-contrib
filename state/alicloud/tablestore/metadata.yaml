@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: alicloud.tablestore
+version: v1
+status: alpha
+title: "AliCloud TableStore"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: "Authenticate using an access key"
+    metadata:
+      - name: accessKeyID
+        type: string
+        required: true
+        description: The access key ID of the AliCloud TableStore instance.
+        example: "my_access_key_id"
+      - name: accessKey
+        type: string
+        required: true
+        description: The access key of the AliCloud TableStore instance.
+        example: "my_access_key"
+metadata:
+  - name: endpoint
+    type: string
+    required: true
+    description: The endpoint of the AliCloud TableStore instance.
+    example: "https://tablestore.aliyuncs.com"
+  - name: instanceName
+    type: string
+    required: true
+    description: The name of the AliCloud TableStore instance.
+    example: "my_instance"
+  - name: tableName
+    type: string
+    required: true
+    description: The name of the table to use.
+    example: "my_table"

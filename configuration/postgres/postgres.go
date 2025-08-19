@@ -89,7 +89,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 // NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL store with options.
-func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) state.Store {
+func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) configuration.Store {
 	return &ConfigurationStore{
 		logger: logger,
 		enableAzureAD: !opts.NoAzureAD,
@@ -131,7 +131,7 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	defer connCancel()
-	p.client, err := pgxpool.NewWithConfig(connCtx, config)
+	p.client, err = pgxpool.NewWithConfig(connCtx, config)
 	if err != nil {
 		return fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
 	}

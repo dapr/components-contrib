@@ -15,7 +15,9 @@ package snssqs_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -163,8 +165,19 @@ func sqsService() *sqs.SQS {
 
 func getIdentity(svc stsiface.STSAPI) (*sts.GetCallerIdentityOutput, error) {
 	input := &sts.GetCallerIdentityInput{}
+	result, err := svc.GetCallerIdentity(input)
+	if err != nil {
+		var aerr awserr.Error
+		if errors.As(err, &aerr) {
+			switch aerr.Code() {
+			default:
+				return nil, fmt.Errorf("AWS error: %v", aerr.Error())
+			}
+		}
+		return nil, err
+	}
 
-	return svc.GetCallerIdentity(input)
+	return result, nil
 }
 
 func buildARN(partition, serviceName, entityName, region string, id *sts.GetCallerIdentityOutput) string {

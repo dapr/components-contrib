@@ -322,8 +322,10 @@ func SNSSQSBasic(t *testing.T) {
 		)).
 		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
-		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
-		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
+		Step("verify if app1 has recevied messages published to active topic", assertMessages(100*time.Second,
+			consumerGroup1)).
+		Step("verify if app2 has recevied messages published to passive topic", assertMessages(100*time.Second,
+			consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }

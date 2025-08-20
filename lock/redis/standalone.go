@@ -60,9 +60,10 @@ func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.M
 		return errors.New("metadata property redisHost is empty")
 	}
 
-	// We do not support failover or having replicas
-	if r.clientSettings.Failover {
-		return errors.New("this component does not support connecting to Redis with failover")
+	// Failover (Sentinel) is supported via the shared redis client.
+	// Redis Cluster remains unsupported for distributed locks.
+	if r.clientSettings.RedisType == rediscomponent.ClusterType {
+		return errors.New("this component does not support connecting to Redis Cluster")
 	}
 
 	// Ping Redis to ensure the connection is uo
@@ -70,10 +71,10 @@ func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.M
 		return fmt.Errorf("error connecting to Redis: %v", err)
 	}
 
-	// Ensure there are no replicas
+	// Ensure there are no replicas unless we are using failover (Sentinel)
 	// Pass the validation if error occurs, since some Redis versions such as miniredis do not recognize the `INFO` command.
 	replicas, err := rediscomponent.GetConnectedSlaves(ctx, r.client)
-	if err == nil && replicas > 0 {
+	if err == nil && replicas > 0 && !r.clientSettings.Failover {
 		return errors.New("replication is not supported")
 	}
 	return nil

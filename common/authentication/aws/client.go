@@ -184,8 +184,7 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		/**
 		 * If the error is not nil, do not proceed to the next step
 		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
-		 */
-		if err != nil {
+		 */ if err != nil {
 			return nil, err
 		}
 		return stream.StreamDescription.StreamARN, err

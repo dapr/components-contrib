@@ -199,9 +199,11 @@ func TestNewModuleConfig(t *testing.T) {
 				WithStartFunctions() // don't include instantiation in duration
 			mod, err := rt.InstantiateWithConfig(ctx, tc.metadata.Guest, cfg)
 			require.NoError(t, err)
+			defer mod.Close(ctx)
 
 			start := time.Now()
 			_, err = mod.ExportedFunction("_start").Call(ctx)
+			// Context: https://github.com/tetratelabs/wazero/pull/2367
 			require.NoError(t, err)
 			duration := time.Since(start)
 
@@ -209,7 +211,7 @@ func TestNewModuleConfig(t *testing.T) {
 			// https://github.com/tinygo-org/tinygo/issues/3776
 			deterministicOut := `2000000
 1000000
-6393cff83a
+3e0a4fc818
 `
 			if tc.metadata.StrictSandbox {
 				require.Equal(t, deterministicOut, out.String())
@@ -217,7 +219,9 @@ func TestNewModuleConfig(t *testing.T) {
 				require.NotEqual(t, deterministicOut, out.String())
 			}
 			require.GreaterOrEqual(t, duration, tc.minDuration)
-			require.LessOrEqual(t, duration, tc.maxDuration)
+			// Add 0.1ms buffer to account for the extra time we spend in Go.
+			allowed := tc.maxDuration + 100*time.Microsecond
+			require.LessOrEqual(t, duration, allowed)
 		})
 	}
 }

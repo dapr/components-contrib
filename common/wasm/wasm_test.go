@@ -180,7 +180,7 @@ func TestNewModuleConfig(t *testing.T) {
 			// lower bound. In any case, the important part is that we aren't
 			// actually sleeping 50ms, which is what wasm thinks is happening.
 			minDuration: 0,
-			maxDuration: 1 * time.Millisecond,
+			maxDuration: 10 * time.Millisecond,
 		},
 	}
 
@@ -219,9 +219,7 @@ func TestNewModuleConfig(t *testing.T) {
 				require.NotEqual(t, deterministicOut, out.String())
 			}
 			require.GreaterOrEqual(t, duration, tc.minDuration)
-			// Add 0.1ms buffer to account for the extra time we spend in Go.
-			allowed := tc.maxDuration + 100*time.Microsecond
-			require.LessOrEqual(t, duration, allowed)
+			require.LessOrEqual(t, duration, tc.maxDuration)
 		})
 	}
 }

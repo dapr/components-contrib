@@ -605,6 +605,48 @@ func TestEncryptionKeys(t *testing.T) {
 	})
 }
 
+func TestParsePulsarMetadataReplicateSubscriptionState(t *testing.T) {
+	tt := []struct {
+		name                       string
+		replicateSubscriptionState string
+		expected                   bool
+	}{
+		{
+			name:                       "test replicateSubscriptionState true",
+			replicateSubscriptionState: "true",
+			expected:                   true,
+		},
+		{
+			name:                       "test replicateSubscriptionState false",
+			replicateSubscriptionState: "false",
+			expected:                   false,
+		},
+		{
+			name:                       "test replicateSubscriptionState empty (defaults to false)",
+			replicateSubscriptionState: "",
+			expected:                   false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+			m.Properties = map[string]string{
+				"host": "a",
+			}
+
+			if tc.replicateSubscriptionState != "" {
+				m.Properties["replicateSubscriptionState"] = tc.replicateSubscriptionState
+			}
+
+			meta, err := parsePulsarMetadata(m)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, meta.ReplicateSubscriptionState)
+		})
+	}
+}
+
 func TestSanitiseURL(t *testing.T) {
 	tests := []struct {
 		name     string

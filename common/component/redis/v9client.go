@@ -330,6 +330,8 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		DB:                    s.DB,
 		MasterName:            s.SentinelMasterName,
 		SentinelAddrs:         []string{s.Host},
+		SentinelUsername:      s.SentinelUsername,
+		SentinelPassword:      s.SentinelPassword,
 		Password:              s.Password,
 		Username:              s.Username,
 		MaxRetries:            s.RedisMaxRetries,
@@ -359,9 +361,12 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		}
 	}
 
-	if s.RedisType == ClusterType {
+	// If multiple sentinel addresses are provided, split them regardless of RedisType.
+	if strings.Contains(s.Host, ",") {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
+	}
 
+	if s.RedisType == ClusterType {
 		return v9Client{
 			client:       v9.NewFailoverClusterClient(opts),
 			readTimeout:  s.ReadTimeout,

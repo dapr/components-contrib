@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: huaweicloud.csms
+version: v1
+status: alpha
+title: "HuaweiCloud CSMS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/huaweicloud-csms/
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: "Authenticate using HuaweiCloud access key and secret."
+    metadata:
+      - name: region
+        type: string
+        required: true
+        description: The HuaweiCloud region.
+        example: "cn-north-4"
+      - name: accessKey
+        type: string
+        required: true
+        description: The HuaweiCloud access key.
+        example: "access-key"
+      - name: secretAccessKey
+        type: string
+        required: true
+        description: The HuaweiCloud secret access key.
+        example: "secret-access-key"
+metadata:
+  - name: version_id
+    type: string
+    required: false
+    description: The version ID of the secret to retrieve. If not specified, the latest version is used.
+    example: "1"

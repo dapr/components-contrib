@@ -156,8 +156,15 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
+
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
-		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode))
+		// Configure the KCL worker with custom endpoints for LocalStack
+		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
+		if a.metadata.Endpoint != "" {
+			config.KinesisEndpoint = a.metadata.Endpoint
+			config.DynamoDBEndpoint = a.metadata.Endpoint
+		}
+		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
 		err = a.worker.Start()
 		if err != nil {
 			return err

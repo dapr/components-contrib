@@ -27,31 +27,32 @@ import (
 )
 
 type rabbitmqMetadata struct {
-	pubsub.TLSProperties `mapstructure:",squash"`
-	ConsumerID           string                 `mapstructure:"consumerID" mdignore:"true"`
-	ConnectionString     string                 `mapstructure:"connectionString"`
-	Protocol             string                 `mapstructure:"protocol"`
-	internalProtocol     string                 `mapstructure:"-"`
-	Hostname             string                 `mapstructure:"hostname"`
-	Username             string                 `mapstructure:"username"`
-	Password             string                 `mapstructure:"password"`
-	Durable              bool                   `mapstructure:"durable"`
-	EnableDeadLetter     bool                   `mapstructure:"enableDeadLetter"`
-	DeleteWhenUnused     bool                   `mapstructure:"deletedWhenUnused"`
-	AutoAck              bool                   `mapstructure:"autoAck"`
-	RequeueInFailure     bool                   `mapstructure:"requeueInFailure"`
-	DeliveryMode         uint8                  `mapstructure:"deliveryMode"`  // Transient (0 or 1) or Persistent (2)
-	PrefetchCount        uint8                  `mapstructure:"prefetchCount"` // Prefetch deactivated if 0
-	ReconnectWait        time.Duration          `mapstructure:"reconnectWaitSeconds"`
-	MaxLen               int64                  `mapstructure:"maxLen"`
-	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
-	ExchangeKind         string                 `mapstructure:"exchangeKind"`
-	ClientName           string                 `mapstructure:"clientName"`
-	HeartBeat            time.Duration          `mapstructure:"heartBeat"`
-	PublisherConfirm     bool                   `mapstructure:"publisherConfirm"`
-	SaslExternal         bool                   `mapstructure:"saslExternal"`
-	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
-	DefaultQueueTTL      *time.Duration         `mapstructure:"ttlInSeconds"`
+	pubsub.TLSProperties               `mapstructure:",squash"`
+	ConsumerID                         string                 `mapstructure:"consumerID" mdignore:"true"`
+	ConnectionString                   string                 `mapstructure:"connectionString"`
+	Protocol                           string                 `mapstructure:"protocol"`
+	internalProtocol                   string                 `mapstructure:"-"`
+	Hostname                           string                 `mapstructure:"hostname"`
+	Username                           string                 `mapstructure:"username"`
+	Password                           string                 `mapstructure:"password"`
+	Durable                            bool                   `mapstructure:"durable"`
+	EnableDeadLetter                   bool                   `mapstructure:"enableDeadLetter"`
+	DeleteWhenUnused                   bool                   `mapstructure:"deletedWhenUnused"`
+	AutoAck                            bool                   `mapstructure:"autoAck"`
+	RequeueInFailure                   bool                   `mapstructure:"requeueInFailure"`
+	DeliveryMode                       uint8                  `mapstructure:"deliveryMode"`  // Transient (0 or 1) or Persistent (2)
+	PrefetchCount                      uint8                  `mapstructure:"prefetchCount"` // Prefetch deactivated if 0
+	ReconnectWait                      time.Duration          `mapstructure:"reconnectWaitSeconds"`
+	MaxLen                             int64                  `mapstructure:"maxLen"`
+	MaxLenBytes                        int64                  `mapstructure:"maxLenBytes"`
+	ExchangeKind                       string                 `mapstructure:"exchangeKind"`
+	ClientName                         string                 `mapstructure:"clientName"`
+	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
+	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
+	SaslExternal                       bool                   `mapstructure:"saslExternal"`
+	Concurrency                        pubsub.ConcurrencyMode `mapstructure:"concurrency"`
+	DefaultQueueTTL                    *time.Duration         `mapstructure:"ttlInSeconds"`
+	PublishMessagePropertiesToMetadata bool                   `mapstructure:"publishMessagePropertiesToMetadata"`
 }
 
 const (
@@ -65,23 +66,24 @@ const (
 	metadataUsernameKey = "username"
 	metadataPasswordKey = "password"
 
-	metadataDurableKey              = "durable"
-	metadataEnableDeadLetterKey     = "enableDeadLetter"
-	metadataDeleteWhenUnusedKey     = "deletedWhenUnused"
-	metadataAutoAckKey              = "autoAck"
-	metadataRequeueInFailureKey     = "requeueInFailure"
-	metadataDeliveryModeKey         = "deliveryMode"
-	metadataPrefetchCountKey        = "prefetchCount"
-	metadataReconnectWaitSecondsKey = "reconnectWaitSeconds"
-	metadataMaxLenKey               = "maxLen"
-	metadataMaxLenBytesKey          = "maxLenBytes"
-	metadataExchangeKindKey         = "exchangeKind"
-	metadataPublisherConfirmKey     = "publisherConfirm"
-	metadataSaslExternal            = "saslExternal"
-	metadataMaxPriority             = "maxPriority"
-	metadataClientNameKey           = "clientName"
-	metadataHeartBeatKey            = "heartBeat"
-	metadataQueueNameKey            = "queueName"
+	metadataDurableKey                            = "durable"
+	metadataEnableDeadLetterKey                   = "enableDeadLetter"
+	metadataDeleteWhenUnusedKey                   = "deletedWhenUnused"
+	metadataAutoAckKey                            = "autoAck"
+	metadataRequeueInFailureKey                   = "requeueInFailure"
+	metadataDeliveryModeKey                       = "deliveryMode"
+	metadataPrefetchCountKey                      = "prefetchCount"
+	metadataReconnectWaitSecondsKey               = "reconnectWaitSeconds"
+	metadataMaxLenKey                             = "maxLen"
+	metadataMaxLenBytesKey                        = "maxLenBytes"
+	metadataExchangeKindKey                       = "exchangeKind"
+	metadataPublisherConfirmKey                   = "publisherConfirm"
+	metadataSaslExternal                          = "saslExternal"
+	metadataMaxPriority                           = "maxPriority"
+	metadataClientNameKey                         = "clientName"
+	metadataHeartBeatKey                          = "heartBeat"
+	metadataQueueNameKey                          = "queueName"
+	metadataPublishMessagePropertiesToMetadataKey = "publishMessagePropertiesToMetadata"
 
 	defaultReconnectWaitSeconds = 3
 
@@ -92,16 +94,17 @@ const (
 // createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitmqMetadata, error) {
 	result := rabbitmqMetadata{
-		internalProtocol: protocolAMQP,
-		Hostname:         "localhost",
-		Durable:          true,
-		DeleteWhenUnused: true,
-		AutoAck:          false,
-		ReconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
-		ExchangeKind:     fanoutExchangeKind,
-		PublisherConfirm: false,
-		SaslExternal:     false,
-		HeartBeat:        defaultHeartbeat,
+		internalProtocol:                   protocolAMQP,
+		Hostname:                           "localhost",
+		Durable:                            true,
+		DeleteWhenUnused:                   true,
+		AutoAck:                            false,
+		ReconnectWait:                      time.Duration(defaultReconnectWaitSeconds) * time.Second,
+		ExchangeKind:                       fanoutExchangeKind,
+		PublisherConfirm:                   false,
+		SaslExternal:                       false,
+		HeartBeat:                          defaultHeartbeat,
+		PublishMessagePropertiesToMetadata: false,
 	}
 
 	// upgrade metadata

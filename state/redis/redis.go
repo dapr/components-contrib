@@ -473,10 +473,7 @@ var (
 )
 
 func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, err error) {
-	var (
-		haveData, haveVersion bool
-		verStr                string
-	)
+	var seenData, seenVersion bool
 
 	// step by 2: key, value. we only expect string or byte slice
 	for i := 0; i+1 < len(vals); i += 2 {
@@ -485,27 +482,31 @@ func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, er
 			switch key {
 			case "data":
 				if s, ok := toString(vals[i+1]); ok {
-					data, haveData = s, true
+					data = s
+					seenData = true
 				}
 			case "version":
 				if s, ok := toString(vals[i+1]); ok {
-					verStr, haveVersion = s, true
+					version = &s
+					seenVersion = true
 				}
 			}
 		case []byte:
 			if bytes.Equal(key, bsData) {
 				if s, ok := toString(vals[i+1]); ok {
-					data, haveData = s, true
+					data = s
+					seenData = true
 				}
 			} else if bytes.Equal(key, bsVersion) {
 				if s, ok := toString(vals[i+1]); ok {
-					verStr, haveVersion = s, true
+					version = &s
+					seenVersion = true
 				}
 			}
 		}
 
-		if haveData && haveVersion {
-			return data, &verStr, nil // verStr escapes, which is fine; no extra helper alloc
+		if seenData && seenVersion {
+			return data, version, nil
 		}
 	}
 

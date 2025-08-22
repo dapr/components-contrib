@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.ses
+version: v1
+status: stable
+title: "AWS Simple Email Service (SES)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/ses/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send email via AWS SES"
+authenticationProfiles:
+  - title: "AWS Access Key Authentication"
+    description: |
+      Authenticate using AWS access key credentials.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The AWS access key"
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The AWS secret key"
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: "The AWS session token"
+        example: "TOKEN"
+      - name: region
+        required: true
+        description: "The AWS region"
+        example: "us-east-1"
+metadata:
+  - name: emailFrom
+    required: true
+    description: "The sender email address"
+    example: "sender@example.com"
+  - name: emailTo
+    required: true
+    description: "The recipient email address"
+    example: "recipient@example.com"
+  - name: subject
+    required: true
+    description: "The email subject"
+    example: "Hello from Dapr"
+  - name: emailCc
+    required: false
+    description: "The email CC address"
+    example: "cc@example.com"
+  - name: emailBcc
+    required: false
+    description: "The email BCC address"
+    example: "bcc@example.com"

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: commercetools
+version: v1
+status: alpha
+title: "Commercetools"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/commercetools/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Create resource in Commercetools"
+authenticationProfiles:
+  - title: "OAuth Client Authentication"
+    description: |
+      Authenticate using OAuth client credentials.
+    metadata:
+      - name: clientID
+        required: true
+        description: "The Commercetools client ID"
+        example: "client-id"
+      - name: clientSecret
+        required: true
+        sensitive: true
+        description: "The Commercetools client secret"
+        example: "client-secret"
+metadata:
+  - name: projectKey
+    required: true
+    description: "The Commercetools project key"
+    example: "my-project"
+  - name: region
+    required: true
+    description: "The Commercetools region"
+    example: "gcp-europe-west1"
+    default: "gcp-europe-west1"
+  - name: provider
+    required: true
+    description: "The Commercetools provider"
+    example: "gcp"
+    default: "gcp"
+  - name: scopes
+    required: true
+    description: "The OAuth scopes"
+    example: "manage_project:my-project"
+

@@ -45,8 +45,8 @@ authenticationProfiles:
         type: bool
         required: false
         description: Whether to enable TLS encryption.
-        example: false
-        default: false
+        example: "false"
+        default: "false"
       - name: clientCert
         type: string
         required: true
@@ -69,8 +69,8 @@ metadata:
     type: bool
     required: false
     description: Whether to archive changes to a separate table.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: timeout
     type: string
     required: false
@@ -80,8 +80,8 @@ metadata:
     type: bool
     required: false
     description: Whether to use json.Number instead of float64.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: numRetries
     type: number
     required: false
@@ -97,8 +97,8 @@ metadata:
     type: bool
     required: false
     description: Whether to enable opentracing for queries.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: writeTimeout
     type: string
     required: false
@@ -144,7 +144,7 @@ metadata:
     type: bool
     required: false
     description: Whether to discover hosts."
-    example: false
+    example: "false"
   - name: nodeRefreshInterval
     type: string
     required: false

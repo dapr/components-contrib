@@ -109,8 +109,8 @@ metadata:
     type: bool
     required: false
     description: Enable flow control for the consumer.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: ackWait
     type: string
     required: false
@@ -135,8 +135,8 @@ metadata:
     type: bool
     required: false
     description: Use memory storage for the stream.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: rateLimit
     type: integer
     required: false

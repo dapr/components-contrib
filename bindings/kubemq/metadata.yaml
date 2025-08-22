@@ -52,5 +52,5 @@ metadata:
     type: bool
     required: false
     description: Whether to automatically acknowledge messages.
-    example: true
-    default: false
+    example: "true"
+    default: "false"

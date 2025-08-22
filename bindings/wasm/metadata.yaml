@@ -18,8 +18,8 @@ metadata:
   - name: strictSandbox
     required: false
     description: "Strict sandbox mode. When true, uses fake sources to avoid vulnerabilities such as timing attacks."
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: url
     required: true
     description: "The URL of the WASM file"

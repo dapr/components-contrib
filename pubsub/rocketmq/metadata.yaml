@@ -99,8 +99,8 @@ metadata:
     type: bool
     required: false
     description: Enable orderly message consumption.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: consumeMessageBatchMaxSize
     type: number
     required: false
@@ -120,8 +120,8 @@ metadata:
     type: bool
     required: false
     description: Enable automatic commit.
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: consumeTimeout
     type: number
     required: false

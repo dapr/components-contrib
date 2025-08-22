@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -612,6 +613,101 @@ func amqpMtlsExternalAuthReady(url string) flow.Runnable {
 
 		return nil
 	}
+}
+
+func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
+	for k, v := range metadata {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+func TestRabbitMQMetadataProperties(t *testing.T) {
+	messages := watcher.NewUnordered()
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	// Define the test values for metadata with fixed IDs
+	const messageData = "metadata-test-message"
+	const msgID = "msg-id-123"
+	const corrID = "corr-id-456"
+	const msgType = "test-type"
+	const contentType = "application/json"
+
+	test := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		metadata := map[string]string{
+			"messageID":     msgID,
+			"correlationID": corrID,
+			"type":          msgType,
+			"contentType":   contentType,
+		}
+
+		ctx.Log("Invoking binding with metadata properties!")
+		req := &daprClient.InvokeBindingRequest{
+			Name:      "metadata-binding",
+			Operation: "create",
+			Data:      []byte(messageData),
+			Metadata:  metadata,
+		}
+
+		err = client.InvokeOutputBinding(ctx, req)
+		require.NoError(ctx, err, "error publishing message with metadata")
+
+		// Assertion on the data and metadata.
+		messages.ExpectStrings(messageData)
+		messages.Assert(ctx, time.Minute)
+
+		return nil
+	}
+
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the input binding endpoint.
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("metadata-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				msg := string(in.Data)
+				messages.Observe(msg)
+
+				// Log the received metadata for debugging
+				ctx.Logf("Got message: %s with metadata: %+v", msg, in.Metadata)
+
+				msgIdVal, _ := getMetadataValueCI(in.Metadata, "messageid")
+				corrIdVal, _ := getMetadataValueCI(in.Metadata, "correlationid")
+				contentTypeVal, _ := getMetadataValueCI(in.Metadata, "contenttype")
+				typeVal, _ := getMetadataValueCI(in.Metadata, "type")
+
+				require.Equal(t, msgID, msgIdVal, "messageID should match expected value")
+				require.Equal(t, corrID, corrIdVal, "correlationID should match expected value")
+				require.Equal(t, contentType, contentTypeVal, "contentType should match expected value")
+				require.Equal(t, msgType, typeVal, "type should match expected value")
+
+				return []byte("{}"), nil
+			}))
+		return err
+	}
+
+	flow.New(t, "rabbitmq metadata properties certification").
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+		Step(app.Run("metadataApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("metadataSidecar",
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/metadata"),
+			)...,
+		)).
+		Step("send with metadata and verify", test).
+		Run()
 }
 
 func componentRuntimeOptions() []embedded.Option {

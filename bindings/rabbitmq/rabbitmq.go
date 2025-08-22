@@ -31,6 +31,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/components-contrib/bindings"
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -228,11 +229,6 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Headers[k] = v
 	}
 
-	contentType, ok := metadata.TryGetContentType(req.Metadata)
-	if ok {
-		pub.ContentType = contentType
-	}
-
 	// The default time to live has been set in the queue
 	// We allow overriding on each call, by setting a value in request metadata
 	ttl, ok, err := metadata.TryGetTTL(req.Metadata)
@@ -251,6 +247,8 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	if ok {
 		pub.Priority = priority
 	}
+
+	common.ApplyMetadataToPublishing(req.Metadata, &pub)
 
 	err = ch.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
 	if err != nil {
@@ -473,9 +471,9 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 			// Passthrough any custom metadata to the handler.
 			for k, v := range d.Headers {
 				if s, ok := v.(string); ok {
-					// Escape the key and value to ensure they are valid URL query parameters.
+					// Escape the key to ensure they are valid URL query parameters.
 					// This is necessary for them to be sent as HTTP Metadata.
-					metadata[url.QueryEscape(k)] = url.QueryEscape(s)
+					metadata[url.QueryEscape(k)] = s
 				}
 			}
 

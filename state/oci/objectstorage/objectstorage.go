@@ -51,7 +51,6 @@ const (
 	privateKeyKey                      = "privateKey"
 	userKey                            = "userOCID"
 	bucketNameKey                      = "bucketName"
-	metadataTTLKey                     = "ttlInSeconds"
 	daprStateStoreMetaLabel            = "dapr-state-store"
 	expiryTimeMetaLabel                = "expiry-time-from-ttl"
 	isoDateTimeFormat                  = "2006-01-02T15:04:05"
@@ -80,7 +79,7 @@ type objectStoreMetadata struct {
 	InstancePrincipalAuthentication bool
 	ConfigFileAuthentication        bool
 
-	OCIObjectStorageClient *objectstorage.ObjectStorageClient
+	OCIObjectStorageClient *objectstorage.ObjectStorageClient `mapstructure:"-"`
 }
 
 type objectStoreClient interface {

@@ -79,6 +79,124 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 	})
 }
 
+func TestStandaloneRedisLock_InitFailoverAndReplication(t *testing.T) {
+	t.Run("error when cluster type is specified", func(t *testing.T) {
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = "127.0.0.1:6379"
+		cfg.Properties["redisType"] = "cluster"
+
+		// init should fail for cluster type
+		err := comp.InitLockStore(t.Context(), cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not support connecting to Redis Cluster")
+	})
+
+	t.Run("failover configuration", func(t *testing.T) {
+		// Note: miniredis doesn't support Sentinel, so this test verifies
+		// that failover configuration is properly parsed and fails appropriately
+		// when Sentinel is not available
+
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = "127.0.0.1:26379" // Standard Sentinel port
+		cfg.Properties["failover"] = "true"
+		cfg.Properties["sentinelMasterName"] = "mymaster"
+
+		// init should fail due to no Sentinel available, but this validates
+		// that failover configuration is properly handled
+		err := comp.InitLockStore(t.Context(), cfg)
+		require.Error(t, err)
+		// The error should be related to connection, not configuration parsing
+		assert.Contains(t, err.Error(), "error connecting to Redis")
+	})
+
+	t.Run("success when no replicas detected", func(t *testing.T) {
+		// start redis
+		s, err := miniredis.Run()
+		require.NoError(t, err)
+		defer s.Close()
+
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = s.Addr()
+		cfg.Properties["failover"] = "false"
+
+		// init should succeed when no replicas are present
+		err = comp.InitLockStore(t.Context(), cfg)
+		require.NoError(t, err)
+	})
+
+	t.Run("error when replication detected without failover", func(t *testing.T) {
+		// Note: This test would require a more complex setup with actual Redis replicas
+		// For now, we test the validation logic path
+		// In a real scenario, you would set up a Redis master with replicas
+		// and ensure the component rejects it when failover=false
+
+		// This is a conceptual test - actual implementation would require:
+		// 1. Setting up Redis with replication
+		// 2. Ensuring GetConnectedSlaves returns > 0
+		// 3. Verifying the error is returned
+
+		t.Skip("Requires complex Redis replication setup - implement when needed")
+	})
+}
+
+func TestStandaloneRedisLock_ConfigurationValidation(t *testing.T) {
+	t.Run("error when invalid failover settings", func(t *testing.T) {
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = "127.0.0.1:6379"
+		cfg.Properties["failover"] = "true"
+		// Missing sentinelMasterName should cause connection issues
+
+		// init should fail due to invalid failover configuration
+		err := comp.InitLockStore(t.Context(), cfg)
+		require.Error(t, err)
+	})
+
+	t.Run("success with valid node type", func(t *testing.T) {
+		// start redis
+		s, err := miniredis.Run()
+		require.NoError(t, err)
+		defer s.Close()
+
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = s.Addr()
+		cfg.Properties["redisType"] = "node"
+
+		// init should succeed with node type
+		err = comp.InitLockStore(t.Context(), cfg)
+		require.NoError(t, err)
+	})
+}
+
 func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	// 0. prepare
 	// start redis
@@ -145,4 +263,100 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, unlockResp.Status, "client2 failed to unlock!")
+}
+
+func TestStandaloneRedisLock_ErrorScenarios(t *testing.T) {
+	t.Run("error when connection ping fails", func(t *testing.T) {
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = "127.0.0.1:9999" // Non-existent Redis port
+		cfg.Properties["redisPassword"] = ""
+
+		// init should fail due to connection error
+		err := comp.InitLockStore(t.Context(), cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "error connecting to Redis")
+	})
+
+	t.Run("error with empty host", func(t *testing.T) {
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = ""
+
+		// init should fail due to empty host
+		err := comp.InitLockStore(t.Context(), cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "redisHost is empty")
+	})
+
+	t.Run("unlock scenarios", func(t *testing.T) {
+		// start redis
+		s, err := miniredis.Run()
+		require.NoError(t, err)
+		defer s.Close()
+
+		// construct component
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+		defer comp.Close()
+
+		cfg := lock.Metadata{Base: metadata.Base{
+			Properties: make(map[string]string),
+		}}
+		cfg.Properties["redisHost"] = s.Addr()
+
+		err = comp.InitLockStore(t.Context(), cfg)
+		require.NoError(t, err)
+
+		// Test unlock non-existent lock
+		unlockResp, err := comp.Unlock(t.Context(), &lock.UnlockRequest{
+			ResourceID: "non-existent-resource",
+			LockOwner:  "some-owner",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, lock.LockDoesNotExist, unlockResp.Status)
+
+		// Create a lock first
+		ownerID := uuid.New().String()
+		_, err = comp.TryLock(t.Context(), &lock.TryLockRequest{
+			ResourceID:      resourceID,
+			LockOwner:       ownerID,
+			ExpiryInSeconds: 10,
+		})
+		require.NoError(t, err)
+
+		// Test unlock with wrong owner
+		unlockResp, err = comp.Unlock(t.Context(), &lock.UnlockRequest{
+			ResourceID: resourceID,
+			LockOwner:  "wrong-owner",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, lock.LockBelongsToOthers, unlockResp.Status)
+
+		// Test successful unlock
+		unlockResp, err = comp.Unlock(t.Context(), &lock.UnlockRequest{
+			ResourceID: resourceID,
+			LockOwner:  ownerID,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, lock.Success, unlockResp.Status)
+	})
+}
+
+func TestStandaloneRedisLock_ComponentMetadata(t *testing.T) {
+	comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
+	defer comp.Close()
+
+	metadata := comp.GetComponentMetadata()
+	assert.NotNil(t, metadata)
+	assert.NotEmpty(t, metadata)
 }

@@ -194,3 +194,9 @@ metadata:
       The heartbeat used for the connection.
     default: '"10s"'
     example: '"30s"'
+  - name: publishMessagePropertiesToMetadata
+    type: bool
+    description: |
+      Whether to publish AMQP message properties (headers, message ID, etc.) to the metadata.
+    default: '"false"'
+    example: '"true", "false"'

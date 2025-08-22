@@ -60,7 +60,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithM
 		return err
 	}
 
-	// Validate and sanitize inputq
+	// Validate and sanitize input
 	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, opts)
 	if err != nil {
 		return err

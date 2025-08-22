@@ -161,7 +161,6 @@ func (opts *ContainerClientOpts) InitContainerClient(azEnvSettings azauth.Enviro
 		if err != nil {
 			return nil, fmt.Errorf("cannot init blob storage container client with shared key: %w", err)
 		}
-
 	// Use Azure AD as fallback
 	default:
 		credential, tokenErr := azEnvSettings.GetTokenCredential()

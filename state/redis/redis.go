@@ -465,28 +465,6 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	return nil
 }
 
-func (r *StateStore) getKeyVersionOld(vals []interface{}) (data string, version *string, err error) {
-	seenData := false
-	seenVersion := false
-	for i := 0; i < len(vals); i += 2 {
-		field, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i]))
-		switch field {
-		case "data":
-			data, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			seenData = true
-		case "version":
-			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			version = ptr.Of(versionVal)
-			seenVersion = true
-		}
-	}
-	if !seenData || !seenVersion {
-		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
-	}
-
-	return data, version, nil
-}
-
 // comparison pseudo-constants to avoid allocations
 var (
 	bsData    = []byte("data")

@@ -478,7 +478,7 @@ func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, er
 		verStr                string
 	)
 
-	// step by 2: key, value
+	// step by 2: key, value. we only expect string or byte slice
 	for i := 0; i+1 < len(vals); i += 2 {
 		switch key := vals[i].(type) {
 		case string:
@@ -502,8 +502,6 @@ func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, er
 					verStr, haveVersion = s, true
 				}
 			}
-		default:
-			// ignore unexpected key types
 		}
 
 		if haveData && haveVersion {

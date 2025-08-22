@@ -14,15 +14,15 @@ limitations under the License.
 package redis
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	jsoniter "github.com/json-iterator/go"
 
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/contenttype"
@@ -465,7 +465,7 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	return nil
 }
 
-func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
+func (r *StateStore) getKeyVersionOld(vals []interface{}) (data string, version *string, err error) {
 	seenData := false
 	seenVersion := false
 	for i := 0; i < len(vals); i += 2 {
@@ -485,6 +485,65 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 	}
 
 	return data, version, nil
+}
+
+// comparison pseudo-constants to avoid allocations
+var (
+	bsData    = []byte("data")
+	bsVersion = []byte("version")
+)
+
+func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, err error) {
+	var (
+		haveData, haveVersion bool
+		verStr                string
+	)
+
+	// step by 2: key, value
+	for i := 0; i+1 < len(vals); i += 2 {
+		switch key := vals[i].(type) {
+		case string:
+			switch key {
+			case "data":
+				if s, ok := toString(vals[i+1]); ok {
+					data, haveData = s, true
+				}
+			case "version":
+				if s, ok := toString(vals[i+1]); ok {
+					verStr, haveVersion = s, true
+				}
+			}
+		case []byte:
+			if bytes.Equal(key, bsData) {
+				if s, ok := toString(vals[i+1]); ok {
+					data, haveData = s, true
+				}
+			} else if bytes.Equal(key, bsVersion) {
+				if s, ok := toString(vals[i+1]); ok {
+					verStr, haveVersion = s, true
+				}
+			}
+		default:
+			// ignore unexpected key types
+		}
+
+		if haveData && haveVersion {
+			return data, &verStr, nil // verStr escapes, which is fine; no extra helper alloc
+		}
+	}
+
+	return "", nil, errors.New("required hash field 'data' or 'version' was not found")
+}
+
+func toString(v any) (string, bool) {
+	switch x := v.(type) {
+	case string:
+		return x, true
+	case []byte:
+		return string(x), true // some allocation here unless we go to unsafe
+	default:
+		return "", false
+	}
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {

@@ -538,7 +538,7 @@ func TestToString(t *testing.T) {
 func BenchmarkGetKeyVersion(b *testing.B) {
 	/*
 			On a Mac M1 Pro:
-			BenchmarkGetKeyVersion-10    	    11336577	       100.0 ns/op	      64 B/op	       6 allocs/op
+			BenchmarkGetKeyVersion-10    	    11320531	        97.44 ns/op	      64 B/op	       6 allocs/op
 
 			// old getkeyversion method
 			BenchmarkGetKeyVersionOld-10    	 1631097	       729.1 ns/op	      96 B/op	      10 allocs/op

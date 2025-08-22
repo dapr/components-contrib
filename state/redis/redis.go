@@ -505,7 +505,6 @@ func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, er
 			}
 		}
 	}
-
 	if !seenData || !seenVersion {
 		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
 	}

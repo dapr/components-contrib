@@ -92,7 +92,7 @@ metadata:
     type: number
     required: false
     description: Number of times to retry queries on connection errors.
-    example: 3
+    example: "3"
   - name: hostDecayDuration
     type: string
     required: false
@@ -119,7 +119,7 @@ metadata:
     type: number
     required: false
     description: Handshake version for RethinkDB."
-    example: 1
+    example: "1"
   - name: keepAlivePeriod
     type: string
     required: false
@@ -129,7 +129,7 @@ metadata:
     type: number
     required: false
     description: Maximum number of idle connections."
-    example: 5
+    example: "5"
   - name: authKey
     type: string
     required: false
@@ -140,12 +140,12 @@ metadata:
     type: number
     required: false
     description: Initial connection pool capacity."
-    example: 5
+    example: "5"
   - name: maxOpen
     type: number
     required: false
     description: Maximum number of open connections."
-    example: 10
+    example: "10"
   - name: discoverHosts
     type: bool
     required: false

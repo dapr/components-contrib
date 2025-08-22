@@ -20,8 +20,8 @@ metadata:
     type: number
     required: false
     description: "The status code to return for denied responses"
-    example: 403
-    default: 403
+    example: "403"
+    default: "403"
   - name: includedHeaders
     type: string
     required: false

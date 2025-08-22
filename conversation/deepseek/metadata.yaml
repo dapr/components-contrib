@@ -7,7 +7,7 @@ status: alpha
 title: "Deepseek"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/deepseek/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-deepseek/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"

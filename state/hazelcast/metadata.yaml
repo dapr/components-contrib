@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: hazelcast
+version: v1
+status: alpha
+title: "Hazelcast"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-hazelcast/
+metadata:
+  - name: hazelcastServers
+    type: string
+    required: true
+    description: Comma-separated list of Hazelcast servers.
+    example: "localhost:5701"
+  - name: hazelcastMap
+    type: string
+    required: true
+    description: The Hazelcast map name.
+    example: "dapr-state"

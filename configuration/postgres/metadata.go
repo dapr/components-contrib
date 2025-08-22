@@ -63,6 +63,11 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 		return fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 	}
 
+	// Timeout
+	if m.Timeout < 1*time.Second {
+		return errors.New("invalid value for 'timeout': must be greater than 1s")
+	}
+
 	opts := pgauth.InitWithMetadataOpts{
 		AzureADEnabled: true,
 		AWSIAMEnabled:  true,

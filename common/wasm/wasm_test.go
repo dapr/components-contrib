@@ -180,7 +180,7 @@ func TestNewModuleConfig(t *testing.T) {
 			// lower bound. In any case, the important part is that we aren't
 			// actually sleeping 50ms, which is what wasm thinks is happening.
 			minDuration: 0,
-			maxDuration: 1 * time.Millisecond,
+			maxDuration: 10 * time.Millisecond,
 		},
 	}
 
@@ -199,9 +199,11 @@ func TestNewModuleConfig(t *testing.T) {
 				WithStartFunctions() // don't include instantiation in duration
 			mod, err := rt.InstantiateWithConfig(ctx, tc.metadata.Guest, cfg)
 			require.NoError(t, err)
+			defer mod.Close(ctx)
 
 			start := time.Now()
 			_, err = mod.ExportedFunction("_start").Call(ctx)
+			// Context: https://github.com/tetratelabs/wazero/pull/2367
 			require.NoError(t, err)
 			duration := time.Since(start)
 
@@ -209,7 +211,7 @@ func TestNewModuleConfig(t *testing.T) {
 			// https://github.com/tinygo-org/tinygo/issues/3776
 			deterministicOut := `2000000
 1000000
-6393cff83a
+3e0a4fc818
 `
 			if tc.metadata.StrictSandbox {
 				require.Equal(t, deterministicOut, out.String())

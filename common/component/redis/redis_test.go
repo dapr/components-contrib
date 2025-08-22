@@ -25,6 +25,8 @@ const (
 	host                  = "redisHost"
 	password              = "redisPassword"
 	username              = "redisUsername"
+	sentinelUsername      = "sentinelUsername"
+	sentinelPassword      = "sentinelPassword"
 	db                    = "redisDB"
 	redisType             = "redisType"
 	redisMaxRetries       = "redisMaxRetries"
@@ -51,6 +53,8 @@ func getFakeProperties() map[string]string {
 		host:                  "fake.redis.com",
 		password:              "fakePassword",
 		username:              "fakeUsername",
+		sentinelUsername:      "fakeSentinelUsername",
+		sentinelPassword:      "fakeSentinelPassword",
 		redisType:             "node",
 		enableTLS:             "true",
 		clientCert:            "fakeCert",
@@ -86,6 +90,8 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[host], m.Host)
 		assert.Equal(t, fakeProperties[password], m.Password)
 		assert.Equal(t, fakeProperties[username], m.Username)
+		assert.Equal(t, fakeProperties[sentinelUsername], m.SentinelUsername)
+		assert.Equal(t, fakeProperties[sentinelPassword], m.SentinelPassword)
 		assert.Equal(t, fakeProperties[redisType], m.RedisType)
 		assert.True(t, m.EnableTLS)
 		assert.Equal(t, fakeProperties[clientCert], m.ClientCert)

@@ -123,7 +123,7 @@ func (k *kubeSecretsCrypto) retrieveKeyFromSecret(parentCtx context.Context, key
 // parseKeyString returns the secret name, key, and optional namespace from the key parameter.
 // If the key parameter doesn't contain a namespace, returns the default one.
 func (k *kubeSecretsCrypto) parseKeyString(param string) (namespace string, secret string, key string, err error) {
-	parts := strings.Split(key, "/")
+	parts := strings.Split(param, "/")
 	switch len(parts) {
 	case 3:
 		namespace = parts[0]

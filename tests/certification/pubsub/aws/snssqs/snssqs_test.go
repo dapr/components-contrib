@@ -452,7 +452,11 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 		)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
-		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+
+		// test sleep step
+		Step("sleep for 10 seconds to allow messages to be processed", flow.Sleep(10*time.Second)).
+		Step("verify if app1, app2 together have recevied messages published to topic1",
+			assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -705,6 +709,9 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
+
+		// test sleep step
+		Step("sleep for 10 seconds to allow messages to be processed", flow.Sleep(10*time.Second)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
@@ -815,7 +822,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
-		Step("wait", flow.Sleep(30*time.Second)).
+		Step("wait", flow.Sleep(45*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
@@ -1033,7 +1040,7 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
-		Step("wait", flow.Sleep(30*time.Second)).
+		Step("wait", flow.Sleep(45*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
@@ -1551,7 +1558,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 			)...,
 		)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
-		Step("wait", flow.Sleep(30*time.Second)).
+		Step("wait", flow.Sleep(45*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has deadletterMessageNum recevied messages send to dead letter queue", assertMessages(10*time.Second, deadLetterConsumerGroup)).
 		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).
@@ -1683,7 +1690,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 			)...,
 		)).
 		Step("publish messages to disableDeleteOnRetryLimitTopicIn ==> "+disableDeleteOnRetryLimitTopicIn, publishMessages(nil, subAppSideCar, disableDeleteOnRetryLimitTopicIn, consumerGroup1)).
-		Step("wait", flow.Sleep(30*time.Second)).
+		Step("wait", flow.Sleep(45*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()

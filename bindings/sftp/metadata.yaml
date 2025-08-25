@@ -75,5 +75,5 @@ metadata:
   - name: insecureIgnoreHostKey
     required: false
     description: "Skip host key verification (insecure)"
-    example: false
-    default: false
+    example: "false"
+    default: "false"

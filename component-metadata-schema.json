@@ -214,8 +214,8 @@
         "lock",
         "middleware",
         "crypto",
-        "conversation",
-        "nameresolution"
+        "nameresolution",
+        "conversation"
       ],
       "description": "Component type, of one of the allowed values."
     },

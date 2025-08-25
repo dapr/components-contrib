@@ -320,6 +320,7 @@ func SNSSQSBasic(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -450,6 +451,7 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
@@ -575,6 +577,7 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to ==>"+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
@@ -703,6 +706,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -814,6 +818,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -923,6 +928,7 @@ func SNSSQSExistingQueueAndTopic(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step(fmt.Sprintf("publish messages to existingTopic: %s", existingTopic), publishMessages(metadata, sidecarName1, existingTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -1032,6 +1038,7 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -1123,6 +1130,7 @@ func SNSSQSEntityManagement(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
 }
@@ -1240,6 +1248,7 @@ func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step(fmt.Sprintf("publish messages to messageVisibilityTimeoutTopic: %s", messageVisibilityTimeoutTopic),
 			testTtlPublishMessages(metadata, sidecarName1, messageVisibilityTimeoutTopic, consumerGroup1)).
 
@@ -1313,6 +1322,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 
 			// get the sidecar (dapr) client
 			client := sidecar.GetClient(ctx, sidecarName)
+			time.Sleep(5 * time.Second)
 
 			// publish messages
 			ctx.Logf("SNSSQSFIFOMessages Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
@@ -1384,6 +1394,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+2)),
 			)...,
 		)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
 
 		// Publisher 2
@@ -1398,6 +1409,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if recevied ordered messages published to active topic", assertMessages(1*time.Second, consumerGroup1)).
@@ -1550,6 +1562,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -1682,6 +1695,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
 			)...,
 		)).
+		Step("wait for subscriptions to be effective", flow.Sleep(2*time.Second)).
 		Step("publish messages to disableDeleteOnRetryLimitTopicIn ==> "+disableDeleteOnRetryLimitTopicIn, publishMessages(nil, subAppSideCar, disableDeleteOnRetryLimitTopicIn, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).

@@ -552,7 +552,7 @@ func BenchmarkGetKeyVersion(b *testing.B) {
 	input1 := []any{[]byte("data"), []byte("payload"), []byte("version"), []byte("42")}
 	input2 := []any{[]byte("data"), []byte("payload2"), []byte("version"), []byte("43")}
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		if _, _, err := store.getKeyVersion(input1); err != nil {
 			b.Fatal(err)
 		}

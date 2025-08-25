@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.sls
+version: v1
+status: alpha
+title: "AliCloud Simple Log Storage (SLS)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloudsls/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send logs to SLS"
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: |
+      Authenticate using AliCloud access key credentials.
+    metadata:
+      - name: accessKeyID
+        required: false
+        sensitive: true
+        description: "The AliCloud access key ID"
+        example: "your-access-key-id"
+      - name: accessKeySecret
+        required: false
+        sensitive: true
+        description: "The AliCloud access key secret"
+        example: "your-access-key-secret"
+metadata:
+  - name: endpoint
+    required: true
+    description: "The SLS endpoint"
+    example: "https://your-project.cn-hangzhou.log.aliyuncs.com"
+  - name: project
+    required: true
+    description: "The SLS project name"
+    example: '"your-project-name"'
+  - name: logstore
+    required: true
+    description: "The SLS logstore name"
+    example: "your-logstore-name"
+  - name: topic
+    required: true
+    description: "The SLS topic name"
+    example: "your-topic-name"
+  - name: source
+    required: true
+    description: "The SLS source name"
+    example: "your-source-name"

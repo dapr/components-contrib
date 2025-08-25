@@ -605,7 +605,7 @@ func testMultipleInitializations(t *testing.T) {
 }
 
 func testNonBase64ByteData(t *testing.T) {
-	t.Run("Set And Get", func(t *testing.T) {
+	t.Run("Set And Get Proto", func(t *testing.T) {
 		store := getTestStore(t, "")
 		request := &sqlserver.TestEvent{
 			EventId: -1,
@@ -618,6 +618,42 @@ func testNonBase64ByteData(t *testing.T) {
 
 		response := &sqlserver.TestEvent{}
 		err = proto.Unmarshal(resp.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+	})
+
+	t.Run("Set And Get Json", func(t *testing.T) {
+		store := getTestStore(t, "")
+		request := &sqlserver.TestEvent{
+			EventId: -1,
+		}
+		requestBytes, err := json.Marshal(request)
+		require.NoError(t, err)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "1", Value: requestBytes}))
+		resp, err := store.Get(t.Context(), &state.GetRequest{Key: "1"})
+		require.NoError(t, err)
+
+		response := &sqlserver.TestEvent{}
+		err = json.Unmarshal(resp.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+	})
+
+	t.Run("Set And Get Indexed Json", func(t *testing.T) {
+		store := getTestStore(t, `[{"column": "eventid", "property": "EventId", "type": "int"}]`)
+		request := &sqlserver.TestEvent{
+			EventId: -1,
+		}
+		requestBytes, err := json.Marshal(request)
+		require.NoError(t, err)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "1", Value: requestBytes}))
+		resp, err := store.Get(t.Context(), &state.GetRequest{Key: "1"})
+		require.NoError(t, err)
+
+		response := &sqlserver.TestEvent{}
+		err = json.Unmarshal(resp.Data, response)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, request.GetEventId(), response.GetEventId())

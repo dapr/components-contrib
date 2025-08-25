@@ -323,7 +323,11 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		}
 		reqValue = string(bt)
 	} else {
-		reqValue = base64.StdEncoding.EncodeToString(bytes)
+		if json.Valid(bytes) {
+			reqValue = string(bytes)
+		} else {
+			reqValue = base64.StdEncoding.EncodeToString(bytes)
+		}
 	}
 
 	etag := sql.Named(rowVersionColumnName, nil)

@@ -18,8 +18,8 @@ import (
 	"errors"
 	"sync"
 
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
@@ -36,7 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 )
 
 type Clients struct {
@@ -118,7 +118,7 @@ type ParameterStoreClients struct {
 type KinesisClients struct {
 	Kinesis     kinesisiface.KinesisAPI
 	Region      string
-	Credentials *credentials.Credentials
+	Credentials aws2.CredentialsProvider
 }
 
 type SesClients struct {
@@ -173,7 +173,6 @@ func (c *ParameterStoreClients) New(session *session.Session) {
 func (c *KinesisClients) New(session *session.Session) {
 	c.Kinesis = kinesis.New(session, session.Config)
 	c.Region = *session.Config.Region
-	c.Credentials = session.Config.Credentials
 }
 
 func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
@@ -181,27 +180,27 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-		if stream != nil {
-			return stream.StreamDescription.StreamARN, err
+		/**
+		 * If the error is not nil, do not proceed to the next step
+		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
+		 */if err != nil {
+			return nil, err
 		}
+		return stream.StreamDescription.StreamARN, err
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")
 }
 
-func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode string) *config.KinesisClientLibConfiguration {
+func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
 	if c.Kinesis != nil {
 		if mode == sharedMode {
-			if c.Credentials != nil {
-				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
-					stream, c.Region, consumer,
-					c.Credentials)
-				return kclConfig
-			}
+			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", nil)
+			return kclConfig
+
 		}
 	}
-
 	return nil
 }
 

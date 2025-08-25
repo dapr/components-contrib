@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/interfaces"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
@@ -44,11 +45,12 @@ type AWSKinesis struct {
 
 	worker *worker.Worker
 
-	streamName   string
-	consumerName string
-	consumerARN  *string
-	logger       logger.Logger
-	consumerMode string
+	streamName      string
+	consumerName    string
+	consumerARN     *string
+	logger          logger.Logger
+	consumerMode    string
+	applicationName string
 
 	closed  atomic.Bool
 	closeCh chan struct{}
@@ -65,6 +67,7 @@ type kinesisMetadata struct {
 	SecretKey           string `json:"secretKey" mapstructure:"secretKey"`
 	SessionToken        string `json:"sessionToken" mapstructure:"sessionToken"`
 	KinesisConsumerMode string `json:"mode" mapstructure:"mode"`
+	ApplicationName     string `json:"applicationName" mapstructure:"applicationName"`
 }
 
 const (
@@ -117,6 +120,7 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 	a.streamName = m.StreamName
 	a.consumerName = m.ConsumerName
 	a.metadata = m
+	a.applicationName = m.ApplicationName
 
 	opts := awsAuth.Options{
 		Logger:       a.logger,
@@ -158,19 +162,21 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		return errors.New("binding is closed")
 	}
 
-	if a.metadata.KinesisConsumerMode == SharedThroughput {
+	switch a.metadata.KinesisConsumerMode {
+	case SharedThroughput:
+		// initalize worker configuration
+		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
 		// Configure the KCL worker with custom endpoints for LocalStack
-		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
 		if a.metadata.Endpoint != "" {
-			config.KinesisEndpoint = a.metadata.Endpoint
-			config.DynamoDBEndpoint = a.metadata.Endpoint
+			config.WithKinesisEndpoint(a.metadata.Endpoint)
+			config.WithDynamoDBEndpoint(a.metadata.Endpoint)
 		}
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
 		err = a.worker.Start()
 		if err != nil {
 			return err
 		}
-	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
+	case ExtendedFanout:
 		var stream *kinesis.DescribeStreamOutput
 		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
@@ -182,10 +188,18 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
-	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
-	if err != nil {
-		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+	var stream *string
+	/**
+	 * Invoke this only when KinesisConsumerMode is set to 'extended' to avoid unnecessary calls.
+	 */
+	if a.metadata.KinesisConsumerMode == ExtendedFanout {
+		streamARN, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+		if err != nil {
+			return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+		}
+		stream = streamARN
 	}
+
 	// Wait for context cancelation then stop
 	a.wg.Add(1)
 	go func() {

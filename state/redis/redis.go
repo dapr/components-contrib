@@ -14,16 +14,14 @@ limitations under the License.
 package redis
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	jsoniter "github.com/json-iterator/go"
 
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/contenttype"
@@ -466,12 +464,6 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	return nil
 }
 
-// comparison pseudo-constants to avoid allocations
-var (
-	dataBytes    = []byte("data")
-	versionBytes = []byte("version")
-)
-
 func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, err error) {
 	var seenData, seenVersion bool
 
@@ -492,12 +484,13 @@ func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, er
 				}
 			}
 		case []byte:
-			if bytes.Equal(key, dataBytes) {
+			switch string(key) {
+			case "data":
 				if s, ok := toString(vals[i+1]); ok {
 					data = s
 					seenData = true
 				}
-			} else if bytes.Equal(key, versionBytes) {
+			case "version":
 				if s, ok := toString(vals[i+1]); ok {
 					version = &s
 					seenVersion = true

@@ -33,8 +33,8 @@ authenticationProfiles:
         description: "The APNS private key (P8 file content)"
 metadata:
   - name: development
-    type: boolean
+    type: bool
     required: false
     description: "The APNS environment is development or not"
-    example: true
-    default: false
+    example: "true"
+    default: "false"

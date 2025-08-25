@@ -54,8 +54,8 @@ metadata:
     example: "my_key_prefix_path"
     default: ""
   - name: maxTxnOps
-    type: integer
+    type: number
     required: false
     description: Maximum number of operations allowed in a transaction.
-    example: 128
-    default: 128
+    example: "128"
+    default: "128"

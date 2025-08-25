@@ -13,7 +13,7 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-rate-limit/
 metadata:
   - name: maxRequestsPerSecond
-    type: integer
+    type: number
     required: true
     description: "Maximum number of requests allowed per second"
-    example: 100
+    example: "100"

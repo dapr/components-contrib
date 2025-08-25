@@ -158,20 +158,20 @@ metadata:
     required: false
     type: bool
     description: "Whether to enable TLS encryption"
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: useEntraID
     required: false
     type: bool
     description: "Whether to use Entra ID for authentication"
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: failover
     required: false
     type: bool
     description: "Whether to enable failover mode (for Sentinel)"
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: sentinelMasterName
     required: false
     description: "The Sentinel master name (used if redisType is 'sentinel')"

@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: oracledatabase
+version: v1
+status: alpha
+title: "Oracle Database"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-oracledatabase/
+authenticationProfiles:
+  - title: "Connection String"
+    description: "Connect to Oracle Database using a connection string."
+    metadata:
+      - name: connectionString
+        type: string
+        required: true
+metadata:
+  - name: tableName
+    type: string
+    required: false
+    description: The table name to store state data.
+    example: "dapr_state"
+    default: "state"
+  - name: oracleWalletLocation
+    type: string
+    required: false
+    description: The location of the Oracle wallet.
+    example: "/path/to/wallet"
+    default: ""

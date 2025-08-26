@@ -290,6 +290,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 	flow.New(t, "Test create instance operation (async)").
 		Step(dockercompose.Run("zeebe", zeebe_test.DockerComposeYaml)).
 		Step("Waiting for Zeebe Readiness...", retry.Do(time.Second*3, 10, zeebe_test.CheckZeebeConnection)).
+		Step(app.Run("workerApp", fmt.Sprintf(":%d", appPort), workers(0))).
 		Step(sidecar.Run(zeebe_test.SidecarName,
 			append(componentRuntimeOptions(),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
@@ -298,7 +299,6 @@ func TestCreateInstanceOperation(t *testing.T) {
 				embedded.WithResourcesPath("components/standard"),
 			)...,
 		)).
-		Step(app.Run("workerApp", fmt.Sprintf(":%d", appPort), workers(0))).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Deploy process in version 1", deployVersion1).
 		Step("Deploy process in version 2", deployVersion2).
@@ -314,6 +314,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 	flow.New(t, "Test create instance operation (sync)").
 		Step(dockercompose.Run("zeebe", zeebe_test.DockerComposeYaml)).
 		Step("Waiting for Zeebe Readiness...", retry.Do(time.Second*3, 10, zeebe_test.CheckZeebeConnection)).
+		Step(app.Run("workerApp", fmt.Sprintf(":%d", appPort), workers(20*time.Second))).
 		Step(sidecar.Run(zeebe_test.SidecarName,
 			append(componentRuntimeOptions(),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
@@ -322,7 +323,6 @@ func TestCreateInstanceOperation(t *testing.T) {
 				embedded.WithResourcesPath("components/syncProcessCreation"),
 			)...,
 		)).
-		Step(app.Run("workerApp", fmt.Sprintf(":%d", appPort), workers(20*time.Second))).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Deploy process in version 1", deployVersion1).
 		Step("Deploy process in version 2", deployVersion2).

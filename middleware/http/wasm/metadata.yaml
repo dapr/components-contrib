@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: wasm
+version: v1
+status: alpha
+title: "WebAssembly (WASM)"
+description: |
+  The WebAssembly middleware allows you to run custom logic written in WASM.
+  It can execute WASM modules to process HTTP requests and responses.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-wasm/
+metadata:
+  - name: url
+    type: string
+    required: true
+    description: "URL of the WASM module"
+    example: "https://example.com/middleware.wasm"
+  - name: guestConfig
+    required: false
+    description: "Configuration object passed to the WASM module"
+    example: |
+      {
+        "timeout": "5s",
+        "maxMemory": "10MB"
+      }

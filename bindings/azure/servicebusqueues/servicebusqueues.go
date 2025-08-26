@@ -62,7 +62,7 @@ func (a *AzureServiceBusQueues) Init(ctx context.Context, metadata bindings.Meta
 		return err
 	}
 
-	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
+	a.client, err = impl.NewClient(a.metadata, metadata.Properties, a.logger)
 	if err != nil {
 		return err
 	}

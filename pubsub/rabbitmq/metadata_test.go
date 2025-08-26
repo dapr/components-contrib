@@ -99,6 +99,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, "", m.CACert)
 		assert.Equal(t, fanoutExchangeKind, m.ExchangeKind)
 		assert.True(t, m.Durable)
+		assert.False(t, m.PublishMessagePropertiesToMetadata)
 	})
 
 	invalidDeliveryModes := []string{"3", "10", "-1"}

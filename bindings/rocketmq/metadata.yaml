@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: rocketmq
+version: v1
+status: alpha
+title: "Apache RocketMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send message to RocketMQ topic"
+    - name: read
+      description: "Receive messages from RocketMQ topic"
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: |
+      Authenticate with RocketMQ using access key and secret.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The access key for authentication"
+        example: "access-key"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The secret key for authentication"
+        example: "secret-key"
+metadata:
+  - name: accessProto
+    required: false
+    description: "SDK protocol"
+    example: "tcp"
+    allowedValues:
+      - "tcp"
+      - "tcp-cgo"
+      - "http"
+  - name: nameServer
+    required: false
+    description: "The RocketMQ name server address"
+    example: "localhost:9876"
+  - name: endpoint
+    required: false
+    description: "The RocketMQ endpoint (for http proto)"
+    example: "http://localhost:8080"
+  - name: consumerGroup
+    required: false
+    description: "Consumer group for RocketMQ subscribers"
+    example: "my-consumer-group"
+  - name: consumerBatchSize
+    required: false
+    description: "Consumer batch size"
+    example: '10'
+  - name: consumerThreadNums
+    required: false
+    description: "Consumer thread numbers (for tcp-cgo proto)"
+    example: '4'
+  - name: instanceId
+    required: false
+    description: "RocketMQ namespace"
+    example: "my-instance"
+  - name: nameServerDomain
+    required: false
+    description: "RocketMQ name server domain"
+    example: "rocketmq.example.com"
+  - name: retries
+    required: false
+    description: "Retry times to connect to RocketMQ broker"
+    example: '3'
+  - name: topics
+    required: true
+    description: "Topics to subscribe (comma-separated for multiple topics)"
+    example: "topic1,topic2,topic3"

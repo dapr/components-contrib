@@ -121,6 +121,7 @@ func parseNameServer(nameServer string) []string {
 	}
 }
 
+// TODO: these metadata fields need to be reevaluated on required vs not.
 func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	opts := make([]mqc.Option, 0)
 	if r.metadata.InstanceName != "" {
@@ -243,6 +244,7 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	return c, e
 }
 
+// TODO: these metadata fields need to be reevaluated on required vs not.
 func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	opts := make([]mqp.Option, 0)
 	if r.metadata.InstanceName != "" {

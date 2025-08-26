@@ -33,6 +33,7 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+// TODO: these should be configured in the metadata.yaml file and be part of the metadata struct with proper json tags.
 const (
 	collapseIDKey     = "apns-collapse-id"
 	developmentKey    = "development"
@@ -67,6 +68,7 @@ type APNS struct {
 	authorizationBuilder *authorizationBuilder
 }
 
+// TODO: use proper tags
 type APNSmetadata struct {
 	Development bool   `mapstructure:"development"`
 	KeyID       string `mapstructure:"key-id"`

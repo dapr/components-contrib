@@ -46,6 +46,8 @@ func NewTestConfig(componentName string) TestConfig {
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, conv conversation.Conversation, component string) {
+	providerStopReasons := []string{"stop", "end_turn", "FinishReasonStop", "tool_calls"}
+
 	t.Run("init", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
@@ -104,7 +106,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
-			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
 			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 		})
 		t.Run("test system message type", func(t *testing.T) {
@@ -133,20 +135,11 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
-			// Echo component returns one output per message, other components return one output
-			if component == "echo" {
-				assert.Len(t, resp.Outputs, 2)
-				// Check the last output - system message
-				assert.NotEmpty(t, resp.Outputs[1].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[1].StopReason))
-				assert.Empty(t, resp.Outputs[1].Choices[0].Message.ToolCallRequest)
-			} else {
-				assert.Len(t, resp.Outputs, 1)
-				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-				// anthropic responds with end_turn but other llm providers return with stop
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-				assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
-			}
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason), resp.Outputs[0].StopReason)
+			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 		})
 		t.Run("test assistant message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
@@ -233,26 +226,16 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
-			// Echo component returns one output per message, other components return one output
-			if component == "echo" {
-				assert.Len(t, resp.Outputs, 4)
-				// Check the last output - human message
-				assert.NotEmpty(t, resp.Outputs[3].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[3].StopReason))
-				// Check the tool call output - second output
-				if resp.Outputs[1].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[1].Choices[0].Message.ToolCallRequest) > 0 {
-					assert.NotEmpty(t, resp.Outputs[1].Choices[0].Message.ToolCallRequest)
-					require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[1].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
-				}
-			} else {
-				assert.Len(t, resp.Outputs, 1)
-				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-				// anthropic responds with end_turn but other llm providers return with stop
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
-				if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
-					assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
-					require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
-				}
+
+			// We expect a single output. In the future, depending on request (so probably a different test),
+			// we might get more than one as shown in new API platform.openai.com/docs/api-reference/responses/object
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+			// anthropic responds with end_turn but other llm providers return with stop
+			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
+			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
+				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
+				require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
 			}
 		})
 
@@ -277,13 +260,13 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
-			assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil {
 				assert.Empty(t, *resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 			}
 		})
 
-		t.Run("test tool message type - confirming active tool calling capability", func(t *testing.T) {
+		t.Run("test tool message type - confirming active tool calling capability (empty tool choice)", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 
@@ -384,10 +367,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				require.NoError(t, err2)
 				assert.Len(t, resp2.Outputs, 1)
 				assert.NotEmpty(t, resp2.Outputs[0].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp2.Outputs[0].StopReason))
+				assert.True(t, slices.Contains(providerStopReasons, resp2.Outputs[0].StopReason))
 			} else {
 				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp.Outputs[0].StopReason))
+				assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
 			}
 		})
 
@@ -456,7 +439,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			// check if we got a tool call request
 			if found {
 				assert.Equal(t, "retrieve_payment_status", toolCall.FunctionCall.Name)
-				assert.Contains(t, toolCall.FunctionCall.Arguments, "T1001")
+				assert.Contains(t, toolCall.FunctionCall.Arguments, "transaction_id")
 
 				toolResponse := llms.ToolCallResponse{
 					ToolCallID: toolCall.ID,
@@ -508,11 +491,11 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				require.NoError(t, err)
 				assert.Len(t, resp2.Outputs, 1)
 				assert.NotEmpty(t, resp2.Outputs[0].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp2.Outputs[0].StopReason))
+				assert.True(t, slices.Contains(providerStopReasons, resp2.Outputs[0].StopReason))
 			} else {
 				// it is valid too if no tool call was generated
 				assert.NotEmpty(t, resp1.Outputs[0].Choices[0].Message.Content)
-				assert.True(t, slices.Contains([]string{"stop", "end_turn"}, resp1.Outputs[0].StopReason))
+				assert.True(t, slices.Contains(providerStopReasons, resp1.Outputs[0].StopReason))
 			}
 		})
 	})

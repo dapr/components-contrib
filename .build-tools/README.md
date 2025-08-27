@@ -16,3 +16,23 @@ You have two ways to run the CLI:
 The list of available commands in this CLI is dynamic and is subject to change at any time. Each command, including the "root" one (no sub-command), are self-documented in the CLI, and you can read the help page by adding `--help`.
 
 For example, `./build-tools --help` shows the full list of commands the CLI offers.
+
+### check-component-registrations
+
+Checks that all components in components-contrib are properly registered in dapr/dapr. This includes checking for:
+
+- Registry files in dapr/pkg/components/
+- Registration of specific components in dapr/cmd/daprd/components/
+- Metadata files in component directories
+
+Usage:
+```bash
+# Run from build-tools directory
+go run . check-component-registrations
+
+# Or using the compiled binary
+./build-tools check-component-registrations
+```
+
+This command will scan all component types (conversation, state, secretstores, pubsub, bindings, configuration, nameresolution, middleware, cryptography, lock) and report any missing registrations.
+This is part of the release endgame tasking to ensure all components properly register within runtime as expected.

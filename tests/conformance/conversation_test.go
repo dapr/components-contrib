@@ -73,9 +73,14 @@ func TestConversationConformance(t *testing.T) {
 // shouldSkipComponent checks if a component test should be skipped due to missing environment variables
 func shouldSkipComponent(t *testing.T, componentName string) bool {
 	switch componentName {
-	case "openai":
+	case "openai.openai":
 		if os.Getenv("OPENAI_API_KEY") == "" {
 			t.Skipf("Skipping OpenAI conformance test: OPENAI_API_KEY environment variable not set")
+			return true
+		}
+	case "openai.azure":
+		if os.Getenv("AZURE_OPENAI_API_KEY") == "" || os.Getenv("AZURE_OPENAI_ENDPOINT") == "" || os.Getenv("AZURE_OPENAI_API_TYPE") == "" || os.Getenv("AZURE_OPENAI_API_VERSION") == "" {
+			t.Skipf("Skipping Azure OpenAI conformance test: AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_TYPE, and AZURE_OPENAI_API_VERSION environment variables must be set")
 			return true
 		}
 	case "anthropic":
@@ -117,7 +122,7 @@ func loadConversationComponent(name string) conversation.Conversation {
 	switch name {
 	case "echo":
 		return echo.NewEcho(testLogger)
-	case "openai":
+	case "openai.openai", "openai.azure":
 		return openai.NewOpenAI(testLogger)
 	case "anthropic":
 		return anthropic.NewAnthropic(testLogger)

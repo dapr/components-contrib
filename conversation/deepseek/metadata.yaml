@@ -7,7 +7,7 @@ status: alpha
 title: "Deepseek"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/deepseek/
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-deepseek/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an API key"
@@ -21,9 +21,23 @@ authenticationProfiles:
         example:  "**********"
         default: ""
 metadata:
+  - name: model
+    required: false
+    description: |
+      The Deepseek LLM to use.
+    type: string
+    example: 'deepseek-reasoner'
+    default: 'deepseek-chat'
+  - name: endpoint
+    required: false
+    description: |
+      Custom API endpoint URL for Deepseek. If not specified, the default endpoint will be used.
+    type: string
+    example: 'https://api.deepseek.com'
+    default: 'https://api.deepseek.com'
   - name: maxTokens
     required: false
     description: |
       Max tokens for each request
-    type: int
-    example: 2048
+    type: number
+    example: "2048"

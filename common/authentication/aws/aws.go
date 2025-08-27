@@ -26,17 +26,6 @@ type EnvironmentSettings struct {
 	Metadata map[string]string
 }
 
-// TODO: Delete in Dapr 1.17 so we can move all IAM fields to use the defaults of:
-// accessKey and secretKey and region as noted in the docs, and Options struct above.
-type DeprecatedKafkaIAM struct {
-	Region         string `json:"awsRegion" mapstructure:"awsRegion"`
-	AccessKey      string `json:"awsAccessKey" mapstructure:"awsAccessKey"`
-	SecretKey      string `json:"awsSecretKey" mapstructure:"awsSecretKey"`
-	SessionToken   string `json:"awsSessionToken" mapstructure:"awsSessionToken"`
-	IamRoleArn     string `json:"awsIamRoleArn" mapstructure:"awsIamRoleArn"`
-	StsSessionName string `json:"awsStsSessionName" mapstructure:"awsStsSessionName"`
-}
-
 type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string
@@ -89,7 +78,6 @@ type Provider interface {
 	ParameterStore() *ParameterStoreClients
 	Kinesis() *KinesisClients
 	Ses() *SesClients
-	Kafka(KafkaOptions) (*KafkaClients, error)
 
 	// Postgres is an outlier to the others in the sense that we can update only it's config,
 	// as we use a max connection time of 8 minutes.
@@ -114,15 +102,4 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	}
 
 	return es, nil
-}
-
-// Coalesce is a helper function to return the first non-empty string from the inputs
-// This helps us to migrate away from the deprecated duplicate aws auth profile metadata fields in Dapr 1.17.
-func Coalesce(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

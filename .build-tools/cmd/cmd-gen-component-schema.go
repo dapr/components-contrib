@@ -39,7 +39,7 @@ The result is written to stdout.`,
 		}
 		res := reflector.Reflect(&metadataschema.ComponentMetadata{})
 		res.Title = "ComponentMetadata"
-		// Print resut to stdout
+		// Print result to stdout
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(res)

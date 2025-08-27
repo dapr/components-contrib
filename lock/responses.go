@@ -15,12 +15,14 @@ package lock
 
 // Lock acquire request was successful or not.
 type TryLockResponse struct {
-	Success bool `json:"success"`
+	Success  bool              `json:"success"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 // Status when releasing the lock.
 type UnlockResponse struct {
-	Status Status `json:"status"`
+	Status   Status            `json:"status"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 type Status int32

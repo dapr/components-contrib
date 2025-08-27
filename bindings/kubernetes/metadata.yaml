@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kubernetes
+version: v1
+status: alpha
+title: "Kubernetes Events"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kubernetes-binding/
+binding:
+  output: false
+  input: true
+  operations:
+    - name: read
+      description: "Read Kubernetes events"
+metadata:
+  - name: namespace
+    required: false
+    description: "The Kubernetes namespace"
+    example: "default"
+    default: "default"
+  - name: kubeconfigPath
+    required: false
+    description: "The path to the kubeconfig file"
+    example: "~/.kube/config"
+    default: "~/.kube/config"
+  - name: resyncPeriodInSec
+    required: false
+    type: duration
+    description: "The resync period in seconds"
+    example: '30s'
+    default: '10s'

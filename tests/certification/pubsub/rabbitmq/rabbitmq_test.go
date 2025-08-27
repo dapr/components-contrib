@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,11 +55,13 @@ const (
 	sidecarName2             = "dapr-2"
 	sidecarName3             = "dapr-3"
 	sidecarName4             = "dapr-4"
+	sidecarNameMetadata      = "dapr-metadata"
 	sidecarNameTTLClient     = "dapr-ttl-client"
 	appID1                   = "app-1"
 	appID2                   = "app-2"
 	appID3                   = "app-3"
 	appID4                   = "app-4"
+	appIDMetadata            = "app-metadata"
 	clusterName              = "rabbitmqcertification"
 	dockerComposeYAML        = "docker-compose.yml"
 	extSaslDockerComposeYAML = "mtls_sasl_external/docker-compose.yml"
@@ -72,6 +75,7 @@ const (
 	pubsubAlpha          = "mq-alpha"
 	pubsubBeta           = "mq-beta"
 	pubsubMtlsExternal   = "mq-mtls"
+	pubsubMetadata       = "mq-metadata"
 	pubsubMessageOnlyTTL = "msg-ttl-pubsub"
 	pubsubQueueOnlyTTL   = "overwrite-ttl-pubsub"
 	pubsubOverwriteTTL   = "queue-ttl-pubsub"
@@ -84,6 +88,8 @@ const (
 	topicTTL1 = "ttl1"
 	topicTTL2 = "ttl2"
 	topicTTL3 = "ttl3"
+
+	topicMetadata = "metadata-topic"
 )
 
 type Consumer struct {
@@ -850,6 +856,178 @@ func TestRabbitMQPriority(t *testing.T) {
 			close(subscribed)
 		})).
 		Step("send and wait", test).
+		Run()
+}
+
+func getMetadataValueCI(metadata map[string]string, key string) (string, bool) {
+	for k, v := range metadata {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+func TestRabbitMQMetadataProperties(t *testing.T) {
+	messagesWatcher := watcher.NewUnordered()
+
+	// Define the test values for metadata with fixed IDs
+	const messageCount = 10
+	const msgID = "msg-id-123"
+	const corrID = "corr-id-456"
+	const msgType = "test-type"
+	const contentType = "application/json"
+
+	messages := make([]string, messageCount)
+	for i := range messageCount {
+		messages[i] = fmt.Sprintf("Test message %d", i+1)
+	}
+
+	// Use a channel to collect metadata validation errors
+	metadataErrors := make(chan error, 1)
+
+	// Application logic that tracks messages with their metadata
+	metadataApp := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the topic event handler for metadata testing
+		err = s.AddTopicEventHandler(&common.Subscription{
+			PubsubName: pubsubMetadata,
+			Topic:      topicMetadata,
+			Route:      "/metadata",
+			Metadata:   map[string]string{},
+		}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+			// ENHANCED DEBUGGING - Print every detail of the message
+			ctx.Logf("==================== MESSAGE RECEIVED ====================")
+			ctx.Logf("Topic: %s", e.Topic)
+			ctx.Logf("PubsubName: %s", e.PubsubName)
+			ctx.Logf("ID: %s", e.ID)
+			ctx.Logf("Data Type: %T", e.Data)
+			ctx.Logf("Data: %s", e.Data)
+			ctx.Logf("---------------- METADATA DUMP ----------------")
+			ctx.Logf("Total metadata entries: %d", len(e.Metadata))
+			ctx.Logf("Raw metadata map: %+v", e.Metadata)
+
+			ctx.Logf("---------------- TARGET METADATA VALUES ----------------")
+			msgIdVal, _ := getMetadataValueCI(e.Metadata, "messageid")
+			corrIdVal, _ := getMetadataValueCI(e.Metadata, "correlationid")
+			contentTypeVal, _ := getMetadataValueCI(e.Metadata, "contenttype")
+			typeVal, _ := getMetadataValueCI(e.Metadata, "type")
+
+			ctx.Logf("  → messageID: '%s' (expected: '%s')", msgIdVal, msgID)
+			ctx.Logf("  → correlationID: '%s' (expected: '%s')", corrIdVal, corrID)
+			ctx.Logf("  → contentType: '%s' (expected: '%s')", contentTypeVal, contentType)
+			ctx.Logf("  → type: '%s' (expected: '%s')", typeVal, msgType)
+
+			// Instead of failing silently, collect errors and send them to the channel
+			var metadataErr error
+
+			if msgIdVal != msgID {
+				ctx.Logf("ERROR: messageID not found or incorrect: value=%s", msgIdVal)
+				metadataErr = fmt.Errorf("expected messageID: %s, got: %s", msgID, msgIdVal)
+			}
+
+			if corrIdVal != corrID {
+				ctx.Logf("ERROR: correlationID not found or incorrect: value=%s", corrIdVal)
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected correlationID: %s, got: %s",
+						metadataErr, corrID, corrIdVal)
+				} else {
+					metadataErr = fmt.Errorf("expected correlationID: %s, got: %s", corrID, corrIdVal)
+				}
+			}
+
+			if contentTypeVal != contentType {
+				ctx.Logf("ERROR: contentType not found or incorrect: value=%s", contentTypeVal)
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected contentType: %s, got: %s",
+						metadataErr, contentType, contentTypeVal)
+				} else {
+					metadataErr = fmt.Errorf("expected contentType: %s, got: %s", contentType, contentTypeVal)
+				}
+			}
+
+			if typeVal != msgType {
+				ctx.Logf("ERROR: type not found or incorrect: value=%s", typeVal)
+				if metadataErr != nil {
+					metadataErr = fmt.Errorf("%w; expected type: %s, got: %s",
+						metadataErr, msgType, typeVal)
+				} else {
+					metadataErr = fmt.Errorf("expected type: %s, got: %s", msgType, typeVal)
+				}
+			}
+
+			dataStr, ok := e.Data.(string)
+			if !ok {
+				return false, fmt.Errorf("e.Data is not a string, got %T", e.Data)
+			}
+			// If there are any metadata errors, send them to the channel
+			if metadataErr != nil {
+				ctx.Logf("Metadata validation failed: %s", metadataErr)
+				metadataErrors <- metadataErr
+			}
+
+			messagesWatcher.Observe(dataStr)
+			ctx.Logf("Got message: %s with all expected metadata properties", e.Data)
+			return false, nil
+		})
+
+		return err
+	}
+
+	// Test function to publish messages with metadata
+	testMetadata := func(ctx flow.Context) error {
+		// Get the Dapr client
+		client := sidecar.GetClient(ctx, sidecarNameMetadata)
+		messagesWatcher.ExpectStrings(messages...)
+
+		// Publish messages with metadata properties
+		ctx.Log("Publishing messages with metadata properties")
+		for i := 0; i < messageCount; i++ {
+			err := client.PublishEvent(ctx, pubsubMetadata, topicMetadata, messages[i],
+				daprClient.PublishEventWithMetadata(map[string]string{
+					"messageID":     msgID,
+					"correlationID": corrID,
+					"contentType":   contentType,
+					"type":          msgType,
+				}))
+			require.NoError(ctx, err, "Failed publishing message with metadata")
+		}
+
+		// Check for metadata errors with timeout
+		select {
+		case err := <-metadataErrors:
+			return fmt.Errorf("metadata validation failed: %w", err)
+		case <-time.After(5 * time.Second):
+			// No errors within timeout, continue with message assertion
+		}
+
+		// Verify all messages were processed correctly
+		ctx.Log("Verifying messages were received...")
+		messagesWatcher.Assert(t, 20*time.Second)
+
+		return nil
+	}
+
+	// Run the test flow
+	flow.New(t, "rabbitmq metadata properties pubsub certification").
+		// Start RabbitMQ container
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait for rabbitmq readiness", retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+		// Run the metadata app and sidecar
+		Step(app.Run(appIDMetadata, fmt.Sprintf(":%d", appPort+10), metadataApp)).
+		Step(sidecar.Run(sidecarNameMetadata,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/metadata"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+10)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+20)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+10)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+10)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
+		)).
+		// Wait for subscription to complete
+		Step("wait for subscription setup", flow.Sleep(5*time.Second)).
+		// Run the test with timeout
+		Step("publish and verify metadata properties", testMetadata).
 		Run()
 }
 

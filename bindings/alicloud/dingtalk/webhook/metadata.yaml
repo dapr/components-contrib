@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.dingtalk.webhook
+version: v1
+status: alpha
+title: "AliCloud DingTalk Webhook"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloud-dingtalk/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send a message to DingTalk webhook"
+    - name: read
+      description: "Receive messages from DingTalk webhook"
+metadata:
+  - name: id
+    required: true
+    description: "The webhook ID"
+    example: "your-webhook-id"
+  - name: url
+    required: true
+    description: "The webhook URL"
+    example: '"https://oapi.dingtalk.com/robot/send?access_token=your-token"'
+  - name: secret
+    required: false
+    description: "The webhook secret for signature verification"
+    example: "your-webhook-secret"

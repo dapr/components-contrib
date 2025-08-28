@@ -221,6 +221,7 @@ jobs:
     - name: Set RavenDB env vars
       if: matrix.require-ravendb-credentials == 'true'
       run: |
+        echo "::add-mask::${{ secrets.RAVENDBLICENSE }}"
         echo "RAVENDBLICENSE=${{ secrets.RAVENDBLICENSE }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials

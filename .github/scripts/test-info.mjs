@@ -828,6 +828,7 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
+ * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
@@ -838,7 +839,6 @@ const components = {
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
  * @property {string|string[]?} sourcePkg If set, sets the specified source package
- * @property {boolean} requireRavenDBCredentials If true, sets RavenDB license environment variable
  */
 
 /**
@@ -850,6 +850,7 @@ const components = {
  * @property {boolean?} require-aws-credentials Requires AWS credentials
  * @property {boolean?} require-gcp-credentials Requires GCP credentials
  * @property {boolean?} require-cloudflare-credentials Requires Cloudflare credentials
+ * @property {boolean?} require-ravendb-credentials Requires RavenDB credentials
  * @property {boolean?} require-terraform Requires Terraform
  * @property {boolean?} require-kind Requires KinD
  * @property {string?} setup-script Setup script
@@ -921,6 +922,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'require-cloudflare-credentials': comp.requireCloudflareCredentials
                 ? 'true'
                 : undefined,
+            'require-ravendb-credentials': comp.requireRavenDBCredentials
+                ? 'true'
+                : undefined,
             'require-terraform': comp.requireTerraform ? 'true' : undefined,
             'require-kind': comp.requireKind ? 'true' : undefined,
             'setup-script': comp[testKind + 'Setup'] || undefined,
@@ -931,7 +935,6 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'source-pkg': comp.sourcePkg
                 .map((p) => 'github.com/dapr/components-contrib/' + p)
                 .join(','),
-            'require-ravendb-credentials': comp.requireRavenDBCredentials || true,
         })
     }
 

@@ -117,9 +117,9 @@ type KafkaMetadata struct {
 	SchemaCachingEnabled        bool          `mapstructure:"schemaCachingEnabled"`
 	SchemaLatestVersionCacheTTL time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
 	UseAvroJSON                 bool          `mapstructure:"useAvroJSON"`
-  
+
 	// header from/to metadata excluded keys regex
-	ExcludeHeaderMetaRegex      string `mapstructure:"excludeHeaderMetaRegex"`
+	ExcludeHeaderMetaRegex string `mapstructure:"excludeHeaderMetaRegex"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.

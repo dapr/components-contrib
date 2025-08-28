@@ -40,16 +40,18 @@ func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 }
 
 type SecretManagerMetaData struct {
-	Region       string `json:"region" mapstructure:"region" mdignore:"true"`
-	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
-	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
+	Region                     string `json:"region" mapstructure:"region" mdignore:"true"`
+	AccessKey                  string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey                  string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken               string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+	Endpoint                   string `json:"endpoint" mapstructure:"endpoint"`
+	MultipleKeyValuesPerSecret bool   `json:"multipleKeyValuesPerSecret" mapstructure:"multipleKeyValuesPerSecret"`
 }
 
 type smSecretStore struct {
-	authProvider awsAuth.Provider
-	logger       logger.Logger
+	authProvider               awsAuth.Provider
+	logger                     logger.Logger
+	multipleKeyValuesPerSecret bool
 }
 
 // Init creates an AWS secret manager client.
@@ -67,6 +69,7 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		SessionToken: meta.SessionToken,
 		Endpoint:     meta.Endpoint,
 	}
+	s.multipleKeyValuesPerSecret = meta.MultipleKeyValuesPerSecret
 
 	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
 	if err != nil {
@@ -74,6 +77,40 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 	}
 	s.authProvider = provider
 	return nil
+}
+
+func convertMapAnyToString(m map[string]any) map[string]string {
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		switch v := v.(type) {
+		case string:
+			result[k] = v
+		default:
+			jVal, _ := json.Marshal(v)
+			result[k] = string(jVal)
+		}
+	}
+	return result
+}
+
+func (s *smSecretStore) formatSecret(output *secretsmanager.GetSecretValueOutput) map[string]string {
+	result := map[string]string{}
+
+	if output.Name != nil && output.SecretString != nil {
+		if s.multipleKeyValuesPerSecret {
+			data := map[string]any{}
+			if err := json.Unmarshal([]byte(*output.SecretString), &data); err != nil {
+				result[*output.Name] = *output.SecretString
+			} else {
+				// In case of a nested JSON value, we need to stringify it
+				result = convertMapAnyToString(data)
+			}
+		} else {
+			result[*output.Name] = *output.SecretString
+		}
+	}
+
+	return result
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -98,9 +135,7 @@ func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecre
 	resp := secretstores.GetSecretResponse{
 		Data: map[string]string{},
 	}
-	if output.Name != nil && output.SecretString != nil {
-		resp.Data[*output.Name] = *output.SecretString
-	}
+	resp.Data = s.formatSecret(output)
 
 	return resp, nil
 }
@@ -131,9 +166,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 				return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", *entry.Name)
 			}
 
-			if entry.Name != nil && secrets.SecretString != nil {
-				resp.Data[*entry.Name] = map[string]string{*entry.Name: *secrets.SecretString}
-			}
+			resp.Data[*entry.Name] = s.formatSecret(secrets)
 		}
 
 		nextToken = output.NextToken
@@ -160,7 +193,11 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*S
 
 // Features returns the features available in this secret store.
 func (s *smSecretStore) Features() []secretstores.Feature {
-	return []secretstores.Feature{} // No Feature supported.
+	if s.multipleKeyValuesPerSecret {
+		return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
+	}
+
+	return []secretstores.Feature{}
 }
 
 func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

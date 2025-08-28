@@ -521,3 +521,43 @@ func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 
 	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 }
+
+func TestToString(t *testing.T) {
+	// happy paths
+	if s, ok := toString("abc"); assert.True(t, ok) {
+		assert.Equal(t, "abc", s)
+	}
+	if s, ok := toString([]byte("def")); assert.True(t, ok) {
+		assert.Equal(t, "def", s)
+	}
+	// unsupported
+	_, ok := toString(123)
+	assert.False(t, ok)
+}
+
+func BenchmarkGetKeyVersion(b *testing.B) {
+	/*
+		On a Mac M1 Pro:
+		BenchmarkGetKeyVersion-10    	    13651144	        83.84 ns/op	      64 B/op	       6 allocs/op
+
+		// old getkeyversion method
+		BenchmarkGetKeyVersionOld-10    	 1631097	       729.1 ns/op	      96 B/op	      10 allocs/op
+
+		// ~8x speed - ~1/2 allocations
+
+		// unsafe comparison
+		BenchmarkGetKeyVersion-10    	    28636363	        41.53 ns/op	      32 B/op	       2 allocs/op
+	*/
+	store := newStateStore(logger.NewLogger("bench"))
+	input1 := []any{[]byte("data"), []byte("payload"), []byte("version"), []byte("42")}
+	input2 := []any{[]byte("data"), []byte("payload2"), []byte("version"), []byte("43")}
+	b.ReportAllocs()
+	for range b.N {
+		if _, _, err := store.getKeyVersion(input1); err != nil {
+			b.Fatal(err)
+		}
+		if _, _, err := store.getKeyVersion(input2); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

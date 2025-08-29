@@ -42,14 +42,14 @@ import (
 )
 
 const (
-	objectURLBase           = "https://storage.googleapis.com/%s/%s"
-	metadataDecodeBase64    = "decodeBase64"
-	metadataEncodeBase64    = "encodeBase64"
-	metadataSignTTL         = "signTTL"
-	metadataContentType     = "contentType"
-	metadataContentEncoding = "contentEncoding"
-	metadataKey             = "key"
-	maxResults              = 1000
+	objectURLBase        = "https://storage.googleapis.com/%s/%s"
+	metadataDecodeBase64 = "decodeBase64"
+	metadataEncodeBase64 = "encodeBase64"
+	metadataSignTTL      = "signTTL"
+
+	metadataContentType = "contentType"
+	metadataKey         = "key"
+	maxResults          = 1000
 
 	metadataKeyBC    = "name"
 	signOperation    = "sign"

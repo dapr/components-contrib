@@ -22,22 +22,22 @@ import (
 // These can be overridden via environment variables for runtime configuration
 const (
 	// Environment variable names
-	envOpenAIModel     = "DAPR_CONVERSATION_OPENAI_MODEL"
-	envAnthropicModel  = "DAPR_CONVERSATION_ANTHROPIC_MODEL"
-	envGoogleAIModel   = "DAPR_CONVERSATION_GOOGLEAI_MODEL"
-	envMistralModel    = "DAPR_CONVERSATION_MISTRAL_MODEL"
+	envOpenAIModel      = "DAPR_CONVERSATION_OPENAI_MODEL"
+	envAnthropicModel   = "DAPR_CONVERSATION_ANTHROPIC_MODEL"
+	envGoogleAIModel    = "DAPR_CONVERSATION_GOOGLEAI_MODEL"
+	envMistralModel     = "DAPR_CONVERSATION_MISTRAL_MODEL"
 	envHuggingFaceModel = "DAPR_CONVERSATION_HUGGINGFACE_MODEL"
-	envOllamaModel     = "DAPR_CONVERSATION_OLLAMA_MODEL"
+	envOllamaModel      = "DAPR_CONVERSATION_OLLAMA_MODEL"
 )
 
 // Default model values (used as fallbacks when env vars are not set)
 const (
-	defaultOpenAIModel     = "gpt-5-nano"
-	defaultAnthropicModel  = "claude-3-5-sonnet-20240620"
-	defaultGoogleAIModel   = "gemini-1.5-flash"
-	defaultMistralModel    = "open-mistral-7b"
+	defaultOpenAIModel      = "gpt-5-nano"
+	defaultAnthropicModel   = "claude-3-5-sonnet-20240620"
+	defaultGoogleAIModel    = "gemini-1.5-flash"
+	defaultMistralModel     = "open-mistral-7b"
 	defaultHuggingFaceModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-	defaultOllamaModel     = "llama3.2:latest"
+	defaultOllamaModel      = "llama3.2:latest"
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default value

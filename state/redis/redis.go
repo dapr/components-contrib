@@ -465,19 +465,43 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	return nil
 }
 
-func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
-	seenData := false
-	seenVersion := false
-	for i := 0; i < len(vals); i += 2 {
-		field, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i]))
-		switch field {
-		case "data":
-			data, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			seenData = true
-		case "version":
-			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			version = ptr.Of(versionVal)
-			seenVersion = true
+func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, err error) {
+	var seenData, seenVersion bool
+
+	// step by 2: key, value. we only expect string or byte slice
+	for i := 0; i+1 < len(vals); i += 2 {
+		switch key := vals[i].(type) {
+		case string:
+			switch key {
+			case "data":
+				if s, ok := toString(vals[i+1]); ok {
+					data = s
+					seenData = true
+				}
+			case "version":
+				if s, ok := toString(vals[i+1]); ok {
+					version = &s
+					seenVersion = true
+				}
+			}
+		case []byte:
+			switch string(key) {
+			case "data":
+				if s, ok := toString(vals[i+1]); ok {
+					data = s
+					seenData = true
+				}
+			case "version":
+				if s, ok := toString(vals[i+1]); ok {
+					version = &s
+					seenVersion = true
+				}
+			}
+		}
+
+		// Early exit once both values have been found
+		if seenData && seenVersion {
+			break
 		}
 	}
 	if !seenData || !seenVersion {
@@ -485,6 +509,17 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 	}
 
 	return data, version, nil
+}
+
+func toString(v any) (string, bool) {
+	switch x := v.(type) {
+	case string:
+		return x, true
+	case []byte:
+		return string(x), true // some allocation here unless we go to unsafe: return unsafe.String(unsafe.SliceData(x), len(x)), true
+	default:
+		return "", false
+	}
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {

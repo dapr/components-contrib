@@ -213,7 +213,8 @@
         "configuration",
         "lock",
         "middleware",
-        "crypto"
+        "crypto",
+        "conversation"
       ],
       "description": "Component type, of one of the allowed values."
     },

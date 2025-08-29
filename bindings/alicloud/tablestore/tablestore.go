@@ -137,7 +137,7 @@ func (s *AliCloudTableStore) get(req *bindings.InvokeRequest, resp *bindings.Inv
 	pkNames := strings.Split(req.Metadata[primaryKeys], ",")
 	pks := make([]*tablestore.PrimaryKeyColumn, len(pkNames))
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	err := json.Unmarshal(req.Data, &data)
 	if err != nil {
 		return err
@@ -313,7 +313,7 @@ func (s *AliCloudTableStore) unmarshal(pks []*tablestore.PrimaryKeyColumn, colum
 		return nil, nil
 	}
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 
 	for _, pk := range pks {
 		data[pk.ColumnName] = pk.Value

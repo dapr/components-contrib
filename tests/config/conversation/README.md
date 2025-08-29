@@ -5,7 +5,7 @@ This directory contains conformance tests for all conversation components, inclu
 ## Available Components
 
 - **echo** - Simple echo component for testing (no configuration needed)
-- **openai** - OpenAI GPT models
+- **openai** - OpenAI GPT models (also supports Azure OpenAI)
 - **anthropic** - Anthropic Claude models  
 - **googleai** - Google Gemini models
 - **mistral** - Mistral AI models
@@ -64,10 +64,15 @@ export DAPR_CONVERSATION_OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2
 ```bash
 export OPENAI_API_KEY="your_openai_api_key"
 ```
+Get your API key from: https://platform.openai.com/api-keys
 
-Get your API key from: <https://platform.openai.com/api-keys>
-
-#### Anthropic
+### Azure OpenAI
+```bash
+export AZURE_OPENAI_API_KEY="your_openai_api_key"
+export AZURE_OPENAI_ENDPOINT="your_azureopenai_endpoint_here"
+export AZURE_OPENAI_API_VERSION="your_azreopenai_api_version_here"
+```
+Get your configuration values from: https://ai.azure.com/
 
 ```bash
 export ANTHROPIC_API_KEY="your_anthropic_api_key"
@@ -171,4 +176,5 @@ This approach provides better reliability and compatibility while maintaining ac
 - Cost-effective models are used by default to minimize API costs
 - HuggingFace uses the OpenAI compatibility layer as a workaround due to langchaingo API issues
 - Ollama requires a local server and must be explicitly enabled
-- All tests include proper initialization and basic conversation functionality testing
+- OpenAI component is tested for OpenAI and Azure
+- All tests include proper initialization and basic conversation functionality testing 

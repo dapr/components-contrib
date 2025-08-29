@@ -114,14 +114,6 @@ func IsRawPayload(props map[string]string) (bool, error) {
 	return false, nil
 }
 
-func TryGetContentType(props map[string]string) (string, bool) {
-	if val, ok := props[ContentType]; ok && val != "" {
-		return val, true
-	}
-
-	return "", false
-}
-
 func TryGetQueryIndexName(props map[string]string) (string, bool) {
 	if val, ok := props[QueryIndexName]; ok && val != "" {
 		return val, true
@@ -168,7 +160,8 @@ func (t ComponentType) IsValid() bool {
 		SecretStoreType, PubSubType,
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
-		NameResolutionType, WorkflowType:
+		NameResolutionType, WorkflowType,
+		ConversationType:
 		return true
 	default:
 		return false

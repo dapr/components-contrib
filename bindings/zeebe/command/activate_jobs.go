@@ -32,12 +32,12 @@ var (
 )
 
 type activateJobsPayload struct {
-	JobType           string            `json:"jobType"`
-	MaxJobsToActivate *int32            `json:"maxJobsToActivate"`
-	Timeout           metadata.Duration `json:"timeout"`
-	WorkerName        string            `json:"workerName"`
-	FetchVariables    []string          `json:"fetchVariables"`
-	RequestTimeout    metadata.Duration `json:"requestTimeout"`
+	JobType           string             `json:"jobType"`
+	MaxJobsToActivate *int32             `json:"maxJobsToActivate"`
+	Timeout           *metadata.Duration `json:"timeout,omitempty"`
+	WorkerName        string             `json:"workerName"`
+	FetchVariables    []string           `json:"fetchVariables"`
+	RequestTimeout    *metadata.Duration `json:"requestTimeout,omitempty"`
 }
 
 func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -59,7 +59,7 @@ func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeReq
 		JobType(payload.JobType).
 		MaxJobsToActivate(*payload.MaxJobsToActivate)
 
-	if payload.Timeout.Duration != time.Duration(0) {
+	if payload.Timeout != nil && payload.Timeout.Duration != time.Duration(0) {
 		cmd = cmd.Timeout(payload.Timeout.Duration)
 	}
 
@@ -72,7 +72,7 @@ func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeReq
 	}
 
 	var response []entities.Job
-	if payload.RequestTimeout.Duration != time.Duration(0) {
+	if payload.RequestTimeout != nil && payload.RequestTimeout.Duration != time.Duration(0) {
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, payload.RequestTimeout.Duration)
 		defer cancel()
 		response, err = cmd.Send(ctxWithTimeout)

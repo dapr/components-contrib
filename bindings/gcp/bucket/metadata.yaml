@@ -45,3 +45,11 @@ metadata:
       Configuration to encode base64 file content before return the content. 
       (In case of saving a file with binary content).
     example: '"true, false"'
+  - name: contentType
+    type: string
+    required: false
+    description: |
+      The MIME type of the object being stored. If not specified, GCS will attempt to 
+      auto-detect the type, which may default to application/octet-stream or text/plain.
+      Common values include text/csv, application/json, image/png, etc.
+    example: '"text/csv", "application/json"'

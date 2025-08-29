@@ -46,48 +46,75 @@ cp env.template .env
 
 Alternatively, you can set the following environment variables to run the respective tests:
 
-### OpenAI
+#### Model Configuration (Optional)
+
+You can override the default models used by each component by setting these environment variables:
+
+```bash
+export DAPR_CONVERSATION_OPENAI_MODEL="gpt-5-nano"           # Default: gpt-5-nano
+export DAPR_CONVERSATION_ANTHROPIC_MODEL="claude-3-5-sonnet-20240620"  # Default: claude-3-5-sonnet-20240620
+export DAPR_CONVERSATION_GOOGLEAI_MODEL="gemini-1.5-flash"   # Default: gemini-1.5-flash
+export DAPR_CONVERSATION_MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
+export DAPR_CONVERSATION_HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+export DAPR_CONVERSATION_OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2:latest
+```
+
+#### OpenAI
+
 ```bash
 export OPENAI_API_KEY="your_openai_api_key"
 ```
-Get your API key from: https://platform.openai.com/api-keys
 
-### Anthropic
+Get your API key from: <https://platform.openai.com/api-keys>
+
+#### Anthropic
+
 ```bash
 export ANTHROPIC_API_KEY="your_anthropic_api_key"
 ```
-Get your API key from: https://console.anthropic.com/
 
-### Google AI
+Get your API key from: <https://console.anthropic.com/>
+
+#### Google AI
+
 ```bash
 export GOOGLE_AI_API_KEY="your_google_ai_api_key"
 ```
-Get your API key from: https://aistudio.google.com/app/apikey
 
-### Mistral
+Get your API key from: <https://aistudio.google.com/app/apikey>
+
+#### Mistral
+
 ```bash
 export MISTRAL_API_KEY="your_mistral_api_key"
 ```
-Get your API key from: https://console.mistral.ai/
 
-### HuggingFace
+Get your API key from: <https://console.mistral.ai/>
+
+#### HuggingFace
+
 ```bash
 export HUGGINGFACE_API_KEY="your_huggingface_api_key"
 ```
-Get your API key from: https://huggingface.co/settings/tokens
 
-### AWS Bedrock
+Get your API key from: <https://huggingface.co/settings/tokens>
+
+#### AWS Bedrock
+
 ```bash
 export AWS_ACCESS_KEY_ID="your_aws_access_key"
 export AWS_SECRET_ACCESS_KEY="your_aws_secret_key"
 export AWS_REGION="us-east-1"  # Optional, defaults to us-east-1
 ```
+
 Get your credentials from AWS Console
 
-### Ollama
+#### Ollama
+
 ```bash
 export OLLAMA_ENABLED="1"
 ```
+
 Requires a local Ollama server running with the `llama3.2:latest` model available.
 
 ## Test Configuration
@@ -95,7 +122,7 @@ Requires a local Ollama server running with the `llama3.2:latest` model availabl
 Each component has its own configuration file in this directory:
 
 - `echo/echo.yml` - Echo component configuration
-- `openai/openai.yml` - OpenAI configuration with gpt-4.1-nano model
+- `openai/openai.yml` - OpenAI configuration with gpt-5-nano model
 - `anthropic/anthropic.yml` - Anthropic configuration with Claude 3 Haiku
 - `googleai/googleai.yml` - Google AI configuration with Gemini 1.5 Flash
 - `mistral/mistral.yml` - Mistral configuration with open-mistral-7b
@@ -109,13 +136,15 @@ The configurations use cost-effective models where possible to minimize testing 
 
 The HuggingFace component uses a workaround due to issues with the native HuggingFace implementation in langchaingo. Instead of using the HuggingFace SDK directly, it uses the OpenAI SDK with HuggingFace's OpenAI-compatible API endpoints.
 
-### How it works:
+### How it works
+
 - **Model Selection**: Any HuggingFace model can be used by specifying its full name (e.g., `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B`)
 - **Dynamic Endpoints**: The endpoint URL is automatically generated based on the model name using the template: `https://router.huggingface.co/hf-inference/models/{{model}}/v1`
 - **Custom Endpoints**: You can override the endpoint by specifying a custom `endpoint` parameter
 - **Authentication**: Uses the same HuggingFace API key authentication
 
-### Example Configuration:
+### Example Configuration
+
 ```yaml
 apiVersion: dapr.io/v1alpha1
 kind: Component
@@ -142,4 +171,4 @@ This approach provides better reliability and compatibility while maintaining ac
 - Cost-effective models are used by default to minimize API costs
 - HuggingFace uses the OpenAI compatibility layer as a workaround due to langchaingo API issues
 - Ollama requires a local server and must be explicitly enabled
-- All tests include proper initialization and basic conversation functionality testing 
+- All tests include proper initialization and basic conversation functionality testing

@@ -24,9 +24,9 @@ metadata:
   - name: model
     required: false
     description: |
-      The OpenAI LLM to use. Defaults to gpt-4.1-nano
+      The OpenAI LLM to use. Defaults to gpt-5-nano (configurable via DAPR_CONVERSATION_OPENAI_MODEL environment variable)
     type: string
-    example: 'gpt-4.1-nano'
+    example: '${{DAPR_CONVERSATION_OPENAI_MODEL}}'
   - name: endpoint
     required: false
     description: |

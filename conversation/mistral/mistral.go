@@ -41,8 +41,6 @@ func NewMistral(logger logger.Logger) conversation.Conversation {
 	return m
 }
 
-const defaultModel = "open-mistral-7b"
-
 func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
@@ -50,7 +48,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := defaultModel
+	model := conversation.DefaultMistralModel
 	if md.Model != "" {
 		model = md.Model
 	}

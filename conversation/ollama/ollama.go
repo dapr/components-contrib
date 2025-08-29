@@ -41,8 +41,6 @@ func NewOllama(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
-const defaultModel = "llama3.2:latest"
-
 func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
@@ -50,7 +48,7 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := defaultModel
+	model := conversation.DefaultOllamaModel
 	if md.Model != "" {
 		model = md.Model
 	}

@@ -26,8 +26,7 @@ metadata:
     description: |
       The GoogleAI LLM to use.
     type: string
-    example: 'gemini-2.0-flash'
-    default: 'gemini-2.0-flash'
+    example: '${{DAPR_CONVERSATION_GOOGLEAI_MODEL}}'
   - name: cacheTTL
     required: false
     description: |

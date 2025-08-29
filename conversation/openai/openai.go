@@ -42,8 +42,6 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
-const defaultModel = "gpt-4o"
-
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := OpenAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
@@ -51,7 +49,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := defaultModel
+	model := conversation.DefaultOpenAIModel
 	if md.Model != "" {
 		model = md.Model
 	}

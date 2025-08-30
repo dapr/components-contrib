@@ -51,6 +51,22 @@ make test
 ```bash
 make lint
 ```
+> ⚠️ **Warning**: You may run into version incompatibilities between the installed Go version and the golangci-lint version and see the following error:
+>   ```
+>   [!] Your locally installed version of golangci-lint is different from the pipeline
+>   [!] This will likely cause linting issues for you locally
+>   [!] Yours:  v1.64.8
+>   [!] Theirs: v1.64.6
+>   [!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /bin v1.64.6
+>   golangci-lint run --timeout=20m --max-same-issues 0 --max-issues-per-linter 0
+>   Error: can't load config: the Go language version (go1.23) used to build golangci-lint is lower than the targeted Go version (1.24.1)
+>   Failed executing command with error: can't load config: the Go language version (go1.23) used to build golangci-lint is lower than the targeted Go version (1.24.1)
+>?   make: *** [lint] Error 3
+>   ```
+> In this case, make sure to install the exact versions of go requested and the version of golangci-lint using the command:
+> ```
+> go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
+> ```
 
 ## Validating with Dapr core
 

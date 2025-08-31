@@ -14,6 +14,7 @@ limitations under the License.
 package clickhouse
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,11 @@ func TestClickHouseIntegration(t *testing.T) {
 	// Skip if not running integration tests
 	if testing.Short() {
 		t.Skip("Skipping integration test")
+	}
+
+	// Check if ClickHouse is available
+	if os.Getenv("RUN_CLICKHOUSE_INTEGRATION_TEST") == "" {
+		t.Skip("Skipping ClickHouse integration test. Set RUN_CLICKHOUSE_INTEGRATION_TEST=1 to run")
 	}
 
 	store := NewClickHouseStateStore(logger.NewLogger("test"))

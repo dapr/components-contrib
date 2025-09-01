@@ -19,6 +19,7 @@ package clickhouse
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,18 +28,17 @@ import (
 	"github.com/dapr/components-contrib/state/clickhouse"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/kit/logger"
 )
 
-const (  
+const (
 	componentName = "clickhouse-store"
 )
 
 func TestClickHouseStateStore(t *testing.T) {
-	flow.New(t, "Test ClickHouse state store certification").  
-		Step(dockercompose.Run("docker-compose.yml")).  
-		Step("verify clickhouse store operations", testClickHouseStateStore()).  
+	flow.New(t, "Test ClickHouse state store certification").
+		Step(dockercompose.Run("clickhouse", "docker-compose.yml")).
+		Step("verify clickhouse store operations", testClickHouseStateStore()).
 		Run()
 }
 
@@ -46,20 +46,20 @@ func testClickHouseStateStore() flow.Runnable {
 	return func(ctx flow.Context) error {
 		// Create a new ClickHouse state store instance
 		store := clickhouse.NewClickHouseStateStore(logger.NewLogger("clickhouse-store-test"))
-		
+
 		// Initialize the state store
 		metadata := state.Metadata{}
 		metadata.Properties = map[string]string{
 			"clickhouseURL": "tcp://localhost:9000",
-			"databaseName": "dapr_test",
-			"tableName":    "state_test",
-			"username":     "default",
-			"password":     "",
+			"databaseName":  "dapr_test",
+			"tableName":     "state_test",
+			"username":      "default",
+			"password":      "",
 		}
-		
+
 		err := store.Init(ctx, metadata)
 		require.NoError(ctx.T, err)
-		
+
 		// Set a value
 		setReq := &state.SetRequest{
 			Key:   "test-key",
@@ -67,7 +67,7 @@ func testClickHouseStateStore() flow.Runnable {
 		}
 		err = store.Set(ctx, setReq)
 		require.NoError(ctx.T, err)
-		
+
 		// Get the value
 		getReq := &state.GetRequest{
 			Key: "test-key",
@@ -75,19 +75,19 @@ func testClickHouseStateStore() flow.Runnable {
 		getResp, err := store.Get(ctx, getReq)
 		require.NoError(ctx.T, err)
 		assert.Equal(ctx.T, "test-value", string(getResp.Data))
-		
+
 		// Delete the value
 		delReq := &state.DeleteRequest{
 			Key: "test-key",
 		}
 		err = store.Delete(ctx, delReq)
 		require.NoError(ctx.T, err)
-		
+
 		// Verify the value is deleted
 		getResp, err = store.Get(ctx, getReq)
 		require.NoError(ctx.T, err)
 		assert.Nil(ctx.T, getResp.Data)
-		
+
 		// Test TTL
 		ttlSetReq := &state.SetRequest{
 			Key:   "test-ttl-key",
@@ -98,11 +98,11 @@ func testClickHouseStateStore() flow.Runnable {
 		}
 		err = store.Set(ctx, ttlSetReq)
 		require.NoError(ctx.T, err)
-		
+
 		// Wait for TTL to expire (2 seconds to be safe)
 		fmt.Println("Waiting for TTL to expire...")
-		flow.Sleep(2 * flow.Second)
-		
+		flow.Sleep(2 * time.Second)
+
 		// Verify the value is expired
 		ttlGetReq := &state.GetRequest{
 			Key: "test-ttl-key",
@@ -110,7 +110,7 @@ func testClickHouseStateStore() flow.Runnable {
 		ttlGetResp, err := store.Get(ctx, ttlGetReq)
 		require.NoError(ctx.T, err)
 		assert.Nil(ctx.T, ttlGetResp.Data)
-		
+
 		// Test ETag
 		etagSetReq := &state.SetRequest{
 			Key:   "test-etag-key",
@@ -118,7 +118,7 @@ func testClickHouseStateStore() flow.Runnable {
 		}
 		err = store.Set(ctx, etagSetReq)
 		require.NoError(ctx.T, err)
-		
+
 		// Get the value with ETag
 		etagGetReq := &state.GetRequest{
 			Key: "test-etag-key",
@@ -126,7 +126,7 @@ func testClickHouseStateStore() flow.Runnable {
 		etagGetResp, err := store.Get(ctx, etagGetReq)
 		require.NoError(ctx.T, err)
 		assert.NotNil(ctx.T, etagGetResp.ETag)
-		
+
 		// Update with correct ETag
 		etagUpdateReq := &state.SetRequest{
 			Key:   "test-etag-key",
@@ -135,7 +135,7 @@ func testClickHouseStateStore() flow.Runnable {
 		}
 		err = store.Set(ctx, etagUpdateReq)
 		require.NoError(ctx.T, err)
-		
+
 		// Update with incorrect ETag
 		badETag := "bad-etag"
 		etagBadUpdateReq := &state.SetRequest{
@@ -145,11 +145,11 @@ func testClickHouseStateStore() flow.Runnable {
 		}
 		err = store.Set(ctx, etagBadUpdateReq)
 		require.Error(ctx.T, err)
-		
+
 		// Clean up
 		err = store.Delete(ctx, &state.DeleteRequest{Key: "test-etag-key"})
 		require.NoError(ctx.T, err)
-		
+
 		return nil
 	}
 }

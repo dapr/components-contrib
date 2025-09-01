@@ -17,6 +17,7 @@ package eventhubs
 
 import (
 	"context"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -124,19 +125,28 @@ func NewBulkMessageEntryFromEventData(e *azeventhubs.ReceivedEventData, topic st
 	return entry, nil
 }
 
+// Allowed: letters, digits, and hyphens.
+var headerKeySanitizer = regexp.MustCompile(`[^a-zA-Z0-9-]`)
+
+// Replaces any character not allowed in HTTP header names with '-'.
+func sanitizeHeaderKey(key string) string {
+	return headerKeySanitizer.ReplaceAllString(key, "-")
+}
+
 // Adds a property to the response metadata
 func addPropertyToMetadata(key string, value any, md map[string]string) {
+	safeKey := sanitizeHeaderKey(key)
 	switch v := value.(type) {
 	case *time.Time:
 		if v != nil {
-			md[key] = v.Format(time.RFC3339)
+			md[safeKey] = v.Format(time.RFC3339)
 		}
 	case time.Time:
-		md[key] = v.Format(time.RFC3339)
+		md[safeKey] = v.Format(time.RFC3339)
 	default:
 		str, err := cast.ToStringE(value)
 		if err == nil {
-			md[key] = str
+			md[safeKey] = str
 		}
 	}
 }

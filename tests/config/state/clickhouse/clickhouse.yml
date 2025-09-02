@@ -7,7 +7,7 @@ spec:
   version: v1
   metadata:
   - name: clickhouseURL
-    value: "clickhouse://localhost:9000"
+    value: "tcp://localhost:9000"
   - name: databaseName
     value: "dapr_test"
   - name: tableName

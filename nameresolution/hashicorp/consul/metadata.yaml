@@ -59,8 +59,8 @@ authenticationProfiles:
         type: bool
         required: false
         description: Skip TLS certificate verification.
-        example: false
-        default: false
+        example: "false"
+        default: "false"
 metadata:
   - name: address
     type: string
@@ -98,20 +98,20 @@ metadata:
     type: bool
     required: false
     description: Whether to register this service with Consul.
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: selfDeregister
     type: bool
     required: false
     description: Whether to deregister this service from Consul on shutdown.
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: useCache
     type: bool
     required: false
     description: Whether to use caching for service lookups.
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: tags
     type: string
     required: false
@@ -147,11 +147,11 @@ metadata:
     type: bool
     required: false
     description: Whether to allow stale results in queries.
-    example: true
-    default: false
+    example: "true"
+    default: "false"
   - name: requireConsistent
     type: bool
     required: false
     description: Whether to require consistent reads in queries.
-    example: false
-    default: false
+    example: "false"
+    default: "false"

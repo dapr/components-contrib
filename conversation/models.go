@@ -32,39 +32,47 @@ const (
 
 // Default model values (used as fallbacks when env vars are not set)
 const (
-	defaultOpenAIModel      = "gpt-5-nano"
-	defaultAnthropicModel   = "claude-3-5-sonnet-20240620"
-	defaultGoogleAIModel    = "gemini-1.5-flash"
+	defaultOpenAIModel      = "gpt-5-nano" // Enable GPT-5 (Preview) for all clients
+	defaultAnthropicModel   = "claude-sonnet-4-20250514"
+	defaultGoogleAIModel    = "gemini-2.5-flash-lite"
 	defaultMistralModel     = "open-mistral-7b"
 	defaultHuggingFaceModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 	defaultOllamaModel      = "llama3.2:latest"
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default value
-func getEnvOrDefault(envVar, defaultValue string) string {
+func getModelValue(envVar, defaultValue, metadataValue string) string {
+	if metadataValue != "" {
+		return metadataValue
+	}
 	if value := os.Getenv(envVar); value != "" {
 		return value
 	}
 	return defaultValue
 }
 
-// Default model getters that check environment variables first
-var (
-	// DefaultOpenAIModel returns the OpenAI model, checking env var first
-	DefaultOpenAIModel = getEnvOrDefault(envOpenAIModel, defaultOpenAIModel)
+// Example usage for model getters with metadata support:
+// Pass metadataValue from your metadata file/struct, or "" if not set.
+func GetOpenAIModel(metadataValue string) string {
+	return getModelValue(envOpenAIModel, defaultOpenAIModel, metadataValue)
+}
 
-	// DefaultAnthropicModel returns the Anthropic model, checking env var first
-	DefaultAnthropicModel = getEnvOrDefault(envAnthropicModel, defaultAnthropicModel)
+func GetAnthropicModel(metadataValue string) string {
+	return getModelValue(envAnthropicModel, defaultAnthropicModel, metadataValue)
+}
 
-	// DefaultGoogleAIModel returns the Google AI model, checking env var first
-	DefaultGoogleAIModel = getEnvOrDefault(envGoogleAIModel, defaultGoogleAIModel)
+func GetGoogleAIModel(metadataValue string) string {
+	return getModelValue(envGoogleAIModel, defaultGoogleAIModel, metadataValue)
+}
 
-	// DefaultMistralModel returns the Mistral model, checking env var first
-	DefaultMistralModel = getEnvOrDefault(envMistralModel, defaultMistralModel)
+func GetMistralModel(metadataValue string) string {
+	return getModelValue(envMistralModel, defaultMistralModel, metadataValue)
+}
 
-	// DefaultHuggingFaceModel returns the HuggingFace model, checking env var first
-	DefaultHuggingFaceModel = getEnvOrDefault(envHuggingFaceModel, defaultHuggingFaceModel)
+func GetHuggingFaceModel(metadataValue string) string {
+	return getModelValue(envHuggingFaceModel, defaultHuggingFaceModel, metadataValue)
+}
 
-	// DefaultOllamaModel returns the Ollama model, checking env var first
-	DefaultOllamaModel = getEnvOrDefault(envOllamaModel, defaultOllamaModel)
-)
+func GetOllamaModel(metadataValue string) string {
+	return getModelValue(envOllamaModel, defaultOllamaModel, metadataValue)
+}

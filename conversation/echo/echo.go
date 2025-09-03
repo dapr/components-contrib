@@ -100,10 +100,10 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 				}
 				if propMap, ok := properties.(map[string]any); ok && len(propMap) != 0 {
 					argNames = make([]string, 0, len(propMap))
-					// sort the arg names to keep deterministic order for tests
 					for argName := range propMap {
 						argNames = append(argNames, argName)
 					}
+					// sort the arg names to keep deterministic order for tests
 					sort.Strings(argNames)
 				}
 			}

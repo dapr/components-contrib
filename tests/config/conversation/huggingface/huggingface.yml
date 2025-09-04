@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{HUGGINGFACE_API_KEY}}"
     - name: model
-      value: "${{DAPR_CONVERSATION_HUGGINGFACE_MODEL||}}" 
+      value: "${{HUGGINGFACE_MODEL||}}" 

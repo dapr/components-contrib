@@ -14,7 +14,7 @@ metadata:
     description: |
       The Ollama LLM to use.
     type: string
-    example: '${{DAPR_CONVERSATION_OLLAMA_MODEL}}'
+    example: '${{OLLAMA_MODEL}}'
   - name: cacheTTL
     required: false
     description: |

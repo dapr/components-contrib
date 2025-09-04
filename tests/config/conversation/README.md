@@ -35,6 +35,7 @@ The tests will automatically skip components for which the required environment 
 ### Using a .env file (Recommended)
 
 1. Copy the template file:
+
 ```bash
 cp env.template .env
 ```
@@ -51,12 +52,13 @@ Alternatively, you can set the following environment variables to run the respec
 You can override the default models used by each component by setting these environment variables:
 
 ```bash
-export DAPR_CONVERSATION_OPENAI_MODEL="gpt-5-nano"           # Default: gpt-5-nano
-export DAPR_CONVERSATION_ANTHROPIC_MODEL="claude-3-5-sonnet-20240620"  # Default: claude-3-5-sonnet-20240620
-export DAPR_CONVERSATION_GOOGLEAI_MODEL="gemini-1.5-flash"   # Default: gemini-1.5-flash
-export DAPR_CONVERSATION_MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
-export DAPR_CONVERSATION_HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
-export DAPR_CONVERSATION_OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2:latest
+export OPENAI_MODEL="gpt-5-nano"           # Default: gpt-5-nano
+export AZURE_OPENAI_MODEL="gpt-4.1-nano"   # Default: gpt-4.1-nano
+export ANTHROPIC_MODEL="claude-3-5-sonnet-20240620"  # Default: claude-3-5-sonnet-20240620
+export GOOGLEAI_MODEL="gemini-1.5-flash"   # Default: gemini-1.5-flash
+export MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
+export HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+export OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2:latest
 ```
 
 #### OpenAI
@@ -64,14 +66,17 @@ export DAPR_CONVERSATION_OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2
 ```bash
 export OPENAI_API_KEY="your_openai_api_key"
 ```
+
 Get your API key from: https://platform.openai.com/api-keys
 
 ### Azure OpenAI
+
 ```bash
 export AZURE_OPENAI_API_KEY="your_openai_api_key"
 export AZURE_OPENAI_ENDPOINT="your_azureopenai_endpoint_here"
 export AZURE_OPENAI_API_VERSION="your_azreopenai_api_version_here"
 ```
+
 Get your configuration values from: https://ai.azure.com/
 
 ```bash

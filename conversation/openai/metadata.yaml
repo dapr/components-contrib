@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The OpenAI LLM to use. Defaults to gpt-5-nano (configurable via DAPR_CONVERSATION_OPENAI_MODEL environment variable)
+      The OpenAI LLM to use. Configurable via OPENAI_MODEL environment variable)
     type: string
-    example: '${{DAPR_CONVERSATION_OPENAI_MODEL}}'
+    default: 'gpt-5-nano'
+    example: '${{OPENAI_MODEL}}'
   - name: endpoint
     required: false
     description: |
@@ -52,4 +53,4 @@ metadata:
       The type of API to use for the OpenAI service. This is required when using Azure OpenAI.
     type: string
     example: 'azure'
-    default: ''
+    default: 'gpt-4.1-nano'

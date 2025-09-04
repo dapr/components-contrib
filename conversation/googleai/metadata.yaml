@@ -26,7 +26,7 @@ metadata:
     description: |
       The GoogleAI LLM to use.
     type: string
-    example: '${{DAPR_CONVERSATION_GOOGLEAI_MODEL}}'
+    example: '${{APR_CONVERSATION_GOOGLEAI_MODEL}}'
   - name: cacheTTL
     required: false
     description: |

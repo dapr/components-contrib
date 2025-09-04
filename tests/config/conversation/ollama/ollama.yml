@@ -7,4 +7,4 @@ spec:
   version: v1
   metadata:
     - name: model
-      value: "${{DAPR_CONVERSATION_OLLAMA_MODEL||}}" 
+      value: "${{OLLAMA_MODEL||}}" 

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -22,13 +22,13 @@ import (
 // These can be overridden via environment variables for runtime configuration
 const (
 	// Environment variable names
-	envOpenAIModel      = "DAPR_CONVERSATION_OPENAI_MODEL"
+	envOpenAIModel      = "OPENAI_MODEL"
 	envAzureOpenAIModel = "AZURE_OPENAI_MODEL"
-	envAnthropicModel   = "DAPR_CONVERSATION_ANTHROPIC_MODEL"
-	envGoogleAIModel    = "DAPR_CONVERSATION_GOOGLEAI_MODEL"
-	envMistralModel     = "DAPR_CONVERSATION_MISTRAL_MODEL"
-	envHuggingFaceModel = "DAPR_CONVERSATION_HUGGINGFACE_MODEL"
-	envOllamaModel      = "DAPR_CONVERSATION_OLLAMA_MODEL"
+	envAnthropicModel   = "ANTHROPIC_MODEL"
+	envGoogleAIModel    = "GOOGLEAI_MODEL"
+	envMistralModel     = "MISTRAL_MODEL"
+	envHuggingFaceModel = "HUGGINGFACE_MODEL"
+	envOllamaModel      = "OLLAMA_MODEL"
 )
 
 // Exported default model constants for consumers of the conversation package.
@@ -43,8 +43,8 @@ const (
 	DefaultOllamaModel      = "llama3.2:latest"
 )
 
-// getEnvOrDefault returns the value of an environment variable or a default value
-func getModelValue(envVar, defaultValue, metadataValue string) string {
+// getModel returns the value of an environment variable or a default value
+func getModel(envVar, defaultValue, metadataValue string) string {
 	if metadataValue != "" {
 		return metadataValue
 	}

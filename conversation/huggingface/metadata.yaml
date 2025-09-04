@@ -26,7 +26,7 @@ metadata:
     description: |
       The Huggingface model to use. Uses OpenAI-compatible API.
     type: string
-    example: '${{DAPR_CONVERSATION_HUGGINGFACE_MODEL}}'
+    example: '${{HUGGINGFACE_MODEL}}'
   - name: endpoint
     required: false
     description: |

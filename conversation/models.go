@@ -57,29 +57,29 @@ func getModel(envVar, defaultValue, metadataValue string) string {
 // Example usage for model getters with metadata support:
 // Pass metadataValue from your metadata file/struct, or "" if not set.
 func GetOpenAIModel(metadataValue string) string {
-	return getModelValue(envOpenAIModel, DefaultOpenAIModel, metadataValue)
+	return getModel(envOpenAIModel, DefaultOpenAIModel, metadataValue)
 }
 
 func GetAzureOpenAIModel(metadataValue string) string {
-	return getModelValue(envAzureOpenAIModel, DefaultAzureOpenAIModel, metadataValue)
+	return getModel(envAzureOpenAIModel, DefaultAzureOpenAIModel, metadataValue)
 }
 
 func GetAnthropicModel(metadataValue string) string {
-	return getModelValue(envAnthropicModel, DefaultAnthropicModel, metadataValue)
+	return getModel(envAnthropicModel, DefaultAnthropicModel, metadataValue)
 }
 
 func GetGoogleAIModel(metadataValue string) string {
-	return getModelValue(envGoogleAIModel, DefaultGoogleAIModel, metadataValue)
+	return getModel(envGoogleAIModel, DefaultGoogleAIModel, metadataValue)
 }
 
 func GetMistralModel(metadataValue string) string {
-	return getModelValue(envMistralModel, DefaultMistralModel, metadataValue)
+	return getModel(envMistralModel, DefaultMistralModel, metadataValue)
 }
 
 func GetHuggingFaceModel(metadataValue string) string {
-	return getModelValue(envHuggingFaceModel, DefaultHuggingFaceModel, metadataValue)
+	return getModel(envHuggingFaceModel, DefaultHuggingFaceModel, metadataValue)
 }
 
 func GetOllamaModel(metadataValue string) string {
-	return getModelValue(envOllamaModel, DefaultOllamaModel, metadataValue)
+	return getModel(envOllamaModel, DefaultOllamaModel, metadataValue)
 }

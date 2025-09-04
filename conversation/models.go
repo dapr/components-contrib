@@ -23,6 +23,7 @@ import (
 const (
 	// Environment variable names
 	envOpenAIModel      = "DAPR_CONVERSATION_OPENAI_MODEL"
+	envAzureOpenAIModel = "AZURE_OPENAI_MODEL"
 	envAnthropicModel   = "DAPR_CONVERSATION_ANTHROPIC_MODEL"
 	envGoogleAIModel    = "DAPR_CONVERSATION_GOOGLEAI_MODEL"
 	envMistralModel     = "DAPR_CONVERSATION_MISTRAL_MODEL"
@@ -30,14 +31,16 @@ const (
 	envOllamaModel      = "DAPR_CONVERSATION_OLLAMA_MODEL"
 )
 
-// Default model values (used as fallbacks when env vars are not set)
+// Exported default model constants for consumers of the conversation package.
+// These are used as fallbacks when env vars and metadata are not set.
 const (
-	defaultOpenAIModel      = "gpt-5-nano" // Enable GPT-5 (Preview) for all clients
-	defaultAnthropicModel   = "claude-sonnet-4-20250514"
-	defaultGoogleAIModel    = "gemini-2.5-flash-lite"
-	defaultMistralModel     = "open-mistral-7b"
-	defaultHuggingFaceModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-	defaultOllamaModel      = "llama3.2:latest"
+	DefaultOpenAIModel      = "gpt-5-nano"   // Enable GPT-5 (Preview) for all clients
+	DefaultAzureOpenAIModel = "gpt-4.1-nano" // Default Azure OpenAI model
+	DefaultAnthropicModel   = "claude-sonnet-4-20250514"
+	DefaultGoogleAIModel    = "gemini-2.5-flash-lite"
+	DefaultMistralModel     = "open-mistral-7b"
+	DefaultHuggingFaceModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+	DefaultOllamaModel      = "llama3.2:latest"
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default value
@@ -54,25 +57,29 @@ func getModelValue(envVar, defaultValue, metadataValue string) string {
 // Example usage for model getters with metadata support:
 // Pass metadataValue from your metadata file/struct, or "" if not set.
 func GetOpenAIModel(metadataValue string) string {
-	return getModelValue(envOpenAIModel, defaultOpenAIModel, metadataValue)
+	return getModelValue(envOpenAIModel, DefaultOpenAIModel, metadataValue)
+}
+
+func GetAzureOpenAIModel(metadataValue string) string {
+	return getModelValue(envAzureOpenAIModel, DefaultAzureOpenAIModel, metadataValue)
 }
 
 func GetAnthropicModel(metadataValue string) string {
-	return getModelValue(envAnthropicModel, defaultAnthropicModel, metadataValue)
+	return getModelValue(envAnthropicModel, DefaultAnthropicModel, metadataValue)
 }
 
 func GetGoogleAIModel(metadataValue string) string {
-	return getModelValue(envGoogleAIModel, defaultGoogleAIModel, metadataValue)
+	return getModelValue(envGoogleAIModel, DefaultGoogleAIModel, metadataValue)
 }
 
 func GetMistralModel(metadataValue string) string {
-	return getModelValue(envMistralModel, defaultMistralModel, metadataValue)
+	return getModelValue(envMistralModel, DefaultMistralModel, metadataValue)
 }
 
 func GetHuggingFaceModel(metadataValue string) string {
-	return getModelValue(envHuggingFaceModel, defaultHuggingFaceModel, metadataValue)
+	return getModelValue(envHuggingFaceModel, DefaultHuggingFaceModel, metadataValue)
 }
 
 func GetOllamaModel(metadataValue string) string {
-	return getModelValue(envOllamaModel, defaultOllamaModel, metadataValue)
+	return getModelValue(envOllamaModel, DefaultOllamaModel, metadataValue)
 }

@@ -50,10 +50,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := conversation.DefaultMistralModel
-	if md.Model != "" {
-		model = md.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetMistralModel(md.Model)
 
 	llm, err := mistral.New(
 		mistral.WithModel(model),

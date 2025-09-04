@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{GOOGLE_AI_API_KEY}}"
     - name: model
-      value: "${{DAPR_CONVERSATION_GOOGLEAI_MODEL}}" 
+      value: "${{DAPR_CONVERSATION_GOOGLEAI_MODEL||}}" 

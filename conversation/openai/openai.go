@@ -49,9 +49,12 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := conversation.DefaultOpenAIModel
-	if md.Model != "" {
-		model = md.Model
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	var model string
+	if md.APIType == "azure" {
+		model = conversation.GetAzureOpenAIModel(md.Model)
+	} else {
+		model = conversation.GetOpenAIModel(md.Model)
 	}
 	// Create options for OpenAI client
 	options := []openai.Option{

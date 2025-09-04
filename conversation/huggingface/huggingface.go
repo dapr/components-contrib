@@ -52,10 +52,8 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		return err
 	}
 
-	model := conversation.DefaultHuggingFaceModel
-	if m.Model != "" {
-		model = m.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetHuggingFaceModel(m.Model)
 
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {

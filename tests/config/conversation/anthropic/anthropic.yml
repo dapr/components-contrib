@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{ANTHROPIC_API_KEY}}"
     - name: model
-      value: "${{DAPR_CONVERSATION_ANTHROPIC_MODEL}}" 
+      value: "${{DAPR_CONVERSATION_ANTHROPIC_MODEL||}}" 

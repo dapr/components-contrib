@@ -48,10 +48,8 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	model := conversation.DefaultAnthropicModel
-	if m.Model != "" {
-		model = m.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetAnthropicModel(m.Model)
 
 	llm, err := anthropic.New(
 		anthropic.WithModel(model),

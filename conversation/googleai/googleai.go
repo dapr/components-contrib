@@ -48,10 +48,8 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := conversation.DefaultGoogleAIModel
-	if md.Model != "" {
-		model = md.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetGoogleAIModel(md.Model)
 
 	opts := []googleai.Option{
 		googleai.WithAPIKey(md.Key),

@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{MISTRAL_API_KEY}}"
     - name: model
-      value: "${{DAPR_CONVERSATION_MISTRAL_MODEL}}" 
+      value: "${{DAPR_CONVERSATION_MISTRAL_MODEL||}}" 

@@ -12,9 +12,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Ollama LLM to use.
+      The Ollama LLM to use. Configurable via OLLAMA_MODEL environment variable.
     type: string
     example: '${{OLLAMA_MODEL}}'
+    default: 'llama3.2:latest'
   - name: cacheTTL
     required: false
     description: |

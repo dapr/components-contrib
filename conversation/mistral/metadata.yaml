@@ -24,9 +24,9 @@ metadata:
   - name: model
     required: false
     description: |
-      The Mistral LLM to use.
+      The Mistral LLM to use. Configurable via MISTRAL_MODEL environment variable.
     type: string
-    example: '${{APR_CONVERSATION_MISTRAL_MODEL}}'
+    example: '${{MISTRAL_MODEL}}'
     default: 'open-mistral-7b'
   - name: cacheTTL
     required: false

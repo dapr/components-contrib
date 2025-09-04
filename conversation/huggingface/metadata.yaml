@@ -24,9 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Huggingface model to use. Uses OpenAI-compatible API.
+      The Huggingface model to use. Uses OpenAI-compatible API. Configurable via HUGGINGFACE_MODEL environment variable.
     type: string
     example: '${{HUGGINGFACE_MODEL}}'
+    default: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B'
   - name: endpoint
     required: false
     description: |

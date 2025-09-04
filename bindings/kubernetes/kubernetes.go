@@ -119,6 +119,9 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		fields.Everything(),
 	)
 	resultChan := make(chan EventResponse)
+	// TODO:
+	// cache.NewInformer is deprecated: Use NewInformerWithOptions instead.
+	//nolint:staticcheck
 	_, controller := cache.NewInformer(
 		watchlist,
 		&corev1.Event{},

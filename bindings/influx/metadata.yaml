@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: influx
+version: v1
+status: alpha
+title: "InfluxDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/influxdb/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Write data points to InfluxDB"
+authenticationProfiles:
+  - title: "Token Authentication"
+    description: |
+      Authenticate using InfluxDB token.
+    metadata:
+      - name: token
+        required: true
+        sensitive: true
+        description: "The InfluxDB authentication token"
+        example: "your-influxdb-token"
+metadata:
+  - name: url
+    required: true
+    description: "The InfluxDB server URL"
+    example: "http://localhost:8086"
+  - name: org
+    required: true
+    description: "The InfluxDB organization name"
+    example: "your-org"
+  - name: bucket
+    required: true
+    description: "The InfluxDB bucket name"
+    example: "your-bucket"
+  - name: measurement
+    required: true
+    description: "The measurement name"
+    example: "cpu_usage"

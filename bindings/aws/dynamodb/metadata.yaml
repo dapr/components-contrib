@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.dynamodb
+version: v1
+status: stable
+title: "AWS DynamoDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/dynamodb/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Write item to DynamoDB table"
+authenticationProfiles:
+  - title: "AWS Access Key Authentication"
+    description: |
+      Authenticate using AWS access key credentials.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The AWS access key"
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The AWS secret key"
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: "The AWS session token"
+        example: "TOKEN"
+      - name: region
+        required: true
+        description: "The AWS region"
+        example: "us-east-1"
+metadata:
+  - name: table
+    required: true
+    description: "The DynamoDB table name"
+    example: "my-table"
+  - name: endpoint
+    required: false
+    description: "The DynamoDB endpoint URL"
+    example: "http://localhost:8000"

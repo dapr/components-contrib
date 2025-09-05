@@ -60,7 +60,7 @@ func newIntermediateConfig() intermediateConfig {
 	}
 }
 
-func parseConfig(rawConfig interface{}) (configSpec, error) {
+func parseConfig(rawConfig any) (configSpec, error) {
 	var result configSpec
 	rawConfig, err := config.Normalize(rawConfig)
 	if err != nil {

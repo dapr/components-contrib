@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: localstorage
+version: v1
+status: stable
+title: "Local Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/localstorage/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Write file to local storage"
+metadata:
+  - name: rootPath
+    required: true
+    description: "The root directory path"
+    example: "/tmp/dapr"
+  - name: fileName
+    required: true
+    description: "The file name to write"
+    example: "data.txt"

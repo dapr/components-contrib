@@ -402,15 +402,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 									"type":        "string",
 									"description": "The transaction id.",
 								},
-								"items": map[string]any{
-									"type":        "array",
-									"description": "List of items in the transaction",
-									"items": map[string]any{
-										"type": "string",
-									},
-								},
 							},
-							"required": []string{"transaction_id", "items"},
+							"required": []string{"transaction_id"},
 						},
 					},
 				},

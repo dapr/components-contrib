@@ -47,9 +47,8 @@ const (
 	metadataEncodeBase64 = "encodeBase64"
 	metadataSignTTL      = "signTTL"
 
-	metadataContentType = "contentType"
-	metadataKey         = "key"
-	maxResults          = 1000
+	metadataKey = "key"
+	maxResults  = 1000
 
 	metadataKeyBC    = "name"
 	signOperation    = "sign"
@@ -78,7 +77,6 @@ type gcpMetadata struct {
 	TokenURI            string `json:"token_uri" mapstructure:"tokenURI" mdignore:"true" mapstructurealiases:"token_uri"`
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"authProviderX509CertURL" mdignore:"true" mapstructurealiases:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"clientX509CertURL" mdignore:"true" mapstructurealiases:"client_x509_cert_url"`
-	ContentType         string `json:"contentType,omitempty" mapstructure:"contentType"`
 
 	Bucket       string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64 bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
@@ -235,12 +233,6 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 	}
 
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(ctx)
-
-	// Set content type if provided
-	if metadata.ContentType != "" {
-		h.ContentType = metadata.ContentType
-	}
-
 	// Cannot do `defer h.Close()` as Close() will flush the bytes and need to have error handling.
 	if _, err = io.Copy(h, r); err != nil {
 		cerr := h.Close()
@@ -386,15 +378,9 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
 		merged.EncodeBase64 = strings.IsTruthy(val)
 	}
-
 	if val, ok := req.Metadata[metadataSignTTL]; ok && val != "" {
 		merged.SignTTL = val
 	}
-
-	if val, ok := req.Metadata[metadataContentType]; ok && val != "" {
-		merged.ContentType = val
-	}
-
 	return merged, nil
 }
 

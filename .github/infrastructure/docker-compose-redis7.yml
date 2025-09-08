@@ -1,7 +1,7 @@
 version: '2'
 services:
   redis:
-    image: redis:7
+    image: valkey/valkey:7
     ports:
       - "6380:6379"
     environment:

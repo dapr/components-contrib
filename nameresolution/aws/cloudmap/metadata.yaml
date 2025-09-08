@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: nameresolution
+name: aws.cloudmap
+version: v1
+status: alpha
+title: "AWS CloudMap"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/setup-nr-aws-cloudmap/
+authenticationProfiles:
+  - title: "Environment Variables"
+    description: "Connect to AWS CloudMap using environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)."
+    metadata: []
+  - title: "IAM Roles"
+    description: "Connect to AWS CloudMap using IAM roles when running on AWS (EKS, EC2, etc.)."
+    metadata: []
+  - title: "Explicit Credentials"
+    description: "Connect to AWS CloudMap using explicit credentials (not recommended for production)."
+    metadata:
+      - name: accessKey
+        type: string
+        required: true
+        description: AWS access key for authentication.
+        sensitive: true
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: secretKey
+        type: string
+        required: true
+        description: AWS secret key for authentication.
+        sensitive: true
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: sessionToken
+        type: string
+        required: false
+        description: AWS session token for temporary credentials.
+        sensitive: true
+        example: "temporary-session-token"
+metadata:
+  - name: namespaceName
+    type: string
+    required: false
+    description: The name of your CloudMap namespace. Either namespaceName or namespaceId is required.
+    example: "my-namespace"
+  - name: namespaceId
+    type: string
+    required: false
+    description: The ID of your CloudMap namespace. Either namespaceName or namespaceId is required.
+    example: "ns-xxxxxx"
+  - name: region
+    type: string
+    required: false
+    description: AWS region where the CloudMap namespace is located.
+    example: "us-west-2"
+    default: "us-east-1"
+  - name: endpoint
+    type: string
+    required: false
+    description: Custom endpoint for testing (e.g., LocalStack).
+    example: "http://localhost:4566"
+  - name: defaultDaprPort
+    type: number
+    required: false
+    description: Default port for Dapr sidecar if not specified in instance attributes.
+    example: "3500"
+    default: "3500"

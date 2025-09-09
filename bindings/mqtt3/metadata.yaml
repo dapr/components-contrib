@@ -50,13 +50,13 @@ metadata:
   - name: retain
     required: false
     description: "Whether to retain messages"
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: cleanSession
     required: false
     description: "Whether to use clean session"
-    example: true
-    default: true
+    example: "true"
+    default: "true"
   - name: backOffMaxRetries
     required: false
     description: "Maximum retries for backoff"

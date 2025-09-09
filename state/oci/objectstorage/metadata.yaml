@@ -44,8 +44,8 @@ authenticationProfiles:
         type: bool
         required: true
         description: Set to true to use instance principal authentication.
-        example: true
-        default: false
+        example: "true"
+        default: "false"
   - title: "Configuration File Authentication"
     description: "Authenticate using OCI configuration file."
     metadata:
@@ -53,8 +53,8 @@ authenticationProfiles:
         type: bool
         required: true
         description: Set to true to use configuration file authentication.
-        example: true
-        default: falsee
+        example: "true"
+        default: "false"
       - name: configFilePath
         type: string
         required: true

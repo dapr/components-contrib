@@ -25,5 +25,5 @@ metadata:
     type: bool
     required: false
     description: If true, enables multiple key-values per secret feature.
-    example: false
-    default: false
+    example: "false"
+    default: "false"

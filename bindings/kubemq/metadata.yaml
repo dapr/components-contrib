@@ -37,20 +37,20 @@ metadata:
     description: The KubeMQ channel name.
     example: "my-channel"
   - name: pollMaxItems
-    type: int
+    type: number
     required: false
     description: The maximum number of items to poll.
-    example: 10
-    default: 1
+    example: "10"
+    default: "1"
   - name: pollTimeoutSeconds
-    type: int
+    type: number
     required: false
     description: The timeout in seconds for polling.
-    example: 3600
-    default: 3600
+    example: "3600"
+    default: "3600"
   - name: autoAcknowledged
     type: bool
     required: false
     description: Whether to automatically acknowledge messages.
-    example: true
-    default: false
+    example: "true"
+    default: "false"

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -102,6 +103,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 					for argName := range propMap {
 						argNames = append(argNames, argName)
 					}
+					// sort the arg names to keep deterministic order for tests
+					sort.Strings(argNames)
 				}
 			}
 

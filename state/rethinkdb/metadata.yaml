@@ -45,8 +45,8 @@ authenticationProfiles:
         type: bool
         required: false
         description: Whether to enable TLS encryption.
-        example: false
-        default: false
+        example: "false"
+        default: "false"
       - name: clientCert
         type: string
         required: true
@@ -69,8 +69,8 @@ metadata:
     type: bool
     required: false
     description: Whether to archive changes to a separate table.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: timeout
     type: string
     required: false
@@ -80,13 +80,13 @@ metadata:
     type: bool
     required: false
     description: Whether to use json.Number instead of float64.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: numRetries
     type: number
     required: false
     description: Number of times to retry queries on connection errors.
-    example: 3
+    example: "3"
   - name: hostDecayDuration
     type: string
     required: false
@@ -97,8 +97,8 @@ metadata:
     type: bool
     required: false
     description: Whether to enable opentracing for queries.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: writeTimeout
     type: string
     required: false
@@ -113,7 +113,7 @@ metadata:
     type: number
     required: false
     description: Handshake version for RethinkDB."
-    example: 1
+    example: "1"
   - name: keepAlivePeriod
     type: string
     required: false
@@ -123,7 +123,7 @@ metadata:
     type: number
     required: false
     description: Maximum number of idle connections."
-    example: 5
+    example: "5"
   - name: authKey
     type: string
     required: false
@@ -134,17 +134,17 @@ metadata:
     type: number
     required: false
     description: Initial connection pool capacity."
-    example: 5
+    example: "5"
   - name: maxOpen
     type: number
     required: false
     description: Maximum number of open connections."
-    example: 10
+    example: "10"
   - name: discoverHosts
     type: bool
     required: false
     description: Whether to discover hosts."
-    example: false
+    example: "false"
   - name: nodeRefreshInterval
     type: string
     required: false

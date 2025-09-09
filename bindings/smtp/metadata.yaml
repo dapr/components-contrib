@@ -66,5 +66,5 @@ metadata:
   - name: skipTLSVerify
     required: false
     description: "Skip TLS verification"
-    example: false
-    default: false
+    example: "false"
+    default: "false"

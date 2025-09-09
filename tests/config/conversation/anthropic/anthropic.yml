@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{ANTHROPIC_API_KEY}}"
     - name: model
-      value: "${{ANTHROPIC_MODEL||}}" 
+      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 

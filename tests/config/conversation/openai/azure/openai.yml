@@ -9,7 +9,7 @@ spec:
     - name: key
       value: "${{AZURE_OPENAI_API_KEY}}"
     - name: model
-      value: "${{AZURE_OPENAI_MODEL||}}" 
+      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 
     - name: endpoint
       value: "${{AZURE_OPENAI_ENDPOINT}}"
     - name: apiType

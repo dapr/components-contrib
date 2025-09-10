@@ -26,7 +26,7 @@ metadata:
     description: |
       The Mistral LLM to use. Configurable via MISTRAL_MODEL environment variable.
     type: string
-    example: '${{MISTRAL_MODEL}}'
+    example: 'open-mistral-7b'
     default: 'open-mistral-7b'
   - name: cacheTTL
     required: false

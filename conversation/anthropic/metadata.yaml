@@ -26,7 +26,7 @@ metadata:
     description: |
       The Anthropic LLM to use. Configurable via ANTHROPIC_MODEL environment variable.
     type: string
-    example: '${{ANTHROPIC_MODEL}}'
+    example: 'claude-sonnet-4-20250514'
     default: 'claude-sonnet-4-20250514'
   - name: cacheTTL
     required: false

@@ -180,21 +180,6 @@ func parseMetadataProperty(val string) (string, error) {
 	case strings.HasPrefix(val, "${{"):
 		// look up env var with that name. remove ${{}} and space
 		k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
-
-		// Check if there's a default value specified with || syntax
-		if strings.Contains(k, "||") {
-			parts := strings.SplitN(k, "||", 2)
-			envVar := strings.TrimSpace(parts[0])
-			defaultVal := strings.TrimSpace(parts[1])
-
-			v := LookUpEnv(envVar)
-			if v == "" {
-				return defaultVal, nil
-			}
-			return v, nil
-		}
-
-		// Original behavior - require env var to be set
 		v := LookUpEnv(k)
 		if v == "" {
 			return "", fmt.Errorf("required env var is not set %s", k)

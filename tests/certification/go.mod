@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.24.4
+go 1.24.6
+
+toolchain go1.24.7
 
 require (
 	cloud.google.com/go/pubsub v1.49.0
@@ -17,12 +19,12 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.15.2
-	github.com/dapr/dapr v1.16.0-rc.1.0.20250723233324-b5569ff8862e
+	github.com/dapr/components-contrib v1.16.0-rc.8
+	github.com/dapr/dapr v1.16.0-rc.8
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
-	github.com/dapr/kit v0.15.3-0.20250717140748-8b780b4d81c5
+	github.com/dapr/kit v0.16.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
-	github.com/go-chi/chi/v5 v5.0.12
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -125,7 +127,7 @@ require (
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
-	github.com/dapr/durabletask-go v0.7.3-0.20250711135247-7a35af6fe0e5 // indirect
+	github.com/dapr/durabletask-go v0.9.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect

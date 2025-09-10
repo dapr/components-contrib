@@ -95,53 +95,53 @@ metadata:
     description: The queue group name for load balancing.
     example: "my-queue-group"
   - name: startSequence
-    type: integer
+    type: number
     required: false
     description: The starting sequence number for message delivery.
-    example: 1
+    example: "1"
   - name: startTime
-    type: integer
+    type: number
     required: false
     description: The starting time (Unix timestamp) for message delivery.
-    example: 1640995200
-    default: 0
+    example: "1640995200"
+    default: "0"
   - name: flowControl
     type: bool
     required: false
     description: Enable flow control for the consumer.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: ackWait
     type: string
     required: false
     description: The acknowledgment wait time.
     example: "30s"
   - name: maxDeliver
-    type: integer
+    type: number
     required: false
     description: The maximum number of message deliveries.
-    example: 5
+    example: "5"
   - name: maxAckPending
-    type: integer
+    type: number
     required: false
     description: The maximum number of unacknowledged messages.
-    example: 100
+    example: "100"
   - name: replicas
-    type: integer
+    type: number
     required: false
     description: The number of stream replicas.
-    example: 3
+    example: "3"
   - name: memoryStorage
     type: bool
     required: false
     description: Use memory storage for the stream.
-    example: false
-    default: false
+    example: "false"
+    default: "false"
   - name: rateLimit
-    type: integer
+    type: number
     required: false
     description: The rate limit for message consumption.
-    example: 1000
+    example: "1000"
   - name: heartbeat
     type: string
     required: false
@@ -185,12 +185,7 @@ metadata:
     example: "single"
     default: "single"
   - name: backOff
-    type: array
+    type: string
     required: false
     description: The backoff configuration for message delivery for the consumer.
     example: "[1s, 2s, 4s]"
-  - name: maxAckPending
-    type: integer
-    required: false
-    description: The maximum number of unacknowledged messages for the consumer.
-    example: 100

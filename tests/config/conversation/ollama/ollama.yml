@@ -7,4 +7,4 @@ spec:
   version: v1
   metadata:
     - name: model
-      value: "llama3.2:latest" 
+      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 

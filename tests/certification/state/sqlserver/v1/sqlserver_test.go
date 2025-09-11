@@ -29,7 +29,7 @@ import (
 	// State.
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	state_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
+	state_sqlserver "github.com/dapr/components-contrib/state/sqlserver/v1"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/kit/logger"
 

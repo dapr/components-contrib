@@ -24,10 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The OpenAI LLM to use.
+      The OpenAI LLM to use. Configurable via OPENAI_MODEL environment variable.
     type: string
-    example: 'gpt-4-turbo'
-    default: 'gpt-4o'
+    default: 'gpt-5-nano'
+    example: 'gpt-5-nano'
   - name: endpoint
     required: false
     description: |
@@ -53,4 +53,4 @@ metadata:
       The type of API to use for the OpenAI service. This is required when using Azure OpenAI.
     type: string
     example: 'azure'
-    default: ''
+    default: 'gpt-4.1-nano'

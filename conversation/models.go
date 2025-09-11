@@ -45,11 +45,11 @@ const (
 
 // getModel returns the value of an environment variable or a default value
 func getModel(envVar, defaultValue, metadataValue string) string {
-	if metadataValue != "" {
-		return metadataValue
-	}
 	if value := os.Getenv(envVar); value != "" {
 		return value
+	}
+	if metadataValue != "" {
+		return metadataValue
 	}
 	return defaultValue
 }

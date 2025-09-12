@@ -226,6 +226,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	if meta.SchemaRegistryURL != "" {
 		k.logger.Infof("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
+		k.srClient.CodecCreationEnabled(true)
 		k.srClient.CodecJsonEnabled(!meta.UseAvroJSON)
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {

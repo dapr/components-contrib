@@ -207,8 +207,8 @@ func formatByteRecord(schemaID int, valueBytes []byte) []byte {
 	return recordValue
 }
 
-func assertValueSerialized(t *testing.T, act []byte, valJSON []byte, schema *srclient.Schema) {
-	require.NotEqual(t, act, valJSON)
+func assertValueSerialized(t *testing.T, act []byte, expJSON []byte, schema *srclient.Schema) {
+	require.NotEqual(t, expJSON, act)
 
 	actSchemaID := int(binary.BigEndian.Uint32(act[1:5]))
 	codec, _ := goavro.NewCodecForStandardJSONFull(schema.Schema())
@@ -216,9 +216,11 @@ func assertValueSerialized(t *testing.T, act []byte, valJSON []byte, schema *src
 	actJSON, _ := codec.TextualFromNative(nil, native)
 	var actMap map[string]any
 	json.Unmarshal(actJSON, &actMap)
+	var expMap map[string]any
+	json.Unmarshal(expJSON, &expMap)
 
 	require.Equal(t, schema.ID(), actSchemaID)
-	require.Equal(t, testValue1, actMap)
+	require.Equal(t, expMap, actMap)
 }
 
 func TestSerializeValueCachingDisabled(t *testing.T) {
@@ -338,6 +340,78 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		valJSON, _ := json.Marshal(testValue1)
 		act, err := k.SerializeValue("my-topic", valJSON, map[string]string{"valueSchemaType": "Avro"})
 		assertValueSerialized(t, act, valJSON, schema)
+		require.NoError(t, err)
+	})
+
+	t.Run("serialize with complex avro schema", func(t *testing.T) {
+		testSchemaOcr := `{
+  "type": "record",
+  "name": "ocr_requested",
+  "namespace": "foo.cmd.image_processing",
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "doc": "Idempotency key"
+    },
+    {
+      "name": "document_metadata",
+      "type": {
+        "type": "record",
+        "name": "DocumentMetadata",
+        "fields": [
+          {
+            "name": "content_type",
+            "type": "string"
+          },
+          {
+            "name": "original_filename",
+            "type": ["null", "string"],
+            "default": null
+          },
+          {
+            "name": "source",
+            "type": {
+              "type": "enum",
+              "name": "DocumentSource",
+              "symbols": [
+                "Unknown",
+                "Import",
+                "PatientUpload",
+                "UserUpload",
+                "UserUploadFax"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "type": {
+              "type": "enum",
+              "name": "DocumentType",
+              "symbols": ["Unknown", "InsuranceCard", "MiscReport"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "s3_path",
+      "type": {
+        "type": "record",
+        "name": "S3Path",
+        "fields": [
+          { "name": "bucket", "type": "string" },
+          { "name": "key", "type": "string" }
+        ]
+      }
+    }
+  ]
+}`
+		schemaOcr, _ := registry.CreateSchema("my-ocr-topic-value", testSchemaOcr, srclient.Avro)
+		valueOcr := map[string]any{"id": "123", "document_metadata": map[string]any{"content_type": "application/pdf", "original_filename": nil, "source": "UserUpload", "type": "InsuranceCard"}, "s3_path": map[string]any{"bucket": "test-bucket", "key": "test-key"}}
+		valJSONOcr, _ := json.Marshal(valueOcr)
+		act, err := k.SerializeValue("my-ocr-topic", valJSONOcr, map[string]string{"valueSchemaType": "Avro"})
+		assertValueSerialized(t, act, valJSONOcr, schemaOcr)
 		require.NoError(t, err)
 	})
 }

@@ -455,6 +455,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	})
 
 	t.Run("set and get proto", func(t *testing.T) {
+		if !config.HasOperation("actorStateStore") {
+			t.Skipf("skipping test for %s", config.ComponentName)
+		}
+
 		protoBytes, err := proto.Marshal(&sqlserver.TestEvent{
 			EventId: -1,
 		})

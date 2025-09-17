@@ -96,6 +96,10 @@ func loadStateStore(name string) state.Store {
 		return s_sqlserver.New(testLogger)
 	case "sqlserver.v2":
 		return s_sqlserver_v2.New(testLogger)
+	case "sqlserver.docker":
+		return s_sqlserver.New(testLogger)
+	case "sqlserver.v2.docker":
+		return s_sqlserver_v2.New(testLogger)
 	case "postgresql.v1.docker":
 		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v1.azure":

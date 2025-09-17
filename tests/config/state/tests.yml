@@ -41,6 +41,16 @@ components:
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
+  - component: sqlserver.docker
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be hex-encoded numbers
+      badEtag: "FFFF"
+  - component: sqlserver.v2.docker
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be hex-encoded numbers
+      badEtag: "FFFF"
   - component: postgresql.v1.docker
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:

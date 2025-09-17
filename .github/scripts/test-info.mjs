@@ -802,6 +802,16 @@ const components = {
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
     },
+    'state.sqlserver.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        sourcePkg: ['state/sqlserver', 'common/component/sql'],
+    },
+    'state.sqlserver.v2.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
+    },
     // 'state.gcp.firestore.docker': {
     //     conformance: true,
     //     requireDocker: true,

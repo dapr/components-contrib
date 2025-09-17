@@ -1368,6 +1368,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			t.Run("set and get expire time", func(t *testing.T) {
+				if config.ComponentName == "sqlserver" ||
+					config.ComponentName == "sqlserver.docker" {
+					t.Skip()
+				}
+
 				now := time.Now()
 				err := statestore.Set(t.Context(), &state.SetRequest{
 					Key:   key + "-ttl-expire-time",

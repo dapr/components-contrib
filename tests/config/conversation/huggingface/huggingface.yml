@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{HUGGINGFACE_API_KEY}}"
     - name: model
-      value: "HuggingFaceTB/SmolLM3-3B"
+      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 

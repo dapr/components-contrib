@@ -41,8 +41,6 @@ func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	return g
 }
 
-const defaultModel = "gemini-2.5-flash"
-
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
@@ -50,10 +48,8 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := defaultModel
-	if md.Model != "" {
-		model = md.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetGoogleAIModel(md.Model)
 
 	opts := []openai.Option{
 		openai.WithModel(model),

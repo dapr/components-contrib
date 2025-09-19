@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: akeyless-secretstore
+spec:
+  type: secretstores.akeyless
+  version: v1
+  metadata:
+  - name: gatewayUrl
+    value: "https://your-gateway.akeyless.io"  # Optional: defaults to Akeyless cloud
+  - name: token
+    value: "your-akeyless-token"  # Required: your Akeyless authentication token

@@ -1,0 +1,17 @@
+{
+  "status": 1,
+  "username": "sftpuser",
+  "password": "sftpsecret",
+  "permissions": { "/": ["*"] },
+  "filesystem": {
+    "provider": 1,
+    "s3config": {
+      "bucket": "sftp-bucket",
+      "region": "us-east-1",
+      "endpoint": "http://minio:9000",
+      "access_key": "minioadmin",
+      "access_secret": { "status": "Plain", "payload": "minioadmin123" },
+      "force_path_style": true
+    }
+  }
+}

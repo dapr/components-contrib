@@ -173,6 +173,13 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: error create file %s: %w", path, err)
 	}
 
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			sftp.logger.Errorf("sftp binding error: error close file: %s", err)
+		}
+	}()
+
 	_, err = file.Write(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error write file: %w", err)

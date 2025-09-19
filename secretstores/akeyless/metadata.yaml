@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: akeyless
+version: v1
+status: beta
+title: "Akeyless Secret Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/akeyless/
+metadata:
+  - name: gatewayUrl
+    required: false
+    description: |
+      The Akeyless Gateway URL. If not provided, uses the default Akeyless cloud URL.
+    example: "https://your.akeyless.gw"
+    type: string
+  - name: token
+    required: true
+    description: |
+      The Akeyless authentication token (t-token).
+    example: "t-ABCD1234"
+    type: string

@@ -176,7 +176,7 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 	defer func() {
 		closeErr := file.Close()
 		if closeErr != nil {
-			sftp.logger.Errorf("sftp binding error: error close file: %s", closeErr)
+			sftp.logger.Errorf("sftp binding error: error close file: %w", closeErr)
 		}
 	}()
 

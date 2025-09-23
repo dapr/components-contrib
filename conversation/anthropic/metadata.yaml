@@ -24,10 +24,10 @@ metadata:
   - name: model
     required: false
     description: |
-      The Anthropic LLM to use.
+      The Anthropic LLM to use. Configurable via ANTHROPIC_MODEL environment variable.
     type: string
-    example: 'claude-3-5-sonnet-20240620'
-    default: 'claude-3-5-sonnet-20240620'
+    example: 'claude-sonnet-4-20250514'
+    default: 'claude-sonnet-4-20250514'
   - name: cacheTTL
     required: false
     description: |

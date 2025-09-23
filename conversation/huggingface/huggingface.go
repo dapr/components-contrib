@@ -42,9 +42,6 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	return h
 }
 
-// Default model - using a popular and reliable model
-const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-
 // Default HuggingFace OpenAI-compatible endpoint
 const defaultEndpoint = "https://router.huggingface.co/hf-inference/models/{{model}}/v1"
 
@@ -55,10 +52,8 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		return err
 	}
 
-	model := defaultModel
-	if m.Model != "" {
-		model = m.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetHuggingFaceModel(m.Model)
 
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {

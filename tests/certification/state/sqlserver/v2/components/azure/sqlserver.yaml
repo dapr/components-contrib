@@ -10,7 +10,7 @@ spec:
         name:  AzureSqlServerConnectionString
         value: AzureSqlServerConnectionString
   - name: databaseName
-    value: stablecertification
+    value: stablecertification_v2
   - name: tableName
     value: dapr_certification_test
   - name: keyType

@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/contenttype"
 	// State.
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -146,7 +147,7 @@ func TestSqlServer(t *testing.T) {
 	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
-		db, err := sql.Open("mssql", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
+		db, err := sql.Open("mssql", fmt.Sprintf("%sdatabase=certificationtest_v2;", dockerConnectionString))
 		require.NoError(ctx.T, err)
 		defer db.Close()
 
@@ -188,13 +189,14 @@ func TestSqlServer(t *testing.T) {
 		assert.NoError(ctx.T, err)
 
 		// save state with the key certificationkey1, default options: strong, last-write
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data, nil)
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data, map[string]string{metadata.ContentType: contenttype.JSONContentType})
+		require.NoError(ctx.T, err)
 		require.NoError(ctx.T, err)
 
 		// get state for key certificationkey1
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(ctx.T, err)
-		assert.Equal(ctx.T, string(data), string(item.Value))
+		assert.JSONEq(ctx.T, string(data), string(item.Value))
 
 		// check that Dapr wrote the indexed properties to separate columns
 		rows, err = db.Query("SELECT TOP 1 transactionid, customerid FROM [customschema].[mystates];")
@@ -513,7 +515,7 @@ func TestSqlServer(t *testing.T) {
 			Step("wait", flow.Sleep(5*time.Second)).
 			Step("Run basic test again to verify reconnection occurred", basicTest).
 			Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
-			Step("run TTL test", ttlTest(dockerConnectionString+"database=certificationtest;")).
+			Step("run TTL test", ttlTest(dockerConnectionString+"database=certificationtest_v2;")).
 			Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 			Run()
 	})
@@ -573,7 +575,7 @@ func TestSqlServer(t *testing.T) {
 			Step("wait", flow.Sleep(10*time.Second)).
 			Step("Run basic test again to verify reconnection occurred", basicTest).
 			Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"azure")).
-			Step("run TTL test", ttlTest(os.Getenv("AzureSqlServerConnectionString")+"database=stablecertification;")).
+			Step("run TTL test", ttlTest(os.Getenv("AzureSqlServerConnectionString")+"database=stablecertification_v2;")).
 			Run()
 	})
 }

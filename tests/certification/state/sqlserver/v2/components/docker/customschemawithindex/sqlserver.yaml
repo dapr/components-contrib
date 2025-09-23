@@ -8,7 +8,7 @@ spec:
   - name: url
     value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;Connection Timeout=30;"
   - name: databaseName
-    value: certificationtest
+    value: certificationtest_v2
   - name: schemaName
     value: customschema
   - name: tableName

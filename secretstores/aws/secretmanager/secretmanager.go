@@ -19,12 +19,14 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -40,18 +42,28 @@ func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 }
 
 type SecretManagerMetaData struct {
-	Region                     string `json:"region" mapstructure:"region" mdignore:"true"`
-	AccessKey                  string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey                  string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
-	SessionToken               string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
+
+	// TODO: rm the alias in Dapr 1.17
+	Region                     string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint                   string `json:"endpoint" mapstructure:"endpoint"`
 	MultipleKeyValuesPerSecret bool   `json:"multipleKeyValuesPerSecret" mapstructure:"multipleKeyValuesPerSecret"`
 }
 
+// SecretsManagerAPI defines the interface for AWS Secrets Manager operations
+type SecretsManagerAPI interface {
+	GetSecretValue(ctx context.Context, params *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	ListSecrets(ctx context.Context, params *secretsmanager.ListSecretsInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error)
+}
+
 type smSecretStore struct {
-	authProvider               awsAuth.Provider
 	logger                     logger.Logger
 	multipleKeyValuesPerSecret bool
+
+	secretsManagerClient SecretsManagerAPI
 }
 
 // Init creates an AWS secret manager client.
@@ -61,21 +73,26 @@ func (s *smSecretStore) Init(ctx context.Context, metadata secretstores.Metadata
 		return err
 	}
 
-	opts := awsAuth.Options{
-		Logger:       s.logger,
+	configOpts := awsCommonAuth.Options{
+		Logger: s.logger,
+
+		Properties: metadata.Properties,
+
 		Region:       meta.Region,
-		AccessKey:    meta.AccessKey,
+		Endpoint:     meta.Endpoint,
+		AccessKey:    meta.AccessKey, // TODO: Remove fields which should be gleaned from metadata.properties
 		SecretKey:    meta.SecretKey,
 		SessionToken: meta.SessionToken,
-		Endpoint:     meta.Endpoint,
 	}
-	s.multipleKeyValuesPerSecret = meta.MultipleKeyValuesPerSecret
 
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
 	if err != nil {
 		return err
 	}
-	s.authProvider = provider
+
+	s.secretsManagerClient = secretsmanager.NewFromConfig(awsConfig)
+	s.multipleKeyValuesPerSecret = meta.MultipleKeyValuesPerSecret
+
 	return nil
 }
 
@@ -123,7 +140,7 @@ func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecre
 	if value, ok := req.Metadata[VersionStage]; ok {
 		versionStage = &value
 	}
-	output, err := s.authProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	output, err := s.secretsManagerClient.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId:     &req.Name,
 		VersionId:    versionID,
 		VersionStage: versionStage,
@@ -150,7 +167,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.authProvider.SecretManager().Manager.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
+		output, err := s.secretsManagerClient.ListSecrets(ctx, &secretsmanager.ListSecretsInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -159,7 +176,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 		}
 
 		for _, entry := range output.SecretList {
-			secrets, err := s.authProvider.SecretManager().Manager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+			secrets, err := s.secretsManagerClient.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
 			})
 			if err != nil {
@@ -177,18 +194,9 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 }
 
 func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*SecretManagerMetaData, error) {
-	b, err := json.Marshal(spec.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var meta SecretManagerMetaData
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-
-	return &meta, nil
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
+	return &meta, err
 }
 
 // Features returns the features available in this secret store.
@@ -207,8 +215,5 @@ func (s *smSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMa
 }
 
 func (s *smSecretStore) Close() error {
-	if s.authProvider != nil {
-		return s.authProvider.Close()
-	}
 	return nil
 }

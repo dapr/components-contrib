@@ -185,6 +185,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		DaprAPIGRPCPort:              strconv.Itoa(daprAPIGRPCPort),
 		ApplicationPort:              strconv.Itoa(appPort),
 		ProfilePort:                  strconv.Itoa(profilePort),
+		SchedulerStreams:             1, // Bypass scheduler stream requirement for cert tests
 		DaprAPIListenAddresses:       "127.0.0.1",
 		AppProtocol:                  string(protocol.HTTPProtocol),
 		Mode:                         string(mode),

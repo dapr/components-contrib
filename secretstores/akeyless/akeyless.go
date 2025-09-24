@@ -110,12 +110,15 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	// For bulk get, we need to list all secrets first
 	listItems := akeyless.NewListItems()
 	listItems.SetToken(a.token)
+	listItems.SetPath("/")
+	listItems.SetType([]string{"static-secret"})
 
 	// Execute the list items request
 	itemsList, _, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to list items from Akeyless: %w", err)
 	}
+	a.logger.Debug("%d items (static-secret) returned from Akeyless", len(itemsList.Items))
 
 	// Create a map to store all secrets for response
 	allSecrets := make(map[string]map[string]string)
@@ -132,28 +135,33 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	// Get all secrets
 	getSecretValue := akeyless.NewGetSecretValue(itemsNames)
 	getSecretValue.SetToken(a.token)
-	secretResp, _, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+	secretResp, httpResp, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
 	if err != nil {
-		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to get secrets from Akeyless: %w", err)
+		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to get secrets from Akeyless: %w (%d)", err, httpResp.StatusCode)
 	}
 
 	// Add all secrets to the response
 	for name, secret := range secretResp {
-		// secret is of type interface{}, need to assert to map[string]interface{} first
-		secretMap, ok := secret.(map[string]any)
-		if !ok {
-			return secretstores.BulkGetSecretResponse{}, fmt.Errorf("unexpected secret type for %s", name)
-		}
-		// Convert map[string]interface{} to map[string]string
-		secretStrMap := make(map[string]string)
-		for k, v := range secretMap {
-			if v == nil {
-				secretStrMap[k] = ""
-			} else {
-				secretStrMap[k] = fmt.Sprintf("%v", v)
+		// secretResp has the following format:
+		// {
+		//   "/aws_iam_secret": "noSecret",
+		//   "/cache-test": "1234"
+		// }
+		// Each secret value is directly the secret content, not a nested map
+		var secretStr string
+		if str, ok := secret.(string); ok {
+			secretStr = str
+		} else {
+			// If it's not a string, convert it to JSON string
+			secretBytes, err := json.Marshal(secret)
+			if err != nil {
+				return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to convert secret value to string for %s: %w", name, err)
 			}
+			secretStr = string(secretBytes)
 		}
-		allSecrets[name] = secretStrMap
+		allSecrets[name] = map[string]string{
+			name: secretStr,
+		}
 	}
 
 	return secretstores.BulkGetSecretResponse{

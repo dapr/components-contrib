@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/akeylesslabs/akeyless-go/v5"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -18,7 +19,7 @@ var _ secretstores.SecretStore = (*akeylessSecretStore)(nil)
 
 // akeylessSecretStore is a secret store implementation for Akeyless.
 type akeylessSecretStore struct {
-	client *akeyless.APIClient
+	v2     *akeyless.V2ApiService
 	token  string
 	logger logger.Logger
 }
@@ -33,36 +34,33 @@ func NewAkeylessSecretStore(logger logger.Logger) secretstores.SecretStore {
 // akeylessMetadata contains the metadata for the Akeyless secret store.
 type akeylessMetadata struct {
 	GatewayURL string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
-	Token      string `json:"token" mapstructure:"token"`
+	JWT        string `json:"jwt" mapstructure:"jwt"`
+	AccessID   string `json:"accessId" mapstructure:"accessId"`
+	AccessKey  string `json:"accessKey" mapstructure:"accessKey"`
+	AccessType string `json:"accessType" mapstructure:"accessType"`
 }
 
-// Init creates a new Akeyless secret store client.
+// Init creates a new Akeyless secret store client and sets up the Akeyless API client
+// with authentication method based on the accessId.
 func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
+	a.logger.Info("Initializing Akeyless secret store...")
+	a.logger.Info("Parsing metadata...")
 	m, err := a.parseMetadata(meta)
 	if err != nil {
-		return err
+		return errors.New("failed to parse metadata: " + err.Error())
 	}
 
-	// Set up Akeyless configuration
-	config := akeyless.NewConfiguration()
-	if m.GatewayURL != "" {
-		config.Servers = []akeyless.ServerConfiguration{
-			{
-				URL: m.GatewayURL,
-			},
-		}
+	err = Authenticate(m, a)
+	if err != nil {
+		return errors.New("failed to authenticate with Akeyless: " + err.Error())
 	}
-
-	// Create the API client
-	a.client = akeyless.NewAPIClient(config)
-	a.token = m.Token
 
 	return nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	if a.client == nil {
+	if a.v2 == nil {
 		return secretstores.GetSecretResponse{}, errors.New("akeyless client not initialized")
 	}
 
@@ -71,7 +69,7 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 	getSecretValue.SetToken(a.token)
 
 	// Execute the request
-	result, _, err := a.client.V2Api.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+	result, _, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
 	if err != nil {
 		return secretstores.GetSecretResponse{}, fmt.Errorf("failed to get secret from Akeyless: %w", err)
 	}
@@ -105,7 +103,7 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
-	if a.client == nil {
+	if a.v2 == nil {
 		return secretstores.BulkGetSecretResponse{}, errors.New("akeyless client not initialized")
 	}
 
@@ -114,27 +112,48 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	listItems.SetToken(a.token)
 
 	// Execute the list items request
-	itemsList, _, err := a.client.V2Api.ListItems(ctx).Body(*listItems).Execute()
+	itemsList, _, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to list items from Akeyless: %w", err)
 	}
 
-	// Get all secret values
+	// Create a map to store all secrets for response
 	allSecrets := make(map[string]map[string]string)
+
+	// Create a list of item names from all items
+	itemsNames := make([]string, 0, len(itemsList.Items))
 	for _, item := range itemsList.Items {
 		if item.ItemName == nil {
 			continue
 		}
-		secretName := *item.ItemName
-		secretResp, err := a.GetSecret(ctx, secretstores.GetSecretRequest{
-			Name:     secretName,
-			Metadata: req.Metadata,
-		})
-		if err != nil {
-			a.logger.Warnf("Failed to get secret '%s': %v", secretName, err)
-			continue
+		itemsNames = append(itemsNames, *item.ItemName)
+	}
+
+	// Get all secrets
+	getSecretValue := akeyless.NewGetSecretValue(itemsNames)
+	getSecretValue.SetToken(a.token)
+	secretResp, _, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+	if err != nil {
+		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to get secrets from Akeyless: %w", err)
+	}
+
+	// Add all secrets to the response
+	for name, secret := range secretResp {
+		// secret is of type interface{}, need to assert to map[string]interface{} first
+		secretMap, ok := secret.(map[string]any)
+		if !ok {
+			return secretstores.BulkGetSecretResponse{}, fmt.Errorf("unexpected secret type for %s", name)
 		}
-		allSecrets[secretName] = secretResp.Data
+		// Convert map[string]interface{} to map[string]string
+		secretStrMap := make(map[string]string)
+		for k, v := range secretMap {
+			if v == nil {
+				secretStrMap[k] = ""
+			} else {
+				secretStrMap[k] = fmt.Sprintf("%v", v)
+			}
+		}
+		allSecrets[name] = secretStrMap
 	}
 
 	return secretstores.BulkGetSecretResponse{
@@ -161,14 +180,53 @@ func (a *akeylessSecretStore) Close() error {
 
 // parseMetadata parses the metadata from the component configuration.
 func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeylessMetadata, error) {
+
+	a.logger.Debug("Parsing metadata...")
 	var m akeylessMetadata
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
 
-	if m.Token == "" {
-		return nil, errors.New("token is required")
+	// Validate access ID
+	if m.AccessID == "" {
+		return nil, errors.New("accessId is required")
+	}
+
+	if !IsValidAccessIdFormat(m.AccessID) {
+		return nil, errors.New("invalid accessId format, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+	}
+
+	// Get the authentication method
+	a.logger.Debug("extracting access type from accessId...")
+	accessTypeChar, err := ExtractAccessTypeChar(m.AccessID)
+	if err != nil {
+		return nil, errors.New("unable to extract access type character from accessId, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+	}
+
+	a.logger.Debug("getting access type display name for character %s...", accessTypeChar)
+	accessTypeDisplayName, err := GetAccessTypeDisplayName(accessTypeChar)
+	if err != nil {
+		return nil, errors.New("unable to get access type display name, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+	}
+	a.logger.Debug("access type detected: %s", accessTypeDisplayName)
+
+	switch accessTypeDisplayName {
+	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
+		if m.AccessKey == "" {
+			return nil, errors.New("accessKey is required")
+		}
+	case AKEYLESS_AUTH_ACCESS_JWT:
+		if m.JWT == "" {
+			return nil, errors.New("jwt is required")
+		}
+	}
+	m.AccessType = accessTypeDisplayName
+
+	// Set default gateway URL if not specified
+	if m.GatewayURL == "" {
+		a.logger.Info("Gateway URL is not set, using default value %s...", AKEYLESS_PUBLIC_GATEWAY_URL)
+		m.GatewayURL = AKEYLESS_PUBLIC_GATEWAY_URL
 	}
 
 	return &m, nil

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: v1
 type: secretstores
 name: akeyless
@@ -12,12 +12,27 @@ metadata:
   - name: gatewayUrl
     required: false
     description: |
-      The Akeyless Gateway URL. If not provided, uses the default Akeyless cloud URL.
+      The URL to the Akeyless Gateway API. Default is https://api.akeyless.io.
+    default: "https://api.akeyless.io"
     example: "https://your.akeyless.gw"
     type: string
-  - name: token
+  - name: accessId
     required: true
     description: |
-      The Akeyless authentication token (t-token).
-    example: "t-ABCD1234"
+      The Akeyless Access ID. Currently supported authentication methods are: API keys (`access_key`, default), JWT (`jwt`) and AWS IAM (`aws_iam`).
+    example: "p-123456780wm"
     type: string
+  - name: jwt
+    required: false
+    description: |
+      If using the JWT authentication method, specify it here.
+    example: "eyJ..."
+    type: string
+    sensitive: true
+  - name: accessKey
+    required: false
+    description: |
+      If using the API key (access_key) authentication method, specify it here.
+    example: "ABCD1233...="
+    type: string
+    sensitive: true

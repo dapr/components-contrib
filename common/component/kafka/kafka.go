@@ -295,6 +295,7 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 	}
 
 	return awsAuth.Options{
+		Logger:                k.logger,
 		Region:                region,
 		AccessKey:             accessKey,
 		SecretKey:             secretKey,

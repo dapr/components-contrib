@@ -38,7 +38,6 @@ const mockCloudID = "123456789012"
 
 // mockAuthenticate is a test version of the Authenticate function that uses a mock cloud ID
 func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessSecretStore) error {
-	akeylessSecretStore.logger.Debug("Creating authentication request to Akeyless...")
 	authRequest := akeyless.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
 	authRequest.SetAccessType(metadata.AccessType)
@@ -57,8 +56,6 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 		authRequest.SetAccessKey(metadata.AccessKey)
 	}
 
-	// Create Akeyless API client configuration
-	akeylessSecretStore.logger.Debug("Creating Akeyless API client configuration...")
 	config := akeyless.NewConfiguration()
 	config.Servers = []akeyless.ServerConfiguration{
 		{
@@ -70,14 +67,11 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 
 	akeylessSecretStore.v2 = akeyless.NewAPIClient(config).V2Api
 
-	akeylessSecretStore.logger.Debug("Authenticating with Akeyless...")
 	out, _, err := akeylessSecretStore.v2.Auth(context.Background()).Body(*authRequest).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
 
-	akeylessSecretStore.logger.Debug("Setting token %s for authentication...", out.GetToken()[:5]+"[REDACTED]")
-	akeylessSecretStore.logger.Debug("Expires at: %s", out.GetExpiration())
 	akeylessSecretStore.token = out.GetToken()
 
 	return nil
@@ -102,10 +96,43 @@ func TestMain(m *testing.M) {
 			w.Write(jsonResponse)
 		case "/get-secret-value", "/v2/get-secret-value":
 			// Return a mock secret value response
+			// For bulk requests, each secret should be a map[string]interface{}
 			secretResponse := map[string]interface{}{
-				"my-secret": "secret-value-123",
+				"my-secret": map[string]interface{}{
+					"my-secret": "secret-value-123",
+				},
+				"test-secret": map[string]interface{}{
+					"test-secret": "test-value-456",
+				},
+				"json-secret": map[string]interface{}{
+					"json-secret": map[string]interface{}{
+						"username": "admin",
+						"password": "secret123",
+					},
+				},
 			}
 			jsonResponse, _ := json.Marshal(secretResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		case "/list-items", "/v2/list-items":
+			// Return a mock list items response
+			listResponse := map[string]interface{}{
+				"items": []map[string]interface{}{
+					{
+						"item_name": "my-secret",
+						"item_type": "STATIC_SECRET",
+					},
+					{
+						"item_name": "test-secret",
+						"item_type": "STATIC_SECRET",
+					},
+					{
+						"item_name": "json-secret",
+						"item_type": "STATIC_SECRET",
+					},
+				},
+			}
+			jsonResponse, _ := json.Marshal(listResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 		default:
@@ -223,30 +250,6 @@ func TestInit(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetSecretWithoutInit(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAkeylessSecretStore(log).(*akeylessSecretStore)
-
-	req := secretstores.GetSecretRequest{
-		Name: "test-secret",
-	}
-
-	_, err := store.GetSecret(context.Background(), req)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
-}
-
-func TestBulkGetSecretWithoutInit(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAkeylessSecretStore(log).(*akeylessSecretStore)
-
-	req := secretstores.BulkGetSecretRequest{}
-
-	_, err := store.BulkGetSecret(context.Background(), req)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestFeatures(t *testing.T) {
@@ -413,4 +416,131 @@ func TestMockAWSCloudID(t *testing.T) {
 	assert.NotNil(t, store.v2)
 	assert.NotNil(t, store.token)
 	assert.Equal(t, "t-1234567890", store.token)
+}
+
+func TestGetSecret(t *testing.T) {
+	// Setup a properly initialized store
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		request        secretstores.GetSecretRequest
+		expectError    bool
+		expectedSecret string
+	}{
+		{
+			name: "get existing string secret",
+			request: secretstores.GetSecretRequest{
+				Name: "my-secret",
+			},
+			expectError:    false,
+			expectedSecret: `{"my-secret":"secret-value-123"}`,
+		},
+		{
+			name: "get existing test secret",
+			request: secretstores.GetSecretRequest{
+				Name: "test-secret",
+			},
+			expectError:    false,
+			expectedSecret: `{"test-secret":"test-value-456"}`,
+		},
+		{
+			name: "get non-existing secret",
+			request: secretstores.GetSecretRequest{
+				Name: "non-existing-secret",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response, err := store.GetSecret(context.Background(), tt.request)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Empty(t, response.Data)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, response.Data)
+				assert.Contains(t, response.Data, tt.request.Name)
+				assert.Equal(t, tt.expectedSecret, response.Data[tt.request.Name])
+			}
+		})
+	}
+}
+
+func TestGetSecretWithoutInit(t *testing.T) {
+	// Test GetSecret without initialization
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+
+	req := secretstores.GetSecretRequest{
+		Name: "test-secret",
+	}
+
+	_, err := store.GetSecret(context.Background(), req)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+}
+
+func TestBulkGetSecret(t *testing.T) {
+	// Setup a properly initialized store
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	// Test bulk get secret
+	req := secretstores.BulkGetSecretRequest{}
+	response, err := store.BulkGetSecret(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response.Data)
+
+	// Check that we got the expected secrets
+	expectedSecrets := []string{"my-secret", "test-secret", "json-secret"}
+	for _, secretName := range expectedSecrets {
+		assert.Contains(t, response.Data, secretName)
+	}
+
+	// Check specific secret values
+	assert.Equal(t, "{\"my-secret\":\"secret-value-123\"}", response.Data["my-secret"]["my-secret"])
+	assert.Equal(t, "{\"test-secret\":\"test-value-456\"}", response.Data["test-secret"]["test-secret"])
+
+	// Check JSON secret (should be converted to string)
+	jsonSecret := response.Data["json-secret"]["json-secret"]
+	assert.Contains(t, jsonSecret, "username")
+	assert.Contains(t, jsonSecret, "admin")
+	assert.Contains(t, jsonSecret, "password")
+	assert.Contains(t, jsonSecret, "secret123")
+}
+
+func TestBulkGetSecretWithoutInit(t *testing.T) {
+	// Test BulkGetSecret without initialization
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+
+	req := secretstores.BulkGetSecretRequest{}
+	_, err := store.BulkGetSecret(context.Background(), req)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
 }

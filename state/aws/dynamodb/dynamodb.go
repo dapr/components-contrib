@@ -398,17 +398,15 @@ func unmarshalValue(value types.AttributeValue) ([]byte, error) {
 		return []byte(nil), nil
 	}
 
-	var bytes []byte
-	if err := attributevalue.Unmarshal(value, &bytes); err == nil {
-		return bytes, nil
+	// Use a type switch to handle binary and string data correctly
+	switch v := value.(type) {
+	case *types.AttributeValueMemberB:
+		return v.Value, nil
+	case *types.AttributeValueMemberS:
+		return []byte(v.Value), nil
+	default:
+		return nil, fmt.Errorf("unsupported attribute value type %T", v)
 	}
-
-	var str string
-	if err := attributevalue.Unmarshal(value, &str); err == nil {
-		return []byte(str), nil
-	}
-
-	return nil, fmt.Errorf("unsupported attribute value type %T", value)
 }
 
 // Parse and process ttlInSeconds.

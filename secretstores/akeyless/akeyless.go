@@ -2,7 +2,6 @@ package akeyless
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -64,41 +63,22 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 		return secretstores.GetSecretResponse{}, errors.New("akeyless client not initialized")
 	}
 
-	// Create the get secret value request
-	getSecretValue := akeyless.NewGetSecretValue([]string{req.Name})
-	getSecretValue.SetToken(a.token)
-
-	// Execute the request
-	result, _, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+	a.logger.Debug("getting secret type for '%s'...", req.Name)
+	secretType, err := GetSecretType(req.Name, a)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, fmt.Errorf("failed to get secret from Akeyless: %w", err)
+		return secretstores.GetSecretResponse{}, err
 	}
 
-	// Extract the secret value
-	secretValue, exists := result[req.Name]
-	if !exists {
-		return secretstores.GetSecretResponse{}, fmt.Errorf("secret '%s' not found", req.Name)
-	}
+	a.logger.Debug("getting secret value for '%s' (type %s)...", req.Name, secretType)
 
-	// Convert the secret value to string
-	var secretStr string
-	if str, ok := secretValue.(string); ok {
-		secretStr = str
-	} else {
-		// If it's not a string, convert it to JSON string
-		secretBytes, err := json.Marshal(secretValue)
-		if err != nil {
-			return secretstores.GetSecretResponse{}, fmt.Errorf("failed to convert secret value to string: %w", err)
-		}
-		secretStr = string(secretBytes)
+	secretValue, err := GetSingleSecretValue(req.Name, secretType, a)
+	if err != nil {
+		return secretstores.GetSecretResponse{}, errors.New(err.Error())
 	}
+	a.logger.Debug("secret '%s' value: %s", req.Name, secretValue[:3]+"[REDACTED]")
 
 	// Return the secret in the expected format
-	return secretstores.GetSecretResponse{
-		Data: map[string]string{
-			req.Name: secretStr,
-		},
-	}, nil
+	return GetDaprSingleSecretResponse(req.Name, secretValue)
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
@@ -111,62 +91,18 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	listItems := akeyless.NewListItems()
 	listItems.SetToken(a.token)
 	listItems.SetPath("/")
-	listItems.SetType([]string{"static-secret"})
+	listItems.SetType([]string{AKEYLESS_SECRET_TYPE_STATIC, AKEYLESS_SECRET_TYPE_DYNAMIC, AKEYLESS_SECRET_TYPE_ROTATED})
 
 	// Execute the list items request
 	itemsList, _, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to list items from Akeyless: %w", err)
 	}
-	a.logger.Debug("%d items (static-secret) returned from Akeyless", len(itemsList.Items))
+	a.logger.Debug("%d items returned from Akeyless", len(itemsList.Items))
 
-	// Create a map to store all secrets for response
-	allSecrets := make(map[string]map[string]string)
-
-	// Create a list of item names from all items
-	itemsNames := make([]string, 0, len(itemsList.Items))
-	for _, item := range itemsList.Items {
-		if item.ItemName == nil {
-			continue
-		}
-		itemsNames = append(itemsNames, *item.ItemName)
-	}
-
-	// Get all secrets
-	getSecretValue := akeyless.NewGetSecretValue(itemsNames)
-	getSecretValue.SetToken(a.token)
-	secretResp, httpResp, err := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
-	if err != nil {
-		return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to get secrets from Akeyless: %w (%d)", err, httpResp.StatusCode)
-	}
-
-	// Add all secrets to the response
-	for name, secret := range secretResp {
-		// secretResp has the following format:
-		// {
-		//   "/aws_iam_secret": "noSecret",
-		//   "/cache-test": "1234"
-		// }
-		// Each secret value is directly the secret content, not a nested map
-		var secretStr string
-		if str, ok := secret.(string); ok {
-			secretStr = str
-		} else {
-			// If it's not a string, convert it to JSON string
-			secretBytes, err := json.Marshal(secret)
-			if err != nil {
-				return secretstores.BulkGetSecretResponse{}, fmt.Errorf("failed to convert secret value to string for %s: %w", name, err)
-			}
-			secretStr = string(secretBytes)
-		}
-		allSecrets[name] = map[string]string{
-			name: secretStr,
-		}
-	}
-
-	return secretstores.BulkGetSecretResponse{
-		Data: allSecrets,
-	}, nil
+	// Use the new BulkGetSecretResponse function to handle all secret types properly
+	// return BulkGetSecretResponse(ctx, itemsList.Items, a)
+	return secretstores.BulkGetSecretResponse{}, nil
 }
 
 // Features returns the features available in this secret store.

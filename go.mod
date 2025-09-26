@@ -26,6 +26,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.45.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
+	github.com/akeylesslabs/akeyless-go-cloud-id v0.3.5
 	github.com/akeylesslabs/akeyless-go/v5 v5.0.8
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
@@ -178,7 +179,6 @@ require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/akeylesslabs/akeyless-go-cloud-id v0.3.5 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect

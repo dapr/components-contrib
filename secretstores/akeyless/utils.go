@@ -170,12 +170,33 @@ func GetSingleSecretValue(secretName string, secretType string, akeylessSecretSt
 			return "", fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, err)
 		}
 
-		typedSecretResp, ok := secretRespMap[secretName].(string)
+		// check if secret key is in response
+		value, ok := secretRespMap[secretName]
 		if !ok {
-			return "", fmt.Errorf("failed to assert type of secret response to SingleStaticSecretResponse: %w", err)
+			return "", fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: key not found", secretName)
 		}
 
-		return typedSecretResp, nil
+		// single static secrets can be of type string, or map[string]string
+		// if it's a map[string]string, we need to transform it to a string
+		switch valueType := value.(type) {
+		case string:
+			return valueType, nil
+		case map[string]string:
+			encoded, err := json.Marshal(valueType)
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal secret response: %w", err)
+			}
+			return string(encoded), nil
+		case interface{}:
+			encoded, err := json.Marshal(valueType)
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal secret response: %w", err)
+			}
+			return string(encoded), nil
+		default:
+			return "", fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
+		}
+
 	// TODO implement dynamic secrets
 	case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
 		return "", errors.New("dynamic secrets are not supported")
@@ -490,21 +511,21 @@ func transformStaticSecretResponse(secrets map[string]any) (secretstores.GetSecr
 	}, nil
 }
 
-// type DynamicSecretResponse struct {
-// 	ID           string              `json:"id"`
-// 	Msg          string              `json:"msg"`
-// 	Secret       DynamicSecretSecret `json:"secret"`
-// 	TTLInMinutes string              `json:"ttl_in_minutes"`
-// }
+type DynamicSecretResponse struct {
+	ID           string              `json:"id"`
+	Msg          string              `json:"msg"`
+	Secret       DynamicSecretSecret `json:"secret"`
+	TTLInMinutes string              `json:"ttl_in_minutes"`
+}
 
-// type DynamicSecretSecret struct {
-// 	AppID       string `json:"appId"`
-// 	DisplayName string `json:"displayName"`
-// 	EndDateTime string `json:"endDateTime"`
-// 	KeyID       string `json:"keyId"`
-// 	SecretText  string `json:"secretText"`
-// 	TenantID    string `json:"tenantId"`
-// }
+type DynamicSecretSecret struct {
+	AppID       string `json:"appId"`
+	DisplayName string `json:"displayName"`
+	EndDateTime string `json:"endDateTime"`
+	KeyID       string `json:"keyId"`
+	SecretText  string `json:"secretText"`
+	TenantID    string `json:"tenantId"`
+}
 
 // type DynamicSecretTransformedResponse struct {
 // 	DynamicSecretName DynamicSecretCredentials `json:"secret_name"`

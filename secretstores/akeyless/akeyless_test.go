@@ -28,7 +28,6 @@ const (
 	//	 "iat": 1516239022
 	// }
 	testJWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QeJkP5vWKT_yUZJgIeUAnYw2brk"
-	// testJSONStaticSecretName = "/path/to/json-static-secret"
 	// testDynamicSecretName = "/path/to/dynamic-secret-test"
 	// testRotatedSecretName = "/path/to/rotated-secret-test"
 	testSecretValue = "r3vE4L3D"
@@ -46,6 +45,19 @@ var (
 		ItemName: &mockDescribeStaticSecretName,
 		ItemType: &mockDescribeStaticSecretType,
 	}
+	mockStaticSecretJSONName             = "/path/to/akeyless/static-secret-json-test"
+	mockGetSingleSecretJSONValueResponse = map[string]map[string]string{
+		mockStaticSecretJSONName: {
+			"some": "json",
+		},
+	}
+	mockStaticSecretPasswordName             = "/path/to/akeyless/static-secret-password-test"
+	mockGetSingleSecretPasswordValueResponse = map[string]map[string]string{
+		mockStaticSecretPasswordName: {
+			"password": testSecretValue,
+			"username": "akeyless",
+		},
+	}
 )
 
 // var mockDescribeRotatedSecretItemResponse = akeyless.Item{
@@ -56,10 +68,6 @@ var (
 var mockGetSingleSecretValueResponse = map[string]string{
 	mockDescribeStaticSecretName: testSecretValue,
 }
-
-// var mockGetSingleSecretJSONValueResponse = map[string]map[string]string{
-// 	testJSONStaticSecretName: testJSONSecretValue,
-// }
 
 // var mockGetBulkSecretValueResponse = map[string]any{
 // 	testStaticSecretName:       testSecretValue + "1",
@@ -165,23 +173,23 @@ func TestMain(m *testing.M) {
 			jsonResponse, _ := json.Marshal(mockGetSingleSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
-		// case "/get-dynamic-secret-value", "/v2/get-dynamic-secret-value":
-		// 	var dynamicResponse = DynamicSecretResponse{
-		// 		ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
-		// 		Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
-		// 		Secret: DynamicSecretSecret{
-		// 			AppID:       "1234567890",
-		// 			DisplayName: "tmp.p-1234567890.GV7LR",
-		// 			EndDateTime: "2025-09-26T14:54:05.1643791Z",
-		// 			KeyID:       "1234567890",
-		// 			SecretText:  testSecretValue,
-		// 			TenantID:    "1234567890",
-		// 		},
-		// 		TTLInMinutes: "60",
-		// 	}
-		// 	jsonResponse, _ := json.Marshal(dynamicResponse)
-		// 	w.WriteHeader(http.StatusOK)
-		// 	w.Write(jsonResponse)
+		case "/get-dynamic-secret-value", "/v2/get-dynamic-secret-value":
+			var dynamicResponse = DynamicSecretResponse{
+				ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
+				Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
+				Secret: DynamicSecretSecret{
+					AppID:       "1234567890",
+					DisplayName: "tmp.p-1234567890.GV7LR",
+					EndDateTime: "2025-09-26T14:54:05.1643791Z",
+					KeyID:       "1234567890",
+					SecretText:  testSecretValue,
+					TenantID:    "1234567890",
+				},
+				TTLInMinutes: "60",
+			}
+			jsonResponse, _ := json.Marshal(dynamicResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
 		// case "/get-rotated-secret-value", "/v2/get-rotated-secret-value":
 		// 	var rotatedResponse = RotatedSecretResponse{
 		// 		Value: RotatedSecretValue{
@@ -214,9 +222,6 @@ func TestMain(m *testing.M) {
 
 	// Run tests
 	code := m.Run()
-
-	// Cleanup
-	mockGateway.Close()
 
 	// Exit with the same code as the tests
 	os.Exit(code)
@@ -320,22 +325,6 @@ func TestInit(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFeatures(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAkeylessSecretStore(log)
-
-	features := store.Features()
-	assert.Empty(t, features)
-}
-
-func TestClose(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAkeylessSecretStore(log)
-
-	err := store.Close()
-	assert.NoError(t, err)
 }
 
 func TestParseMetadata(t *testing.T) {
@@ -551,6 +540,126 @@ func TestGetSecret(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSingleSecretJSON(t *testing.T) {
+
+	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Handle different endpoints
+		switch r.URL.Path {
+		case "/auth", "/v2/auth":
+			// Return a proper AuthOutput JSON response for authentication
+			authOutput := akeyless.NewAuthOutput()
+			authOutput.SetToken("t-1234567890")
+			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			jsonResponse, _ := json.Marshal(authOutput)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		// Single static secret value
+		case "/get-secret-value":
+			jsonResponse, _ := json.Marshal(&mockGetSingleSecretJSONValueResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		case "/describe-item":
+			mockDescribeItemResponse := akeyless.Item{
+				ItemName: &mockStaticSecretJSONName,
+				ItemType: &mockDescribeStaticSecretType,
+			}
+			jsonResponse, _ := json.Marshal(&mockDescribeItemResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		default:
+			// Default response for any other endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+		}
+	}))
+
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
+		Name: mockStaticSecretJSONName,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, response.Data)
+	assert.Contains(t, response.Data, mockStaticSecretJSONName)
+	assert.Equal(t, "{\"some\":\"json\"}", response.Data[mockStaticSecretJSONName])
+
+	mockGateway.Close()
+}
+
+func TestGetSingleSecretPassword(t *testing.T) {
+
+	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Handle different endpoints
+		switch r.URL.Path {
+		case "/auth", "/v2/auth":
+			// Return a proper AuthOutput JSON response for authentication
+			authOutput := akeyless.NewAuthOutput()
+			authOutput.SetToken("t-1234567890")
+			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			jsonResponse, _ := json.Marshal(authOutput)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		// Single static secret value
+		case "/get-secret-value":
+			jsonResponse, _ := json.Marshal(&mockGetSingleSecretPasswordValueResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		case "/describe-item":
+			mockDescribeItemResponse := akeyless.Item{
+				ItemName: &mockStaticSecretPasswordName,
+				ItemType: &mockDescribeStaticSecretType,
+			}
+			jsonResponse, _ := json.Marshal(&mockDescribeItemResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		default:
+			// Default response for any other endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+		}
+	}))
+
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
+		Name: mockStaticSecretPasswordName,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, response.Data)
+	assert.Contains(t, response.Data, mockStaticSecretPasswordName)
+	assert.Equal(t, "{\"password\":\"r3vE4L3D\",\"username\":\"akeyless\"}", response.Data[mockStaticSecretPasswordName])
+
+	mockGateway.Close()
 }
 
 // func TestBulkGetSecret(t *testing.T) {

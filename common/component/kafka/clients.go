@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
+
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 )
 
 type clients struct {
@@ -21,16 +23,14 @@ func (k *Kafka) latestClients() (*clients, error) {
 		}, nil
 
 	// case 1: use aws clients with refreshable tokens in the cfg
-	case k.awsConfig != nil:
-		awsKafkaOpts := KafkaOptions{
+	case k.awsAuthProvider != nil:
+		awsKafkaOpts := awsAuth.KafkaOptions{
 			Config:          k.config,
 			ConsumerGroup:   k.consumerGroup,
 			Brokers:         k.brokers,
 			MaxMessageBytes: k.maxMessageBytes,
 		}
-
-		awsKafkaClients := InitAwsClients(awsKafkaOpts)
-		err := awsKafkaClients.New(k.awsConfig)
+		awsKafkaClients, err := k.awsAuthProvider.Kafka(awsKafkaOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AWS IAM Kafka clients: %w", err)
 		}

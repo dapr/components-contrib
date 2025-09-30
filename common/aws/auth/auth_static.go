@@ -14,15 +14,14 @@ import (
 )
 
 type Static struct {
-	ProviderType          ProviderType
-	Logger                logger.Logger
-	AccessKey             string
-	SecretKey             string
-	SessionToken          string
-	Region                string
-	Endpoint              string
-	AssumeRoleArn         string
-	AssumeRoleSessionName string
+	ProviderType  ProviderType
+	Logger        logger.Logger
+	AccessKey     string
+	SecretKey     string
+	SessionToken  string
+	Region        string
+	Endpoint      string
+	AssumeRoleArn string
 
 	CredentialProvider aws.CredentialsProvider
 }
@@ -40,14 +39,13 @@ func (a *Static) Type() ProviderType {
 
 func newAuthStatic(ctx context.Context, opts Options, configOpts []func(*config.LoadOptions) error) (CredentialProvider, error) {
 	static := &Static{
-		Logger:                opts.Logger,
-		AccessKey:             opts.AccessKey,
-		SecretKey:             opts.SecretKey,
-		SessionToken:          opts.SessionToken,
-		Region:                opts.Region,
-		Endpoint:              opts.Endpoint,
-		AssumeRoleArn:         opts.AssumeRoleArn,
-		AssumeRoleSessionName: opts.AssumeRoleSessionName,
+		Logger:        opts.Logger,
+		AccessKey:     opts.AccessKey,
+		SecretKey:     opts.SecretKey,
+		SessionToken:  opts.SessionToken,
+		Region:        opts.Region,
+		Endpoint:      opts.Endpoint,
+		AssumeRoleArn: opts.AssumeRoleArn,
 	}
 
 	switch {
@@ -64,9 +62,7 @@ func newAuthStatic(ctx context.Context, opts Options, configOpts []func(*config.
 		}
 
 		stsSvc := sts.NewFromConfig(awsCfg)
-		stsProvider := stscreds.NewAssumeRoleProvider(stsSvc, static.AssumeRoleArn, func(options *stscreds.AssumeRoleOptions) {
-			options.RoleSessionName = static.AssumeRoleSessionName
-		})
+		stsProvider := stscreds.NewAssumeRoleProvider(stsSvc, static.AssumeRoleArn)
 		static.ProviderType = StaticProviderTypeAssumeRole
 		static.CredentialProvider = stsProvider
 		static.Logger.Debug("using AssumeRole credentials provider")

@@ -22,14 +22,13 @@ type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string
 
-	Region                string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion"`
-	AccessKey             string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey             string `json:"secretKey" mapstructure:"secretKey"`
-	SessionToken          string `json:"sessionToken" mapstructure:"sessionToken"`
-	AssumeRoleArn         string `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
-	AssumeRoleSessionName string `json:"assumeRoleSessionName" mapstructure:"assumeRoleSessionName"`
-	TrustAnchorArn        string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
-	TrustProfileArn       string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
+	Region          string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion"`
+	AccessKey       string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey       string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken    string `json:"sessionToken" mapstructure:"sessionToken"`
+	AssumeRoleArn   string `json:"assumeRoleArn" mapstructure:"assumeRoleArn"`
+	TrustAnchorArn  string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
+	TrustProfileArn string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
 
 	Endpoint string `json:"endpoint" mapstructure:"endpoint"`
 }
@@ -48,15 +47,4 @@ func NewCredentialProvider(ctx context.Context, opts Options, configOpts []func(
 		return newAuthX509(ctx, opts)
 	}
 	return newAuthStatic(ctx, opts, configOpts)
-}
-
-// Coalesce is a helper function to return the first non-empty string from the inputs
-// This helps us to migrate away from the deprecated duplicate aws auth profile metadata fields in Dapr 1.17.
-func Coalesce(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

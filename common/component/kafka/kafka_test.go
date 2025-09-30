@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/golang/mock/gomock"
+	gomock "github.com/golang/mock/gomock"
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	mock_srclient "github.com/dapr/components-contrib/common/component/kafka/mocks"
 	"github.com/dapr/kit/logger"
 )
@@ -500,7 +500,7 @@ func TestValidateAWS(t *testing.T) {
 	tests := []struct {
 		name     string
 		metadata map[string]string
-		expected awsAuth.Options
+		expected *awsAuth.DeprecatedKafkaIAM
 		err      error
 	}{
 		{
@@ -513,13 +513,13 @@ func TestValidateAWS(t *testing.T) {
 				"sessionName":   "testSessionName",
 				"sessionToken":  "testSessionToken",
 			},
-			expected: awsAuth.Options{
-				Region:                "us-east-1",
-				AccessKey:             "testAccessKey",
-				SecretKey:             "testSecretKey",
-				AssumeRoleArn:         "testRoleArn",
-				AssumeRoleSessionName: "testSessionName",
-				SessionToken:          "testSessionToken",
+			expected: &awsAuth.DeprecatedKafkaIAM{
+				Region:         "us-east-1",
+				AccessKey:      "testAccessKey",
+				SecretKey:      "testSecretKey",
+				IamRoleArn:     "testRoleArn",
+				StsSessionName: "testSessionName",
+				SessionToken:   "testSessionToken",
 			},
 			err: nil,
 		},
@@ -533,13 +533,13 @@ func TestValidateAWS(t *testing.T) {
 				"awsStsSessionName": "awsSessionName",
 				"awsSessionToken":   "awsSessionToken",
 			},
-			expected: awsAuth.Options{
-				Region:                "us-west-2",
-				AccessKey:             "awsAccessKey",
-				SecretKey:             "awsSecretKey",
-				AssumeRoleArn:         "awsRoleArn",
-				AssumeRoleSessionName: "awsSessionName",
-				SessionToken:          "awsSessionToken",
+			expected: &awsAuth.DeprecatedKafkaIAM{
+				Region:         "us-west-2",
+				AccessKey:      "awsAccessKey",
+				SecretKey:      "awsSecretKey",
+				IamRoleArn:     "awsRoleArn",
+				StsSessionName: "awsSessionName",
+				SessionToken:   "awsSessionToken",
 			},
 			err: nil,
 		},
@@ -549,13 +549,13 @@ func TestValidateAWS(t *testing.T) {
 				"accessKey": "key",
 				"secretKey": "secret",
 			},
-			expected: awsAuth.Options{},
+			expected: nil,
 			err:      errors.New("metadata property AWSRegion is missing"),
 		},
 		{
 			name:     "Empty metadata",
 			metadata: map[string]string{},
-			expected: awsAuth.Options{},
+			expected: nil,
 			err:      errors.New("metadata property AWSRegion is missing"),
 		},
 	}

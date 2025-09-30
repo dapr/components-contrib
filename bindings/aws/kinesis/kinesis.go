@@ -182,10 +182,18 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
-	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
-	if err != nil {
-		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+	var stream *string
+	/**
+	 * Invoke this only when KinesisConsumerMode is set to 'extended' to avoid unnecessary calls.
+	 */
+	if a.metadata.KinesisConsumerMode == ExtendedFanout {
+		streamARN, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+		if err != nil {
+			return fmt.Errorf("failed to get kinesis stream arn: %v", err)
+		}
+		stream = streamARN
 	}
+
 	// Wait for context cancelation then stop
 	a.wg.Add(1)
 	go func() {

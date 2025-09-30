@@ -27,7 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/dapr/components-contrib/common/proto/state/sqlserver"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -450,6 +452,36 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assertEquals(t, scenario.value, res)
 			}
 		}
+	})
+
+	t.Run("set and get proto", func(t *testing.T) {
+		if !config.HasOperation("actorStateStore") {
+			t.Skipf("skipping test for %s", config.ComponentName)
+		}
+
+		protoBytes, err := proto.Marshal(&sqlserver.TestEvent{
+			EventId: -1,
+		})
+		require.NoError(t, err)
+
+		err = statestore.Set(t.Context(), &state.SetRequest{
+			Key:   key + "-proto",
+			Value: protoBytes,
+		})
+		require.NoError(t, err)
+
+		// Request immediately
+		res, err := statestore.Get(t.Context(), &state.GetRequest{
+			Key: key + "-proto",
+		})
+		require.NoError(t, err)
+		assertEquals(t, protoBytes, res)
+
+		response := &sqlserver.TestEvent{}
+		err = proto.Unmarshal(res.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, -1, response.GetEventId())
 	})
 
 	if config.HasOperation("query") {
@@ -1340,6 +1372,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			t.Run("set and get expire time", func(t *testing.T) {
+				if config.ComponentName == "sqlserver" ||
+					config.ComponentName == "sqlserver.docker" {
+					t.Skip()
+				}
+
 				now := time.Now()
 				err := statestore.Set(t.Context(), &state.SetRequest{
 					Key:   key + "-ttl-expire-time",

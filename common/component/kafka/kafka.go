@@ -301,6 +301,9 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 		AssumeRoleArn:         role,
 		AssumeRoleSessionName: session,
 		SessionToken:          token,
+		TrustAnchorArn:        metadata["trustAnchorArn"],
+		TrustProfileArn:       metadata["trustProfileArn"],
+		Properties:            metadata,
 	}, nil
 }
 

@@ -33,11 +33,6 @@ const (
 	testSecretValue = "r3vE4L3D"
 )
 
-// Mock responses for GetSecret and BulkGetSecret
-// var testJSONSecretValue = map[string]string{
-// 	"some": "json",
-// }
-
 var (
 	mockDescribeStaticSecretName         = "/path/to/akeyless/static-secret-test"
 	mockDescribeStaticSecretType         = AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE
@@ -58,52 +53,30 @@ var (
 			"username": "akeyless",
 		},
 	}
+	mockDescribeDynamicSecretName         = "/path/to/akeyless/dynamic-secret-test"
+	mockDescribeDynamicSecretType         = AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE
+	mockDescribeDynamicSecretItemResponse = akeyless.Item{
+		ItemName: &mockDescribeDynamicSecretName,
+		ItemType: &mockDescribeDynamicSecretType,
+	}
+	mockGetSingleDynamicSecretValueResponse = DynamicSecretResponse{
+		ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
+		Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
+		Secret: DynamicSecretSecret{
+			AppID:       "1234567890",
+			DisplayName: "tmp.p-1234567890.GV7LR",
+			EndDateTime: "2025-09-26T14:54:05.1643791Z",
+			KeyID:       "1234567890",
+			SecretText:  testSecretValue,
+			TenantID:    "1234567890",
+		},
+		TTLInMinutes: "60",
+	}
 )
-
-// var mockDescribeRotatedSecretItemResponse = akeyless.Item{
-// 	"item_name": testRotatedSecretName,
-// 	"item_type": AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE,
-// }
 
 var mockGetSingleSecretValueResponse = map[string]string{
 	mockDescribeStaticSecretName: testSecretValue,
 }
-
-// var mockGetBulkSecretValueResponse = map[string]any{
-// 	testStaticSecretName:       testSecretValue + "1",
-// 	testStaticSecretName + "2": testSecretValue + "2",
-// 	testJSONStaticSecretName:   testJSONSecretValue,
-// }
-
-// var mockListItemsResponse = map[string]interface{}{
-// 	"items": []map[string]string{
-// 		mockDescribeStaticSecretItemResponse,
-// 		mockDescribeDynamicSecretItemResponse,
-// 		mockDescribeRotatedSecretItemResponse,
-// 	},
-// }
-
-// var mockGetDynamicSecretValueResponse = map[string]any{
-// 	"id":  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
-// 	"msg": "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
-// 	"secret": map[string]any{
-// 		"appId":       "1234567890",
-// 		"displayName": "tmp.p-1234567890.GV7LR",
-// 		"endDateTime": "2025-09-26T14:54:05.1643791Z",
-// 		"keyId":       "1234567890",
-// 		"secretText":  testSecretValue,
-// 		"tenantId":    "1234567890",
-// 	},
-// 	"ttl_in_minutes": "60",
-// }
-
-// var mockGetRotatedSecretValueResponse = map[string]any{
-// 	"value": map[string]string{
-// 		"username":       "abcdefghijklmnopqrstuvwxyz",
-// 		"password":       testSecretValue,
-// 		"application_id": "1234567890",
-// 	},
-// }
 
 // Global mock server for all tests
 var mockGateway *httptest.Server
@@ -160,7 +133,7 @@ func TestMain(m *testing.M) {
 
 		// Handle different endpoints
 		switch r.URL.Path {
-		case "/auth", "/v2/auth":
+		case "/auth":
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
@@ -169,11 +142,11 @@ func TestMain(m *testing.M) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 		// Single static secret value
-		case "/get-secret-value", "/v2/get-secret-value":
+		case "/get-secret-value":
 			jsonResponse, _ := json.Marshal(mockGetSingleSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
-		case "/get-dynamic-secret-value", "/v2/get-dynamic-secret-value":
+		case "/get-dynamic-secret-value":
 			var dynamicResponse = DynamicSecretResponse{
 				ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
 				Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
@@ -201,7 +174,7 @@ func TestMain(m *testing.M) {
 		// 	jsonResponse, _ := json.Marshal(rotatedResponse)
 		// 	w.WriteHeader(http.StatusOK)
 		// 	w.Write(jsonResponse)
-		case "/list-items", "/v2/list-items":
+		case "/list-items":
 			listItemsResponse := akeyless.NewListItemsInPathOutput()
 			listItemsResponse.SetItems(
 				[]akeyless.Item{mockDescribeStaticSecretItemResponse},
@@ -209,7 +182,7 @@ func TestMain(m *testing.M) {
 			jsonResponse, _ := json.Marshal(listItemsResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
-		case "/describe-item", "/v2/describe-item":
+		case "/describe-item":
 			jsonResponse, _ := json.Marshal(mockDescribeStaticSecretItemResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -507,14 +480,6 @@ func TestGetSecret(t *testing.T) {
 			expectError:    false,
 			expectedSecret: testSecretValue,
 		},
-		{
-			name: "get existing test secret",
-			request: secretstores.GetSecretRequest{
-				Name: mockDescribeStaticSecretName,
-			},
-			expectError:    false,
-			expectedSecret: testSecretValue,
-		},
 		// TODO: add non-existing secret test
 		// {
 		// 	name: "get non-existing secret",
@@ -662,57 +627,6 @@ func TestGetSingleSecretPassword(t *testing.T) {
 	mockGateway.Close()
 }
 
-// func TestBulkGetSecret(t *testing.T) {
-// 	// Setup a properly initialized store
-// 	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
-// 	meta := secretstores.Metadata{
-// 		Base: metadata.Base{
-// 			Properties: map[string]string{
-// 				"accessId":   testAccessIdKey,
-// 				"accessKey":  testAccessKey,
-// 				"gatewayUrl": mockGateway.URL,
-// 			},
-// 		},
-// 	}
-
-// 	err := store.Init(context.Background(), meta)
-// 	require.NoError(t, err)
-
-// 	// Test bulk get secret
-// 	req := secretstores.BulkGetSecretRequest{}
-// 	response, err := store.BulkGetSecret(context.Background(), req)
-
-// 	assert.NoError(t, err)
-// 	assert.NotNil(t, response.Data)
-
-// 	// Check that we got the expected secrets
-// 	expectedSecrets := []string{"my-secret", "test-secret", "json-secret"}
-// 	for _, secretName := range expectedSecrets {
-// 		assert.Contains(t, response.Data, secretName)
-// 	}
-
-// 	// Check specific secret values
-// 	assert.Equal(t, "{\"my-secret\":\"secret-value-123\"}", response.Data["my-secret"]["my-secret"])
-// 	assert.Equal(t, "{\"test-secret\":\"test-value-456\"}", response.Data["test-secret"]["test-secret"])
-
-// 	// Check JSON secret (should be converted to string)
-// 	jsonSecret := response.Data["json-secret"]["json-secret"]
-// 	assert.Contains(t, jsonSecret, "username")
-// 	assert.Contains(t, jsonSecret, "admin")
-// 	assert.Contains(t, jsonSecret, "password")
-// 	assert.Contains(t, jsonSecret, "secret123")
-// }
-
-// func TestBulkGetSecretWithoutInit(t *testing.T) {
-// 	// Test BulkGetSecret without initialization
-// 	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
-
-// 	req := secretstores.BulkGetSecretRequest{}
-// 	_, err := store.BulkGetSecret(context.Background(), req)
-// 	assert.Error(t, err)
-// 	assert.Contains(t, err.Error(), "not initialized")
-// }
-
 // Test GetSecretType functions
 func TestGetSecretType(t *testing.T) {
 	// Test GetSecretType
@@ -733,4 +647,56 @@ func TestGetSecretType(t *testing.T) {
 	secretType, err := GetSecretType(mockDescribeStaticSecretName, store)
 	assert.NoError(t, err)
 	assert.Equal(t, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE, secretType)
+}
+
+func TestGetSingleDynamicSecret(t *testing.T) {
+
+	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Handle different endpoints
+		switch r.URL.Path {
+		case "/auth":
+			// Return a proper AuthOutput JSON response for authentication
+			authOutput := akeyless.NewAuthOutput()
+			authOutput.SetToken("t-1234567890")
+			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			jsonResponse, _ := json.Marshal(authOutput)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		// Single dynamic secret value
+		case "/get-dynamic-secret-value":
+			jsonResponse, _ := json.Marshal(&mockGetSingleDynamicSecretValueResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		case "/describe-item":
+			jsonResponse, _ := json.Marshal(&mockDescribeDynamicSecretItemResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		default:
+			// Default response for any other endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+		}
+	}))
+	// Test GetSingleDynamicSecret
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	secretValue, err := GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE, store)
+	assert.NoError(t, err)
+	assert.Equal(t, "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}", secretValue)
+
+	mockGateway.Close()
 }

@@ -161,40 +161,48 @@ func GetSecretType(secretName string, akeylessSecretStore *akeylessSecretStore) 
 
 func GetSingleSecretValue(secretName string, secretType string, akeylessSecretStore *akeylessSecretStore) (string, error) {
 
+	var secretValue string
+	var err error
+
 	switch secretType {
 	case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(akeylessSecretStore.token)
-		secretRespMap, _, err := akeylessSecretStore.v2.GetSecretValue(context.Background()).Body(*getSecretValue).Execute()
-		if err != nil {
-			return "", fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, err)
+		secretRespMap, _, apiErr := akeylessSecretStore.v2.GetSecretValue(context.Background()).Body(*getSecretValue).Execute()
+		if apiErr != nil {
+			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
+			break
 		}
 
 		// check if secret key is in response
 		value, ok := secretRespMap[secretName]
 		if !ok {
-			return "", fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: key not found", secretName)
+			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: key not found", secretName)
+			break
 		}
 
 		// single static secrets can be of type string, or map[string]string
 		// if it's a map[string]string, we need to transform it to a string
 		switch valueType := value.(type) {
 		case string:
-			return valueType, nil
+			secretValue = valueType
 		case map[string]string:
-			encoded, err := json.Marshal(valueType)
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal secret response: %w", err)
+			encoded, marshalErr := json.Marshal(valueType)
+			if marshalErr != nil {
+				err = fmt.Errorf("failed to marshal secret response: %w", marshalErr)
+			} else {
+				secretValue = string(encoded)
 			}
-			return string(encoded), nil
-		case interface{}:
-			encoded, err := json.Marshal(valueType)
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal secret response: %w", err)
+		case any:
+			encoded, marshalErr := json.Marshal(valueType)
+			if marshalErr != nil {
+				err = fmt.Errorf("failed to marshal secret response: %w", marshalErr)
+			} else {
+				secretValue = string(encoded)
 			}
-			return string(encoded), nil
+
 		default:
-			return "", fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
+			err = fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
 		}
 
 	// TODO implement dynamic secrets
@@ -205,7 +213,7 @@ func GetSingleSecretValue(secretName string, secretType string, akeylessSecretSt
 		return "", errors.New("rotated secrets are not supported")
 	}
 
-	return "", nil
+	return secretValue, err
 }
 
 // GetSecretValueByType gets the secret value by the type of the secret.

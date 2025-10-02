@@ -142,7 +142,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			defer wg.Done()
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
-				value, err := a.GetSingleSecretValue(staticSecretName, AKEYLESS_SECRET_TYPE_STATIC)
+				value, err := a.GetSingleSecretValue(staticSecretName, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: err}
 				} else {
@@ -163,7 +163,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range dynamicItemNames {
-				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_DYNAMIC)
+				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -177,7 +177,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range rotatedItemNames {
-				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_ROTATED)
+				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -431,6 +431,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 	listItems.SetType([]string{AKEYLESS_SECRET_TYPE_STATIC, AKEYLESS_SECRET_TYPE_DYNAMIC, AKEYLESS_SECRET_TYPE_ROTATED})
 
 	// Execute the list items request
+	a.logger.Debug("listing items from path '%s'...", path)
 	itemsList, _, err := a.v2.ListItems(context.Background()).Body(*listItems).Execute()
 	if err != nil {
 		return nil, err
@@ -518,13 +519,12 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akey
 			continue
 		}
 
-		if itemType == AKEYLESS_SECRET_TYPE_STATIC {
+		switch itemType {
+		case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
 			staticItems = append(staticItems, item)
-		}
-		if itemType == AKEYLESS_SECRET_TYPE_DYNAMIC {
+		case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
 			dynamicItems = append(dynamicItems, item)
-		}
-		if itemType == AKEYLESS_SECRET_TYPE_ROTATED {
+		case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
 			rotatedItems = append(rotatedItems, item)
 		}
 	}

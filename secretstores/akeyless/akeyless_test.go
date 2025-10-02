@@ -469,7 +469,6 @@ func TestGetSecret(t *testing.T) {
 			expectError:    false,
 			expectedSecret: testSecretValue,
 		},
-		// TODO: add non-existing secret test
 		// {
 		// 	name: "get non-existing secret",
 		// 	request: secretstores.GetSecretRequest{
@@ -633,7 +632,7 @@ func TestGetSecretType(t *testing.T) {
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
 
-	secretType, err := GetSecretType(mockDescribeStaticSecretName, store)
+	secretType, err := store.GetSecretType(mockDescribeStaticSecretName)
 	assert.NoError(t, err)
 	assert.Equal(t, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE, secretType)
 }
@@ -683,7 +682,7 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
 
-	secretValue, err := GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE, store)
+	secretValue, err := store.GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}", secretValue)
 
@@ -735,7 +734,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
 
-	secretValue, err := GetSingleSecretValue(mockDescribeRotatedSecretName, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE, store)
+	secretValue, err := store.GetSingleSecretValue(mockDescribeRotatedSecretName, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", secretValue)
 

@@ -1,15 +1,12 @@
 package akeyless
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"encoding/json"
-
-	aws "github.com/akeylesslabs/akeyless-go-cloud-id/cloudprovider/aws"
 	"github.com/akeylesslabs/akeyless-go/v5"
 	"github.com/dapr/components-contrib/secretstores"
 )
@@ -88,192 +85,6 @@ func GetAccessTypeDisplayName(typeChar string) (string, error) {
 	return displayName, nil
 }
 
-// Authenticate authenticates with Akeyless using the provided metadata.
-// It returns an error if the authentication fails.
-func Authenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessSecretStore) error {
-
-	akeylessSecretStore.logger.Debug("Creating authentication request to Akeyless...")
-	authRequest := akeyless.NewAuth()
-	authRequest.SetAccessId(metadata.AccessID)
-	authRequest.SetAccessType(metadata.AccessType)
-
-	// Depending on the access type we set the appropriate authentication method
-	switch metadata.AccessType {
-	// If access type is AWS IAM we use the cloud ID
-	case AKEYLESS_AUTH_ACCESS_IAM:
-		akeylessSecretStore.logger.Debug("getting cloud ID for AWS IAM...")
-		id, err := aws.GetCloudId()
-		if err != nil {
-			return errors.New("unable to get cloud ID")
-		}
-		authRequest.SetCloudId(id)
-	case AKEYLESS_AUTH_ACCESS_JWT:
-		akeylessSecretStore.logger.Debug("setting JWT for authentication...")
-		authRequest.SetJwt(metadata.JWT)
-	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
-		akeylessSecretStore.logger.Debug("setting access key for authentication...")
-		authRequest.SetAccessKey(metadata.AccessKey)
-	}
-
-	// Create Akeyless API client configuration
-	akeylessSecretStore.logger.Debug("creating Akeyless API client configuration...")
-	config := akeyless.NewConfiguration()
-	config.Servers = []akeyless.ServerConfiguration{
-		{
-			URL: metadata.GatewayURL,
-		},
-	}
-	config.UserAgent = AKEYLESS_USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", AKEYLESS_USER_AGENT)
-
-	akeylessSecretStore.v2 = akeyless.NewAPIClient(config).V2Api
-
-	akeylessSecretStore.logger.Debug("authenticating with Akeyless...")
-	out, _, err := akeylessSecretStore.v2.Auth(context.Background()).Body(*authRequest).Execute()
-	if err != nil {
-		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
-	}
-
-	akeylessSecretStore.logger.Debug("setting token %s for authentication...", out.GetToken()[:3]+"[REDACTED]")
-	akeylessSecretStore.logger.Debug("expires at: %s", out.GetExpiration())
-	akeylessSecretStore.token = out.GetToken()
-
-	return nil
-}
-
-// getSecretType gets the type of the secret from the describe item response.
-// It returns the type of the secret (e.g. static, dynamic, rotated) or an error if the type is unknown.
-func GetSecretType(secretName string, akeylessSecretStore *akeylessSecretStore) (string, error) {
-
-	describeItem := akeyless.NewDescribeItem(secretName)
-	describeItem.SetToken(akeylessSecretStore.token)
-	describeItemResp, _, err := akeylessSecretStore.v2.DescribeItem(context.Background()).Body(*describeItem).Execute()
-	if err != nil {
-		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
-	}
-
-	if describeItemResp.ItemType == nil {
-		return "", errors.New("unable to retrieve secret type, missing type in describe item response")
-	}
-
-	return *describeItemResp.ItemType, nil
-}
-
-// GetSingleSecretValue gets the value of a single secret from Akeyless.
-// It returns the value of the secret or an error if the secret is not found.
-func GetSingleSecretValue(secretName string, secretType string, akeylessSecretStore *akeylessSecretStore) (string, error) {
-
-	var secretValue string
-	var err error
-
-	switch secretType {
-	case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
-		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
-		getSecretValue.SetToken(akeylessSecretStore.token)
-		secretRespMap, _, apiErr := akeylessSecretStore.v2.GetSecretValue(context.Background()).Body(*getSecretValue).Execute()
-		if apiErr != nil {
-			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		// check if secret key is in response
-		value, ok := secretRespMap[secretName]
-		if !ok {
-			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: key not found", secretName)
-			break
-		}
-
-		// single static secrets can be of type string, or map[string]string
-		// if it's a map[string]string, we need to transform it to a string
-		switch valueType := value.(type) {
-		case string:
-			secretValue = valueType
-		case map[string]string:
-			encoded, marshalErr := json.Marshal(valueType)
-			if marshalErr != nil {
-				err = fmt.Errorf("failed to marshal secret response: %w", marshalErr)
-			} else {
-				secretValue = string(encoded)
-			}
-		case any:
-			encoded, marshalErr := json.Marshal(valueType)
-			if marshalErr != nil {
-				err = fmt.Errorf("failed to marshal secret response: %w", marshalErr)
-			} else {
-				secretValue = string(encoded)
-			}
-
-		default:
-			err = fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
-		}
-
-	case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
-		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
-		getDynamicSecretValue.SetToken(akeylessSecretStore.token)
-		secretRespMap, _, apiErr := akeylessSecretStore.v2.GetDynamicSecretValue(context.Background()).Body(*getDynamicSecretValue).Execute()
-		if apiErr != nil {
-			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		// assert type of secretRespMap to DynamicSecretResponse
-		var dynamicSecretResp DynamicSecretResponse
-		jsonBytes, marshalErr := json.Marshal(secretRespMap)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
-			break
-		}
-		if unmarshalErr := json.Unmarshal([]byte(jsonBytes), &dynamicSecretResp); unmarshalErr != nil {
-			err = fmt.Errorf("failed to unmarshal secret response to DynamicSecretResponse: %w", unmarshalErr)
-			break
-		}
-
-		// take only relevant fields (DisplayName and SecretText) from response and marshal it to a JSON string
-		dynamicSecretResp.Secret.AppID = ""
-		dynamicSecretResp.Secret.EndDateTime = ""
-		dynamicSecretResp.Secret.KeyID = ""
-		dynamicSecretResp.Secret.TenantID = ""
-		jsonBytes, marshalErr = json.Marshal(dynamicSecretResp.Secret)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
-			break
-		}
-		secretValue = string(jsonBytes)
-
-	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
-		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
-		getRotatedSecretValue.SetToken(akeylessSecretStore.token)
-		secretRespMap, _, apiErr := akeylessSecretStore.v2.GetRotatedSecretValue(context.Background()).Body(*getRotatedSecretValue).Execute()
-		if apiErr != nil {
-			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		// assert type of secretRespMap to RotatedSecretResponse
-		var rotatedSecretResp RotatedSecretResponse
-		jsonBytes, marshalErr := json.Marshal(secretRespMap)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
-			break
-		}
-		if unmarshalErr := json.Unmarshal([]byte(jsonBytes), &rotatedSecretResp); unmarshalErr != nil {
-			err = fmt.Errorf("failed to unmarshal secret response to RotatedSecretResponse: %w", unmarshalErr)
-			break
-		}
-
-		// take only relevant fields (Username and Password) from response and marshal it to a JSON string
-		rotatedSecretResp.Value.ApplicationID = ""
-		jsonBytes, marshalErr = json.Marshal(rotatedSecretResp.Value)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
-			break
-		}
-		secretValue = string(jsonBytes)
-	}
-
-	return secretValue, err
-}
-
 type DynamicSecretResponse struct {
 	ID           string              `json:"id"`
 	Msg          string              `json:"msg"`
@@ -286,7 +97,7 @@ type DynamicSecretSecret struct {
 	DisplayName string `json:"displayName"`
 	EndDateTime string `json:"endDateTime,omitempty"`
 	KeyID       string `json:"keyId,omitempty"`
-	SecretText  string `json:"secretText,omitempty"`
+	SecretText  string `json:"secretText"`
 	TenantID    string `json:"tenantId,omitempty"`
 }
 
@@ -306,4 +117,55 @@ func GetDaprSingleSecretResponse(secretName string, secretValue string) (secrets
 			secretName: secretValue,
 		},
 	}, nil
+}
+
+func GetItemNames(items []akeyless.Item) []string {
+	itemNames := []string{}
+	for _, item := range items {
+		itemNames = append(itemNames, *item.ItemName)
+	}
+	return itemNames
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func stringifyStaticSecret(secretValue any, secretName string) (string, error) {
+	var err error
+
+	switch valueType := secretValue.(type) {
+	case string:
+		secretValue = string(valueType)
+	case map[string]string:
+		encoded, marshalErr := json.Marshal(valueType)
+		if marshalErr != nil {
+			err = fmt.Errorf("failed to marshal secret response for secret '%s': %w", secretName, marshalErr)
+		} else {
+			secretValue = string(encoded)
+		}
+	case any:
+		encoded, marshalErr := json.Marshal(valueType)
+		if marshalErr != nil {
+			err = fmt.Errorf("failed to marshal secret response for secret '%s': %w", secretName, marshalErr)
+			break
+		} else {
+			secretValue = string(encoded)
+			break
+		}
+
+	default:
+		err = fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
+	}
+
+	return string(secretValue.(string)), err
+}
+
+type secretResultCollection struct {
+	name  string
+	value string
+	err   error
 }

@@ -514,10 +514,7 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akey
 	dynamicItems := []akeyless.Item{}
 	rotatedItems := []akeyless.Item{}
 	for _, item := range items {
-		itemType, err := a.GetSecretType(*item.ItemName)
-		if err != nil {
-			continue
-		}
+		itemType := *item.ItemType
 
 		switch itemType {
 		case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -817,41 +816,6 @@ func TestGetBulkSecretValues(t *testing.T) {
 
 		case "/get-rotated-secret-value":
 			jsonResponse, _ := json.Marshal(&mockGetSingleRotatedSecretValueResponse)
-			w.WriteHeader(http.StatusOK)
-			w.Write(jsonResponse)
-
-		case "/describe-item":
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"message": "failed to read request body"}`))
-				return
-			}
-
-			var describeItemRequest akeyless.DescribeItem
-			if err := json.Unmarshal(body, &describeItemRequest); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"message": "failed to parse request body"}`))
-				return
-			}
-
-			var itemResponse akeyless.Item
-			switch describeItemRequest.Name {
-			case "/path/to/akeyless/static-secret-test":
-				itemResponse = mockDescribeStaticItemResponse
-			case "/path/to/akeyless/static-secret-json-test":
-				itemResponse = mockDescribeStaticJSONItemResponse
-			case "/path/to/akeyless/dynamic-secret-test":
-				itemResponse = mockDescribeDynamicItemResponse
-			case "/path/to/akeyless/rotated-secret-test":
-				itemResponse = mockDescribeRotatedItemResponse
-			default:
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"message": "invalid item name"}`))
-				return
-			}
-
-			jsonResponse, _ := json.Marshal(&itemResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 

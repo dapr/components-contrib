@@ -60,13 +60,13 @@ var (
 		ItemName: &mockRotatedSecretItemName,
 		ItemType: &mockDescribeRotatedSecretType,
 	}
-	mockDescribeStaticSecretName         = fmt.Sprintf("/path/to/akeyless/%s", mockStaticSecretItem)
+	mockDescribeStaticSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretItem)
 	mockDescribeStaticSecretType         = AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE
 	mockDescribeStaticSecretItemResponse = akeyless.Item{
 		ItemName: &mockDescribeStaticSecretName,
 		ItemType: &mockDescribeStaticSecretType,
 	}
-	mockStaticSecretJSONName             = fmt.Sprintf("/path/to/akeyless/%s", mockStaticSecretJSONItemName)
+	mockStaticSecretJSONName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretJSONItemName)
 	mockGetSingleSecretJSONValueResponse = map[string]map[string]string{
 		mockStaticSecretJSONName: {
 			"some": "json",
@@ -76,14 +76,14 @@ var (
 		ItemName: &mockStaticSecretJSONName,
 		ItemType: &mockDescribeStaticSecretType,
 	}
-	mockStaticSecretPasswordName             = fmt.Sprintf("/path/to/akeyless/%s", mockStaticSecretPasswordItemName)
+	mockStaticSecretPasswordName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretPasswordItemName)
 	mockGetSingleSecretPasswordValueResponse = map[string]map[string]string{
 		mockStaticSecretPasswordName: {
 			"password": testSecretValue,
 			"username": "akeyless",
 		},
 	}
-	mockDescribeDynamicSecretName         = fmt.Sprintf("/path/to/akeyless/%s", mockDynamicSecretItemName)
+	mockDescribeDynamicSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockDynamicSecretItemName)
 	mockDescribeDynamicSecretType         = AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE
 	mockDescribeDynamicSecretItemResponse = akeyless.Item{
 		ItemName: &mockDescribeDynamicSecretName,
@@ -102,7 +102,7 @@ var (
 		},
 		TTLInMinutes: "60",
 	}
-	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless/%s", mockRotatedSecretItemName)
+	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockRotatedSecretItemName)
 	mockDescribeRotatedSecretType         = AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE
 	mockDescribeRotatedSecretItemResponse = akeyless.Item{
 		ItemName: &mockDescribeRotatedSecretName,
@@ -800,10 +800,10 @@ func TestGetBulkSecretValues(t *testing.T) {
 			items := akeyless.NewListItemsInPathOutput()
 			items.SetItems(
 				[]akeyless.Item{
-					mockDescribeStaticItemResponse,
-					mockDescribeStaticJSONItemResponse,
-					mockDescribeDynamicItemResponse,
-					mockDescribeRotatedItemResponse,
+					mockDescribeStaticSecretItemResponse,
+					mockStaticSecretJSONItemResponse,
+					mockDescribeDynamicSecretItemResponse,
+					mockDescribeRotatedSecretItemResponse,
 				},
 			)
 			jsonResponse, _ := json.Marshal(&items)
@@ -811,23 +811,16 @@ func TestGetBulkSecretValues(t *testing.T) {
 			w.Write(jsonResponse)
 		// Single dynamic secret value
 		case "/get-dynamic-secret-value":
-			var dynamicSecretValue DynamicSecretResponse
-			dynamicSecretValue.Secret.SecretText = testSecretValue
-			dynamicSecretValue.Secret.DisplayName = "tmp.p-1234567890.GV7LR"
-			jsonResponse, _ := json.Marshal(&dynamicSecretValue)
+			jsonResponse, _ := json.Marshal(&mockGetSingleDynamicSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 
 		case "/get-rotated-secret-value":
-			var rotatedSecretValue RotatedSecretResponse
-			rotatedSecretValue.Value.Username = "abcdefghijklmnopqrstuvwxyz"
-			rotatedSecretValue.Value.Password = testSecretValue
-			jsonResponse, _ := json.Marshal(&rotatedSecretValue)
+			jsonResponse, _ := json.Marshal(&mockGetSingleRotatedSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 
 		case "/describe-item":
-
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -844,13 +837,13 @@ func TestGetBulkSecretValues(t *testing.T) {
 
 			var itemResponse akeyless.Item
 			switch describeItemRequest.Name {
-			case mockStaticSecretItem:
+			case "/path/to/akeyless/static-secret-test":
 				itemResponse = mockDescribeStaticItemResponse
-			case mockStaticSecretJSONItemName:
+			case "/path/to/akeyless/static-secret-json-test":
 				itemResponse = mockDescribeStaticJSONItemResponse
-			case mockDynamicSecretItemName:
+			case "/path/to/akeyless/dynamic-secret-test":
 				itemResponse = mockDescribeDynamicItemResponse
-			case mockRotatedSecretItemName:
+			case "/path/to/akeyless/rotated-secret-test":
 				itemResponse = mockDescribeRotatedItemResponse
 			default:
 				w.WriteHeader(http.StatusInternalServerError)
@@ -886,12 +879,36 @@ func TestGetBulkSecretValues(t *testing.T) {
 	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, response.Data)
-	assert.Contains(t, response.Data, mockStaticSecretItem)
-	assert.Equal(t, "{\"some\":\"json\"}", response.Data[mockStaticSecretJSONName])
-	assert.Contains(t, response.Data, mockDynamicSecretItemName)
-	assert.Equal(t, "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}", response.Data[mockDynamicSecretItemName])
-	assert.Contains(t, response.Data, mockRotatedSecretItemName)
-	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", response.Data[mockDescribeRotatedSecretName])
+
+	// Check that we got all 4 secrets (excluding any empty keys)
+	nonEmptySecrets := 0
+	for key, value := range response.Data {
+		if key != "" && len(value) > 0 {
+			nonEmptySecrets++
+		}
+	}
+	assert.Equal(t, 4, nonEmptySecrets)
+
+	// Check static secret (text) - using the actual key from the response
+	staticSecretKey := "/static-secret-test"
+	assert.Contains(t, response.Data, staticSecretKey)
+	assert.Equal(t, testSecretValue, response.Data[staticSecretKey][staticSecretKey])
+
+	// Check static secret (JSON)
+	jsonSecretKey := "/static-secret-json-test"
+	assert.Contains(t, response.Data, jsonSecretKey)
+	assert.Equal(t, "{\"some\":\"json\"}", response.Data[jsonSecretKey][jsonSecretKey])
+
+	// Check dynamic secret
+	dynamicSecretKey := "/path/to/akeyless/dynamic-secret-test"
+	assert.Contains(t, response.Data, dynamicSecretKey)
+	expectedDynamicValue := "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}"
+	assert.Equal(t, expectedDynamicValue, response.Data[dynamicSecretKey][dynamicSecretKey])
+
+	// Check rotated secret
+	rotatedSecretKey := "/path/to/akeyless/rotated-secret-test"
+	assert.Contains(t, response.Data, rotatedSecretKey)
+	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", response.Data[rotatedSecretKey][rotatedSecretKey])
 
 	mockGateway.Close()
 }

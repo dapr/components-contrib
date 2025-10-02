@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -873,6 +874,282 @@ func TestGetBulkSecretValues(t *testing.T) {
 	rotatedSecretKey := "/path/to/akeyless/rotated-secret-test"
 	assert.Contains(t, response.Data, rotatedSecretKey)
 	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", response.Data[rotatedSecretKey][rotatedSecretKey])
+
+	mockGateway.Close()
+}
+
+func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
+	// Test recursive secret retrieval from different hierarchical paths
+	// This test simulates a folder structure where:
+	// - Root "/" contains 4 subfolders
+	// - Each subfolder contains different types of secrets
+	// - The listItemsRecursively method should traverse all folders
+
+	// Define mock secrets for different paths
+	staticSecret1 := "/path/to/static/secrets/secret1"
+	staticSecret2 := "/path/to/static/secrets/secret2"
+	staticSecret3 := "/path/to/static/secrets/secret3"
+	dynamicSecret1 := "/path/to/dynamic/secrets/dynamic1"
+	dynamicSecret2 := "/path/to/dynamic/secrets/dynamic2"
+	rotatedSecret1 := "/path/to/rotated/secrets/rotated1"
+	mixedStaticSecret := "/path/to/mixed/secrets/mixed-static"
+	mixedDynamicSecret := "/path/to/mixed/secrets/mixed-dynamic"
+	mixedRotatedSecret := "/path/to/mixed/secrets/mixed-rotated"
+
+	// Create mock items for different paths
+	staticItem1 := akeyless.Item{
+		ItemName: &staticSecret1,
+		ItemType: &mockDescribeStaticSecretType,
+	}
+	staticItem2 := akeyless.Item{
+		ItemName: &staticSecret2,
+		ItemType: &mockDescribeStaticSecretType,
+	}
+	staticItem3 := akeyless.Item{
+		ItemName: &staticSecret3,
+		ItemType: &mockDescribeStaticSecretType,
+	}
+	dynamicItem1 := akeyless.Item{
+		ItemName: &dynamicSecret1,
+		ItemType: &mockDescribeDynamicSecretType,
+	}
+	dynamicItem2 := akeyless.Item{
+		ItemName: &dynamicSecret2,
+		ItemType: &mockDescribeDynamicSecretType,
+	}
+	rotatedItem1 := akeyless.Item{
+		ItemName: &rotatedSecret1,
+		ItemType: &mockDescribeRotatedSecretType,
+	}
+	mixedStaticItem := akeyless.Item{
+		ItemName: &mixedStaticSecret,
+		ItemType: &mockDescribeStaticSecretType,
+	}
+	mixedDynamicItem := akeyless.Item{
+		ItemName: &mixedDynamicSecret,
+		ItemType: &mockDescribeDynamicSecretType,
+	}
+	mixedRotatedItem := akeyless.Item{
+		ItemName: &mixedRotatedSecret,
+		ItemType: &mockDescribeRotatedSecretType,
+	}
+
+	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Handle different endpoints
+		switch r.URL.Path {
+		case "/auth":
+			// Return a proper AuthOutput JSON response for authentication
+			authOutput := akeyless.NewAuthOutput()
+			authOutput.SetToken("t-1234567890")
+			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			jsonResponse, _ := json.Marshal(authOutput)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		case "/get-secret-value":
+			secretValue := map[string]string{
+				staticSecret1:     testSecretValue,
+				staticSecret2:     "static-secret-2-value",
+				staticSecret3:     "static-secret-3-value",
+				mixedStaticSecret: "mixed-static-secret-value",
+			}
+			jsonResponse, _ := json.Marshal(&secretValue)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		case "/list-items":
+			// Parse the path from request body to determine what to return
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message": "failed to read request body"}`))
+				return
+			}
+
+			var listItemsRequest akeyless.ListItems
+			if err := json.Unmarshal(body, &listItemsRequest); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message": "failed to parse request body"}`))
+				return
+			}
+
+			path := ""
+			if listItemsRequest.Path != nil {
+				path = *listItemsRequest.Path
+			}
+			// Debug: Uncomment to see recursive calls
+			// fmt.Printf("DEBUG: list-items called for path: '%s'\n", path)
+
+			var items akeyless.ListItemsInPathOutput
+
+			switch path {
+			case "/":
+				// Root path returns only folders, no items
+				folders := []string{
+					"/path/to/static/secrets",
+					"/path/to/dynamic/secrets",
+					"/path/to/rotated/secrets",
+					"/path/to/mixed/secrets",
+				}
+				items.SetFolders(folders)
+				items.SetItems([]akeyless.Item{})
+
+			case "/path/to/static/secrets":
+				// Static secrets folder
+				items.SetItems([]akeyless.Item{staticItem1, staticItem2, staticItem3})
+				items.SetFolders([]string{})
+
+			case "/path/to/dynamic/secrets":
+				// Dynamic secrets folder
+				items.SetItems([]akeyless.Item{dynamicItem1, dynamicItem2})
+				items.SetFolders([]string{})
+
+			case "/path/to/rotated/secrets":
+				// Rotated secrets folder
+				items.SetItems([]akeyless.Item{rotatedItem1})
+				items.SetFolders([]string{})
+
+			case "/path/to/mixed/secrets":
+				// Mixed secrets folder
+				items.SetItems([]akeyless.Item{mixedStaticItem, mixedDynamicItem, mixedRotatedItem})
+				items.SetFolders([]string{})
+
+			default:
+				// Unknown path
+				items.SetItems([]akeyless.Item{})
+				items.SetFolders([]string{})
+			}
+
+			jsonResponse, _ := json.Marshal(&items)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		case "/get-dynamic-secret-value":
+			// Create dynamic secret responses for each secret
+			var dynamicSecretResponse DynamicSecretResponse
+			dynamicSecretResponse.Secret.SecretText = "dynamic-secret-1-value"
+			dynamicSecretResponse.Secret.DisplayName = "dynamic-secret-1"
+			jsonResponse, _ := json.Marshal(&dynamicSecretResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		case "/get-rotated-secret-value":
+			// Create rotated secret response
+			var rotatedSecretResponse RotatedSecretResponse
+			rotatedSecretResponse.Value.Username = "rotated-user"
+			rotatedSecretResponse.Value.Password = "rotated-secret-1-value"
+			jsonResponse, _ := json.Marshal(&rotatedSecretResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		case "/describe-item":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message": "failed to read request body"}`))
+				return
+			}
+
+			var describeItemRequest akeyless.DescribeItem
+			if err := json.Unmarshal(body, &describeItemRequest); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message": "failed to parse request body"}`))
+				return
+			}
+
+			var itemResponse akeyless.Item
+			switch describeItemRequest.Name {
+			case staticSecret1, staticSecret2, staticSecret3, mixedStaticSecret:
+				itemResponse = akeyless.Item{
+					ItemName: &describeItemRequest.Name,
+					ItemType: &mockDescribeStaticSecretType,
+				}
+			case dynamicSecret1, dynamicSecret2, mixedDynamicSecret:
+				itemResponse = akeyless.Item{
+					ItemName: &describeItemRequest.Name,
+					ItemType: &mockDescribeDynamicSecretType,
+				}
+			case rotatedSecret1, mixedRotatedSecret:
+				itemResponse = akeyless.Item{
+					ItemName: &describeItemRequest.Name,
+					ItemType: &mockDescribeRotatedSecretType,
+				}
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message": "invalid item name"}`))
+				return
+			}
+
+			jsonResponse, _ := json.Marshal(&itemResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+
+		default:
+			// Default response for any other endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+		}
+	}))
+
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+	require.NoError(t, err)
+	assert.NotNil(t, response.Data)
+
+	// Check that we got all 9 secrets (4 static, 3 dynamic, 2 rotated)
+	nonEmptySecrets := 0
+	for key, value := range response.Data {
+		if key != "" && len(value) > 0 {
+			nonEmptySecrets++
+		}
+	}
+	assert.Equal(t, 9, nonEmptySecrets)
+
+	// Check static secrets from /path/to/static/secrets
+	assert.Contains(t, response.Data, staticSecret1)
+	assert.Equal(t, testSecretValue, response.Data[staticSecret1][staticSecret1])
+	assert.Contains(t, response.Data, staticSecret2)
+	assert.Equal(t, "static-secret-2-value", response.Data[staticSecret2][staticSecret2])
+	assert.Contains(t, response.Data, staticSecret3)
+	assert.Equal(t, "static-secret-3-value", response.Data[staticSecret3][staticSecret3])
+
+	// Check dynamic secrets from /path/to/dynamic/secrets
+	assert.Contains(t, response.Data, dynamicSecret1)
+	expectedDynamicValue1 := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	assert.Equal(t, expectedDynamicValue1, response.Data[dynamicSecret1][dynamicSecret1])
+	assert.Contains(t, response.Data, dynamicSecret2)
+	expectedDynamicValue2 := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	assert.Equal(t, expectedDynamicValue2, response.Data[dynamicSecret2][dynamicSecret2])
+
+	// Check rotated secret from /path/to/rotated/secrets
+	assert.Contains(t, response.Data, rotatedSecret1)
+	expectedRotatedValue1 := "{\"username\":\"rotated-user\",\"password\":\"rotated-secret-1-value\"}"
+	assert.Equal(t, expectedRotatedValue1, response.Data[rotatedSecret1][rotatedSecret1])
+
+	// Check mixed secrets from /path/to/mixed/secrets
+	assert.Contains(t, response.Data, mixedStaticSecret)
+	assert.Equal(t, "mixed-static-secret-value", response.Data[mixedStaticSecret][mixedStaticSecret])
+	assert.Contains(t, response.Data, mixedDynamicSecret)
+	expectedMixedDynamicValue := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	assert.Equal(t, expectedMixedDynamicValue, response.Data[mixedDynamicSecret][mixedDynamicSecret])
+	assert.Contains(t, response.Data, mixedRotatedSecret)
+	expectedMixedRotatedValue := "{\"username\":\"rotated-user\",\"password\":\"rotated-secret-1-value\"}"
+	assert.Equal(t, expectedMixedRotatedValue, response.Data[mixedRotatedSecret][mixedRotatedSecret])
 
 	mockGateway.Close()
 }

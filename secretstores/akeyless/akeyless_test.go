@@ -72,6 +72,19 @@ var (
 		},
 		TTLInMinutes: "60",
 	}
+	mockDescribeRotatedSecretName         = "/path/to/akeyless/rotated-secret-test"
+	mockDescribeRotatedSecretType         = AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE
+	mockDescribeRotatedSecretItemResponse = akeyless.Item{
+		ItemName: &mockDescribeRotatedSecretName,
+		ItemType: &mockDescribeRotatedSecretType,
+	}
+	mockGetSingleRotatedSecretValueResponse = RotatedSecretResponse{
+		Value: RotatedSecretValue{
+			Username:      "abcdefghijklmnopqrstuvwxyz",
+			Password:      testSecretValue,
+			ApplicationID: "1234567890",
+		},
+	}
 )
 
 var mockGetSingleSecretValueResponse = map[string]string{
@@ -146,34 +159,10 @@ func TestMain(m *testing.M) {
 			jsonResponse, _ := json.Marshal(mockGetSingleSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
-		case "/get-dynamic-secret-value":
-			var dynamicResponse = DynamicSecretResponse{
-				ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
-				Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
-				Secret: DynamicSecretSecret{
-					AppID:       "1234567890",
-					DisplayName: "tmp.p-1234567890.GV7LR",
-					EndDateTime: "2025-09-26T14:54:05.1643791Z",
-					KeyID:       "1234567890",
-					SecretText:  testSecretValue,
-					TenantID:    "1234567890",
-				},
-				TTLInMinutes: "60",
-			}
-			jsonResponse, _ := json.Marshal(dynamicResponse)
+		case "/get-rotated-secret-value":
+			jsonResponse, _ := json.Marshal(&mockGetSingleRotatedSecretValueResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
-		// case "/get-rotated-secret-value", "/v2/get-rotated-secret-value":
-		// 	var rotatedResponse = RotatedSecretResponse{
-		// 		Value: RotatedSecretValue{
-		// 			Username:      "abcdefghijklmnopqrstuvwxyz",
-		// 			Password:      testSecretValue,
-		// 			ApplicationID: "1234567890",
-		// 		},
-		// 	}
-		// 	jsonResponse, _ := json.Marshal(rotatedResponse)
-		// 	w.WriteHeader(http.StatusOK)
-		// 	w.Write(jsonResponse)
 		case "/list-items":
 			listItemsResponse := akeyless.NewListItemsInPathOutput()
 			listItemsResponse.SetItems(
@@ -697,6 +686,58 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	secretValue, err := GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE, store)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}", secretValue)
+
+	mockGateway.Close()
+}
+
+func TestGetSingleRotatedSecret(t *testing.T) {
+
+	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Handle different endpoints
+		switch r.URL.Path {
+		case "/auth":
+			// Return a proper AuthOutput JSON response for authentication
+			authOutput := akeyless.NewAuthOutput()
+			authOutput.SetToken("t-1234567890")
+			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			jsonResponse, _ := json.Marshal(authOutput)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		// Single dynamic secret value
+		case "/get-rotated-secret-value":
+			jsonResponse, _ := json.Marshal(&mockGetSingleRotatedSecretValueResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		case "/describe-item":
+			jsonResponse, _ := json.Marshal(&mockDescribeRotatedSecretItemResponse)
+			w.WriteHeader(http.StatusOK)
+			w.Write(jsonResponse)
+		default:
+			// Default response for any other endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+		}
+	}))
+	// Test GetSingleRotatedSecret
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIdKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": mockGateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(context.Background(), meta)
+	require.NoError(t, err)
+
+	secretValue, err := GetSingleSecretValue(mockDescribeRotatedSecretName, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE, store)
+	assert.NoError(t, err)
+	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", secretValue)
 
 	mockGateway.Close()
 }

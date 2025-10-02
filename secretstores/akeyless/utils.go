@@ -240,9 +240,35 @@ func GetSingleSecretValue(secretName string, secretType string, akeylessSecretSt
 		}
 		secretValue = string(jsonBytes)
 
-	// TODO implement rotated secrets
 	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
-		return "", errors.New("rotated secrets are not supported")
+		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
+		getRotatedSecretValue.SetToken(akeylessSecretStore.token)
+		secretRespMap, _, apiErr := akeylessSecretStore.v2.GetRotatedSecretValue(context.Background()).Body(*getRotatedSecretValue).Execute()
+		if apiErr != nil {
+			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
+			break
+		}
+
+		// assert type of secretRespMap to RotatedSecretResponse
+		var rotatedSecretResp RotatedSecretResponse
+		jsonBytes, marshalErr := json.Marshal(secretRespMap)
+		if marshalErr != nil {
+			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
+			break
+		}
+		if unmarshalErr := json.Unmarshal([]byte(jsonBytes), &rotatedSecretResp); unmarshalErr != nil {
+			err = fmt.Errorf("failed to unmarshal secret response to RotatedSecretResponse: %w", unmarshalErr)
+			break
+		}
+
+		// take only relevant fields (Username and Password) from response and marshal it to a JSON string
+		rotatedSecretResp.Value.ApplicationID = ""
+		jsonBytes, marshalErr = json.Marshal(rotatedSecretResp.Value)
+		if marshalErr != nil {
+			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
+			break
+		}
+		secretValue = string(jsonBytes)
 	}
 
 	return secretValue, err
@@ -262,6 +288,16 @@ type DynamicSecretSecret struct {
 	KeyID       string `json:"keyId,omitempty"`
 	SecretText  string `json:"secretText,omitempty"`
 	TenantID    string `json:"tenantId,omitempty"`
+}
+
+type RotatedSecretResponse struct {
+	Value RotatedSecretValue `json:"value"`
+}
+
+type RotatedSecretValue struct {
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	ApplicationID string `json:"application_id,omitempty"`
 }
 
 func GetDaprSingleSecretResponse(secretName string, secretValue string) (secretstores.GetSecretResponse, error) {

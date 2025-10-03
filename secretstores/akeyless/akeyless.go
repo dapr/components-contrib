@@ -427,7 +427,6 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 	listItems := akeyless.NewListItems()
 	listItems.SetToken(a.token)
 	listItems.SetPath(path)
-	listItems.SetMinimalView(true)
 	listItems.SetAutoPagination("enabled")
 	listItems.SetType([]string{AKEYLESS_SECRET_TYPE_STATIC, AKEYLESS_SECRET_TYPE_DYNAMIC, AKEYLESS_SECRET_TYPE_ROTATED})
 

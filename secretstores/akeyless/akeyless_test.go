@@ -28,9 +28,7 @@ const (
 	//	 "name": "John Doe",
 	//	 "iat": 1516239022
 	// }
-	testJWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QeJkP5vWKT_yUZJgIeUAnYw2brk"
-	// testDynamicSecretName = "/path/to/dynamic-secret-test"
-	// testRotatedSecretName = "/path/to/rotated-secret-test"
+	testJWT         = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QeJkP5vWKT_yUZJgIeUAnYw2brk"
 	testSecretValue = "r3vE4L3D"
 )
 
@@ -1169,5 +1167,3 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 	mockGateway.Close()
 }
-
-// TestGetBulkSecretValuesRecursively

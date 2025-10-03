@@ -35,36 +35,17 @@ const (
 )
 
 var (
-	mockStaticSecretItem             = "/static-secret-test"
-	mockStaticSecretJSONItemName     = "/static-secret-json-test"
-	mockStaticSecretPasswordItemName = "/static-secret-password-test"
-	mockDynamicSecretItemName        = "/dynamic-secret-test"
-	mockRotatedSecretItemName        = "/rotated-secret-test"
-	mockDescribeStaticItemResponse   = akeyless.Item{
-		ItemName: &mockStaticSecretItem,
-		ItemType: &mockDescribeStaticSecretType,
-	}
-	mockDescribeStaticJSONItemResponse = akeyless.Item{
-		ItemName: &mockStaticSecretJSONItemName,
-		ItemType: &mockDescribeStaticSecretType,
-	}
-	mockDescribeStaticPasswordItemResponse = akeyless.Item{
-		ItemName: &mockStaticSecretPasswordItemName,
-		ItemType: &mockDescribeStaticSecretType,
-	}
-	mockDescribeDynamicItemResponse = akeyless.Item{
-		ItemName: &mockDynamicSecretItemName,
-		ItemType: &mockDescribeDynamicSecretType,
-	}
-	mockDescribeRotatedItemResponse = akeyless.Item{
-		ItemName: &mockRotatedSecretItemName,
-		ItemType: &mockDescribeRotatedSecretType,
-	}
+	mockStaticSecretItem                 = "/static-secret-test"
+	mockStaticSecretJSONItemName         = "/static-secret-json-test"
+	mockStaticSecretPasswordItemName     = "/static-secret-password-test"
+	mockDynamicSecretItemName            = "/dynamic-secret-test"
+	mockRotatedSecretItemName            = "/rotated-secret-test"
 	mockDescribeStaticSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretItem)
 	mockDescribeStaticSecretType         = AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE
 	mockDescribeStaticSecretItemResponse = akeyless.Item{
-		ItemName: &mockDescribeStaticSecretName,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &mockDescribeStaticSecretName,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	mockStaticSecretJSONName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretJSONItemName)
 	mockGetSingleSecretJSONValueResponse = map[string]map[string]string{
@@ -73,8 +54,9 @@ var (
 		},
 	}
 	mockStaticSecretJSONItemResponse = akeyless.Item{
-		ItemName: &mockStaticSecretJSONName,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &mockStaticSecretJSONName,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	mockStaticSecretPasswordName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretPasswordItemName)
 	mockGetSingleSecretPasswordValueResponse = map[string]map[string]string{
@@ -86,8 +68,14 @@ var (
 	mockDescribeDynamicSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockDynamicSecretItemName)
 	mockDescribeDynamicSecretType         = AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE
 	mockDescribeDynamicSecretItemResponse = akeyless.Item{
-		ItemName: &mockDescribeDynamicSecretName,
-		ItemType: &mockDescribeDynamicSecretType,
+		ItemName:  &mockDescribeDynamicSecretName,
+		ItemType:  &mockDescribeDynamicSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
+		ItemGeneralInfo: &akeyless.ItemGeneralInfo{
+			DynamicSecretProducerDetails: &akeyless.DynamicSecretProducerInfo{
+				ProducerStatus: func(s string) *string { return &s }("ProducerConnected"),
+			},
+		},
 	}
 	mockGetSingleDynamicSecretValueResponse = DynamicSecretResponse{
 		ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
@@ -105,8 +93,14 @@ var (
 	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockRotatedSecretItemName)
 	mockDescribeRotatedSecretType         = AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE
 	mockDescribeRotatedSecretItemResponse = akeyless.Item{
-		ItemName: &mockDescribeRotatedSecretName,
-		ItemType: &mockDescribeRotatedSecretType,
+		ItemName:  &mockDescribeRotatedSecretName,
+		ItemType:  &mockDescribeRotatedSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
+		ItemGeneralInfo: &akeyless.ItemGeneralInfo{
+			RotatedSecretDetails: &akeyless.RotatedSecretDetailsInfo{
+				RotatorStatus: func(s string) *string { return &s }("RotationSucceeded"),
+			},
+		},
 	}
 	mockGetSingleRotatedSecretValueResponse = RotatedSecretResponse{
 		Value: RotatedSecretValue{
@@ -898,40 +892,49 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 	// Create mock items for different paths
 	staticItem1 := akeyless.Item{
-		ItemName: &staticSecret1,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &staticSecret1,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	staticItem2 := akeyless.Item{
-		ItemName: &staticSecret2,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &staticSecret2,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	staticItem3 := akeyless.Item{
-		ItemName: &staticSecret3,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &staticSecret3,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	dynamicItem1 := akeyless.Item{
-		ItemName: &dynamicSecret1,
-		ItemType: &mockDescribeDynamicSecretType,
+		ItemName:  &dynamicSecret1,
+		ItemType:  &mockDescribeDynamicSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	dynamicItem2 := akeyless.Item{
-		ItemName: &dynamicSecret2,
-		ItemType: &mockDescribeDynamicSecretType,
+		ItemName:  &dynamicSecret2,
+		ItemType:  &mockDescribeDynamicSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	rotatedItem1 := akeyless.Item{
-		ItemName: &rotatedSecret1,
-		ItemType: &mockDescribeRotatedSecretType,
+		ItemName:  &rotatedSecret1,
+		ItemType:  &mockDescribeRotatedSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	mixedStaticItem := akeyless.Item{
-		ItemName: &mixedStaticSecret,
-		ItemType: &mockDescribeStaticSecretType,
+		ItemName:  &mixedStaticSecret,
+		ItemType:  &mockDescribeStaticSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	mixedDynamicItem := akeyless.Item{
-		ItemName: &mixedDynamicSecret,
-		ItemType: &mockDescribeDynamicSecretType,
+		ItemName:  &mixedDynamicSecret,
+		ItemType:  &mockDescribeDynamicSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 	mixedRotatedItem := akeyless.Item{
-		ItemName: &mixedRotatedSecret,
-		ItemType: &mockDescribeRotatedSecretType,
+		ItemName:  &mixedRotatedSecret,
+		ItemType:  &mockDescribeRotatedSecretType,
+		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 
 	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1063,18 +1066,31 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 			switch describeItemRequest.Name {
 			case staticSecret1, staticSecret2, staticSecret3, mixedStaticSecret:
 				itemResponse = akeyless.Item{
-					ItemName: &describeItemRequest.Name,
-					ItemType: &mockDescribeStaticSecretType,
+					ItemName:  &describeItemRequest.Name,
+					ItemType:  &mockDescribeStaticSecretType,
+					IsEnabled: func(b bool) *bool { return &b }(true),
 				}
 			case dynamicSecret1, dynamicSecret2, mixedDynamicSecret:
 				itemResponse = akeyless.Item{
-					ItemName: &describeItemRequest.Name,
-					ItemType: &mockDescribeDynamicSecretType,
+					ItemName:  &describeItemRequest.Name,
+					ItemType:  &mockDescribeDynamicSecretType,
+					IsEnabled: func(b bool) *bool { return &b }(true),
+					ItemGeneralInfo: &akeyless.ItemGeneralInfo{
+						DynamicSecretProducerDetails: &akeyless.DynamicSecretProducerInfo{
+							ProducerStatus: func(s string) *string { return &s }("ProducerConnected"),
+						},
+					},
 				}
 			case rotatedSecret1, mixedRotatedSecret:
 				itemResponse = akeyless.Item{
-					ItemName: &describeItemRequest.Name,
-					ItemType: &mockDescribeRotatedSecretType,
+					ItemName:  &describeItemRequest.Name,
+					ItemType:  &mockDescribeRotatedSecretType,
+					IsEnabled: func(b bool) *bool { return &b }(true),
+					ItemGeneralInfo: &akeyless.ItemGeneralInfo{
+						RotatedSecretDetails: &akeyless.RotatedSecretDetailsInfo{
+							RotatorStatus: func(s string) *string { return &s }("RotationSucceeded"),
+						},
+					},
 				}
 			default:
 				w.WriteHeader(http.StatusInternalServerError)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/akeylesslabs/akeyless-go/v5"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/logger"
 )
 
 // Define constants for the access types. These are equivalent to the TypeScript consts.
@@ -168,4 +169,64 @@ type secretResultCollection struct {
 	name  string
 	value string
 	err   error
+}
+
+func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
+
+	var isActive bool
+
+	// check if secret has isEnabled field
+	if secret.IsEnabled == nil {
+		logger.Debugf("secret '%s' is missing isEnabled field, skipping...", *secret.ItemName)
+		return false
+	}
+
+	if !*secret.IsEnabled {
+		logger.Debugf("secret '%s' is not enabled, skipping...", *secret.ItemName)
+		return false
+	}
+
+	switch *secret.ItemType {
+	case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
+		logger.Debugf("static secret '%s' is active", *secret.ItemName)
+		isActive = true
+	case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
+		// Check if ItemGeneralInfo is available, if not, include the secret
+		if secret.ItemGeneralInfo != nil &&
+			secret.ItemGeneralInfo.DynamicSecretProducerDetails != nil &&
+			secret.ItemGeneralInfo.DynamicSecretProducerDetails.ProducerStatus != nil {
+			status := *secret.ItemGeneralInfo.DynamicSecretProducerDetails.ProducerStatus
+			if status == "ProducerConnected" {
+				logger.Debugf("dynamic secret '%s' is active, adding to filtered secrets...", *secret.ItemName)
+				isActive = true
+			} else {
+				logger.Debugf("dynamic secret '%s' producer status is '%s', skipping...", *secret.ItemName, status)
+			}
+		} else {
+			// If detailed info is not available, include the secret
+			logger.Debugf("dynamic secret '%s' is missing detailed info. adding to filtered secrets...", *secret.ItemName)
+			isActive = true
+		}
+	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
+		// Check if ItemGeneralInfo is available, if not, include the secret
+		if secret.ItemGeneralInfo != nil &&
+			secret.ItemGeneralInfo.RotatedSecretDetails != nil &&
+			secret.ItemGeneralInfo.RotatedSecretDetails.RotatorStatus != nil {
+			status := *secret.ItemGeneralInfo.RotatedSecretDetails.RotatorStatus
+			if status == "RotationSucceeded" {
+				isActive = true
+			} else {
+				logger.Debugf("rotated secret '%s' rotation status is '%s', skipping...", *secret.ItemName, status)
+			}
+		} else {
+			// If detailed info is not available, include the secret
+			logger.Debugf("rotated secret '%s' is missing detailed info. adding to filtered secrets...", *secret.ItemName)
+			isActive = true
+		}
+	default:
+		logger.Debugf("secret '%s' is of unsupported type '%s', skipping...", *secret.ItemName, *secret.ItemType)
+		isActive = false
+	}
+
+	return isActive
 }

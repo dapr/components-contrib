@@ -46,7 +46,6 @@ type akeylessMetadata struct {
 // with authentication method based on the accessId.
 func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	a.logger.Info("Initializing Akeyless secret store...")
-	a.logger.Info("Parsing metadata...")
 	m, err := a.parseMetadata(meta)
 	if err != nil {
 		return errors.New("failed to parse metadata: " + err.Error())
@@ -66,19 +65,19 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 		return secretstores.GetSecretResponse{}, errors.New("akeyless client not initialized")
 	}
 
-	a.logger.Debug("getting secret type for '%s'...", req.Name)
+	a.logger.Debugf("getting secret type for '%s'...", req.Name)
 	secretType, err := a.GetSecretType(req.Name)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
 
-	a.logger.Debug("getting secret value for '%s' (type %s)...", req.Name, secretType)
+	a.logger.Debugf("getting secret value for '%s' (type %s)...", req.Name, secretType)
 
 	secretValue, err := a.GetSingleSecretValue(req.Name, secretType)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, errors.New(err.Error())
 	}
-	a.logger.Debug("secret '%s' value: %s", req.Name, secretValue[:3]+"[REDACTED]")
+	a.logger.Debugf("secret '%s' value: %s", req.Name, secretValue[:3]+"[REDACTED]")
 
 	// Return the secret in the expected format
 	return GetDaprSingleSecretResponse(req.Name, secretValue)
@@ -87,8 +86,9 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 // The method performs the following steps:
 // 1. Recursively list all items in Akeyless
-// 2. Separate items by type since only static secrets are supported for bulk get
-// 3. Get secret values concurrently, each item type in a separate goroutine
+// 2. Filter out inactive/failing secrets
+// 3. Separate items by type since only static secrets are supported for bulk get
+// 4. Get secret values concurrently, each item type in a separate goroutine
 func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	if a.v2 == nil {
 		return secretstores.BulkGetSecretResponse{}, errors.New("akeyless client not initialized")
@@ -112,9 +112,14 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		return response, nil
 	}
 
+	// filter out inactive secrets
+	a.logger.Debugf("filtering out inactive secrets, %d items before filtering", len(listItems))
+	listItems = a.filterInactiveSecrets(listItems)
+	a.logger.Debugf("filtering out inactive secrets, %d items after filtering", len(listItems))
+
 	// separate items by type since only static secrets are supported for bulk get
 	staticItems, dynamicItems, rotatedItems := a.separateItemsByType(listItems)
-	a.logger.Info("%d items returned (static: %d, dynamic: %d, rotated: %d)", len(listItems), len(staticItems), len(dynamicItems), len(rotatedItems))
+	a.logger.Infof("%d items returned (static: %d, dynamic: %d, rotated: %d)", len(listItems), len(staticItems), len(dynamicItems), len(rotatedItems))
 
 	// listItems can get quite large, so we don't need all item details, we can use the item names instead
 	// and free memory
@@ -122,9 +127,9 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	staticItemNames := GetItemNames(staticItems)
 	dynamicItemNames := GetItemNames(dynamicItems)
 	rotatedItemNames := GetItemNames(rotatedItems)
-	a.logger.Debug("static items: %v", staticItemNames)
-	a.logger.Debug("dynamic items: %v", dynamicItemNames)
-	a.logger.Debug("rotated items: %v", rotatedItemNames)
+	a.logger.Debugf("static items: %v", staticItemNames)
+	a.logger.Debugf("dynamic items: %v", dynamicItemNames)
+	a.logger.Debugf("rotated items: %v", rotatedItemNames)
 
 	haveStaticItems := len(staticItemNames) > 0
 	haveDynamicItems := len(dynamicItemNames) > 0
@@ -143,11 +148,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
 				value, err := a.GetSingleSecretValue(staticSecretName, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE)
-				if err != nil {
-					secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: err}
-				} else {
-					secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: nil}
-				}
+				secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: err}
 			} else {
 				secretResponse := a.GetBulkStaticSecretValues(staticItemNames)
 				if len(secretResponse) > 0 {
@@ -196,7 +197,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	// collect results and populate response
 	for result := range secretResultChannels {
 		if result.err != nil {
-			a.logger.Error("error getting secret '%s': %s. Skipping...", result.name, result.err.Error())
+			a.logger.Errorf("error getting secret '%s': %s. Skipping...", result.name, result.err.Error())
 			continue
 		}
 
@@ -254,12 +255,12 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 		return nil, errors.New("unable to extract access type character from accessId, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
 	}
 
-	a.logger.Debug("getting access type display name for character %s...", accessTypeChar)
+	a.logger.Debugf("getting access type display name for character %s...", accessTypeChar)
 	accessTypeDisplayName, err := GetAccessTypeDisplayName(accessTypeChar)
 	if err != nil {
 		return nil, errors.New("unable to get access type display name, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
 	}
-	a.logger.Debug("access type detected: %s", accessTypeDisplayName)
+	a.logger.Debugf("access type detected: %s", accessTypeDisplayName)
 
 	switch accessTypeDisplayName {
 	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
@@ -275,7 +276,7 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 
 	// Set default gateway URL if not specified
 	if m.GatewayURL == "" {
-		a.logger.Info("Gateway URL is not set, using default value %s...", AKEYLESS_PUBLIC_GATEWAY_URL)
+		a.logger.Infof("Gateway URL is not set, using default value %s...", AKEYLESS_PUBLIC_GATEWAY_URL)
 		m.GatewayURL = AKEYLESS_PUBLIC_GATEWAY_URL
 	}
 
@@ -431,7 +432,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 	listItems.SetType([]string{AKEYLESS_SECRET_TYPE_STATIC, AKEYLESS_SECRET_TYPE_DYNAMIC, AKEYLESS_SECRET_TYPE_ROTATED})
 
 	// Execute the list items request
-	a.logger.Debug("listing items from path '%s'...", path)
+	a.logger.Debugf("listing items from path '%s'...", path)
 	itemsList, _, err := a.v2.ListItems(context.Background()).Body(*listItems).Execute()
 	if err != nil {
 		return nil, err
@@ -502,8 +503,8 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
 
-	a.logger.Debug("setting token %s for authentication...", out.GetToken()[:3]+"[REDACTED]")
-	a.logger.Debug("expires at: %s", out.GetExpiration())
+	a.logger.Debugf("setting token %s for authentication...", out.GetToken()[:3]+"[REDACTED]")
+	a.logger.Debugf("expires at: %s", out.GetExpiration())
 	a.token = out.GetToken()
 
 	return nil
@@ -526,4 +527,17 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akey
 		}
 	}
 	return staticItems, dynamicItems, rotatedItems
+}
+
+func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeyless.Item) []akeyless.Item {
+
+	filteredSecrets := []akeyless.Item{}
+
+	for _, secret := range secrets {
+		if isSecretActive(secret, a.logger) {
+			filteredSecrets = append(filteredSecrets, secret)
+		}
+	}
+
+	return filteredSecrets
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -17,6 +18,7 @@ const (
 	AKEYLESS_AUTH_ACCESS_JWT                     = "jwt"
 	AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE            = "access_key"
 	AKEYLESS_AUTH_ACCESS_IAM                     = "aws_iam"
+	AKEYLESS_AUTH_ACCESS_K8S                     = "k8s"
 	AKEYLESS_PUBLIC_GATEWAY_URL                  = "https://api.akeyless.io"
 	AKEYLESS_USER_AGENT                          = "dapr.io/akeyless-secret-store"
 	AKEYLESS_SECRET_TYPE_STATIC                  = "static-secret"
@@ -32,6 +34,7 @@ var AccessTypeCharMap = map[string]string{
 	"a": AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE,
 	"o": AKEYLESS_AUTH_ACCESS_JWT,
 	"w": AKEYLESS_AUTH_ACCESS_IAM,
+	"k": AKEYLESS_AUTH_ACCESS_K8S,
 }
 
 // AccessIdRegex is the compiled regular expression for validating Akeyless Access IDs.
@@ -229,4 +232,26 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 	}
 
 	return isActive
+}
+
+func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeyless.Auth, a *akeylessSecretStore) error {
+	if metadata.K8SAuthConfigName == "" {
+		return fmt.Errorf("k8s auth config name is required")
+	}
+	authRequest.SetK8sAuthConfigName(metadata.K8SAuthConfigName)
+	if metadata.K8sServiceAccountToken == "" {
+		a.logger.Debug("k8s service account token is missing, attempting to read from default service account token file")
+		token, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+		if err != nil {
+			return fmt.Errorf("failed to read default service account token file: %w", err)
+		}
+		metadata.K8sServiceAccountToken = string(token)
+	}
+	if metadata.K8SGatewayURL == "" {
+		a.logger.Debug("k8s gateway url is missing, using gatewayUrl")
+		metadata.K8SGatewayURL = metadata.GatewayURL
+	}
+	authRequest.SetGatewayUrl(metadata.K8SGatewayURL)
+	authRequest.SetK8sServiceAccountToken(metadata.K8sServiceAccountToken)
+	return nil
 }

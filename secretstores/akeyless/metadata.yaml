@@ -36,3 +36,23 @@ metadata:
     example: "ABCD1233...="
     type: string
     sensitive: true
+  - name: k8sAuthConfigName
+    required: false
+    description: |
+      If using the k8s auth method, specify the name of the k8s auth config.
+    example: "k8s-auth-config"
+    type: string
+  - name: k8sGatewayUrl
+    required: false
+    description: |
+      The gateway URL that where the k8s auth config is located.
+    example: "https://gw.akeyless.svc.cluster.local"
+    type: string
+  - name: k8sServiceAccountToken
+    required: false
+    description: |
+      If using the k8s auth method, specify the service account token. If not specified,
+      we will try to read it from the default service account token file.
+    example: "eyJ..."
+    type: string
+    sensitive: true

@@ -35,11 +35,14 @@ func NewAkeylessSecretStore(logger logger.Logger) secretstores.SecretStore {
 
 // akeylessMetadata contains the metadata for the Akeyless secret store.
 type akeylessMetadata struct {
-	GatewayURL string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
-	JWT        string `json:"jwt" mapstructure:"jwt"`
-	AccessID   string `json:"accessId" mapstructure:"accessId"`
-	AccessKey  string `json:"accessKey" mapstructure:"accessKey"`
-	AccessType string `json:"accessType" mapstructure:"accessType"`
+	GatewayURL             string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
+	JWT                    string `json:"jwt" mapstructure:"jwt"`
+	AccessID               string `json:"accessId" mapstructure:"accessId"`
+	AccessKey              string `json:"accessKey" mapstructure:"accessKey"`
+	AccessType             string `json:"accessType" mapstructure:"accessType"`
+	K8SGatewayURL          string `json:"k8sGatewayUrl" mapstructure:"k8sGatewayUrl"`
+	K8SAuthConfigName      string `json:"k8sAuthConfigName" mapstructure:"k8sAuthConfigName"`
+	K8sServiceAccountToken string `json:"k8sServiceAccountToken" mapstructure:"k8sServiceAccountToken"`
 }
 
 // Init creates a new Akeyless secret store client and sets up the Akeyless API client
@@ -465,22 +468,30 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 	authRequest.SetAccessId(metadata.AccessID)
 	authRequest.SetAccessType(metadata.AccessType)
 
+	var accessType = metadata.AccessType
+
+	a.logger.Debugf("authenticating using access type: %s", accessType)
+
 	// Depending on the access type we set the appropriate authentication method
-	switch metadata.AccessType {
+	switch accessType {
 	// If access type is AWS IAM we use the cloud ID
 	case AKEYLESS_AUTH_ACCESS_IAM:
-		a.logger.Debug("getting cloud ID for AWS IAM...")
 		id, err := aws.GetCloudId()
 		if err != nil {
 			return errors.New("unable to get cloud ID")
 		}
 		authRequest.SetCloudId(id)
 	case AKEYLESS_AUTH_ACCESS_JWT:
-		a.logger.Debug("setting JWT for authentication...")
 		authRequest.SetJwt(metadata.JWT)
 	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
-		a.logger.Debug("setting access key for authentication...")
+		a.logger.Debug("authenticating using access key...")
 		authRequest.SetAccessKey(metadata.AccessKey)
+	case AKEYLESS_AUTH_ACCESS_K8S:
+		a.logger.Debug("authenticating using k8s...")
+		err := setK8SAuthConfiguration(*metadata, authRequest, a)
+		if err != nil {
+			return fmt.Errorf("failed to set k8s auth configuration: %w", err)
+		}
 	}
 
 	// Create Akeyless API client configuration
@@ -502,8 +513,7 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
 
-	a.logger.Debugf("setting token %s for authentication...", out.GetToken()[:3]+"[REDACTED]")
-	a.logger.Debugf("expires at: %s", out.GetExpiration())
+	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
 	a.token = out.GetToken()
 
 	return nil

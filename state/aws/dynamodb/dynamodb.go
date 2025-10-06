@@ -48,6 +48,7 @@ type StateStore struct {
 	table            string
 	ttlAttributeName string
 	partitionKey     string
+	ttlInSeconds     *int
 
 	dynamodbClient *dynamodb.Client
 }
@@ -64,6 +65,7 @@ type dynamoDBMetadata struct {
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
 	PartitionKey     string `json:"partitionKey"`
+	TTLInSeconds     *int   `json:"ttlInSeconds" mapstructure:"ttlInSeconds"`
 }
 
 const (
@@ -110,6 +112,7 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
+	d.ttlInSeconds = meta.TTLInSeconds
 
 	if err := d.validateTableAccess(ctx); err != nil {
 		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
@@ -368,6 +371,11 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 
 			return &expirationTime, nil
 		}
+		// apply global TTL if no explicit TTL in request metadata
+		if d.ttlInSeconds != nil {
+			expirationTime := time.Now().Unix() + int64(*d.ttlInSeconds)
+			return &expirationTime, nil
+		}
 	}
 
 	return nil, nil
@@ -414,6 +422,10 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 			}
+			ttl, err := d.parseTTL(&req)
+			if err != nil {
+				return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %w", err)
+			}
 			twi.Put = &types.Put{
 				TableName: ptr.Of(d.table),
 				Item: map[string]types.AttributeValue{
@@ -424,6 +436,11 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 						Value: value,
 					},
 				},
+			}
+			if ttl != nil {
+				twi.Put.Item[d.ttlAttributeName] = &types.AttributeValueMemberN{
+					Value: strconv.FormatInt(*ttl, 10),
+				}
 			}
 
 		case state.DeleteRequest:

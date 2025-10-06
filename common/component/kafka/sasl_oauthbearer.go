@@ -15,39 +15,61 @@ package kafka
 
 import (
 	ctx "context"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	ccred "golang.org/x/oauth2/clientcredentials"
 )
 
 type OAuthTokenSource struct {
-	CachedToken   oauth2.Token
-	Extensions    map[string]string
-	TokenEndpoint oauth2.Endpoint
-	ClientID      string
-	ClientSecret  string
-	Scopes        []string
-	httpClient    *http.Client
-	trustedCas    []*x509.Certificate
-	skipCaVerify  bool
+	CachedToken         oauth2.Token
+	Extensions          map[string]string
+	TokenEndpoint       oauth2.Endpoint
+	ClientID            string
+	ClientSecret        string
+	Scopes              []string
+	httpClient          *http.Client
+	trustedCas          []*x509.Certificate
+	skipCaVerify        bool
+	ClientAuthMethod    string
+	ClientAssertionCert string
+	ClientAssertionKey  string
+	Resource            string
+	Audience            string
+}
+
+type tokenResponse struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int64  `json:"expires_in"`
 }
 
 func (m KafkaMetadata) getOAuthTokenSource() *OAuthTokenSource {
 	return &OAuthTokenSource{
-		TokenEndpoint: oauth2.Endpoint{TokenURL: m.OidcTokenEndpoint},
-		ClientID:      m.OidcClientID,
-		ClientSecret:  m.OidcClientSecret,
-		Scopes:        m.internalOidcScopes,
-		Extensions:    m.internalOidcExtensions,
-		skipCaVerify:  m.TLSSkipVerify,
+		TokenEndpoint:       oauth2.Endpoint{TokenURL: m.OidcTokenEndpoint},
+		ClientID:            m.OidcClientID,
+		ClientSecret:        m.OidcClientSecret,
+		Scopes:              m.internalOidcScopes,
+		Extensions:          m.internalOidcExtensions,
+		skipCaVerify:        m.TLSSkipVerify,
+		ClientAuthMethod:    m.OidcClientAuthMethod,
+		ClientAssertionCert: m.OidcClientAssertionCert,
+		ClientAssertionKey:  m.OidcClientAssertionKey,
+		Resource:            m.OidcResource,
+		Audience:            m.OidcAudience,
 	}
 }
 
@@ -109,11 +131,28 @@ func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
 		return ts.asSaramaToken(), nil
 	}
 
-	if ts.TokenEndpoint.TokenURL == "" || ts.ClientID == "" || ts.ClientSecret == "" {
+	if ts.TokenEndpoint.TokenURL == "" || ts.ClientID == "" {
 		return nil, errors.New("cannot generate token, OAuthTokenSource not fully configured")
 	}
 
-	oidcCfg := ccred.Config{ClientID: ts.ClientID, ClientSecret: ts.ClientSecret, Scopes: ts.Scopes, TokenURL: ts.TokenEndpoint.TokenURL, AuthStyle: ts.TokenEndpoint.AuthStyle}
+	if strings.EqualFold(ts.ClientAuthMethod, "private_key_jwt") {
+		return ts.tokenWithClientAssertion()
+	}
+	return ts.tokenWithClientSecret()
+}
+
+func (ts *OAuthTokenSource) tokenWithClientSecret() (*sarama.AccessToken, error) {
+	if ts.ClientSecret == "" {
+		return nil, errors.New("cannot generate token, OAuthTokenSource not fully configured")
+	}
+
+	oidcCfg := ccred.Config{
+		ClientID:     ts.ClientID,
+		ClientSecret: ts.ClientSecret,
+		Scopes:       ts.Scopes,
+		TokenURL:     ts.TokenEndpoint.TokenURL,
+		AuthStyle:    ts.TokenEndpoint.AuthStyle,
+	}
 
 	timeoutCtx, cancel := ctx.WithTimeout(ctx.TODO(), tokenRequestTimeout)
 	defer cancel()
@@ -128,6 +167,103 @@ func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
 	}
 
 	ts.CachedToken = *token
+	return ts.asSaramaToken(), nil
+}
+
+// At the time of writing this, the oauth2 package does not support the client assertion authentication method.
+// Ref: https://github.com/golang/oauth2/issues/744
+func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, error) {
+	if ts.ClientAssertionCert == "" || ts.ClientAssertionKey == "" {
+		return nil, errors.New("private_key_jwt requires client assertion cert and key")
+	}
+
+	block, _ := pem.Decode([]byte(ts.ClientAssertionKey))
+	if block == nil {
+		return nil, errors.New("invalid PEM private key for client assertion")
+	}
+	pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		// try PKCS1
+		if rsaKey, err2 := x509.ParsePKCS1PrivateKey(block.Bytes); err2 == nil {
+			pk = rsaKey
+		} else {
+			return nil, fmt.Errorf("unable to parse private key: %w", err)
+		}
+	}
+	rsaKey, ok := pk.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("private_key_jwt requires RSA private key")
+	}
+
+	now := time.Now()
+	aud := ts.TokenEndpoint.TokenURL
+
+	audClaim := aud
+	if ts.Audience != "" {
+		audClaim = ts.Audience
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iss": ts.ClientID,
+		"sub": ts.ClientID,
+		"aud": audClaim,
+		"iat": now.Unix(),
+		"exp": now.Add(1 * time.Minute).Unix(),
+		"jti": uuid.New().String(),
+	})
+
+	// The x5c header is optional, but some providers require it
+	certBlock, _ := pem.Decode([]byte(ts.ClientAssertionCert))
+	if certBlock == nil {
+		return nil, errors.New("invalid PEM certificate for client assertion")
+	}
+	b64 := base64.StdEncoding.EncodeToString(certBlock.Bytes)
+	token.Header["x5c"] = []string{b64}
+
+	assertion, err := token.SignedString(rsaKey)
+	if err != nil {
+		return nil, fmt.Errorf("error signing client assertion: %w", err)
+	}
+
+	urlValues := &url.Values{}
+	urlValues.Set("grant_type", "client_credentials")
+	urlValues.Set("client_id", ts.ClientID)
+	urlValues.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+	urlValues.Set("client_assertion", assertion)
+	if ts.Audience != "" {
+		urlValues.Set("audience", ts.Audience)
+	}
+	if ts.Resource != "" {
+		urlValues.Set("resource", ts.Resource)
+	}
+	if len(ts.Scopes) > 0 {
+		urlValues.Set("scope", strings.Join(ts.Scopes, " "))
+	}
+
+	timeoutCtx, cancel := ctx.WithTimeout(ctx.TODO(), tokenRequestTimeout)
+	defer cancel()
+	ts.configureClient()
+	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodPost, ts.TokenEndpoint.TokenURL, strings.NewReader(urlValues.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := ts.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("token endpoint returned %d", resp.StatusCode)
+	}
+	var tr tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		return nil, err
+	}
+	if tr.AccessToken == "" {
+		return nil, errors.New("no access_token in response")
+	}
+	ts.CachedToken = oauth2.Token{AccessToken: tr.AccessToken, Expiry: time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)}
 	return ts.asSaramaToken(), nil
 }
 

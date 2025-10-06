@@ -27,7 +27,7 @@ builtinAuthenticationProfiles:
         type: string
         required: false
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'accessKey' instead.
           If both fields are set, then 'accessKey' value will be used.
           AWS access key associated with an IAM account.
@@ -37,7 +37,7 @@ builtinAuthenticationProfiles:
         required: false
         sensitive: true
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'secretKey' instead.
           If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.
@@ -46,7 +46,7 @@ builtinAuthenticationProfiles:
         type: string
         sensitive: true
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'sessionToken' instead.
           If both fields are set, then 'sessionToken' value will be used.
           AWS session token to use. A session token is only required if you are using temporary security credentials.
@@ -55,7 +55,7 @@ builtinAuthenticationProfiles:
         type: string
         required: false
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'assumeRoleArn' instead.
           If both fields are set, then 'assumeRoleArn' value will be used.
           IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
@@ -63,7 +63,7 @@ builtinAuthenticationProfiles:
       - name: awsStsSessionName
         type: string
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'sessionName' instead.
           If both fields are set, then 'sessionName' value will be used.
           Represents the session name for assuming a role.
@@ -97,9 +97,10 @@ authenticationProfiles:
         required: true
       - name: oidcClientSecret
         type: string
-        required: true
+        required: false
         sensitive: true
         description: |
+          Required if "oidcClientAuthMethod" is set to "client_secret_basic" (default).
           The OAuth2 client secret that has been provisioned in the identity provider.
         example: '"KeFg23!"'
       - name: oidcScopes
@@ -115,6 +116,50 @@ authenticationProfiles:
         example: |
           {"cluster":"kafka","poolid":"kafkapool"}
         type: string
+      - name: oidcClientAuthMethod
+        type: string
+        required: false
+        default: '"client_secret_basic"'
+        description: |
+          Client authentication method at the token endpoint.
+          The "client_secret_basic" method (default) uses the client_id and client_secret to authenticate.
+          The "private_key_jwt" method uses a JWT client assertion to authenticate.
+        example: '"private_key_jwt"'
+        allowedValues:
+          - "client_secret_basic"
+          - "private_key_jwt"
+      - name: oidcClientAssertionCert
+        type: string
+        required: false
+        description: |
+          Required if "oidcClientAuthMethod" is set to "private_key_jwt".
+          PEM-encoded X.509 certificate used to advertise the key in the x5c header when using private_key_jwt.
+        example: |
+          -----BEGIN CERTIFICATE-----\n...
+      - name: oidcClientAssertionKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          Required if "oidcClientAuthMethod" is set to "private_key_jwt".
+          PEM-encoded private key used to sign JWT client assertions for private_key_jwt.
+        example: |
+          -----BEGIN PRIVATE KEY-----\n...
+      - name: oidcResource
+        type: string
+        required: false
+        description: |
+          Primarily used with "private_key_jwt". Optional OAuth2 resource (audience) parameter
+          to include in the token request when required by the identity provider.
+        example: '"api://kafka"'
+      - name: oidcAudience
+        type: string
+        required: false
+        description: |
+          Only used if "oidcClientAuthMethod" is set to "private_key_jwt".
+          Overrides the JWT client assertion audience (aud). If not set, the component uses the
+          issuer derived from the token endpoint URL when available; otherwise, it falls back to the token URL.
+        example: '"http://<idp-host>/realms/local"'
   - title: "SASL Authentication"
     description: |
       Authenticate using SASL.
@@ -339,7 +384,7 @@ metadata:
       type: bool
       required: false
       description: |
-        Enables URL escaping of the message header values. 
+        Enables URL escaping of the message header values.
         It allows sending headers with special characters that are usually not allowed in HTTP headers.
       example: "true"
       default: "false"

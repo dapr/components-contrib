@@ -1,7 +1,7 @@
 version: '2'
 services:
   cassandra:
-    image: docker.io/bitnami/cassandra:4.0.1
+    image: docker.io/bitnamilegacy/cassandra:4.0.1
     ports:
       - '7002:7000'
       - '9044:9042'

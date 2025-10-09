@@ -91,7 +91,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 // NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL store with options.
 func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) configuration.Store {
 	return &ConfigurationStore{
-		logger: logger,
+		logger:        logger,
 		enableAzureAD: !opts.NoAzureAD,
 		enableAWSIAM:  !opts.NoAWSIAM,
 	}

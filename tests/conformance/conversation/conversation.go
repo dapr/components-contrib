@@ -69,6 +69,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 
+			// Note: Temperature is set to 1 for OpenAI models to avoid issues with GPT-5 which does not support temperature=0.
+			// This can be removed once langchaingo is updated to handle this automatically (tmc/langchaingo#1374).
 			req := &conversation.Request{
 				Message: &[]llms.MessageContent{
 					{
@@ -78,6 +80,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 				},
+			}
+			if component == "openai" {
+				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
 
@@ -99,6 +104,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			req := &conversation.Request{
 				Message: &userMsgs,
+			}
+			if component == "openai" {
+				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
 
@@ -131,6 +139,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			req := &conversation.Request{
 				Message: &systemMsgs,
+			}
+			if component == "openai" {
+				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
 
@@ -223,6 +234,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.Request{
 				Message: &assistantMsgs,
 			}
+			if component == "openai" {
+				req.Temperature = 1
+			}
 			resp, err := conv.Converse(ctx, req)
 
 			require.NoError(t, err)
@@ -253,6 +267,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			req := &conversation.Request{
 				Message: &developerMsgs,
+			}
+			if component == "openai" {
+				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
 
@@ -302,6 +319,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req := &conversation.Request{
 				Message: &messages,
 				Tools:   &tools,
+			}
+			if component == "openai" {
+				req.Temperature = 1
 			}
 
 			resp, err := conv.Converse(ctx, req)
@@ -362,6 +382,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				req2 := &conversation.Request{
 					Message: &responseMessages,
 				}
+				if component == "openai" {
+					req2.Temperature = 1
+				}
 
 				resp2, err2 := conv.Converse(ctx, req2)
 				require.NoError(t, err2)
@@ -402,8 +425,15 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 									"type":        "string",
 									"description": "The transaction id.",
 								},
+								"items": map[string]any{
+									"type":        "array",
+									"description": "List of items in the transaction",
+									"items": map[string]any{
+										"type": "string",
+									},
+								},
 							},
-							"required": []string{"transaction_id"},
+							"required": []string{"transaction_id", "items"},
 						},
 					},
 				},
@@ -412,6 +442,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			req1 := &conversation.Request{
 				Message: &messages,
 				Tools:   &tools,
+			}
+			if component == "openai" {
+				req1.Temperature = 1
 			}
 
 			resp1, err := conv.Converse(ctx, req1)
@@ -485,6 +518,9 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 				req2 := &conversation.Request{
 					Message: &toolResponseMessages,
+				}
+				if component == "openai" {
+					req2.Temperature = 1
 				}
 
 				resp2, err := conv.Converse(ctx, req2)

@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{MISTRAL_API_KEY}}"
     - name: model
-      value: "open-mistral-7b" 
+      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 

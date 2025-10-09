@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -177,17 +178,11 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 }
 
 func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*SecretManagerMetaData, error) {
-	b, err := json.Marshal(spec.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var meta SecretManagerMetaData
-	err = json.Unmarshal(b, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
-
 	return &meta, nil
 }
 

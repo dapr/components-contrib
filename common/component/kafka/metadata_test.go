@@ -216,9 +216,9 @@ func TestMissingSaslValuesOnUpgrade(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("kafka error: missing SASL Username for authType '%s'", passwordAuthType), err.Error())
 }
 
-func TestMissingOidcValues(t *testing.T) {
+func TestMissingOidcClientSecretValues(t *testing.T) {
 	k := getKafka()
-	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType}
+	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType, "oidcClientAuthMethod": "client_secret"}
 	meta, err := k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
@@ -234,10 +234,42 @@ func TestMissingOidcValues(t *testing.T) {
 	meta, err = k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Secret for authType '%s'", oidcAuthType), err.Error())
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Secret for authType '%s' (client_secret)", oidcAuthType), err.Error())
 
 	// Check if missing scopes causes the default 'openid' to be used.
 	m["oidcClientSecret"] = "sassapass"
+	meta, err = k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Contains(t, meta.internalOidcScopes, "openid")
+}
+
+func TestMissingOidcClientJwtValues(t *testing.T) {
+	k := getKafka()
+	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType, "oidcClientAuthMethod": "client_jwt"}
+	meta, err := k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Token Endpoint for authType '%s'", oidcAuthType), err.Error())
+
+	m["oidcTokenEndpoint"] = "https://sassa.fra/"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client ID for authType '%s'", oidcAuthType), err.Error())
+
+	m["oidcClientID"] = "sassafras"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Assertion Cert for authType '%s' (client_jwt)", oidcAuthType), err.Error())
+
+	m["oidcClientAssertionCert"] = "sassapass"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Assertion Key for authType '%s' (client_jwt)", oidcAuthType), err.Error())
+
+	m["oidcClientAssertionKey"] = "sassapass"
 	meta, err = k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	require.Contains(t, meta.internalOidcScopes, "openid")

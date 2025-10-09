@@ -18,7 +18,6 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -29,8 +28,9 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"golang.org/x/oauth2"
 	ccred "golang.org/x/oauth2/clientcredentials"
 )
@@ -135,7 +135,7 @@ func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
 		return nil, errors.New("cannot generate token, OAuthTokenSource not fully configured")
 	}
 
-	if strings.EqualFold(ts.ClientAuthMethod, "private_key_jwt") {
+	if ts.ClientAuthMethod == "client_jwt" {
 		return ts.tokenWithClientAssertion()
 	}
 	return ts.tokenWithClientSecret()
@@ -174,7 +174,7 @@ func (ts *OAuthTokenSource) tokenWithClientSecret() (*sarama.AccessToken, error)
 // Ref: https://github.com/golang/oauth2/issues/744
 func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, error) {
 	if ts.ClientAssertionCert == "" || ts.ClientAssertionKey == "" {
-		return nil, errors.New("private_key_jwt requires client assertion cert and key")
+		return nil, errors.New("client_jwt requires client assertion cert and key")
 	}
 
 	block, _ := pem.Decode([]byte(ts.ClientAssertionKey))
@@ -192,7 +192,7 @@ func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, err
 	}
 	rsaKey, ok := pk.(*rsa.PrivateKey)
 	if !ok {
-		return nil, errors.New("private_key_jwt requires RSA private key")
+		return nil, errors.New("client_jwt requires RSA private key")
 	}
 
 	now := time.Now()
@@ -203,24 +203,20 @@ func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, err
 		audClaim = ts.Audience
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"iss": ts.ClientID,
-		"sub": ts.ClientID,
-		"aud": audClaim,
-		"iat": now.Unix(),
-		"exp": now.Add(1 * time.Minute).Unix(),
-		"jti": uuid.New().String(),
-	})
-
-	// The x5c header is optional, but some providers require it
-	certBlock, _ := pem.Decode([]byte(ts.ClientAssertionCert))
-	if certBlock == nil {
-		return nil, errors.New("invalid PEM certificate for client assertion")
+	token, err := jwt.NewBuilder().
+		Issuer(ts.ClientID).
+		Subject(ts.ClientID).
+		Audience([]string{audClaim}).
+		IssuedAt(now).
+		Expiration(now.Add(1 * time.Minute)).
+		JwtID(uuid.New().String()).
+		NotBefore(now).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build token: %w", err)
 	}
-	b64 := base64.StdEncoding.EncodeToString(certBlock.Bytes)
-	token.Header["x5c"] = []string{b64}
 
-	assertion, err := token.SignedString(rsaKey)
+	assertion, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, rsaKey))
 	if err != nil {
 		return nil, fmt.Errorf("error signing client assertion: %w", err)
 	}
@@ -229,7 +225,7 @@ func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, err
 	urlValues.Set("grant_type", "client_credentials")
 	urlValues.Set("client_id", ts.ClientID)
 	urlValues.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-	urlValues.Set("client_assertion", assertion)
+	urlValues.Set("client_assertion", string(assertion))
 	if ts.Audience != "" {
 		urlValues.Set("audience", ts.Audience)
 	}

@@ -1,0 +1,43 @@
+
+{
+  "realm": "local",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "dapr-kafka-client-jwt",
+      "secret": "dapr-kafka-secret",
+      "clientAuthenticatorType": "client-jwt",
+      "attributes": {
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwt.credential.certificate": "-----BEGIN CERTIFICATE-----\nMIIEJTCCAg2gAwIBAgIUS0RIkoWlMVd8UfE/I7IEzKD4kmwwDQYJKoZIhvcNAQEL\nBQAwGDEWMBQGA1UEAwwNbG9jYWwtb2lkYy1jYTAeFw0yNTEwMDMxMDI3NDlaFw0y\nODAxMDYxMDI3NDlaMBsxGTAXBgNVBAMMEGRhcHItb2lkYy1jbGllbnQwggEiMA0G\nCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDQIqGyGGlQRqXNDlSuHRDGmnJ4dQDb\njK/KxeC+wXQiDCSfHgP7NOjZOOCiQYKAUs9MRg+tKepxFRORZLAbRlU9kuU4Z7bg\nE6wDMztCqTASUZtwZeN36iJDcQ++xnmAi8j0bvs7w00wrgPMXPnT09Sf9sQyEkR2\nt26OLcQnZHwrUWHIbZeXqvRF7uYG00GKjFmqI+FjrmDx0hoENew+Jzpk7S/7m5t2\nh/weVAr5REtGTIQxbX8nNmoO2JFbyILBcfP9M9R9zxiTEFVgP5sl2QfLFerPpULM\n1tAiCO+oPk8CAFiD9TKe+HR/Us4uIxgRmxjgBnzmFSJjDflvK2DslpzPAgMBAAGj\nZDBiMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAdBgNVHQ4EFgQU\noCgedGjEdPHOBRq6OwKKGUmpUXIwHwYDVR0jBBgwFoAUImUtm30c0E0Z1Xsep9o/\nnXsqyGYwDQYJKoZIhvcNAQELBQADggIBAKafBCz1EUny2pKOI8xTHVkoZjhTvtm2\nLy2DicAEwtESXlBta64bOug4mTq8RLdKxLa8xSBSZxzygTfb+q8IcuuYL0/DAttZ\ni3fS0/nqQ9Yt+C8iqn5g/1NrC73//79Pge+F1uYLml3dVT5mYL3NFTJZVuNKVaWw\nYDe8CN02jy11n9jBz1jwwDPAN+dVwBYLI07lY08qIcStOcnzqxh90l2AV8GCtKAB\nfH/Xkh7zCPjGfYE9ISEdQ7wKVvpBZqenm4EyW/VVpAzQbHiVeRoOMqig1t8j288e\nttHKtpQMSqkiTQWQghG2AfgEQcra1voynz3aUvrETNtiKH8dOPDU24o/KTfDlySV\n+COnelx/wU+TDaPNwblf2dkU3O55oAb7CKiQgP/+AENQKUgDPPK9LZpouHa3DO8v\ngOTuOaaUnfzpVUeBKOSMc/ZBAbR8RheERtx2NI74yKQaqYBD4u3oYAATTn++VFMC\nbNmHMgCGDFd1pU/yFebdfJnAF2jXhan3YWXHlzkTp7cFbaMV5fWnFxxFV6PwEDrJ\nwhoqwvJvxOi9HaG4ICDBMjTt0qMFYuDbnmxxYvkIikRdrhd4f5iFptk8tKMdH2Wc\nW14MwwPOd2E+6MTfLgHOoPTpue6cqtj9MlGEG8U2Q10eaeGQtBnKpQ6ywed8aEWe\nQd9/zM51rS01\n-----END CERTIFICATE-----\n"
+      },
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    },
+    {
+      "clientId": "dapr-kafka-client-secret",
+      "secret": "dapr-kafka-secret",
+      "clientAuthenticatorType": "client-secret",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    },
+    {
+      "clientId": "kafka-broker",
+      "secret": "kafka-broker-secret",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    }
+  ]
+}

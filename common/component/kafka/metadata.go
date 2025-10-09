@@ -240,8 +240,14 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		if m.OidcClientID == "" {
 			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc'")
 		}
-		if m.OidcClientSecret == "" {
-			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc'")
+		if m.OidcClientAuthMethod == "client_secret" && m.OidcClientSecret == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc' (client_secret)")
+		}
+		if m.OidcClientAuthMethod == "client_jwt" && m.OidcClientAssertionCert == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Cert for authType 'oidc' (client_jwt)")
+		}
+		if m.OidcClientAuthMethod == "client_jwt" && m.OidcClientAssertionKey == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Key for authType 'oidc' (client_jwt)")
 		}
 		if m.OidcScopes != "" {
 			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")

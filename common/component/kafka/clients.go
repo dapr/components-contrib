@@ -22,6 +22,10 @@ func (k *Kafka) latestClients() (*clients, error) {
 
 	// case 1: use aws clients with refreshable tokens in the cfg
 	case k.awsConfig != nil:
+		if k.clients != nil {
+			return k.clients, nil
+		}
+
 		awsKafkaOpts := KafkaOptions{
 			Config:          k.config,
 			ConsumerGroup:   k.consumerGroup,
@@ -34,10 +38,12 @@ func (k *Kafka) latestClients() (*clients, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AWS IAM Kafka clients: %w", err)
 		}
-		return &clients{
+
+		k.clients = &clients{
 			consumerGroup: awsKafkaClients.ConsumerGroup,
 			producer:      awsKafkaClients.Producer,
-		}, nil
+		}
+		return k.clients, nil
 
 	// case 2: normal static auth profile clients
 	default:

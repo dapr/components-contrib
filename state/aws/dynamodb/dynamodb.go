@@ -68,6 +68,13 @@ type dynamoDBMetadata struct {
 	TTLInSeconds     *int   `json:"ttlInSeconds" mapstructure:"ttlInSeconds"`
 }
 
+type putData struct {
+	ConditionExpression       *string
+	ExpressionAttributeValues map[string]types.AttributeValue
+	Item                      map[string]types.AttributeValue
+	TableName                 *string
+}
+
 const (
 	defaultPartitionKeyName = "key"
 	metadataPartitionKey    = "partitionKey"
@@ -174,9 +181,9 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return &state.GetResponse{}, nil
 	}
 
-	var output string
-	if err = attributevalue.Unmarshal(result.Item["value"], &output); err != nil {
-		return nil, err
+	data, err := unmarshalValue(result.Item["value"])
+	if err != nil {
+		return nil, fmt.Errorf("dynamodb error: failed to unmarshal value for key %s: %w", req.Key, err)
 	}
 
 	var metadata map[string]string
@@ -197,7 +204,7 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	}
 
 	resp := &state.GetResponse{
-		Data:     []byte(output),
+		Data:     data,
 		Metadata: metadata,
 	}
 
@@ -215,29 +222,12 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 
 // Set saves a dynamoDB item.
 func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	item, err := d.getItemFromReq(req)
+	pd, err := d.createPutData(req)
 	if err != nil {
 		return err
 	}
 
-	input := &dynamodb.PutItemInput{
-		Item:      item,
-		TableName: &d.table,
-	}
-
-	if req.HasETag() {
-		condExpr := "etag = :etag"
-		input.ConditionExpression = &condExpr
-		exprAttrValues := make(map[string]types.AttributeValue)
-		exprAttrValues[":etag"] = &types.AttributeValueMemberS{
-			Value: *req.ETag,
-		}
-		input.ExpressionAttributeValues = exprAttrValues
-	} else if req.Options.Concurrency == state.FirstWrite {
-		condExpr := "attribute_not_exists(etag)"
-		input.ConditionExpression = &condExpr
-	}
-	_, err = d.dynamodbClient.PutItem(ctx, input)
+	_, err = d.dynamodbClient.PutItem(ctx, pd.ToPutItemInput())
 	if err != nil && req.HasETag() {
 		var cErr *types.ConditionalCheckFailedException
 		switch {
@@ -301,9 +291,55 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	return &m, err
 }
 
-// getItemFromReq converts a dapr state.SetRequest into an dynamodb item
-func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]types.AttributeValue, error) {
-	value, err := d.marshalToString(req.Value)
+// createPutData creates a DynamoDB put request data from a SetRequest.
+func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
+	item, err := d.createItem(req)
+	if err != nil {
+		return putData{}, err
+	}
+
+	pd := putData{
+		Item:      item,
+		TableName: ptr.Of(d.table),
+	}
+
+	if req.HasETag() {
+		condExpr := "etag = :etag"
+		pd.ConditionExpression = &condExpr
+		exprAttrValues := make(map[string]types.AttributeValue)
+		exprAttrValues[":etag"] = &types.AttributeValueMemberS{
+			Value: *req.ETag,
+		}
+		pd.ExpressionAttributeValues = exprAttrValues
+	} else if req.Options.Concurrency == state.FirstWrite {
+		condExpr := "attribute_not_exists(etag)"
+		pd.ConditionExpression = &condExpr
+	}
+
+	return pd, nil
+}
+
+func (d putData) ToPutItemInput() *dynamodb.PutItemInput {
+	return &dynamodb.PutItemInput{
+		ConditionExpression:       d.ConditionExpression,
+		ExpressionAttributeValues: d.ExpressionAttributeValues,
+		Item:                      d.Item,
+		TableName:                 d.TableName,
+	}
+}
+
+func (d putData) ToPut() *types.Put {
+	return &types.Put{
+		ConditionExpression:       d.ConditionExpression,
+		ExpressionAttributeValues: d.ExpressionAttributeValues,
+		Item:                      d.Item,
+		TableName:                 d.TableName,
+	}
+}
+
+// createItem creates a DynamoDB item from a SetRequest.
+func (d *StateStore) createItem(req *state.SetRequest) (map[string]types.AttributeValue, error) {
+	value, err := marshalValue(req.Value)
 	if err != nil {
 		return nil, fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 	}
@@ -322,9 +358,7 @@ func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]types.Att
 		d.partitionKey: &types.AttributeValueMemberS{
 			Value: req.Key,
 		},
-		"value": &types.AttributeValueMemberS{
-			Value: value,
-		},
+		"value": value,
 		"etag": &types.AttributeValueMemberS{
 			Value: strconv.FormatUint(newEtag, 16),
 		},
@@ -349,12 +383,35 @@ func getRand64() (uint64, error) {
 	return binary.LittleEndian.Uint64(randBuf), nil
 }
 
-func (d *StateStore) marshalToString(v interface{}) (string, error) {
-	if buf, ok := v.([]byte); ok {
-		return string(buf), nil
+func marshalValue(v interface{}) (types.AttributeValue, error) {
+	if bt, ok := v.([]byte); ok {
+		return &types.AttributeValueMemberB{Value: bt}, nil
 	}
 
-	return jsoniterator.ConfigFastest.MarshalToString(v)
+	str, err := jsoniterator.ConfigFastest.MarshalToString(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.AttributeValueMemberS{Value: str}, nil
+}
+
+func unmarshalValue(value types.AttributeValue) ([]byte, error) {
+	if value == nil {
+		return []byte(nil), nil
+	}
+
+	var bytes []byte
+	if err := attributevalue.Unmarshal(value, &bytes); err == nil {
+		return bytes, nil
+	}
+
+	var str string
+	if err := attributevalue.Unmarshal(value, &str); err == nil {
+		return []byte(str), nil
+	}
+
+	return nil, fmt.Errorf("unsupported attribute value type %T", value)
 }
 
 // Parse and process ttlInSeconds.
@@ -418,30 +475,11 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		twi := types.TransactWriteItem{}
 		switch req := o.(type) {
 		case state.SetRequest:
-			value, err := d.marshalToString(req.Value)
+			pd, err := d.createPutData(&req)
 			if err != nil {
 				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 			}
-			ttl, err := d.parseTTL(&req)
-			if err != nil {
-				return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %w", err)
-			}
-			twi.Put = &types.Put{
-				TableName: ptr.Of(d.table),
-				Item: map[string]types.AttributeValue{
-					d.partitionKey: &types.AttributeValueMemberS{
-						Value: req.Key,
-					},
-					"value": &types.AttributeValueMemberS{
-						Value: value,
-					},
-				},
-			}
-			if ttl != nil {
-				twi.Put.Item[d.ttlAttributeName] = &types.AttributeValueMemberN{
-					Value: strconv.FormatInt(*ttl, 10),
-				}
-			}
+			twi.Put = pd.ToPut()
 
 		case state.DeleteRequest:
 			twi.Delete = &types.Delete{

@@ -499,3 +499,23 @@ func TestGetFeatures(t *testing.T) {
 		assert.Empty(t, f)
 	})
 }
+
+func TestGetSecretManagerMetadata(t *testing.T) {
+	s := &smSecretStore{
+		logger: logger.NewLogger("test"),
+	}
+
+	t.Run("parse multipleKeyValuesPerSecret as string", func(t *testing.T) {
+		metadata := secretstores.Metadata{}
+		metadata.Properties = map[string]string{
+			"region":                     "us-east-1",
+			"accessKey":                  "test",
+			"secretKey":                  "test",
+			"multipleKeyValuesPerSecret": "true",
+		}
+
+		meta, err := s.getSecretManagerMetadata(metadata)
+		require.NoError(t, err)
+		assert.True(t, meta.MultipleKeyValuesPerSecret)
+	})
+}

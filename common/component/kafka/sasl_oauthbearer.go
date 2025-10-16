@@ -19,13 +19,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dapr/kit/crypto/pem"
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
@@ -78,21 +79,18 @@ var tokenRequestTimeout, _ = time.ParseDuration("30s")
 func (ts *OAuthTokenSource) addCa(caPem string) error {
 	pemBytes := []byte(caPem)
 
-	block, _ := pem.Decode(pemBytes)
-
-	if block == nil || block.Type != "CERTIFICATE" {
-		return errors.New("PEM data not valid or not of a valid type (CERTIFICATE)")
-	}
-
-	caCert, err := x509.ParseCertificate(block.Bytes)
+	caCerts, err := pem.DecodePEMCertificates(pemBytes)
 	if err != nil {
 		return fmt.Errorf("error parsing PEM certificate: %w", err)
+	}
+	if len(caCerts) > 1 {
+		return fmt.Errorf("expected 1 certificate, got %d", len(caCerts))
 	}
 
 	if ts.trustedCas == nil {
 		ts.trustedCas = make([]*x509.Certificate, 0)
 	}
-	ts.trustedCas = append(ts.trustedCas, caCert)
+	ts.trustedCas = append(ts.trustedCas, caCerts[0])
 
 	return nil
 }
@@ -177,18 +175,9 @@ func (ts *OAuthTokenSource) tokenWithClientAssertion() (*sarama.AccessToken, err
 		return nil, errors.New("client_jwt requires client assertion cert and key")
 	}
 
-	block, _ := pem.Decode([]byte(ts.ClientAssertionKey))
-	if block == nil {
-		return nil, errors.New("invalid PEM private key for client assertion")
-	}
-	pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	pk, err := pem.DecodePEMPrivateKey([]byte(ts.ClientAssertionKey))
 	if err != nil {
-		// try PKCS1
-		if rsaKey, err2 := x509.ParsePKCS1PrivateKey(block.Bytes); err2 == nil {
-			pk = rsaKey
-		} else {
-			return nil, fmt.Errorf("unable to parse private key: %w", err)
-		}
+		return nil, fmt.Errorf("unable to parse private key: %w", err)
 	}
 	rsaKey, ok := pk.(*rsa.PrivateKey)
 	if !ok {

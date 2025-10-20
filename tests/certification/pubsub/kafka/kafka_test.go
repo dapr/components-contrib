@@ -15,9 +15,17 @@ package kafka_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +39,9 @@ import (
 	// Pub/Sub.
 
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
@@ -495,6 +505,23 @@ func TestKafkaAuth(t *testing.T) {
 		}
 	}
 
+	// Generate a private key and certificate for the OIDC client
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Dapr"},
+		},
+	}
+	cert, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	os.Setenv("OICD_CLIENT_ASSERTION_CERT", string(certPEM))
+	os.Setenv("OICD_CLIENT_ASSERTION_KEY", string(keyPEM))
+	os.Setenv("OICD_CLIENT_ASSERTION_CERT_ONELINE", strings.ReplaceAll(string(certPEM), "\n", "\\n"))
+
 	flow.New(t, "kafka authentication").
 		Step(dockercompose.Run(clusterNameAuth, dockerComposeYAMLAuth)).
 		Step("wait for broker sockets",
@@ -542,7 +569,12 @@ func componentRuntimeOptions() []embedded.Option {
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_kafka.NewKafka, "kafka")
 
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
 	return []embedded.Option{
 		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

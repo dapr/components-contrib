@@ -17,65 +17,19 @@ spec:
   - name: oidcClientAuthMethod
     value: "client_jwt"
   - name: oidcClientAssertionCert
-    value: |
-      -----BEGIN CERTIFICATE-----
-      MIIEJTCCAg2gAwIBAgIUS0RIkoWlMVd8UfE/I7IEzKD4kmwwDQYJKoZIhvcNAQEL
-      BQAwGDEWMBQGA1UEAwwNbG9jYWwtb2lkYy1jYTAeFw0yNTEwMDMxMDI3NDlaFw0y
-      ODAxMDYxMDI3NDlaMBsxGTAXBgNVBAMMEGRhcHItb2lkYy1jbGllbnQwggEiMA0G
-      CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDQIqGyGGlQRqXNDlSuHRDGmnJ4dQDb
-      jK/KxeC+wXQiDCSfHgP7NOjZOOCiQYKAUs9MRg+tKepxFRORZLAbRlU9kuU4Z7bg
-      E6wDMztCqTASUZtwZeN36iJDcQ++xnmAi8j0bvs7w00wrgPMXPnT09Sf9sQyEkR2
-      t26OLcQnZHwrUWHIbZeXqvRF7uYG00GKjFmqI+FjrmDx0hoENew+Jzpk7S/7m5t2
-      h/weVAr5REtGTIQxbX8nNmoO2JFbyILBcfP9M9R9zxiTEFVgP5sl2QfLFerPpULM
-      1tAiCO+oPk8CAFiD9TKe+HR/Us4uIxgRmxjgBnzmFSJjDflvK2DslpzPAgMBAAGj
-      ZDBiMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAdBgNVHQ4EFgQU
-      oCgedGjEdPHOBRq6OwKKGUmpUXIwHwYDVR0jBBgwFoAUImUtm30c0E0Z1Xsep9o/
-      nXsqyGYwDQYJKoZIhvcNAQELBQADggIBAKafBCz1EUny2pKOI8xTHVkoZjhTvtm2
-      Ly2DicAEwtESXlBta64bOug4mTq8RLdKxLa8xSBSZxzygTfb+q8IcuuYL0/DAttZ
-      i3fS0/nqQ9Yt+C8iqn5g/1NrC73//79Pge+F1uYLml3dVT5mYL3NFTJZVuNKVaWw
-      YDe8CN02jy11n9jBz1jwwDPAN+dVwBYLI07lY08qIcStOcnzqxh90l2AV8GCtKAB
-      fH/Xkh7zCPjGfYE9ISEdQ7wKVvpBZqenm4EyW/VVpAzQbHiVeRoOMqig1t8j288e
-      ttHKtpQMSqkiTQWQghG2AfgEQcra1voynz3aUvrETNtiKH8dOPDU24o/KTfDlySV
-      +COnelx/wU+TDaPNwblf2dkU3O55oAb7CKiQgP/+AENQKUgDPPK9LZpouHa3DO8v
-      gOTuOaaUnfzpVUeBKOSMc/ZBAbR8RheERtx2NI74yKQaqYBD4u3oYAATTn++VFMC
-      bNmHMgCGDFd1pU/yFebdfJnAF2jXhan3YWXHlzkTp7cFbaMV5fWnFxxFV6PwEDrJ
-      whoqwvJvxOi9HaG4ICDBMjTt0qMFYuDbnmxxYvkIikRdrhd4f5iFptk8tKMdH2Wc
-      W14MwwPOd2E+6MTfLgHOoPTpue6cqtj9MlGEG8U2Q10eaeGQtBnKpQ6ywed8aEWe
-      Qd9/zM51rS01
-      -----END CERTIFICATE-----
+    secretKeyRef:
+      name: OICD_CLIENT_ASSERTION_CERT
+      key:  OICD_CLIENT_ASSERTION_CERT
   - name: oidcClientAssertionKey
-    value: |
-      -----BEGIN PRIVATE KEY-----
-      MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDQIqGyGGlQRqXN
-      DlSuHRDGmnJ4dQDbjK/KxeC+wXQiDCSfHgP7NOjZOOCiQYKAUs9MRg+tKepxFROR
-      ZLAbRlU9kuU4Z7bgE6wDMztCqTASUZtwZeN36iJDcQ++xnmAi8j0bvs7w00wrgPM
-      XPnT09Sf9sQyEkR2t26OLcQnZHwrUWHIbZeXqvRF7uYG00GKjFmqI+FjrmDx0hoE
-      New+Jzpk7S/7m5t2h/weVAr5REtGTIQxbX8nNmoO2JFbyILBcfP9M9R9zxiTEFVg
-      P5sl2QfLFerPpULM1tAiCO+oPk8CAFiD9TKe+HR/Us4uIxgRmxjgBnzmFSJjDflv
-      K2DslpzPAgMBAAECggEAW3BbiVqgKdxfyw6YtUWfsSD5WWJN1iagtHzql+N1md+r
-      1xvgs+Qyx/vs9FvDcYzv9ZpyGKlpjfSsfBu4IsNrf3mhqn4mIZuC3oULa+XYcLPZ
-      ji+1F2GNXAO33yBjEM5Yosp/JWpP5ysMECRovV868mv/FeBgo6dCssP4gTXsNzrl
-      4vNEA8NJWRV4J9GcCUQpDLqfmvvfADC2eqQo+4sQWTEsguiQaN4hTps+orspL2oi
-      xswzmJZeCxKOm1tBnSkMbTiaged9hD++6OX8BnfJ9Mhz5C1/zCb26Lmh524Xd/RO
-      2EURl+1ZJuufZGlPhDeQPJMAk4VkY7FD7JfFeQlVwQKBgQD+yLQaMGdfjd3GloBq
-      SBHhiyjxGhdCZRI3m4BiFuwqmTlseZLJ3BPLmrHaab0pKBbFVO+bmDKrdhNFNiPh
-      Q5Di8B+8yycOa8l4aK3DhW0FOkJ+Qo0zdKpKVgPz4EAozOmFMBTn3G3ULsKfGCyD
-      IkMEZ44rrYkWWkE4tDXLYAW34wKBgQDRIO60d6Fba3guL90DjHPnkz8dVabSVSC0
-      kiesKAxdgQBSKQEtokqPAUgFMFa6vfC6qAGaG+hM2H+lOLCJX+jORktK48pCPhAi
-      q2qIxiiS/etRaLvWx9xCgolVrmK883kRYlofZZU3Ev4Ym67Y0NZMM01O9TRFtjzb
-      x3ILehUjJQKBgBeOILCHJxd7ezR/95Fb5mNOxVM9EUdvJrcDZmQrMFxj3B4+Qybs
-      dNwPCkBiJD3o2eoWhyyAbrbRbMiqT7jk0UFZ5+VBdvPrXS4Hp4D7FfA0ya74oitO
-      ruu+dhEW+3eKMlDA+D3TcEf8pruktYDOKxn+JPO+0HzDjWIbrxmFYCH3AoGBAKSW
-      saew+3pS06wuGVjgopvgRG0W6wtg2jOjT7vrbQfuLk17XiUHNHzmOkNzLt8b/Ck7
-      br9WNXa9cYCcZDxKEpS9uCZBrv6Bj/tpQ5hPtMEzPI++yQ8aDtz9lY6sh6NET8WB
-      zYImVdCZjwfZBzw26GHignag/znaWn1ys+waciZNAoGBAMsjUlHdR1NtLW8YaMk4
-      3CDvBdjYUJUUvrTfiCaPoiGDO4OEEDhG+NISV8uSnrB1+IAb4EgZVjsn+zj+wqdC
-      3pqnADNpMZonyGg7joJNOMWtD3ZY43EAC3glejPaO8Ll5c1cpkBxrhBv07xhS+w0
-      E4DYXO3TESIBB0kAhb1c0PuX
-      -----END PRIVATE KEY-----
+    secretKeyRef:
+      name: OICD_CLIENT_ASSERTION_KEY
+      key:  OICD_CLIENT_ASSERTION_KEY
   - name: oidcAudience
     value: "http://keycloak:8080/realms/local/protocol/openid-connect/token"
   - name: oidcScopes
     value: "openid"
   - name: disableTls
     value: "true"
+
+auth:
+  secretStore: envvar-secret-store

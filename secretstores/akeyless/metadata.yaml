@@ -46,7 +46,7 @@ metadata:
     required: false
     description: |
       The gateway URL that where the k8s auth config is located.
-    example: "https://gw.akeyless.svc.cluster.local"
+    example: "http://gw.akeyless.svc.cluster.local:8000"
     type: string
   - name: k8sServiceAccountToken
     required: false

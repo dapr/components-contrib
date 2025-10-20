@@ -14,3 +14,9 @@ spec:
     value: "ABCD1233...="  # Optional: your Akeyless access key for API key authentication
   - name: jwt
     value: "eyJ..."  # Required: your Akeyless JWT for JWT authentication
+  - name: k8sAuthConfigName
+    value: "k8s-auth-config"
+  - name: k8sGatewayUrl
+    value: "https://gw.akeyless.svc.cluster.local"
+  - name: k8sServiceAccountToken
+    value: "eyJ..."

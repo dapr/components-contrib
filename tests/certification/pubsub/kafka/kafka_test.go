@@ -518,9 +518,9 @@ func TestKafkaAuth(t *testing.T) {
 	require.NoError(t, err)
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	os.Setenv("OICD_CLIENT_ASSERTION_CERT", string(certPEM))
-	os.Setenv("OICD_CLIENT_ASSERTION_KEY", string(keyPEM))
-	os.Setenv("OICD_CLIENT_ASSERTION_CERT_ONELINE", strings.ReplaceAll(string(certPEM), "\n", "\\n"))
+	os.Setenv("OIDC_CLIENT_ASSERTION_CERT", string(certPEM))
+	os.Setenv("OIDC_CLIENT_ASSERTION_KEY", string(keyPEM))
+	os.Setenv("OIDC_CLIENT_ASSERTION_CERT_ONELINE", strings.ReplaceAll(string(certPEM), "\n", "\\n"))
 
 	flow.New(t, "kafka authentication").
 		Step(dockercompose.Run(clusterNameAuth, dockerComposeYAMLAuth)).

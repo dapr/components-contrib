@@ -16,12 +16,12 @@ spec:
     value: "dapr-kafka-client-jwt"
   - name: oidcClientAssertionCert
     secretKeyRef:
-      name: OICD_CLIENT_ASSERTION_CERT
-      key:  OICD_CLIENT_ASSERTION_CERT
+      name: OIDC_CLIENT_ASSERTION_CERT
+      key:  OIDC_CLIENT_ASSERTION_CERT
   - name: oidcClientAssertionKey
     secretKeyRef:
-      name: OICD_CLIENT_ASSERTION_KEY
-      key:  OICD_CLIENT_ASSERTION_KEY
+      name: OIDC_CLIENT_ASSERTION_KEY
+      key:  OIDC_CLIENT_ASSERTION_KEY
   - name: oidcAudience
     value: "http://keycloak:8080/realms/local/protocol/openid-connect/token"
   - name: oidcScopes

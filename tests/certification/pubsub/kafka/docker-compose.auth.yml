@@ -52,7 +52,7 @@ services:
       timeout: 2s
       retries: 5
     environment:
-      - OICD_CLIENT_ASSERTION_CERT_ONELINE
+      - OIDC_CLIENT_ASSERTION_CERT_ONELINE
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KC_HOSTNAME_URL=http://keycloak:8080

@@ -54,6 +54,7 @@ func (c Compose) Up(ctx flow.Context) error {
 		"-p", c.project,
 		"-f", c.filename,
 		"up", "-d",
+		"--wait",
 		"--remove-orphans").CombinedOutput()
 	ctx.Log(string(out))
 

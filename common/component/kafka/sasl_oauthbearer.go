@@ -17,11 +17,12 @@ import (
 	ctx "context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/dapr/kit/crypto/pem"
 
 	"github.com/IBM/sarama"
 	"golang.org/x/oauth2"
@@ -51,26 +52,21 @@ func (m KafkaMetadata) getOAuthTokenSource() *OAuthTokenSource {
 	}
 }
 
-var tokenRequestTimeout, _ = time.ParseDuration("30s")
-
 func (ts *OAuthTokenSource) addCa(caPem string) error {
 	pemBytes := []byte(caPem)
 
-	block, _ := pem.Decode(pemBytes)
-
-	if block == nil || block.Type != "CERTIFICATE" {
-		return errors.New("PEM data not valid or not of a valid type (CERTIFICATE)")
-	}
-
-	caCert, err := x509.ParseCertificate(block.Bytes)
+	caCerts, err := pem.DecodePEMCertificates(pemBytes)
 	if err != nil {
 		return fmt.Errorf("error parsing PEM certificate: %w", err)
+	}
+	if len(caCerts) > 1 {
+		return fmt.Errorf("expected 1 certificate, got %d", len(caCerts))
 	}
 
 	if ts.trustedCas == nil {
 		ts.trustedCas = make([]*x509.Certificate, 0)
 	}
-	ts.trustedCas = append(ts.trustedCas, caCert)
+	ts.trustedCas = append(ts.trustedCas, caCerts[0])
 
 	return nil
 }
@@ -113,9 +109,15 @@ func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
 		return nil, errors.New("cannot generate token, OAuthTokenSource not fully configured")
 	}
 
-	oidcCfg := ccred.Config{ClientID: ts.ClientID, ClientSecret: ts.ClientSecret, Scopes: ts.Scopes, TokenURL: ts.TokenEndpoint.TokenURL, AuthStyle: ts.TokenEndpoint.AuthStyle}
+	oidcCfg := ccred.Config{
+		ClientID:     ts.ClientID,
+		ClientSecret: ts.ClientSecret,
+		Scopes:       ts.Scopes,
+		TokenURL:     ts.TokenEndpoint.TokenURL,
+		AuthStyle:    ts.TokenEndpoint.AuthStyle,
+	}
 
-	timeoutCtx, cancel := ctx.WithTimeout(ctx.TODO(), tokenRequestTimeout)
+	timeoutCtx, cancel := ctx.WithTimeout(ctx.TODO(), 30*time.Second)
 	defer cancel()
 
 	ts.configureClient()

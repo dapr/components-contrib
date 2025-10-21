@@ -173,6 +173,12 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		if err != nil {
 			return err
 		}
+	case oidcPrivateKeyJWTAuthType:
+		k.logger.Info("Configuring SASL OAuth2/OIDC authentication with private key JWT")
+		err = updateOidcPrivateKeyJWTAuthInfo(config, meta)
+		if err != nil {
+			return err
+		}
 	case passwordAuthType:
 		k.logger.Info("Configuring SASL Password authentication")
 		k.saslUsername = meta.SaslUsername

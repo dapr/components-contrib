@@ -9,13 +9,11 @@ spec:
   - name: brokers
     value: localhost:9092
   - name: authType
-    value: "oidc"
+    value: "oidc_private_key_jwt"
   - name: oidcTokenEndpoint
     value: "http://localhost:8080/realms/local/protocol/openid-connect/token"
   - name: oidcClientID
     value: "dapr-kafka-client-jwt"
-  - name: oidcClientAuthMethod
-    value: "client_jwt"
   - name: oidcClientAssertionCert
     secretKeyRef:
       name: OICD_CLIENT_ASSERTION_CERT

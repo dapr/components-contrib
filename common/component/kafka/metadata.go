@@ -42,6 +42,7 @@ const (
 	authType                                 = "authType"
 	passwordAuthType                         = "password"
 	oidcAuthType                             = "oidc"
+	oidcPrivateKeyJWTAuthType                = "oidc_private_key_jwt"
 	mtlsAuthType                             = "mtls"
 	awsIAMAuthType                           = "awsiam"
 	noAuthType                               = "none"
@@ -81,7 +82,6 @@ type KafkaMetadata struct {
 	OidcClientSecret        string              `mapstructure:"oidcClientSecret"`
 	OidcScopes              string              `mapstructure:"oidcScopes"`
 	OidcExtensions          string              `mapstructure:"oidcExtensions"`
-	OidcClientAuthMethod    string              `mapstructure:"oidcClientAuthMethod"`
 	OidcClientAssertionCert string              `mapstructure:"oidcClientAssertionCert"`
 	OidcClientAssertionKey  string              `mapstructure:"oidcClientAssertionKey"`
 	OidcResource            string              `mapstructure:"oidcResource"`
@@ -240,14 +240,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		if m.OidcClientID == "" {
 			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc'")
 		}
-		if m.OidcClientAuthMethod == "client_secret" && m.OidcClientSecret == "" {
-			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc' (client_secret)")
-		}
-		if m.OidcClientAuthMethod == "client_jwt" && m.OidcClientAssertionCert == "" {
-			return nil, errors.New("kafka error: missing OIDC Client Assertion Cert for authType 'oidc' (client_jwt)")
-		}
-		if m.OidcClientAuthMethod == "client_jwt" && m.OidcClientAssertionKey == "" {
-			return nil, errors.New("kafka error: missing OIDC Client Assertion Key for authType 'oidc' (client_jwt)")
+		if m.OidcClientSecret == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc'")
 		}
 		if m.OidcScopes != "" {
 			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
@@ -262,6 +256,32 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC.")
+	case oidcPrivateKeyJWTAuthType:
+		if m.OidcTokenEndpoint == "" {
+			return nil, errors.New("kafka error: missing OIDC Token Endpoint for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientID == "" {
+			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientAssertionCert == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Cert for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientAssertionKey == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Key for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcScopes != "" {
+			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
+		} else {
+			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
+			m.internalOidcScopes = []string{"openid"}
+		}
+		if m.OidcExtensions != "" {
+			err = json.Unmarshal([]byte(m.OidcExtensions), &m.internalOidcExtensions)
+			if err != nil || len(m.internalOidcExtensions) < 1 {
+				return nil, errors.New("kafka error: improper OIDC Extensions format for authType 'oidc_private_key_jwt'")
+			}
+		}
+		k.logger.Debug("Configuring SASL token authentication via OIDC with private_key_jwt.")
 	case mtlsAuthType:
 		if m.TLSClientCert != "" {
 			if !isValidPEM(m.TLSClientCert) {

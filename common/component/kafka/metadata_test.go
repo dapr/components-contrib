@@ -218,7 +218,7 @@ func TestMissingSaslValuesOnUpgrade(t *testing.T) {
 
 func TestMissingOidcClientSecretValues(t *testing.T) {
 	k := getKafka()
-	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType, "oidcClientAuthMethod": "client_secret"}
+	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType}
 	meta, err := k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
@@ -234,7 +234,7 @@ func TestMissingOidcClientSecretValues(t *testing.T) {
 	meta, err = k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Secret for authType '%s' (client_secret)", oidcAuthType), err.Error())
+	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Secret for authType '%s'", oidcAuthType), err.Error())
 
 	// Check if missing scopes causes the default 'openid' to be used.
 	m["oidcClientSecret"] = "sassapass"
@@ -243,31 +243,31 @@ func TestMissingOidcClientSecretValues(t *testing.T) {
 	require.Contains(t, meta.internalOidcScopes, "openid")
 }
 
-func TestMissingOidcClientJwtValues(t *testing.T) {
+func TestMissingOidcPrivateKeyJwtValues(t *testing.T) {
 	k := getKafka()
-	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType, "oidcClientAuthMethod": "client_jwt"}
+	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcPrivateKeyJWTAuthType}
 	meta, err := k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Token Endpoint for authType '%s'", oidcAuthType), err.Error())
+	require.Equal(t, "kafka error: missing OIDC Token Endpoint for authType 'oidc_private_key_jwt'", err.Error())
 
 	m["oidcTokenEndpoint"] = "https://sassa.fra/"
 	meta, err = k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client ID for authType '%s'", oidcAuthType), err.Error())
+	require.Equal(t, "kafka error: missing OIDC Client ID for authType 'oidc_private_key_jwt'", err.Error())
 
 	m["oidcClientID"] = "sassafras"
 	meta, err = k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Assertion Cert for authType '%s' (client_jwt)", oidcAuthType), err.Error())
+	require.Equal(t, "kafka error: missing OIDC Client Assertion Cert for authType 'oidc_private_key_jwt'", err.Error())
 
 	m["oidcClientAssertionCert"] = "sassapass"
 	meta, err = k.getKafkaMetadata(m)
 	require.Error(t, err)
 	require.Nil(t, meta)
-	require.Equal(t, fmt.Sprintf("kafka error: missing OIDC Client Assertion Key for authType '%s' (client_jwt)", oidcAuthType), err.Error())
+	require.Equal(t, "kafka error: missing OIDC Client Assertion Key for authType 'oidc_private_key_jwt'", err.Error())
 
 	m["oidcClientAssertionKey"] = "sassapass"
 	meta, err = k.getKafkaMetadata(m)

@@ -48,6 +48,7 @@ type StateStore struct {
 	table            string
 	ttlAttributeName string
 	partitionKey     string
+	ttlInSeconds     *int
 
 	dynamodbClient *dynamodb.Client
 }
@@ -64,6 +65,7 @@ type dynamoDBMetadata struct {
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
 	PartitionKey     string `json:"partitionKey"`
+	TTLInSeconds     *int   `json:"ttlInSeconds" mapstructure:"ttlInSeconds"`
 }
 
 type putData struct {
@@ -117,6 +119,7 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
+	d.ttlInSeconds = meta.TTLInSeconds
 
 	if err := d.validateTableAccess(ctx); err != nil {
 		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
@@ -423,6 +426,11 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 			// DynamoDB expects an epoch timestamp in seconds.
 			expirationTime := time.Now().Unix() + parsedVal
 
+			return &expirationTime, nil
+		}
+		// apply global TTL if no explicit TTL in request metadata
+		if d.ttlInSeconds != nil {
+			expirationTime := time.Now().Unix() + int64(*d.ttlInSeconds)
 			return &expirationTime, nil
 		}
 	}

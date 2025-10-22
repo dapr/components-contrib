@@ -121,3 +121,51 @@ curl http://localhost:3500/v1.0/secrets/akeyless/bulk
 - Supports static, dynamic and rotated secrets.
 - **GetSecret**: Retrieve an individual value secret by path. 
 - **BulkGetSecret**: Retrieve an all secrets from the root path.
+
+## Response Formats
+
+The Akeyless secret store returns different response formats depending on the secret type:
+
+### Static Secrets
+Static secrets return their value directly as a string:
+
+```json
+{
+  "my-static-secret": "secret-value"
+}
+```
+
+### Dynamic Secrets
+Dynamic secrets return a JSON string containing the credentials. The exact structure depends on the target system:
+
+**MySQL Dynamic Secret:**
+```json
+{
+  "my-mysql-secret": "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}"
+}
+```
+
+**Azure AD Dynamic Secret:**
+```json
+{
+  "my-azure-secret": "{\"user\":{\"id\":\"user_id\",\"displayName\":\"user_name\",\"mail\":\"email@domain.com\"},\"secret\":{\"keyId\":\"secret_key_id\",\"displayName\":\"secret_name\",\"tenantId\":\"tenant_id\"},\"ttl_in_minutes\":\"60\",\"id\":\"user_id\",\"msg\":\"User has been added successfully...\"}"
+}
+```
+
+**GCP Dynamic Secret:**
+```json
+{
+  "my-gcp-secret": "{\"encoded_key\":\"base64_encoded_service_account_key\",\"ttl_in_minutes\":\"60\",\"id\":\"service_account_name\"}"
+}
+```
+
+### Rotated Secrets
+Rotated secrets return a JSON object containing all available fields:
+
+```json
+{
+  "my-rotated-secret": "{\"value\":{\"username\":\"rotated_user\",\"password\":\"rotated_password\",\"application_id\":\"1234567890\"}}"
+}
+```
+
+**Note:** The exact fields in dynamic and rotated secret responses vary by target system and configuration. Applications should parse the JSON string to extract the specific credentials they need.

@@ -642,10 +642,11 @@ func TestGetSecretType(t *testing.T) {
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	ctx := context.Background()
+	err := store.Init(ctx, meta)
 	require.NoError(t, err)
 
-	secretType, err := store.GetSecretType(mockDescribeStaticSecretName)
+	secretType, err := store.GetSecretType(ctx, mockDescribeStaticSecretName)
 	assert.NoError(t, err)
 	assert.Equal(t, STATIC_SECRET_RESPONSE, secretType)
 }
@@ -692,18 +693,15 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	ctx := context.Background()
+	err := store.Init(ctx, meta)
 	require.NoError(t, err)
-
-	secretValue, err := store.GetSingleSecretValue(mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
+	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
-
 	mockGateway.Close()
 }
-
 func TestGetSingleRotatedSecret(t *testing.T) {
-
 	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -744,10 +742,11 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	ctx := context.Background()
+	err := store.Init(ctx, meta)
 	require.NoError(t, err)
 
-	secretValue, err := store.GetSingleSecretValue(mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
+	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 

@@ -54,7 +54,7 @@ func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metada
 		return errors.New("failed to parse metadata: " + err.Error())
 	}
 
-	err = a.Authenticate(m)
+	err = a.Authenticate(ctx, m)
 	if err != nil {
 		return errors.New("failed to authenticate with Akeyless: " + err.Error())
 	}
@@ -69,14 +69,14 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 	}
 
 	a.logger.Debugf("getting secret type for '%s'...", req.Name)
-	secretType, err := a.GetSecretType(req.Name)
+	secretType, err := a.GetSecretType(ctx, req.Name)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
 
 	a.logger.Debugf("getting secret value for '%s' (type %s)...", req.Name, secretType)
 
-	secretValue, err := a.GetSingleSecretValue(req.Name, secretType)
+	secretValue, err := a.GetSingleSecretValue(ctx, req.Name, secretType)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, errors.New(err.Error())
 	}
@@ -104,7 +104,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 
 	// For bulk get, we need to list all secrets first
 	a.logger.Debug("listing items from / path...")
-	listItems, err := a.listItemsRecursively("/")
+	listItems, err := a.listItemsRecursively(ctx, "/")
 	if err != nil {
 		return response, fmt.Errorf("failed to list items from Akeyless: %w", err)
 	}
@@ -150,10 +150,10 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			defer wg.Done()
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
-				value, err := a.GetSingleSecretValue(staticSecretName, STATIC_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(ctx, staticSecretName, STATIC_SECRET_RESPONSE)
 				secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: err}
 			} else {
-				secretResponse := a.GetBulkStaticSecretValues(staticItemNames)
+				secretResponse := a.GetBulkStaticSecretValues(ctx, staticItemNames)
 				if len(secretResponse) > 0 {
 					for _, result := range secretResponse {
 						secretResultChannels <- result
@@ -167,7 +167,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range dynamicItemNames {
-				value, err := a.GetSingleSecretValue(item, DYNAMIC_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(ctx, item, DYNAMIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -181,7 +181,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range rotatedItemNames {
-				value, err := a.GetSingleSecretValue(item, ROTATED_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(ctx, item, ROTATED_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -286,10 +286,10 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 	return &m, nil
 }
 
-func (a *akeylessSecretStore) GetSecretType(secretName string) (string, error) {
+func (a *akeylessSecretStore) GetSecretType(ctx context.Context, secretName string) (string, error) {
 	describeItem := akeyless.NewDescribeItem(secretName)
 	describeItem.SetToken(a.token)
-	describeItemResp, _, err := a.v2.DescribeItem(context.Background()).Body(*describeItem).Execute()
+	describeItemResp, _, err := a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
 	if err != nil {
 		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
 	}
@@ -303,7 +303,7 @@ func (a *akeylessSecretStore) GetSecretType(secretName string) (string, error) {
 
 // GetSingleSecretValue gets the value of a single secret from Akeyless.
 // It returns the value of the secret or an error if the secret is not found.
-func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType string) (string, error) {
+func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretName string, secretType string) (string, error) {
 
 	var secretValue string
 	var err error
@@ -312,7 +312,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 	case STATIC_SECRET_RESPONSE:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetSecretValue(context.Background()).Body(*getSecretValue).Execute()
+		secretRespMap, _, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
 			break
@@ -336,7 +336,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 	case DYNAMIC_SECRET_RESPONSE:
 		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
 		getDynamicSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetDynamicSecretValue(context.Background()).Body(*getDynamicSecretValue).Execute()
+		secretRespMap, _, apiErr := a.v2.GetDynamicSecretValue(ctx).Body(*getDynamicSecretValue).Execute()
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
 			break
@@ -369,7 +369,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 	case ROTATED_SECRET_RESPONSE:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
 		getRotatedSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetRotatedSecretValue(context.Background()).Body(*getRotatedSecretValue).Execute()
+		secretRespMap, _, apiErr := a.v2.GetRotatedSecretValue(ctx).Body(*getRotatedSecretValue).Execute()
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
 			break
@@ -389,13 +389,13 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 
 // GetBulkStaticSecretValues gets the values of multiple static secrets from Akeyless.
 // It returns a map of secret names and their values.
-func (a *akeylessSecretStore) GetBulkStaticSecretValues(secretNames []string) []secretResultCollection {
+func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, secretNames []string) []secretResultCollection {
 
 	var secretResponse = make([]secretResultCollection, len(secretNames))
 
 	getSecretsValues := akeyless.NewGetSecretValue(secretNames)
 	getSecretsValues.SetToken(a.token)
-	secretRespMap, _, apiErr := a.v2.GetSecretValue(context.Background()).Body(*getSecretsValues).Execute()
+	secretRespMap, _, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
 	if apiErr != nil {
 		secretResponse = append(secretResponse, secretResultCollection{name: "", value: "", err: fmt.Errorf("failed to get static secrets' '%s' value from Akeyless API: %w", secretNames, apiErr)})
 	} else {
@@ -410,7 +410,7 @@ func (a *akeylessSecretStore) GetBulkStaticSecretValues(secretNames []string) []
 
 // listItemsRecursively lists all items in a given path recursively.
 // It returns a list of items and an error if the list items request fails.
-func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item, error) {
+func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path string) ([]akeyless.Item, error) {
 	var allItems []akeyless.Item
 
 	// Create the list items request
@@ -422,7 +422,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
-	itemsList, _, err := a.v2.ListItems(context.Background()).Body(*listItems).Execute()
+	itemsList, _, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +435,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 	// Recursively process each subfolder
 	if itemsList.Folders != nil {
 		for _, folder := range itemsList.Folders {
-			subItems, err := a.listItemsRecursively(folder)
+			subItems, err := a.listItemsRecursively(ctx, folder)
 			if err != nil {
 				return nil, err
 			}
@@ -448,7 +448,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 
 // Authenticate authenticates with Akeyless using the provided metadata.
 // It returns an error if the authentication fails.
-func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
+func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeylessMetadata) error {
 
 	a.logger.Debug("Creating authentication request to Akeyless...")
 	authRequest := akeyless.NewAuth()
@@ -495,7 +495,7 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 	a.v2 = akeyless.NewAPIClient(config).V2Api
 
 	a.logger.Debug("authenticating with Akeyless...")
-	out, _, err := a.v2.Auth(context.Background()).Body(*authRequest).Execute()
+	out, _, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}

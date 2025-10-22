@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -196,175 +195,34 @@ func TestDeserializeValue(t *testing.T) {
 		require.Error(t, err, "schema registry details not set")
 	})
 
-	t.Run("deserialize with complex avro schema", func(t *testing.T) {
+	t.Run("reproducing intermittent issue with union types due to codec state mutation", func(t *testing.T) {
 		// Arrange
-		testSchemaCard := `{
-  "fields": [
-    {
-      "default": null,
-      "name": "id",
-      "type": [
-        "null",
-        "long"
-      ]
-    },
-    {
-      "default": null,
-      "name": "event_type",
-      "type": [
-        "null",
-        {
-          "name": "EventType",
-          "symbols": [
-            "create",
-            "update",
-            "upsert",
-            "delete"
-          ],
-          "type": "enum"
-        }
-      ]
-    },
-    {
-      "name": "patient_id",
-      "type": "long"
-    },
-    {
-      "name": "hippospace",
-      "type": {
-        "maxLength": 255,
-        "type": "string"
-      }
-    },
-    {
-      "default": null,
-      "name": "front",
-      "type": [
-        "null",
-        {
-          "fields": [
-            {
-              "default": null,
-              "name": "source_image",
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            {
-              "default": null,
-              "name": "legacy_rank",
-              "type": [
-                "null",
-                "long"
-              ]
-            },
-            {
-              "default": null,
-              "name": "full_key",
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            {
-              "default": null,
-              "name": "thumbnail_key",
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            {
-              "default": null,
-              "name": "thumbnail_expires_at",
-              "type": [
-                "null",
-                "string"
-              ]
-            }
-          ],
-          "name": "CardImage",
-          "type": "record"
-        }
-      ]
-    },
-    {
-      "default": null,
-      "name": "back",
-      "type": [
-        "null",
-        "CardImage"
-      ]
-    },
-    {
-      "default": null,
-      "name": "practice_id",
-      "type": [
-        "null",
-        "long"
-      ]
-    },
-    {
-      "default": null,
-      "name": "policy_id",
-      "type": [
-        "null",
-        "long"
-      ]
-    },
-    {
-      "default": null,
-      "name": "legacy_rank",
-      "type": [
-        "null",
-        "long"
-      ]
-    },
-    {
-      "default": null,
-      "name": "image_rank_to_process",
-      "type": [
-        "null",
-        "long"
-      ]
-    }
-  ],
-  "name": "CardRequest",
-  "namespace": "com.insurance.api",
-  "type": "record"
-}`
-		schemaCard, _ := registryJSON.CreateSchema("my-card-topic-value", testSchemaCard, srclient.Avro)
-		// Test message obtained using kcat command
-		// kcat -C -b <bootstrap-host:port> \
-		// -X security.protocol=SASL_SSL -X sasl.mechanisms=PLAIN \
-		// -X sasl.username='<API_KEY>' -X sasl.password='<API_SECRET>' \
-		// -t el8.cmd.insurance.card-submitted -p 0 -o 2005 -c 1 -e -q -f '%s' | base64
-		cardBytes, err := base64.StdEncoding.DecodeString("AAABhyAAAgSCgMj0yoJARmVsbGllX2luc3VyYW5jZS1hcGktZGV2LWNsb25lLWNhcmRzAgAAAogBaW5zdXJhbmNlX2NhcmRfaW1hZ2VzL3VwbG9hZHMvMTQwNzgxOTAyNDMwMjA5LzE0MDg2Njc4MzE1MDE2My8xLmpwZWcAAAACiIBQAqaBkKnDh0AAAA==")
-		require.NoError(t, err)
-		// The first 5 bytes are the schema ID. We need to remove them to get the actual value
-		cardBytes = cardBytes[5:]
+		testSchemaUnion := `["null", "long"]`
 
-		// Act
-		msg := sarama.ConsumerMessage{
-			Key:   []byte("my_key"),
-			Value: formatByteRecord(schemaCard.ID(), cardBytes),
-			Topic: "my-card-topic",
-		}
-		act, err := kJSON.DeserializeValue(&msg, handlerConfig)
-		var actMap map[string]any
-		json.Unmarshal(act, &actMap)
+		// In happy path, codec is initialized and NativeFromBinary is called first, which sets the states of the codec
+		codecCard1, err := goavro.NewCodecForStandardJSONFull(testSchemaUnion)
 		require.NoError(t, err)
-		require.Equal(t, nil, actMap["id"])
-		require.Equal(t, "upsert", actMap["event_type"])
-		require.Equal(t, float64(140781902430209), actMap["patient_id"])
-		require.Equal(t, "ellie_insurance-api-dev-clone-cards", actMap["hippospace"])
-		require.Equal(t, "insurance_card_images/uploads/140781902430209/140866783150163/1.jpeg", actMap["front"].(map[string]any)["full_key"])
-		require.Equal(t, nil, actMap["back"])
-		require.Equal(t, float64(655364), actMap["practice_id"])
-		require.Equal(t, float64(140866783150163), actMap["policy_id"])
-		require.Equal(t, nil, actMap["legacy_rank"])
-		require.Equal(t, nil, actMap["image_rank_to_process"])
+
+		datum1, _, err := codecCard1.NativeFromBinary([]byte{0x02, 0x06})
+		require.NoError(t, err)
+
+		// As expected, the datum is a long with value 3
+		require.Equal(t, int64(3), datum1.(map[string]any)["long"])
+
+		// Reproducing the error when NativeFromTextual is called before NativeFromBinary, which changes the states of the codec
+		codecCard2, err := goavro.NewCodecForStandardJSONFull(testSchemaUnion)
+		require.NoError(t, err)
+
+		// Trigger textual path that mutates states
+		_, _, err = codecCard2.NativeFromTextual([]byte("1"))
+
+		// Binary for union index 1 (long) with value 3: 0x02 0x06
+		datum, _, err := codecCard2.NativeFromBinary([]byte{0x02, 0x06})
+		require.NoError(t, err)
+
+		// Prior to bug fix, the datum would be returned as a ["null", 3]!
+		require.Equal(t, int64(3), datum.(map[string]any)["long"])
+
 	})
 }
 

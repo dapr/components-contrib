@@ -73,32 +73,6 @@ func GetAccessTypeDisplayName(typeChar string) (string, error) {
 	return displayName, nil
 }
 
-type DynamicSecretResponse struct {
-	ID           string              `json:"id"`
-	Msg          string              `json:"msg"`
-	Secret       DynamicSecretSecret `json:"secret"`
-	TTLInMinutes string              `json:"ttl_in_minutes"`
-}
-
-type DynamicSecretSecret struct {
-	AppID       string `json:"appId,omitempty"`
-	DisplayName string `json:"displayName"`
-	EndDateTime string `json:"endDateTime,omitempty"`
-	KeyID       string `json:"keyId,omitempty"`
-	SecretText  string `json:"secretText"`
-	TenantID    string `json:"tenantId,omitempty"`
-}
-
-type RotatedSecretResponse struct {
-	Value RotatedSecretValue `json:"value"`
-}
-
-type RotatedSecretValue struct {
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	ApplicationID string `json:"application_id,omitempty"`
-}
-
 func GetDaprSingleSecretResponse(secretName string, secretValue string) (secretstores.GetSecretResponse, error) {
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{

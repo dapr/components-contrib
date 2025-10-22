@@ -342,29 +342,29 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 			break
 		}
 
-		// assert type of secretRespMap to DynamicSecretResponse
-		var dynamicSecretResp DynamicSecretResponse
+		// Parse response to extract value and check for errors
+		var dynamicSecretResp struct {
+			Value string `json:"value"`
+			Error string `json:"error"`
+		}
 		jsonBytes, marshalErr := json.Marshal(secretRespMap)
 		if marshalErr != nil {
 			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
 			break
 		}
-		if unmarshalErr := json.Unmarshal([]byte(jsonBytes), &dynamicSecretResp); unmarshalErr != nil {
-			err = fmt.Errorf("failed to unmarshal secret response to DynamicSecretResponse: %w", unmarshalErr)
+		if unmarshalErr := json.Unmarshal(jsonBytes, &dynamicSecretResp); unmarshalErr != nil {
+			err = fmt.Errorf("failed to unmarshal secret response: %w", unmarshalErr)
 			break
 		}
 
-		// take only relevant fields (DisplayName and SecretText) from response and marshal it to a JSON string
-		dynamicSecretResp.Secret.AppID = ""
-		dynamicSecretResp.Secret.EndDateTime = ""
-		dynamicSecretResp.Secret.KeyID = ""
-		dynamicSecretResp.Secret.TenantID = ""
-		jsonBytes, marshalErr = json.Marshal(dynamicSecretResp.Secret)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
+		// Check if the response contains an error
+		if dynamicSecretResp.Error != "" {
+			err = fmt.Errorf("dynamic secret retrieval error: %s", dynamicSecretResp.Error)
 			break
 		}
-		secretValue = string(jsonBytes)
+
+		// Return the value field directly (already a JSON string with credentials)
+		secretValue = dynamicSecretResp.Value
 
 	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
@@ -375,23 +375,10 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 			break
 		}
 
-		// assert type of secretRespMap to RotatedSecretResponse
-		var rotatedSecretResp RotatedSecretResponse
+		// Marshal the entire response value object
 		jsonBytes, marshalErr := json.Marshal(secretRespMap)
 		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
-			break
-		}
-		if unmarshalErr := json.Unmarshal([]byte(jsonBytes), &rotatedSecretResp); unmarshalErr != nil {
-			err = fmt.Errorf("failed to unmarshal secret response to RotatedSecretResponse: %w", unmarshalErr)
-			break
-		}
-
-		// take only relevant fields (Username and Password) from response and marshal it to a JSON string
-		rotatedSecretResp.Value.ApplicationID = ""
-		jsonBytes, marshalErr = json.Marshal(rotatedSecretResp.Value)
-		if marshalErr != nil {
-			err = fmt.Errorf("failed to marshal secret response to JSON: %w", marshalErr)
+			err = fmt.Errorf("failed to marshal rotated secret response to JSON: %w", marshalErr)
 			break
 		}
 		secretValue = string(jsonBytes)

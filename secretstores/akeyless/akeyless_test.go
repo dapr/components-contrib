@@ -75,18 +75,9 @@ var (
 			},
 		},
 	}
-	mockGetSingleDynamicSecretValueResponse = DynamicSecretResponse{
-		ID:  "{\"secret_name\": \"tmp.p-1234567890.GV7LR\",\"secret_key_id\": \"1234567890\"}",
-		Msg: "User  has been added successfully to the following Group(s): [] Role(s): [] Expires on Thu Sep 25 15:54:06 UTC 2025",
-		Secret: DynamicSecretSecret{
-			AppID:       "1234567890",
-			DisplayName: "tmp.p-1234567890.GV7LR",
-			EndDateTime: "2025-09-26T14:54:05.1643791Z",
-			KeyID:       "1234567890",
-			SecretText:  testSecretValue,
-			TenantID:    "1234567890",
-		},
-		TTLInMinutes: "60",
+	mockGetSingleDynamicSecretValueResponse = map[string]interface{}{
+		"value": "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}",
+		"error": "",
 	}
 	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockRotatedSecretItemName)
 	mockDescribeRotatedSecretType         = AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE
@@ -100,11 +91,11 @@ var (
 			},
 		},
 	}
-	mockGetSingleRotatedSecretValueResponse = RotatedSecretResponse{
-		Value: RotatedSecretValue{
-			Username:      "abcdefghijklmnopqrstuvwxyz",
-			Password:      testSecretValue,
-			ApplicationID: "1234567890",
+	mockGetSingleRotatedSecretValueResponse = map[string]interface{}{
+		"value": map[string]interface{}{
+			"username":       "abcdefghijklmnopqrstuvwxyz",
+			"password":       testSecretValue,
+			"application_id": "1234567890",
 		},
 	}
 )
@@ -706,7 +697,7 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 
 	secretValue, err := store.GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
-	assert.Equal(t, "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}", secretValue)
+	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
 
 	mockGateway.Close()
 }
@@ -758,7 +749,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 
 	secretValue, err := store.GetSingleSecretValue(mockDescribeRotatedSecretName, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
-	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", secretValue)
+	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 
 	mockGateway.Close()
 }
@@ -859,13 +850,13 @@ func TestGetBulkSecretValues(t *testing.T) {
 	// Check dynamic secret
 	dynamicSecretKey := "/path/to/akeyless/dynamic-secret-test"
 	assert.Contains(t, response.Data, dynamicSecretKey)
-	expectedDynamicValue := "{\"displayName\":\"tmp.p-1234567890.GV7LR\",\"secretText\":\"r3vE4L3D\"}"
+	expectedDynamicValue := "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}"
 	assert.Equal(t, expectedDynamicValue, response.Data[dynamicSecretKey][dynamicSecretKey])
 
 	// Check rotated secret
 	rotatedSecretKey := "/path/to/akeyless/rotated-secret-test"
 	assert.Contains(t, response.Data, rotatedSecretKey)
-	assert.Equal(t, "{\"username\":\"abcdefghijklmnopqrstuvwxyz\",\"password\":\"r3vE4L3D\"}", response.Data[rotatedSecretKey][rotatedSecretKey])
+	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", response.Data[rotatedSecretKey][rotatedSecretKey])
 
 	mockGateway.Close()
 }
@@ -1029,18 +1020,23 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 		case "/get-dynamic-secret-value":
 			// Create dynamic secret responses for each secret
-			var dynamicSecretResponse DynamicSecretResponse
-			dynamicSecretResponse.Secret.SecretText = "dynamic-secret-1-value"
-			dynamicSecretResponse.Secret.DisplayName = "dynamic-secret-1"
+			dynamicSecretResponse := map[string]interface{}{
+				"value": "{\"user\":\"dynamic-secret-1\",\"password\":\"dynamic-secret-1-value\",\"ttl_in_minutes\":\"60\",\"id\":\"dynamic-secret-1\"}",
+				"error": "",
+			}
 			jsonResponse, _ := json.Marshal(&dynamicSecretResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
 
 		case "/get-rotated-secret-value":
 			// Create rotated secret response
-			var rotatedSecretResponse RotatedSecretResponse
-			rotatedSecretResponse.Value.Username = "rotated-user"
-			rotatedSecretResponse.Value.Password = "rotated-secret-1-value"
+			rotatedSecretResponse := map[string]interface{}{
+				"value": map[string]interface{}{
+					"username":       "rotated-user",
+					"password":       "rotated-secret-1-value",
+					"application_id": "1234567890",
+				},
+			}
 			jsonResponse, _ := json.Marshal(&rotatedSecretResponse)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -1144,25 +1140,25 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 	// Check dynamic secrets from /path/to/dynamic/secrets
 	assert.Contains(t, response.Data, dynamicSecret1)
-	expectedDynamicValue1 := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	expectedDynamicValue1 := "{\"user\":\"dynamic-secret-1\",\"password\":\"dynamic-secret-1-value\",\"ttl_in_minutes\":\"60\",\"id\":\"dynamic-secret-1\"}"
 	assert.Equal(t, expectedDynamicValue1, response.Data[dynamicSecret1][dynamicSecret1])
 	assert.Contains(t, response.Data, dynamicSecret2)
-	expectedDynamicValue2 := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	expectedDynamicValue2 := "{\"user\":\"dynamic-secret-1\",\"password\":\"dynamic-secret-1-value\",\"ttl_in_minutes\":\"60\",\"id\":\"dynamic-secret-1\"}"
 	assert.Equal(t, expectedDynamicValue2, response.Data[dynamicSecret2][dynamicSecret2])
 
 	// Check rotated secret from /path/to/rotated/secrets
 	assert.Contains(t, response.Data, rotatedSecret1)
-	expectedRotatedValue1 := "{\"username\":\"rotated-user\",\"password\":\"rotated-secret-1-value\"}"
+	expectedRotatedValue1 := "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"rotated-secret-1-value\",\"username\":\"rotated-user\"}}"
 	assert.Equal(t, expectedRotatedValue1, response.Data[rotatedSecret1][rotatedSecret1])
 
 	// Check mixed secrets from /path/to/mixed/secrets
 	assert.Contains(t, response.Data, mixedStaticSecret)
 	assert.Equal(t, "mixed-static-secret-value", response.Data[mixedStaticSecret][mixedStaticSecret])
 	assert.Contains(t, response.Data, mixedDynamicSecret)
-	expectedMixedDynamicValue := "{\"displayName\":\"dynamic-secret-1\",\"secretText\":\"dynamic-secret-1-value\"}"
+	expectedMixedDynamicValue := "{\"user\":\"dynamic-secret-1\",\"password\":\"dynamic-secret-1-value\",\"ttl_in_minutes\":\"60\",\"id\":\"dynamic-secret-1\"}"
 	assert.Equal(t, expectedMixedDynamicValue, response.Data[mixedDynamicSecret][mixedDynamicSecret])
 	assert.Contains(t, response.Data, mixedRotatedSecret)
-	expectedMixedRotatedValue := "{\"username\":\"rotated-user\",\"password\":\"rotated-secret-1-value\"}"
+	expectedMixedRotatedValue := "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"rotated-secret-1-value\",\"username\":\"rotated-user\"}}"
 	assert.Equal(t, expectedMixedRotatedValue, response.Data[mixedRotatedSecret][mixedRotatedSecret])
 
 	mockGateway.Close()

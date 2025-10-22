@@ -220,7 +220,8 @@ func TestDeserializeValue(t *testing.T) {
 		datum, _, err := codecCard2.NativeFromBinary([]byte{0x02, 0x06})
 		require.NoError(t, err)
 
-		// Prior to bug fix, the datum would be returned as a ["null", 3]!
+		// Prior to bug fix, the datum would be returned as a {"null", 3} but should return '{"long":3}'!
+		require.Nil(t, datum.(map[string]any)["null"])
 		require.Equal(t, int64(3), datum.(map[string]any)["long"])
 
 		// As a result, next call to TextualFromNative would fail with "Cannot encode textual union: cannot encode textual null: expected: Go nil; received: int64"

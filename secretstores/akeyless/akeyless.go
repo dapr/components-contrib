@@ -495,9 +495,9 @@ func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeyle
 	a.v2 = akeyless.NewAPIClient(config).V2Api
 
 	a.logger.Debug("authenticating with Akeyless...")
-	out, _, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
-	if err != nil {
-		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
+	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
+	if err != nil || httpResponse.StatusCode != 200 {
+		return fmt.Errorf("failed to authenticate with Akeyless: %w", errors.New(httpResponse.Status))
 	}
 
 	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())

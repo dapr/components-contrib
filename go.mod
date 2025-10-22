@@ -92,7 +92,7 @@ require (
 	github.com/labd/commercetools-go-sdk v1.3.1
 	github.com/lestrrat-go/httprc v1.0.5
 	github.com/lestrrat-go/jwx/v2 v2.0.21
-	github.com/linkedin/goavro/v2 v2.14.0
+	github.com/linkedin/goavro/v2 v2.14.1
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/microsoft/go-mssqldb v1.6.0
@@ -111,7 +111,7 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/redis/go-redis/v9 v9.6.3
-	github.com/riferrei/srclient v0.7.2
+	github.com/riferrei/srclient v0.7.3
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
 	github.com/sijms/go-ora/v2 v2.8.22
 	github.com/spf13/cast v1.8.0

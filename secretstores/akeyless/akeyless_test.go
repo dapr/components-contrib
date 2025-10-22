@@ -39,7 +39,7 @@ var (
 	mockDynamicSecretItemName            = "/dynamic-secret-test"
 	mockRotatedSecretItemName            = "/rotated-secret-test"
 	mockDescribeStaticSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretItem)
-	mockDescribeStaticSecretType         = AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE
+	mockDescribeStaticSecretType         = STATIC_SECRET_RESPONSE
 	mockDescribeStaticSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeStaticSecretName,
 		ItemType:  &mockDescribeStaticSecretType,
@@ -64,7 +64,7 @@ var (
 		},
 	}
 	mockDescribeDynamicSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockDynamicSecretItemName)
-	mockDescribeDynamicSecretType         = AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE
+	mockDescribeDynamicSecretType         = DYNAMIC_SECRET_RESPONSE
 	mockDescribeDynamicSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeDynamicSecretName,
 		ItemType:  &mockDescribeDynamicSecretType,
@@ -80,7 +80,7 @@ var (
 		"error": "",
 	}
 	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockRotatedSecretItemName)
-	mockDescribeRotatedSecretType         = AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE
+	mockDescribeRotatedSecretType         = ROTATED_SECRET_RESPONSE
 	mockDescribeRotatedSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeRotatedSecretName,
 		ItemType:  &mockDescribeRotatedSecretType,
@@ -119,13 +119,13 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 	// Depending on the access type we set the appropriate authentication method
 	switch metadata.AccessType {
 	// If access type is AWS IAM we use the mock cloud ID
-	case AKEYLESS_AUTH_ACCESS_IAM:
+	case AUTH_IAM:
 		akeylessSecretStore.logger.Debug("Using mock cloud ID for AWS IAM...")
 		authRequest.SetCloudId(mockCloudID)
-	case AKEYLESS_AUTH_ACCESS_JWT:
+	case AUTH_JWT:
 		akeylessSecretStore.logger.Debug("Setting JWT for authentication...")
 		authRequest.SetJwt(metadata.JWT)
-	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
+	case DEFAULT_AUTH_TYPE:
 		akeylessSecretStore.logger.Debug("Setting access key for authentication...")
 		authRequest.SetAccessKey(metadata.AccessKey)
 	}
@@ -136,8 +136,8 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 			URL: metadata.GatewayURL,
 		},
 	}
-	config.UserAgent = AKEYLESS_USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", AKEYLESS_USER_AGENT)
+	config.UserAgent = USER_AGENT
+	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
 
 	akeylessSecretStore.v2 = akeyless.NewAPIClient(config).V2Api
 
@@ -319,7 +319,7 @@ func TestParseMetadata(t *testing.T) {
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdKey,
 				AccessKey:  testAccessKey,
-				AccessType: AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE,
+				AccessType: DEFAULT_AUTH_TYPE,
 				GatewayURL: "https://api.akeyless.io", // Default gateway URL
 			},
 		},
@@ -334,7 +334,7 @@ func TestParseMetadata(t *testing.T) {
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdJwt,
 				JWT:        testJWT,
-				AccessType: AKEYLESS_AUTH_ACCESS_JWT,
+				AccessType: AUTH_JWT,
 				GatewayURL: mockGateway.URL,
 			},
 		},
@@ -347,7 +347,7 @@ func TestParseMetadata(t *testing.T) {
 			expectError: false,
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdIAM,
-				AccessType: AKEYLESS_AUTH_ACCESS_IAM,
+				AccessType: AUTH_IAM,
 				GatewayURL: mockGateway.URL,
 			},
 		},
@@ -442,7 +442,7 @@ func TestMockAWSCloudID(t *testing.T) {
 	// Parse metadata first
 	m, err := store.parseMetadata(meta)
 	require.NoError(t, err)
-	assert.Equal(t, AKEYLESS_AUTH_ACCESS_IAM, m.AccessType)
+	assert.Equal(t, AUTH_IAM, m.AccessType)
 
 	// Use mock authentication with mock cloud ID
 	err = mockAuthenticate(m, store)
@@ -647,7 +647,7 @@ func TestGetSecretType(t *testing.T) {
 
 	secretType, err := store.GetSecretType(mockDescribeStaticSecretName)
 	assert.NoError(t, err)
-	assert.Equal(t, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE, secretType)
+	assert.Equal(t, STATIC_SECRET_RESPONSE, secretType)
 }
 
 func TestGetSingleDynamicSecret(t *testing.T) {
@@ -695,7 +695,7 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
 
-	secretValue, err := store.GetSingleSecretValue(mockDescribeDynamicSecretName, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE)
+	secretValue, err := store.GetSingleSecretValue(mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
 
@@ -747,7 +747,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
 
-	secretValue, err := store.GetSingleSecretValue(mockDescribeRotatedSecretName, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE)
+	secretValue, err := store.GetSingleSecretValue(mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 

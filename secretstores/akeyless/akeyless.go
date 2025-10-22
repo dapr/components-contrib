@@ -150,7 +150,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			defer wg.Done()
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
-				value, err := a.GetSingleSecretValue(staticSecretName, AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(staticSecretName, STATIC_SECRET_RESPONSE)
 				secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: err}
 			} else {
 				secretResponse := a.GetBulkStaticSecretValues(staticItemNames)
@@ -167,7 +167,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range dynamicItemNames {
-				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(item, DYNAMIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -181,7 +181,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range rotatedItemNames {
-				value, err := a.GetSingleSecretValue(item, AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE)
+				value, err := a.GetSingleSecretValue(item, ROTATED_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -266,11 +266,11 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 	a.logger.Debugf("access type detected: %s", accessTypeDisplayName)
 
 	switch accessTypeDisplayName {
-	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
+	case DEFAULT_AUTH_TYPE:
 		if m.AccessKey == "" {
 			return nil, errors.New("accessKey is required")
 		}
-	case AKEYLESS_AUTH_ACCESS_JWT:
+	case AUTH_JWT:
 		if m.JWT == "" {
 			return nil, errors.New("jwt is required")
 		}
@@ -279,8 +279,8 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 
 	// Set default gateway URL if not specified
 	if m.GatewayURL == "" {
-		a.logger.Infof("Gateway URL is not set, using default value %s...", AKEYLESS_PUBLIC_GATEWAY_URL)
-		m.GatewayURL = AKEYLESS_PUBLIC_GATEWAY_URL
+		a.logger.Infof("Gateway URL is not set, using default value %s...", PUBLIC_GATEWAY_URL)
+		m.GatewayURL = PUBLIC_GATEWAY_URL
 	}
 
 	return &m, nil
@@ -309,7 +309,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 	var err error
 
 	switch secretType {
-	case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
+	case STATIC_SECRET_RESPONSE:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(a.token)
 		secretRespMap, _, apiErr := a.v2.GetSecretValue(context.Background()).Body(*getSecretValue).Execute()
@@ -333,7 +333,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 			break
 		}
 
-	case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
+	case DYNAMIC_SECRET_RESPONSE:
 		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
 		getDynamicSecretValue.SetToken(a.token)
 		secretRespMap, _, apiErr := a.v2.GetDynamicSecretValue(context.Background()).Body(*getDynamicSecretValue).Execute()
@@ -366,7 +366,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(secretName string, secretType
 		// Return the value field directly (already a JSON string with credentials)
 		secretValue = dynamicSecretResp.Value
 
-	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
+	case ROTATED_SECRET_RESPONSE:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
 		getRotatedSecretValue.SetToken(a.token)
 		secretRespMap, _, apiErr := a.v2.GetRotatedSecretValue(context.Background()).Body(*getRotatedSecretValue).Execute()
@@ -418,7 +418,7 @@ func (a *akeylessSecretStore) listItemsRecursively(path string) ([]akeyless.Item
 	listItems.SetToken(a.token)
 	listItems.SetPath(path)
 	listItems.SetAutoPagination("enabled")
-	listItems.SetType([]string{AKEYLESS_SECRET_TYPE_STATIC, AKEYLESS_SECRET_TYPE_DYNAMIC, AKEYLESS_SECRET_TYPE_ROTATED})
+	listItems.SetType(SUPPORTED_SECRET_TYPES)
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
@@ -462,18 +462,18 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 	// Depending on the access type we set the appropriate authentication method
 	switch accessType {
 	// If access type is AWS IAM we use the cloud ID
-	case AKEYLESS_AUTH_ACCESS_IAM:
+	case AUTH_IAM:
 		id, err := aws.GetCloudId()
 		if err != nil {
 			return errors.New("unable to get cloud ID")
 		}
 		authRequest.SetCloudId(id)
-	case AKEYLESS_AUTH_ACCESS_JWT:
+	case AUTH_JWT:
 		authRequest.SetJwt(metadata.JWT)
-	case AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE:
+	case DEFAULT_AUTH_TYPE:
 		a.logger.Debug("authenticating using access key...")
 		authRequest.SetAccessKey(metadata.AccessKey)
-	case AKEYLESS_AUTH_ACCESS_K8S:
+	case AUTH_K8S:
 		a.logger.Debug("authenticating using k8s...")
 		err := setK8SAuthConfiguration(*metadata, authRequest, a)
 		if err != nil {
@@ -489,8 +489,8 @@ func (a *akeylessSecretStore) Authenticate(metadata *akeylessMetadata) error {
 			URL: metadata.GatewayURL,
 		},
 	}
-	config.UserAgent = AKEYLESS_USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", AKEYLESS_USER_AGENT)
+	config.UserAgent = USER_AGENT
+	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
 
 	a.v2 = akeyless.NewAPIClient(config).V2Api
 
@@ -514,11 +514,11 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akey
 		itemType := *item.ItemType
 
 		switch itemType {
-		case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
+		case STATIC_SECRET_RESPONSE:
 			staticItems = append(staticItems, item)
-		case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
+		case DYNAMIC_SECRET_RESPONSE:
 			dynamicItems = append(dynamicItems, item)
-		case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
+		case ROTATED_SECRET_RESPONSE:
 			rotatedItems = append(rotatedItems, item)
 		}
 	}

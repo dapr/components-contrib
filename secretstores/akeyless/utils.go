@@ -15,26 +15,25 @@ import (
 
 // Define constants for the access types. These are equivalent to the TypeScript consts.
 const (
-	AKEYLESS_AUTH_ACCESS_JWT                     = "jwt"
-	AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE            = "access_key"
-	AKEYLESS_AUTH_ACCESS_IAM                     = "aws_iam"
-	AKEYLESS_AUTH_ACCESS_K8S                     = "k8s"
-	AKEYLESS_PUBLIC_GATEWAY_URL                  = "https://api.akeyless.io"
-	AKEYLESS_USER_AGENT                          = "dapr.io/akeyless-secret-store"
-	AKEYLESS_SECRET_TYPE_STATIC                  = "static-secret"
-	AKEYLESS_SECRET_TYPE_DYNAMIC                 = "dynamic-secret"
-	AKEYLESS_SECRET_TYPE_ROTATED                 = "rotated-secret"
-	AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE  = "STATIC_SECRET"
-	AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE = "DYNAMIC_SECRET"
-	AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE = "ROTATED_SECRET"
+	AUTH_JWT                = "jwt"
+	DEFAULT_AUTH_TYPE       = "access_key"
+	AUTH_IAM                = "aws_iam"
+	AUTH_K8S                = "k8s"
+	PUBLIC_GATEWAY_URL      = "https://api.akeyless.io"
+	USER_AGENT              = "dapr.io/akeyless-secret-store"
+	STATIC_SECRET_RESPONSE  = "STATIC_SECRET"
+	DYNAMIC_SECRET_RESPONSE = "DYNAMIC_SECRET"
+	ROTATED_SECRET_RESPONSE = "ROTATED_SECRET"
 )
+
+var SUPPORTED_SECRET_TYPES = []string{"static-secret", "dynamic-secret", "rotated-secret"}
 
 // AccessTypeCharMap maps single-character access types to their display names.
 var AccessTypeCharMap = map[string]string{
-	"a": AKEYLESS_AUTH_DEFAULT_ACCESS_TYPE,
-	"o": AKEYLESS_AUTH_ACCESS_JWT,
-	"w": AKEYLESS_AUTH_ACCESS_IAM,
-	"k": AKEYLESS_AUTH_ACCESS_K8S,
+	"a": DEFAULT_AUTH_TYPE,
+	"o": AUTH_JWT,
+	"w": AUTH_IAM,
+	"k": AUTH_K8S,
 }
 
 // AccessIdRegex is the compiled regular expression for validating Akeyless Access IDs.
@@ -148,10 +147,10 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 	}
 
 	switch *secret.ItemType {
-	case AKEYLESS_SECRET_TYPE_STATIC_SECRET_RESPONSE:
+	case STATIC_SECRET_RESPONSE:
 		logger.Debugf("static secret '%s' is active", *secret.ItemName)
 		isActive = true
-	case AKEYLESS_SECRET_TYPE_DYNAMIC_SECRET_RESPONSE:
+	case DYNAMIC_SECRET_RESPONSE:
 		// Check if ItemGeneralInfo is available, if not, include the secret
 		if secret.ItemGeneralInfo != nil &&
 			secret.ItemGeneralInfo.DynamicSecretProducerDetails != nil &&
@@ -168,7 +167,7 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 			logger.Debugf("dynamic secret '%s' is missing detailed info. adding to filtered secrets...", *secret.ItemName)
 			isActive = true
 		}
-	case AKEYLESS_SECRET_TYPE_ROTATED_SECRET_RESPONSE:
+	case ROTATED_SECRET_RESPONSE:
 		// Check if ItemGeneralInfo is available, if not, include the secret
 		if secret.ItemGeneralInfo != nil &&
 			secret.ItemGeneralInfo.RotatedSecretDetails != nil &&

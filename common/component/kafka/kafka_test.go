@@ -334,7 +334,7 @@ func TestDeserializeValue(t *testing.T) {
   "namespace": "com.insurance.api",
   "type": "record"
 }`
-		schemaCard, _ := registryAvroJSON.CreateSchema("my-card-topic-value", testSchemaCard, srclient.Avro)
+		schemaCard, _ := registryJSON.CreateSchema("my-card-topic-value", testSchemaCard, srclient.Avro)
 		// Test message obtained using kcat command
 		// kcat -C -b <bootstrap-host:port> \
 		// -X security.protocol=SASL_SSL -X sasl.mechanisms=PLAIN \
@@ -351,7 +351,7 @@ func TestDeserializeValue(t *testing.T) {
 			Value: formatByteRecord(schemaCard.ID(), cardBytes),
 			Topic: "my-card-topic",
 		}
-		act, err := kAvroJSON.DeserializeValue(&msg, handlerConfig)
+		act, err := kJSON.DeserializeValue(&msg, handlerConfig)
 		var actMap map[string]any
 		json.Unmarshal(act, &actMap)
 		require.NoError(t, err)

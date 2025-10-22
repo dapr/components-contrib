@@ -60,22 +60,6 @@ func ExtractAccessTypeChar(accessId string) (string, error) {
 	return string(idPart[len(idPart)-2]), nil
 }
 
-// validateAccessTypeChar validates the extracted access type character against a list of allowed types.
-// It returns true if the extracted access type is in the allowed list, false otherwise.
-func ValidateAccessTypeChar(accessId string, allowedTypes []string) bool {
-	typeChar, err := ExtractAccessTypeChar(accessId)
-	if err != nil {
-		return false // Invalid ID format
-	}
-
-	for _, allowedType := range allowedTypes {
-		if typeChar == allowedType {
-			return true
-		}
-	}
-	return false
-}
-
 // getAccessTypeDisplayName gets the full display name of the access type from the character.
 // It returns the display name (e.g., 'api_key') or an error if the type character is unknown.
 func GetAccessTypeDisplayName(typeChar string) (string, error) {
@@ -216,7 +200,7 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 			secret.ItemGeneralInfo.RotatedSecretDetails != nil &&
 			secret.ItemGeneralInfo.RotatedSecretDetails.RotatorStatus != nil {
 			status := *secret.ItemGeneralInfo.RotatedSecretDetails.RotatorStatus
-			if status == "RotationSucceeded" {
+			if status == "RotationSucceeded" || status == "RotationInitialStatus" {
 				isActive = true
 			} else {
 				logger.Debugf("rotated secret '%s' rotation status is '%s', skipping...", *secret.ItemName, status)

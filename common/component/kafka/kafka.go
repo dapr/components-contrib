@@ -181,6 +181,12 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		if err != nil {
 			return err
 		}
+	case oidcPrivateKeyJWTAuthType:
+		k.logger.Info("Configuring SASL OAuth2/OIDC authentication with private key JWT")
+		err = updateOidcPrivateKeyJWTAuthInfo(config, meta)
+		if err != nil {
+			return err
+		}
 	case passwordAuthType:
 		k.logger.Info("Configuring SASL Password authentication")
 		k.saslUsername = meta.SaslUsername
@@ -295,12 +301,16 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 	}
 
 	return awsAuth.Options{
+		Logger:                k.logger,
 		Region:                region,
 		AccessKey:             accessKey,
 		SecretKey:             secretKey,
 		AssumeRoleArn:         role,
 		AssumeRoleSessionName: session,
 		SessionToken:          token,
+		TrustAnchorArn:        metadata["trustAnchorArn"],
+		TrustProfileArn:       metadata["trustProfileArn"],
+		Properties:            metadata,
 	}, nil
 }
 

@@ -80,6 +80,7 @@ func TestDeserializeValue(t *testing.T) {
 		logger:               logger.NewLogger("kafka_test"),
 	}
 	kJSON.srClient.CodecJsonEnabled(true)
+	kJSON.useAvroJSON = false
 	schemaJSON, _ := registryJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	// set up for Standard JSON
@@ -249,12 +250,14 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 		srClient:             registryJSON,
 		schemaCachingEnabled: false,
 		logger:               logger.NewLogger("kafka_test"),
+		useAvroJSON:          false,
 	}
 
 	kAvroJSON := Kafka{
 		srClient:             registryAvroJSON,
 		schemaCachingEnabled: false,
 		logger:               logger.NewLogger("kafka_test"),
+		useAvroJSON:          true,
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {
@@ -327,6 +330,7 @@ func TestSerializeValueCachingEnabled(t *testing.T) {
 		latestSchemaCache:    make(map[string]SchemaCacheEntry),
 		latestSchemaCacheTTL: time.Minute * 5,
 		logger:               logger.NewLogger("kafka_test"),
+		useAvroJSON:          false,
 	}
 
 	t.Run("valueSchemaType not set, leave value as is", func(t *testing.T) {

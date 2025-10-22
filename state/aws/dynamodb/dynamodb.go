@@ -49,7 +49,7 @@ type StateStore struct {
 	ttlAttributeName string
 	partitionKey     string
 
-	dynamodbClient *dynamodb.Client
+	dynamodbClient awsCommon.DynamoDBClient
 }
 
 type dynamoDBMetadata struct {
@@ -88,8 +88,13 @@ func NewDynamoDBStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-// Init does metadata and connection parsing.
+// Init does metadata and connection parsing
 func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
+	return d.InitWithOptions(ctx, metadata)
+}
+
+// InitWithOptions does metadata and connection parsing and extra aws options
+func (d *StateStore) InitWithOptions(ctx context.Context, metadata state.Metadata, opts ...awsCommon.ConfigOption) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
@@ -107,13 +112,14 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 		SessionToken: meta.SessionToken,
 	}
 
-	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
-	if err != nil {
-		return err
+	if d.dynamodbClient == nil {
+		awsConfig, err := awsCommon.NewConfig(ctx, configOpts, opts...)
+		if err != nil {
+			return err
+		}
+
+		d.dynamodbClient = dynamodb.NewFromConfig(awsConfig)
 	}
-
-	d.dynamodbClient = dynamodb.NewFromConfig(awsConfig)
-
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey

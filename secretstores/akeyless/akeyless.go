@@ -62,6 +62,66 @@ func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metada
 	return nil
 }
 
+// Authenticate authenticates with Akeyless using the provided metadata.
+// It returns an error if the authentication fails.
+func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeylessMetadata) error {
+
+	a.logger.Debug("Creating authentication request to Akeyless...")
+	authRequest := akeyless.NewAuth()
+	authRequest.SetAccessId(metadata.AccessID)
+	authRequest.SetAccessType(metadata.AccessType)
+
+	var accessType = metadata.AccessType
+
+	a.logger.Debugf("authenticating using access type: %s", accessType)
+
+	// Depending on the access type we set the appropriate authentication method
+	switch accessType {
+	// If access type is AWS IAM we use the cloud ID
+	case AUTH_IAM:
+		id, err := aws.GetCloudId()
+		if err != nil {
+			return errors.New("unable to get cloud ID")
+		}
+		authRequest.SetCloudId(id)
+	case AUTH_JWT:
+		authRequest.SetJwt(metadata.JWT)
+	case DEFAULT_AUTH_TYPE:
+		a.logger.Debug("authenticating using access key...")
+		authRequest.SetAccessKey(metadata.AccessKey)
+	case AUTH_K8S:
+		a.logger.Debug("authenticating using k8s...")
+		err := setK8SAuthConfiguration(*metadata, authRequest, a)
+		if err != nil {
+			return fmt.Errorf("failed to set k8s auth configuration: %w", err)
+		}
+	}
+
+	// Create Akeyless API client configuration
+	a.logger.Debug("creating Akeyless API client configuration...")
+	config := akeyless.NewConfiguration()
+	config.Servers = []akeyless.ServerConfiguration{
+		{
+			URL: metadata.GatewayURL,
+		},
+	}
+	config.UserAgent = USER_AGENT
+	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
+
+	a.v2 = akeyless.NewAPIClient(config).V2Api
+
+	a.logger.Debug("authenticating with Akeyless...")
+	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
+	if err != nil || httpResponse.StatusCode != 200 {
+		return fmt.Errorf("failed to authenticate with Akeyless: %w", errors.New(httpResponse.Status))
+	}
+
+	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
+	a.token = out.GetToken()
+
+	return nil
+}
+
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	if a.v2 == nil {
@@ -444,66 +504,6 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 	}
 
 	return allItems, nil
-}
-
-// Authenticate authenticates with Akeyless using the provided metadata.
-// It returns an error if the authentication fails.
-func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeylessMetadata) error {
-
-	a.logger.Debug("Creating authentication request to Akeyless...")
-	authRequest := akeyless.NewAuth()
-	authRequest.SetAccessId(metadata.AccessID)
-	authRequest.SetAccessType(metadata.AccessType)
-
-	var accessType = metadata.AccessType
-
-	a.logger.Debugf("authenticating using access type: %s", accessType)
-
-	// Depending on the access type we set the appropriate authentication method
-	switch accessType {
-	// If access type is AWS IAM we use the cloud ID
-	case AUTH_IAM:
-		id, err := aws.GetCloudId()
-		if err != nil {
-			return errors.New("unable to get cloud ID")
-		}
-		authRequest.SetCloudId(id)
-	case AUTH_JWT:
-		authRequest.SetJwt(metadata.JWT)
-	case DEFAULT_AUTH_TYPE:
-		a.logger.Debug("authenticating using access key...")
-		authRequest.SetAccessKey(metadata.AccessKey)
-	case AUTH_K8S:
-		a.logger.Debug("authenticating using k8s...")
-		err := setK8SAuthConfiguration(*metadata, authRequest, a)
-		if err != nil {
-			return fmt.Errorf("failed to set k8s auth configuration: %w", err)
-		}
-	}
-
-	// Create Akeyless API client configuration
-	a.logger.Debug("creating Akeyless API client configuration...")
-	config := akeyless.NewConfiguration()
-	config.Servers = []akeyless.ServerConfiguration{
-		{
-			URL: metadata.GatewayURL,
-		},
-	}
-	config.UserAgent = USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
-
-	a.v2 = akeyless.NewAPIClient(config).V2Api
-
-	a.logger.Debug("authenticating with Akeyless...")
-	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
-	if err != nil || httpResponse.StatusCode != 200 {
-		return fmt.Errorf("failed to authenticate with Akeyless: %w", errors.New(httpResponse.Status))
-	}
-
-	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
-	a.token = out.GetToken()
-
-	return nil
 }
 
 func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akeyless.Item, []akeyless.Item, []akeyless.Item) {

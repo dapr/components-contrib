@@ -382,27 +382,6 @@ func TestParseMetadata(t *testing.T) {
 	}
 }
 
-func TestGetComponentMetadata(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAkeylessSecretStore(log).(*akeylessSecretStore)
-
-	metadata := store.GetComponentMetadata()
-	require.NotNil(t, metadata)
-
-	// Check that the metadata contains the expected fields
-	assert.Contains(t, metadata, "gatewayUrl")
-	assert.Contains(t, metadata, "accessId")
-	assert.Contains(t, metadata, "jwt")
-	assert.Contains(t, metadata, "accessKey")
-
-	// Check that the metadata fields exist
-	accessIdField := metadata["accessId"]
-	require.NotNil(t, accessIdField)
-
-	gatewayField := metadata["gatewayUrl"]
-	require.NotNil(t, gatewayField)
-}
-
 func TestMockServerReturnsAuthOutput(t *testing.T) {
 	// Test that the mock server properly returns an AuthOutput response
 	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)

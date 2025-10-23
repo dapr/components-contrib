@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 
 	aws "github.com/akeylesslabs/akeyless-go-cloud-id/cloudprovider/aws"
 	"github.com/akeylesslabs/akeyless-go/v5"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -278,13 +276,6 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 // Features returns the features available in this secret store.
 func (a *akeylessSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{}
-}
-
-// GetComponentMetadata returns the component metadata.
-func (a *akeylessSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := akeylessMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return
 }
 
 // Close closes the secret store.

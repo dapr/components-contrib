@@ -17,6 +17,7 @@ Please make sure you've completed the relevant tasks for this PR, out of the fol
 * [ ] Extended the documentation
     * [ ] Created the dapr/docs PR: <insert PR link here>
 * [ ] I am interested in promoting this component/contribution within the Dapr community
+    * Note: The Dapr team can help create, edit, and distribute promotional content — so no writing or design experience is required!
     * [ ] I would like help to showcase my contribution (e.g. blog posts, social media, newsletters)
     * [ ] I am open to co-creating/creating tutorials, demos, or example applications to help others adopt this component
     * [ ] I would like guidance on highlighting my contribution in presentations, meetups, webinars, or [Dapr Community Calls](https://github.com/dapr/community/issues)

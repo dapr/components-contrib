@@ -362,7 +362,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 					responseMessages = append(responseMessages,
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{toolCall},
+							Parts: []llms.ContentPart{&toolCall},
 						},
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeTool,

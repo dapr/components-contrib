@@ -34,3 +34,9 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: endpoint
+    required: false
+    description: |
+      Endpoint for the component to use.
+    example: "http://localhost:4566"
+    default: "https://api.mistral.ai/v1"

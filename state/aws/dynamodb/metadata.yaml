@@ -39,7 +39,7 @@ metadata:
   - name: ttlInSeconds
     required: false
     description: |
-      Allows specifying a default Time-to-live (TTL) in seconds that will be applied to every state store request unless TTL is explicitly defined via the request metadata.
+      Allows specifying a Time-to-live (TTL) in seconds that will be applied to every state store request unless TTL is explicitly defined via the request metadata.
     example: '"600"'
     type: number
   - name: partitionKey

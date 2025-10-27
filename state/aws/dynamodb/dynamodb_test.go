@@ -1027,7 +1027,7 @@ func TestParseTTLWithDefault(t *testing.T) {
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
 		require.NotNil(t, ttl)
-		
+
 		// Should use explicit value (300), not default (600)
 		expectedTime := time.Now().Unix() + 300
 		assert.InDelta(t, expectedTime, *ttl, 2) // Allow 2 second tolerance
@@ -1089,7 +1089,7 @@ func TestParseTTLWithDefault(t *testing.T) {
 		assert.Nil(t, ttl) // Should return nil when TTL not enabled
 	})
 
-	t.Run("Explicit TTL with value -1", func(t *testing.T) {
+	t.Run("Explicit TTL with value -1 means no expiration", func(t *testing.T) {
 		defaultTTL := 600
 		s := StateStore{
 			ttlAttributeName: "expiresAt",
@@ -1105,11 +1105,8 @@ func TestParseTTLWithDefault(t *testing.T) {
 
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
-		require.NotNil(t, ttl)
-		
-		// -1 should result in immediate expiration (now + -1)
-		expectedTime := time.Now().Unix() - 1
-		assert.InDelta(t, expectedTime, *ttl, 2)
+		// -1 means never expire
+		assert.Nil(t, ttl)
 	})
 
 	t.Run("Default TTL with large value", func(t *testing.T) {
@@ -1152,7 +1149,7 @@ func TestParseTTLWithDefault(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid syntax")
 	})
 
-	t.Run("Explicit TTL overrides default in request with empty metadata", func(t *testing.T) {
+	t.Run("Explicit TTL with value 0 means no expiration", func(t *testing.T) {
 		defaultTTL := 1200
 		s := StateStore{
 			ttlAttributeName: "expiresAt",
@@ -1168,10 +1165,43 @@ func TestParseTTLWithDefault(t *testing.T) {
 
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
-		require.NotNil(t, ttl)
-		
-		// Should use explicit value 0, not default
-		expectedTime := time.Now().Unix()
-		assert.InDelta(t, expectedTime, *ttl, 2)
+		// 0 means never expire, overriding default
+		assert.Nil(t, ttl)
+	})
+
+	t.Run("Default TTL with value 0 means no expiration", func(t *testing.T) {
+		defaultTTL := 0
+		s := StateStore{
+			ttlAttributeName: "expiresAt",
+			ttlInSeconds:     &defaultTTL,
+		}
+
+		req := &state.SetRequest{
+			Key:      "test-key",
+			Metadata: map[string]string{},
+		}
+
+		ttl, err := s.parseTTL(req)
+		require.NoError(t, err)
+		// Default of 0 means never expire
+		assert.Nil(t, ttl)
+	})
+
+	t.Run("Default TTL with negative value means no expiration", func(t *testing.T) {
+		defaultTTL := -1
+		s := StateStore{
+			ttlAttributeName: "expiresAt",
+			ttlInSeconds:     &defaultTTL,
+		}
+
+		req := &state.SetRequest{
+			Key:      "test-key",
+			Metadata: map[string]string{},
+		}
+
+		ttl, err := s.parseTTL(req)
+		require.NoError(t, err)
+		// Default of -1 means never expire
+		assert.Nil(t, ttl)
 	})
 }

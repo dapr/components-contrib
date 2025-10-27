@@ -429,6 +429,10 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 			if err != nil {
 				return nil, err
 			}
+			// Values <= 0 mean no TTL (never expires)
+			if parsedVal <= 0 {
+				return nil, nil
+			}
 			// DynamoDB expects an epoch timestamp in seconds.
 			expirationTime := time.Now().Unix() + parsedVal
 
@@ -436,6 +440,10 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 		}
 		// apply global TTL if no explicit TTL in request metadata
 		if d.ttlInSeconds != nil {
+			// Values <= 0 mean no TTL (never expires)
+			if *d.ttlInSeconds <= 0 {
+				return nil, nil
+			}
 			expirationTime := time.Now().Unix() + int64(*d.ttlInSeconds)
 			return &expirationTime, nil
 		}

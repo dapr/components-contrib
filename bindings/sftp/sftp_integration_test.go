@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	toxiproxy "github.com/Shopify/toxiproxy/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,11 +15,13 @@ import (
 var connectionStringEnvKey = "DAPR_TEST_SFTP_CONNSTRING"
 
 // Run docker from the file location as the upload folder is relative to the test
-// docker run -v ./upload:/home/foo/upload -p 2222:22 -d atmoz/sftp foo:pass:1001
+// cd integration
+// docker-compose up -d
+// export DAPR_TEST_SFTP_CONNSTRING=sftp:22
 func TestIntegrationCases(t *testing.T) {
 	connectionString := os.Getenv(connectionStringEnvKey)
 	if connectionString == "" {
-		t.Skipf(`sftp binding integration tests skipped. To enable this test, define the connection string using environment variable '%[1]s' (example 'export %[1]s="localhost:2222")'`, connectionStringEnvKey)
+		t.Skipf("sftp binding integration skipped. To enable this test, define the connection string using environment variable '%[1]s' (example 'export %[1]s=\"localhost:2222\")'", connectionStringEnvKey)
 	}
 
 	t.Run("List operation", testListOperation)
@@ -27,20 +30,39 @@ func TestIntegrationCases(t *testing.T) {
 
 func testListOperation(t *testing.T) {
 	c := Sftp{}
+
+	client := toxiproxy.NewClient("localhost:8474")
+	p, err := client.CreateProxy("sftp", "0.0.0.0:2222", os.Getenv(connectionStringEnvKey))
+	require.NoError(t, err)
+	defer p.Delete()
+
 	m := bindings.Metadata{}
+
 	m.Properties = map[string]string{
 		"rootPath":              "/upload",
-		"address":               os.Getenv(connectionStringEnvKey),
+		"address":               "0.0.0.0:2222",
 		"username":              "foo",
 		"password":              "pass",
 		"insecureIgnoreHostKey": "true",
 	}
-	err := c.Init(t.Context(), m)
+
+	err = c.Init(t.Context(), m)
 	require.NoError(t, err)
 
 	r, err := c.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
 	require.NoError(t, err)
 	assert.NotNil(t, r.Data)
+
+	tx, err := p.AddToxic("reset", "reset_peer", "downstream", 1, toxiproxy.Attributes{})
+	require.NoError(t, err)
+	defer p.RemoveToxic(tx.Name)
+
+	_, err = c.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
+	require.Error(t, err)
+
+	p.RemoveToxic(tx.Name)
+	r, err = c.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
+	require.NoError(t, err)
 
 	var d []listResponse
 	err = json.Unmarshal(r.Data, &d)

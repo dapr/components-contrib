@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sync"
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -25,9 +26,30 @@ const (
 
 // Sftp is a binding for file operations on sftp server.
 type Sftp struct {
-	metadata   *sftpMetadata
-	logger     logger.Logger
-	sftpClient *sftpClient.Client
+	metadata     *sftpMetadata
+	logger       logger.Logger
+	sftpClient   *sftpClient.Client
+	sshClient    *ssh.Client
+	clientConfig *ssh.ClientConfig
+	lock         sync.RWMutex
+}
+
+func (sftp *Sftp) Client() (*sftpClient.Client, error) {
+	sftp.lock.RLock()
+	current := sftp.sftpClient
+	sftp.lock.RUnlock()
+
+	if current != nil {
+		if _, err := current.Getwd(); err == nil {
+			return current, nil
+		}
+	}
+
+	err := sftp.handleReconnection()
+	if err != nil {
+		return nil, err
+	}
+	return sftp.sftpClient, nil
 }
 
 // sftpMetadata defines the sftp metadata.
@@ -122,9 +144,11 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 
 	newSftpClient, err := sftpClient.NewClient(sshClient)
 	if err != nil {
+		_ = sshClient.Close()
 		return fmt.Errorf("sftp binding error: error create sftp client: %w", err)
 	}
 
+	sftp.clientConfig = config
 	sftp.metadata = m
 	sftp.sftpClient = newSftpClient
 
@@ -163,12 +187,17 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 
 	dir, fileName := sftpClient.Split(path)
 
-	err = sftp.sftpClient.MkdirAll(dir)
+	c, err := sftp.Client()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error getting sftp client: %w", err)
+	}
+
+	err = c.MkdirAll(dir)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error create dir %s: %w", dir, err)
 	}
 
-	file, err := sftp.sftpClient.Create(path)
+	file, err := c.Create(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error create file %s: %w", path, err)
 	}
@@ -211,7 +240,12 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	files, err := sftp.sftpClient.ReadDir(path)
+	c, err := sftp.Client()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error getting sftp client: %w", err)
+	}
+
+	files, err := c.ReadDir(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error read dir %s: %w", path, err)
 	}
@@ -246,7 +280,12 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	file, err := sftp.sftpClient.Open(path)
+	c, err := sftp.Client()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error getting sftp client: %w", err)
+	}
+
+	file, err := c.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error open file %s: %w", path, err)
 	}
@@ -272,7 +311,11 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	err = sftp.sftpClient.Remove(path)
+	c, err := sftp.Client()
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error getting sftp client: %w", err)
+	}
+	err = c.Remove(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error remove file %s: %w", path, err)
 	}
@@ -296,6 +339,8 @@ func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 func (sftp *Sftp) Close() error {
+	sftp.lock.Lock()
+	defer sftp.lock.Unlock()
 	return sftp.sftpClient.Close()
 }
 
@@ -329,4 +374,42 @@ func (sftp *Sftp) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sftpMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
+}
+
+func (sftp *Sftp) handleReconnection() error {
+	sftp.lock.Lock()
+	defer sftp.lock.Unlock()
+
+	// Re-check after acquiring the write lock
+	if sftp.sftpClient != nil {
+		if _, err := sftp.sftpClient.Getwd(); err == nil {
+			return nil
+		}
+		_ = sftp.sftpClient.Close()
+		sftp.sftpClient = nil
+	}
+	if sftp.sshClient != nil {
+		_ = sftp.sshClient.Close()
+		sftp.sshClient = nil
+	}
+
+	if sftp.metadata == nil || sftp.clientConfig == nil {
+		return fmt.Errorf("sftp binding error: client not initialized")
+	}
+
+	sshClient, err := ssh.Dial("tcp", sftp.metadata.Address, sftp.clientConfig)
+	if err != nil {
+		return fmt.Errorf("sftp binding error: error create ssh client: %w", err)
+	}
+
+	newSftpClient, err := sftpClient.NewClient(sshClient)
+	if err != nil {
+		_ = sshClient.Close()
+		return fmt.Errorf("sftp binding error: error create sftp client: %w", err)
+	}
+
+	sftp.sshClient = sshClient
+	sftp.sftpClient = newSftpClient
+
+	return nil
 }

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	ccreds "golang.org/x/oauth2/clientcredentials"
 )
@@ -109,6 +110,6 @@ func Test_TokenRenewal(t *testing.T) {
 	}
 
 	tok, err := c.Token()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "new-token", tok)
 }

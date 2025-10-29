@@ -1,0 +1,14 @@
+services:
+  ravendb:
+    image: ravendb/ravendb
+    container_name: RavenDb
+    ports:
+      - "8080:8080"
+    environment:
+      - RAVEN_LICENSE=${RavenDbLicense}
+      - RAVEN_DATABASE=testdapr
+      - RAVEN_Setup_Mode=None
+      - RAVEN_License_Eula_Accepted=true
+      - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+      - RavenDbLicense
+    restart: unless-stopped

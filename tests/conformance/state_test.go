@@ -29,6 +29,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
+	s_clickhouse "github.com/dapr/components-contrib/state/clickhouse"
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb_v1 "github.com/dapr/components-contrib/state/cockroachdb"
 	s_coherence "github.com/dapr/components-contrib/state/coherence"
@@ -126,6 +127,8 @@ func loadStateStore(name string) state.Store {
 		return s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
 	case "cockroachdb.v1":
 		return s_cockroachdb_v1.New(testLogger)
+	case "clickhouse":
+		return s_clickhouse.NewClickHouseStateStore(testLogger)
 	case "cockroachdb.v2":
 		// v2 of the component is an alias for the PostgreSQL state store
 		// We still have a conformance test to validate that the component works with CockroachDB

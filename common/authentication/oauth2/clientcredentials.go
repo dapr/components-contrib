@@ -127,17 +127,22 @@ func (c *ClientCredentialsOptions) toConfig() (*ccreds.Config, *http.Client, err
 
 func (c *ClientCredentials) Token() (string, error) {
 	c.lock.RLock()
-	defer c.lock.RUnlock()
+	isValid := c.currentToken.Valid()
+	currentAccessToken := c.currentToken.AccessToken
+	c.lock.RUnlock()
 
-	if !c.currentToken.Valid() {
+	if !isValid {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 		if err := c.renewToken(ctx); err != nil {
 			return "", err
 		}
+		c.lock.RLock()
+		currentAccessToken = c.currentToken.AccessToken
+		c.lock.RUnlock()
 	}
 
-	return c.currentToken.AccessToken, nil
+	return currentAccessToken, nil
 }
 
 func (c *ClientCredentials) renewToken(ctx context.Context) error {
@@ -156,7 +161,7 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 		return err
 	}
 
-	if !c.currentToken.Valid() {
+	if !token.Valid() {
 		return errors.New("oauth2 client_credentials token source returned an invalid token")
 	}
 

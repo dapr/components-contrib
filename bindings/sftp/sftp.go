@@ -25,9 +25,9 @@ const (
 
 // Sftp is a binding for file operations on sftp server.
 type Sftp struct {
-	metadata   *sftpMetadata
-	logger     logger.Logger
-	sftpClient *sftpClient.Client
+	metadata *sftpMetadata
+	logger   logger.Logger
+	c        *Client
 }
 
 // sftpMetadata defines the sftp metadata.
@@ -115,18 +115,11 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 		HostKeyCallback: hostKeyCallback,
 	}
 
-	sshClient, err := ssh.Dial("tcp", m.Address, config)
-	if err != nil {
-		return fmt.Errorf("sftp binding error: error create ssh client: %w", err)
-	}
-
-	newSftpClient, err := sftpClient.NewClient(sshClient)
-	if err != nil {
-		return fmt.Errorf("sftp binding error: error create sftp client: %w", err)
-	}
-
 	sftp.metadata = m
-	sftp.sftpClient = newSftpClient
+	sftp.c, err = newClient(m.Address, config)
+	if err != nil {
+		return fmt.Errorf("sftp binding error: create sftp client error: %w", err)
+	}
 
 	return nil
 }
@@ -161,14 +154,9 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	dir, fileName := sftpClient.Split(path)
+	c := sftp.c
 
-	err = sftp.sftpClient.MkdirAll(dir)
-	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create dir %s: %w", dir, err)
-	}
-
-	file, err := sftp.sftpClient.Create(path)
+	file, fileName, err := c.create(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error create file %s: %w", path, err)
 	}
@@ -211,7 +199,9 @@ func (sftp *Sftp) list(_ context.Context, req *bindings.InvokeRequest) (*binding
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	files, err := sftp.sftpClient.ReadDir(path)
+	c := sftp.c
+
+	files, err := c.list(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error read dir %s: %w", path, err)
 	}
@@ -246,7 +236,9 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	file, err := sftp.sftpClient.Open(path)
+	c := sftp.c
+
+	file, err := c.get(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error open file %s: %w", path, err)
 	}
@@ -272,7 +264,9 @@ func (sftp *Sftp) delete(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	err = sftp.sftpClient.Remove(path)
+	c := sftp.c
+
+	err = c.delete(path)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error remove file %s: %w", path, err)
 	}
@@ -296,7 +290,7 @@ func (sftp *Sftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 func (sftp *Sftp) Close() error {
-	return sftp.sftpClient.Close()
+	return sftp.c.Close()
 }
 
 func (metadata sftpMetadata) getPath(requestMetadata map[string]string) (path string, err error) {

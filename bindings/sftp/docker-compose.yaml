@@ -1,0 +1,29 @@
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.5.0
+    ports:
+      - "8474:8474"  # Toxiproxy API
+      - "2223:2223"  # Proxied SFTP port
+    environment:
+      - HOSTNAME=0.0.0.0
+    command: ["-host", "0.0.0.0"]
+    depends_on:
+      - sftp
+    networks:
+      - sftp-network
+
+  sftp:
+    image:
+      atmoz/sftp
+    environment:
+      - SFTP_USERS=foo:pass:1001:1001:upload
+    volumes:
+      - ./upload:/home/foo/upload
+    ports:
+      - "2222:22"
+    networks:
+      - sftp-network
+
+networks:
+  sftp-network:
+    driver: bridge

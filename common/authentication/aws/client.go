@@ -18,7 +18,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -36,7 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 )
 
 type Clients struct {
@@ -181,27 +182,32 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-		if stream != nil {
-			return stream.StreamDescription.StreamARN, err
+		/**
+		 * If the error is not nil, do not proceed to the next step
+		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
+		 */
+		if err != nil {
+			return nil, err
 		}
+		return stream.StreamDescription.StreamARN, err
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")
 }
 
-func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode string) *config.KinesisClientLibConfiguration {
+func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
 	if c.Kinesis != nil {
 		if mode == sharedMode {
-			if c.Credentials != nil {
-				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
-					stream, c.Region, consumer,
-					c.Credentials)
-				return kclConfig
+			v1Creds, err := c.Credentials.Get()
+			if err != nil {
+				return nil
 			}
+			v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
+			return kclConfig
 		}
 	}
-
 	return nil
 }
 

@@ -251,7 +251,7 @@ func TestKinesisClients_WorkerCfg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.consumer, tt.mode)
+			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.kinesisClient.Region, tt.mode, tt.consumer)
 			if tt.expectedConfig == nil {
 				assert.Equal(t, tt.expectedConfig, cfg)
 				return

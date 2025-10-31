@@ -36,7 +36,7 @@ curl -X POST -H "Content-Type: application/json" \
   -d '{"type":"timeout", "attributes":{"timeout":1000}}'
 
 # Remove all toxics
-curl -X DELETE http://localhost:8474/proxies/sftp/toxics
+curl -X GET http://localhost:8474/proxies/sftp/toxics
 ```
 
 See the [Toxiproxy documentation](https://github.com/Shopify/toxiproxy) for more information on available toxics and configuration options.

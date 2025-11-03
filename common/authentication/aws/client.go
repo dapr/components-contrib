@@ -17,8 +17,9 @@ import (
 	"context"
 	"errors"
 	"sync"
-
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2config "github.com/aws/aws-sdk-go-v2/config"
+	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -193,12 +194,31 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode s
 	const sharedMode = "shared"
 	if c.Kinesis != nil {
 		if mode == sharedMode {
+<<<<<<< HEAD
 			if c.Credentials != nil {
 				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
 					stream, c.Region, consumer,
 					c.Credentials)
 				return kclConfig
 			}
+=======
+			// Try v2 default config first (standard approach for v2 components)
+			v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
+			if err == nil {
+				kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Config.Credentials)
+				return kclConfig
+			}
+			// Fallback to v1 credentials if v2 fails
+			v1Creds, v1Err := c.Credentials.Get()
+			if v1Err != nil {
+				// Both v2 and v1 failed, return nil
+				return nil
+			}
+			// Convert v1 credentials to v2 format
+			v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
+			return kclConfig
+>>>>>>> 9b9f2b98 (make the v2 creds provider be the default)
 		}
 	}
 

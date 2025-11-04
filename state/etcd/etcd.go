@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -77,6 +78,7 @@ func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
@@ -447,4 +449,181 @@ func NewTLSConfig(clientCert, clientKey, caCert string) (*tls.Config, error) {
 	}
 
 	return config, nil
+}
+
+func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	// Build the etcd key prefix we need to scan, using the literal prefix
+	// (up to the first unescaped % or _) to keep scans narrow.
+	userPrefix := likeLiteralPrefix(req.Pattern)
+	etcdPrefix := strings.TrimSuffix(e.keyPrefixPath, "/") + "/" + userPrefix
+
+	// Fetch keys under that etcd prefix
+	// (we read values too to safely get revisions; KeysOnly omits CreateRevision on some clients).
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := e.client.Get(ctx, etcdPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare paging with CreateRevision (monotonic “row id”)
+	var afterRev int64
+	if req.ContinueToken != nil && *req.ContinueToken != "" {
+		// ignore parse errors to be conservative: invalid token => no results
+		if v, perr := strconv.ParseInt(*req.ContinueToken, 10, 64); perr == nil {
+			afterRev = v
+		} else {
+			return nil, fmt.Errorf("invalid continue token: %w", perr)
+		}
+	}
+
+	type rec struct {
+		key string
+		rev int64 // CreateRevision
+	}
+	recs := make([]rec, 0, len(resp.Kvs))
+
+	// Collect user keys that match the LIKE pattern and are not expired
+	base := strings.TrimSuffix(e.keyPrefixPath, "/") + "/"
+	for _, kv := range resp.Kvs {
+		// Extract the user key (strip the configured prefix path)
+		fullKey := string(kv.Key)
+		if !strings.HasPrefix(fullKey, base) {
+			continue
+		}
+		userKey := fullKey[len(base):]
+
+		// SQL LIKE match with backslash escapes
+		if !likeMatch(userKey, req.Pattern) {
+			continue
+		}
+
+		// Filter by CreateRevision for paging
+		if afterRev > 0 && kv.CreateRevision <= afterRev {
+			continue
+		}
+
+		recs = append(recs, rec{key: userKey, rev: kv.CreateRevision})
+	}
+
+	// Sort by CreateRevision ascending to mimic a stable “row_id” order
+	sort.Slice(recs, func(i, j int) bool { return recs[i].rev < recs[j].rev })
+
+	respOut := &state.KeysLikeResponse{Keys: make([]string, 0, len(recs))}
+
+	// Apply page size (fetch one extra to decide if there is a next page)
+	if req.PageSize != nil && *req.PageSize > 0 {
+		ps := int(*req.PageSize)
+		if len(recs) > ps {
+			// Continue token is the CreateRevision of the LAST returned item.
+			respOut.ContinueToken = ptr.Of(strconv.FormatInt(recs[ps-1].rev, 10))
+			recs = recs[:ps]
+		}
+	}
+
+	for _, r := range recs {
+		respOut.Keys = append(respOut.Keys, r.key)
+	}
+
+	return respOut, nil
+}
+
+// likeLiteralPrefix returns the literal prefix before the first unescaped % or _.
+func likeLiteralPrefix(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		switch c {
+		case '\\':
+			if i+1 < len(p) {
+				b.WriteByte(p[i+1])
+				i++
+			} else {
+				// Trailing backslash: treat it literally.
+				b.WriteByte('\\')
+			}
+		case '%', '_':
+			return b.String()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// likeMatch implements SQL LIKE for ASCII with % (any) and _ (single char).
+// Backslash escapes %, _, and \ (as used in the conformance tests).
+func likeMatch(s, p string) bool {
+	i, j := 0, 0
+	star := -1 // position of last % in pattern
+	match := 0 // index in s where we started to match after last %
+	for i < len(s) {
+		if j < len(p) {
+			switch p[j] {
+			case '\\':
+				// Escape next char, must match literally
+				if j+1 >= len(p) {
+					// dangling escape => treat as literal '\'
+					if s[i] != '\\' {
+						goto backtrack
+					}
+					i++
+					j++
+					continue
+				}
+				j++
+				if s[i] == p[j] {
+					i++
+					j++
+					continue
+				}
+				goto backtrack
+			case '_':
+				// Match any single char
+				i++
+				j++
+				continue
+			case '%':
+				// Remember position of % and try to match zero chars first
+				star = j
+				match = i
+				j++
+				continue
+			default:
+				if s[i] == p[j] {
+					i++
+					j++
+					continue
+				}
+			}
+		}
+	backtrack:
+		if star != -1 {
+			// Backtrack: extend % to cover one more char
+			j = star + 1
+			match++
+			i = match
+			continue
+		}
+		return false
+	}
+	// Consume trailing % (and escaped sequences like "\%" are not %)
+	for j < len(p) {
+		if p[j] == '%' {
+			j++
+			continue
+		}
+		if p[j] == '\\' {
+			// Escaped literal remains unmatched since s ended
+			// If there's a char after '\', it cannot match empty
+			return false
+		}
+		// Any other char (including '_') cannot match empty
+		return false
+	}
+	return true
 }

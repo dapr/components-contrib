@@ -141,6 +141,12 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 }
 
+func Test_KeysLiker(t *testing.T) {
+	pg := NewPostgreSQLStateStore(logger.NewLogger("test"))
+	_, ok := pg.(state.KeysLiker)
+	require.True(t, ok)
+}
+
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
 func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 	key := randomKey()

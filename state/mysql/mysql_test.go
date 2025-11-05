@@ -501,6 +501,8 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(1, 1))
 	rows = sqlmock.NewRows([]string{"exists"}).AddRow(1)
 	m.mock1.ExpectQuery("SELECT count(/*)").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"exists"}).AddRow(1)
+	m.mock1.ExpectQuery("SELECT count(/*)").WillReturnRows(rows)
 	m.mock1.ExpectExec("CREATE PROCEDURE").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Act

@@ -67,7 +67,6 @@ var (
 )
 
 func TestInit(t *testing.T) {
-
 	tests := []struct {
 		name          string
 		metadata      nr.Metadata

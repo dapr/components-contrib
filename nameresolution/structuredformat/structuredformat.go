@@ -25,28 +25,31 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "gopkg.in/yaml.v3"
+
 	"github.com/dapr/components-contrib/metadata"
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
-	yaml "gopkg.in/yaml.v3"
 )
 
 const (
-	JSON_STRING_STRUCTURED_VALUE = "jsonString"
-	YAML_STRING_STRUCTURED_VALUE = "yamlString"
-	JSON_FILE_STRUCTURED_VALUE   = "jsonFile"
-	YAML_FILE_STRUCTURED_VALUE   = "yamlFile"
+	JSONStringStructuredValue = "jsonString"
+	YAMLStringStructuredValue = "yamlString"
+	JSONFileStructuredValue   = "jsonFile"
+	YAMLFileStructuredValue   = "yamlFile"
 )
 
-var allowedStructuredTypes = []string{JSON_STRING_STRUCTURED_VALUE,
-	YAML_STRING_STRUCTURED_VALUE, JSON_FILE_STRUCTURED_VALUE, YAML_FILE_STRUCTURED_VALUE}
+var allowedStructuredTypes = []string{
+	JSONStringStructuredValue,
+	YAMLStringStructuredValue, JSONFileStructuredValue, YAMLFileStructuredValue,
+}
 
 // StructuredFormatResolver parses service names from a structured string
 // defined in the configuration.
 type StructuredFormatResolver struct {
-	meta       structuredFormatMetadata
-	appAddress appAddress
+	meta      structuredFormatMetadata
+	instances appInstances
 
 	logger logger.Logger
 }
@@ -59,8 +62,8 @@ type structuredFormatMetadata struct {
 	FilePath       string
 }
 
-// appAddress stores the relationship between services and their instances.
-type appAddress struct {
+// appInstances stores the relationship between services and their instances.
+type appInstances struct {
 	AppInstances map[string][]address `json:"appInstances" yaml:"appInstances"`
 }
 
@@ -91,11 +94,11 @@ func (r *StructuredFormatResolver) Init(ctx context.Context, metadata nr.Metadat
 	}
 
 	switch meta.StructuredType {
-	case JSON_STRING_STRUCTURED_VALUE, YAML_STRING_STRUCTURED_VALUE:
+	case JSONStringStructuredValue, YAMLStringStructuredValue:
 		if meta.StringValue == "" {
 			return fmt.Errorf("structuredType = %s, stringValue must be not empty", meta.StructuredType)
 		}
-	case JSON_FILE_STRUCTURED_VALUE, YAML_FILE_STRUCTURED_VALUE:
+	case JSONFileStructuredValue, YAMLFileStructuredValue:
 		if meta.FilePath == "" {
 			return fmt.Errorf("structuredType = %s, filePath must be not empty", meta.StructuredType)
 		}
@@ -106,11 +109,11 @@ func (r *StructuredFormatResolver) Init(ctx context.Context, metadata nr.Metadat
 
 	r.meta = meta
 
-	appAddress, err := loadStructuredFormatData(r)
+	instances, err := loadStructuredFormatData(r)
 	if err != nil {
 		return err
 	}
-	r.appAddress = appAddress
+	r.instances = instances
 
 	return nil
 }
@@ -121,7 +124,9 @@ func (r *StructuredFormatResolver) ResolveID(ctx context.Context, req nr.Resolve
 		return "", errors.New("empty ID not allowed")
 	}
 
-	if addresses, exists := r.appAddress.AppInstances[req.ID]; exists && len(addresses) > 0 {
+	if addresses, exists := r.instances.AppInstances[req.ID]; exists && len(addresses) > 0 {
+		// gosec is complaining that we are using a non-crypto-safe PRNG. This is fine in this scenario since we are using it only for selecting a random address for load-balancing.
+		//nolint:gosec
 		address := addresses[rand.Int()%len(addresses)]
 
 		net.JoinHostPort(address.Domain, strconv.Itoa(address.Port))
@@ -151,42 +156,42 @@ func (r *StructuredFormatResolver) GetComponentMetadata() metadata.MetadataMap {
 }
 
 // loadStructuredFormatData loads the mapping between services and their instances from a configuration file.
-func loadStructuredFormatData(r *StructuredFormatResolver) (appAddress, error) {
-	var appAddress appAddress
+func loadStructuredFormatData(r *StructuredFormatResolver) (appInstances, error) {
+	var instances appInstances
 	switch r.meta.StructuredType {
-	case JSON_STRING_STRUCTURED_VALUE:
-		err := json.Unmarshal([]byte(r.meta.StringValue), &appAddress)
+	case JSONStringStructuredValue:
+		err := json.Unmarshal([]byte(r.meta.StringValue), &instances)
 		if err != nil {
-			return appAddress, err
+			return instances, err
 		}
-	case YAML_STRING_STRUCTURED_VALUE:
-		err := yaml.Unmarshal([]byte(r.meta.StringValue), &appAddress)
+	case YAMLStringStructuredValue:
+		err := yaml.Unmarshal([]byte(r.meta.StringValue), &instances)
 		if err != nil {
-			return appAddress, err
+			return instances, err
 		}
-	case JSON_FILE_STRUCTURED_VALUE:
+	case JSONFileStructuredValue:
 		data, err := os.ReadFile(r.meta.FilePath)
 		if err != nil {
-			return appAddress, fmt.Errorf("error reading file: %s", err)
+			return instances, fmt.Errorf("error reading file: %s", err)
 		}
 
-		err = json.Unmarshal(data, &appAddress)
+		err = json.Unmarshal(data, &instances)
 		if err != nil {
-			return appAddress, err
+			return instances, err
 		}
-	case YAML_FILE_STRUCTURED_VALUE:
+	case YAMLFileStructuredValue:
 		data, err := os.ReadFile(r.meta.FilePath)
 		if err != nil {
-			return appAddress, fmt.Errorf("error reading file: %s", err)
+			return instances, fmt.Errorf("error reading file: %s", err)
 		}
 
-		err = yaml.Unmarshal(data, &appAddress)
+		err = yaml.Unmarshal(data, &instances)
 		if err != nil {
-			return appAddress, err
+			return instances, err
 		}
 	default:
-		return appAddress, fmt.Errorf("structuredType must be one of: %s",
+		return instances, fmt.Errorf("structuredType must be one of: %s",
 			strings.Join(allowedStructuredTypes, ", "))
 	}
-	return appAddress, nil
+	return instances, nil
 }

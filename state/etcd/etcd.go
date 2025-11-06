@@ -464,7 +464,7 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 	if req.ContinueToken != nil {
 		parts := strings.SplitN(*req.ContinueToken, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid continue token")
+			return nil, errors.New("invalid continue token")
 		}
 		var err error
 		if snapRev, err = strconv.ParseInt(parts[0], 10, 64); err != nil {
@@ -483,12 +483,7 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 
 	// Start with a reasonable over-fetch to compensate LIKE filtering; grow if needed.
 	// For unlimited pages, we’ll keep increasing until server exhausts.
-	fetch := 256
-	if want > 0 {
-		if n := want * 4; n > fetch {
-			fetch = n
-		}
-	}
+	fetch := max(256, want)
 
 	keys := make([]string, 0, max(1, want))
 	var lastCreate int64

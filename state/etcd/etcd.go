@@ -459,10 +459,10 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 	etcdPrefix := strings.TrimSuffix(e.keyPrefixPath, "/") + "/" + userPrefix
 	base := strings.TrimSuffix(e.keyPrefixPath, "/") + "/"
 
-	// Continue token carries: <snapshotRev>:<lastCreateRev>
+	// Continue token format: <snapshotRev>:<lastCreateRev>
 	var snapRev, afterCreate int64
-	if req.ContinueToken != nil {
-		parts := strings.SplitN(*req.ContinueToken, ":", 2)
+	if tok := req.ContinueToken; tok != nil && *tok != "" {
+		parts := strings.SplitN(*tok, ":", 2)
 		if len(parts) != 2 {
 			return nil, errors.New("invalid continue token")
 		}
@@ -475,22 +475,17 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 		}
 	}
 
-	// Desired page size (0 => no limit: return everything)
-	want := 0
+	// Page size handling
+	want := 0     // 0 = unlimited
+	fetch := 1024 // initial server-side limit
 	if req.PageSize != nil && *req.PageSize > 0 {
 		want = int(*req.PageSize)
+		fetch = int(*req.PageSize) * 4 // over-fetch to reduce round-trips
 	}
 
-	// Start with a reasonable over-fetch to compensate LIKE filtering; grow if needed.
-	// For unlimited pages, we’ll keep increasing until server exhausts.
-	fetch := max(256, want)
-
-	keys := make([]string, 0, max(1, want))
+	keys := make([]string, 0, 1024)
 	var lastCreate int64
 
-	// Re-issue the same read (same snapshot) with a larger Limit until:
-	// - we fill the page; or
-	// - the server returns fewer than Limit KVs (range exhausted at snapshot).
 	for {
 		opts := []clientv3.OpOption{
 			clientv3.WithPrefix(),
@@ -509,54 +504,69 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 			return nil, err
 		}
 		if snapRev == 0 {
-			// Freeze the snapshot for stable pagination across calls
+			// Freeze snapshot to be stable across internal retries
 			snapRev = resp.Header.Revision
 		}
 
-		// Filter by LIKE and afterCreate (creation-order cursor)
+		// Track the max CreateRevision we saw in THIS batch, regardless of LIKE match,
+		// so we can advance the cursor and not re-scan the same window.
+		maxSeenCreate := afterCreate
+
 		for _, kv := range resp.Kvs {
+			if kv.CreateRevision > maxSeenCreate {
+				maxSeenCreate = kv.CreateRevision
+			}
+
+			// Extract user key
 			fullKey := string(kv.Key)
 			if !strings.HasPrefix(fullKey, base) {
 				continue
 			}
 			userKey := fullKey[len(base):]
+
+			// Skip anything at or before our current cursor
 			if kv.CreateRevision <= afterCreate {
 				continue
 			}
+
+			// LIKE filter
 			if !likeMatch(userKey, req.Pattern) {
 				continue
 			}
+
 			keys = append(keys, userKey)
 			lastCreate = kv.CreateRevision
+
+			// If we have a page size and it's filled, return with next token
 			if want > 0 && len(keys) >= want {
-				// Page filled
 				tok := fmt.Sprintf("%d:%d", snapRev, lastCreate)
-				return &state.KeysLikeResponse{Keys: keys, ContinueToken: &tok}, nil
+				return &state.KeysLikeResponse{
+					Keys:          keys,
+					ContinueToken: &tok,
+				}, nil
 			}
 		}
 
-		// If the server returned fewer than we asked for, we’ve hit the end at this snapshot.
+		// Advance the creation-revision cursor so next loop does NOT re-scan same items
+		afterCreate = maxSeenCreate
+
+		// If server returned fewer than we asked for, we're at end-of-range at this snapshot
 		if int64(len(resp.Kvs)) < int64(fetch) {
-			// No more data. Return whatever we have (may be < want).
-			return &state.KeysLikeResponse{Keys: keys, ContinueToken: nil}, nil
+			return &state.KeysLikeResponse{
+				Keys:          keys,
+				ContinueToken: nil,
+			}, nil
 		}
 
-		// Didn’t fill the page yet and there may be more at this snapshot: grow the limit and try again.
-		// Re-reading from the start is OK because we filter by afterCreate and snapshot; it’s still O(N) per page.
+		// Otherwise, keep going until page fills or range ends.
+		// (We can keep fetch constant; doubling is optional. Keep a safety cap.)
 		if fetch < 8192 {
 			fetch *= 2
-		} else {
-			// Safety cap: stop growing; return partial page rather than loop forever.
-			return &state.KeysLikeResponse{Keys: keys, ContinueToken: nil}, nil
+		} else if want == 0 {
+			// Unlimited page but we've hit our internal cap; return what we have
+			return &state.KeysLikeResponse{Keys: keys}, nil
 		}
 	}
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // likeLiteralPrefix returns the literal prefix before the first unescaped % or _.

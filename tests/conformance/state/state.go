@@ -1777,8 +1777,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}))
 			}
 
-			return
-
 			for i := range 1025 {
 				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
 					Key:   strconv.Itoa(i),

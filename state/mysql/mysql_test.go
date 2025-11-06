@@ -934,5 +934,6 @@ func TestValidIdentifier(t *testing.T) {
 
 func Test_KeysLike(t *testing.T) {
 	m, _ := mockDatabase(t)
-	var _ state.KeysLiker = m.mySQL
+	_, ok := m.mySQL.(state.KeysLiker)
+	require.True(t, ok)
 }

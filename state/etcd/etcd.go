@@ -461,11 +461,20 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 	userPrefix := likeLiteralPrefix(req.Pattern)
 	etcdPrefix := strings.TrimSuffix(e.keyPrefixPath, "/") + "/" + userPrefix
 
+	opts := []clientv3.OpOption{
+		clientv3.WithPrefix(),
+		clientv3.WithKeysOnly(),
+	}
+
+	if req.PageSize != nil {
+		opts = append(opts, clientv3.WithLimit(int64(*req.PageSize)+1))
+	}
+
 	// Fetch keys under that etcd prefix
 	// (we read values too to safely get revisions; KeysOnly omits CreateRevision on some clients).
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	resp, err := e.client.Get(ctx, etcdPrefix, clientv3.WithPrefix())
+	resp, err := e.client.Get(ctx, etcdPrefix, opts...)
 	if err != nil {
 		return nil, err
 	}

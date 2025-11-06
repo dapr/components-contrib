@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -456,89 +455,113 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 		return nil, state.ErrKeysLikeEmptyPattern
 	}
 
-	// Build the etcd key prefix we need to scan, using the literal prefix
-	// (up to the first unescaped % or _) to keep scans narrow.
 	userPrefix := likeLiteralPrefix(req.Pattern)
 	etcdPrefix := strings.TrimSuffix(e.keyPrefixPath, "/") + "/" + userPrefix
-
-	opts := []clientv3.OpOption{
-		clientv3.WithPrefix(),
-		clientv3.WithKeysOnly(),
-	}
-
-	if req.PageSize != nil {
-		opts = append(opts, clientv3.WithLimit(int64(*req.PageSize*4)))
-	}
-
-	// Fetch keys under that etcd prefix
-	// (we read values too to safely get revisions; KeysOnly omits CreateRevision on some clients).
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	resp, err := e.client.Get(ctx, etcdPrefix, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare paging with CreateRevision (monotonic “row id”)
-	var afterRev int64
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
-		// ignore parse errors to be conservative: invalid token => no results
-		if v, perr := strconv.ParseInt(*req.ContinueToken, 10, 64); perr == nil {
-			afterRev = v
-		} else {
-			return nil, fmt.Errorf("invalid continue token: %w", perr)
-		}
-	}
-
-	type rec struct {
-		key string
-		rev int64 // CreateRevision
-	}
-	recs := make([]rec, 0, len(resp.Kvs))
-
-	// Collect user keys that match the LIKE pattern and are not expired
 	base := strings.TrimSuffix(e.keyPrefixPath, "/") + "/"
-	for _, kv := range resp.Kvs {
-		// Extract the user key (strip the configured prefix path)
-		fullKey := string(kv.Key)
-		if !strings.HasPrefix(fullKey, base) {
-			continue
-		}
-		userKey := fullKey[len(base):]
 
-		// SQL LIKE match with backslash escapes
-		if !likeMatch(userKey, req.Pattern) {
-			continue
+	// Continue token carries: <snapshotRev>:<lastCreateRev>
+	var snapRev, afterCreate int64
+	if req.ContinueToken != nil {
+		parts := strings.SplitN(*req.ContinueToken, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid continue token")
 		}
-
-		// Filter by CreateRevision for paging
-		if afterRev > 0 && kv.CreateRevision <= afterRev {
-			continue
+		var err error
+		if snapRev, err = strconv.ParseInt(parts[0], 10, 64); err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
 		}
-
-		recs = append(recs, rec{key: userKey, rev: kv.CreateRevision})
+		if afterCreate, err = strconv.ParseInt(parts[1], 10, 64); err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
 	}
 
-	// Sort by CreateRevision ascending to mimic a stable “row_id” order
-	sort.Slice(recs, func(i, j int) bool { return recs[i].rev < recs[j].rev })
-
-	respOut := &state.KeysLikeResponse{Keys: make([]string, 0, len(recs))}
-
-	// Apply page size (fetch one extra to decide if there is a next page)
+	// Desired page size (0 => no limit: return everything)
+	want := 0
 	if req.PageSize != nil && *req.PageSize > 0 {
-		ps := int(*req.PageSize)
-		if len(recs) > ps {
-			// Continue token is the CreateRevision of the LAST returned item.
-			respOut.ContinueToken = ptr.Of(strconv.FormatInt(recs[ps-1].rev, 10))
-			recs = recs[:ps]
+		want = int(*req.PageSize)
+	}
+
+	// Start with a reasonable over-fetch to compensate LIKE filtering; grow if needed.
+	// For unlimited pages, we’ll keep increasing until server exhausts.
+	fetch := 256
+	if want > 0 {
+		if n := want * 4; n > fetch {
+			fetch = n
 		}
 	}
 
-	for _, r := range recs {
-		respOut.Keys = append(respOut.Keys, r.key)
-	}
+	keys := make([]string, 0, max(1, want))
+	var lastCreate int64
 
-	return respOut, nil
+	// Re-issue the same read (same snapshot) with a larger Limit until:
+	// - we fill the page; or
+	// - the server returns fewer than Limit KVs (range exhausted at snapshot).
+	for {
+		opts := []clientv3.OpOption{
+			clientv3.WithPrefix(),
+			clientv3.WithSort(clientv3.SortByCreateRevision, clientv3.SortAscend),
+			clientv3.WithLimit(int64(fetch)),
+			clientv3.WithKeysOnly(),
+		}
+		if snapRev > 0 {
+			opts = append(opts, clientv3.WithRev(snapRev))
+		}
+
+		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		resp, err := e.client.Get(cctx, etcdPrefix, opts...)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		if snapRev == 0 {
+			// Freeze the snapshot for stable pagination across calls
+			snapRev = resp.Header.Revision
+		}
+
+		// Filter by LIKE and afterCreate (creation-order cursor)
+		for _, kv := range resp.Kvs {
+			fullKey := string(kv.Key)
+			if !strings.HasPrefix(fullKey, base) {
+				continue
+			}
+			userKey := fullKey[len(base):]
+			if kv.CreateRevision <= afterCreate {
+				continue
+			}
+			if !likeMatch(userKey, req.Pattern) {
+				continue
+			}
+			keys = append(keys, userKey)
+			lastCreate = kv.CreateRevision
+			if want > 0 && len(keys) >= want {
+				// Page filled
+				tok := fmt.Sprintf("%d:%d", snapRev, lastCreate)
+				return &state.KeysLikeResponse{Keys: keys, ContinueToken: &tok}, nil
+			}
+		}
+
+		// If the server returned fewer than we asked for, we’ve hit the end at this snapshot.
+		if int64(len(resp.Kvs)) < int64(fetch) {
+			// No more data. Return whatever we have (may be < want).
+			return &state.KeysLikeResponse{Keys: keys, ContinueToken: nil}, nil
+		}
+
+		// Didn’t fill the page yet and there may be more at this snapshot: grow the limit and try again.
+		// Re-reading from the start is OK because we filter by afterCreate and snapshot; it’s still O(N) per page.
+		if fetch < 8192 {
+			fetch *= 2
+		} else {
+			// Safety cap: stop growing; return partial page rather than loop forever.
+			return &state.KeysLikeResponse{Keys: keys, ContinueToken: nil}, nil
+		}
+	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // likeLiteralPrefix returns the literal prefix before the first unescaped % or _.

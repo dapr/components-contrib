@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	sftp "github.com/dapr/components-contrib/bindings/sftp/proxy"
+	sftp "github.com/dapr/components-contrib/tests/utils/sftpproxy"
 )
 
 const ProxySftp = "0.0.0.0:2223"

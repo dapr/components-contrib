@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -227,7 +228,7 @@ func shouldReconnect(err error) bool {
 	}
 
 	// Network/timeout conditions
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, os.ErrDeadlineExceeded) {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, syscall.ECONNRESET) {
 		return true
 	}
 

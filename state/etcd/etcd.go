@@ -467,7 +467,7 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 	}
 
 	if req.PageSize != nil {
-		opts = append(opts, clientv3.WithLimit(int64(*req.PageSize)+1))
+		opts = append(opts, clientv3.WithLimit(int64(*req.PageSize*4)))
 	}
 
 	// Fetch keys under that etcd prefix

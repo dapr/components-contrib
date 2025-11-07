@@ -16,11 +16,8 @@ package sftp
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"strings"
 	"sync"
-	"syscall"
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -254,23 +251,6 @@ func newSSHClient(address string, config *ssh.ClientConfig) (*ssh.Client, error)
 func shouldReconnect(err error) bool {
 	if err == nil {
 		return false
-	}
-
-	// Network/timeout conditions
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, syscall.ECONNRESET) {
-		return true
-	}
-
-	// Common wrapped network error messages
-	msg := strings.ToLower(err.Error())
-	switch {
-	case strings.Contains(msg, "use of closed network connection"),
-		strings.Contains(msg, "connection reset by peer"),
-		strings.Contains(msg, "broken pipe"),
-		strings.Contains(msg, "connection refused"),
-		strings.Contains(msg, "network is unreachable"),
-		strings.Contains(msg, "no such host"):
-		return true
 	}
 
 	// SFTP status errors that are logical, not connectivity (avoid reconnect)

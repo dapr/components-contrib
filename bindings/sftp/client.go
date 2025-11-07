@@ -40,9 +40,9 @@ func newClient(address string, config *ssh.ClientConfig) (*Client, error) {
 		return nil, errors.New("sftp binding error: client not initialized")
 	}
 
-	sshClient, err := ssh.Dial("tcp", address, config)
+	sshClient, err := newSSHClient(address, config)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create ssh client: %w", err)
+		return nil, err
 	}
 
 	newSftpClient, err := sftpClient.NewClient(sshClient)
@@ -213,9 +213,9 @@ func doReconnect(c *Client) error {
 		return nil
 	}
 
-	sshClient, err := ssh.Dial("tcp", c.address, c.config)
+	sshClient, err := newSSHClient(c.address, c.config)
 	if err != nil {
-		return fmt.Errorf("sftp binding error: error create ssh client: %w", err)
+		return err
 	}
 
 	newSftpClient, err := sftpClient.NewClient(sshClient)
@@ -240,6 +240,14 @@ func doReconnect(c *Client) error {
 	}
 
 	return nil
+}
+
+func newSSHClient(address string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	sshClient, err := ssh.Dial("tcp", address, config)
+	if err != nil {
+		return nil, fmt.Errorf("sftp binding error: error create ssh client: %w", err)
+	}
+	return sshClient, nil
 }
 
 // shouldReconnect returns true if the error looks like a transport-level failure

@@ -183,6 +183,27 @@ func withReconnection(c *Client, fn func() error) error {
 	return nil
 }
 
+// 1) c.rLock (sync.Mutex) — reconnect serialization:
+//   - Ensures only one goroutine performs the reconnect sequence at a time
+//     (ping/check, dial SSH, create SFTP client), preventing a thundering herd
+//     of concurrent reconnect attempts.
+//   - Does NOT protect day-to-day client usage; it only coordinates who
+//     is allowed to perform a reconnect.
+//
+// 2) c.lock (sync.RWMutex) — data-plane safety and atomic swap:
+//   - Guards reads/writes of the active client handles (sshClient, sftpClient).
+//   - Regular operations hold RLock while using the clients.
+//   - Reconnect performs a short critical section with Lock to atomically swap
+//     the client pointers; old clients are closed after unlocking to keep the
+//     critical section small and avoid blocking readers.
+//
+// Why not a single RWMutex?
+//   - If we used only c.lock and held it while dialing/handshaking, all I/O would
+//     be blocked for the entire network operation, increasing latency and risk of
+//     contention. Worse, reconnects triggered while a caller holds RLock could
+//     deadlock or starve the writer.
+//   - Separating concerns allows: (a) fast, minimal swap under c.lock, and
+//     (b) serialized reconnect work under c.rLock without blocking readers.
 func doReconnect(c *Client) error {
 	c.rLock.Lock()
 	defer c.rLock.Unlock()

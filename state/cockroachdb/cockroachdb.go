@@ -159,8 +159,8 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB metadata table")
 		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
-  key   text NOT NULL PRIMARY KEY,
-  value text NOT NULL
+key   text NOT NULL PRIMARY KEY,
+value text NOT NULL
 );`, opts.MetadataTableName))
 		if err != nil {
 			return err

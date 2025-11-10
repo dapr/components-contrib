@@ -107,28 +107,12 @@ var mockGetSingleSecretValueResponse = map[string]string{
 // Global mock server for all tests
 var mockGateway *httptest.Server
 
-// Mock AWS cloud ID for testing
-const mockCloudID = "123456789012"
-
 // mockAuthenticate is a test version of the Authenticate function that uses a mock cloud ID
 func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessSecretStore) error {
 	authRequest := akeyless.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
-	authRequest.SetAccessType(metadata.AccessType)
 
-	// Depending on the access type we set the appropriate authentication method
-	switch metadata.AccessType {
-	// If access type is AWS IAM we use the mock cloud ID
-	case AUTH_IAM:
-		akeylessSecretStore.logger.Debug("Using mock cloud ID for AWS IAM...")
-		authRequest.SetCloudId(mockCloudID)
-	case AUTH_JWT:
-		akeylessSecretStore.logger.Debug("Setting JWT for authentication...")
-		authRequest.SetJwt(metadata.JWT)
-	case DEFAULT_AUTH_TYPE:
-		akeylessSecretStore.logger.Debug("Setting access key for authentication...")
-		authRequest.SetAccessKey(metadata.AccessKey)
-	}
+	authRequest.SetAccessKey(metadata.AccessKey)
 
 	config := akeyless.NewConfiguration()
 	config.Servers = []akeyless.ServerConfiguration{
@@ -319,7 +303,6 @@ func TestParseMetadata(t *testing.T) {
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdKey,
 				AccessKey:  testAccessKey,
-				AccessType: DEFAULT_AUTH_TYPE,
 				GatewayURL: "https://api.akeyless.io", // Default gateway URL
 			},
 		},
@@ -334,12 +317,11 @@ func TestParseMetadata(t *testing.T) {
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdJwt,
 				JWT:        testJWT,
-				AccessType: AUTH_JWT,
 				GatewayURL: mockGateway.URL,
 			},
 		},
 		{
-			name: "valid metadata with access id (aws_iam)",
+			name: "valid metadata with access id aws_iam",
 			properties: map[string]string{
 				"accessId":   testAccessIdIAM,
 				"gatewayUrl": mockGateway.URL,
@@ -347,7 +329,6 @@ func TestParseMetadata(t *testing.T) {
 			expectError: false,
 			expected: &akeylessMetadata{
 				AccessID:   testAccessIdIAM,
-				AccessType: AUTH_IAM,
 				GatewayURL: mockGateway.URL,
 			},
 		},
@@ -355,6 +336,20 @@ func TestParseMetadata(t *testing.T) {
 			name: "missing access id",
 			properties: map[string]string{
 				"gatewayUrl": mockGateway.URL,
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid gateway url",
+			properties: map[string]string{
+				"gatewayUrl": "http:/invalidaddress",
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid access id format",
+			properties: map[string]string{
+				"accessId": "invalid",
 			},
 			expectError: true,
 		},
@@ -421,7 +416,6 @@ func TestMockAWSCloudID(t *testing.T) {
 	// Parse metadata first
 	m, err := store.parseMetadata(meta)
 	require.NoError(t, err)
-	assert.Equal(t, AUTH_IAM, m.AccessType)
 
 	// Use mock authentication with mock cloud ID
 	err = mockAuthenticate(m, store)

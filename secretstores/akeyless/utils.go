@@ -27,10 +27,10 @@ const (
 	CLIENT_SOURCE           = "akeylessclienttype"
 )
 
-var SUPPORTED_SECRET_TYPES = []string{"static-secret", "dynamic-secret", "rotated-secret"}
+var supportedSecretTypes = []string{"static-secret", "dynamic-secret", "rotated-secret"}
 
 // AccessTypeCharMap maps single-character access types to their display names.
-var AccessTypeCharMap = map[string]string{
+var accessTypeCharMap = map[string]string{
 	"a": DEFAULT_AUTH_TYPE,
 	"o": AUTH_JWT,
 	"w": AUTH_IAM,
@@ -38,20 +38,20 @@ var AccessTypeCharMap = map[string]string{
 }
 
 // AccessIdRegex is the compiled regular expression for validating Akeyless Access IDs.
-var AccessIdRegex = regexp.MustCompile(`^p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})$`)
+var accessIdRegex = regexp.MustCompile(`^p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})$`)
 
 // isValidAccessIdFormat validates the format of an Akeyless Access ID.
 // The format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12}).
 // It returns true if the format is valid, and false otherwise.
-func IsValidAccessIdFormat(accessId string) bool {
-	return AccessIdRegex.MatchString(accessId)
+func isValidAccessIdFormat(accessId string) bool {
+	return accessIdRegex.MatchString(accessId)
 }
 
 // extractAccessTypeChar extracts the Akeyless Access Type character from a valid Access ID.
 // The access type character is the second to last character of the ID part.
 // It returns the single-character access type (e.g., 'a', 'o') or an empty string and an error if the format is invalid.
-func ExtractAccessTypeChar(accessId string) (string, error) {
-	if !IsValidAccessIdFormat(accessId) {
+func extractAccessTypeChar(accessId string) (string, error) {
+	if !isValidAccessIdFormat(accessId) {
 		return "", errors.New("invalid access ID format")
 	}
 	parts := strings.Split(accessId, "-")
@@ -62,18 +62,18 @@ func ExtractAccessTypeChar(accessId string) (string, error) {
 
 // getAccessTypeDisplayName gets the full display name of the access type from the character.
 // It returns the display name (e.g., 'api_key') or an error if the type character is unknown.
-func GetAccessTypeDisplayName(typeChar string) (string, error) {
+func getAccessTypeDisplayName(typeChar string) (string, error) {
 	if typeChar == "" {
 		return "", errors.New("unable to retrieve access type, missing type char")
 	}
-	displayName, ok := AccessTypeCharMap[typeChar]
+	displayName, ok := accessTypeCharMap[typeChar]
 	if !ok {
 		return "Unknown", errors.New("access type character not found in map")
 	}
 	return displayName, nil
 }
 
-func GetDaprSingleSecretResponse(secretName string, secretValue string) (secretstores.GetSecretResponse, error) {
+func getDaprSingleSecretResponse(secretName string, secretValue string) (secretstores.GetSecretResponse, error) {
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
 			secretName: secretValue,
@@ -81,19 +81,12 @@ func GetDaprSingleSecretResponse(secretName string, secretValue string) (secrets
 	}, nil
 }
 
-func GetItemNames(items []akeyless.Item) []string {
+func getItemNames(items []akeyless.Item) []string {
 	itemNames := []string{}
 	for _, item := range items {
 		itemNames = append(itemNames, *item.ItemName)
 	}
 	return itemNames
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 func stringifyStaticSecret(secretValue any, secretName string) (string, error) {

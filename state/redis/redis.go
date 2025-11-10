@@ -655,8 +655,8 @@ func (r *StateStore) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (
 	}
 
 	start := 0
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
-		if off, err := strconv.Atoi(*req.ContinueToken); err == nil && off >= 0 {
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		if off, err := strconv.Atoi(*req.ContinuationToken); err == nil && off >= 0 {
 			start = off
 		}
 	}
@@ -682,8 +682,8 @@ func (r *StateStore) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (
 	}
 
 	return &state.KeysLikeResponse{
-		Keys:          page,
-		ContinueToken: cont,
+		Keys:              page,
+		ContinuationToken: cont,
 	}, nil
 }
 

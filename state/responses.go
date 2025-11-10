@@ -62,8 +62,8 @@ type DeleteWithPrefixResponse struct {
 type KeysLikeResponse struct {
 	Keys []string `json:"keys"`
 
-	// ContinueToken is an optional token which can be used to continue the
+	// ContinuationToken is an optional token which can be used to continue the
 	// search of keys. Usually only present if a `PageSize` was set on the
 	// request.
-	ContinueToken *string
+	ContinuationToken *string
 }

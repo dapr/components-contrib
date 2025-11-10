@@ -540,9 +540,9 @@ func (o *oracleDatabaseAccess) KeysLike(ctx context.Context, req state.KeysLikeR
 	args := []any{req.Pattern}
 
 	seek := ""
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
 		seek = " AND key > :token "
-		args = append(args, *req.ContinueToken)
+		args = append(args, *req.ContinuationToken)
 	}
 
 	orderBy := " ORDER BY key ASC "
@@ -597,7 +597,7 @@ FROM %s
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(keys)) > pageSize {
 		next := keys[pageSize]
-		resp.ContinueToken = &next
+		resp.ContinuationToken = &next
 		keys = keys[:pageSize]
 	}
 

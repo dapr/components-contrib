@@ -501,8 +501,8 @@ func (store *InMemoryStore) KeysLike(ctx context.Context, req *state.KeysLikeReq
 
 	sort.Stable(kk)
 
-	if ct := req.ContinueToken; ct != nil {
-		ct, err := strconv.ParseUint(*req.ContinueToken, 10, 64)
+	if ct := req.ContinuationToken; ct != nil {
+		ct, err := strconv.ParseUint(*req.ContinuationToken, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid continue token: %w", err)
 		}
@@ -537,8 +537,8 @@ func (store *InMemoryStore) KeysLike(ctx context.Context, req *state.KeysLikeReq
 	}
 
 	return &state.KeysLikeResponse{
-		Keys:          kk.keys,
-		ContinueToken: continueToken,
+		Keys:              kk.keys,
+		ContinuationToken: continueToken,
 	}, nil
 }
 

@@ -403,9 +403,9 @@ func (s *SQLServer) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*s
 	}
 
 	seekClause := ``
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
 		seekClause = ` AND [Key] > @token`
-		args = append(args, sql.Named("token", *req.ContinueToken))
+		args = append(args, sql.Named("token", *req.ContinuationToken))
 	}
 
 	orderBy := ` ORDER BY [Key] ASC`
@@ -455,7 +455,7 @@ FROM %s
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(keys)) > pageSize {
 		next := keys[pageSize]
-		resp.ContinueToken = &next
+		resp.ContinuationToken = &next
 		keys = keys[:pageSize]
 	}
 

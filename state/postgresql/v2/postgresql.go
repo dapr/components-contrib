@@ -698,8 +698,8 @@ func (p *PostgreSQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (
 	args := []any{req.Pattern}
 
 	// 2) Continue strictly AFTER the last returned row_id of prev page
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
-		rid, err := strconv.ParseInt(*req.ContinueToken, 10, 64)
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		rid, err := strconv.ParseInt(*req.ContinuationToken, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid continue token: %w", err)
 		}
@@ -757,7 +757,7 @@ func (p *PostgreSQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (
 	if pageSize > 0 && uint32(len(recs)) > pageSize {
 		lastReturned := recs[pageSize-1]
 		tok := strconv.FormatInt(lastReturned.rowID, 10)
-		resp.ContinueToken = &tok
+		resp.ContinuationToken = &tok
 		recs = recs[:pageSize]
 	}
 

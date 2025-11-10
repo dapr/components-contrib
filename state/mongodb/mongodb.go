@@ -732,8 +732,8 @@ func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*sta
 		getFilterTTL(),
 	}
 
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
-		and = append(and, bson.D{{Key: id, Value: bson.M{"$gt": *req.ContinueToken}}})
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		and = append(and, bson.D{{Key: id, Value: bson.M{"$gt": *req.ContinuationToken}}})
 	}
 
 	filter := bson.D{{Key: "$and", Value: and}}
@@ -777,7 +777,7 @@ func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*sta
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(recs)) > pageSize {
 		next := recs[pageSize].Key // first NOT returned
-		resp.ContinueToken = &next
+		resp.ContinuationToken = &next
 		recs = recs[:pageSize]
 	}
 

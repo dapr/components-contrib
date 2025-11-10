@@ -536,9 +536,9 @@ func (a *sqliteDBAccess) KeysLike(ctx context.Context, req *state.KeysLikeReques
 	}
 	args := []any{req.Pattern}
 
-	if req.ContinueToken != nil {
+	if req.ContinuationToken != nil {
 		where = append(where, `rowid > ?`)
-		args = append(args, *req.ContinueToken)
+		args = append(args, *req.ContinuationToken)
 	}
 
 	orderClause := ` ORDER BY rowid ASC`
@@ -600,7 +600,7 @@ func (a *sqliteDBAccess) KeysLike(ctx context.Context, req *state.KeysLikeReques
 		switch {
 		case uint32(len(recs)) == *req.PageSize: //nolint:gosec
 			next := recs[*req.PageSize-1]
-			resp.ContinueToken = ptr.Of(strconv.FormatInt(next.rowID, 10))
+			resp.ContinuationToken = ptr.Of(strconv.FormatInt(next.rowID, 10))
 			recs = recs[:*req.PageSize]
 		case uint32(len(recs)) > *req.PageSize: //nolint:gosec
 			return nil, fmt.Errorf("received %d records when a LIMIT of %d was given", len(recs), *req.PageSize)

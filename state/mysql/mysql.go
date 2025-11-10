@@ -888,9 +888,9 @@ func (m *MySQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*stat
 	args = append(args, req.Pattern)
 
 	// Continue strictly AFTER the last returned row_id from previous page
-	if req.ContinueToken != nil && *req.ContinueToken != "" {
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
 		// row_id is BIGINT UNSIGNED; parse for clarity (MySQL would coerce strings too)
-		rid, err := strconv.ParseUint(*req.ContinueToken, 10, 64)
+		rid, err := strconv.ParseUint(*req.ContinuationToken, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid continue token: %w", err)
 		}
@@ -949,7 +949,7 @@ func (m *MySQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*stat
 	if pageSize > 0 && uint32(len(recs)) > pageSize {
 		lastReturned := recs[pageSize-1]
 		tok := strconv.FormatUint(lastReturned.rowID, 10)
-		resp.ContinueToken = &tok
+		resp.ContinuationToken = &tok
 		recs = recs[:pageSize]
 	}
 

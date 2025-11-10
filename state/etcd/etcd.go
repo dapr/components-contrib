@@ -461,7 +461,7 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 
 	// Continue token format: <snapshotRev>:<lastCreateRev>
 	var snapRev, afterCreate int64
-	if tok := req.ContinueToken; tok != nil && *tok != "" {
+	if tok := req.ContinuationToken; tok != nil && *tok != "" {
 		parts := strings.SplitN(*tok, ":", 2)
 		if len(parts) != 2 {
 			return nil, errors.New("invalid continue token")
@@ -541,8 +541,8 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 			if want > 0 && len(keys) >= want {
 				tok := fmt.Sprintf("%d:%d", snapRev, lastCreate)
 				return &state.KeysLikeResponse{
-					Keys:          keys,
-					ContinueToken: &tok,
+					Keys:              keys,
+					ContinuationToken: &tok,
 				}, nil
 			}
 		}
@@ -553,8 +553,8 @@ func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state
 		// If server returned fewer than we asked for, we're at end-of-range at this snapshot
 		if int64(len(resp.Kvs)) < int64(fetch) {
 			return &state.KeysLikeResponse{
-				Keys:          keys,
-				ContinueToken: nil,
+				Keys:              keys,
+				ContinuationToken: nil,
 			}, nil
 		}
 

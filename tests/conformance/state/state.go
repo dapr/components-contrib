@@ -1683,7 +1683,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			require.NoError(t, err)
 			assert.ElementsMatch(t, keys, got.Keys)
-			assert.Nil(t, got.ContinueToken)
+			assert.Nil(t, got.ContinuationToken)
 		})
 
 		t.Run("matching", func(t *testing.T) {
@@ -1730,7 +1730,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 			require.Len(t, got.Keys, 12)
 			assert.ElementsMatch(t, keys, got.Keys)
-			assert.Nil(t, got.ContinueToken)
+			assert.Nil(t, got.ContinuationToken)
 
 			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
 				Pattern:  "%",
@@ -1740,27 +1740,27 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Len(t, got.Keys, 6)
 
 			gotKeys := got.Keys
-			require.NotNil(t, got.ContinueToken)
+			require.NotNil(t, got.ContinuationToken)
 
 			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				PageSize:      ptr.Of(uint32(5)),
-				ContinueToken: got.ContinueToken,
+				Pattern:           "%",
+				PageSize:          ptr.Of(uint32(5)),
+				ContinuationToken: got.ContinuationToken,
 			})
 			require.NoError(t, err)
 			require.Len(t, got.Keys, 5)
 			gotKeys = append(gotKeys, got.Keys...)
-			require.NotNil(t, got.ContinueToken)
+			require.NotNil(t, got.ContinuationToken)
 
 			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				PageSize:      ptr.Of(uint32(100)),
-				ContinueToken: got.ContinueToken,
+				Pattern:           "%",
+				PageSize:          ptr.Of(uint32(100)),
+				ContinuationToken: got.ContinuationToken,
 			})
 			require.NoError(t, err)
 			require.Len(t, got.Keys, 1)
 			gotKeys = append(gotKeys, got.Keys...)
-			require.Nil(t, got.ContinueToken)
+			require.Nil(t, got.ContinuationToken)
 
 			assert.ElementsMatch(t, keys, gotKeys)
 		})
@@ -1789,7 +1789,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			require.NoError(t, err)
 			assert.Len(t, got.Keys, 1025)
-			assert.Nil(t, got.ContinueToken)
+			assert.Nil(t, got.ContinuationToken)
 
 			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
 				Pattern:  "%",
@@ -1797,7 +1797,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			require.NoError(t, err)
 			assert.Len(t, got.Keys, 1025)
-			assert.Nil(t, got.ContinueToken)
+			assert.Nil(t, got.ContinuationToken)
 		})
 
 		t.Run("escaping", func(t *testing.T) {
@@ -1906,7 +1906,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			require.NoError(t, err)
 			assert.Len(t, got2.Keys, 3)
-			assert.NotNil(t, got2.ContinueToken)
+			assert.NotNil(t, got2.ContinuationToken)
 
 			require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{Key: "key1"}))
 			require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{Key: "key3"}))
@@ -1919,38 +1919,38 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}))
 
 			got3, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				ContinueToken: got2.ContinueToken,
+				Pattern:           "%",
+				ContinuationToken: got2.ContinuationToken,
 			})
 			require.NoError(t, err)
 			assert.GreaterOrEqual(t, len(got3.Keys), 1)
-			assert.Nil(t, got3.ContinueToken)
+			assert.Nil(t, got3.ContinuationToken)
 
 			got4, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				ContinueToken: got3.ContinueToken,
-				PageSize:      ptr.Of(uint32(3)),
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
+				PageSize:          ptr.Of(uint32(3)),
 			})
 			require.NoError(t, err)
 			assert.Len(t, got4.Keys, 3)
-			assert.NotNil(t, got4.ContinueToken)
+			assert.NotNil(t, got4.ContinuationToken)
 
 			gotX, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				ContinueToken: got3.ContinueToken,
-				PageSize:      ptr.Of(uint32(2)),
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
+				PageSize:          ptr.Of(uint32(2)),
 			})
 			require.NoError(t, err)
 			assert.Len(t, gotX.Keys, 2)
-			assert.NotNil(t, gotX.ContinueToken)
+			assert.NotNil(t, gotX.ContinuationToken)
 
 			got5, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
-				Pattern:       "%",
-				ContinueToken: got3.ContinueToken,
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
 			})
 			require.NoError(t, err)
 			assert.Len(t, got5.Keys, 4)
-			assert.Nil(t, got5.ContinueToken)
+			assert.Nil(t, got5.ContinuationToken)
 		})
 
 		t.Run("expiration", func(t *testing.T) {
@@ -1983,7 +1983,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			require.NoError(t, err)
 			assert.Equal(t, []string{"2"}, got.Keys)
-			assert.Nil(t, got.ContinueToken)
+			assert.Nil(t, got.ContinuationToken)
 		})
 
 		got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{

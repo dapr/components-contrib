@@ -4,6 +4,8 @@ This component provides a Dapr secret store implementation for [Akeyless](https:
 
 ## Configuration
 
+The Akeyless Dapr Secret Store component only supports the following [Authentication Methods](https://docs.akeyless.io/docs/access-and-authentication-methods):
+
 - [API Key](https://docs.akeyless.io/docs/api-key)
 - [OAuth2.0/JWT](https://docs.akeyless.io/docs/oauth20jwt)
 - [AWS IAM](https://docs.akeyless.io/docs/aws-iam)
@@ -24,8 +26,9 @@ The Akeyless secret store component supports the following configuration options
 | `k8sServiceAccountToken` | No | If using the k8s auth method, specify the service account token. If not specified,
       we will try to read it from the default service account token file. | `eyJ...` |
 
-We currently support the following [Authentication Methods](https://docs.akeyless.io/docs/access-and-authentication-methods):
 
+
+## Examples
 
 ## Example Configuration: API Key
 

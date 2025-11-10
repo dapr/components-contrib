@@ -24,6 +24,7 @@ const (
 	STATIC_SECRET_RESPONSE  = "STATIC_SECRET"
 	DYNAMIC_SECRET_RESPONSE = "DYNAMIC_SECRET"
 	ROTATED_SECRET_RESPONSE = "ROTATED_SECRET"
+	CLIENT_SOURCE           = "akeylessclienttype"
 )
 
 var SUPPORTED_SECRET_TYPES = []string{"static-secret", "dynamic-secret", "rotated-secret"}

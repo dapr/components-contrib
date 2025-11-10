@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 
 	aws "github.com/akeylesslabs/akeyless-go-cloud-id/cloudprovider/aws"
@@ -37,7 +39,6 @@ type akeylessMetadata struct {
 	JWT                    string `json:"jwt" mapstructure:"jwt"`
 	AccessID               string `json:"accessId" mapstructure:"accessId"`
 	AccessKey              string `json:"accessKey" mapstructure:"accessKey"`
-	AccessType             string `json:"accessType" mapstructure:"accessType"`
 	K8SGatewayURL          string `json:"k8sGatewayUrl" mapstructure:"k8sGatewayUrl"`
 	K8SAuthConfigName      string `json:"k8sAuthConfigName" mapstructure:"k8sAuthConfigName"`
 	K8sServiceAccountToken string `json:"k8sServiceAccountToken" mapstructure:"k8sServiceAccountToken"`
@@ -67,15 +68,26 @@ func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeyle
 	a.logger.Debug("Creating authentication request to Akeyless...")
 	authRequest := akeyless.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
-	authRequest.SetAccessType(metadata.AccessType)
 
-	var accessType = metadata.AccessType
+	// Get the authentication method
+	a.logger.Debug("extracting access type from accessId...")
+	accessTypeChar, err := ExtractAccessTypeChar(metadata.AccessID)
+	if err != nil {
+		return errors.New("unable to extract access type character from accessId, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+	}
 
-	a.logger.Debugf("authenticating using access type: %s", accessType)
+	a.logger.Debugf("getting access type display name for character %s...", accessTypeChar)
+	accessType, err := GetAccessTypeDisplayName(accessTypeChar)
+	if err != nil {
+		return errors.New("unable to get access type display name, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+	}
+
+	a.logger.Debugf("authenticating using access type '%s'", accessType)
 
 	// Depending on the access type we set the appropriate authentication method
 	switch accessType {
-	// If access type is AWS IAM we use the cloud ID
+	case DEFAULT_AUTH_TYPE:
+		authRequest.SetAccessKey(metadata.AccessKey)
 	case AUTH_IAM:
 		id, err := aws.GetCloudId()
 		if err != nil {
@@ -84,11 +96,7 @@ func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeyle
 		authRequest.SetCloudId(id)
 	case AUTH_JWT:
 		authRequest.SetJwt(metadata.JWT)
-	case DEFAULT_AUTH_TYPE:
-		a.logger.Debug("authenticating using access key...")
-		authRequest.SetAccessKey(metadata.AccessKey)
 	case AUTH_K8S:
-		a.logger.Debug("authenticating using k8s...")
 		err := setK8SAuthConfiguration(*metadata, authRequest, a)
 		if err != nil {
 			return fmt.Errorf("failed to set k8s auth configuration: %w", err)
@@ -104,14 +112,14 @@ func (a *akeylessSecretStore) Authenticate(ctx context.Context, metadata *akeyle
 		},
 	}
 	config.UserAgent = USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
+	config.AddDefaultHeader(CLIENT_SOURCE, USER_AGENT)
 
 	a.v2 = akeyless.NewAPIClient(config).V2Api
 
 	a.logger.Debug("authenticating with Akeyless...")
 	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
 	if err != nil || httpResponse.StatusCode != 200 {
-		return fmt.Errorf("failed to authenticate with Akeyless: %w", errors.New(httpResponse.Status))
+		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %w", httpResponse.StatusCode, errors.New(httpResponse.Status))
 	}
 
 	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
@@ -129,7 +137,7 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 	a.logger.Debugf("getting secret type for '%s'...", req.Name)
 	secretType, err := a.GetSecretType(ctx, req.Name)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, err
+		return secretstores.GetSecretResponse{}, errors.New("failed to get secret type: " + err.Error())
 	}
 
 	a.logger.Debugf("getting secret value for '%s' (type %s)...", req.Name, secretType)
@@ -138,9 +146,8 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 	if err != nil {
 		return secretstores.GetSecretResponse{}, errors.New(err.Error())
 	}
-	a.logger.Debugf("secret '%s' value: %s", req.Name, secretValue[:3]+"[REDACTED]")
+	a.logger.Debugf("successfully retrieved secret '%s'", req.Name)
 
-	// Return the secret in the expected format
 	return GetDaprSingleSecretResponse(req.Name, secretValue)
 }
 
@@ -174,23 +181,13 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	}
 
 	// filter out inactive secrets
-	a.logger.Debugf("filtering out inactive secrets, %d items before filtering", len(listItems))
+	a.logger.Debugf("%d items before filtering out inactive secrets", len(listItems))
 	listItems = a.filterInactiveSecrets(listItems)
-	a.logger.Debugf("filtering out inactive secrets, %d items after filtering", len(listItems))
+	a.logger.Debugf("%d items remaining after filtering out inactive secrets", len(listItems))
 
 	// separate items by type since only static secrets are supported for bulk get
-	staticItems, dynamicItems, rotatedItems := a.separateItemsByType(listItems)
-	a.logger.Infof("%d items returned (static: %d, dynamic: %d, rotated: %d)", len(listItems), len(staticItems), len(dynamicItems), len(rotatedItems))
-
-	// listItems can get quite large, so we don't need all item details, we can use the item names instead
-	// and free memory
-	listItems = nil
-	staticItemNames := GetItemNames(staticItems)
-	dynamicItemNames := GetItemNames(dynamicItems)
-	rotatedItemNames := GetItemNames(rotatedItems)
-	a.logger.Debugf("static items: %v", staticItemNames)
-	a.logger.Debugf("dynamic items: %v", dynamicItemNames)
-	a.logger.Debugf("rotated items: %v", rotatedItemNames)
+	staticItemNames, dynamicItemNames, rotatedItemNames := a.separateItemsByType(listItems)
+	a.logger.Infof("%d items returned (static: %d, dynamic: %d, rotated: %d)", len(listItems), len(staticItemNames), len(dynamicItemNames), len(rotatedItemNames))
 
 	haveStaticItems := len(staticItemNames) > 0
 	haveDynamicItems := len(dynamicItemNames) > 0
@@ -302,37 +299,20 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 		return nil, errors.New("invalid accessId format, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
 	}
 
-	// Get the authentication method
-	a.logger.Debug("extracting access type from accessId...")
-	accessTypeChar, err := ExtractAccessTypeChar(m.AccessID)
+	// Validate gateway URL
+	_, err = url.ParseRequestURI(m.GatewayURL)
 	if err != nil {
-		return nil, errors.New("unable to extract access type character from accessId, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+		return nil, fmt.Errorf("invalid gateway URL '%s': %w", m.GatewayURL, err)
 	}
-
-	a.logger.Debugf("getting access type display name for character %s...", accessTypeChar)
-	accessTypeDisplayName, err := GetAccessTypeDisplayName(accessTypeChar)
-	if err != nil {
-		return nil, errors.New("unable to get access type display name, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
-	}
-	a.logger.Debugf("access type detected: %s", accessTypeDisplayName)
-
-	switch accessTypeDisplayName {
-	case DEFAULT_AUTH_TYPE:
-		if m.AccessKey == "" {
-			return nil, errors.New("accessKey is required")
-		}
-	case AUTH_JWT:
-		if m.JWT == "" {
-			return nil, errors.New("jwt is required")
-		}
-	}
-	m.AccessType = accessTypeDisplayName
 
 	// Set default gateway URL if not specified
 	if m.GatewayURL == "" {
 		a.logger.Infof("Gateway URL is not set, using default value %s...", PUBLIC_GATEWAY_URL)
 		m.GatewayURL = PUBLIC_GATEWAY_URL
 	}
+
+	// Trim trailing slash from gateway URL
+	m.GatewayURL = strings.TrimSuffix(m.GatewayURL, "/")
 
 	return &m, nil
 }
@@ -497,10 +477,10 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 	return allItems, nil
 }
 
-func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akeyless.Item, []akeyless.Item, []akeyless.Item) {
-	staticItems := []akeyless.Item{}
-	dynamicItems := []akeyless.Item{}
-	rotatedItems := []akeyless.Item{}
+func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]string, []string, []string) {
+	var staticItems []akeyless.Item
+	var dynamicItems []akeyless.Item
+	var rotatedItems []akeyless.Item
 	for _, item := range items {
 		itemType := *item.ItemType
 
@@ -513,7 +493,18 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]akey
 			rotatedItems = append(rotatedItems, item)
 		}
 	}
-	return staticItems, dynamicItems, rotatedItems
+
+	// listItems can get quite large, so we don't need all item details, we can use the item names instead
+	// and free memory
+	items = nil
+	staticItemNames := GetItemNames(staticItems)
+	dynamicItemNames := GetItemNames(dynamicItems)
+	rotatedItemNames := GetItemNames(rotatedItems)
+	a.logger.Debugf("static items: %v", staticItemNames)
+	a.logger.Debugf("dynamic items: %v", dynamicItemNames)
+	a.logger.Debugf("rotated items: %v", rotatedItemNames)
+
+	return staticItemNames, dynamicItemNames, rotatedItemNames
 }
 
 func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeyless.Item) []akeyless.Item {

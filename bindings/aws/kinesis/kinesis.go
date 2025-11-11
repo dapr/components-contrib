@@ -169,8 +169,8 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
 		// Configure the KCL worker with custom endpoints for LocalStack
 		if a.metadata.Endpoint != "" {
-			config.WithKinesisEndpoint(a.metadata.Endpoint)
-			config.WithDynamoDBEndpoint(a.metadata.Endpoint)
+			config = config.WithKinesisEndpoint(a.metadata.Endpoint)
+			config = config.WithDynamoDBEndpoint(a.metadata.Endpoint)
 		}
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
 		err = a.worker.Start()

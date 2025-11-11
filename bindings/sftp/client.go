@@ -18,18 +18,28 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	sftpClient "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
 type Client struct {
-	sshClient  *ssh.Client
-	sftpClient *sftpClient.Client
-	address    string
-	config     *ssh.ClientConfig
-	lock       sync.RWMutex
-	rLock      sync.Mutex
+	sshClient         *ssh.Client
+	sftpClient        *sftpClient.Client
+	address           string
+	config            *ssh.ClientConfig
+	lock              sync.RWMutex
+	reconnectionCount atomic.Uint64
+}
+
+type sftpError struct {
+	err               error
+	reconnectionCount uint64
+}
+
+func (s sftpError) Error() string {
+	return s.err.Error()
 }
 
 func newClient(address string, config *ssh.ClientConfig) (*Client, error) {
@@ -66,12 +76,15 @@ func (c *Client) Close() error {
 func (c *Client) list(path string) ([]os.FileInfo, error) {
 	var fi []os.FileInfo
 
-	fn := func() error {
+	fn := func() *sftpError {
 		var err error
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		fi, err = c.sftpClient.ReadDir(path)
-		return err
+		if err != nil {
+			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+		}
+		return nil
 	}
 
 	err := withReconnection(c, fn)
@@ -87,17 +100,17 @@ func (c *Client) create(path string) (*sftpClient.File, string, error) {
 
 	var file *sftpClient.File
 
-	createFn := func() error {
+	createFn := func() *sftpError {
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		cErr := c.sftpClient.MkdirAll(dir)
 		if cErr != nil {
-			return fmt.Errorf("sftp binding error: error create dir %s: %w", dir, cErr)
+			return &sftpError{err: fmt.Errorf("sftp binding error: error create dir %s: %w", dir, cErr), reconnectionCount: c.reconnectionCount.Load()}
 		}
 
 		file, cErr = c.sftpClient.Create(path)
 		if cErr != nil {
-			return fmt.Errorf("sftp binding error: error create file %s: %w", path, cErr)
+			return &sftpError{err: fmt.Errorf("sftp binding error: error create file %s: %w", path, cErr), reconnectionCount: c.reconnectionCount.Load()}
 		}
 
 		return nil
@@ -114,12 +127,16 @@ func (c *Client) create(path string) (*sftpClient.File, string, error) {
 func (c *Client) get(path string) (*sftpClient.File, error) {
 	var f *sftpClient.File
 
-	fn := func() error {
+	fn := func() *sftpError {
 		var err error
 		c.lock.RLock()
+
 		defer c.lock.RUnlock()
 		f, err = c.sftpClient.Open(path)
-		return err
+		if err != nil {
+			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+		}
+		return nil
 	}
 
 	err := withReconnection(c, fn)
@@ -131,12 +148,15 @@ func (c *Client) get(path string) (*sftpClient.File, error) {
 }
 
 func (c *Client) delete(path string) error {
-	fn := func() error {
+	fn := func() *sftpError {
 		var err error
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		err = c.sftpClient.Remove(path)
-		return err
+		if err != nil {
+			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+		}
+		return nil
 	}
 
 	err := withReconnection(c, fn)
@@ -157,7 +177,7 @@ func (c *Client) ping() error {
 	return nil
 }
 
-func withReconnection(c *Client, fn func() error) error {
+func withReconnection(c *Client, fn func() *sftpError) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -167,7 +187,7 @@ func withReconnection(c *Client, fn func() error) error {
 		return err
 	}
 
-	rErr := doReconnect(c)
+	rErr := doReconnect(c, err.reconnectionCount)
 	if rErr != nil {
 		return errors.Join(err, rErr)
 	}
@@ -180,33 +200,14 @@ func withReconnection(c *Client, fn func() error) error {
 	return nil
 }
 
-// 1) c.rLock (sync.Mutex) — reconnect serialization:
-//   - Ensures only one goroutine performs the reconnect sequence at a time
-//     (ping/check, dial SSH, create SFTP client), preventing a thundering herd
-//     of concurrent reconnect attempts.
-//   - Does NOT protect day-to-day client usage; it only coordinates who
-//     is allowed to perform a reconnect.
-//
-// 2) c.lock (sync.RWMutex) — data-plane safety and atomic swap:
-//   - Guards reads/writes of the active client handles (sshClient, sftpClient).
-//   - Regular operations hold RLock while using the clients.
-//   - Reconnect performs a short critical section with Lock to atomically swap
-//     the client pointers; old clients are closed after unlocking to keep the
-//     critical section small and avoid blocking readers.
-//
-// Why not a single RWMutex?
-//   - If we used only c.lock and held it while dialing/handshaking, all I/O would
-//     be blocked for the entire network operation, increasing latency and risk of
-//     contention. Worse, reconnects triggered while a caller holds RLock could
-//     deadlock or starve the writer.
-//   - Separating concerns allows: (a) fast, minimal swap under c.lock, and
-//     (b) serialized reconnect work under c.rLock without blocking readers.
-func doReconnect(c *Client) error {
-	c.rLock.Lock()
-	defer c.rLock.Unlock()
+func doReconnect(c *Client, reconnectionCount uint64) error {
+	// No need to reconnect as it has been reconnected
+	if reconnectionCount != c.reconnectionCount.Load() {
+		return nil
+	}
 
 	err := c.ping()
-	if !shouldReconnect(err) {
+	if err == nil {
 		return nil
 	}
 
@@ -222,11 +223,19 @@ func doReconnect(c *Client) error {
 	}
 
 	// Swap under short lock; close old clients after unlocking.
+	// Close new clients if not swapped
 	c.lock.Lock()
-	oldSftp := c.sftpClient
-	oldSSH := c.sshClient
-	c.sftpClient = newSftpClient
-	c.sshClient = sshClient
+	var oldSftp *sftpClient.Client
+	var oldSSH *ssh.Client
+	if reconnectionCount == c.reconnectionCount.Load() {
+		oldSftp = c.sftpClient
+		oldSSH = c.sshClient
+		c.sftpClient = newSftpClient
+		c.sshClient = sshClient
+		c.reconnectionCount.Add(1)
+		sshClient = nil
+		newSftpClient = nil
+	}
 	c.lock.Unlock()
 
 	if oldSftp != nil {
@@ -236,13 +245,21 @@ func doReconnect(c *Client) error {
 		_ = oldSSH.Close()
 	}
 
+	if newSftpClient != nil {
+		_ = newSftpClient.Close()
+	}
+
+	if sshClient != nil {
+		_ = sshClient.Close()
+	}
+
 	return nil
 }
 
 func newSSHClient(address string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	sshClient, err := ssh.Dial("tcp", address, config)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create ssh client: %w", err)
+		return nil, fmt.Errorf("sftp binding error: error dialing ssh server: %w", err)
 	}
 	return sshClient, nil
 }

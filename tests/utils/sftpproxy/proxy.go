@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"sync/atomic"
+	"time"
 )
 
 type Proxy struct {
@@ -55,9 +56,18 @@ func (p *Proxy) handle(client net.Conn) {
 	defer client.Close()
 
 	// Connect to upstream SFTP server
-	server, err := net.Dial("tcp", p.UpstreamAddr)
-	if err != nil {
-		log.Printf("dial upstream: %v", err)
+	var server net.Conn
+	var err error
+	for i := 0; i < 10 && server == nil; i++ {
+		server, err = net.Dial("tcp", p.UpstreamAddr)
+		if err != nil {
+			log.Printf("dial upstream: %v", err)
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+
+	if server == nil {
+		log.Printf("failed to connect to upstream after 5 attempts")
 		return
 	}
 	defer server.Close()

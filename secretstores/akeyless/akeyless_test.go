@@ -1146,32 +1146,32 @@ func TestParseSecretTypes(t *testing.T) {
 		{
 			name:     "all",
 			input:    "all",
-			expected: []string{"static-secret", "dynamic-secret", "rotated-secret"},
+			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
 		},
 		{
 			name:     "static",
 			input:    "static",
-			expected: []string{"static-secret"},
+			expected: []string{STATIC_SECRET_TYPE},
 		},
 		{
 			name:     "dynamic",
 			input:    "dynamic",
-			expected: []string{"dynamic-secret"},
+			expected: []string{DYNAMIC_SECRET_TYPE},
 		},
 		{
 			name:     "rotated",
 			input:    "rotated",
-			expected: []string{"rotated-secret"},
+			expected: []string{ROTATED_SECRET_TYPE},
 		},
 		{
 			name:     "static,dynamic",
 			input:    "static,dynamic",
-			expected: []string{"static-secret", "dynamic-secret"},
+			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE},
 		},
 		{
 			name:     "static,dynamic,rotated",
 			input:    "static,dynamic,rotated",
-			expected: []string{"static-secret", "dynamic-secret", "rotated-secret"},
+			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
 		},
 		{
 			name:        "invalid",
@@ -1188,19 +1188,19 @@ func TestParseSecretTypes(t *testing.T) {
 			name:        "mixed case",
 			input:       "Static,Dynamic,ROTATED",
 			expectError: false,
-			expected:    []string{"static-secret", "dynamic-secret", "rotated-secret"},
+			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
 		},
 		{
 			name:        "duplicates",
 			input:       "static-secret,dynamic-secret,static-secret",
 			expectError: false,
-			expected:    []string{"static-secret", "dynamic-secret"},
+			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE},
 		},
 		{
 			name:        "mixed sdk format and direct format",
 			input:       "static-secret,dynamic-secret,rotated-secret,static",
 			expectError: false,
-			expected:    []string{"static-secret", "dynamic-secret", "rotated-secret"},
+			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
 		},
 		{
 			name:        "invalid type",

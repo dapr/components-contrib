@@ -24,13 +24,17 @@ const (
 	STATIC_SECRET_RESPONSE    = "STATIC_SECRET"
 	DYNAMIC_SECRET_RESPONSE   = "DYNAMIC_SECRET"
 	ROTATED_SECRET_RESPONSE   = "ROTATED_SECRET"
+	STATIC_SECRET_TYPE        = "static-secret"
+	DYNAMIC_SECRET_TYPE       = "dynamic-secret"
+	ROTATED_SECRET_TYPE       = "rotated-secret"
+	ALL_SECRET_TYPES          = "all"
 	CLIENT_SOURCE             = "akeylessclienttype"
 	PATH_DEFAULT              = "/"
 	METADATA_PATH_KEY         = "path"
 	METADATA_SECRETS_TYPE_KEY = "secrets_type"
 )
 
-var supportedSecretTypes = []string{"static-secret", "dynamic-secret", "rotated-secret"}
+var supportedSecretTypes = []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE}
 
 // AccessTypeCharMap maps single-character access types to their display names.
 var accessTypeCharMap = map[string]string{
@@ -216,7 +220,7 @@ func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeyless.Au
 // It accepts a comma-separated string of secret types and returns a slice of supported secret types.
 func parseSecretTypes(secretTypes string) ([]string, error) {
 	// Handle "all" or empty string which returns all supported secret types
-	if secretTypes == "all" || secretTypes == "" {
+	if secretTypes == ALL_SECRET_TYPES || secretTypes == "" {
 		return supportedSecretTypes, nil
 	}
 
@@ -229,9 +233,9 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 
 	// Map metadata.secret_types to supportedSecretTypes
 	typeMap := map[string]string{
-		"static":  "static-secret",
-		"dynamic": "dynamic-secret",
-		"rotated": "rotated-secret",
+		"static":  STATIC_SECRET_TYPE,
+		"dynamic": DYNAMIC_SECRET_TYPE,
+		"rotated": ROTATED_SECRET_TYPE,
 	}
 
 	for _, t := range types {
@@ -240,7 +244,7 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 			result = append(result, mappedType)
 		} else {
 			// Allow direct SDK format
-			if t == "static-secret" || t == "dynamic-secret" || t == "rotated-secret" {
+			if t == STATIC_SECRET_TYPE || t == DYNAMIC_SECRET_TYPE || t == ROTATED_SECRET_TYPE {
 				result = append(result, t)
 			} else {
 				return nil, fmt.Errorf("invalid secret type '%s', supported types: static[-secret], dynamic[-secret], rotated[-secret]", t)

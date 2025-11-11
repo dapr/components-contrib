@@ -15,16 +15,19 @@ import (
 
 // Define constants for the access types. These are equivalent to the TypeScript consts.
 const (
-	AUTH_JWT                = "jwt"
-	DEFAULT_AUTH_TYPE       = "access_key"
-	AUTH_IAM                = "aws_iam"
-	AUTH_K8S                = "k8s"
-	PUBLIC_GATEWAY_URL      = "https://api.akeyless.io"
-	USER_AGENT              = "dapr.io/akeyless-secret-store"
-	STATIC_SECRET_RESPONSE  = "STATIC_SECRET"
-	DYNAMIC_SECRET_RESPONSE = "DYNAMIC_SECRET"
-	ROTATED_SECRET_RESPONSE = "ROTATED_SECRET"
-	CLIENT_SOURCE           = "akeylessclienttype"
+	AUTH_JWT                  = "jwt"
+	DEFAULT_AUTH_TYPE         = "access_key"
+	AUTH_IAM                  = "aws_iam"
+	AUTH_K8S                  = "k8s"
+	PUBLIC_GATEWAY_URL        = "https://api.akeyless.io"
+	USER_AGENT                = "dapr.io/akeyless-secret-store"
+	STATIC_SECRET_RESPONSE    = "STATIC_SECRET"
+	DYNAMIC_SECRET_RESPONSE   = "DYNAMIC_SECRET"
+	ROTATED_SECRET_RESPONSE   = "ROTATED_SECRET"
+	CLIENT_SOURCE             = "akeylessclienttype"
+	PATH_DEFAULT              = "/"
+	METADATA_PATH_KEY         = "path"
+	METADATA_SECRETS_TYPE_KEY = "secrets_type"
 )
 
 var supportedSecretTypes = []string{"static-secret", "dynamic-secret", "rotated-secret"}
@@ -205,4 +208,55 @@ func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeyless.Au
 	authRequest.SetGatewayUrl(metadata.K8SGatewayURL)
 	authRequest.SetK8sServiceAccountToken(metadata.K8sServiceAccountToken)
 	return nil
+}
+
+// `parseSecretTypes` parses the `secret_types` metadata parameter
+// and returns a slice of supported secret types in the format expected
+// by the Akeyless `POST /list-items` API.
+// It accepts a comma-separated string of secret types and returns a slice of supported secret types.
+func parseSecretTypes(secretTypes string) ([]string, error) {
+	// Handle "all" or empty string which returns all supported secret types
+	if secretTypes == "all" || secretTypes == "" {
+		return supportedSecretTypes, nil
+	}
+
+	// Parse comma-separated values
+	types := strings.Split(secretTypes, ",")
+	if len(types) == 0 {
+		return nil, fmt.Errorf("no secret types provided")
+	}
+	result := make([]string, 0, len(types))
+
+	// Map metadata.secret_types to supportedSecretTypes
+	typeMap := map[string]string{
+		"static":  "static-secret",
+		"dynamic": "dynamic-secret",
+		"rotated": "rotated-secret",
+	}
+
+	for _, t := range types {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if mappedType, ok := typeMap[t]; ok {
+			result = append(result, mappedType)
+		} else {
+			// Allow direct SDK format
+			if t == "static-secret" || t == "dynamic-secret" || t == "rotated-secret" {
+				result = append(result, t)
+			} else {
+				return nil, fmt.Errorf("invalid secret type '%s', supported types: static[-secret], dynamic[-secret], rotated[-secret]", t)
+			}
+		}
+	}
+
+	// Dedup
+	seen := make(map[string]bool)
+	unique := []string{}
+	for _, t := range result {
+		if !seen[t] {
+			seen[t] = true
+			unique = append(unique, t)
+		}
+	}
+
+	return unique, nil
 }

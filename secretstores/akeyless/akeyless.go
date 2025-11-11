@@ -173,9 +173,40 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		Data: make(map[string]map[string]string),
 	}
 
+	// get secrets path to retrieve secrets from
+	// use root path if not specified
+	var secretsPath string
+	if value, ok := req.Metadata[METADATA_PATH_KEY]; ok {
+
+		// normalize path
+		if !strings.HasPrefix(value, "/") {
+			secretsPath = "/" + value
+		}
+
+		a.logger.Debugf("using path '%s' from metadata...", secretsPath)
+	} else {
+		a.logger.Debugf("no path found in metadata, using default path '%s'", PATH_DEFAULT)
+		secretsPath = PATH_DEFAULT
+	}
+
+	// get secrets type to retrieve secrets from
+	// use all types if not specified
+	var requestedTypes []string
+	if value, ok := req.Metadata[METADATA_SECRETS_TYPE_KEY]; ok {
+		parsedTypes, err := parseSecretTypes(value)
+		if err != nil {
+			return response, fmt.Errorf("invalid secrets_type metadata: %w", err)
+		}
+		requestedTypes = parsedTypes
+		a.logger.Debugf("using secrets types '%v' from metadata...", requestedTypes)
+	} else {
+		a.logger.Debugf("no '%s' found in metadata, using all supported secret types '%v'", METADATA_SECRETS_TYPE_KEY, supportedSecretTypes)
+		requestedTypes = supportedSecretTypes
+	}
+
 	// For bulk get, we need to list all secrets first
-	a.logger.Debug("listing items from / path...")
-	listItems, err := a.listItemsRecursively(ctx, "/")
+	a.logger.Debugf("listing items from '%s' path with types '%v'...", secretsPath, requestedTypes)
+	listItems, err := a.listItemsRecursively(ctx, secretsPath, requestedTypes)
 	if err != nil {
 		return response, fmt.Errorf("failed to list items from Akeyless: %w", err)
 	}
@@ -445,7 +476,7 @@ func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, sec
 
 // listItemsRecursively lists all items in a given path recursively.
 // It returns a list of items and an error if the list items request fails.
-func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path string) ([]akeyless.Item, error) {
+func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path string, types []string) ([]akeyless.Item, error) {
 	var allItems []akeyless.Item
 
 	// Create the list items request
@@ -453,7 +484,7 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 	listItems.SetToken(a.token)
 	listItems.SetPath(path)
 	listItems.SetAutoPagination("enabled")
-	listItems.SetType(supportedSecretTypes)
+	listItems.SetType(types)
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
@@ -470,7 +501,7 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 	// Recursively process each subfolder
 	if itemsList.Folders != nil {
 		for _, folder := range itemsList.Folders {
-			subItems, err := a.listItemsRecursively(ctx, folder)
+			subItems, err := a.listItemsRecursively(ctx, folder, types)
 			if err != nil {
 				return nil, err
 			}

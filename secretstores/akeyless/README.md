@@ -109,21 +109,55 @@ spec:
 
 ## Usage
 
-Once configured, you can retrieve secrets using the Dapr secrets API/SDK:
+Once configured, you can retrieve secrets using the Dapr secrets API:
 
 ```bash
 # Get a single secret
 curl http://localhost:3500/v1.0/secrets/akeyless/my-secret
 
-# Get all secrets
+# Get all secrets (static, dynamic, rotated) from root (/) path
 curl http://localhost:3500/v1.0/secrets/akeyless/bulk
+
+# Get all secrets static secrets
+curl http://localhost:3500/v1.0/secrets/akeyless/bulk?metadata.secrets_type=static
+
+# Get all static and dynamic secrets from a specific path (/my/org)
+curl http://localhost:3500/v1.0/secrets/akeyless/bulk?metadata.secrets_type=static,dynamic&metadata.path=/my/org
+```
+
+Or using the Dapr SDK. The example below retrieves all static secrets from path `/path/to/department`.
+```go
+log.Println("Starting test application")
+	client, err := dapr.NewClient()
+	if err != nil {
+		log.Printf("Error creating Dapr client: %v\n", err)
+		panic(err)
+	}
+	log.Println("Dapr client created successfully")
+	const daprSecretStore = "akeyless"
+
+	defer client.Close()
+	ctx := context.Background()
+	akeylessBulkMetadata := map[string]string{
+		"path":         "/path/to/department",
+		"secrets_type": "static",
+	}
+	secrets, err := client.GetBulkSecret(ctx, daprSecretStore, akeylessBulkMetadata)
+	if err != nil {
+		log.Printf("Error fetching secrets: %v\n", err)
+		panic(err)
+	}
+	log.Printf("Found %d secrets: ", len(secrets))
+	for secretName, secretValue := range secrets {
+		log.Printf("Secret: %s, Value: %s", secretName, secretValue)
+	}
 ```
 
 ## Features
 
 - Supports static, dynamic and rotated secrets.
 - **GetSecret**: Retrieve an individual value secret by path. 
-- **BulkGetSecret**: Retrieve an all secrets from the root path.
+- **BulkGetSecret**: Retrieve all secrets from a specified path (or `/` by default) recursively.
 
 ## Response Formats
 

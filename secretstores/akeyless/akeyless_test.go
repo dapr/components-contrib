@@ -1135,3 +1135,88 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 	mockGateway.Close()
 }
+
+func TestParseSecretTypes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    []string
+		expectError bool
+	}{
+		{
+			name:     "all",
+			input:    "all",
+			expected: []string{"static-secret", "dynamic-secret", "rotated-secret"},
+		},
+		{
+			name:     "static",
+			input:    "static",
+			expected: []string{"static-secret"},
+		},
+		{
+			name:     "dynamic",
+			input:    "dynamic",
+			expected: []string{"dynamic-secret"},
+		},
+		{
+			name:     "rotated",
+			input:    "rotated",
+			expected: []string{"rotated-secret"},
+		},
+		{
+			name:     "static,dynamic",
+			input:    "static,dynamic",
+			expected: []string{"static-secret", "dynamic-secret"},
+		},
+		{
+			name:     "static,dynamic,rotated",
+			input:    "static,dynamic,rotated",
+			expected: []string{"static-secret", "dynamic-secret", "rotated-secret"},
+		},
+		{
+			name:        "invalid",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "empty",
+			input:       "",
+			expectError: false,
+			expected:    supportedSecretTypes,
+		},
+		{
+			name:        "mixed case",
+			input:       "Static,Dynamic,ROTATED",
+			expectError: false,
+			expected:    []string{"static-secret", "dynamic-secret", "rotated-secret"},
+		},
+		{
+			name:        "duplicates",
+			input:       "static-secret,dynamic-secret,static-secret",
+			expectError: false,
+			expected:    []string{"static-secret", "dynamic-secret"},
+		},
+		{
+			name:        "mixed sdk format and direct format",
+			input:       "static-secret,dynamic-secret,rotated-secret,static",
+			expectError: false,
+			expected:    []string{"static-secret", "dynamic-secret", "rotated-secret"},
+		},
+		{
+			name:        "invalid type",
+			input:       "invalid",
+			expectError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsedTypes, err := parseSecretTypes(tt.input)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, parsedTypes)
+			}
+		})
+	}
+}

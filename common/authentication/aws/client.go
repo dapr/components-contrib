@@ -190,7 +190,7 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		if err != nil {
 			return nil, err
 		}
-		return stream.StreamDescription.StreamARN, err
+		return stream.StreamDescription.StreamARN, nil
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")

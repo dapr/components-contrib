@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
@@ -182,18 +183,14 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-<<<<<<< HEAD
-		if stream != nil {
-			return stream.StreamDescription.StreamARN, err
-=======
 		/**
 		 * If the error is not nil, do not proceed to the next step
 		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
 		 */
 		if err != nil {
 			return nil, err
->>>>>>> 623adfcb (feat: Upgrade kinesis github.com/vmware/vmware-go-kcl-v1 to v2.)
 		}
+		return stream.StreamDescription.StreamARN, err
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")
@@ -203,15 +200,6 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, ap
 	const sharedMode = "shared"
 	if c.Kinesis != nil {
 		if mode == sharedMode {
-<<<<<<< HEAD
-<<<<<<< HEAD
-			if c.Credentials != nil {
-				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
-					stream, c.Region, consumer,
-					c.Credentials)
-				return kclConfig
-			}
-=======
 			// Try v2 default config first (standard approach for v2 components)
 			v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
 			if err == nil {
@@ -228,16 +216,6 @@ func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, ap
 			v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
 			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
 			return kclConfig
->>>>>>> 9b9f2b98 (make the v2 creds provider be the default)
-=======
-			v1Creds, err := c.Credentials.Get()
-			if err != nil {
-				return nil
-			}
-			v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
-			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
-			return kclConfig
->>>>>>> 623adfcb (feat: Upgrade kinesis github.com/vmware/vmware-go-kcl-v1 to v2.)
 		}
 	}
 	return nil

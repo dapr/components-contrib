@@ -183,10 +183,6 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 			StreamName: aws.String(streamName),
 		})
-		/**
-		 * If the error is not nil, do not proceed to the next step
-		 * as it may cause a nil pointer error on stream.StreamDescription.StreamARN.
-		 */
 		if err != nil {
 			return nil, err
 		}
@@ -198,25 +194,13 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 
 func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
-	if c.Kinesis != nil {
-		if mode == sharedMode {
-			// Try v2 default config first (standard approach for v2 components)
-			v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
-			if err == nil {
-				kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Config.Credentials)
-				return kclConfig
-			}
-			// Fallback to v1 credentials if v2 fails
-			v1Creds, v1Err := c.Credentials.Get()
-			if v1Err != nil {
-				// Both v2 and v1 failed, return nil
-				return nil
-			}
-			// Convert v1 credentials to v2 format
-			v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
-			kclConfig := config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
-			return kclConfig
+	if c.Kinesis != nil && mode == sharedMode {
+		v1Creds, err := c.Credentials.Get()
+		if err != nil {
+			return nil
 		}
+		v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
 	}
 	return nil
 }

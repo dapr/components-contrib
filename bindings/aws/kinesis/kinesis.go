@@ -49,13 +49,10 @@ type AWSKinesis struct {
 	consumerARN  *string
 	logger       logger.Logger
 	consumerMode string
+	applicationName string
 	closed          atomic.Bool
 	closeCh         chan struct{}
 	wg              sync.WaitGroup
-	// applicationName is required for KCL (Kinesis Client Library) worker configuration
-	// in shared throughput mode. It identifies the consumer application and is used
-	// for DynamoDB table naming and checkpointing.
-	applicationName string
 }
 
 // TODO: we need to clean up the metadata fields here and update this binding to use the builtin aws auth provider and reflect in metadata.yaml

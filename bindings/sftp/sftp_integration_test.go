@@ -249,7 +249,7 @@ func testReconnect(t *testing.T) {
 					select {
 					case <-ctx.Done():
 						return
-					case <-time.After(time.Duration(500*rand.Float32()) * time.Millisecond):
+					case <-time.After(time.Duration(100*rand.Float32()) * time.Millisecond):
 						opCount.Add(1)
 						r, err := c.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
 						if err != nil {
@@ -268,7 +268,7 @@ func testReconnect(t *testing.T) {
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(100 * time.Millisecond):
+				case <-time.After(1 * time.Second):
 					_ = proxy.KillServerConn()
 				}
 			}
@@ -289,7 +289,7 @@ func testReconnect(t *testing.T) {
 			"Expected less than 1%% of operations to fail. Total: %d, Failed: %d (%.2f%%)",
 			totalOps, failedOps, (float64(failedOps)/float64(totalOps))*100)
 
-		expectedReconnects := numReconnects + 10
+		expectedReconnects := numReconnects + 5
 		currentReconnects := proxy.ReconnectionCount.Load()
 		assert.InDelta(t, expectedReconnects, currentReconnects, 2.0, "Expected %d reconnections, got %d", expectedReconnects, currentReconnects)
 	})

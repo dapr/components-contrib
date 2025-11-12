@@ -58,10 +58,23 @@ func newClient(address string, config *ssh.ClientConfig) (*Client, error) {
 }
 
 func (c *Client) Close() error {
-	_ = c.sshClient.Close()
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.sftpClient.Close()
+
+	// Close SFTP first, then SSH
+	var sftpErr, sshErr error
+	if c.sftpClient != nil {
+		sftpErr = c.sftpClient.Close()
+	}
+	if c.sshClient != nil {
+		sshErr = c.sshClient.Close()
+	}
+
+	// Return the first error encountered
+	if sftpErr != nil {
+		return sftpErr
+	}
+	return sshErr
 }
 
 func (c *Client) list(path string) ([]os.FileInfo, error) {
@@ -69,14 +82,8 @@ func (c *Client) list(path string) ([]os.FileInfo, error) {
 
 	fn := func() error {
 		var err error
-		c.lock.RLock()
-		defer c.lock.RUnlock()
 		fi, err = c.sftpClient.ReadDir(path)
-		if err != nil {
-			c.needsReconnect.Store(true)
-			return err
-		}
-		return nil
+		return err
 	}
 
 	err := withReconnection(c, fn)
@@ -93,17 +100,13 @@ func (c *Client) create(path string) (*sftpClient.File, string, error) {
 	var file *sftpClient.File
 
 	createFn := func() error {
-		c.lock.RLock()
-		defer c.lock.RUnlock()
 		cErr := c.sftpClient.MkdirAll(dir)
 		if cErr != nil {
-			c.needsReconnect.Store(true)
 			return cErr
 		}
 
 		file, cErr = c.sftpClient.Create(path)
 		if cErr != nil {
-			c.needsReconnect.Store(true)
 			return cErr
 		}
 
@@ -123,15 +126,8 @@ func (c *Client) get(path string) (*sftpClient.File, error) {
 
 	fn := func() error {
 		var err error
-		c.lock.RLock()
-
-		defer c.lock.RUnlock()
 		f, err = c.sftpClient.Open(path)
-		if err != nil {
-			c.needsReconnect.Store(true)
-			return err
-		}
-		return nil
+		return err
 	}
 
 	err := withReconnection(c, fn)
@@ -144,15 +140,7 @@ func (c *Client) get(path string) (*sftpClient.File, error) {
 
 func (c *Client) delete(path string) error {
 	fn := func() error {
-		var err error
-		c.lock.RLock()
-		defer c.lock.RUnlock()
-		err = c.sftpClient.Remove(path)
-		if err != nil {
-			c.needsReconnect.Store(true)
-			return err
-		}
-		return nil
+		return c.sftpClient.Remove(path)
 	}
 
 	err := withReconnection(c, fn)
@@ -164,8 +152,6 @@ func (c *Client) delete(path string) error {
 }
 
 func (c *Client) ping() error {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
 	_, err := c.sftpClient.Getwd()
 	if err != nil {
 		return err
@@ -174,21 +160,22 @@ func (c *Client) ping() error {
 }
 
 func withReconnection(c *Client, fn func() error) error {
+	c.lock.RLock()
 	err := fn()
-	if err == nil {
-		return nil
+	if c.shouldReconnect(err) {
+		c.needsReconnect.Store(true)
+	}
+	c.lock.RUnlock()
+
+	if c.shouldReconnect(err) {
+		rErr := doReconnect(c)
+		if rErr != nil {
+			return errors.Join(err, rErr)
+		}
 	}
 
-	if !shouldReconnect(err) {
-		c.needsReconnect.Store(false)
-		return err
-	}
-
-	rErr := doReconnect(c)
-	if rErr != nil {
-		return errors.Join(err, rErr)
-	}
-
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	err = fn()
 	if err != nil {
 		return err
@@ -198,59 +185,38 @@ func withReconnection(c *Client, fn func() error) error {
 }
 
 func doReconnect(c *Client) error {
-	// No need to reconnect as it has been reconnected
 	if !c.needsReconnect.Load() {
 		return nil
 	}
-
-	err := c.ping()
-	if err == nil {
-		c.needsReconnect.Store(false)
-		return nil
-	}
-
-	sshClient, err := newSSHClient(c.address, c.config)
-	if err != nil {
-		return err
-	}
-
-	newSftpClient, err := sftpClient.NewClient(sshClient)
-	if err != nil {
-		_ = sshClient.Close()
-		return fmt.Errorf("sftp binding error: error create sftp client: %w", err)
-	}
-
-	// Swap under short lock; close old clients after unlocking.
-	// Close new clients if not swapped
 	c.lock.Lock()
-	var oldSftp *sftpClient.Client
-	var oldSSH *ssh.Client
-	if c.needsReconnect.Load() {
-		oldSftp = c.sftpClient
-		oldSSH = c.sshClient
+	defer c.lock.Unlock()
+
+	pErr := c.ping()
+	if pErr != nil {
+		sshClient, err := newSSHClient(c.address, c.config)
+		if err != nil {
+			return err
+		}
+
+		newSftpClient, err := sftpClient.NewClient(sshClient)
+		if err != nil {
+			_ = sshClient.Close()
+			return fmt.Errorf("sftp binding error: error create sftp client: %w", err)
+		}
+
+		oldSftp := c.sftpClient
+		oldSSH := c.sshClient
 		c.sftpClient = newSftpClient
 		c.sshClient = sshClient
-		c.needsReconnect.Store(false)
-		sshClient = nil
-		newSftpClient = nil
-	}
-	c.lock.Unlock()
 
-	if oldSftp != nil {
-		_ = oldSftp.Close()
+		if oldSftp != nil {
+			_ = oldSftp.Close()
+		}
+		if oldSSH != nil {
+			_ = oldSSH.Close()
+		}
 	}
-	if oldSSH != nil {
-		_ = oldSSH.Close()
-	}
-
-	if newSftpClient != nil {
-		_ = newSftpClient.Close()
-	}
-
-	if sshClient != nil {
-		_ = sshClient.Close()
-	}
-
+	c.needsReconnect.Store(false)
 	return nil
 }
 
@@ -263,7 +229,7 @@ func newSSHClient(address string, config *ssh.ClientConfig) (*ssh.Client, error)
 }
 
 // shouldReconnect returns true if the error looks like a transport-level failure
-func shouldReconnect(err error) bool {
+func (c *Client) shouldReconnect(err error) bool {
 	if err == nil {
 		return false
 	}

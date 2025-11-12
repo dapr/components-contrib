@@ -25,21 +25,12 @@ import (
 )
 
 type Client struct {
-	sshClient         *ssh.Client
-	sftpClient        *sftpClient.Client
-	address           string
-	config            *ssh.ClientConfig
-	lock              sync.RWMutex
-	reconnectionCount atomic.Uint64
-}
-
-type sftpError struct {
-	err               error
-	reconnectionCount uint64
-}
-
-func (s sftpError) Error() string {
-	return s.err.Error()
+	sshClient      *ssh.Client
+	sftpClient     *sftpClient.Client
+	address        string
+	config         *ssh.ClientConfig
+	lock           sync.RWMutex
+	needsReconnect atomic.Bool
 }
 
 func newClient(address string, config *ssh.ClientConfig) (*Client, error) {
@@ -76,13 +67,14 @@ func (c *Client) Close() error {
 func (c *Client) list(path string) ([]os.FileInfo, error) {
 	var fi []os.FileInfo
 
-	fn := func() *sftpError {
+	fn := func() error {
 		var err error
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		fi, err = c.sftpClient.ReadDir(path)
 		if err != nil {
-			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+			c.needsReconnect.Store(true)
+			return err
 		}
 		return nil
 	}
@@ -100,17 +92,19 @@ func (c *Client) create(path string) (*sftpClient.File, string, error) {
 
 	var file *sftpClient.File
 
-	createFn := func() *sftpError {
+	createFn := func() error {
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		cErr := c.sftpClient.MkdirAll(dir)
 		if cErr != nil {
-			return &sftpError{err: fmt.Errorf("sftp binding error: error create dir %s: %w", dir, cErr), reconnectionCount: c.reconnectionCount.Load()}
+			c.needsReconnect.Store(true)
+			return cErr
 		}
 
 		file, cErr = c.sftpClient.Create(path)
 		if cErr != nil {
-			return &sftpError{err: fmt.Errorf("sftp binding error: error create file %s: %w", path, cErr), reconnectionCount: c.reconnectionCount.Load()}
+			c.needsReconnect.Store(true)
+			return cErr
 		}
 
 		return nil
@@ -127,14 +121,15 @@ func (c *Client) create(path string) (*sftpClient.File, string, error) {
 func (c *Client) get(path string) (*sftpClient.File, error) {
 	var f *sftpClient.File
 
-	fn := func() *sftpError {
+	fn := func() error {
 		var err error
 		c.lock.RLock()
 
 		defer c.lock.RUnlock()
 		f, err = c.sftpClient.Open(path)
 		if err != nil {
-			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+			c.needsReconnect.Store(true)
+			return err
 		}
 		return nil
 	}
@@ -148,13 +143,14 @@ func (c *Client) get(path string) (*sftpClient.File, error) {
 }
 
 func (c *Client) delete(path string) error {
-	fn := func() *sftpError {
+	fn := func() error {
 		var err error
 		c.lock.RLock()
 		defer c.lock.RUnlock()
 		err = c.sftpClient.Remove(path)
 		if err != nil {
-			return &sftpError{err: err, reconnectionCount: c.reconnectionCount.Load()}
+			c.needsReconnect.Store(true)
+			return err
 		}
 		return nil
 	}
@@ -177,17 +173,18 @@ func (c *Client) ping() error {
 	return nil
 }
 
-func withReconnection(c *Client, fn func() *sftpError) error {
+func withReconnection(c *Client, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
 	}
 
 	if !shouldReconnect(err) {
+		c.needsReconnect.Store(false)
 		return err
 	}
 
-	rErr := doReconnect(c, err.reconnectionCount)
+	rErr := doReconnect(c)
 	if rErr != nil {
 		return errors.Join(err, rErr)
 	}
@@ -200,14 +197,15 @@ func withReconnection(c *Client, fn func() *sftpError) error {
 	return nil
 }
 
-func doReconnect(c *Client, reconnectionCount uint64) error {
+func doReconnect(c *Client) error {
 	// No need to reconnect as it has been reconnected
-	if reconnectionCount != c.reconnectionCount.Load() {
+	if !c.needsReconnect.Load() {
 		return nil
 	}
 
 	err := c.ping()
 	if err == nil {
+		c.needsReconnect.Store(false)
 		return nil
 	}
 
@@ -227,12 +225,12 @@ func doReconnect(c *Client, reconnectionCount uint64) error {
 	c.lock.Lock()
 	var oldSftp *sftpClient.Client
 	var oldSSH *ssh.Client
-	if reconnectionCount == c.reconnectionCount.Load() {
+	if c.needsReconnect.Load() {
 		oldSftp = c.sftpClient
 		oldSSH = c.sshClient
 		c.sftpClient = newSftpClient
 		c.sshClient = sshClient
-		c.reconnectionCount.Add(1)
+		c.needsReconnect.Store(false)
 		sshClient = nil
 		newSftpClient = nil
 	}

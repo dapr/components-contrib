@@ -273,8 +273,13 @@ func (s *Subscription) ReceiveBlocking(parentCtx context.Context, handler Handle
 			continue
 		}
 
-		// Handle the messages in background
-		go s.handleAsync(ctx, msgs, handler, receiver)
+		// If we require sessions then we must process the message
+		// synchronously to ensure the FIFO order is maintained.
+		if s.requireSessions {
+			s.handleAsync(ctx, msgs, handler, receiver)
+		} else {
+			go s.handleAsync(ctx, msgs, handler, receiver)
+		}
 	}
 }
 

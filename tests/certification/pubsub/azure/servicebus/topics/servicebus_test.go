@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -1252,6 +1253,193 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 			"SessionId": session2,
 		}, sidecarName1, topic, sessionWatcher)).
 		Step("verify if app1 has recevied messages published to only a single session", assertMessages(10*time.Second, sessionWatcher)).
+		Step("reset", flow.Reset(sessionWatcher)).
+		Run()
+}
+
+// TestServicebusWithConcurrentSessionsFIFO validates that multiple sessions can be
+// processed concurrently while each session maintains strict FIFO ordering.
+func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
+	topic := "sessions-concurrent-fifo"
+	numSessions := 5
+
+	sessionWatcher := watcher.NewUnordered()
+
+	var (
+		mu          sync.Mutex
+		globalOrder []string // tracks session IDs in the order messages were received
+	)
+
+	subscriberApplicationWithSessions := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+					Metadata: map[string]string{
+						"requireSessions":       "true",
+						"maxConcurrentSessions": "5",
+					},
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+
+					// Track session ID in global order
+					match := sessionIDRegex.FindStringSubmatch(string(e.Data))
+					if len(match) > 0 {
+						sessionID := match[1]
+						mu.Lock()
+						globalOrder = append(globalOrder, sessionID)
+						mu.Unlock()
+					}
+
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s",
+						appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				var msgSuffix string
+				if metadata["SessionId"] != "" {
+					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
+				}
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s",
+					metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				_, exp, obs := m.Partial(ctx, timeout)
+
+				var observed []string
+				if obs != nil {
+					for _, v := range obs.([]interface{}) {
+						observed = append(observed, v.(string))
+					}
+				}
+				var expected []string
+				if exp != nil {
+					for _, v := range exp.([]interface{}) {
+						expected = append(expected, v.(string))
+					}
+				}
+
+				// Group messages by session
+				sessionMessages := make(map[string][]string)
+				for _, msg := range observed {
+					match := sessionIDRegex.FindStringSubmatch(msg)
+					if len(match) > 0 {
+						sessionID := match[1]
+						sessionMessages[sessionID] = append(sessionMessages[sessionID], msg)
+					} else {
+						t.Error("session id not found in message")
+					}
+				}
+
+				require.Greater(t, len(sessionMessages), 1,
+					"should receive messages from multiple sessions concurrently")
+
+				// Verify FIFO ordering per session
+				for sessionID, msgs := range sessionMessages {
+					var expectedForSession []string
+					for _, msg := range expected {
+						match := sessionIDRegex.FindStringSubmatch(msg)
+						if len(match) > 0 && match[1] == sessionID {
+							expectedForSession = append(expectedForSession, msg)
+						}
+					}
+
+					require.Equal(t, expectedForSession, msgs,
+						"session %s messages must be in FIFO order", sessionID)
+				}
+
+				// Check global order to prove concurrent processing
+				// If processed sequentially, all messages from one session would come before the next
+				// If processed concurrently, session IDs will be interleaved
+				mu.Lock()
+				orderCopy := make([]string, len(globalOrder))
+				copy(orderCopy, globalOrder)
+				mu.Unlock()
+
+				if len(orderCopy) > 1 {
+					// Check if we have session interleaving
+					hasInterleaving := false
+					seenSessions := make(map[string]bool)
+					lastSession := ""
+
+					for _, sessionID := range orderCopy {
+						if sessionID != lastSession && seenSessions[sessionID] {
+							// We've seen this session before but with a different session in between
+							hasInterleaving = true
+							break
+						}
+						seenSessions[sessionID] = true
+						lastSession = sessionID
+					}
+
+					require.True(t, hasInterleaving,
+						"global order must show session interleaving, proving concurrent processing")
+
+					ctx.Logf("Successfully processed %d sessions concurrently with FIFO ordering maintained",
+						len(sessionMessages))
+				}
+			}
+			return nil
+		}
+	}
+
+	f := flow.New(t, "servicebus certification concurrent sessions FIFO test").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		))
+
+	for i := 0; i < numSessions; i++ {
+		sessionID := fmt.Sprintf("session-%d", i)
+		f = f.Step(fmt.Sprintf("publish messages to %s", sessionID),
+			publishMessages(map[string]string{"SessionId": sessionID}, sidecarName1, topic, sessionWatcher))
+	}
+
+	f.Step("verify all sessions processed with FIFO ordering and concurrency", assertMessages(30*time.Second, sessionWatcher)).
 		Step("reset", flow.Reset(sessionWatcher)).
 		Run()
 }

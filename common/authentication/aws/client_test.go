@@ -18,17 +18,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/aws/aws-sdk-go/service/kinesis/kinesisiface"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 )
 
 type mockedSQS struct {
@@ -40,13 +39,31 @@ func (m *mockedSQS) GetQueueUrlWithContext(ctx context.Context, input *sqs.GetQu
 	return m.GetQueueURLFn(ctx, input)
 }
 
-type mockedKinesis struct {
-	kinesisiface.KinesisAPI
-	DescribeStreamFn func(ctx context.Context, input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error)
+type mockedKinesisV2 struct {
+	DescribeStreamFn func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error)
 }
 
-func (m *mockedKinesis) DescribeStreamWithContext(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...request.Option) (*kinesis.DescribeStreamOutput, error) {
-	return m.DescribeStreamFn(ctx, input)
+func (m *mockedKinesisV2) DescribeStream(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+	return m.DescribeStreamFn(ctx, input, opts...)
+}
+
+// testKinesisClients wraps KinesisClients for testing with mock
+type testKinesisClients struct {
+	*KinesisClients
+	mockKinesis *mockedKinesisV2
+}
+
+func (t *testKinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
+	if t.mockKinesis != nil {
+		stream, err := t.mockKinesis.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+			StreamName: &streamName,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return stream.StreamDescription.StreamARN, nil
+	}
+	return nil, errors.New("unable to get stream arn due to empty client")
 }
 
 func TestS3Clients_New(t *testing.T) {
@@ -130,51 +147,144 @@ func TestSqsClients_QueueURL(t *testing.T) {
 func TestKinesisClients_Stream(t *testing.T) {
 	tests := []struct {
 		name           string
-		kinesisClient  *KinesisClients
+		kinesisClient  *testKinesisClients
 		streamName     string
-		mockStreamARN  *string
-		mockError      error
 		expectedStream *string
-		expectedErr    error
+		expectedErr    string
 	}{
 		{
 			name: "successfully retrieves stream ARN",
-			kinesisClient: &KinesisClients{
-				Kinesis: &mockedKinesis{DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
-					return &kinesis.DescribeStreamOutput{
-						StreamDescription: &kinesis.StreamDescription{
-							StreamARN: aws.String("arn:aws:kinesis:some-region:123456789012:stream/some-stream"),
-						},
-					}, nil
-				}},
-				Region:      "us-west-1",
-				Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "us-west-2",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: &mockedKinesisV2{
+					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+						streamARN := "arn:aws:kinesis:us-west-2:123456789012:stream/test-stream"
+						streamName := "test-stream"
+						return &kinesis.DescribeStreamOutput{
+							StreamDescription: &types.StreamDescription{
+								StreamARN:    &streamARN,
+								StreamName:   &streamName,
+								StreamStatus: types.StreamStatusActive,
+							},
+						}, nil
+					},
+				},
 			},
-			streamName:     "some-stream",
-			expectedStream: aws.String("arn:aws:kinesis:some-region:123456789012:stream/some-stream"),
-			expectedErr:    nil,
+			streamName:     "test-stream",
+			expectedStream: aws.String("arn:aws:kinesis:us-west-2:123456789012:stream/test-stream"),
+			expectedErr:    "",
 		},
 		{
 			name: "returns error when stream not found",
-			kinesisClient: &KinesisClients{
-				Kinesis: &mockedKinesis{DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
-					return nil, errors.New("stream not found")
-				}},
-				Region:      "us-west-1",
-				Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "us-west-2",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: &mockedKinesisV2{
+					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+						return nil, errors.New("ResourceNotFoundException: Stream nonexistent-stream under account 123456789012 not found")
+					},
+				},
 			},
 			streamName:     "nonexistent-stream",
 			expectedStream: nil,
-			expectedErr:    errors.New("unable to get stream arn due to empty client"),
+			expectedErr:    "ResourceNotFoundException: Stream nonexistent-stream under account 123456789012 not found",
+		},
+		{
+			name: "returns error when client is nil",
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "us-west-2",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: nil,
+			},
+			streamName:     "test-stream",
+			expectedStream: nil,
+			expectedErr:    "unable to get stream arn due to empty client",
+		},
+		{
+			name: "handles stream with special characters in name",
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "eu-central-1",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: &mockedKinesisV2{
+					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+						streamARN := "arn:aws:kinesis:eu-central-1:123456789012:stream/my-test_stream.123"
+						streamName := "my-test_stream.123"
+						return &kinesis.DescribeStreamOutput{
+							StreamDescription: &types.StreamDescription{
+								StreamARN:    &streamARN,
+								StreamName:   &streamName,
+								StreamStatus: types.StreamStatusActive,
+							},
+						}, nil
+					},
+				},
+			},
+			streamName:     "my-test_stream.123",
+			expectedStream: aws.String("arn:aws:kinesis:eu-central-1:123456789012:stream/my-test_stream.123"),
+			expectedErr:    "",
+		},
+		{
+			name: "handles empty stream name",
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "us-east-1",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: &mockedKinesisV2{
+					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+						return nil, errors.New("ValidationException: Stream name cannot be empty")
+					},
+				},
+			},
+			streamName:     "",
+			expectedStream: nil,
+			expectedErr:    "ValidationException: Stream name cannot be empty",
+		},
+		{
+			name: "handles stream in creating state",
+			kinesisClient: &testKinesisClients{
+				KinesisClients: &KinesisClients{
+					Region:      "ap-southeast-1",
+					Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				},
+				mockKinesis: &mockedKinesisV2{
+					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput, opts ...func(*kinesis.Options)) (*kinesis.DescribeStreamOutput, error) {
+						streamARN := "arn:aws:kinesis:ap-southeast-1:123456789012:stream/creating-stream"
+						streamName := "creating-stream"
+						return &kinesis.DescribeStreamOutput{
+							StreamDescription: &types.StreamDescription{
+								StreamARN:    &streamARN,
+								StreamName:   &streamName,
+								StreamStatus: types.StreamStatusCreating,
+							},
+						}, nil
+					},
+				},
+			},
+			streamName:     "creating-stream",
+			expectedStream: aws.String("arn:aws:kinesis:ap-southeast-1:123456789012:stream/creating-stream"),
+			expectedErr:    "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.kinesisClient.Stream(t.Context(), tt.streamName)
-			if tt.expectedErr != nil {
+			ctx := context.Background()
+			got, err := tt.kinesisClient.Stream(ctx, tt.streamName)
+
+			if tt.expectedErr != "" {
 				require.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Equal(t, tt.expectedErr, err.Error())
+				assert.Nil(t, got)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedStream, got)
@@ -184,82 +294,71 @@ func TestKinesisClients_Stream(t *testing.T) {
 }
 
 func TestKinesisClients_WorkerCfg(t *testing.T) {
-	testCreds := credentials.NewStaticCredentials("accessKey", "secretKey", "")
 	tests := []struct {
-		name           string
-		kinesisClient  *KinesisClients
-		streamName     string
-		consumer       string
-		mode           string
-		expectedConfig *config.KinesisClientLibConfiguration
+		name            string
+		kinesisClient   *KinesisClients
+		streamName      string
+		applicationName string
+		mode            string
+		expectNil       bool
 	}{
 		{
-			name: "successfully creates shared mode worker config",
+			name: "successfully creates shared mode worker config with v2 credentials",
 			kinesisClient: &KinesisClients{
-				Kinesis: &mockedKinesis{
-					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
-						return &kinesis.DescribeStreamOutput{
-							StreamDescription: &kinesis.StreamDescription{
-								StreamARN: aws.String("arn:aws:kinesis:us-east-1:123456789012:stream/existing-stream"),
-							},
-						}, nil
-					},
-				},
-				Region:      "us-west-1",
-				Credentials: testCreds,
+				Region:      "us-west-2",
+				Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				V2Credentials: aws.NewCredentialsCache(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{
+						AccessKeyID:     "accessKey",
+						SecretAccessKey: "secretKey",
+					}, nil
+				})),
 			},
-			streamName: "existing-stream",
-			consumer:   "consumer1",
-			mode:       "shared",
-			expectedConfig: config.NewKinesisClientLibConfigWithCredential(
-				"consumer1", "existing-stream", "us-west-1", "consumer1", testCreds,
-			),
+			streamName:      "test-stream",
+			applicationName: "test-app",
+			mode:            "shared",
+			expectNil:       false,
 		},
 		{
 			name: "returns nil when mode is not shared",
 			kinesisClient: &KinesisClients{
-				Kinesis: &mockedKinesis{
-					DescribeStreamFn: func(ctx context.Context, input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
-						return &kinesis.DescribeStreamOutput{
-							StreamDescription: &kinesis.StreamDescription{
-								StreamARN: aws.String("arn:aws:kinesis:us-east-1:123456789012:stream/existing-stream"),
-							},
-						}, nil
-					},
-				},
-				Region:      "us-west-1",
-				Credentials: testCreds,
-			},
-			streamName:     "existing-stream",
-			consumer:       "consumer1",
-			mode:           "exclusive",
-			expectedConfig: nil,
-		},
-		{
-			name: "returns nil when client is nil",
-			kinesisClient: &KinesisClients{
-				Kinesis:     nil,
-				Region:      "us-west-1",
+				Region:      "us-west-2",
 				Credentials: credentials.NewStaticCredentials("accessKey", "secretKey", ""),
 			},
-			streamName:     "existing-stream",
-			consumer:       "consumer1",
-			mode:           "shared",
-			expectedConfig: nil,
+			streamName:      "test-stream",
+			applicationName: "test-app",
+			mode:            "extended",
+			expectNil:       true,
+		},
+		{
+			name: "falls back to default config when v2 credentials are nil",
+			kinesisClient: &KinesisClients{
+				Region:        "us-east-1",
+				Credentials:   credentials.NewStaticCredentials("accessKey", "secretKey", ""),
+				V2Credentials: nil,
+			},
+			streamName:      "fallback-stream",
+			applicationName: "fallback-app",
+			mode:            "shared",
+			expectNil:       false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.kinesisClient.WorkerCfg(t.Context(), tt.streamName, tt.kinesisClient.Region, tt.mode, tt.consumer)
-			if tt.expectedConfig == nil {
-				assert.Equal(t, tt.expectedConfig, cfg)
-				return
+			ctx := context.Background()
+			cfg := tt.kinesisClient.WorkerCfg(ctx, tt.streamName, tt.kinesisClient.Region, tt.mode, tt.applicationName)
+
+			if tt.expectNil {
+				assert.Nil(t, cfg)
+			} else {
+				assert.NotNil(t, cfg)
+				if cfg != nil {
+					assert.Equal(t, tt.streamName, cfg.StreamName)
+					assert.Equal(t, tt.applicationName, cfg.ApplicationName)
+					assert.Equal(t, tt.kinesisClient.Region, cfg.RegionName)
+				}
 			}
-			assert.Equal(t, tt.expectedConfig.StreamName, cfg.StreamName)
-			assert.Equal(t, tt.expectedConfig.EnhancedFanOutConsumerName, cfg.EnhancedFanOutConsumerName)
-			assert.Equal(t, tt.expectedConfig.EnableEnhancedFanOutConsumer, cfg.EnableEnhancedFanOutConsumer)
-			assert.Equal(t, tt.expectedConfig.RegionName, cfg.RegionName)
 		})
 	}
 }

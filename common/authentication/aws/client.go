@@ -21,12 +21,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
 	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	kinesisv2 "github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/aws/aws-sdk-go/service/kinesis/kinesisiface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -118,7 +117,7 @@ type ParameterStoreClients struct {
 }
 
 type KinesisClients struct {
-	Kinesis       kinesisiface.KinesisAPI
+	Kinesis       *kinesisv2.Client
 	Region        string
 	Credentials   *credentials.Credentials
 	V2Credentials aws.CredentialsProvider
@@ -174,19 +173,24 @@ func (c *ParameterStoreClients) New(session *session.Session) {
 }
 
 func (c *KinesisClients) New(session *session.Session) {
-	c.Kinesis = kinesis.New(session, session.Config)
 	c.Region = *session.Config.Region
 	c.Credentials = session.Config.Credentials
-	// Convert v1 credentials to v2 for KCL usage
+	// Convert v1 credentials to v2 for both Kinesis client and KCL usage
 	if v1Creds, err := session.Config.Credentials.Get(); err == nil {
 		c.V2Credentials = v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+		// Create v2 config and Kinesis client
+		v2Config := aws.Config{
+			Region:      c.Region,
+			Credentials: c.V2Credentials,
+		}
+		c.Kinesis = kinesisv2.NewFromConfig(v2Config)
 	}
 }
 
 func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
 	if c.Kinesis != nil {
-		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
-			StreamName: aws.String(streamName),
+		stream, err := c.Kinesis.DescribeStream(ctx, &kinesisv2.DescribeStreamInput{
+			StreamName: &streamName,
 		})
 		if err != nil {
 			return nil, err

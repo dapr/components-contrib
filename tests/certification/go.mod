@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.22.5
+go 1.23.1
 
 require (
 	cloud.google.com/go/pubsub v1.36.1
@@ -20,7 +20,7 @@ require (
 	github.com/dapr/components-contrib v1.13.1
 	github.com/dapr/dapr v1.14.0-rc.1
 	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
-	github.com/dapr/kit v0.13.1-0.20240523225705-106329e5839f
+	github.com/dapr/kit v0.15.0
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-redis/redis/v8 v8.11.5
@@ -326,7 +326,7 @@ require (
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
-	google.golang.org/grpc v1.63.0 // indirect
+	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

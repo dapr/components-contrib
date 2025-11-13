@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
+	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -117,9 +118,10 @@ type ParameterStoreClients struct {
 }
 
 type KinesisClients struct {
-	Kinesis     kinesisiface.KinesisAPI
-	Region      string
-	Credentials *credentials.Credentials
+	Kinesis       kinesisiface.KinesisAPI
+	Region        string
+	Credentials   *credentials.Credentials
+	V2Credentials aws.CredentialsProvider
 }
 
 type SesClients struct {
@@ -175,6 +177,10 @@ func (c *KinesisClients) New(session *session.Session) {
 	c.Kinesis = kinesis.New(session, session.Config)
 	c.Region = *session.Config.Region
 	c.Credentials = session.Config.Credentials
+	// Convert v1 credentials to v2 for KCL usage
+	if v1Creds, err := session.Config.Credentials.Get(); err == nil {
+		c.V2Credentials = v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+	}
 }
 
 func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
@@ -194,6 +200,11 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
 	if mode == sharedMode {
+		// Use converted v2 credentials if available
+		if c.V2Credentials != nil {
+			return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", c.V2Credentials)
+		}
+		// Fallback to default v2 config if conversion failed
 		v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
 		if err != nil {
 			return nil

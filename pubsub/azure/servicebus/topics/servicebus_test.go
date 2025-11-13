@@ -98,7 +98,7 @@ func TestSessionOrderingWithSingleHandler(t *testing.T) {
 	sessionID := "test-session-1"
 
 	messages := make([]*azservicebus.ReceivedMessage, numMessages)
-	for i := 0; i < numMessages; i++ {
+	for i := range numMessages {
 		seqNum := int64(i + 1)
 		messages[i] = &azservicebus.ReceivedMessage{
 			MessageID:      fmt.Sprintf("msg-%d", i),
@@ -143,7 +143,7 @@ func TestSessionOrderingWithSingleHandler(t *testing.T) {
 
 	receiver := newMockReceiver(sessionID, messages)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	done := make(chan struct{})
@@ -170,14 +170,14 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 	)
 
 	sessionIDs := make([]string, numSessions)
-	for i := 0; i < numSessions; i++ {
+	for i := range numSessions {
 		sessionIDs[i] = fmt.Sprintf("session-%d", i)
 	}
 
 	allMessages := make(map[string][]*azservicebus.ReceivedMessage)
 	for _, sessionID := range sessionIDs {
 		messages := make([]*azservicebus.ReceivedMessage, messagesPerSession)
-		for i := 0; i < messagesPerSession; i++ {
+		for i := range messagesPerSession {
 			seqNum := int64(i + 1)
 			sessID := sessionID
 			messages[i] = &azservicebus.ReceivedMessage{
@@ -242,7 +242,7 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -254,7 +254,7 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				_ = sub.ReceiveBlocking(ctx, handlerFunc, receiver, func() {}, fmt.Sprintf("session-%s", sessionID))
+				_ = sub.ReceiveBlocking(ctx, handlerFunc, receiver, func() {}, "session-"+sessionID)
 			}()
 			<-done
 		}()

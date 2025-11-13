@@ -15,6 +15,7 @@ package kafka
 
 import (
 	ctx "context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -141,12 +142,31 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token() (*sarama.AccessToken, error) {
 		return nil, errors.New("key is not PEM encoded")
 	}
 
-	if block.Type != "RSA PRIVATE KEY" {
-		return nil, errors.New("key is not RSA private key")
-	}
-	rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse private key: %w", err)
+	var signer crypto.Signer
+	var err error
+	switch block.Type {
+	case "EC PRIVATE KEY":
+		signer, err = x509.ParseECPrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+	case "RSA PRIVATE KEY":
+		signer, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+	case "PRIVATE KEY":
+		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		var ok bool
+		signer, ok = key.(crypto.Signer)
+		if !ok {
+			return nil, errors.New("key is not a crypto.Signer")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported block type %s", block.Type)
 	}
 
 	now := time.Now()
@@ -170,7 +190,7 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token() (*sarama.AccessToken, error) {
 		return nil, fmt.Errorf("failed to build token: %w", err)
 	}
 
-	assertion, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, rsaKey))
+	assertion, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, signer))
 	if err != nil {
 		return nil, fmt.Errorf("error signing client assertion: %w", err)
 	}

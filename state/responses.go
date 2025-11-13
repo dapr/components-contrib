@@ -57,3 +57,13 @@ type QueryItem struct {
 type DeleteWithPrefixResponse struct {
 	Count int64 `json:"count"` // count of items removed
 }
+
+// KeysLikeResponse is the response object for getting keys like a pattern.
+type KeysLikeResponse struct {
+	Keys []string `json:"keys"`
+
+	// ContinuationToken is an optional token which can be used to continue the
+	// search of keys. Usually only present if a `PageSize` was set on the
+	// request.
+	ContinuationToken *string
+}

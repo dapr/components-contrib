@@ -4,13 +4,13 @@
 componentType: state
 components:
   - component: redis.v6
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be numeric
       badEtag: "9999999"
   - component: redis.v7
     # "query" is not included because redisjson hasn't been updated to Redis v7 yet
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be numeric
       badEtag: "9999999"
@@ -52,31 +52,31 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: postgresql.v1.docker
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be numeric
       badEtag: "1"
   - component: postgresql.v1.azure
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be numeric
       badEtag: "1"
   - component: postgresql.v2.docker
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: postgresql.v2.azure
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: sqlite
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
   - component: mysql.mysql
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
   - component: mysql.mariadb
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
   - component: azure.tablestorage.storage
     operations: [ "etag", "first-write"]
     config:
@@ -95,28 +95,28 @@ components:
     # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
     operations: []
   - component: cockroachdb.v1
-    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl", "keyslike" ]
     config:
       # This component requires etags to be numeric
       badEtag: "9999999"
   - component: cockroachdb.v2
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "keyslike" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "7b104dbd-1ae2-4772-bfa0-e29c7b89bc9b"
   - component: rethinkdb
     operations: []
   - component: in-memory
-    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "delete-with-prefix", "actorStateStore", "keyslike" ]
   - component: aws.dynamodb.docker
     # In the Docker variant, we do not set ttlAttributeName in the metadata, so TTLs are not enabled
     operations: [ "transaction", "etag", "first-write" ]
   - component: aws.dynamodb.terraform
     operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: etcd.v1
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
   - component: etcd.v2
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
   - component: gcp.firestore.docker
     operations: []
   - component: gcp.firestore.cloud

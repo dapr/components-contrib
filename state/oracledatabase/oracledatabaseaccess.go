@@ -527,3 +527,80 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 	}
 	return true, nil
 }
+
+func (o *oracleDatabaseAccess) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if o.db == nil {
+		return nil, errors.New("oracle db not initialized")
+	}
+
+	table := o.metadata.TableName
+
+	baseWhere := " WHERE key LIKE :pat ESCAPE '\\' AND (expiration_time IS NULL OR expiration_time > SYSTIMESTAMP) "
+
+	args := []any{req.Pattern}
+
+	seek := ""
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		seek = " AND key > :token "
+		args = append(args, *req.ContinuationToken)
+	}
+
+	orderBy := " ORDER BY key ASC "
+
+	var query string
+	var pageSize uint32
+
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		take := int64(pageSize + 1)
+
+		query = fmt.Sprintf(`
+SELECT key FROM (
+  SELECT key
+  FROM %s
+  %s%s%s
+)
+WHERE ROWNUM <= :take
+`, table, baseWhere, seek, orderBy)
+
+		args = append(args, take)
+	} else {
+		query = fmt.Sprintf(`
+SELECT key
+FROM %s
+%s%s%s
+`, table, baseWhere, seek, orderBy)
+	}
+
+	rows, err := o.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0, 256)
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(keys)),
+	}
+
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(keys)) > pageSize {
+		next := keys[pageSize]
+		resp.ContinuationToken = &next
+		keys = keys[:pageSize]
+	}
+
+	resp.Keys = append(resp.Keys, keys...)
+	return resp, nil
+}

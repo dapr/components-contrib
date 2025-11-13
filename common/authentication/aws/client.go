@@ -20,7 +20,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
-	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -194,13 +193,12 @@ func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string
 
 func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
-	if c.Kinesis != nil && mode == sharedMode {
-		v1Creds, err := c.Credentials.Get()
+	if mode == sharedMode {
+		v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
 		if err != nil {
 			return nil
 		}
-		v2Creds := v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
-		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Creds)
+		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Config.Credentials)
 	}
 	return nil
 }

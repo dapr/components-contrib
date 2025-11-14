@@ -110,7 +110,8 @@ require (
 	github.com/pkg/sftp v1.13.7
 	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.9.0
-	github.com/redis/go-redis/v9 v9.6.3
+	github.com/redis/go-redis/extra/redisotel/v9 v9.16.0
+	github.com/redis/go-redis/v9 v9.16.0
 	github.com/riferrei/srclient v0.7.2
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
 	github.com/sijms/go-ora/v2 v2.8.22
@@ -368,6 +369,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
+	github.com/redis/go-redis/extra/rediscmd/v9 v9.16.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/zerolog v1.31.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect

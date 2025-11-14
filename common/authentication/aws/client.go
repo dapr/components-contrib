@@ -18,13 +18,14 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2config "github.com/aws/aws-sdk-go-v2/config"
+	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	kinesisv2 "github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/aws/aws-sdk-go/service/kinesis/kinesisiface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -36,7 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 )
 
 type Clients struct {
@@ -116,9 +117,10 @@ type ParameterStoreClients struct {
 }
 
 type KinesisClients struct {
-	Kinesis     kinesisiface.KinesisAPI
-	Region      string
-	Credentials *credentials.Credentials
+	Kinesis       *kinesisv2.Client
+	Region        string
+	Credentials   *credentials.Credentials
+	V2Credentials aws.CredentialsProvider
 }
 
 type SesClients struct {
@@ -171,37 +173,48 @@ func (c *ParameterStoreClients) New(session *session.Session) {
 }
 
 func (c *KinesisClients) New(session *session.Session) {
-	c.Kinesis = kinesis.New(session, session.Config)
 	c.Region = *session.Config.Region
 	c.Credentials = session.Config.Credentials
+	// Convert v1 credentials to v2 for both Kinesis client and KCL usage
+	if v1Creds, err := session.Config.Credentials.Get(); err == nil {
+		c.V2Credentials = v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+		// Create v2 config and Kinesis client
+		v2Config := aws.Config{
+			Region:      c.Region,
+			Credentials: c.V2Credentials,
+		}
+		c.Kinesis = kinesisv2.NewFromConfig(v2Config)
+	}
 }
 
 func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
 	if c.Kinesis != nil {
-		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
-			StreamName: aws.String(streamName),
+		stream, err := c.Kinesis.DescribeStream(ctx, &kinesisv2.DescribeStreamInput{
+			StreamName: &streamName,
 		})
-		if stream != nil {
-			return stream.StreamDescription.StreamARN, err
+		if err != nil {
+			return nil, err
 		}
+		return stream.StreamDescription.StreamARN, nil
 	}
 
 	return nil, errors.New("unable to get stream arn due to empty client")
 }
 
-func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode string) *config.KinesisClientLibConfiguration {
+func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
 	const sharedMode = "shared"
-	if c.Kinesis != nil {
-		if mode == sharedMode {
-			if c.Credentials != nil {
-				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
-					stream, c.Region, consumer,
-					c.Credentials)
-				return kclConfig
-			}
+	if mode == sharedMode {
+		// Use converted v2 credentials if available
+		if c.V2Credentials != nil {
+			return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", c.V2Credentials)
 		}
+		// Fallback to default v2 config if conversion failed
+		v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(region))
+		if err != nil {
+			return nil
+		}
+		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", v2Config.Credentials)
 	}
-
 	return nil
 }
 

@@ -28,6 +28,8 @@ const (
 	ETagMismatch ETagErrorKind = "mismatch"
 )
 
+var ErrKeysLikeEmptyPattern = errors.New("keys like pattern cannot be empty")
+
 // ETagError is a custom error type for etag exceptions.
 type ETagError struct {
 	err  error

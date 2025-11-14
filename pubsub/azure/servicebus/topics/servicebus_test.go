@@ -267,7 +267,7 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 		order := sessionOrders[sessionID]
 		require.Len(t, order, messagesPerSession, "session %s should process all messages", sessionID)
 
-		for i := 0; i < messagesPerSession; i++ {
+		for i := range messagesPerSession {
 			assert.Equal(t, i, order[i], "session %s message %d out of order", sessionID, i)
 		}
 	}

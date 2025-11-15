@@ -204,20 +204,51 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 		logger.NewLogger("test"),
 	)
 
+	// Track processing times and active messages per session
+	type messageProcessing struct {
+		sessionID string
+		messageID string
+		seqNum    int64
+		startTime time.Time
+		endTime   time.Time
+		msgIndex  int
+	}
+
 	var (
 		mu                    sync.Mutex
-		globalOrder           []string // tracks session IDs in the order messages were received
+		globalOrder           []string
 		sessionOrders         = make(map[string][]int)
 		concurrentHandlers    atomic.Int32
 		maxConcurrentHandlers atomic.Int32
+		processingLog         []messageProcessing
+		activePerSession      = make(map[string]int32)
+		parallelViolations    atomic.Int32
 	)
 
 	handlerFunc := func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
 		msg := msgs[0]
 		sessionID := *msg.SessionID
+		startTime := time.Now()
+
+		// Track concurrent processing within the same session
+		mu.Lock()
+		activeCount := activePerSession[sessionID]
+		if activeCount > 0 {
+			// Another message from this session is already being processed
+			parallelViolations.Add(1)
+			t.Errorf("Session %s has %d messages processing in parallel at %v",
+				sessionID, activeCount+1, startTime)
+		}
+		activePerSession[sessionID]++
+		mu.Unlock()
 
 		current := concurrentHandlers.Add(1)
-		defer concurrentHandlers.Add(-1)
+		defer func() {
+			concurrentHandlers.Add(-1)
+			mu.Lock()
+			activePerSession[sessionID]--
+			mu.Unlock()
+		}()
 
 		for {
 			max := maxConcurrentHandlers.Load()
@@ -234,9 +265,19 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 
 		time.Sleep(50 * time.Millisecond)
 
+		endTime := time.Now()
+
 		mu.Lock()
 		globalOrder = append(globalOrder, sessionID)
 		sessionOrders[sessionID] = append(sessionOrders[sessionID], msgIndex)
+		processingLog = append(processingLog, messageProcessing{
+			sessionID: sessionID,
+			messageID: msg.MessageID,
+			seqNum:    *msg.SequenceNumber,
+			startTime: startTime,
+			endTime:   endTime,
+			msgIndex:  msgIndex,
+		})
 		mu.Unlock()
 
 		return nil, nil
@@ -262,6 +303,10 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 
 	wg.Wait()
 
+	// Verify no parallel session processing was detected
+	assert.Equal(t, int32(0), parallelViolations.Load(),
+		"N messages from the same session should process in parallel")
+
 	// Verify FIFO ordering per session
 	for _, sessionID := range sessionIDs {
 		order := sessionOrders[sessionID]
@@ -269,6 +314,36 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 
 		for i := range messagesPerSession {
 			assert.Equal(t, i, order[i], "session %s message %d out of order", sessionID, i)
+		}
+	}
+
+	// Verify strict ordering, message N+1 must start after message N ends
+	sessionProcessingTimes := make(map[string][]messageProcessing)
+	for _, proc := range processingLog {
+		sessionProcessingTimes[proc.sessionID] = append(sessionProcessingTimes[proc.sessionID], proc)
+	}
+
+	for sessionID, procs := range sessionProcessingTimes {
+		require.Len(t, procs, messagesPerSession, "session %s should have all processing records", sessionID)
+
+		// Sort by message index to ensure we check in FIFO order
+		sortedProcs := make([]messageProcessing, len(procs))
+		for _, proc := range procs {
+			sortedProcs[proc.msgIndex] = proc
+		}
+
+		// Verify each message starts after the previous one completes
+		for i := 1; i < len(sortedProcs); i++ {
+			prev := sortedProcs[i-1]
+			curr := sortedProcs[i]
+
+			assert.False(t, curr.startTime.Before(prev.endTime),
+				"Session %s: message %d started at %v before message %d ended at %v (overlap detected)",
+				sessionID, curr.msgIndex, curr.startTime, prev.msgIndex, prev.endTime)
+
+			// Also verify sequence numbers are strictly increasing
+			assert.Equal(t, prev.seqNum+1, curr.seqNum,
+				"Session %s: sequence numbers should be consecutive", sessionID)
 		}
 	}
 
@@ -297,5 +372,5 @@ func TestMultipleSessionsConcurrentHandler(t *testing.T) {
 	}
 
 	assert.True(t, hasInterleaving,
-		"global order must show session interleaving, proving concurrent processing")
+		"global order must show session interleaving, proving concurrent processing across sessions")
 }

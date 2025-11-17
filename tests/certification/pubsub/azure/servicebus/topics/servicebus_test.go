@@ -1108,7 +1108,7 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					// Extract session ID (if present) to track concurrency
 					var sessionID string
-					if m := sessionIDRegex.FindStringSubmatch(string(e.Data)); len(m) > 1 {
+					if m := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data)); len(m) > 1 {
 						sessionID = m[1]
 					}
 
@@ -1319,7 +1319,7 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 					messagesWatcher.Observe(e.Data)
 
 					// Track session ID and enforce single in-flight per session
-					match := sessionIDRegex.FindStringSubmatch(string(e.Data))
+					match := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data))
 					var sessionID string
 					if len(match) > 1 {
 						sessionID = match[1]
@@ -1531,7 +1531,7 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 					// Extract session ID
 					var sessionID string
-					if m := sessionIDRegex.FindStringSubmatch(string(e.Data)); len(m) > 1 {
+					if m := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data)); len(m) > 1 {
 						sessionID = m[1]
 					}
 

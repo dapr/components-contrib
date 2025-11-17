@@ -885,10 +885,6 @@ function GenerateMatrix(testKind, enableCloudTests) {
             continue
         }
 
-        if (name !== 'pubsub.azure.servicebus.topics') {
-            continue
-        }
-
         // Skip cloud-only tests if enableCloudTests is false
         if (!enableCloudTests) {
             if (

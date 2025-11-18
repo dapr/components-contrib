@@ -22,10 +22,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2config "github.com/aws/aws-sdk-go-v2/config"
+	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/worker"
 
@@ -41,7 +45,9 @@ type AWSKinesis struct {
 	authProvider awsAuth.Provider
 	metadata     *kinesisMetadata
 
-	worker *worker.Worker
+	worker        *worker.Worker
+	kinesisClient *kinesis.Client
+	v2Credentials aws.CredentialsProvider
 
 	streamName      string
 	consumerName    string
@@ -133,6 +139,12 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 		return err
 	}
 	a.authProvider = provider
+
+	// Create AWS SDK v2 client
+	if err := a.createKinesisClient(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -145,7 +157,7 @@ func (a *AWSKinesis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	if partitionKey == "" {
 		partitionKey = uuid.New().String()
 	}
-	_, err := a.authProvider.Kinesis().Kinesis.PutRecord(ctx, &kinesis.PutRecordInput{
+	_, err := a.kinesisClient.PutRecord(ctx, &kinesis.PutRecordInput{
 		StreamName:   &a.metadata.StreamName,
 		Data:         req.Data,
 		PartitionKey: &partitionKey,
@@ -162,7 +174,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	switch a.metadata.KinesisConsumerMode {
 	case SharedThroughput:
 		// initalize worker configuration
-		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
+		config := a.workerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
 		// Configure the KCL worker with custom endpoints for LocalStack
 		if a.metadata.Endpoint != "" {
 			config = config.WithKinesisEndpoint(a.metadata.Endpoint)
@@ -175,7 +187,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	case ExtendedFanout:
 		var stream *kinesis.DescribeStreamOutput
-		stream, err = a.authProvider.Kinesis().Kinesis.DescribeStream(ctx, &kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
+		stream, err = a.kinesisClient.DescribeStream(ctx, &kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
 			return err
 		}
@@ -185,7 +197,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
-	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+	stream, err := a.getStreamARN(ctx, a.streamName)
 	if err != nil {
 		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
 	}
@@ -236,7 +248,7 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc types.StreamDescr
 					return
 				default:
 				}
-				sub, err := a.authProvider.Kinesis().Kinesis.SubscribeToShard(ctx, &kinesis.SubscribeToShardInput{
+				sub, err := a.kinesisClient.SubscribeToShard(ctx, &kinesis.SubscribeToShardInput{
 					ConsumerARN:      consumerARN,
 					ShardId:          s.ShardId,
 					StartingPosition: &types.StartingPosition{Type: types.ShardIteratorTypeLatest},
@@ -288,7 +300,7 @@ func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*st
 	// Only set timeout on consumer call.
 	conCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	consumer, err := a.authProvider.Kinesis().Kinesis.DescribeStreamConsumer(conCtx, &kinesis.DescribeStreamConsumerInput{
+	consumer, err := a.kinesisClient.DescribeStreamConsumer(conCtx, &kinesis.DescribeStreamConsumerInput{
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
@@ -300,7 +312,7 @@ func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*st
 }
 
 func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*string, error) {
-	consumer, err := a.authProvider.Kinesis().Kinesis.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
+	consumer, err := a.kinesisClient.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
@@ -323,7 +335,7 @@ func (a *AWSKinesis) deregisterConsumer(ctx context.Context, streamARN *string, 
 	if a.consumerARN != nil {
 		// Use a background context because the running context may have been canceled already
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := a.authProvider.Kinesis().Kinesis.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
+		_, err := a.kinesisClient.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
 			ConsumerARN:  consumerARN,
 			StreamARN:    streamARN,
 			ConsumerName: &a.metadata.ConsumerName,
@@ -339,7 +351,7 @@ func (a *AWSKinesis) deregisterConsumer(ctx context.Context, streamARN *string, 
 func (a *AWSKinesis) waitUntilConsumerExists(ctx context.Context, input *kinesis.DescribeStreamConsumerInput) error {
 	// Poll until consumer is active
 	for i := 0; i < 18; i++ {
-		consumer, err := a.authProvider.Kinesis().Kinesis.DescribeStreamConsumer(ctx, input)
+		consumer, err := a.kinesisClient.DescribeStreamConsumer(ctx, input)
 		if err != nil {
 			return err
 		}
@@ -401,6 +413,46 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 	if input.ShutdownReason == interfaces.TERMINATE {
 		input.Checkpointer.Checkpoint(nil)
 	}
+}
+
+func (a *AWSKinesis) createKinesisClient(ctx context.Context) error {
+	// Convert v1 credentials to v2
+	if v1Creds, err := a.authProvider.Kinesis().Credentials.Get(); err == nil {
+		a.v2Credentials = v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
+	} else {
+		// Fallback to default v2 config if conversion failed
+		v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(a.authProvider.Kinesis().Region))
+		if err != nil {
+			return err
+		}
+		a.v2Credentials = v2Config.Credentials
+	}
+
+	// Create v2 config and Kinesis client
+	v2Config := aws.Config{
+		Region:      a.authProvider.Kinesis().Region,
+		Credentials: a.v2Credentials,
+	}
+	a.kinesisClient = kinesis.NewFromConfig(v2Config)
+	return nil
+}
+
+func (a *AWSKinesis) getStreamARN(ctx context.Context, streamName string) (*string, error) {
+	stream, err := a.kinesisClient.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+		StreamName: &streamName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return stream.StreamDescription.StreamARN, nil
+}
+
+func (a *AWSKinesis) workerCfg(_ context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
+	const sharedMode = "shared"
+	if mode == sharedMode {
+		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", a.v2Credentials)
+	}
+	return nil
 }
 
 // GetComponentMetadata returns the metadata of the component.

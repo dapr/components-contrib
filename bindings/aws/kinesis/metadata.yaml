@@ -64,3 +64,7 @@ metadata:
     required: false
     description: "The Kinesis endpoint URL"
     example: "http://localhost:4566"
+  - name: applicationName
+    required: false
+    description: "The Kinesis application name"
+    example: "my-application"

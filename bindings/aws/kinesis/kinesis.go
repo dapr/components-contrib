@@ -22,19 +22,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awsv2config "github.com/aws/aws-sdk-go-v2/config"
-	v2creds "github.com/aws/aws-sdk-go-v2/credentials"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
+	aws "github.com/dapr/components-contrib/common/aws"
 	"github.com/google/uuid"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -42,12 +41,12 @@ import (
 
 // AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
 type AWSKinesis struct {
-	authProvider awsAuth.Provider
-	metadata     *kinesisMetadata
+	// authProvider awsAuth.Provider
+	metadata *kinesisMetadata
 
 	worker        *worker.Worker
 	kinesisClient *kinesis.Client
-	v2Credentials aws.CredentialsProvider
+	v2Credentials awsv2.CredentialsProvider
 
 	streamName      string
 	consumerName    string
@@ -133,17 +132,12 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 		SecretKey:    m.SecretKey,
 		SessionToken: "",
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+
+	kinesisClient, err := a.createKinesisClient(ctx, opts)
 	if err != nil {
 		return err
 	}
-	a.authProvider = provider
-
-	// Create AWS SDK v2 client
-	if err := a.createKinesisClient(ctx); err != nil {
-		return err
-	}
+	a.kinesisClient = kinesisClient
 
 	return nil
 }
@@ -290,9 +284,6 @@ func (a *AWSKinesis) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
-	if a.authProvider != nil {
-		return a.authProvider.Close()
-	}
 	return nil
 }
 
@@ -415,26 +406,15 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 	}
 }
 
-func (a *AWSKinesis) createKinesisClient(ctx context.Context) error {
-	// Convert v1 credentials to v2
-	if v1Creds, err := a.authProvider.Kinesis().Credentials.Get(); err == nil {
-		a.v2Credentials = v2creds.NewStaticCredentialsProvider(v1Creds.AccessKeyID, v1Creds.SecretAccessKey, v1Creds.SessionToken)
-	} else {
-		// Fallback to default v2 config if conversion failed
-		v2Config, err := awsv2config.LoadDefaultConfig(ctx, awsv2config.WithRegion(a.authProvider.Kinesis().Region))
-		if err != nil {
-			return err
-		}
-		a.v2Credentials = v2Config.Credentials
+func (a *AWSKinesis) createKinesisClient(ctx context.Context, opts awsAuth.Options) (*kinesis.Client, error) {
+
+	awsConfig, configErr := aws.NewConfig(ctx, opts)
+	if configErr != nil {
+		return nil, configErr
 	}
 
-	// Create v2 config and Kinesis client
-	v2Config := aws.Config{
-		Region:      a.authProvider.Kinesis().Region,
-		Credentials: a.v2Credentials,
-	}
-	a.kinesisClient = kinesis.NewFromConfig(v2Config)
-	return nil
+	kinesisClient := kinesis.NewFromConfig(awsConfig)
+	return kinesisClient, nil
 }
 
 func (a *AWSKinesis) getStreamARN(ctx context.Context, streamName string) (*string, error) {

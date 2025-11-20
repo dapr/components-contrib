@@ -22,11 +22,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
-	aws "github.com/dapr/components-contrib/common/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
 	"github.com/google/uuid"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
@@ -41,12 +41,11 @@ import (
 
 // AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
 type AWSKinesis struct {
-	// authProvider awsAuth.Provider
 	metadata *kinesisMetadata
 
 	worker        *worker.Worker
 	kinesisClient *kinesis.Client
-	v2Credentials awsv2.CredentialsProvider
+	v2Credentials aws.CredentialsProvider
 
 	streamName      string
 	consumerName    string
@@ -322,7 +321,7 @@ func (a *AWSKinesis) registerConsumer(ctx context.Context, streamARN *string) (*
 	return consumer.Consumer.ConsumerARN, nil
 }
 
-func (a *AWSKinesis) deregisterConsumer(ctx context.Context, streamARN *string, consumerARN *string) error {
+func (a *AWSKinesis) deregisterConsumer(_ context.Context, streamARN *string, consumerARN *string) error {
 	if a.consumerARN != nil {
 		// Use a background context because the running context may have been canceled already
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -408,7 +407,7 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 
 func (a *AWSKinesis) createKinesisClient(ctx context.Context, opts awsAuth.Options) (*kinesis.Client, error) {
 
-	awsConfig, configErr := aws.NewConfig(ctx, opts)
+	awsConfig, configErr := awsCommon.NewConfig(ctx, opts)
 	if configErr != nil {
 		return nil, configErr
 	}

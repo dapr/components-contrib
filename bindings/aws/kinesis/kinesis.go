@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
-	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awscommon "github.com/dapr/components-contrib/common/aws"
 	"github.com/google/uuid"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
@@ -166,7 +166,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 
 	switch a.metadata.KinesisConsumerMode {
 	case SharedThroughput:
-		// initalize worker configuration
+		// initialize worker configuration
 		config := a.workerCfg(ctx, a.streamName, a.metadata.Region, a.consumerMode, a.applicationName)
 		// Configure the KCL worker with custom endpoints for LocalStack
 		if a.metadata.Endpoint != "" {
@@ -339,8 +339,8 @@ func (a *AWSKinesis) deregisterConsumer(_ context.Context, streamARN *string, co
 }
 
 func (a *AWSKinesis) waitUntilConsumerExists(ctx context.Context, input *kinesis.DescribeStreamConsumerInput) error {
-	// Poll until consumer is active
-	for i := 0; i < 18; i++ {
+	// Iterate 18 times
+	for range 18 {
 		consumer, err := a.kinesisClient.DescribeStreamConsumer(ctx, input)
 		if err != nil {
 			return err
@@ -350,7 +350,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx context.Context, input *kinesis
 		}
 		time.Sleep(10 * time.Second)
 	}
-	return fmt.Errorf("consumer did not become active within timeout")
+	return errors.New("consumer did not become active within timeout")
 }
 
 func (a *AWSKinesis) parseMetadata(meta bindings.Metadata) (*kinesisMetadata, error) {
@@ -406,8 +406,7 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 }
 
 func (a *AWSKinesis) createKinesisClient(ctx context.Context, opts awsAuth.Options) (*kinesis.Client, error) {
-
-	awsConfig, configErr := awsCommon.NewConfig(ctx, opts)
+	awsConfig, configErr := awscommon.NewConfig(ctx, opts)
 	if configErr != nil {
 		return nil, configErr
 	}

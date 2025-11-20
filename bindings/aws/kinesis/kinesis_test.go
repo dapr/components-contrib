@@ -83,7 +83,7 @@ func TestKinesisClient_Stream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			got, err := getStreamARN(ctx, tt.kinesisClient, tt.streamName)
 
 			if tt.expectedErr != "" {
@@ -124,7 +124,7 @@ func TestAWSKinesis_WorkerCfg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			awsKinesis := &AWSKinesis{
 				v2Credentials: aws.NewCredentialsCache(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 					return aws.Credentials{

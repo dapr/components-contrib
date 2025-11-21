@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.24.4
+go 1.24.6
+
+toolchain go1.24.10
 
 require (
 	cloud.google.com/go/datastore v1.20.0
@@ -58,12 +60,13 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459
 	github.com/cinience/go_rocketmq v0.0.2
-	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.15.2
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
+	github.com/dapr/components-contrib/tests/certification v0.0.0-20251104160704-920ad8a7b958
 	github.com/dapr/kit v0.16.1
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -422,7 +425,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.10.0 // indirect

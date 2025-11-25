@@ -251,7 +251,7 @@ CREATE INDEX ON %[1]s (expires_at);
 				}
 			}
 
-			// 2) Backfill NULLs deterministically (insertdate, key)
+			// 2) Backfill NULLs deterministically (created_at, key)
 			var nulls int64
 			if err := p.db.QueryRow(ctx, `SELECT COUNT(*) FROM `+fqtnQI+` WHERE row_id IS NULL`).Scan(&nulls); err != nil {
 				return fmt.Errorf("count NULL row_id: %w", err)
@@ -259,7 +259,7 @@ CREATE INDEX ON %[1]s (expires_at);
 			if nulls > 0 {
 				if _, err := p.db.Exec(ctx, `
 WITH ranked AS (
-  SELECT key, ROW_NUMBER() OVER (ORDER BY insertdate ASC, key ASC) AS rn
+  SELECT key, ROW_NUMBER() OVER (ORDER BY created_at ASC, key ASC) AS rn
   FROM `+fqtnQI+`
   WHERE row_id IS NULL
 )

@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go/service/kinesis/kinesisiface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -34,6 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 )
 
 type Clients struct {
@@ -113,6 +116,7 @@ type ParameterStoreClients struct {
 }
 
 type KinesisClients struct {
+	Kinesis     kinesisiface.KinesisAPI
 	Region      string
 	Credentials *credentials.Credentials
 }
@@ -167,8 +171,38 @@ func (c *ParameterStoreClients) New(session *session.Session) {
 }
 
 func (c *KinesisClients) New(session *session.Session) {
+	c.Kinesis = kinesis.New(session, session.Config)
 	c.Region = *session.Config.Region
 	c.Credentials = session.Config.Credentials
+}
+
+func (c *KinesisClients) Stream(ctx context.Context, streamName string) (*string, error) {
+	if c.Kinesis != nil {
+		stream, err := c.Kinesis.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
+			StreamName: aws.String(streamName),
+		})
+		if stream != nil {
+			return stream.StreamDescription.StreamARN, err
+		}
+	}
+
+	return nil, errors.New("unable to get stream arn due to empty client")
+}
+
+func (c *KinesisClients) WorkerCfg(ctx context.Context, stream, consumer, mode string) *config.KinesisClientLibConfiguration {
+	const sharedMode = "shared"
+	if c.Kinesis != nil {
+		if mode == sharedMode {
+			if c.Credentials != nil {
+				kclConfig := config.NewKinesisClientLibConfigWithCredential(consumer,
+					stream, c.Region, consumer,
+					c.Credentials)
+				return kclConfig
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c *SesClients) New(session *session.Session) {

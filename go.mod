@@ -127,6 +127,7 @@ require (
 	github.com/tetratelabs/wazero v1.7.0
 	github.com/tmc/langchaingo v0.1.13
 	github.com/valyala/fasthttp v1.53.0
+	github.com/vmware/vmware-go-kcl v1.5.1
 	github.com/vmware/vmware-go-kcl-v2 v1.0.0
 	github.com/xdg-go/scram v1.1.2
 	go.etcd.io/etcd/client/v3 v3.5.21

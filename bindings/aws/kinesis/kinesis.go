@@ -339,18 +339,23 @@ func (a *AWSKinesis) deregisterConsumer(_ context.Context, streamARN *string, co
 }
 
 func (a *AWSKinesis) waitUntilConsumerExists(ctx context.Context, input *kinesis.DescribeStreamConsumerInput) error {
-	// Iterate 18 times
-	for range 18 {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxInterval = 30 * time.Second
+	
+	return backoff.Retry(func() error {
 		consumer, err := a.kinesisClient.DescribeStreamConsumer(ctx, input)
 		if err != nil {
-			return err
+			return backoff.Permanent(err)
 		}
-		if consumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
-			return nil
+		if consumer.ConsumerDescription.ConsumerStatus != types.ConsumerStatusActive {
+			return errors.New("consumer not active yet")
 		}
-		time.Sleep(10 * time.Second)
-	}
-	return errors.New("consumer did not become active within timeout")
+		return nil
+	}, backoff.WithContext(bo, ctx))
 }
 
 func (a *AWSKinesis) parseMetadata(meta bindings.Metadata) (*kinesisMetadata, error) {

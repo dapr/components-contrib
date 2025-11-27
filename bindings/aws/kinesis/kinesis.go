@@ -341,11 +341,11 @@ func (a *AWSKinesis) deregisterConsumer(_ context.Context, streamARN *string, co
 func (a *AWSKinesis) waitUntilConsumerExists(ctx context.Context, input *kinesis.DescribeStreamConsumerInput) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	
+
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 2 * time.Second
 	bo.MaxInterval = 30 * time.Second
-	
+
 	return backoff.Retry(func() error {
 		consumer, err := a.kinesisClient.DescribeStreamConsumer(ctx, input)
 		if err != nil {
@@ -431,8 +431,7 @@ func (a *AWSKinesis) getStreamARN(ctx context.Context, streamName string) (*stri
 }
 
 func (a *AWSKinesis) workerCfg(_ context.Context, stream, region, mode, applicationName string) *config.KinesisClientLibConfiguration {
-	const sharedMode = "shared"
-	if mode == sharedMode {
+	if mode == SharedThroughput {
 		return config.NewKinesisClientLibConfigWithCredential(applicationName, stream, region, "", a.v2Credentials)
 	}
 	return nil

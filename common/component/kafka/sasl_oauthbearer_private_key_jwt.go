@@ -172,7 +172,7 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token() (*sarama.AccessToken, error) {
 	var signOptions []jwt.Option
 	if ts.Kid != "" {
 		headers := jws.NewHeaders()
-		if err := headers.Set("kid", ts.Kid); err != nil {
+		if err = headers.Set("kid", ts.Kid); err != nil {
 			return nil, fmt.Errorf("error setting JWT kid header: %w", err)
 		}
 		signOptions = append(signOptions, jws.WithProtectedHeaders(headers))

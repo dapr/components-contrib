@@ -49,6 +49,7 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		dbaccess: dba,
 	}
@@ -82,6 +83,10 @@ func (s *SQLiteStore) Delete(ctx context.Context, req *state.DeleteRequest) erro
 // Get returns an entity from store.
 func (s *SQLiteStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return s.dbaccess.Get(ctx, req)
+}
+
+func (s *SQLiteStore) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	return s.dbaccess.KeysLike(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.

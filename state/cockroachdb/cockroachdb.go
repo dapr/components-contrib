@@ -70,6 +70,7 @@ WHERE
 }
 
 func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {
+	// Create state table if missing, with row_id ready for pagination
 	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
 		return err
@@ -78,42 +79,88 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB state table")
 		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
-  key text NOT NULL PRIMARY KEY,
-  value jsonb NOT NULL,
-  isbinary boolean NOT NULL,
-  etag INT,
-  insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updatedate TIMESTAMP WITH TIME ZONE NULL,
-  expiredate TIMESTAMP WITH TIME ZONE NULL,
-	INDEX expiredate_idx (expiredate)
+  key         text NOT NULL PRIMARY KEY,
+  value       jsonb NOT NULL,
+  isbinary    boolean NOT NULL,
+  etag        INT,
+  insertdate  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updatedate  TIMESTAMP WITH TIME ZONE NULL,
+  expiredate  TIMESTAMP WITH TIME ZONE NULL,
+  row_id      INT8 NOT NULL DEFAULT unique_rowid(),
+  UNIQUE (row_id)
 );`, opts.StateTableName))
 		if err != nil {
 			return err
 		}
+		// Indexes created after table create for idempotency
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`CREATE INDEX IF NOT EXISTS %s_expiredate_idx ON %s (expiredate);`,
+			opts.StateTableName, opts.StateTableName)); err != nil {
+			return err
+		}
+	} else {
+		// Existing table: make sure columns + indexes exist
+		// 1) expiredate (idempotent)
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMPTZ NULL;`,
+			opts.StateTableName)); err != nil {
+			return err
+		}
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`CREATE INDEX IF NOT EXISTS %s_expiredate_idx ON %s (expiredate);`,
+			opts.StateTableName, opts.StateTableName)); err != nil {
+			return err
+		}
+
+		// 2) row_id for keyset pagination
+		opts.Logger.Infof("Ensuring row_id exists on '%s'", opts.StateTableName)
+
+		// Add column if missing (nullable initially)
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`ALTER TABLE %s ADD COLUMN IF NOT EXISTS row_id INT8;`,
+			opts.StateTableName)); err != nil {
+			return err
+		}
+
+		// Ensure it has a default generator
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`ALTER TABLE %s ALTER COLUMN row_id SET DEFAULT unique_rowid();`,
+			opts.StateTableName)); err != nil {
+			return err
+		}
+
+		// Backfill NULLs (older rows) with generated values
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`UPDATE %s SET row_id = unique_rowid() WHERE row_id IS NULL;`,
+			opts.StateTableName)); err != nil {
+			return err
+		}
+
+		// Enforce NOT NULL
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`ALTER TABLE %s ALTER COLUMN row_id SET NOT NULL;`,
+			opts.StateTableName)); err != nil {
+			return err
+		}
+
+		// Unique index to guarantee ordering without changing PK
+		if _, err = db.Exec(ctx, fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s_row_id_uidx ON %s (row_id);`,
+			opts.StateTableName, opts.StateTableName)); err != nil {
+			return err
+		}
 	}
 
-	// If table was created before v1.11.
-	_, err = db.Exec(ctx, fmt.Sprintf(
-		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP WITH TIME ZONE NULL;`, opts.StateTableName))
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(ctx, fmt.Sprintf(
-		`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, opts.StateTableName))
-	if err != nil {
-		return err
-	}
-
+	// Metadata table
 	exists, err = tableExists(ctx, db, opts.MetadataTableName)
 	if err != nil {
 		return err
 	}
-
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB metadata table")
 		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
-			key text NOT NULL PRIMARY KEY,
-			value text NOT NULL
+key   text NOT NULL PRIMARY KEY,
+value text NOT NULL
 );`, opts.MetadataTableName))
 		if err != nil {
 			return err
@@ -124,7 +171,7 @@ func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgre
 }
 
 func tableExists(ctx context.Context, db pginterfaces.PGXPoolConn, tableName string) (bool, error) {
-	exists := false
-	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+	var exists bool
+	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables WHERE tablename = $1)", tableName).Scan(&exists)
 	return exists, err
 }

@@ -14,8 +14,12 @@ limitations under the License.
 package kinesis
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,14 +29,15 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"accessKey":    "key",
-		"region":       "region",
-		"secretKey":    "secret",
-		"consumerName": "test",
-		"streamName":   "stream",
-		"mode":         "extended",
-		"endpoint":     "endpoint",
-		"sessionToken": "token",
+		"accessKey":       "key",
+		"region":          "region",
+		"secretKey":       "secret",
+		"consumerName":    "test",
+		"streamName":      "stream",
+		"mode":            "extended",
+		"endpoint":        "endpoint",
+		"sessionToken":    "token",
+		"applicationName": "applicationName",
 	}
 	kinesis := AWSKinesis{}
 	meta, err := kinesis.parseMetadata(m)
@@ -45,4 +50,101 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "endpoint", meta.Endpoint)
 	assert.Equal(t, "token", meta.SessionToken)
 	assert.Equal(t, "extended", meta.KinesisConsumerMode)
+	assert.Equal(t, "applicationName", meta.ApplicationName)
+}
+
+func getStreamARN(ctx context.Context, client *kinesis.Client, streamName string) (*string, error) {
+	if client == nil {
+		return nil, errors.New("unable to get stream arn due to empty client")
+	}
+	stream, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+		StreamName: &streamName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return stream.StreamDescription.StreamARN, nil
+}
+
+func TestKinesisClient_Stream(t *testing.T) {
+	tests := []struct {
+		name          string
+		kinesisClient *kinesis.Client
+		streamName    string
+		expectedErr   string
+	}{
+		{
+			name:          "returns error when client is nil",
+			kinesisClient: nil,
+			streamName:    "test-stream",
+			expectedErr:   "unable to get stream arn due to empty client",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			got, err := getStreamARN(ctx, tt.kinesisClient, tt.streamName)
+
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr, err.Error())
+				assert.Nil(t, got)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, got)
+			}
+		})
+	}
+}
+
+func TestAWSKinesis_WorkerCfg(t *testing.T) {
+	tests := []struct {
+		name            string
+		streamName      string
+		applicationName string
+		mode            string
+		expectNil       bool
+	}{
+		{
+			name:            "returns config for shared mode",
+			streamName:      "test-stream",
+			applicationName: "test-app",
+			mode:            "shared",
+			expectNil:       false,
+		},
+		{
+			name:            "returns nil for extended mode",
+			streamName:      "test-stream",
+			applicationName: "test-app",
+			mode:            "extended",
+			expectNil:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			awsKinesis := &AWSKinesis{
+				v2Credentials: aws.NewCredentialsCache(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{
+						AccessKeyID:     "test",
+						SecretAccessKey: "test",
+					}, nil
+				})),
+			}
+			cfg := awsKinesis.workerCfg(ctx, tt.streamName, "us-west-2", tt.mode, tt.applicationName)
+
+			if tt.expectNil {
+				assert.Nil(t, cfg)
+			} else {
+				assert.NotNil(t, cfg)
+				if cfg != nil {
+					assert.Equal(t, tt.streamName, cfg.StreamName)
+					assert.Equal(t, tt.applicationName, cfg.ApplicationName)
+					assert.Equal(t, "us-west-2", cfg.RegionName)
+				}
+			}
+		})
+	}
 }

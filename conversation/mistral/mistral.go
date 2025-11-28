@@ -53,9 +53,14 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetMistralModel(md.Model)
 
+	if md.Endpoint == "" {
+		md.Endpoint = "https://api.mistral.ai/v1"
+	}
+
 	llm, err := mistral.New(
 		mistral.WithModel(model),
 		mistral.WithAPIKey(md.Key),
+		mistral.WithEndpoint(md.Endpoint),
 	)
 	if err != nil {
 		return err

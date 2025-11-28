@@ -19,6 +19,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -521,6 +522,12 @@ func TestKafkaAuth(t *testing.T) {
 	os.Setenv("OIDC_CLIENT_ASSERTION_CERT", string(certPEM))
 	os.Setenv("OIDC_CLIENT_ASSERTION_KEY", string(keyPEM))
 	os.Setenv("OIDC_CLIENT_ASSERTION_CERT_ONELINE", strings.ReplaceAll(string(certPEM), "\n", "\\n"))
+
+	modulus := key.PublicKey.N.Bytes()
+	os.Setenv("OIDC_CLIENT_JWK_N", base64.RawURLEncoding.EncodeToString(modulus))
+	exponent := big.NewInt(int64(key.PublicKey.E)).Bytes()
+	os.Setenv("OIDC_CLIENT_JWK_E", base64.RawURLEncoding.EncodeToString(exponent))
+	os.Setenv("OIDC_CLIENT_KID", uuid.New().String())
 
 	flow.New(t, "kafka authentication").
 		Step(dockercompose.Run(clusterNameAuth, dockerComposeYAMLAuth)).

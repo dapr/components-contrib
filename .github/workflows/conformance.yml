@@ -218,6 +218,12 @@ jobs:
         echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> $GITHUB_ENV
         echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
 
+    - name: Set RavenDB env vars
+      if: matrix.require-ravendb-credentials == 'true'
+      run: |
+        echo "::add-mask::${{ secrets.RAVENDBLICENSE }}"
+        echo "RAVENDBLICENSE=${{ secrets.RAVENDBLICENSE }}" >> $GITHUB_ENV
+
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
       uses: aws-actions/configure-aws-credentials@v1

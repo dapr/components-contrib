@@ -28,6 +28,10 @@ spec:
     value: "openid"
   - name: disableTls
     value: "true"
+  - name: oidcKid
+    secretKeyRef:
+      name: OIDC_CLIENT_KID
+      key:  OIDC_CLIENT_KID
 
 auth:
   secretStore: envvar-secret-store

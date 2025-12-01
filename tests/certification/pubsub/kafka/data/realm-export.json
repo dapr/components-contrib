@@ -8,8 +8,8 @@
       "secret": "dapr-kafka-secret",
       "clientAuthenticatorType": "client-jwt",
       "attributes": {
-        "token.endpoint.auth.signing.alg": "RS256",
-        "jwt.credential.certificate": "${OIDC_CLIENT_ASSERTION_CERT_ONELINE}"
+         "use.jwks.url": "true",
+          "jwks.url": "http://jwks:80/jwks.json"
       },
       "enabled": true,
       "protocol": "openid-connect",

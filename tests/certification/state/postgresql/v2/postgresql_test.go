@@ -57,7 +57,7 @@ const (
 	keyMetadataTableName    = "metadataTableName"
 
 	// Update this constant if you add more migrations
-	migrationLevel = "1"
+	migrationLevel = "2"
 )
 
 func TestPostgreSQL(t *testing.T) {

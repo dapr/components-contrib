@@ -30,6 +30,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"golang.org/x/oauth2"
 )
@@ -49,6 +50,7 @@ type OAuthTokenSourcePrivateKeyJWT struct {
 	ClientAssertionKey  string
 	Resource            string
 	Audience            string
+	Kid                 string
 }
 
 type tokenResponse struct {
@@ -69,6 +71,7 @@ func (m KafkaMetadata) getOAuthTokenSourcePrivateKeyJWT() *OAuthTokenSourcePriva
 		ClientAssertionKey:  m.OidcClientAssertionKey,
 		Resource:            m.OidcResource,
 		Audience:            m.OidcAudience,
+		Kid:                 m.OidcKid,
 	}
 }
 
@@ -190,7 +193,15 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token() (*sarama.AccessToken, error) {
 		return nil, fmt.Errorf("failed to build token: %w", err)
 	}
 
-	assertion, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, signer))
+	var signOptions []jwt.Option
+	if ts.Kid != "" {
+		headers := jws.NewHeaders()
+		if err = headers.Set("kid", ts.Kid); err != nil {
+			return nil, fmt.Errorf("error setting JWT kid header: %w", err)
+		}
+		signOptions = append(signOptions, jws.WithProtectedHeaders(headers))
+	}
+	assertion, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, signer, signOptions...))
 	if err != nil {
 		return nil, fmt.Errorf("error signing client assertion: %w", err)
 	}

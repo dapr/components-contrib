@@ -126,6 +126,12 @@ authenticationProfiles:
         example: |
           {"cluster":"kafka","poolid":"kafkapool"}
         type: string
+      - name: oidcKid
+        type: string
+        required: false
+        description: |
+          The JWT key ID (kid) to use for the client assertion.
+        example: '"1234567890"'
   - title: "SASL Authentication"
     description: |
       Authenticate using SASL.

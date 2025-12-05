@@ -59,7 +59,7 @@ type ClientCredentials struct {
 	httpClient   *http.Client
 	fetchTokenFn func(context.Context) (*oauth2.Token, error)
 
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*ClientCredentials, error) {
@@ -126,37 +126,28 @@ func (c *ClientCredentialsOptions) toConfig() (*ccreds.Config, *http.Client, err
 }
 
 func (c *ClientCredentials) Token() (string, error) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	if !c.currentToken.Valid() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		if err := c.renewToken(ctx); err != nil {
-			return "", err
-		}
+	if c.currentToken.Valid() {
+		return c.currentToken.AccessToken, nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	if err := c.renewToken(ctx); err != nil {
+		return "", err
+	}
 	return c.currentToken.AccessToken, nil
 }
 
 func (c *ClientCredentials) renewToken(ctx context.Context) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	// We need to check if the current token is valid because we might have lost
-	// the mutex lock race from the caller and we don't want to double-fetch a
-	// token unnecessarily!
-	if c.currentToken.Valid() {
-		return nil
-	}
-
 	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 	if err != nil {
 		return err
 	}
 
-	if !c.currentToken.Valid() {
+	if !token.Valid() {
 		return errors.New("oauth2 client_credentials token source returned an invalid token")
 	}
 

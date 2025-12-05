@@ -77,6 +77,7 @@ func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
@@ -447,4 +448,219 @@ func NewTLSConfig(clientCert, clientKey, caCert string) (*tls.Config, error) {
 	}
 
 	return config, nil
+}
+
+func (e *Etcd) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	userPrefix := likeLiteralPrefix(req.Pattern)
+	etcdPrefix := strings.TrimSuffix(e.keyPrefixPath, "/") + "/" + userPrefix
+	base := strings.TrimSuffix(e.keyPrefixPath, "/") + "/"
+
+	// Continue token format: <snapshotRev>:<lastCreateRev>
+	var snapRev, afterCreate int64
+	if tok := req.ContinuationToken; tok != nil && *tok != "" {
+		parts := strings.SplitN(*tok, ":", 2)
+		if len(parts) != 2 {
+			return nil, errors.New("invalid continue token")
+		}
+		var err error
+		if snapRev, err = strconv.ParseInt(parts[0], 10, 64); err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
+		if afterCreate, err = strconv.ParseInt(parts[1], 10, 64); err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
+	}
+
+	// Page size handling
+	want := 0     // 0 = unlimited
+	fetch := 1024 // initial server-side limit
+	if req.PageSize != nil && *req.PageSize > 0 {
+		want = int(*req.PageSize)
+		fetch = int(*req.PageSize) * 4 // over-fetch to reduce round-trips
+	}
+
+	keys := make([]string, 0, 1024)
+	var lastCreate int64
+
+	for {
+		opts := []clientv3.OpOption{
+			clientv3.WithPrefix(),
+			clientv3.WithSort(clientv3.SortByCreateRevision, clientv3.SortAscend),
+			clientv3.WithLimit(int64(fetch)),
+			clientv3.WithKeysOnly(),
+		}
+		if snapRev > 0 {
+			opts = append(opts, clientv3.WithRev(snapRev))
+		}
+
+		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		resp, err := e.client.Get(cctx, etcdPrefix, opts...)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		if snapRev == 0 {
+			// Freeze snapshot to be stable across internal retries
+			snapRev = resp.Header.Revision
+		}
+
+		// Track the max CreateRevision we saw in THIS batch, regardless of LIKE match,
+		// so we can advance the cursor and not re-scan the same window.
+		maxSeenCreate := afterCreate
+
+		for _, kv := range resp.Kvs {
+			if kv.CreateRevision > maxSeenCreate {
+				maxSeenCreate = kv.CreateRevision
+			}
+
+			// Extract user key
+			fullKey := string(kv.Key)
+			if !strings.HasPrefix(fullKey, base) {
+				continue
+			}
+			userKey := fullKey[len(base):]
+
+			// Skip anything at or before our current cursor
+			if kv.CreateRevision <= afterCreate {
+				continue
+			}
+
+			// LIKE filter
+			if !likeMatch(userKey, req.Pattern) {
+				continue
+			}
+
+			keys = append(keys, userKey)
+			lastCreate = kv.CreateRevision
+
+			// If we have a page size and it's filled, return with next token
+			if want > 0 && len(keys) >= want {
+				tok := fmt.Sprintf("%d:%d", snapRev, lastCreate)
+				return &state.KeysLikeResponse{
+					Keys:              keys,
+					ContinuationToken: &tok,
+				}, nil
+			}
+		}
+
+		// Advance the creation-revision cursor so next loop does NOT re-scan same items
+		afterCreate = maxSeenCreate
+
+		// If server returned fewer than we asked for, we're at end-of-range at this snapshot
+		if int64(len(resp.Kvs)) < int64(fetch) {
+			return &state.KeysLikeResponse{
+				Keys:              keys,
+				ContinuationToken: nil,
+			}, nil
+		}
+
+		// Otherwise, keep going until page fills or range ends.
+		// (We can keep fetch constant; doubling is optional. Keep a safety cap.)
+		if fetch < 8192 {
+			fetch *= 2
+		} else if want == 0 {
+			// Unlimited page but we've hit our internal cap; return what we have
+			return &state.KeysLikeResponse{Keys: keys}, nil
+		}
+	}
+}
+
+// likeLiteralPrefix returns the literal prefix before the first unescaped % or _.
+func likeLiteralPrefix(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		switch c {
+		case '\\':
+			if i+1 < len(p) {
+				b.WriteByte(p[i+1])
+				i++
+			} else {
+				// Trailing backslash: treat it literally.
+				b.WriteByte('\\')
+			}
+		case '%', '_':
+			return b.String()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// likeMatch implements SQL LIKE for ASCII with % (any) and _ (single char).
+// Backslash escapes %, _, and \ (as used in the conformance tests).
+func likeMatch(s, p string) bool {
+	i, j := 0, 0
+	star := -1 // position of last % in pattern
+	match := 0 // index in s where we started to match after last %
+	for i < len(s) {
+		if j < len(p) {
+			switch p[j] {
+			case '\\':
+				// Escape next char, must match literally
+				if j+1 >= len(p) {
+					// dangling escape => treat as literal '\'
+					if s[i] != '\\' {
+						goto backtrack
+					}
+					i++
+					j++
+					continue
+				}
+				j++
+				if s[i] == p[j] {
+					i++
+					j++
+					continue
+				}
+				goto backtrack
+			case '_':
+				// Match any single char
+				i++
+				j++
+				continue
+			case '%':
+				// Remember position of % and try to match zero chars first
+				star = j
+				match = i
+				j++
+				continue
+			default:
+				if s[i] == p[j] {
+					i++
+					j++
+					continue
+				}
+			}
+		}
+	backtrack:
+		if star != -1 {
+			// Backtrack: extend % to cover one more char
+			j = star + 1
+			match++
+			i = match
+			continue
+		}
+		return false
+	}
+	// Consume trailing % (and escaped sequences like "\%" are not %)
+	for j < len(p) {
+		if p[j] == '%' {
+			j++
+			continue
+		}
+		if p[j] == '\\' {
+			// Escaped literal remains unmatched since s ended
+			// If there's a char after '\', it cannot match empty
+			return false
+		}
+		// Any other char (including '_') cannot match empty
+		return false
+	}
+	return true
 }

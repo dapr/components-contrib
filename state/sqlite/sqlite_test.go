@@ -284,6 +284,14 @@ func TestValidSetRequest(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_KeysLike(t *testing.T) {
+	t.Parallel()
+
+	ods := createSqlite(t)
+
+	var _ state.KeysLiker = state.KeysLiker(ods)
+}
+
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +352,10 @@ func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) err
 
 func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error {
 	return nil
+}
+
+func (m *fakeDBaccess) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	return nil, nil
 }
 
 func (m *fakeDBaccess) Close() error {

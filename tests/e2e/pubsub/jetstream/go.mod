@@ -1,19 +1,20 @@
 module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 
-go 1.24.4
+go 1.24.6
+
+toolchain go1.24.10
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.15.3-0.20250717140748-8b780b4d81c5
+	github.com/dapr/kit v0.16.1
 )
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0 // indirect
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.15.2 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect

@@ -15,9 +15,18 @@ package kafka_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +40,9 @@ import (
 	// Pub/Sub.
 
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
@@ -54,20 +65,26 @@ import (
 )
 
 const (
-	sidecarName1      = "dapr-1"
-	sidecarName2      = "dapr-2"
-	sidecarName3      = "dapr-3"
-	sidecarNameAvro   = "dapr-avro"
-	appID1            = "app-1"
-	appID2            = "app-2"
-	appID3            = "app-3"
-	appIDAvro         = "app-avro"
-	clusterName       = "kafkacertification"
-	dockerComposeYAML = "docker-compose.yml"
-	numMessages       = 1000
-	appPort           = 8000
-	portOffset        = 2
-	messageKey        = "partitionKey"
+	sidecarName1             = "dapr-1"
+	sidecarName2             = "dapr-2"
+	sidecarName3             = "dapr-3"
+	sidecarNameOIDCCerts     = "dapr-oidc-certs"
+	sidecarNameOIDCSecretKey = "dapr-oidc-secret-key"
+	sidecarNameAvro          = "dapr-avro"
+	appID1                   = "app-1"
+	appID2                   = "app-2"
+	appID3                   = "app-3"
+	appIDOIDCCerts           = "app-oidc-certs"
+	appIDOIDCSecretKey       = "app-oidc-secret-key"
+	appIDAvro                = "app-avro"
+	clusterName              = "kafkacertification"
+	clusterNameAuth          = "kafkacertification-auth"
+	dockerComposeYAML        = "docker-compose.yml"
+	dockerComposeYAMLAuth    = "docker-compose.auth.yml"
+	numMessages              = 1000
+	appPort                  = 8000
+	portOffset               = 2
+	messageKey               = "partitionKey"
 
 	pubsubName    = "messagebus"
 	topicName     = "neworder"
@@ -454,6 +471,104 @@ func TestKafka(t *testing.T) {
 		Run()
 }
 
+func TestKafkaAuth(t *testing.T) {
+	consumerGroupOIDCCerts := watcher.NewOrdered()
+	consumerGroupOIDCSecretKey := watcher.NewOrdered()
+
+	application := func(appName string, watcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					watcher.Observe(e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	sendTest := func(sidecarName string, watcher *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			message := fmt.Sprintf("Hello! %s", uuid.New().String())
+
+			watcher.ExpectStrings(message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message)
+			require.NoError(ctx, err, "error publishing message")
+
+			watcher.Assert(ctx, time.Minute)
+			return nil
+		}
+	}
+
+	// Generate a private key and certificate for the OIDC client
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Dapr"},
+		},
+	}
+	cert, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	os.Setenv("OIDC_CLIENT_ASSERTION_CERT", string(certPEM))
+	os.Setenv("OIDC_CLIENT_ASSERTION_KEY", string(keyPEM))
+	os.Setenv("OIDC_CLIENT_ASSERTION_CERT_ONELINE", strings.ReplaceAll(string(certPEM), "\n", "\\n"))
+
+	modulus := key.PublicKey.N.Bytes()
+	os.Setenv("OIDC_CLIENT_JWK_N", base64.RawURLEncoding.EncodeToString(modulus))
+	exponent := big.NewInt(int64(key.PublicKey.E)).Bytes()
+	os.Setenv("OIDC_CLIENT_JWK_E", base64.RawURLEncoding.EncodeToString(exponent))
+	os.Setenv("OIDC_CLIENT_KID", uuid.New().String())
+
+	flow.New(t, "kafka authentication").
+		Step(dockercompose.Run(clusterNameAuth, dockerComposeYAMLAuth)).
+		Step("wait for broker sockets",
+			network.WaitForAddresses(5*time.Minute, "localhost:9092")).
+		Step("wait", flow.Sleep(10*time.Second)).
+
+		// OIDC with secret key
+		Step(app.Run(appIDOIDCSecretKey, fmt.Sprintf(":%d", appPort),
+			application(appID1, consumerGroupOIDCSecretKey))).
+		Step(sidecar.Run(sidecarNameOIDCSecretKey,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/auth_oidc_secret_key"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("send and wait(in-order)", sendTest(sidecarNameOIDCSecretKey, consumerGroupOIDCSecretKey)).
+		Step("stop sidecar", sidecar.Stop(sidecarNameOIDCSecretKey)).
+		Step("stop app", app.Stop(appIDOIDCSecretKey)).
+
+		// OIDC with certificates
+		Step(app.Run(appIDOIDCCerts, fmt.Sprintf(":%d", appPort),
+			application(appID1, consumerGroupOIDCCerts))).
+		Step(sidecar.Run(sidecarNameOIDCCerts,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/auth_oidc_certs"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("send and wait(in-order)", sendTest(sidecarNameOIDCCerts, consumerGroupOIDCCerts)).
+		Step("stop sidecar", sidecar.Stop(sidecarNameOIDCCerts)).
+		Step("stop app", app.Stop(appIDOIDCCerts)).
+		Run()
+}
+
 func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
@@ -461,7 +576,12 @@ func componentRuntimeOptions() []embedded.Option {
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_kafka.NewKafka, "kafka")
 
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
 	return []embedded.Option{
 		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

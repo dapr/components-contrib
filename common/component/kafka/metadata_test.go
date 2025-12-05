@@ -216,7 +216,7 @@ func TestMissingSaslValuesOnUpgrade(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("kafka error: missing SASL Username for authType '%s'", passwordAuthType), err.Error())
 }
 
-func TestMissingOidcValues(t *testing.T) {
+func TestMissingOidcClientSecretValues(t *testing.T) {
 	k := getKafka()
 	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcAuthType}
 	meta, err := k.getKafkaMetadata(m)
@@ -241,6 +241,43 @@ func TestMissingOidcValues(t *testing.T) {
 	meta, err = k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	require.Contains(t, meta.internalOidcScopes, "openid")
+}
+
+func TestMissingOidcPrivateKeyJwtValues(t *testing.T) {
+	k := getKafka()
+	m := map[string]string{"brokers": "akfak.com:9092", "authType": oidcPrivateKeyJWTAuthType}
+	meta, err := k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, "kafka error: missing OIDC Token Endpoint for authType 'oidc_private_key_jwt'", err.Error())
+
+	m["oidcTokenEndpoint"] = "https://sassa.fra/"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, "kafka error: missing OIDC Client ID for authType 'oidc_private_key_jwt'", err.Error())
+
+	m["oidcClientID"] = "sassafras"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, "kafka error: missing OIDC Client Assertion Cert for authType 'oidc_private_key_jwt'", err.Error())
+
+	m["oidcClientAssertionCert"] = "sassapass"
+	meta, err = k.getKafkaMetadata(m)
+	require.Error(t, err)
+	require.Nil(t, meta)
+	require.Equal(t, "kafka error: missing OIDC Client Assertion Key for authType 'oidc_private_key_jwt'", err.Error())
+
+	m["oidcClientAssertionKey"] = "sassapass"
+	meta, err = k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Contains(t, meta.internalOidcScopes, "openid")
+
+	m["oidcKid"] = "1234567890"
+	meta, err = k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Equal(t, "1234567890", meta.OidcKid)
 }
 
 func TestPresentSaslValues(t *testing.T) {

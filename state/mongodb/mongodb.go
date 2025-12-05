@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -714,4 +715,105 @@ func (m *MongoDB) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	return m.client.Disconnect(ctx)
+}
+
+func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	re, err := likeToRegex(req.Pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pattern: %w", err)
+	}
+
+	and := bson.A{
+		bson.D{{Key: id, Value: bson.M{"$regex": re.String()}}},
+		getFilterTTL(),
+	}
+
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		and = append(and, bson.D{{Key: id, Value: bson.M{"$gt": *req.ContinuationToken}}})
+	}
+
+	filter := bson.D{{Key: "$and", Value: and}}
+
+	findOpts := options.Find().SetSort(bson.D{{Key: id, Value: 1}})
+
+	var pageSize uint32
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		findOpts.SetLimit(int64(pageSize + 1))
+	}
+
+	qctx, cancel := context.WithTimeout(ctx, m.operationTimeout)
+	defer cancel()
+
+	cur, err := m.collection.Find(qctx, filter, findOpts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(qctx)
+
+	type rec struct {
+		Key string `bson:"_id"`
+	}
+	var recs []rec
+	for cur.Next(qctx) {
+		var r rec
+		if err := cur.Decode(&r); err != nil {
+			return nil, err
+		}
+		recs = append(recs, r)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(recs)),
+	}
+
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(recs)) > pageSize {
+		next := recs[pageSize].Key // first NOT returned
+		resp.ContinuationToken = &next
+		recs = recs[:pageSize]
+	}
+
+	for _, r := range recs {
+		resp.Keys = append(resp.Keys, r.Key)
+	}
+
+	return resp, nil
+}
+
+func likeToRegex(pattern string) (*regexp.Regexp, error) {
+	var b strings.Builder
+	b.Grow(len(pattern) + 4)
+	b.WriteString("^")
+
+	escaped := false
+	for _, r := range pattern {
+		if escaped {
+			b.WriteString(regexp.QuoteMeta(string(r)))
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			escaped = true
+		case '%':
+			b.WriteString(".*")
+		case '_':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+	if escaped {
+		b.WriteString(regexp.QuoteMeta(`\`))
+	}
+	b.WriteString("$")
+	return regexp.Compile(b.String())
 }

@@ -1,0 +1,43 @@
+
+{
+  "realm": "local",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "dapr-kafka-client-jwt",
+      "secret": "dapr-kafka-secret",
+      "clientAuthenticatorType": "client-jwt",
+      "attributes": {
+         "use.jwks.url": "true",
+          "jwks.url": "http://jwks:80/jwks.json"
+      },
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    },
+    {
+      "clientId": "dapr-kafka-client-secret",
+      "secret": "dapr-kafka-secret",
+      "clientAuthenticatorType": "client-secret",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    },
+    {
+      "clientId": "kafka-broker",
+      "secret": "kafka-broker-secret",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    }
+  ]
+}

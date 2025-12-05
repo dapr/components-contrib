@@ -27,7 +27,7 @@ builtinAuthenticationProfiles:
         type: string
         required: false
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'accessKey' instead.
           If both fields are set, then 'accessKey' value will be used.
           AWS access key associated with an IAM account.
@@ -37,7 +37,7 @@ builtinAuthenticationProfiles:
         required: false
         sensitive: true
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'secretKey' instead.
           If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.
@@ -46,7 +46,7 @@ builtinAuthenticationProfiles:
         type: string
         sensitive: true
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'sessionToken' instead.
           If both fields are set, then 'sessionToken' value will be used.
           AWS session token to use. A session token is only required if you are using temporary security credentials.
@@ -55,7 +55,7 @@ builtinAuthenticationProfiles:
         type: string
         required: false
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'assumeRoleArn' instead.
           If both fields are set, then 'assumeRoleArn' value will be used.
           IAM role that has access to MSK. This is another option to authenticate with MSK aside from the AWS Credentials.
@@ -63,7 +63,7 @@ builtinAuthenticationProfiles:
       - name: awsStsSessionName
         type: string
         description: |
-          This maintains backwards compatibility with existing fields. 
+          This maintains backwards compatibility with existing fields.
           It will be deprecated as of Dapr 1.17. Use 'sessionName' instead.
           If both fields are set, then 'sessionName' value will be used.
           Represents the session name for assuming a role.
@@ -72,7 +72,7 @@ builtinAuthenticationProfiles:
 authenticationProfiles:
   - title: "OIDC Authentication"
     description: |
-      Authenticate using OpenID Connect.
+      Authenticate using OpenID Connect providing a client secret.
     metadata:
       - name: authType
         type: string
@@ -115,6 +115,78 @@ authenticationProfiles:
         example: |
           {"cluster":"kafka","poolid":"kafkapool"}
         type: string
+  - title: "OIDC Private Key JWT Authentication"
+    description: |
+      Authenticate using OpenID Connect providing a client certificate and private key.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "oidc_private_key_jwt" for this authentication profile.
+        example: '"oidc_private_key_jwt"'
+        allowedValues:
+          - "oidc_private_key_jwt"
+      - name: oidcTokenEndpoint
+        type: string
+        required: true
+        description: |
+          URL of the OAuth2 identity provider access token endpoint.
+        example: '"https://identity.example.com/v1/token"'
+      - name: oidcClientID
+        description: |
+          The OAuth2 client ID that has been provisioned in the identity provider.
+        example: '"my-client-id"'
+        type: string
+        required: true
+      - name: oidcClientAssertionCert
+        type: string
+        required: true
+        description: |
+          PEM-encoded X.509 certificate used to advertise the client certificate in the x5c header.
+        example: |
+          -----BEGIN CERTIFICATE-----\n...
+      - name: oidcClientAssertionKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          PEM-encoded private key used to sign the client certificate.
+        example: |
+          -----BEGIN PRIVATE KEY-----\n...
+      - name: oidcResource
+        type: string
+        required: false
+        description: |
+          Optional OAuth2 resource (audience) parameter to include in the token request when required by the identity provider.
+        example: '"api://kafka"'
+      - name: oidcAudience
+        type: string
+        required: false
+        description: |
+          Overrides the JWT client assertion audience (aud). If not set, the component uses the
+          issuer derived from the token endpoint URL when available; otherwise, it falls back to the token URL.
+        example: '"http://<idp-host>/realms/local"'
+      - name: oidcScopes
+        type: string
+        description: |
+          Comma-delimited list of OAuth2/OIDC scopes to request with the access token.
+          Although not required, this field is recommended.
+        example: '"openid,kafka-prod"'
+        default: '"openid"'
+      - name: oidcExtensions
+        description: |
+          String containing a JSON-encoded dictionary of OAuth2/OIDC extensions to request with the access token.
+        example: |
+          {"cluster":"kafka","poolid":"kafkapool"}
+        type: string
+      - name: oidcKid
+        type: string
+        required: false
+        description: |
+          The JWT key ID (kid) to use for the client assertion.
+        example: '"1234567890"'
   - title: "SASL Authentication"
     description: |
       Authenticate using SASL.
@@ -339,7 +411,7 @@ metadata:
       type: bool
       required: false
       description: |
-        Enables URL escaping of the message header values. 
+        Enables URL escaping of the message header values.
         It allows sending headers with special characters that are usually not allowed in HTTP headers.
       example: "true"
       default: "false"

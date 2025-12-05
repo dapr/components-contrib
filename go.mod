@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.24.4
+go 1.24.6
+
+toolchain go1.24.10
 
 require (
 	cloud.google.com/go/datastore v1.20.0
@@ -26,6 +28,8 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.45.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
+	github.com/akeylesslabs/akeyless-go-cloud-id v0.3.5
+	github.com/akeylesslabs/akeyless-go/v5 v5.0.16
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
 	github.com/alibabacloud-go/oos-20190601 v1.0.4
@@ -58,13 +62,13 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459
 	github.com/cinience/go_rocketmq v0.0.2
-	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.14.0
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.15.2
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.15.3-0.20250717140748-8b780b4d81c5
+	github.com/dapr/kit v0.16.1
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -153,11 +157,15 @@ require (
 require (
 	cel.dev/expr v0.23.0 // indirect
 	cloud.google.com/go v0.120.0 // indirect
+	cloud.google.com/go/ai v0.7.0 // indirect
+	cloud.google.com/go/aiplatform v1.86.0 // indirect
 	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
+	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
+	cloud.google.com/go/vertexai v0.12.0 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
@@ -278,6 +286,7 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/google/generative-ai-go v0.15.1 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20241029153458-d1b30febd7db // indirect

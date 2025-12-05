@@ -554,16 +554,3 @@ func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeyless.Item) []a
 
 	return filteredSecrets
 }
-
-func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeyless.Item) []akeyless.Item {
-
-	filteredSecrets := []akeyless.Item{}
-
-	for _, secret := range secrets {
-		if isSecretActive(secret, a.logger) {
-			filteredSecrets = append(filteredSecrets, secret)
-		}
-	}
-
-	return filteredSecrets
-}

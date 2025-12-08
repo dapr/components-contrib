@@ -124,8 +124,20 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 
 	a.logger.Debug("authenticating with Akeyless...")
 	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
-	if err != nil || httpResponse.StatusCode != 200 {
-		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %w", httpResponse.StatusCode, errors.New(httpResponse.Status))
+	if err != nil {
+		if httpResponse != nil {
+			return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %w", httpResponse.StatusCode, err)
+		}
+		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
+	}
+	if httpResponse == nil || httpResponse.StatusCode != 200 {
+		statusCode := 0
+		status := "unknown"
+		if httpResponse != nil {
+			statusCode = httpResponse.StatusCode
+			status = httpResponse.Status
+		}
+		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %s", statusCode, status)
 	}
 
 	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())

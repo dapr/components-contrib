@@ -71,3 +71,9 @@ func Ping(ctx context.Context, store Store) error {
 type DeleteWithPrefix interface {
 	DeleteWithPrefix(ctx context.Context, req DeleteWithPrefixRequest) (DeleteWithPrefixResponse, error)
 }
+
+// KeysLiker is an optional interface to list state keys with an
+// optional SQL style wildcard pattern.
+type KeysLiker interface {
+	KeysLike(ctx context.Context, req *KeysLikeRequest) (*KeysLikeResponse, error)
+}

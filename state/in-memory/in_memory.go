@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,10 +36,12 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type inMemoryStore struct {
+type InMemoryStore struct {
 	state.BulkStore
 
-	items   map[string]*inMemStateStoreItem
+	items map[string]*inMemStateStoreItem
+	idx   uint64
+
 	lock    sync.RWMutex
 	log     logger.Logger
 	clock   clock.Clock
@@ -50,8 +54,8 @@ func NewInMemoryStateStore(log logger.Logger) state.Store {
 	return newStateStore(log)
 }
 
-func newStateStore(log logger.Logger) *inMemoryStore {
-	s := &inMemoryStore{
+func newStateStore(log logger.Logger) *InMemoryStore {
+	s := &InMemoryStore{
 		items:   map[string]*inMemStateStoreItem{},
 		log:     log,
 		closeCh: make(chan struct{}),
@@ -61,7 +65,7 @@ func newStateStore(log logger.Logger) *inMemoryStore {
 	return s
 }
 
-func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
+func (store *InMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
 	// start a background go routine to clean expired item
 	store.wg.Add(1)
 	go func() {
@@ -71,7 +75,7 @@ func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) e
 	return nil
 }
 
-func (store *inMemoryStore) Close() error {
+func (store *InMemoryStore) Close() error {
 	if store.closed.CompareAndSwap(false, true) {
 		close(store.closeCh)
 	}
@@ -88,16 +92,17 @@ func (store *inMemoryStore) Close() error {
 	return nil
 }
 
-func (store *inMemoryStore) Features() []state.Feature {
+func (store *InMemoryStore) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
 		state.FeatureDeleteWithPrefix,
+		state.FeatureKeysLike,
 	}
 }
 
-func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
+func (store *InMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	// step1: validate parameters
 	if err := state.CheckRequestOptions(req.Options); err != nil {
 		return err
@@ -118,7 +123,7 @@ func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest
 	return nil
 }
 
-func (store *inMemoryStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+func (store *InMemoryStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	// step1: validate parameters
 	err := req.Validate()
 	if err != nil {
@@ -146,7 +151,7 @@ func (store *inMemoryStore) DeleteWithPrefix(ctx context.Context, req state.Dele
 	return state.DeleteWithPrefixResponse{Count: count}, nil
 }
 
-func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {
+func (store *InMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {
 	hasEtag := etag != nil && *etag != ""
 
 	if concurrency == state.FirstWrite && !hasEtag {
@@ -173,11 +178,11 @@ func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency
 	return nil
 }
 
-func (store *inMemoryStore) doDelete(ctx context.Context, key string) {
+func (store *InMemoryStore) doDelete(ctx context.Context, key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+func (store *InMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	store.lock.RLock()
 	item := store.items[req.Key]
 	store.lock.RUnlock()
@@ -201,7 +206,7 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 	return &state.GetResponse{Data: item.data, ETag: item.etag, Metadata: metadata}, nil
 }
 
-func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+func (store *InMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	res := make([]state.BulkGetResponse, len(req))
 	if len(req) == 0 {
 		return res, nil
@@ -235,7 +240,7 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 	return res, nil
 }
 
-func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
+func (store *InMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	// get item and check expired again to avoid if item changed between we got this write-lock
 	item := store.items[key]
 	if item == nil {
@@ -248,7 +253,7 @@ func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	return item
 }
 
-func (store *inMemoryStore) marshal(v any) (bt []byte, err error) {
+func (store *InMemoryStore) marshal(v any) (bt []byte, err error) {
 	byteArray, isBinary := v.([]uint8)
 	if isBinary {
 		bt = byteArray
@@ -261,7 +266,7 @@ func (store *inMemoryStore) marshal(v any) (bt []byte, err error) {
 	return bt, nil
 }
 
-func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
+func (store *InMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// step1: validate parameters
 	ttlInSeconds, err := store.doSetValidateParameters(req)
 	if err != nil {
@@ -289,7 +294,7 @@ func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) erro
 	return nil
 }
 
-func (store *inMemoryStore) doSetValidateParameters(req *state.SetRequest) (int, error) {
+func (store *InMemoryStore) doSetValidateParameters(req *state.SetRequest) (int, error) {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return 0, err
@@ -321,12 +326,16 @@ func doParseTTLInSeconds(metadata map[string]string) (int, error) {
 	return i, nil
 }
 
-func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int) {
+func (store *InMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int) {
 	etag := uuid.New().String()
 	el := &inMemStateStoreItem{
 		data: data,
 		etag: &etag,
+		idx:  store.idx,
 	}
+
+	store.idx++
+
 	if ttlInSeconds > 0 {
 		el.expire = ptr.Of(store.clock.Now().Add(time.Duration(ttlInSeconds) * time.Second))
 	}
@@ -355,7 +364,7 @@ func (r innerSetRequest) GetMetadata() map[string]string {
 	return r.req.Metadata
 }
 
-func (store *inMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+func (store *InMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	if len(request.Operations) == 0 {
 		return nil
 	}
@@ -420,7 +429,7 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	return nil
 }
 
-func (store *inMemoryStore) startCleanThread() {
+func (store *InMemoryStore) startCleanThread() {
 	for {
 		select {
 		case <-time.After(time.Second):
@@ -431,7 +440,7 @@ func (store *inMemoryStore) startCleanThread() {
 	}
 }
 
-func (store *inMemoryStore) doCleanExpiredItems() {
+func (store *InMemoryStore) doCleanExpiredItems() {
 	store.lock.Lock()
 	defer store.lock.Unlock()
 
@@ -442,7 +451,7 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	}
 }
 
-func (store *inMemoryStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+func (store *InMemoryStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	// no metadata, hence no metadata struct to convert here
 	return
 }
@@ -451,6 +460,7 @@ type inMemStateStoreItem struct {
 	data   []byte
 	etag   *string
 	expire *time.Time
+	idx    uint64
 }
 
 func (item *inMemStateStoreItem) isExpired(now time.Time) bool {
@@ -458,4 +468,108 @@ func (item *inMemStateStoreItem) isExpired(now time.Time) bool {
 		return false
 	}
 	return now.After(*item.expire)
+}
+
+func (store *InMemoryStore) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	store.lock.RLock()
+	defer store.lock.RUnlock()
+
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	re, err := likeToRegex(req.Pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert like pattern to regex: %w", err)
+	}
+
+	kk := &sortingKeys{
+		keys:  make([]string, 0, 1024),
+		items: make([]*inMemStateStoreItem, 0, 1024),
+	}
+
+	for k, i := range store.items {
+		if re.MatchString(k) {
+			kk.keys = append(kk.keys, k)
+			kk.items = append(kk.items, i)
+		}
+	}
+
+	if len(kk.items) == 0 {
+		return new(state.KeysLikeResponse), nil
+	}
+
+	sort.Stable(kk)
+
+	if ct := req.ContinuationToken; ct != nil {
+		ct, err := strconv.ParseUint(*req.ContinuationToken, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
+		cut := -1
+		for i, item := range kk.items {
+			if item.idx >= ct {
+				cut = i
+				break
+			}
+		}
+
+		if cut == -1 {
+			return new(state.KeysLikeResponse), nil
+		}
+
+		kk.items = kk.items[cut:]
+		kk.keys = kk.keys[cut:]
+	}
+
+	var continueToken *string
+	if ps := req.PageSize; ps != nil {
+		pageSize := int(*ps)
+
+		if len(kk.keys) > pageSize {
+			nextIdx := pageSize
+
+			continueToken = ptr.Of(strconv.FormatUint(kk.items[nextIdx].idx, 10))
+
+			kk.keys = kk.keys[:pageSize]
+			kk.items = kk.items[:pageSize]
+		}
+	}
+
+	return &state.KeysLikeResponse{
+		Keys:              kk.keys,
+		ContinuationToken: continueToken,
+	}, nil
+}
+
+func likeToRegex(pattern string) (*regexp.Regexp, error) {
+	var b strings.Builder
+	b.Grow(len(pattern) + 4)
+	b.WriteString("^")
+
+	escaped := false
+	for _, r := range pattern {
+		if escaped {
+			b.WriteString(regexp.QuoteMeta(string(r)))
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			escaped = true
+		case '%':
+			b.WriteString(".*")
+		case '_':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+
+	if escaped {
+		b.WriteString(regexp.QuoteMeta(`\`))
+	}
+
+	b.WriteString("$")
+	return regexp.Compile(b.String())
 }

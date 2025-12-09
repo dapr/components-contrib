@@ -161,3 +161,16 @@ type QueryRequest struct {
 	Query    query.Query       `json:"query"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
+
+type KeysLikeRequest struct {
+	// Pattern is the SQL LIKE pattern to match keys against.
+	Pattern string `json:"pattern"`
+
+	// ContinuationToken is an optional parameter to indicate the key from which
+	// to start the search.
+	ContinuationToken *string `json:"startKey,omitempty"`
+
+	// PageSize is an optional parameter to indicate the maximum number of keys
+	// to return.
+	PageSize *uint32 `json:"pageSize,omitempty"`
+}

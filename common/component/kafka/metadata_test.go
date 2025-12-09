@@ -273,6 +273,11 @@ func TestMissingOidcPrivateKeyJwtValues(t *testing.T) {
 	meta, err = k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	require.Contains(t, meta.internalOidcScopes, "openid")
+
+	m["oidcKid"] = "1234567890"
+	meta, err = k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Equal(t, "1234567890", meta.OidcKid)
 }
 
 func TestPresentSaslValues(t *testing.T) {

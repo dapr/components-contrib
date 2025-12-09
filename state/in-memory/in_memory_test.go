@@ -32,7 +32,7 @@ func TestReadAndWrite(t *testing.T) {
 
 	defer ctl.Finish()
 
-	store := NewInMemoryStateStore(logger.NewLogger("test")).(*inMemoryStore)
+	store := NewInMemoryStateStore(logger.NewLogger("test")).(*InMemoryStore)
 	fakeClock := clocktesting.NewFakeClock(time.Now())
 	store.clock = fakeClock
 	store.Init(t.Context(), state.Metadata{})
@@ -176,4 +176,8 @@ func TestReadAndWrite(t *testing.T) {
 		err := store.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
+}
+
+func Test_KeyLike(t *testing.T) {
+	var _ state.KeysLiker = NewInMemoryStateStore(nil).(*InMemoryStore)
 }

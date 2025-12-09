@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/akeylesslabs/akeyless-go/v5"
 	"github.com/dapr/components-contrib/secretstores"
@@ -18,23 +19,24 @@ import (
 )
 
 const (
-	AUTH_JWT                  = "jwt"
-	DEFAULT_AUTH_TYPE         = "access_key"
-	AUTH_IAM                  = "aws_iam"
-	AUTH_K8S                  = "k8s"
-	PUBLIC_GATEWAY_URL        = "https://api.akeyless.io"
-	USER_AGENT                = "dapr.io/akeyless-secret-store"
-	STATIC_SECRET_RESPONSE    = "STATIC_SECRET"
-	DYNAMIC_SECRET_RESPONSE   = "DYNAMIC_SECRET"
-	ROTATED_SECRET_RESPONSE   = "ROTATED_SECRET"
-	STATIC_SECRET_TYPE        = "static-secret"
-	DYNAMIC_SECRET_TYPE       = "dynamic-secret"
-	ROTATED_SECRET_TYPE       = "rotated-secret"
-	ALL_SECRET_TYPES          = "all"
-	CLIENT_SOURCE             = "akeylessclienttype"
-	PATH_DEFAULT              = "/"
-	METADATA_PATH_KEY         = "path"
-	METADATA_SECRETS_TYPE_KEY = "secrets_type"
+	AUTH_JWT                   = "jwt"
+	DEFAULT_AUTH_TYPE          = "access_key"
+	AUTH_IAM                   = "aws_iam"
+	AUTH_K8S                   = "k8s"
+	PUBLIC_GATEWAY_URL         = "https://api.akeyless.io"
+	USER_AGENT                 = "dapr.io/akeyless-secret-store"
+	STATIC_SECRET_RESPONSE     = "STATIC_SECRET"
+	DYNAMIC_SECRET_RESPONSE    = "DYNAMIC_SECRET"
+	ROTATED_SECRET_RESPONSE    = "ROTATED_SECRET"
+	STATIC_SECRET_TYPE         = "static-secret"
+	DYNAMIC_SECRET_TYPE        = "dynamic-secret"
+	ROTATED_SECRET_TYPE        = "rotated-secret"
+	ALL_SECRET_TYPES           = "all"
+	CLIENT_SOURCE              = "akeylessclienttype"
+	PATH_DEFAULT               = "/"
+	METADATA_PATH_KEY          = "path"
+	METADATA_SECRETS_TYPE_KEY  = "secrets_type"
+	TOKEN_REFRESH_GRACE_PERIOD = 5 * time.Minute
 )
 
 var supportedSecretTypes = []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE}
@@ -300,4 +302,25 @@ func createTLSConfig(gatewayTLSCA string) (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 		RootCAs:    caCertPool,
 	}, nil
+}
+
+func parseTokenExpirationDate(expirationStr string) (time.Time, error) {
+	// Try multiple formats to handle different expiration date formats
+	// Format 1: ISO 8601 format "2025-01-01T00:00:00Z" (used in tests)
+	layouts := []string{
+		time.RFC3339,                    // "2006-01-02T15:04:05Z07:00"
+		time.RFC3339Nano,                // "2006-01-02T15:04:05.999999999Z07:00"
+		"2006-01-02T15:04:05Z",          // "2006-01-02T15:04:05Z"
+		"2006-01-02 15:04:05 -0700 MST", // "2025-12-09 21:35:00 +0000 UTC" (custom format)
+		"2006-01-02 15:04:05 -0700",     // "2025-12-09 21:35:00 +0000" (without MST)
+	}
+
+	for _, layout := range layouts {
+		parsedTime, err := time.Parse(layout, expirationStr)
+		if err == nil {
+			return parsedTime, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse token expiration date '%s' with any supported format", expirationStr)
 }

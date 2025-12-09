@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/akeylesslabs/akeyless-go/v5"
 	"github.com/dapr/components-contrib/metadata"
@@ -109,6 +110,11 @@ var mockGateway *httptest.Server
 
 // mockAuthenticate is a test version of the Authenticate function that uses a mock cloud ID
 func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessSecretStore) error {
+	// Initialize closeCh if not already set
+	if akeylessSecretStore.closeCh == nil {
+		akeylessSecretStore.closeCh = make(chan struct{})
+	}
+
 	authRequest := akeyless.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
 
@@ -130,7 +136,23 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
 
+	akeylessSecretStore.mu.Lock()
 	akeylessSecretStore.token = out.GetToken()
+	expirationStr := out.GetExpiration()
+	akeylessSecretStore.mu.Unlock()
+
+	// Parse and store expiration time (same as in authenticate)
+	if expirationStr != "" {
+		expiration, err := parseTokenExpirationDate(expirationStr)
+		if err != nil {
+			// Log warning but don't fail - expiration parsing is optional
+			akeylessSecretStore.logger.Debugf("failed to parse token expiration '%s': %v", expirationStr, err)
+		} else {
+			akeylessSecretStore.mu.Lock()
+			akeylessSecretStore.tokenExpiry = expiration
+			akeylessSecretStore.mu.Unlock()
+		}
+	}
 
 	return nil
 }
@@ -147,7 +169,9 @@ func TestMain(m *testing.M) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -253,6 +277,7 @@ func TestInit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logger.NewLogger("test")
 			store := NewAkeylessSecretStore(log).(*akeylessSecretStore)
+			defer store.Close() // Clean up background goroutine
 
 			tt.metadata.Properties["gatewayUrl"] = mockGateway.URL
 
@@ -437,6 +462,7 @@ func TestMockServerReturnsAuthOutput(t *testing.T) {
 	assert.NotNil(t, store.v2)
 	assert.NotNil(t, store.token)
 	assert.Equal(t, "t-1234567890", store.token)
+	defer store.Close() // Clean up background goroutine
 }
 
 func TestMockAWSCloudID(t *testing.T) {
@@ -480,6 +506,7 @@ func TestGetSecret(t *testing.T) {
 
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	tests := []struct {
 		name           string
@@ -532,7 +559,9 @@ func TestGetSingleSecretJSON(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -569,6 +598,7 @@ func TestGetSingleSecretJSON(t *testing.T) {
 
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
 		Name: mockStaticSecretJSONName,
@@ -592,7 +622,9 @@ func TestGetSingleSecretPassword(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -629,6 +661,7 @@ func TestGetSingleSecretPassword(t *testing.T) {
 
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
 		Name: mockStaticSecretPasswordName,
@@ -658,6 +691,7 @@ func TestGetSecretType(t *testing.T) {
 	ctx := context.Background()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	secretType, err := store.GetSecretType(ctx, mockDescribeStaticSecretName)
 	assert.NoError(t, err)
@@ -675,7 +709,9 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -709,6 +745,8 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	ctx := context.Background()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
+
 	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
@@ -724,7 +762,9 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -758,6 +798,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	ctx := context.Background()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
@@ -777,7 +818,9 @@ func TestGetBulkSecretValues(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -835,6 +878,7 @@ func TestGetBulkSecretValues(t *testing.T) {
 
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)
@@ -947,7 +991,9 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 			// Return a proper AuthOutput JSON response for authentication
 			authOutput := akeyless.NewAuthOutput()
 			authOutput.SetToken("t-1234567890")
-			authOutput.SetExpiration("2025-01-01T00:00:00Z")
+			// Use a future expiration date (1 hour from now) to avoid token refresh during tests
+			futureExpiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+			authOutput.SetExpiration(futureExpiration)
 			jsonResponse, _ := json.Marshal(authOutput)
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonResponse)
@@ -1128,6 +1174,7 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 
 	err := store.Init(context.Background(), meta)
 	require.NoError(t, err)
+	defer store.Close() // Clean up background goroutine
 
 	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)

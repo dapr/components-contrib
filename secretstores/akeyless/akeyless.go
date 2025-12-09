@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	aws "github.com/akeylesslabs/akeyless-go-cloud-id/cloudprovider/aws"
 	"github.com/akeylesslabs/akeyless-go/v5"
@@ -22,9 +23,14 @@ var _ secretstores.SecretStore = (*akeylessSecretStore)(nil)
 
 // akeylessSecretStore is a secret store implementation for Akeyless.
 type akeylessSecretStore struct {
-	v2     *akeyless.V2ApiService
-	token  string
-	logger logger.Logger
+	v2          *akeyless.V2ApiService
+	token       string
+	tokenExpiry time.Time
+	metadata    *akeylessMetadata
+	mu          sync.RWMutex
+	logger      logger.Logger
+	closeCh     chan struct{}
+	wg          sync.WaitGroup
 }
 
 // NewAkeylessSecretStore returns a new Akeyless secret store.
@@ -55,9 +61,17 @@ func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metada
 		return errors.New("failed to parse metadata: " + err.Error())
 	}
 
+	a.metadata = m
+	a.closeCh = make(chan struct{})
+
 	err = a.authenticate(ctx, m)
 	if err != nil {
 		return errors.New("failed to authenticate with Akeyless: " + err.Error())
+	}
+
+	// Start background token refresh routine if we have expiration time
+	if !a.tokenExpiry.IsZero() {
+		a.startTokenRefreshRoutine(ctx, m)
 	}
 
 	return nil
@@ -162,7 +176,25 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 	}
 
 	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
+
+	// Store token and expiration with mutex protection
+	a.mu.Lock()
 	a.token = out.GetToken()
+	expirationStr := out.GetExpiration()
+	a.mu.Unlock()
+
+	// Parse and store expiration time
+	if expirationStr != "" {
+		expiration, err := parseTokenExpirationDate(expirationStr)
+		if err != nil {
+			a.logger.Warnf("failed to parse token expiration '%s': %v", expirationStr, err)
+		} else {
+			a.mu.Lock()
+			a.tokenExpiry = expiration
+			a.mu.Unlock()
+			a.logger.Debugf("token expiration parsed and set successfully: %s", expiration.Format(time.RFC3339))
+		}
+	}
 
 	return nil
 }
@@ -346,6 +378,10 @@ func (a *akeylessSecretStore) Features() []secretstores.Feature {
 
 // Close closes the secret store.
 func (a *akeylessSecretStore) Close() error {
+	if a.closeCh != nil {
+		close(a.closeCh)
+		a.wg.Wait()
+	}
 	return nil
 }
 
@@ -386,9 +422,34 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 }
 
 func (a *akeylessSecretStore) GetSecretType(ctx context.Context, secretName string) (string, error) {
+
+	if err := a.ensureValidToken(ctx); err != nil {
+		return "", fmt.Errorf("failed to ensure valid token: %w", err)
+	}
+
 	describeItem := akeyless.NewDescribeItem(secretName)
-	describeItem.SetToken(a.token)
-	describeItemResp, _, err := a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
+
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+
+	describeItem.SetToken(token)
+	describeItemResp, httpResponse, err := a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
+
+	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+		a.logger.Debug("received 401 unauthorized, re-authenticating...")
+		if err := a.ensureValidToken(ctx); err != nil {
+			return "", fmt.Errorf("failed to re-authenticate after 401: %w", err)
+		}
+
+		a.mu.RLock()
+		token = a.token
+		a.mu.RUnlock()
+
+		describeItem.SetToken(token)
+		describeItemResp, _, err = a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
+	}
+
 	if err != nil {
 		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
 	}
@@ -404,14 +465,60 @@ func (a *akeylessSecretStore) GetSecretType(ctx context.Context, secretName stri
 // It returns the value of the secret or an error if the secret is not found.
 func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretName string, secretType string) (string, error) {
 
+	if err := a.ensureValidToken(ctx); err != nil {
+		return "", fmt.Errorf("failed to ensure valid token: %w", err)
+	}
+
 	var secretValue string
 	var err error
+
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+
+	// Helper to get current token (with mutex protection)
+	getToken := func() string {
+		a.mu.RLock()
+		defer a.mu.RUnlock()
+		return a.token
+	}
+
+	retry := func(apiCall func() error, updateToken func(string)) error {
+		apiErr := apiCall()
+		if apiErr != nil {
+			// Check if it's a 401 error by examining the error string or response
+			if strings.Contains(apiErr.Error(), "401") || strings.Contains(apiErr.Error(), "Unauthorized") {
+				a.logger.Debug("received 401 unauthorized, re-authenticating...")
+				if reauthErr := a.ensureValidToken(ctx); reauthErr != nil {
+					return fmt.Errorf("failed to re-authenticate after 401: %w", reauthErr)
+				}
+				// Update token in the request object before retry
+				newToken := getToken()
+				updateToken(newToken)
+				return apiCall()
+			}
+		}
+		return apiErr
+	}
 
 	switch secretType {
 	case STATIC_SECRET_RESPONSE:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
-		getSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+		getSecretValue.SetToken(token)
+		var secretRespMap map[string]interface{}
+		var httpResponse *http.Response
+
+		apiErr := retry(func() error {
+			var err error
+			secretRespMap, httpResponse, err = a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
+			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+				return fmt.Errorf("401 Unauthorized")
+			}
+			return err
+		}, func(newToken string) {
+			getSecretValue.SetToken(newToken)
+		})
+
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
 			break
@@ -434,8 +541,21 @@ func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretNa
 
 	case DYNAMIC_SECRET_RESPONSE:
 		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
-		getDynamicSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetDynamicSecretValue(ctx).Body(*getDynamicSecretValue).Execute()
+		getDynamicSecretValue.SetToken(token)
+		var secretRespMap map[string]interface{}
+		var httpResponse *http.Response
+
+		apiErr := retry(func() error {
+			var err error
+			secretRespMap, httpResponse, err = a.v2.GetDynamicSecretValue(ctx).Body(*getDynamicSecretValue).Execute()
+			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+				return fmt.Errorf("401 Unauthorized")
+			}
+			return err
+		}, func(newToken string) {
+			getDynamicSecretValue.SetToken(newToken)
+		})
+
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
 			break
@@ -467,8 +587,21 @@ func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretNa
 
 	case ROTATED_SECRET_RESPONSE:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
-		getRotatedSecretValue.SetToken(a.token)
-		secretRespMap, _, apiErr := a.v2.GetRotatedSecretValue(ctx).Body(*getRotatedSecretValue).Execute()
+		getRotatedSecretValue.SetToken(token)
+		var secretRespMap map[string]interface{}
+		var httpResponse *http.Response
+
+		apiErr := retry(func() error {
+			var err error
+			secretRespMap, httpResponse, err = a.v2.GetRotatedSecretValue(ctx).Body(*getRotatedSecretValue).Execute()
+			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+				return fmt.Errorf("401 Unauthorized")
+			}
+			return err
+		}, func(newToken string) {
+			getRotatedSecretValue.SetToken(newToken)
+		})
+
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
 			break
@@ -489,14 +622,46 @@ func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretNa
 // GetBulkStaticSecretValues gets the values of multiple static secrets from Akeyless.
 // It returns a map of secret names and their values.
 func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, secretNames []string) []secretResultCollection {
+	if err := a.ensureValidToken(ctx); err != nil {
+		return []secretResultCollection{
+			{name: "", value: "", err: fmt.Errorf("failed to ensure valid token: %w", err)},
+		}
+	}
 
 	var secretResponse []secretResultCollection
 
 	getSecretsValues := akeyless.NewGetSecretValue(secretNames)
-	getSecretsValues.SetToken(a.token)
-	secretRespMap, _, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+
+	getSecretsValues.SetToken(token)
+
+	secretRespMap, httpResponse, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+
+	// Handle 401 Unauthorized by re-authenticating and retrying once
+	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+		a.logger.Debug("received 401 Unauthorized in bulk get, re-authenticating...")
+		if err := a.ensureValidToken(ctx); err != nil {
+			secretResponse = append(secretResponse, secretResultCollection{
+				name: "", value: "", err: fmt.Errorf("failed to re-authenticate after 401: %w", err),
+			})
+			return secretResponse
+		}
+
+		a.mu.RLock()
+		token = a.token
+		a.mu.RUnlock()
+
+		getSecretsValues.SetToken(token)
+		secretRespMap, _, apiErr = a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+	}
+
 	if apiErr != nil {
-		secretResponse = append(secretResponse, secretResultCollection{name: "", value: "", err: fmt.Errorf("failed to get static secrets' '%s' value from Akeyless API: %w", secretNames, apiErr)})
+		secretResponse = append(secretResponse, secretResultCollection{
+			name: "", value: "", err: fmt.Errorf("failed to get static secrets' '%s' value from Akeyless API: %w", secretNames, apiErr),
+		})
 	} else {
 		for secretName, secretValue := range secretRespMap {
 			value, err := stringifyStaticSecret(secretValue, secretName)
@@ -510,18 +675,44 @@ func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, sec
 // listItemsRecursively lists all items in a given path recursively.
 // It returns a list of items and an error if the list items request fails.
 func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path string, types []string) ([]akeyless.Item, error) {
+	if err := a.ensureValidToken(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ensure valid token: %w", err)
+	}
+
 	var allItems []akeyless.Item
 
 	// Create the list items request
 	listItems := akeyless.NewListItems()
-	listItems.SetToken(a.token)
+
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+
+	listItems.SetToken(token)
 	listItems.SetPath(path)
 	listItems.SetAutoPagination("enabled")
 	listItems.SetType(types)
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
-	itemsList, _, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
+	itemsList, httpResponse, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
+
+	// Handle 401 Unauthorized by re-authenticating and retrying once
+	// Check this BEFORE checking err, as 401 might come with an error
+	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+		a.logger.Debug("received 401 Unauthorized in list items, re-authenticating...")
+		if err := a.ensureValidToken(ctx); err != nil {
+			return nil, fmt.Errorf("failed to re-authenticate after 401: %w", err)
+		}
+
+		a.mu.RLock()
+		token = a.token
+		a.mu.RUnlock()
+
+		listItems.SetToken(token)
+		itemsList, _, err = a.v2.ListItems(ctx).Body(*listItems).Execute()
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -586,4 +777,90 @@ func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeyless.Item) []a
 	}
 
 	return filteredSecrets
+}
+
+// ensureValidToken checks if the token is valid and refreshes it if needed (5 minutes before expiration)
+// It returns an error if the token refresh fails.
+func (a *akeylessSecretStore) ensureValidToken(ctx context.Context) error {
+
+	a.mu.RLock()
+	expiry := a.tokenExpiry
+	metadata := a.metadata
+	a.mu.RUnlock()
+
+	// If token expiry is zero, we can't validate it, so skip validation
+	// This can happen if expiration parsing failed or wasn't provided
+	if expiry.IsZero() {
+		a.logger.Debug("token expiration not set, skipping validation")
+		return nil
+	}
+
+	tokenValid := time.Now().Before(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD))
+	if tokenValid {
+		return nil
+	}
+
+	// Token expired or about to expire, need to refresh/reauthenticate
+	a.logger.Debug("token expired or about to expire, reauthenticating...")
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Double-check after acquiring lock (another goroutine might have refreshed)
+	expiry = a.tokenExpiry
+	if expiry.IsZero() || time.Now().Before(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD)) {
+		return nil
+	}
+
+	return a.authenticate(ctx, metadata)
+}
+
+// startTokenRefreshRoutine starts a bg goroutine that refreshes the token
+func (a *akeylessSecretStore) startTokenRefreshRoutine(ctx context.Context, metadata *akeylessMetadata) {
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		// Use background context for the refresh routine, not the init context
+		refreshCtx := context.Background()
+
+		for {
+			// Check if we should stop first, before acquiring any locks
+			select {
+			case <-a.closeCh:
+				a.logger.Debug("token refresh routine stopped")
+				return
+			default:
+			}
+
+			a.mu.RLock()
+			expiry := a.tokenExpiry
+			a.mu.RUnlock()
+
+			if expiry.IsZero() {
+				a.logger.Warn("token expiration is zero, stopping refresh routine...")
+				return
+			}
+
+			refreshDuration := time.Until(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD))
+			if refreshDuration <= 0 {
+				refreshDuration = time.Minute // Refresh immediately if less than 1 minute left
+			}
+
+			a.logger.Debugf("next token refresh scheduled in %v", refreshDuration)
+
+			select {
+			case <-time.After(refreshDuration):
+				a.logger.Debug("refreshing token...")
+				if err := a.authenticate(refreshCtx, metadata); err != nil {
+					a.logger.Errorf("failed to refresh token: %v", err)
+					// Retry after 1 minute on failure
+					time.Sleep(time.Minute)
+					continue
+				}
+				a.logger.Debug("token refreshed successfully")
+			case <-a.closeCh:
+				a.logger.Debug("token refresh routine stopped")
+				return
+			}
+		}
+	}()
 }

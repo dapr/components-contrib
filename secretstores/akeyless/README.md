@@ -17,7 +17,7 @@ The Akeyless secret store component supports the following configuration options
 
 | Field | Required | Description | Example |
 |-------|----------|-------------|---------|
-| `gatewayUrl` | No | The Akeyless Gateway URL. Default is https://api.akeyless.io. | `https://your-gateway.akeyless.io` |
+| `gatewayUrl` | No | The Akeyless Gateway API URL. Default is https://api.akeyless.io. | `https://gw.akeyless.svc.cluster.local:8000/api/v2` |
 | `gatewayTLSCA` | No | The `base64`-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway with a self-signed or custom CA certificate. | `LS0tLS1CRUdJTi...` |
 | `accessId` | Yes | The Akeyless authentication access ID. | `p-123456780wm` |
 | `jwt` | No | If using an OAuth2.0/JWT access ID, specify the JSON Web Token | `eyJ...` |
@@ -25,7 +25,7 @@ The Akeyless secret store component supports the following configuration options
 | `k8sAuthConfigName` | No | If using the k8s auth method, specify the name of the k8s auth config. | `k8s-auth-config` |
 | `k8sGatewayUrl` | No | The gateway URL that where the k8s auth config is located. | `http://gw.akeyless.svc.cluster.local:8000` |
 | `k8sServiceAccountToken` | No | If using the k8s auth method, specify the service account token. If not specified,
-      we will try to read it from the default service account token file. | `eyJ...` |
+      we will try to read it from the default service account token file `/var/run/secrets/kubernetes.io/serviceaccount/token`. | `eyJ...` |
 
 
 
@@ -108,7 +108,7 @@ spec:
   - name: gatewayUrl
     value: "http://unified.akeyless.svc.cluster.local:8000/api/v2"
   - name: accessId
-    value: "p-1234Abcdwm"
+    value: "p-1234Abcdkm"
   - name: k8sAuthConfigName
     value: "us-east-1-prod-akeyless-k8s-conf"
   - name: k8sGatewayUrl

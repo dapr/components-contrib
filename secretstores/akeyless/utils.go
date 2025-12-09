@@ -209,12 +209,20 @@ func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeyless.Au
 		}
 		metadata.K8sServiceAccountToken = string(token)
 	}
+
+	// base64 encode the token if it's not already encoded
+	if _, err := base64.StdEncoding.DecodeString(metadata.K8sServiceAccountToken); err != nil {
+		a.logger.Info("k8sServiceAccountToken is not base64 encoded, encoding it...")
+		metadata.K8sServiceAccountToken = base64.StdEncoding.EncodeToString([]byte(metadata.K8sServiceAccountToken))
+	}
+	authRequest.SetK8sServiceAccountToken(metadata.K8sServiceAccountToken)
+
 	if metadata.K8SGatewayURL == "" {
 		a.logger.Debug("k8s gateway url is missing, using gatewayUrl")
 		metadata.K8SGatewayURL = metadata.GatewayURL
 	}
+	metadata.K8SGatewayURL = strings.TrimSuffix(metadata.K8SGatewayURL, "/api/v2")
 	authRequest.SetGatewayUrl(metadata.K8SGatewayURL)
-	authRequest.SetK8sServiceAccountToken(metadata.K8sServiceAccountToken)
 	return nil
 }
 

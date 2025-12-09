@@ -94,17 +94,20 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 		}
 		authRequest.SetAccessKey(metadata.AccessKey)
 	case AUTH_IAM:
+		authRequest.SetAccessType(AUTH_IAM)
 		id, err := aws.GetCloudId()
 		if err != nil {
 			return errors.New("unable to get cloud ID: " + err.Error())
 		}
 		authRequest.SetCloudId(id)
 	case AUTH_JWT:
+		authRequest.SetAccessType(AUTH_JWT)
 		if metadata.JWT == "" {
 			return errors.New("jwt is required for JWT authentication")
 		}
 		authRequest.SetJwt(metadata.JWT)
 	case AUTH_K8S:
+		authRequest.SetAccessType(AUTH_K8S)
 		err := setK8SAuthConfiguration(*metadata, authRequest, a)
 		if err != nil {
 			return errors.New("failed to set k8s auth configuration: " + err.Error())

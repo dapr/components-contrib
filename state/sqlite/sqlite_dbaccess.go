@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // DBAccess is a private interface which enables unit testing of SQLite.
@@ -46,6 +47,7 @@ type DBAccess interface {
 	Delete(ctx context.Context, req *state.DeleteRequest) error
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
+	KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error)
 	Close() error
 }
 
@@ -521,4 +523,93 @@ func (a *sqliteDBAccess) GetConnection() *sql.DB {
 // This is primarily used for tests.
 func (a *sqliteDBAccess) GetCleanupInterval() time.Duration {
 	return a.metadata.CleanupInterval
+}
+
+func (a *sqliteDBAccess) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	where := []string{
+		`key LIKE ? ESCAPE '\'`,
+		`(expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`,
+	}
+	args := []any{req.Pattern}
+
+	if req.ContinuationToken != nil {
+		where = append(where, `rowid > ?`)
+		args = append(args, *req.ContinuationToken)
+	}
+
+	orderClause := ` ORDER BY rowid ASC`
+
+	limitClause := ``
+	var fetchLimit uint32
+	if req.PageSize != nil {
+		fetchLimit = *req.PageSize
+		limitClause = ` LIMIT ?`
+		args = append(args, fetchLimit)
+	}
+
+	//nolint:gosec
+	query := fmt.Sprintf(`
+		SELECT key, rowid
+		FROM %s
+		WHERE %s%s%s`,
+		a.metadata.TableName,
+		strings.Join(where, " AND "),
+		orderClause,
+		limitClause,
+	)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type rec struct {
+		key   string
+		rowID int64
+	}
+
+	var recs []rec
+	if req.PageSize != nil {
+		recs = make([]rec, 0, min(*req.PageSize, 1024))
+	} else {
+		recs = make([]rec, 0, 256)
+	}
+
+	for rows.Next() {
+		var k string
+		var rid int64
+		if err := rows.Scan(&k, &rid); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec{key: k, rowID: rid})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(recs)),
+	}
+
+	if req.PageSize != nil {
+		switch {
+		case uint32(len(recs)) == *req.PageSize: //nolint:gosec
+			next := recs[*req.PageSize-1]
+			resp.ContinuationToken = ptr.Of(strconv.FormatInt(next.rowID, 10))
+			recs = recs[:*req.PageSize]
+		case uint32(len(recs)) > *req.PageSize: //nolint:gosec
+			return nil, fmt.Errorf("received %d records when a LIMIT of %d was given", len(recs), *req.PageSize)
+		}
+	}
+
+	for _, r := range recs {
+		resp.Keys = append(resp.Keys, r.key)
+	}
+
+	return resp, nil
 }

@@ -14,10 +14,14 @@ limitations under the License.
 package oauth2
 
 import (
+	"context"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	ccreds "golang.org/x/oauth2/clientcredentials"
 )
 
@@ -92,4 +96,20 @@ func Test_toConfig(t *testing.T) {
 			assert.Equal(t, test.expConfig, config)
 		})
 	}
+}
+
+func Test_TokenRenewal(t *testing.T) {
+	expired := &oauth2.Token{AccessToken: "old-token", Expiry: time.Now().Add(-1 * time.Minute)}
+	renewed := &oauth2.Token{AccessToken: "new-token", Expiry: time.Now().Add(1 * time.Hour)}
+
+	c := &ClientCredentials{
+		currentToken: expired,
+		fetchTokenFn: func(ctx context.Context) (*oauth2.Token, error) {
+			return renewed, nil
+		},
+	}
+
+	tok, err := c.Token()
+	require.NoError(t, err)
+	assert.Equal(t, "new-token", tok)
 }

@@ -42,6 +42,7 @@ const (
 	authType                                 = "authType"
 	passwordAuthType                         = "password"
 	oidcAuthType                             = "oidc"
+	oidcPrivateKeyJWTAuthType                = "oidc_private_key_jwt"
 	mtlsAuthType                             = "mtls"
 	awsIAMAuthType                           = "awsiam"
 	noAuthType                               = "none"
@@ -65,36 +66,41 @@ const (
 )
 
 type KafkaMetadata struct {
-	Brokers                string              `mapstructure:"brokers"`
-	internalBrokers        []string            `mapstructure:"-"`
-	ConsumerGroup          string              `mapstructure:"consumerGroup"`
-	ClientID               string              `mapstructure:"clientId"`
-	AuthType               string              `mapstructure:"authType"`
-	SaslUsername           string              `mapstructure:"saslUsername"`
-	SaslPassword           string              `mapstructure:"saslPassword"`
-	SaslMechanism          string              `mapstructure:"saslMechanism"`
-	InitialOffset          string              `mapstructure:"initialOffset"`
-	internalInitialOffset  int64               `mapstructure:"-"`
-	MaxMessageBytes        int                 `mapstructure:"maxMessageBytes"`
-	OidcTokenEndpoint      string              `mapstructure:"oidcTokenEndpoint"`
-	OidcClientID           string              `mapstructure:"oidcClientID"`
-	OidcClientSecret       string              `mapstructure:"oidcClientSecret"`
-	OidcScopes             string              `mapstructure:"oidcScopes"`
-	OidcExtensions         string              `mapstructure:"oidcExtensions"`
-	internalOidcScopes     []string            `mapstructure:"-"`
-	TLSDisable             bool                `mapstructure:"disableTls"`
-	TLSSkipVerify          bool                `mapstructure:"skipVerify"`
-	TLSCaCert              string              `mapstructure:"caCert"`
-	TLSClientCert          string              `mapstructure:"clientCert"`
-	TLSClientKey           string              `mapstructure:"clientKey"`
-	ConsumeRetryEnabled    bool                `mapstructure:"consumeRetryEnabled"`
-	ConsumeRetryInterval   time.Duration       `mapstructure:"consumeRetryInterval"`
-	HeartbeatInterval      time.Duration       `mapstructure:"heartbeatInterval"`
-	SessionTimeout         time.Duration       `mapstructure:"sessionTimeout"`
-	Version                string              `mapstructure:"version"`
-	EscapeHeaders          bool                `mapstructure:"escapeHeaders"`
-	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
-	internalOidcExtensions map[string]string   `mapstructure:"-"`
+	Brokers                 string              `mapstructure:"brokers"`
+	internalBrokers         []string            `mapstructure:"-"`
+	ConsumerGroup           string              `mapstructure:"consumerGroup"`
+	ClientID                string              `mapstructure:"clientId"`
+	AuthType                string              `mapstructure:"authType"`
+	SaslUsername            string              `mapstructure:"saslUsername"`
+	SaslPassword            string              `mapstructure:"saslPassword"`
+	SaslMechanism           string              `mapstructure:"saslMechanism"`
+	InitialOffset           string              `mapstructure:"initialOffset"`
+	internalInitialOffset   int64               `mapstructure:"-"`
+	MaxMessageBytes         int                 `mapstructure:"maxMessageBytes"`
+	OidcTokenEndpoint       string              `mapstructure:"oidcTokenEndpoint"`
+	OidcClientID            string              `mapstructure:"oidcClientID"`
+	OidcClientSecret        string              `mapstructure:"oidcClientSecret"`
+	OidcScopes              string              `mapstructure:"oidcScopes"`
+	OidcExtensions          string              `mapstructure:"oidcExtensions"`
+	OidcClientAssertionCert string              `mapstructure:"oidcClientAssertionCert"`
+	OidcClientAssertionKey  string              `mapstructure:"oidcClientAssertionKey"`
+	OidcResource            string              `mapstructure:"oidcResource"`
+	OidcAudience            string              `mapstructure:"oidcAudience"`
+	OidcKid                 string              `mapstructure:"oidcKid"`
+	internalOidcScopes      []string            `mapstructure:"-"`
+	TLSDisable              bool                `mapstructure:"disableTls"`
+	TLSSkipVerify           bool                `mapstructure:"skipVerify"`
+	TLSCaCert               string              `mapstructure:"caCert"`
+	TLSClientCert           string              `mapstructure:"clientCert"`
+	TLSClientKey            string              `mapstructure:"clientKey"`
+	ConsumeRetryEnabled     bool                `mapstructure:"consumeRetryEnabled"`
+	ConsumeRetryInterval    time.Duration       `mapstructure:"consumeRetryInterval"`
+	HeartbeatInterval       time.Duration       `mapstructure:"heartbeatInterval"`
+	SessionTimeout          time.Duration       `mapstructure:"sessionTimeout"`
+	Version                 string              `mapstructure:"version"`
+	EscapeHeaders           bool                `mapstructure:"escapeHeaders"`
+	internalVersion         sarama.KafkaVersion `mapstructure:"-"`
+	internalOidcExtensions  map[string]string   `mapstructure:"-"`
 
 	// configs for kafka client
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
@@ -251,6 +257,32 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC.")
+	case oidcPrivateKeyJWTAuthType:
+		if m.OidcTokenEndpoint == "" {
+			return nil, errors.New("kafka error: missing OIDC Token Endpoint for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientID == "" {
+			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientAssertionCert == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Cert for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcClientAssertionKey == "" {
+			return nil, errors.New("kafka error: missing OIDC Client Assertion Key for authType 'oidc_private_key_jwt'")
+		}
+		if m.OidcScopes != "" {
+			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
+		} else {
+			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
+			m.internalOidcScopes = []string{"openid"}
+		}
+		if m.OidcExtensions != "" {
+			err = json.Unmarshal([]byte(m.OidcExtensions), &m.internalOidcExtensions)
+			if err != nil || len(m.internalOidcExtensions) < 1 {
+				return nil, errors.New("kafka error: improper OIDC Extensions format for authType 'oidc_private_key_jwt'")
+			}
+		}
+		k.logger.Debug("Configuring SASL token authentication via OIDC with private_key_jwt.")
 	case mtlsAuthType:
 		if m.TLSClientCert != "" {
 			if !isValidPEM(m.TLSClientCert) {

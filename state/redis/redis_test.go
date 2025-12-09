@@ -561,3 +561,9 @@ func BenchmarkGetKeyVersion(b *testing.B) {
 		}
 	}
 }
+
+func Test_KeyList(t *testing.T) {
+	s := NewRedisStateStore(logger.NewLogger("test"))
+	_, ok := s.(state.KeysLiker)
+	require.True(t, ok)
+}

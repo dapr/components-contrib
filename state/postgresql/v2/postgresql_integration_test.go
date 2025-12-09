@@ -734,6 +734,13 @@ func TestMultiOperationOrder(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_KeysLiker(t *testing.T) {
+	m, _ := mockDatabase(t)
+	t.Cleanup(m.db.Close)
+
+	var _ state.KeysLiker = m.pg
+}
+
 func createSetRequest() state.SetRequest {
 	return state.SetRequest{
 		Key:   randomKey(),

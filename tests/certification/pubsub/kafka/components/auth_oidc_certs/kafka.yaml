@@ -1,0 +1,37 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: localhost:9092
+  - name: authType
+    value: "oidc_private_key_jwt"
+  - name: oidcTokenEndpoint
+    value: "http://localhost:8080/realms/local/protocol/openid-connect/token"
+  - name: oidcClientID
+    value: "dapr-kafka-client-jwt"
+  - name: oidcClientAssertionCert
+    secretKeyRef:
+      name: OIDC_CLIENT_ASSERTION_CERT
+      key:  OIDC_CLIENT_ASSERTION_CERT
+  - name: oidcClientAssertionKey
+    secretKeyRef:
+      name: OIDC_CLIENT_ASSERTION_KEY
+      key:  OIDC_CLIENT_ASSERTION_KEY
+  - name: oidcAudience
+    value: "http://keycloak:8080/realms/local/protocol/openid-connect/token"
+  - name: oidcScopes
+    value: "openid"
+  - name: disableTls
+    value: "true"
+  - name: oidcKid
+    secretKeyRef:
+      name: OIDC_CLIENT_KID
+      key:  OIDC_CLIENT_KID
+
+auth:
+  secretStore: envvar-secret-store

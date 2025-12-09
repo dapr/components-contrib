@@ -16,6 +16,14 @@ metadata:
     default: "https://api.akeyless.io"
     example: "https://your.akeyless.gw"
     type: string
+  - name: gatewayTLSCA
+    required: false
+    description: |
+      base64-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway
+      with a self-signed or custom CA certificate. 
+    example: "LS0tLS1CRUdJTi..."
+    type: string
+    sensitive: true
   - name: accessId
     required: true
     description: |

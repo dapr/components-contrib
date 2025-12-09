@@ -1,7 +1,11 @@
 package akeyless
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -263,4 +267,30 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 	}
 
 	return unique, nil
+}
+
+func createTLSConfig(gatewayTLSCA string) (*tls.Config, error) {
+
+	// Decode base64 to PEM
+	certBytes, err := base64.StdEncoding.DecodeString(gatewayTLSCA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64-encoded gateway TLS CA: %w", err)
+	}
+
+	// Validate PEM format
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM certificate: invalid PEM format")
+	}
+
+	// Cereate cert pool and add certificate
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(certBytes) {
+		return nil, errors.New("failed to add certificate to cert pool")
+	}
+
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    caCertPool,
+	}, nil
 }

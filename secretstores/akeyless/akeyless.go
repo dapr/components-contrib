@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -36,6 +37,7 @@ func NewAkeylessSecretStore(logger logger.Logger) secretstores.SecretStore {
 // akeylessMetadata contains the metadata for the Akeyless secret store.
 type akeylessMetadata struct {
 	GatewayURL             string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
+	GatewayTLSCA           string `json:"gatewayTLSCA" mapstructure:"gatewayTLSCA"`
 	JWT                    string `json:"jwt" mapstructure:"jwt"`
 	AccessID               string `json:"accessId" mapstructure:"accessId"`
 	AccessKey              string `json:"accessKey" mapstructure:"accessKey"`
@@ -119,6 +121,22 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 	}
 	config.UserAgent = USER_AGENT
 	config.AddDefaultHeader(CLIENT_SOURCE, USER_AGENT)
+
+	// Configure TLS if gatewayTLSCA is provided
+	if metadata.GatewayTLSCA != "" {
+		a.logger.Debug("configuring TLS for Akeyless client...")
+		tlsConfig, err := createTLSConfig(metadata.GatewayTLSCA)
+		if err != nil {
+			return errors.New("failed to create TLS configuration: " + err.Error())
+		}
+
+		httpClient := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+		}
+		config.HTTPClient = httpClient
+	}
 
 	a.v2 = akeyless.NewAPIClient(config).V2Api
 

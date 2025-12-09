@@ -17,7 +17,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Define constants for the access types. These are equivalent to the TypeScript consts.
 const (
 	AUTH_JWT                  = "jwt"
 	DEFAULT_AUTH_TYPE         = "access_key"

@@ -490,7 +490,7 @@ func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretNa
 // It returns a map of secret names and their values.
 func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, secretNames []string) []secretResultCollection {
 
-	var secretResponse = make([]secretResultCollection, len(secretNames))
+	var secretResponse []secretResultCollection
 
 	getSecretsValues := akeyless.NewGetSecretValue(secretNames)
 	getSecretsValues.SetToken(a.token)

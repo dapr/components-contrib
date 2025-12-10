@@ -1047,7 +1047,6 @@ func TestParseTTLWithDefault(t *testing.T) {
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
 		require.NotNil(t, ttl)
-
 		// Should use default value (600)
 		expectedTime := time.Now().Unix() + 600
 		assert.InDelta(t, expectedTime, *ttl, 2) // Allow 2 second tolerance

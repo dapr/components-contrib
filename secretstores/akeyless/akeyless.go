@@ -177,6 +177,12 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 		}
 		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %s", statusCode, status)
 	}
+	if out != nil && out.GetToken() == "" {
+		return errors.New("authentication failed, no token returned")
+	}
+	if out != nil && out.GetExpiration() == "" {
+		return errors.New("authentication failed, no expiration time returned")
+	}
 
 	a.logger.Debugf("authentication successful - token expires at %s", out.GetExpiration())
 

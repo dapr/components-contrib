@@ -208,14 +208,14 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 	}
 
 	a.logger.Debugf("getting secret type for '%s'...", req.Name)
-	secretType, err := a.GetSecretType(ctx, req.Name)
+	secretType, err := a.getSecretType(ctx, req.Name)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, errors.New("failed to get secret type: " + err.Error())
 	}
 
 	a.logger.Debugf("getting secret value for '%s' (type %s)...", req.Name, secretType)
 
-	secretValue, err := a.GetSingleSecretValue(ctx, req.Name, secretType)
+	secretValue, err := a.getSingleSecretValue(ctx, req.Name, secretType)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, errors.New(err.Error())
 	}
@@ -307,14 +307,14 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			defer wg.Done()
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
-				value, err := a.GetSingleSecretValue(ctx, staticSecretName, STATIC_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, staticSecretName, STATIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: staticSecretName, value: "", err: err}
 				} else {
 					secretResultChannels <- secretResultCollection{name: staticSecretName, value: value, err: nil}
 				}
 			} else {
-				secretResponse := a.GetBulkStaticSecretValues(ctx, staticItemNames)
+				secretResponse := a.getBulkStaticSecretValues(ctx, staticItemNames)
 				if len(secretResponse) > 0 {
 					for _, result := range secretResponse {
 						secretResultChannels <- result
@@ -328,7 +328,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range dynamicItemNames {
-				value, err := a.GetSingleSecretValue(ctx, item, DYNAMIC_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, item, DYNAMIC_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -342,7 +342,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range rotatedItemNames {
-				value, err := a.GetSingleSecretValue(ctx, item, ROTATED_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, item, ROTATED_SECRET_RESPONSE)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -423,7 +423,7 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 	return &m, nil
 }
 
-func (a *akeylessSecretStore) GetSecretType(ctx context.Context, secretName string) (string, error) {
+func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName string) (string, error) {
 
 	if err := a.ensureValidToken(ctx); err != nil {
 		return "", fmt.Errorf("failed to ensure valid token: %w", err)
@@ -463,9 +463,9 @@ func (a *akeylessSecretStore) GetSecretType(ctx context.Context, secretName stri
 	return *describeItemResp.ItemType, nil
 }
 
-// GetSingleSecretValue gets the value of a single secret from Akeyless.
+// getSingleSecretValue gets the value of a single secret from Akeyless.
 // It returns the value of the secret or an error if the secret is not found.
-func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretName string, secretType string) (string, error) {
+func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretName string, secretType string) (string, error) {
 
 	if err := a.ensureValidToken(ctx); err != nil {
 		return "", fmt.Errorf("failed to ensure valid token: %w", err)
@@ -621,9 +621,9 @@ func (a *akeylessSecretStore) GetSingleSecretValue(ctx context.Context, secretNa
 	return secretValue, err
 }
 
-// GetBulkStaticSecretValues gets the values of multiple static secrets from Akeyless.
+// getBulkStaticSecretValues gets the values of multiple static secrets from Akeyless.
 // It returns a map of secret names and their values.
-func (a *akeylessSecretStore) GetBulkStaticSecretValues(ctx context.Context, secretNames []string) []secretResultCollection {
+func (a *akeylessSecretStore) getBulkStaticSecretValues(ctx context.Context, secretNames []string) []secretResultCollection {
 	if err := a.ensureValidToken(ctx); err != nil {
 		return []secretResultCollection{
 			{name: "", value: "", err: fmt.Errorf("failed to ensure valid token: %w", err)},

@@ -693,7 +693,7 @@ func TestGetSecretType(t *testing.T) {
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretType, err := store.GetSecretType(ctx, mockDescribeStaticSecretName)
+	secretType, err := store.getSecretType(ctx, mockDescribeStaticSecretName)
 	assert.NoError(t, err)
 	assert.Equal(t, STATIC_SECRET_RESPONSE, secretType)
 }
@@ -747,7 +747,7 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
 	mockGateway.Close()
@@ -800,7 +800,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.GetSingleSecretValue(ctx, mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 

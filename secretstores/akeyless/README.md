@@ -136,29 +136,29 @@ curl http://localhost:3500/v1.0/secrets/akeyless/bulk?metadata.secrets_type=stat
 Or using the Dapr SDK. The example below retrieves all static secrets from path `/path/to/department`.
 ```go
 log.Println("Starting test application")
-	client, err := dapr.NewClient()
-	if err != nil {
-		log.Printf("Error creating Dapr client: %v\n", err)
-		panic(err)
-	}
-	log.Println("Dapr client created successfully")
-	const daprSecretStore = "akeyless"
+client, err := dapr.NewClient()
+if err != nil {
+  log.Printf("Error creating Dapr client: %v\n", err)
+  panic(err)
+}
+log.Println("Dapr client created successfully")
+const daprSecretStore = "akeyless"
 
-	defer client.Close()
-	ctx := context.Background()
-	akeylessBulkMetadata := map[string]string{
-		"path":         "/path/to/department",
-		"secrets_type": "static",
-	}
-	secrets, err := client.GetBulkSecret(ctx, daprSecretStore, akeylessBulkMetadata)
-	if err != nil {
-		log.Printf("Error fetching secrets: %v\n", err)
-		panic(err)
-	}
-	log.Printf("Found %d secrets: ", len(secrets))
-	for secretName, secretValue := range secrets {
-		log.Printf("Secret: %s, Value: %s", secretName, secretValue)
-	}
+defer client.Close()
+ctx := context.Background()
+akeylessBulkMetadata := map[string]string{
+  "path":         "/path/to/department",
+  "secrets_type": "static",
+}
+secrets, err := client.GetBulkSecret(ctx, daprSecretStore, akeylessBulkMetadata)
+if err != nil {
+  log.Printf("Error fetching secrets: %v\n", err)
+  panic(err)
+}
+log.Printf("Found %d secrets: ", len(secrets))
+for secretName, secretValue := range secrets {
+  log.Printf("Secret: %s, Value: %s", secretName, secretValue)
+}
 ```
 
 ## Features

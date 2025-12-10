@@ -36,6 +36,13 @@ metadata:
       The table attribute name which should be used for TTL.
     example: '"expiresAt"'
     type: string
+  - name: ttlInSeconds
+    required: false
+    description: |
+      Allows specifying a Time-to-live (TTL) in seconds that will be applied to every state store request unless TTL is explicitly defined via the request metadata. If set to zero or less, no default TTL is applied, and items will only expire if a TTL is explicitly provided in the request metadata with if ttlAttributeName is set.
+    example: '"600"'
+    default: "0"
+    type: number
   - name: partitionKey
     required: false
     description: |

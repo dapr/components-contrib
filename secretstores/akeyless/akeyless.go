@@ -97,14 +97,14 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 	a.logger.Debugf("getting access type display name for character '%s'...", accessTypeChar)
 	accessType, err := getAccessTypeDisplayName(accessTypeChar)
 	if err != nil {
-		return errors.New("unable to get access type display name, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
+		return errors.New("unable to get access type from character '" + accessTypeChar + "': " + err.Error())
 	}
 
 	a.logger.Debugf("authenticating using access type '%s'", accessType)
 
 	// Depending on the access type we set the appropriate authentication method
 	switch accessType {
-	case DEFAULT_AUTH_TYPE:
+	case AUTH_DEFAULT:
 		if metadata.AccessKey == "" {
 			return errors.New("accessKey is required for API key authentication")
 		}

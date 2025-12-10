@@ -20,7 +20,7 @@ import (
 
 const (
 	AUTH_JWT                   = "jwt"
-	DEFAULT_AUTH_TYPE          = "access_key"
+	AUTH_DEFAULT               = "access_key"
 	AUTH_IAM                   = "aws_iam"
 	AUTH_K8S                   = "k8s"
 	PUBLIC_GATEWAY_URL         = "https://api.akeyless.io"
@@ -43,7 +43,7 @@ var supportedSecretTypes = []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROT
 
 // AccessTypeCharMap maps single-character access types to their display names.
 var accessTypeCharMap = map[string]string{
-	"a": DEFAULT_AUTH_TYPE,
+	"a": AUTH_DEFAULT,
 	"o": AUTH_JWT,
 	"w": AUTH_IAM,
 	"k": AUTH_K8S,

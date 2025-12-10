@@ -443,24 +443,23 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 	a.mu.RUnlock()
 
 	describeItem.SetToken(token)
-	describeItemResp, httpResponse, err := a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
 
-	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-		a.logger.Debug("received 401 unauthorized, re-authenticating...")
-		if err := a.ensureValidToken(ctx); err != nil {
-			return "", fmt.Errorf("failed to re-authenticate after 401: %w", err)
-		}
-
-		a.mu.RLock()
-		token = a.token
-		a.mu.RUnlock()
-
-		describeItem.SetToken(token)
-		describeItemResp, _, err = a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
-	}
+	result, _, err := a.executeWithRetryOn401(
+		ctx,
+		"DescribeItem",
+		describeItem,
+		func(newToken string) {
+			describeItem.SetToken(newToken)
+		},
+	)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
+	}
+
+	describeItemResp, ok := result.(*akeyless.Item)
+	if !ok {
+		return "", fmt.Errorf("unexpected result type from DescribeItem: %T", result)
 	}
 
 	if describeItemResp.ItemType == nil {
@@ -468,6 +467,107 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 	}
 
 	return *describeItemResp.ItemType, nil
+}
+
+// executeWithRetryOn401 executes an API call using reflection and retries once if it receives a 401 Unauthorized response.
+// It takes the method name (e.g., "GetSecretValue"), the body object, and a function to update the token in the body.
+// Returns the result, httpResponse, and error using reflection.
+func (a *akeylessSecretStore) executeWithRetryOn401(
+	ctx context.Context,
+	methodName string,
+	body interface{},
+	updateToken func(string),
+) (interface{}, *http.Response, error) {
+	// Helper to get current token (with mutex protection)
+	getToken := func() string {
+		a.mu.RLock()
+		defer a.mu.RUnlock()
+		return a.token
+	}
+
+	// Helper function to execute the API call using reflection
+	executeCall := func() (interface{}, *http.Response, error) {
+		// Use reflection to call the method dynamically
+		v2Value := reflect.ValueOf(a.v2)
+		method := v2Value.MethodByName(methodName)
+		if !method.IsValid() {
+			return nil, nil, fmt.Errorf("method %s not found on V2ApiService", methodName)
+		}
+
+		// Call the method with context: a.v2.MethodName(ctx)
+		ctxValue := reflect.ValueOf(ctx)
+		callResult := method.Call([]reflect.Value{ctxValue})
+		if len(callResult) == 0 {
+			return nil, nil, fmt.Errorf("method %s returned no values", methodName)
+		}
+
+		// Get the Body() method from the result: result.Body()
+		bodyMethod := callResult[0].MethodByName("Body")
+		if !bodyMethod.IsValid() {
+			return nil, nil, fmt.Errorf("Body method not found on result of %s", methodName)
+		}
+
+		// Call Body(*body): result.Body(*body)
+		// Body() expects a value (not a pointer), so we need to dereference if it's a pointer
+		bodyValue := reflect.ValueOf(body)
+		if bodyValue.Kind() == reflect.Ptr {
+			// Dereference the pointer to get the value
+			bodyValue = bodyValue.Elem()
+		}
+		// Pass the value to Body()
+		bodyCallResult := bodyMethod.Call([]reflect.Value{bodyValue})
+		if len(bodyCallResult) == 0 {
+			return nil, nil, fmt.Errorf("Body method returned no values")
+		}
+
+		// Get the Execute() method: result.Body(*body).Execute()
+		executeMethod := bodyCallResult[0].MethodByName("Execute")
+		if !executeMethod.IsValid() {
+			return nil, nil, fmt.Errorf("Execute method not found on Body result")
+		}
+
+		// Execute the API call: result.Body(*body).Execute()
+		executeResult := executeMethod.Call([]reflect.Value{})
+		if len(executeResult) < 3 {
+			return nil, nil, fmt.Errorf("Execute method did not return 3 values (result, response, error)")
+		}
+
+		// Extract results
+		var result interface{}
+		var httpResponse *http.Response
+		var apiErr error
+
+		if !executeResult[0].IsNil() {
+			result = executeResult[0].Interface()
+		}
+		if !executeResult[1].IsNil() {
+			httpResponse = executeResult[1].Interface().(*http.Response)
+		}
+		if !executeResult[2].IsNil() {
+			apiErr = executeResult[2].Interface().(error)
+		}
+
+		return result, httpResponse, apiErr
+	}
+
+	// Execute the API call
+	result, httpResponse, apiErr := executeCall()
+
+	// Check for 401 Unauthorized using the actual HTTP status code
+	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
+		a.logger.Debugf("received 401 unauthorized in %s, re-authenticating...", methodName)
+		if reauthErr := a.ensureValidToken(ctx); reauthErr != nil {
+			return nil, httpResponse, fmt.Errorf("failed to re-authenticate after 401: %w", reauthErr)
+		}
+		// Update token in the request object before retry
+		newToken := getToken()
+		updateToken(newToken)
+
+		// Retry the API call once
+		return executeCall()
+	}
+
+	return result, httpResponse, apiErr
 }
 
 // getSingleSecretValue gets the value of a single secret from Akeyless.
@@ -485,51 +585,28 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 	token := a.token
 	a.mu.RUnlock()
 
-	// Helper to get current token (with mutex protection)
-	getToken := func() string {
-		a.mu.RLock()
-		defer a.mu.RUnlock()
-		return a.token
-	}
-
-	retry := func(apiCall func() error, updateToken func(string)) error {
-		apiErr := apiCall()
-		if apiErr != nil {
-			// Check if it's a 401 error by examining the error string or response
-			if strings.Contains(apiErr.Error(), "401") || strings.Contains(apiErr.Error(), "Unauthorized") {
-				a.logger.Debug("received 401 unauthorized, re-authenticating...")
-				if reauthErr := a.ensureValidToken(ctx); reauthErr != nil {
-					return fmt.Errorf("failed to re-authenticate after 401: %w", reauthErr)
-				}
-				// Update token in the request object before retry
-				newToken := getToken()
-				updateToken(newToken)
-				return apiCall()
-			}
-		}
-		return apiErr
-	}
-
 	switch secretType {
 	case STATIC_SECRET_RESPONSE:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(token)
-		var secretRespMap map[string]interface{}
-		var httpResponse *http.Response
 
-		apiErr := retry(func() error {
-			var err error
-			secretRespMap, httpResponse, err = a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
-			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-				return fmt.Errorf("401 Unauthorized")
-			}
-			return err
-		}, func(newToken string) {
-			getSecretValue.SetToken(newToken)
-		})
+		result, _, apiErr := a.executeWithRetryOn401(
+			ctx,
+			"GetSecretValue",
+			getSecretValue,
+			func(newToken string) {
+				getSecretValue.SetToken(newToken)
+			},
+		)
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
+			break
+		}
+
+		secretRespMap, ok := result.(map[string]interface{})
+		if !ok {
+			err = fmt.Errorf("unexpected result type from GetSecretValue: %T", result)
 			break
 		}
 
@@ -551,22 +628,24 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 	case DYNAMIC_SECRET_RESPONSE:
 		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
 		getDynamicSecretValue.SetToken(token)
-		var secretRespMap map[string]interface{}
-		var httpResponse *http.Response
 
-		apiErr := retry(func() error {
-			var err error
-			secretRespMap, httpResponse, err = a.v2.GetDynamicSecretValue(ctx).Body(*getDynamicSecretValue).Execute()
-			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-				return fmt.Errorf("401 Unauthorized")
-			}
-			return err
-		}, func(newToken string) {
-			getDynamicSecretValue.SetToken(newToken)
-		})
+		result, _, apiErr := a.executeWithRetryOn401(
+			ctx,
+			"GetDynamicSecretValue",
+			getDynamicSecretValue,
+			func(newToken string) {
+				getDynamicSecretValue.SetToken(newToken)
+			},
+		)
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
+			break
+		}
+
+		secretRespMap, ok := result.(map[string]interface{})
+		if !ok {
+			err = fmt.Errorf("unexpected result type from GetDynamicSecretValue: %T", result)
 			break
 		}
 
@@ -597,22 +676,24 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 	case ROTATED_SECRET_RESPONSE:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
 		getRotatedSecretValue.SetToken(token)
-		var secretRespMap map[string]interface{}
-		var httpResponse *http.Response
 
-		apiErr := retry(func() error {
-			var err error
-			secretRespMap, httpResponse, err = a.v2.GetRotatedSecretValue(ctx).Body(*getRotatedSecretValue).Execute()
-			if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-				return fmt.Errorf("401 Unauthorized")
-			}
-			return err
-		}, func(newToken string) {
-			getRotatedSecretValue.SetToken(newToken)
-		})
+		result, _, apiErr := a.executeWithRetryOn401(
+			ctx,
+			"GetRotatedSecretValue",
+			getRotatedSecretValue,
+			func(newToken string) {
+				getRotatedSecretValue.SetToken(newToken)
+			},
+		)
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
+			break
+		}
+
+		secretRespMap, ok := result.(map[string]interface{})
+		if !ok {
+			err = fmt.Errorf("unexpected result type from GetRotatedSecretValue: %T", result)
 			break
 		}
 
@@ -704,26 +785,22 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
-	itemsList, httpResponse, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
-
-	// Handle 401 Unauthorized by re-authenticating and retrying once
-	// Check this BEFORE checking err, as 401 might come with an error
-	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-		a.logger.Debug("received 401 Unauthorized in list items, re-authenticating...")
-		if err := a.ensureValidToken(ctx); err != nil {
-			return nil, fmt.Errorf("failed to re-authenticate after 401: %w", err)
-		}
-
-		a.mu.RLock()
-		token = a.token
-		a.mu.RUnlock()
-
-		listItems.SetToken(token)
-		itemsList, _, err = a.v2.ListItems(ctx).Body(*listItems).Execute()
-	}
+	result, _, err := a.executeWithRetryOn401(
+		ctx,
+		"ListItems",
+		listItems,
+		func(newToken string) {
+			listItems.SetToken(newToken)
+		},
+	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	itemsList, ok := result.(*akeyless.ListItemsInPathOutput)
+	if !ok {
+		return nil, fmt.Errorf("unexpected result type from ListItems: %T", result)
 	}
 
 	// Add items from current path

@@ -118,8 +118,17 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			// Test	with TTL long enough for value to exist
 			test(metaTTL, stateValue)
 
-			// Test with expired TTL; value must not exist
-			test(metaExpiredTTL, "")
+			// Test with TTL = -1; value must still exist (no expiration) and have no ttlExpireTime
+			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), metaExpiredTTL)
+			require.NoError(t, err)
+
+			item, err := client.GetState(ctx, statestore, stateKey, nil)
+			require.NoError(t, err)
+			assert.Equal(t, stateValue, string(item.Value))
+			assert.NotContains(t, item.Metadata, "ttlExpireTime")
+
+			err = client.DeleteState(ctx, statestore, stateKey, nil)
+			require.NoError(t, err)
 
 			return nil
 		}

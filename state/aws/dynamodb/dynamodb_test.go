@@ -635,15 +635,15 @@ func TestSet(t *testing.T) {
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
 		mockedDB := &awsMock.DynamoDBClient{
 			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-				assert.Len(t, params.Item, 4)
+				// Negative TTL value means "no expiration", so TTL attribute should not be present
+				_, hasTTL := params.Item["testAttributeName"]
+				assert.False(t, hasTTL)
 
 				result := DynamoDBItem{}
 				require.NoError(t, attributevalue.UnmarshalMap(params.Item, &result))
 
 				assert.Equal(t, "someKey", result.Key)
 				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
-				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
-				assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]types.AttributeValue{
@@ -1027,7 +1027,6 @@ func TestParseTTLWithDefault(t *testing.T) {
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
 		require.NotNil(t, ttl)
-
 		// Should use explicit value (300), not default (600)
 		expectedTime := time.Now().Unix() + 300
 		assert.InDelta(t, expectedTime, *ttl, 2) // Allow 2 second tolerance
@@ -1048,7 +1047,6 @@ func TestParseTTLWithDefault(t *testing.T) {
 		ttl, err := s.parseTTL(req)
 		require.NoError(t, err)
 		require.NotNil(t, ttl)
-
 		// Should use default value (600)
 		expectedTime := time.Now().Unix() + 600
 		assert.InDelta(t, expectedTime, *ttl, 2) // Allow 2 second tolerance

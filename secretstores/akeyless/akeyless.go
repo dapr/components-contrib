@@ -150,6 +150,7 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 		}
 
 		httpClient := &http.Client{
+			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: tlsConfig,
 			},

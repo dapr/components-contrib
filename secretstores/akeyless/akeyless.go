@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	aws "github.com/akeylesslabs/akeyless-go-cloud-id/cloudprovider/aws"
 	"github.com/akeylesslabs/akeyless-go/v5"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -863,4 +865,10 @@ func (a *akeylessSecretStore) startTokenRefreshRoutine(ctx context.Context, meta
 			}
 		}
 	}()
+}
+
+func (a *akeylessSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	metadataStruct := akeylessMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	return
 }

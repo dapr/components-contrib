@@ -493,26 +493,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 			}
-			ttl, err := d.parseTTL(&req)
-			if err != nil {
-				return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %w", err)
-			}
-			twi.Put = &types.Put{
-				TableName: ptr.Of(d.table),
-				Item: map[string]types.AttributeValue{
-					d.partitionKey: &types.AttributeValueMemberS{
-						Value: req.Key,
-					},
-					"value": &types.AttributeValueMemberS{
-						Value: value,
-					},
-				},
-			}
-			if ttl != nil {
-				twi.Put.Item[d.ttlAttributeName] = &types.AttributeValueMemberN{
-					Value: strconv.FormatInt(*ttl, 10),
-				}
-			}
+			twi.Put = pd.ToPut()
 
 		case state.DeleteRequest:
 			twi.Delete = &types.Delete{

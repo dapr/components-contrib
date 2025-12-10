@@ -18,7 +18,7 @@ The Akeyless secret store component supports the following configuration options
 | Field | Required | Description | Example |
 |-------|----------|-------------|---------|
 | `gatewayUrl` | No | The Akeyless Gateway API URL. Default is https://api.akeyless.io. | `https://gw.akeyless.svc.cluster.local:8000/api/v2` |
-| `gatewayTLSCA` | No | The `base64`-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway with a self-signed or custom CA certificate. | `LS0tLS1CRUdJTi...` |
+| `gatewayTlsCa` | No | The `base64`-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway with a self-signed or custom CA certificate. | `LS0tLS1CRUdJTi...` |
 | `accessId` | Yes | The Akeyless authentication access ID. | `p-123456780wm` |
 | `jwt` | No | If using an OAuth2.0/JWT access ID, specify the JSON Web Token | `eyJ...` |
 | `accessKey` | No | If using an API Key access ID, specify the API key | `ABCD123...=` |
@@ -49,7 +49,7 @@ spec:
   metadata:
   - name: gatewayUrl
     value: "https://your-gateway.akeyless.io"
-  - name: gatewayTLSCA
+  - name: gatewayTlsCa
     value: "LS0tLS1CRUdJTi...."
   - name: accessId
     value: "p-1234Abcdam"

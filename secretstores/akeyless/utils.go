@@ -278,10 +278,10 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 	return unique, nil
 }
 
-func createTLSConfig(gatewayTLSCA string) (*tls.Config, error) {
+func createTLSConfig(gatewayTlsCa string) (*tls.Config, error) {
 
 	// Decode base64 to PEM
-	certBytes, err := base64.StdEncoding.DecodeString(gatewayTLSCA)
+	certBytes, err := base64.StdEncoding.DecodeString(gatewayTlsCa)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64-encoded gateway TLS CA: %w", err)
 	}

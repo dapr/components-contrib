@@ -142,8 +142,7 @@ func TestAuth(t *testing.T) {
 		var receivedAssertion string
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			err := r.ParseForm()
-			require.NoError(t, err)
+			require.NoError(t, r.ParseForm())
 			receivedAssertion = r.FormValue("client_assertion")
 
 			w.Header().Set("Content-Type", "application/json")

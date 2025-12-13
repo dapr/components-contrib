@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -182,6 +183,7 @@ func (p *PostgreSQL) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
+		state.FeatureKeysLike,
 	}
 }
 
@@ -530,4 +532,89 @@ func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	metadataStruct := pgMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+func (p *PostgreSQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	// Match with backslash-escaping for % and _
+	where := []string{
+		`key LIKE $1 ESCAPE '\'`,
+		`(expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
+	}
+	args := []any{req.Pattern}
+
+	// Pagination: resume strictly AFTER the last returned row_id
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		rid, err := strconv.ParseInt(*req.ContinuationToken, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
+		where = append(where, fmt.Sprintf("row_id > $%d", len(args)+1))
+		args = append(args, rid)
+	}
+
+	// Optional LIMIT: fetch one extra row to detect "has next"
+	limitClause := ""
+	var pageSize uint32
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		limitClause = fmt.Sprintf(" LIMIT $%d", len(args)+1)
+		args = append(args, pageSize+1)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT key, row_id
+		FROM %s
+		WHERE %s
+		ORDER BY row_id ASC%s`,
+		p.metadata.TableName,
+		strings.Join(where, " AND "),
+		limitClause,
+	)
+
+	rows, err := p.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type rec struct {
+		key   string
+		rowID uint64
+	}
+	list := make([]rec, 0, 256)
+
+	for rows.Next() {
+		var k string
+		var rid uint64
+		if err := rows.Scan(&k, &rid); err != nil {
+			return nil, err
+		}
+		list = append(list, rec{key: k, rowID: rid})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(list)),
+	}
+
+	// If we fetched more than a page, set the token to the last returned row's row_id
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(list)) > pageSize {
+		lastReturned := list[pageSize-1].rowID
+		tok := strconv.FormatUint(lastReturned, 10)
+		resp.ContinuationToken = &tok
+		list = list[:pageSize]
+	}
+
+	for _, r := range list {
+		resp.Keys = append(resp.Keys, r.key)
+	}
+
+	return resp, nil
 }

@@ -1,10 +1,14 @@
 # Structured Format Name Resolution
 
-The Structured Format name resolver provides a flexible way to define services and their instances in a structured format via JSON or YAML configuration files, suitable for scenarios where explicit declaration of service topology is required.
+The **Structured Format** name resolver enables you to explicitly define service instances using structured configuration in **JSON or YAML**, either as inline strings or external files. It is designed for scenarios where service topology is **static and known in advance**, such as:
+
+- Local development and testing
+- Integration or end-to-end test environments
+- Edge deployments
 
 ## Configuration Format
 
-To use the Structured Format name resolver, create a configuration in your Dapr environment:
+To enable the resolver, configure it in your Dapr `Configuration` resource:
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -15,62 +19,89 @@ spec:
   nameResolution:
     component: "structuredformat"
     configuration:
-      structuredType: "jsonString"
-      stringValue: '{"appInstances":{"myapp":[{"domain":"","ipv4":"127.0.0.1","ipv6":"","port":4433,"extendedInfo":{"hello":"world"}}]}}'
+      structuredType: "json"  # or "yaml", "jsonFile", "yamlFile"
+      stringValue: '{"appInstances":{"myapp":[{"ipv4":"127.0.0.1","port":4433}]}}'
 ```
 
-## Configuration Fields
+## Spec configuration fields
 
-| Field   | Required | Details | Example |
-|---------|----------|---------|---------|
-| structuredType  | Y | Structured type: jsonString, yamlString, jsonFile, yamlFile. | jsonString |
-| stringValue  | N | This field must be configured when structuredType is set to jsonString or yamlString. | {"appInstances":{"myapp":[{"domain":"","ipv4":"127.0.0.1","ipv6":"","port":4433,"extendedInfo":{"hello":"world"}}]}} |
-| filePath  | N | This field must be configured when structuredType is set to jsonFile or yamlFile. | /path/to/yamlfile.yaml |
+| Field            | Required? | Description                                                                 | Example |
+|------------------|-----------|-----------------------------------------------------------------------------|---------|
+| `structuredType` | Yes       | Format and source type. Must be one of: `json`, `yaml`, `jsonFile`, `yamlFile` | `json` |
+| `stringValue`    | Conditional | Required when `structuredType` is `json` or `yaml`                         | `{"appInstances":{"myapp":[{"ipv4":"127.0.0.1","port":4433}]}}` |
+| `filePath`       | Conditional | Required when `structuredType` is `jsonFile` or `yamlFile`                 | `/etc/dapr/services.yaml` |
 
+> **Important**: Only one of `stringValue` or `filePath` should be provided, based on `structuredType`.
+
+## `appInstances` Schema
+
+The configuration must contain a top-level `appInstances` object that maps **service IDs** to **lists of address instances**.
+
+### Supported Address Fields
+
+| Field    | Type   | Required? | Description |
+|----------|--------|-----------|-------------|
+| `domain` | string | No        | Hostname or FQDN (e.g., `"api.example.com"`). Highest priority. |
+| `ipv4`   | string | No        | IPv4 address in dotted-decimal format (e.g., `"192.168.1.10"`). |
+| `ipv6`   | string | No        | Unbracketed IPv6 address (e.g., `"::1"`, `"2001:db8::1"`). |
+| `port`   | int    | **Yes**   | TCP port number (**must be 1–65535**). |
+
+> **Notes**:
+> - Service IDs must be non-empty strings.
+> - **At least one** of `domain`, `ipv4`, or `ipv6` must be non-empty per instance.
+> - Invalid or missing ports will cause initialization to fail.
+
+## Address Selection Logic
+
+For each instance, the resolver selects the **first non-empty address** in this priority order:
+
+1. `domain` → e.g., `github.com`  
+2. `ipv4` → e.g., `192.168.1.10`  
+3. `ipv6` → e.g., `::1`
+
+The final target address is formatted as:
+
+- `host:port` for domain/IPv4  
+- `[ipv6]:port` for IPv6 (automatically bracketed)
+
+If a service has **multiple instances**, one is selected **uniformly at random** on each call.
 
 ## Examples
 
+### Inline JSON
 ```yaml
-apiVersion: dapr.io/v1alpha1
-kind: Configuration
-metadata:
-  name: appconfig
-spec:
-  nameResolution:
-    component: "structuredformat"
-    configuration:
-      structuredType: "jsonString"
-      stringValue: '{"appInstances":{"myapp":[{"domain":"","ipv4":"127.0.0.1","ipv6":"","port":4433,"extendedInfo":{"hello":"world"}}]}}'
+configuration:
+  structuredType: "json"
+  stringValue: '{"appInstances":{"myapp":[{"ipv4":"127.0.0.1","port":4433}]}}'
+```
+→ Resolves `"myapp"` to `127.0.0.1:4433`
+
+### Inline YAML (multi-line)
+```yaml
+configuration:
+  structuredType: "yaml"
+  stringValue: |
+    appInstances:
+      myapp:
+        - domain: "example.com"
+          port: 80
+        - ipv6: "::1"
+          port: 8080
+```
+→ Possible results: `example.com:80` or `[::1]:8080` (chosen randomly)
+
+### From External File
+```yaml
+configuration:
+  structuredType: "yamlFile"
+  filePath: "/etc/dapr/services.yaml"
 ```
 
+With `/etc/dapr/services.yaml`:
 ```yaml
-apiVersion: dapr.io/v1alpha1
-kind: Configuration
-metadata:
-  name: appconfig
-spec:
-  nameResolution:
-    component: "structuredformat"
-    configuration:
-      structuredType: "yamlString"
-      stringValue: |
-        appInstances:
-          myapp:
-           - domain: ""
-             ipv4: "127.0.0.1"
-             ipv6: ""
-             port: 4433
-             extendedInfo:
-               hello: world
+appInstances:
+  backend:
+    - ipv4: "10.0.0.5"
+      port: 3000
 ```
-
-- Service ID "myapp" → "127.0.0.1:4433"
-
-
-## Notes
-
-- Empty service IDs are not allowed and will result in an error
-- Accessing a non-existent service will also result in an error
-- The structured format string must be provided in the configuration
-- The program selects the first available address according to the priority order: domain → IPv4 → IPv6, and appends the port to form the final target address
-
+→ Resolves `"backend"` to `10.0.0.5:3000`

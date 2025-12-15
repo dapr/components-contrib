@@ -16,14 +16,14 @@ authenticationProfiles:
   - title: "Username and password"
     description: "Authenticate using username and password."
     metadata:
-      - name: Username
+      - name: username
         type: string
         required: false
         description: |
           Username for ClickHouse host. Defaults to empty.
         example: "default"
         default: ""
-      - name: Password
+      - name: password
         type: string
         required: false
         sensitive: true
@@ -33,17 +33,17 @@ authenticationProfiles:
         example: "mypassword"
         default: ""
 metadata:
-  - name: ClickhouseURL
+  - name: clickhouseUrl
     required: true
     description: Connection string for the ClickHouse host
     example: "tcp://localhost:9000"
     type: string
-  - name: DatabaseName
+  - name: databaseName
     required: true
     description: The database name to use. Will be created if database does not exist.
     example: "dapr_state_store"
     type: string
-  - name: TableName
+  - name: tableName
     required: true
     description: The table name to use. Will be created if table does not exist.
     example: "state"

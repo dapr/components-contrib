@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -169,14 +169,14 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name: "Missing database name",
 			properties: map[string]string{
-				"clickhouseURL": "tcp://localhost:9000",
+				"clickhouseUrl": "tcp://localhost:9000",
 			},
 			expectedErr: "ClickHouse database name is missing",
 		},
 		{
 			name: "Missing table name",
 			properties: map[string]string{
-				"clickhouseURL": "tcp://localhost:9000",
+				"clickhouseUrl": "tcp://localhost:9000",
 				"databaseName":  "test",
 			},
 			expectedErr: "ClickHouse table name is missing",
@@ -184,7 +184,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name: "Valid configuration",
 			properties: map[string]string{
-				"clickhouseURL": "tcp://localhost:9000",
+				"clickhouseUrl": "tcp://localhost:9000",
 				"databaseName":  "test",
 				"tableName":     "state",
 			},

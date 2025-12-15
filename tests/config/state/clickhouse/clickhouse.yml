@@ -6,7 +6,7 @@ spec:
   type: state.clickhouse
   version: v1
   metadata:
-  - name: clickhouseURL
+  - name: clickhouseUrl
     value: "tcp://localhost:9000"
   - name: databaseName
     value: "dapr_test"

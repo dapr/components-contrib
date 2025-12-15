@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -39,12 +39,15 @@ type StateStore struct {
 	config clickhouseMetadata
 }
 
+// maxIdentifierLength is the maximum length for database and table names in ClickHouse
+const maxIdentifierLength = 256
+
 type clickhouseMetadata struct {
-	ClickhouseURL string
-	DatabaseName  string
-	TableName     string
-	Username      string
-	Password      string
+	ClickhouseURL string `mapstructure:"clickhouseUrl"`
+	DatabaseName  string `mapstructure:"databaseName"`
+	TableName     string `mapstructure:"tableName"`
+	Username      string `mapstructure:"username"`
+	Password      string `mapstructure:"password"`
 }
 
 func NewClickHouseStateStore(logger logger.Logger) state.Store {
@@ -331,8 +334,16 @@ func parseAndValidateMetadata(metadata state.Metadata) (clickhouseMetadata, erro
 		return config, errors.New("ClickHouse database name is missing")
 	}
 
+	if len(config.DatabaseName) > maxIdentifierLength {
+		return config, fmt.Errorf("ClickHouse database name exceeds maximum length of %d characters", maxIdentifierLength)
+	}
+
 	if config.TableName == "" {
 		return config, errors.New("ClickHouse table name is missing")
+	}
+
+	if len(config.TableName) > maxIdentifierLength {
+		return config, fmt.Errorf("ClickHouse table name exceeds maximum length of %d characters", maxIdentifierLength)
 	}
 
 	return config, nil

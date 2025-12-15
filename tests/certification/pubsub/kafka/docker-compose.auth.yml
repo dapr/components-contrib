@@ -60,3 +60,14 @@ services:
       - "8080:8080"
     volumes:
       - ./data/realm-export.json:/opt/keycloak/data/import/local-realm.json
+
+  jwks:
+    image: nginx:1.27-alpine
+    hostname: jwks
+    container_name: kafka_jwks
+    environment:
+      - OIDC_CLIENT_KID
+      - OIDC_CLIENT_JWK_N
+      - OIDC_CLIENT_JWK_E
+    command: >
+      /bin/sh -c 'printf "{\n  \"keys\": [\n    {\n      \"kty\": \"RSA\",\n      \"use\": \"sig\",\n      \"alg\": \"RS256\",\n      \"kid\": \"%s\",\n      \"n\": \"%s\",\n      \"e\": \"%s\"\n    }\n  ]\n}\n" "$$OIDC_CLIENT_KID" "$$OIDC_CLIENT_JWK_N" "$$OIDC_CLIENT_JWK_E" > /usr/share/nginx/html/jwks.json && exec nginx -g "daemon off;"'

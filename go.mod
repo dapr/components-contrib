@@ -103,9 +103,9 @@ require (
 	github.com/mikeee/aws_credential_helper v0.0.1-alpha.2
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/mrz1836/postmark v1.6.1
-	github.com/nats-io/nats-server/v2 v2.9.23
-	github.com/nats-io/nats.go v1.31.0
-	github.com/nats-io/nkeys v0.4.6
+	github.com/nats-io/nats-server/v2 v2.10.27
+	github.com/nats-io/nats.go v1.39.1
+	github.com/nats-io/nkeys v0.4.10
 	github.com/open-policy-agent/opa v1.4.2
 	github.com/oracle/coherence-go-client/v2 v2.2.0
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
@@ -339,7 +339,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/miekg/dns v1.1.57 // indirect
-	github.com/minio/highwayhash v1.0.2 // indirect
+	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -351,7 +351,7 @@ require (
 	github.com/mtibben/percent v0.2.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
-	github.com/nats-io/jwt/v2 v2.5.0 // indirect
+	github.com/nats-io/jwt/v2 v2.7.3 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect

@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: etcd
+version: v1
+status: alpha
+title: "etcd"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-etcd/
+authenticationProfiles:
+  - title: "TLS Authentication"
+    description: "Connect to etcd using TLS encryption with certificates."
+    metadata:
+      - name: tlsEnable
+        type: string
+        required: true
+        description: Enable TLS authentication.
+        example: "true"
+      - name: ca
+        type: string
+        required: true
+        description: CA certificate for TLS verification.
+        example: |
+          -----BEGIN CERTIFICATE-----
+          XXX
+          -----END CERTIFICATE-----
+      - name: cert
+        type: string
+        required: true
+        description: Client certificate for TLS authentication.
+        example: |
+          -----BEGIN CERTIFICATE-----
+          XXX
+          -----END CERTIFICATE-----
+      - name: key
+        type: string
+        required: true
+        description: Client private key for TLS authentication.
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          XXX
+          -----END PRIVATE KEY-----
+metadata:
+  - name: endpoints
+    type: string
+    required: true
+    description: Comma-separated list of etcd endpoints.
+    example: "localhost:2379"
+  - name: keyPrefixPath
+    type: string
+    required: false
+    description: The key prefix path to use.
+    example: "my_key_prefix_path"
+    default: ""
+  - name: maxTxnOps
+    type: number
+    required: false
+    description: Maximum number of operations allowed in a transaction.
+    example: "128"
+    default: "128"

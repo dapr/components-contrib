@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: kubemq
+version: v1
+status: beta
+title: "KubeMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-kubemq/
+authenticationProfiles:
+  - title: "Token Authentication"
+    description: "Connect to KubeMQ using an authentication token."
+    metadata:
+      - name: authToken
+        type: string
+        required: true
+        description: The authentication token for KubeMQ.
+        example: "auth-token"
+metadata:
+  - name: address
+    type: string
+    required: true
+    description: The KubeMQ server address in format host:port.
+    example: "localhost:50000"
+  - name: clientID
+    type: string
+    required: false
+    description: The client ID for the KubeMQ connection.
+    example: "dapr-client"
+  - name: group
+    type: string
+    required: false
+    description: The consumer group name.
+    example: "my-group"
+  - name: store
+    type: bool
+    required: false
+    description: Whether to use KubeMQ Event Store (true) or Events (false).
+    example: "true"
+    default: "true"
+  - name: disableReDelivery
+    type: bool
+    required: false
+    description: Disable message re-delivery on error.
+    example: "false"
+    default: "false"

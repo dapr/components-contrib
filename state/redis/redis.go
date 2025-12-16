@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -161,9 +162,9 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	if r.clientHasJSON {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureQueryAPI}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureQueryAPI, state.FeatureKeysLike}
 	} else {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureKeysLike}
 	}
 }
 
@@ -465,19 +466,43 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	return nil
 }
 
-func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
-	seenData := false
-	seenVersion := false
-	for i := 0; i < len(vals); i += 2 {
-		field, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i]))
-		switch field {
-		case "data":
-			data, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			seenData = true
-		case "version":
-			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			version = ptr.Of(versionVal)
-			seenVersion = true
+func (r *StateStore) getKeyVersion(vals []any) (data string, version *string, err error) {
+	var seenData, seenVersion bool
+
+	// step by 2: key, value. we only expect string or byte slice
+	for i := 0; i+1 < len(vals); i += 2 {
+		switch key := vals[i].(type) {
+		case string:
+			switch key {
+			case "data":
+				if s, ok := toString(vals[i+1]); ok {
+					data = s
+					seenData = true
+				}
+			case "version":
+				if s, ok := toString(vals[i+1]); ok {
+					version = &s
+					seenVersion = true
+				}
+			}
+		case []byte:
+			switch string(key) {
+			case "data":
+				if s, ok := toString(vals[i+1]); ok {
+					data = s
+					seenData = true
+				}
+			case "version":
+				if s, ok := toString(vals[i+1]); ok {
+					version = &s
+					seenVersion = true
+				}
+			}
+		}
+
+		// Early exit once both values have been found
+		if seenData && seenVersion {
+			break
 		}
 	}
 	if !seenData || !seenVersion {
@@ -485,6 +510,17 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 	}
 
 	return data, version, nil
+}
+
+func toString(v any) (string, bool) {
+	switch x := v.(type) {
+	case string:
+		return x, true
+	case []byte:
+		return string(x), true // some allocation here unless we go to unsafe: return unsafe.String(unsafe.SliceData(x), len(x)), true
+	default:
+		return "", false
+	}
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
@@ -551,4 +587,142 @@ func (r *StateStore) GetComponentMetadata() (metadataInfo daprmetadata.MetadataM
 	settingsStruct := rediscomponent.Settings{}
 	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, daprmetadata.StateStoreType)
 	return
+}
+
+func (r *StateStore) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	glob, err := likeToRedisGlob(req.Pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pattern: %w", err)
+	}
+
+	// --- 1) Gather ALL matching keys (finish the SCAN) ---
+	cursor := "0"
+	keys := make([]string, 0, 256)
+
+	for {
+		res, err := r.client.DoRead(ctx, "SCAN", cursor, "MATCH", glob, "COUNT", 1000)
+		if err != nil {
+			return nil, fmt.Errorf("redis SCAN failed: %w", err)
+		}
+		if res == nil {
+			break
+		}
+
+		arr, ok := res.([]any)
+		if !ok || len(arr) != 2 {
+			return nil, errors.New("unexpected SCAN response")
+		}
+
+		// next cursor
+		if s, ok := toString(arr[0]); ok {
+			cursor = s
+		} else {
+			return nil, errors.New("unexpected SCAN cursor type")
+		}
+
+		// keys
+		switch ks := arr[1].(type) {
+		case []any:
+			for _, v := range ks {
+				if s, ok := toString(v); ok {
+					keys = append(keys, s)
+				}
+			}
+		case []string:
+			keys = append(keys, ks...)
+		default:
+			if s, ok := toString(arr[1]); ok && s != "" {
+				keys = append(keys, s)
+			}
+		}
+
+		if cursor == "0" {
+			break
+		}
+	}
+
+	// --- 2) Stable deterministic order ---
+	sort.Strings(keys)
+
+	// --- 3) Offset-based pagination ---
+	var pageSize uint32
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+	}
+
+	start := 0
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		if off, err := strconv.Atoi(*req.ContinuationToken); err == nil && off >= 0 {
+			start = off
+		}
+	}
+
+	if start > len(keys) {
+		start = len(keys)
+	}
+	end := len(keys)
+	if pageSize > 0 {
+		//nolint:gosec
+		if rem := len(keys) - start; rem > 0 && uint32(rem) > pageSize {
+			//nolint:gosec
+			end = start + int(pageSize)
+		}
+	}
+
+	page := keys[start:end]
+
+	var cont *string
+	if end < len(keys) {
+		next := strconv.Itoa(end)
+		cont = &next
+	}
+
+	return &state.KeysLikeResponse{
+		Keys:              page,
+		ContinuationToken: cont,
+	}, nil
+}
+
+func likeToRedisGlob(pat string) (string, error) {
+	var b strings.Builder
+	b.Grow(len(pat))
+
+	escaped := false
+	for _, r := range pat {
+		if escaped {
+			switch r {
+			case '%', '_', '\\', '*', '?', '[', ']':
+				b.WriteByte('\\')
+				b.WriteRune(r)
+			default:
+				if r == '*' || r == '?' || r == '[' {
+					b.WriteByte('\\')
+				}
+				b.WriteRune(r)
+			}
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			escaped = true
+		case '%':
+			b.WriteByte('*')
+		case '_':
+			b.WriteByte('?')
+		case '*', '?', '[':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if escaped {
+		b.WriteString(`\\`)
+	}
+	return b.String(), nil
 }

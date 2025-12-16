@@ -25,7 +25,7 @@ func TestLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
 		metadata := LangchainMetadata{
 			Key:      "test-key",
-			Model:    "gpt-4",
+			Model:    DefaultOpenAIModel,
 			CacheTTL: "10m",
 			Endpoint: "https://custom-endpoint.example.com",
 		}

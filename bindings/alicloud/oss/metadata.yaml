@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.oss
+version: v1
+status: alpha
+title: "AliCloud Object Storage Service (OSS)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/oss/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Upload file to OSS"
+authenticationProfiles:
+  - title: "AliCloud Access Key Authentication"
+    description: |
+      Authenticate using AliCloud access key credentials.
+    metadata:
+      - name: accessKeyID
+        required: false
+        description: "The AliCloud access key ID"
+        example: '"your-access-key-id"'
+        sensitive: true
+      - name: accessKeySecret
+        required: false
+        sensitive: true
+        description: "The AliCloud access key secret"
+        example: '"your-access-key-secret"'
+      - name: accessKey
+        required: false
+        description: "The AliCloud access key"
+        example: "access-key"
+metadata:
+  - name: endpoint
+    required: true
+    description: "The OSS endpoint"
+    example: "https://oss-cn-hangzhou.aliyuncs.com"
+  - name: bucket
+    required: true
+    description: "The OSS bucket name"
+    example: "your-bucket-name"
+  - name: objectKey
+    required: true
+    description: "The object key in the bucket"
+    example: "path/to/file.txt"

@@ -72,9 +72,9 @@ func Test_EndToEnd(t *testing.T) {
 			name:  "consoleLog stdout and stderr",
 			guest: guestWasm[guestWasmOutput],
 			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
-				var w http.ResponseWriter
-				var r http.Request
-				handler.ServeHTTP(w, &r)
+				r := httptest.NewRequest(http.MethodGet, "/", nil)
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, r)
 
 				// First, we expect any console logging written inline from
 				// init (main) and the request[0-9] funcs to info level.
@@ -122,7 +122,7 @@ func Test_EndToEnd(t *testing.T) {
 			name:  "rewrite",
 			guest: guestWasm[guestWasmRewrite],
 			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
-				var w http.ResponseWriter
+				w := httptest.NewRecorder()
 				u, err := url.Parse("https://test.io/v1.0/hi?name=panda")
 				if err != nil {
 					panic(err)
@@ -168,7 +168,9 @@ func Test_EndToEnd(t *testing.T) {
 				}
 				handlerFn, err := wasm.NewMiddleware(l).GetHandler(t.Context(), middleware.Metadata{Base: meta})
 				require.NoError(t, err)
-				handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					t.Log("CALLED")
+				}))
 				tc.test(t, handler, &buf)
 			})
 		}

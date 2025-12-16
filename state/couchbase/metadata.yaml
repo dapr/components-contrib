@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: couchbase
+version: v1
+status: alpha
+title: "Couchbase"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-couchbase/
+authenticationProfiles:
+  - title: "Connection String"
+    description: "Connect to Couchbase using a connection string."
+    metadata:
+      - name: couchbaseURL
+        type: string
+        required: true
+        description: The Couchbase connection string.
+        example: "couchbase://localhost"
+      - name: username
+        type: string
+        required: true
+      - name: password
+        type: string
+        required: true
+      - name: bucketName
+        type: string
+        required: true
+        description: The Couchbase bucket name.
+        example: "default"
+metadata:
+  - name: numReplicasDurableReplication
+    type: number
+    required: false
+    description: The number of replicas for durable replication.
+    example: "1"
+    default: "0"
+  - name: numReplicasDurablePersistence
+    type: number
+    required: false
+    description: The number of replicas for durable persistence.
+    example: "1"
+    default: "0"

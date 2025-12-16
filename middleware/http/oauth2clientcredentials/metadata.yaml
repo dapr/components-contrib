@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: oauth2clientcredentials
+version: v1
+status: alpha
+title: "OAuth2 Client Credentials"
+description: |
+  The OAuth2 Client Credentials middleware provides OAuth2 client credentials flow authentication.
+  It handles machine-to-machine authentication using client credentials.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/oauth2clientcredentials/
+authenticationProfiles:
+  - title: "OAuth2 Client Credentials"
+    description: "Configure OAuth2 client credentials authentication with any OAuth2 provider"
+    metadata:
+      - name: clientID
+        type: string
+        required: true
+        description: "The client ID of your application that is created as part of a credential hosted by a OAuth-enabled platform"
+        example: "client-id"
+      - name: clientSecret
+        type: string
+        required: true
+        description: "The client secret of your application that is created as part of a credential hosted by a OAuth-enabled platform"
+        sensitive: true
+        example: "client-secret"
+      - name: scopes
+        type: string
+        required: false
+        description: "A list of space-delimited, case-sensitive strings of scopes which are typically used for authorization in the application"
+        example: "https://www.googleapis.com/auth/userinfo.email"
+      - name: tokenURL
+        type: string
+        required: true
+        description: "The endpoint is used by the client to obtain an access token by presenting its authorization grant or refresh token"
+        example: "https://accounts.google.com/o/oauth2/token"
+metadata:
+  - name: pathFilter
+    type: string
+    required: false
+    description: "Regular expression to filter which paths require authentication"
+    example: "^/api/.*"
+  - name: headerName
+    type: string
+    required: true
+    description: "The authorization header name to forward to your application"
+    example: "authorization"
+  - name: endpointParamsQuery
+    type: string
+    required: false
+    description: "Specifies additional parameters for requests to the token endpoint"
+    example: "param1=value1&param2=value2"
+  - name: authStyle
+    type: number
+    required: false
+    description: "Optionally specifies how the endpoint wants the client ID & client secret sent. 0: Auto-detect (tries both ways and caches the successful way), 1: Sends client_id and client_secret in POST body as application/x-www-form-urlencoded parameters, 2: Sends client_id and client_secret using HTTP Basic Authorization"
+    example: "0"
+    default: "0"
+    allowedValues:
+      - "0"
+      - "1"
+      - "2"

@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: opa
+version: v1
+status: alpha
+title: "Open Policy Agent (OPA)"
+description: |
+  The OPA middleware allows you to enforce policies on HTTP requests using Open Policy Agent (OPA) Rego policies.
+  It evaluates incoming requests against your Rego policies and can allow, deny, or modify requests based on the policy results.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-opa/
+metadata:
+  - name: rego
+    type: string
+    required: true
+    description: "The Rego policy code that will be evaluated for each request. The policy package must be http and the policy must set data.http.allow"
+  - name: defaultStatus
+    type: number
+    required: false
+    description: "The status code to return for denied responses"
+    example: "403"
+    default: "403"
+  - name: includedHeaders
+    type: string
+    required: false
+    description: "Comma-separated set of case-insensitive headers to include in the request input. Request headers are not passed to the policy by default. Include to receive incoming request headers in the input"
+    example: "x-my-custom-header, x-jwt-header"
+  - name: readBody
+    type: string
+    required: false
+    description: "Controls whether the middleware reads the entire request body in-memory and make it available for policy decisions"
+    example: "false"

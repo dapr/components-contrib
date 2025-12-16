@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: echo
+version: v1
+status: alpha
+title: "Echo"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/echo/
+metadata: []

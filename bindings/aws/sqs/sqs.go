@@ -41,6 +41,7 @@ type AWSSQS struct {
 	closed       atomic.Bool
 }
 
+// TODO: the metadata fields need updating to use the builtin aws auth provider fully and reflect in metadata.yaml
 type sqsMetadata struct {
 	QueueName    string `json:"queueName"`
 	Region       string `json:"region"`

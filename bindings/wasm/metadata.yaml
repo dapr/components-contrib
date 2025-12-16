@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: wasm
+version: v1
+status: alpha
+title: "WebAssembly (WASM)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/wasm/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Execute WASM function"
+metadata:
+  - name: strictSandbox
+    required: false
+    description: "Strict sandbox mode. When true, uses fake sources to avoid vulnerabilities such as timing attacks."
+    example: "true"
+    default: "false"
+  - name: url
+    required: true
+    description: "The URL of the WASM file"
+    example: "https://example.com/function.wasm"

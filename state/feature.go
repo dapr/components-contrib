@@ -30,6 +30,8 @@ const (
 	FeatureDeleteWithPrefix Feature = "DELETE_WITH_PREFIX"
 	// FeaturePartitionKey is the feature that supports the partition
 	FeaturePartitionKey Feature = "PARTITION_KEY"
+	// FeatureKeysLike is the feature that supports keys like list operation.
+	FeatureKeysLike Feature = "KEYS_LIKE"
 )
 
 // Feature names a feature that can be implemented by state store components.

@@ -1,0 +1,73 @@
+version: "3.7"
+services:
+  kafka_oidc_with_certificates:
+    image: confluentinc/cp-server:7.7.5
+    hostname: kafka_oidc_with_certificates
+    container_name: kafka_oidc_with_certificates
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: kafka-topics --bootstrap-server kafka_oidc_with_certificates:29092 --list
+      start_period: 20s
+      interval: 2s
+      timeout: 2s
+      retries: 5
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '0@kafka_oidc_with_certificates:29093'
+      CLUSTER_ID: 'JikQ_wHyRRSqpLUFRjMqwA'
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAIN9092:SASL_PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAIN9092://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092,PLAIN9092://localhost:9092
+      KAFKA_SASL_ENABLED_MECHANISMS: OAUTHBEARER
+      KAFKA_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/local/protocol/openid-connect/certs
+      KAFKA_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/local
+      KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: HTTPS
+
+      # Listener configuration: PLAIN9092
+      KAFKA_LISTENER_NAME_PLAIN9092_SASL_ENABLED_MECHANISMS: OAUTHBEARER
+      KAFKA_LISTENER_NAME_PLAIN9092_OAUTHBEARER_SASL_SERVER_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerValidatorCallbackHandler
+      KAFKA_LISTENER_NAME_PLAIN9092_OAUTHBEARER_SASL_JAAS_CONFIG: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required unsecuredLoginStringClaim_sub="thePrincipalName" oauth.client.id="kafka-broker" oauth.valid.issuer.uri="http://keycloak:8080/realms/local" oauth.jwks.endpoint.uri="http://keycloak:8080/realms/local/protocol/openid-connect/certs" oauth.config.id="PLAIN9092" oauth.client.secret="kafka-broker-secret";
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.5
+    hostname: keycloak
+    container_name: keycloak
+    command: ["start-dev", "--http-enabled=true", "--health-enabled=true", "--import-realm"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
+      start_period: 20s
+      interval: 2s
+      timeout: 2s
+      retries: 5
+    environment:
+      - OIDC_CLIENT_ASSERTION_CERT_ONELINE
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HOSTNAME_URL=http://keycloak:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/realm-export.json:/opt/keycloak/data/import/local-realm.json
+
+  jwks:
+    image: nginx:1.27-alpine
+    hostname: jwks
+    container_name: kafka_jwks
+    environment:
+      - OIDC_CLIENT_KID
+      - OIDC_CLIENT_JWK_N
+      - OIDC_CLIENT_JWK_E
+    command: >
+      /bin/sh -c 'printf "{\n  \"keys\": [\n    {\n      \"kty\": \"RSA\",\n      \"use\": \"sig\",\n      \"alg\": \"RS256\",\n      \"kid\": \"%s\",\n      \"n\": \"%s\",\n      \"e\": \"%s\"\n    }\n  ]\n}\n" "$$OIDC_CLIENT_KID" "$$OIDC_CLIENT_JWK_N" "$$OIDC_CLIENT_JWK_E" > /usr/share/nginx/html/jwks.json && exec nginx -g "daemon off;"'

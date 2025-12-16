@@ -1,0 +1,48 @@
+
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: alicloud.tablestore
+version: v1
+status: stable
+title: "AliCloud Table Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/alicloudtablestore/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Write data to Table Store"
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: |
+      Authenticate using AliCloud access key credentials.
+    metadata:
+      - name: accessKeyID
+        required: true
+        description: "The AliCloud access key ID"
+        example: "access-key-id"
+      - name: accessKeySecret
+        required: true
+        sensitive: true
+        description: "The AliCloud access key secret"
+        example: "access-key-secret"
+      - name: accessKey
+        required: true
+        description: "The AliCloud access key"
+        example: "access-key"
+metadata:
+  - name: endpoint
+    required: true
+    description: "The Table Store endpoint"
+    example: '"https://your-instance.cn-hangzhou.ots.aliyuncs.com"'
+  - name: instanceName
+    required: true
+    description: "The Table Store instance name"
+    example: "instance-name"
+  - name: tableName
+    required: true
+    description: "The table name to write to"
+    example: "table-name"

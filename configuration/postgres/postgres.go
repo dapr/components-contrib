@@ -76,9 +76,24 @@ var (
 	allowedTableNameChars = regexp.MustCompile(`^[a-z0-9./_]*$`)
 )
 
+type Options struct {
+	// Disables support for authenticating with Azure AD
+	NoAzureAD bool
+
+	// Disables support for authenticating with AWS IAM
+	NoAWSIAM bool
+}
+
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
+	return NewPostgresConfigurationStoreWithOptions(logger, Options{})
+}
+
+// NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL store with options.
+func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) configuration.Store {
 	return &ConfigurationStore{
-		logger: logger,
+		logger:        logger,
+		enableAzureAD: !opts.NoAzureAD,
+		enableAWSIAM:  !opts.NoAWSIAM,
 	}
 }
 
@@ -114,21 +129,20 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 		p.awsAuthProvider.UpdatePostgres(ctx, config)
 	}
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer connCancel()
+	p.client, err = pgxpool.NewWithConfig(connCtx, config)
 	if err != nil {
 		return fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
 	}
 
-	err = pool.Ping(ctx)
+	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer pingCancel()
+	err = p.client.Ping(pingCtx)
 	if err != nil {
 		return fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
 	}
-	p.client = pool
 
-	err = p.client.Ping(ctx)
-	if err != nil {
-		return fmt.Errorf("unable to connect to configuration store: '%w'", err)
-	}
 	// check if table exists
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)

@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: zookeeper
+version: v1
+status: alpha
+title: "ZooKeeper"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-zookeeper/
+metadata:
+  - name: servers
+    type: string
+    required: true
+    description: Comma-separated list of ZooKeeper servers.
+    example: "localhost:2181"
+  - name: sessionTimeout
+    type: string
+    required: true
+    description: Session timeout in seconds.
+    example: "10s" 
+  - name: maxBufferSize
+    type: number
+    required: false
+    description: The maximum buffer size in bytes.
+    example: "1048576"
+    default: "1048576"  # 1MB
+  - name: maxConnBufferSize
+    type: number
+    required: false
+    description: The maximum connection buffer size in bytes.
+    example: "1048576"
+    default: "1048576"  # 1MB
+  - name: keyPrefixPath
+    type: string
+    required: false
+    description: The key prefix path to use.
+    example: "my_key_prefix_path"
+    default: ""

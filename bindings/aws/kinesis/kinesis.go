@@ -55,6 +55,7 @@ type AWSKinesis struct {
 	wg      sync.WaitGroup
 }
 
+// TODO: we need to clean up the metadata fields here and update this binding to use the builtin aws auth provider and reflect in metadata.yaml
 type kinesisMetadata struct {
 	StreamName          string `json:"streamName" mapstructure:"streamName"`
 	ConsumerName        string `json:"consumerName" mapstructure:"consumerName"`
@@ -73,7 +74,7 @@ const (
 	// SharedThroughput - shared throughput using checkpoint and monitoring.
 	SharedThroughput = "shared"
 
-	partitionKeyName = "partitionKey"
+	partitionKeyName = "partitionKey" // TODO: mv to metadata field instead
 )
 
 // recordProcessorFactory.
@@ -156,8 +157,15 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
+
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
-		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode))
+		// Configure the KCL worker with custom endpoints for LocalStack
+		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
+		if a.metadata.Endpoint != "" {
+			config.KinesisEndpoint = a.metadata.Endpoint
+			config.DynamoDBEndpoint = a.metadata.Endpoint
+		}
+		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
 		err = a.worker.Start()
 		if err != nil {
 			return err

@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: ratelimit
+version: v1
+status: stable
+title: "Rate Limiting"
+description: |
+  The Rate Limiting middleware provides request rate limiting functionality.
+  It can limit requests based on various criteria like IP address, user, or custom keys.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-rate-limit/
+metadata:
+  - name: maxRequestsPerSecond
+    type: number
+    required: true
+    description: "Maximum number of requests allowed per second"
+    example: "100"

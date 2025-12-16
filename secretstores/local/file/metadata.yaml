@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: local.file
+version: v1
+status: stable
+title: "Local File Secret Store"
+description: "Read secrets from a local JSON file for local development."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/file-secret-store/
+metadata:
+  - name: secretsFile
+    type: string
+    required: true
+    description: Path to the JSON file containing secrets.
+    example: "secrets.json"
+  - name: nestedSeparator
+    type: string
+    required: false
+    description: Separator used for nested keys in the JSON file.
+    example: ":"
+    default: ":"
+  - name: multiValued
+    type: bool
+    required: false
+    description: If true, enables multiple key-values per secret feature.
+    example: "false"
+    default: "false"

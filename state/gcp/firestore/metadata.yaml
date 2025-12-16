@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: gcp.firestore
+version: v1
+status: stable
+title: "GCP Firestore"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-firestore/
+authenticationProfiles:
+  - title: "Service Account Authentication"
+    description: "Authenticate using a GCP service account JSON key."
+    metadata:
+      - name: project_id
+        type: string
+        required: true
+        description: The GCP project ID.
+        example: "my-project"
+      - name: private_key_id
+        type: string
+        required: true
+        description: The private key ID from the service account JSON.
+        example: "abc123def456"
+      - name: private_key
+        type: string
+        required: true
+        description: The private key from the service account JSON.
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          XXX
+          -----END PRIVATE KEY-----
+      - name: client_email
+        type: string
+        required: true
+        description: The client email from the service account JSON.
+        example: "firestore@my-project.iam.gserviceaccount.com"
+      - name: client_id
+        type: string
+        required: true
+        description: The client ID from the service account JSON.
+        example: "123456789012345678901"
+      - name: auth_uri
+        type: string
+        required: true
+        description: The authentication URI from the service account JSON.
+        example: "https://accounts.google.com/o/oauth2/auth"
+      - name: token_uri
+        type: string
+        required: true
+        description: The token URI from the service account JSON.
+        example: "https://oauth2.googleapis.com/token"
+      - name: auth_provider_x509_cert_url
+        type: string
+        required: true
+        description: The auth provider certificate URL from the service account JSON.
+        example: "https://www.googleapis.com/oauth2/v1/certs"
+      - name: client_x509_cert_url
+        type: string
+        required: true
+        description: The client certificate URL from the service account JSON.
+        example: "https://www.googleapis.com/robot/v1/metadata/x509/firestore%40my-project.iam.gserviceaccount.com"
+  - title: "Implicit Credentials"
+    description: "Authenticate using implicit credentials (Application Default Credentials) for local development."
+    metadata:
+      - name: project_id
+        type: string
+        required: true
+        description: The GCP project ID.
+        example: "my-project"
+      - name: endpoint
+        type: string
+        required: false
+        description: The Firestore endpoint URL (for custom endpoints or emulator).
+        example: "https://firestore.googleapis.com"
+metadata:
+  - name: entity_kind
+    type: string
+    required: false
+    description: The entity kind (collection name) for storing state data.
+    example: "dapr-state"
+    default: "DaprState"
+  - name: type
+    type: string
+    required: false
+    description: The type of service account.
+    example: "service_account"
+  - name: connectionEndpoint
+    type: string
+    required: false
+    description: The Firestore connection endpoint.
+    example: "https://firestore.googleapis.com"
+  - name: noIndex
+    type: bool
+    required: false
+    description: Whether to disable indexing for the entity.
+    example: "false"
+    default: "false" 

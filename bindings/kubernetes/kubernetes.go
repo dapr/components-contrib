@@ -52,9 +52,12 @@ type EventResponse struct {
 }
 
 type kubernetesMetadata struct {
-	Namespace      string        `mapstructure:"namespace"`
-	KubeconfigPath string        `mapstructure:"kubeconfigPath"`
-	ResyncPeriod   time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec"`
+	Namespace      string `mapstructure:"namespace"`
+	KubeconfigPath string `mapstructure:"kubeconfigPath"`
+	// Note: we add mdignore to this so the metadata parser doesn't throw an error if resyncPeriodInSec on the metadata.yaml file.
+	// It has the ResyncPeriodInSec as a field, but we don't need users to see both resyncPeriod and resyncPeriodInSec,
+	// so the mdignore is just to make CI happy since we support both representations.
+	ResyncPeriod time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec" mdignore:"true"`
 }
 
 // NewKubernetes returns a new Kubernetes event input binding.
@@ -116,12 +119,15 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		fields.Everything(),
 	)
 	resultChan := make(chan EventResponse)
+	// TODO:
+	// cache.NewInformer is deprecated: Use NewInformerWithOptions instead.
+	//nolint:staticcheck
 	_, controller := cache.NewInformer(
 		watchlist,
 		&corev1.Event{},
 		k.metadata.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
+			AddFunc: func(obj any) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "add",
@@ -132,7 +138,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 					k.logger.Warnf("Nil Object in Add handle %v", obj)
 				}
 			},
-			DeleteFunc: func(obj interface{}) {
+			DeleteFunc: func(obj any) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "delete",
@@ -143,7 +149,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 					k.logger.Warnf("Nil Object in Delete handle %v", obj)
 				}
 			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
+			UpdateFunc: func(oldObj, newObj any) {
 				if oldObj != nil && newObj != nil {
 					resultChan <- EventResponse{
 						Event:  "update",

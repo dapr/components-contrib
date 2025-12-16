@@ -18,13 +18,13 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms/openai"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms/googleai"
 )
 
 type GoogleAI struct {
@@ -41,8 +41,6 @@ func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	return g
 }
 
-const defaultModel = "gemini-1.5-flash"
-
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
@@ -50,17 +48,16 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model := defaultModel
-	if md.Model != "" {
-		model = md.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetGoogleAIModel(md.Model)
 
-	opts := []googleai.Option{
-		googleai.WithAPIKey(md.Key),
-		googleai.WithDefaultModel(model),
+	opts := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(md.Key),
+		// endpoint from https://ai.google.dev/gemini-api/docs/openai
+		openai.WithBaseURL("https://generativelanguage.googleapis.com/v1beta/openai/"),
 	}
-	llm, err := googleai.New(
-		ctx,
+	llm, err := openai.New(
 		opts...,
 	)
 	if err != nil {

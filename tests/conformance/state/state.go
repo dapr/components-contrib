@@ -27,7 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/dapr/components-contrib/common/proto/state/sqlserver"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -450,6 +452,36 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assertEquals(t, scenario.value, res)
 			}
 		}
+	})
+
+	t.Run("set and get proto", func(t *testing.T) {
+		if !config.HasOperation("actorStateStore") {
+			t.Skipf("skipping test for %s", config.ComponentName)
+		}
+
+		protoBytes, err := proto.Marshal(&sqlserver.TestEvent{
+			EventId: -1,
+		})
+		require.NoError(t, err)
+
+		err = statestore.Set(t.Context(), &state.SetRequest{
+			Key:   key + "-proto",
+			Value: protoBytes,
+		})
+		require.NoError(t, err)
+
+		// Request immediately
+		res, err := statestore.Get(t.Context(), &state.GetRequest{
+			Key: key + "-proto",
+		})
+		require.NoError(t, err)
+		assertEquals(t, protoBytes, res)
+
+		response := &sqlserver.TestEvent{}
+		err = proto.Unmarshal(res.Data, response)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, -1, response.GetEventId())
 	})
 
 	if config.HasOperation("query") {
@@ -1340,6 +1372,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			t.Run("set and get expire time", func(t *testing.T) {
+				if config.ComponentName == "sqlserver" ||
+					config.ComponentName == "sqlserver.docker" {
+					t.Skip()
+				}
+
 				now := time.Now()
 				err := statestore.Set(t.Context(), &state.SetRequest{
 					Key:   key + "-ttl-expire-time",
@@ -1583,6 +1620,390 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		t.Run("DeleteWithPrefix feature not present", func(t *testing.T) {
 			features := statestore.Features()
 			require.False(t, state.FeatureDeleteWithPrefix.IsPresent(features))
+		})
+	}
+
+	if config.HasOperation("keyslike") {
+		keys := []string{
+			"prefix||key1",
+			"prefix||key2",
+			"prefix||prefix2||key3",
+			"other-prefix||key1",
+			"no-prefix",
+			"abc1",
+			"abc2",
+			"abc3",
+			"abc33",
+			"xyz1",
+			"xyz2",
+			"xyz3",
+		}
+
+		var store state.KeysLiker
+		t.Run("component implements KeysLiker interface", func(t *testing.T) {
+			var ok bool
+			store, ok = statestore.(state.KeysLiker)
+			require.True(t, ok)
+		})
+
+		t.Run("KeysLike feature present", func(t *testing.T) {
+			features := statestore.Features()
+			require.True(t, state.FeatureKeysLike.IsPresent(features))
+		})
+
+		t.Run("empty", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "",
+			})
+			require.ErrorIs(t, err, state.ErrKeysLikeEmptyPattern)
+			assert.Nil(t, got)
+		})
+
+		t.Run("check simple keys", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+
+			for _, key := range got.Keys {
+				require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key: key,
+				}))
+			}
+
+			for _, key := range keys {
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+					Key:   key,
+					Value: []byte("value for " + key),
+				}))
+			}
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			assert.ElementsMatch(t, keys, got.Keys)
+			assert.Nil(t, got.ContinuationToken)
+		})
+
+		t.Run("matching", func(t *testing.T) {
+			for pattern, exp := range map[string][]string{
+				"%": keys,
+				"prefix||%": {
+					"prefix||key1",
+					"prefix||key2",
+					"prefix||prefix2||key3",
+				},
+				"%key1": {
+					"prefix||key1",
+					"other-prefix||key1",
+				},
+				"%||%": {
+					"prefix||key1",
+					"prefix||key2",
+					"prefix||prefix2||key3",
+					"other-prefix||key1",
+				},
+				"%||%||%": {
+					"prefix||prefix2||key3",
+				},
+				"abc_": {
+					"abc1",
+					"abc2",
+					"abc3",
+				},
+			} {
+				t.Run(pattern, func(t *testing.T) {
+					got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+						Pattern: pattern,
+					})
+					require.NoError(t, err)
+					assert.ElementsMatchf(t, exp, got.Keys, "pattern: %s", pattern)
+				})
+			}
+		})
+
+		t.Run("page size", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			require.Len(t, got.Keys, 12)
+			assert.ElementsMatch(t, keys, got.Keys)
+			assert.Nil(t, got.ContinuationToken)
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:  "%",
+				PageSize: ptr.Of(uint32(6)),
+			})
+			require.NoError(t, err)
+			require.Len(t, got.Keys, 6)
+
+			gotKeys := got.Keys
+			require.NotNil(t, got.ContinuationToken)
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				PageSize:          ptr.Of(uint32(5)),
+				ContinuationToken: got.ContinuationToken,
+			})
+			require.NoError(t, err)
+			require.Len(t, got.Keys, 5)
+			gotKeys = append(gotKeys, got.Keys...)
+			require.NotNil(t, got.ContinuationToken)
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				PageSize:          ptr.Of(uint32(100)),
+				ContinuationToken: got.ContinuationToken,
+			})
+			require.NoError(t, err)
+			require.Len(t, got.Keys, 1)
+			gotKeys = append(gotKeys, got.Keys...)
+			require.Nil(t, got.ContinuationToken)
+
+			assert.ElementsMatch(t, keys, gotKeys)
+		})
+
+		t.Run("no page size limit", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+
+			for _, key := range got.Keys {
+				require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key: key,
+				}))
+			}
+
+			for i := range 1025 {
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+					Key:   strconv.Itoa(i),
+					Value: nil,
+				}))
+			}
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			assert.Len(t, got.Keys, 1025)
+			assert.Nil(t, got.ContinuationToken)
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:  "%",
+				PageSize: ptr.Of(uint32(100000)),
+			})
+			require.NoError(t, err)
+			assert.Len(t, got.Keys, 1025)
+			assert.Nil(t, got.ContinuationToken)
+		})
+
+		t.Run("escaping", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			for _, key := range got.Keys {
+				require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key: key,
+				}))
+			}
+
+			keys := []string{
+				"%",
+				"hello%%wor.kflow",
+				"%%wor.kflow",
+				"hello%%",
+				"_",
+				"hello_workflow",
+				"_workflow",
+				"hello_",
+				"%hello_workflow%_yoyo",
+			}
+			for _, key := range keys {
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+					Key: key,
+				}))
+			}
+
+			for pattern, exp := range map[string][]string{
+				"%": keys,
+				"hello%": {
+					"hello%%wor.kflow",
+					"hello%%",
+					"hello_workflow",
+					"hello_",
+				},
+				"hello_": {
+					"hello_",
+				},
+				"hello_workflo_": {
+					"hello_workflow",
+				},
+				`hello\_workflow`: {
+					"hello_workflow",
+				},
+				`hello\_`: {
+					"hello_",
+				},
+				`hello%%`: {
+					"hello%%wor.kflow",
+					"hello%%",
+					"hello_workflow",
+					"hello_",
+				},
+				`hello\%\%`: {
+					"hello%%",
+				},
+				`hello%\%`: {
+					"hello%%",
+				},
+				`hello\%\%%wor.kflow`: {
+					"hello%%wor.kflow",
+				},
+				`\%hello\_workflow\%\_yoyo`: {
+					"%hello_workflow%_yoyo",
+				},
+			} {
+				t.Run(pattern, func(t *testing.T) {
+					got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+						Pattern: pattern,
+					})
+					require.NoError(t, err)
+					assert.ElementsMatchf(t, exp, got.Keys, "pattern: %s", pattern)
+				})
+			}
+		})
+
+		t.Run("pagination deleted", func(t *testing.T) {
+			got1, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			for _, key := range got1.Keys {
+				require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key: key,
+				}))
+			}
+
+			keys1 := []string{
+				"key1",
+				"key2",
+				"key3",
+				"key4",
+			}
+
+			for _, key := range keys1 {
+				require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+					Key: key,
+				}))
+			}
+			got2, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:  "%",
+				PageSize: ptr.Of(uint32(3)),
+			})
+			require.NoError(t, err)
+			assert.Len(t, got2.Keys, 3)
+			assert.NotNil(t, got2.ContinuationToken)
+
+			require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{Key: "key1"}))
+			require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{Key: "key3"}))
+
+			require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+				Key: "key5",
+			}))
+			require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+				Key: "key0",
+			}))
+
+			got3, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				ContinuationToken: got2.ContinuationToken,
+			})
+			require.NoError(t, err)
+			assert.GreaterOrEqual(t, len(got3.Keys), 1)
+			assert.Nil(t, got3.ContinuationToken)
+
+			got4, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
+				PageSize:          ptr.Of(uint32(3)),
+			})
+			require.NoError(t, err)
+			assert.Len(t, got4.Keys, 3)
+			assert.NotNil(t, got4.ContinuationToken)
+
+			gotX, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
+				PageSize:          ptr.Of(uint32(2)),
+			})
+			require.NoError(t, err)
+			assert.Len(t, gotX.Keys, 2)
+			assert.NotNil(t, gotX.ContinuationToken)
+
+			got5, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "%",
+				ContinuationToken: got3.ContinuationToken,
+			})
+			require.NoError(t, err)
+			assert.Len(t, got5.Keys, 4)
+			assert.Nil(t, got5.ContinuationToken)
+		})
+
+		t.Run("expiration", func(t *testing.T) {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			for _, key := range got.Keys {
+				require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+					Key: key,
+				}))
+			}
+
+			require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+				Key:      "1",
+				Metadata: map[string]string{"ttlInSeconds": "1"},
+			}))
+			require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+				Key: "2",
+			}))
+			require.NoError(t, statestore.Set(t.Context(), &state.SetRequest{
+				Key:      "3",
+				Metadata: map[string]string{"ttlInSeconds": "1"},
+			}))
+
+			time.Sleep(time.Second * 5)
+
+			got, err = store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern: "%",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"2"}, got.Keys)
+			assert.Nil(t, got.ContinuationToken)
+		})
+
+		got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+			Pattern: "%",
+		})
+		require.NoError(t, err)
+		for _, key := range got.Keys {
+			require.NoError(t, statestore.Delete(t.Context(), &state.DeleteRequest{
+				Key: key,
+			}))
+		}
+	} else {
+		t.Run("component does not implement KeysLike interface", func(t *testing.T) {
+			_, ok := statestore.(state.KeysLiker)
+			require.False(t, ok)
+		})
+
+		t.Run("KeysLike feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			require.False(t, state.FeatureKeysLike.IsPresent(features))
 		})
 	}
 }

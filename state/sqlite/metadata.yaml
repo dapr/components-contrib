@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: sqlite
+version: v1
+status: stable
+title: "SQLite"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-sqlite/
+authenticationProfiles:
+  - title: "Connection String"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        type: string
+        required: true
+        description: The SQLite database connection string.
+metadata:
+  - name: timeout
+    type: string
+    required: false
+    description: Timeout for database requests in seconds.
+    example: "20s"
+    default: "20s"
+  - name: busyTimeout
+    type: string
+    required: false
+    description: Busy timeout for database operations in seconds.
+    example: "2s"
+    default: "2s"
+  - name: disableWAL
+    type: bool
+    required: false
+    description: Disable WAL journaling. Should not use WAL if database is stored on a network filesystem.
+    example: "false"
+    default: "false"
+  - name: tableName
+    type: string
+    required: false
+    description: The name of the table to store state data.
+    example: "state"
+  - name: metadataTableName
+    type: string
+    required: false
+    description: The name of the table to store metadata.
+    example: "metadata"
+  - name: cleanupInterval
+    type: string
+    required: false
+    description: Interval for cleanup operations in seconds. Set to 0 to disable.
+    example: "0s"
+    default: "0s"

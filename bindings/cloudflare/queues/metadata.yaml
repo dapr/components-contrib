@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: cloudflare.queues
+version: v1
+status: alpha
+title: "Cloudflare Queues"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/cloudflare-queues/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send message to Cloudflare Queue"
+    - name: read
+      description: "Receive messages from Cloudflare Queue"
+authenticationProfiles:
+  - title: "API Token Authentication"
+    description: |
+      Authenticate using Cloudflare API token and account ID. Dapr will create/manage the worker.
+    metadata:
+      - name: cfAPIToken
+        required: true
+        sensitive: true
+        description: "The Cloudflare API token"
+        example: "api-token"
+      - name: cfAccountID
+        required: true
+        description: "The Cloudflare account ID"
+        example: "account-id"
+      - name: key
+        required: true
+        sensitive: true
+        description: "The Ed25519 private key in PKCS#8 PEM format for JWT signing"
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
+      - name: workerName
+        required: true
+        description: "The worker name for JWT token audience"
+        example: "worker"
+  - title: "Connect to Pre-deployed Worker"
+    description: |
+      Connect to a worker that has been pre-deployed and is ready to use. No API tokens needed.
+    metadata:
+      - name: workerUrl
+        required: true
+        description: "The Cloudflare worker URL"
+        example: "https://your-worker.your-subdomain.workers.dev"
+      - name: key
+        required: true
+        sensitive: true
+        description: "The Ed25519 private key in PKCS#8 PEM format for JWT signing"
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
+      - name: workerName
+        required: true
+        description: "The worker name for JWT token audience"
+        example: "my-worker"
+metadata:
+  - name: queueName
+    required: true
+    description: "The Cloudflare queue name"
+    example: "my-queue"
+  - name: timeoutInSeconds
+    required: false
+    description: "Timeout for network requests in seconds"
+    example: '20'
+    default: '20'

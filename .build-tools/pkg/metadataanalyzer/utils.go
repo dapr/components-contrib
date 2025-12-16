@@ -120,7 +120,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "crypto":
+		case "cryptography":
 			method, methodFinderErr = getConstructorMethod("contribCrypto.SubtleCrypto", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
@@ -136,6 +136,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 				methodFound = true
 			}
 		}
+		// TODO: add conversation, nameresolution
 
 		if methodFound {
 			pkgs[packageName] = PkgInfo{

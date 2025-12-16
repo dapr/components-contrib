@@ -16,7 +16,6 @@ package sqlserver
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -288,15 +287,8 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		}
 	}
 
-	bytes, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		s.logger.
-			WithFields(map[string]any{"error": err}).
-			Debug("error decoding base64 data. Fallback to []byte")
-		bytes = []byte(data)
-	}
 	return &state.GetResponse{
-		Data:     bytes,
+		Data:     []byte(data),
 		ETag:     ptr.Of(etag),
 		Metadata: metadata,
 	}, nil
@@ -313,23 +305,16 @@ type dbExecutor interface {
 }
 
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
-	var reqValue string
-
-	bytes, ok := req.Value.([]byte)
-	if !ok {
-		bt, err := json.Marshal(req.Value)
-		if err != nil {
-			return err
-		}
-		reqValue = string(bt)
-	} else {
-		reqValue = base64.StdEncoding.EncodeToString(bytes)
+	var err error
+	var bytes []byte
+	bytes, err = utils.Marshal(req.Value, json.Marshal)
+	if err != nil {
+		return err
 	}
-
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.HasETag() {
 		var b []byte
-		b, err := hex.DecodeString(*req.ETag)
+		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
@@ -342,14 +327,13 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	var res sql.Result
-	var err error
 	if req.Options.Concurrency == state.FirstWrite {
 		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", reqValue), etag,
+			sql.Named("Data", string(bytes)), etag,
 			sql.Named("FirstWrite", 1), sql.Named("TTL", ttl))
 	} else {
 		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", reqValue), etag,
+			sql.Named("Data", string(bytes)), etag,
 			sql.Named("FirstWrite", 0), sql.Named("TTL", ttl))
 	}
 
@@ -403,4 +387,78 @@ func (s *SQLServer) CleanupExpired() error {
 		return s.gc.CleanupExpired()
 	}
 	return nil
+}
+
+func (s *SQLServer) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	table := fmt.Sprintf(`[%s].[%s]`, s.metadata.SchemaName, s.metadata.TableName)
+
+	baseWhere := `WHERE [Key] LIKE @pat ESCAPE '\' AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())`
+
+	args := []any{
+		sql.Named("pat", req.Pattern),
+	}
+
+	seekClause := ``
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		seekClause = ` AND [Key] > @token`
+		args = append(args, sql.Named("token", *req.ContinuationToken))
+	}
+
+	orderBy := ` ORDER BY [Key] ASC`
+
+	var pageSize uint32
+	var query string
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		take := int64(pageSize + 1)
+
+		query = fmt.Sprintf(`
+SELECT TOP (@take) [Key]
+FROM %s
+%s%s%s`, table, baseWhere, seekClause, orderBy)
+
+		args = append(args, sql.Named("take", take))
+	} else {
+		// No paging: return all keys (be careful on huge tables)
+		query = fmt.Sprintf(`
+SELECT [Key]
+FROM %s
+%s%s%s`, table, baseWhere, seekClause, orderBy)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0, 256)
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(keys)),
+	}
+
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(keys)) > pageSize {
+		next := keys[pageSize]
+		resp.ContinuationToken = &next
+		keys = keys[:pageSize]
+	}
+
+	resp.Keys = append(resp.Keys, keys...)
+	return resp, nil
 }

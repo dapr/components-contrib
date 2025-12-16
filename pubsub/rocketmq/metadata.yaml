@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: rocketmq
+version: v1
+status: alpha
+title: "RocketMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/
+authenticationProfiles:
+  - title: "Credential Authentication"
+    description: "Connect to RocketMQ using access key and secret key."
+    metadata:
+      - name: accessKey
+        type: string
+        required: true
+        description: The RocketMQ access key.
+        example: "access-key"
+      - name: secretKey
+        type: string
+        required: true
+        description: The RocketMQ secret key.
+        example: "secret-key"
+      - name: securityToken
+        type: string
+        required: false
+        description: The RocketMQ security token.
+        example: "security-token"
+metadata:
+  - name: nameServer
+    type: string
+    required: false
+    description: The RocketMQ name server address.
+    example: "localhost:9876"
+  - name: instanceName
+    type: string
+    required: false
+    description: The RocketMQ instance name.
+    example: "dapr-rocketmq"
+  - name: producerGroup
+    type: string
+    required: false
+    description: The producer group name.
+    example: "dapr-producer-group"
+  - name: consumerGroup
+    type: string
+    required: false
+    description: The consumer group name.
+    example: "dapr-consumer-group"
+  - name: nameSpace
+    type: string
+    required: false
+    description: The RocketMQ namespace.
+    example: "my-namespace"
+  - name: nameServerDomain
+    type: string
+    required: false
+    description: The RocketMQ name server domain.
+    example: "rocketmq.example.com"
+  - name: retries
+    type: number
+    required: false
+    description: The number of retry attempts for sending messages.
+    example: "3"
+    default: "3"
+  - name: producerQueueSelector
+    type: string
+    required: false
+    description: The producer queue selector type.
+    example: "hash"
+    allowedValues:
+      - "hash"
+      - "random"
+      - "manual"
+      - "roundRobin"
+      - "dapr"
+  - name: consumerModel
+    type: string
+    required: false
+    description: The consumer model (clustering, broadcasting).
+    example: "clustering"
+    default: "clustering"
+  - name: fromWhere
+    type: string
+    required: false
+    description: The consumption starting point.
+    example: "ConsumeFromLastOffset"
+    allowedValues:
+      - "ConsumeFromLastOffset"
+      - "ConsumeFromFirstOffset"
+      - "ConsumeFromTimestamp"
+  - name: consumeTimestamp
+    type: string
+    required: false
+    description: The timestamp for consumption starting point.
+    example: "20220817101902"
+  - name: consumeOrderly
+    type: bool
+    required: false
+    description: Enable orderly message consumption.
+    example: "false"
+    default: "false"
+  - name: consumeMessageBatchMaxSize
+    type: number
+    required: false
+    description: The maximum batch size for message consumption.
+    example: "10"
+  - name: consumeConcurrentlyMaxSpan
+    type: number
+    required: false
+    description: The maximum span for concurrent consumption.
+    example: "10"
+  - name: maxReconsumeTimes
+    type: number
+    required: false
+    description: The maximum number of reconsume times. -1 means 16 times.
+    example: "10000"
+  - name: autoCommit
+    type: bool
+    required: false
+    description: Enable automatic commit.
+    example: "true"
+    default: "false"
+  - name: consumeTimeout
+    type: number
+    required: false
+    description: The consume timeout in minutes.
+    example: "10"
+  - name: consumerPullTimeout
+    type: number
+    required: false
+    description: The consumer pull timeout in milliseconds.
+    example: "30"
+    default: "30"
+  - name: pullInterval
+    type: number
+    required: false
+    description: The pull interval in minutes.
+    example: "100"
+    default: "100"
+  - name: consumerBatchSize
+    type: number
+    required: false
+    description: The consumer batch size.
+    example: "10"
+  - name: pullBatchSize
+    type: number
+    required: false
+    description: The pull batch size.
+    example: "10"
+  - name: pullThresholdForQueue
+    type: number
+    required: false
+    description: The pull threshold for queue.
+    example: "100"
+  - name: pullThresholdForTopic
+    type: number
+    required: false
+    description: The pull threshold for topic.
+    example: "100"
+  - name: pullThresholdSizeForQueue
+    type: number
+    required: false
+    description: The pull threshold size for queue.
+    example: "10"
+  - name: pullThresholdSizeForTopic
+    type: number
+    required: false
+    description: The pull threshold size for topic.
+    example: "10"
+  - name: content-type
+    type: string
+    required: false
+    description: The content type for messages.
+    example: "json"
+  - name: sendTimeOutSec
+    type: number
+    required: false
+    description: The send timeout in seconds.
+    example: "10"
+  - name: logLevel
+    type: string
+    required: false
+    description: The log level.
+    example: "warn"
+    default: "warn"
+  - name: mspProperties
+    type: string
+    required: false
+    description: The message properties to pass to the application (comma-separated).
+    example: "UNIQ_KEY,MSG_ID"
+  - name: groupName
+    type: string
+    required: false
+    description: The consumer group name (deprecated, use consumerGroup instead).
+    example: "dapr-consumer-group"
+  - name: sendTimeOut
+    type: number
+    required: false
+    description: The send timeout in nanoseconds (deprecated, use sendTimeOutSec instead).
+    example: "10000000000"

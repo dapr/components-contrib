@@ -256,3 +256,25 @@ prettier-format:
 .PHONY: conf-tests
 conf-tests:
 	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
+
+################################################################################
+# Target: wasm-test-builds                                                     #
+################################################################################
+wasm_targets := \
+	common/wasm/testdata/args \
+	common/wasm/testdata/strict \
+	bindings/wasm/testdata/args \
+	bindings/wasm/testdata/example \
+	bindings/wasm/testdata/http \
+	bindings/wasm/testdata/loop \
+	middleware/http/wasm/example \
+	middleware/http/wasm/internal/e2e-guests/config \
+	middleware/http/wasm/internal/e2e-guests/output \
+	middleware/http/wasm/internal/e2e-guests/rewrite
+
+.PHONY: wasm-test-builds
+wasm-test-builds:
+	@for target in $(wasm_targets); do \
+		echo "Building $$target"; \
+		$(MAKE) -C $$target; \
+	done

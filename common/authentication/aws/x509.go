@@ -138,28 +138,12 @@ func newX509(ctx context.Context, opts Options, cfg *aws.Config) (*x509, error) 
 }
 
 func (a *x509) Close() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	close(a.closeCh)
-	a.wg.Wait()
-
-	errs := make([]error, 2)
-	if a.clients.kafka != nil {
-		if a.clients.kafka.Producer != nil {
-			errs[0] = a.clients.kafka.Producer.Close()
-			a.clients.kafka.Producer = nil
-		}
-		if a.clients.kafka.ConsumerGroup != nil {
-			errs[1] = a.clients.kafka.ConsumerGroup.Close()
-			a.clients.kafka.ConsumerGroup = nil
-		}
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func (a *x509) getCertPEM(ctx context.Context) error {
 	// retrieve svid from spiffe context
-	svid, ok := spiffecontext.From(ctx)
+	svid, ok := spiffecontext.X509From(ctx)
 	if !ok {
 		return errors.New("no SVID found in context")
 	}
@@ -407,26 +391,6 @@ func (a *x509) UpdatePostgres(ctx context.Context, poolConfig *pgxpool.Config) {
 
 		return nil
 	}
-}
-
-func (a *x509) Kafka(opts KafkaOptions) (*KafkaClients, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// This means we've already set the config in our New function
-	// to use the SASL token provider.
-	if a.clients.kafka != nil {
-		return a.clients.kafka, nil
-	}
-
-	a.clients.kafka = initKafkaClients(opts)
-	// Note: we pass in nil for token provider,
-	// as there are no special fields for x509 auth for it.
-	err := a.clients.kafka.New(a.session, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS IAM Kafka config: %w", err)
-	}
-	return a.clients.kafka, nil
 }
 
 func (a *x509) initializeTrustAnchors() error {

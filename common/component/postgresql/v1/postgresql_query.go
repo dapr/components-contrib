@@ -49,12 +49,7 @@ func NewPostgreSQLQueryStateStore(logger logger.Logger, opts Options) state.Stor
 
 // Features returns the features available in this component.
 func (p *PostgreSQLQuery) Features() []state.Feature {
-	return []state.Feature{
-		state.FeatureETag,
-		state.FeatureTransactional,
-		state.FeatureQueryAPI,
-		state.FeatureTTL,
-	}
+	return append(p.PostgreSQL.Features(), state.FeatureQueryAPI)
 }
 
 // Query executes a query against store.

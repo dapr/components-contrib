@@ -450,7 +450,6 @@ func (aeh *AzureEventHubs) Close() (err error) {
 
 	// Remove the cached checkpoint store and metadata
 	aeh.checkpointStoreCache = nil
-	aeh.metadata = nil
 
 	return nil
 }

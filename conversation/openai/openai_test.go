@@ -34,7 +34,7 @@ func TestInit(t *testing.T) {
 			name: "with default endpoint",
 			metadata: map[string]string{
 				"key":   "test-key",
-				"model": "gpt-4",
+				"model": conversation.DefaultOpenAIModel,
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestInit(t *testing.T) {
 			name: "with custom endpoint",
 			metadata: map[string]string{
 				"key":      "test-key",
-				"model":    "gpt-4",
+				"model":    conversation.DefaultOpenAIModel,
 				"endpoint": "https://api.openai.com/v1",
 			},
 			testFn: func(t *testing.T, o *OpenAI, err error) {
@@ -59,7 +59,7 @@ func TestInit(t *testing.T) {
 			name: "with apiType azure and missing apiVersion",
 			metadata: map[string]string{
 				"key":      "test-key",
-				"model":    "gpt-4",
+				"model":    conversation.DefaultOpenAIModel,
 				"apiType":  "azure",
 				"endpoint": "https://custom-endpoint.openai.azure.com/",
 			},
@@ -72,7 +72,7 @@ func TestInit(t *testing.T) {
 			name: "with apiType azure and custom apiVersion",
 			metadata: map[string]string{
 				"key":        "test-key",
-				"model":      "gpt-4",
+				"model":      conversation.DefaultOpenAIModel,
 				"apiType":    "azure",
 				"endpoint":   "https://custom-endpoint.openai.azure.com/",
 				"apiVersion": "2025-01-01-preview",
@@ -86,7 +86,7 @@ func TestInit(t *testing.T) {
 			name: "with apiType azure but missing endpoint",
 			metadata: map[string]string{
 				"key":        "test-key",
-				"model":      "gpt-4",
+				"model":      conversation.DefaultOpenAIModel,
 				"apiType":    "azure",
 				"apiVersion": "2025-01-01-preview",
 			},

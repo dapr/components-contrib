@@ -1,32 +1,18 @@
 // list of owner who can control dapr-bot workflow
 // TODO: Read owners from OWNERS file.
 const owners = [
-    'addjuarez',
-    'amuluyavarote',
-    'artursouza',
+    'acroca',
     'berndverst',
+    'cicoyle',
     'daixiang0',
-    'DeepanshuA',
-    'elena-kolevska',
-    'halspang',
-    'ItalyPaleAle',
+    'javier-aliaga',
     'jjcollinge',
     'joshvanl',
     'mikeee',
     'msfussell',
-    'mukundansundar',
-    'pkedy',
-    'pravinpushkar',
-    'robertojrojas',
-    'RyanLettieri',
-    'shivamkm07',
-    'shubham1172',
+    'nelson-parente',
     'sicoyle',
-    'skyao',
-    'Taction',
-    'tmacam',
     'yaron2',
-    'yash-nisar',
 ]
 
 const docsIssueBodyTpl = (

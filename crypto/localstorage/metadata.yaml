@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: crypto
+name: localstorage
+version: v1
+status: alpha
+title: "Local Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-cryptography/local-storage/
+metadata:
+  - name: path
+    type: string
+    required: true
+    description: |
+      Path to a local folder where keys are stored.
+      Keys are loaded from PEM or JSON (each containing an individual JWK) files from this folder.
+    example: "/path/to/keys"

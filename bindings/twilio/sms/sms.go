@@ -33,10 +33,6 @@ import (
 
 const (
 	toNumber      = "toNumber"
-	fromNumber    = "fromNumber"
-	accountSid    = "accountSid"
-	authToken     = "authToken"
-	timeout       = "timeout"
 	twilioURLBase = "https://api.twilio.com/2010-04-01/Accounts/"
 )
 

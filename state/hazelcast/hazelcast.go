@@ -40,8 +40,8 @@ type Hazelcast struct {
 }
 
 type hazelcastMetadata struct {
-	HazelcastServers string
-	HazelcastMap     string
+	HazelcastServers string `json:"hazelcastServers" mapstructure:"hazelcastServers"`
+	HazelcastMap     string `json:"hazelcastMap" mapstructure:"hazelcastMap"`
 }
 
 // NewHazelcastStore returns a new hazelcast backed state store.

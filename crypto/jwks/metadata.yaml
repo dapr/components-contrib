@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: crypto
+name: jwks
+version: v1
+status: alpha
+title: "JWKS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-cryptography/json-web-key-sets/
+metadata:
+  - name: jwks
+    type: string
+    required: true
+    description: |
+      The JWKS to use. Can be one of:
+      - The actual JWKS as a JSON-encoded string (optionally encoded with Base64-standard).
+      - A URL to a HTTP(S) endpoint returning the JWKS.
+      - A path to a local file containing the JWKS.
+    example: "https://example.com/.well-known/jwks.json"
+  - name: requestTimeout
+    type: duration
+    required: false
+    description: |
+      Timeout for network requests, as a Go duration string.
+    example: "30s"
+    default: "30s"
+  - name: minRefreshInterval
+    type: duration
+    required: false
+    description: |
+      Minimum interval before the JWKS is refreshed, as a Go duration string.
+      Only applies when the JWKS is fetched from a HTTP(S) URL.
+    example: "10m"
+    default: "10m"
+

@@ -1,0 +1,22 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: localhost:9092
+  - name: authType
+    value: "oidc"
+  - name: oidcTokenEndpoint
+    value: "http://localhost:8080/realms/local/protocol/openid-connect/token"
+  - name: oidcClientID
+    value: "dapr-kafka-client-secret"
+  - name: oidcClientSecret
+    value: "dapr-kafka-secret"
+  - name: oidcScopes
+    value: "openid"
+  - name: disableTls
+    value: "true"

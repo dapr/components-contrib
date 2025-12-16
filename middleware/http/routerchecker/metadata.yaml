@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: routerchecker
+version: v1
+status: alpha
+title: "Router Checker"
+description: |
+  The RouterChecker HTTP middleware component leverages regexp to check the validity of HTTP request routing to prevent invalid routers from entering the Dapr cluster. In turn, the RouterChecker component filters out bad requests and reduces noise in the telemetry and log data.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-routerchecker/
+metadata:
+  - name: rule
+    type: string
+    required: true
+    description: "Regular expression to filter which paths are allowed"
+    example: "^[A-Za-z0-9/._-]+$"

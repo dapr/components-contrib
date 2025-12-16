@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: graphql
+version: v1
+status: alpha
+title: "GraphQL"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/graphql/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Execute GraphQL query or mutation"
+metadata:
+  - name: endpoint
+    required: true
+    description: "The GraphQL endpoint URL"
+    example: "https://api.example.com/graphql"

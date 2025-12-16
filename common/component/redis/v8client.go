@@ -360,9 +360,12 @@ func newV8FailoverClient(s *Settings) (RedisClient, error) {
 		}
 	}
 
-	if s.RedisType == ClusterType {
+	// If multiple sentinel addresses are provided, split them regardless of RedisType.
+	if strings.Contains(s.Host, ",") {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
+	}
 
+	if s.RedisType == ClusterType {
 		return v8Client{
 			client:       v8.NewFailoverClusterClient(opts),
 			readTimeout:  s.ReadTimeout,

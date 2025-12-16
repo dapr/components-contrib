@@ -15,6 +15,7 @@ package statechange
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	r "github.com/dancannon/gorethink"
 
@@ -44,8 +46,37 @@ type Binding struct {
 
 // StateConfig is the binding config.
 type StateConfig struct {
-	r.ConnectOpts `mapstructure:",squash"`
-	Table         string `mapstructure:"table"`
+	ConnectOptsWrapper `mapstructure:",squash"`
+	Table              string `mapstructure:"table"`
+}
+
+// ConnectOptsWrapper wraps r.ConnectOpts but excludes TLSConfig
+// This is needed because the metadata decoder does not support nested structs with tags as inputs in the metadata.yaml file
+type ConnectOptsWrapper struct {
+	Address             string        `gorethink:"address,omitempty"`
+	Addresses           []string      `gorethink:"addresses,omitempty"`
+	Database            string        `gorethink:"database,omitempty"`
+	Username            string        `gorethink:"username,omitempty"`
+	Password            string        `gorethink:"password,omitempty"`
+	AuthKey             string        `gorethink:"authkey,omitempty"`
+	Timeout             time.Duration `gorethink:"timeout,omitempty"`
+	WriteTimeout        time.Duration `gorethink:"write_timeout,omitempty"`
+	ReadTimeout         time.Duration `gorethink:"read_timeout,omitempty"`
+	KeepAlivePeriod     time.Duration `gorethink:"keep_alive_timeout,omitempty"`
+	HandshakeVersion    int           `gorethink:"handshake_version,omitempty"`
+	MaxIdle             int           `gorethink:"max_idle,omitempty"`
+	InitialCap          int           `gorethink:"initial_cap,omitempty"`
+	MaxOpen             int           `gorethink:"max_open,omitempty"`
+	DiscoverHosts       bool          `gorethink:"discover_hosts,omitempty"`
+	NodeRefreshInterval time.Duration `gorethink:"node_refresh_interval,omitempty"`
+	UseJSONNumber       bool          `gorethink:"use_json_number,omitempty"`
+	NumRetries          int           `gorethink:"num_retries,omitempty"`
+	HostDecayDuration   time.Duration `gorethink:"host_decay_duration,omitempty"`
+	UseOpentracing      bool          `gorethink:"use_opentracing,omitempty"`
+	// TLS fields must be brought in as separate fields as they will not be processed by the metadata decoder properly without this
+	EnableTLS  bool   `gorethink:"enable_tls,omitempty"`
+	ClientCert string `gorethink:"client_cert,omitempty"`
+	ClientKey  string `gorethink:"client_key,omitempty"`
 }
 
 // NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding.
@@ -64,13 +95,63 @@ func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 	b.config = cfg
 
-	ses, err := r.Connect(b.config.ConnectOpts)
+	// Convert wrapper to r.ConnectOpts
+	connectOpts := r.ConnectOpts{
+		Address:             cfg.Address,
+		Addresses:           cfg.Addresses,
+		Database:            cfg.Database,
+		Username:            cfg.Username,
+		Password:            cfg.Password,
+		AuthKey:             cfg.AuthKey,
+		Timeout:             cfg.Timeout,
+		WriteTimeout:        cfg.WriteTimeout,
+		ReadTimeout:         cfg.ReadTimeout,
+		KeepAlivePeriod:     cfg.KeepAlivePeriod,
+		HandshakeVersion:    r.HandshakeVersion(cfg.HandshakeVersion),
+		MaxIdle:             cfg.MaxIdle,
+		InitialCap:          cfg.InitialCap,
+		MaxOpen:             cfg.MaxOpen,
+		DiscoverHosts:       cfg.DiscoverHosts,
+		NodeRefreshInterval: cfg.NodeRefreshInterval,
+		UseJSONNumber:       cfg.UseJSONNumber,
+		NumRetries:          cfg.NumRetries,
+		HostDecayDuration:   cfg.HostDecayDuration,
+		UseOpentracing:      cfg.UseOpentracing,
+	}
+
+	// Configure TLS if enabled
+	if cfg.EnableTLS {
+		tlsConfig, tlsErr := createTLSConfig(cfg.ClientCert, cfg.ClientKey)
+		if tlsErr != nil {
+			return fmt.Errorf("error creating TLS config: %w", tlsErr)
+		}
+		connectOpts.TLSConfig = tlsConfig
+	}
+
+	ses, err := r.Connect(connectOpts)
 	if err != nil {
 		return fmt.Errorf("error connecting to the database: %w", err)
 	}
 	b.session = ses
 
 	return nil
+}
+
+// createTLSConfig creates a tls.Config from client certificate and key
+func createTLSConfig(clientCert, clientKey string) (*tls.Config, error) {
+	if clientCert == "" || clientKey == "" {
+		return nil, errors.New("both client certificate and key are required for TLS")
+	}
+
+	cert, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing client certificate and key: %w", err)
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}, nil
 }
 
 // Read triggers the RethinkDB scheduler.
@@ -107,7 +188,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	go func() {
 		defer b.wg.Done()
 		for readCtx.Err() == nil {
-			var change interface{}
+			var change any
 			ok := cursor.Next(&change)
 			if !ok {
 				b.logger.Errorf("error detecting change: %v", cursor.Err())
@@ -149,7 +230,7 @@ func (b *Binding) Close() error {
 	return b.session.Close()
 }
 
-func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig, error) {
+func metadataToConfig(cfg map[string]string, _ logger.Logger) (StateConfig, error) {
 	c := StateConfig{}
 
 	// prepare metadata keys for decoding

@@ -1,0 +1,178 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: lock
+name: redis
+version: v1
+status: alpha
+title: "Redis Distributed Lock"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-locks/redis-lock/
+lock:
+  operations:
+    - name: tryLock
+      description: "Attempt to acquire a distributed lock"
+    - name: unlock
+      description: "Release a distributed lock"
+authenticationProfiles:
+  - title: "Password Authentication"
+    description: |
+      Authenticate using Redis password.
+    metadata:
+      - name: redisUsername
+        required: false
+        description: "The Redis username"
+        example: "redis-user"
+      - name: redisPassword
+        required: false
+        sensitive: true
+        description: "The Redis password"
+        example: "redis-password"
+  - title: "Sentinel Authentication"
+    description: |
+      Authenticate using Redis Sentinel password.
+    metadata:
+      - name: sentinelUsername
+        required: false
+        description: "The Redis Sentinel username"
+        example: "sentinel-user"
+      - name: sentinelPassword
+        required: false
+        sensitive: true
+        description: "The Redis Sentinel password"
+        example: "sentinel-password"
+  - title: "TLS Authentication"
+    description: |
+      Authenticate using Redis TLS certificate.
+    metadata:
+      - name: clientCert
+        required: false
+        sensitive: true
+        description: "The Redis client certificate"
+        example: '"-----BEGIN CERTIFICATE-----\nXXX..."'
+      - name: clientKey
+        required: false
+        sensitive: true
+        description: "The Redis client key"
+        example: '"-----BEGIN PRIVATE KEY-----\nXXX..."'
+metadata:
+  - name: redisHost
+    required: true
+    description: "The Redis host address"
+    example: '"localhost:6379"'
+  - name: redisType
+    required: false
+    description: "The Redis type"
+    example: "node"
+    default: "node"
+    allowedValues:
+      - "node"
+      - "cluster"
+      - "sentinel"
+  - name: redisDB
+    required: false
+    description: "The Redis database number"
+    example: '0'
+    default: '0'
+  - name: redisMaxRetries
+    required: false
+    description: "Maximum Redis retries"
+    example: '3'
+    default: '3'
+  - name: redisMinRetryInterval
+    required: false
+    description: "Minimum Redis retry interval"
+    example: "8ms"
+    default: "8ms"
+  - name: redisMaxRetryInterval
+    required: false
+    description: "Maximum Redis retry interval"
+    example: "512ms"
+    default: "512ms"
+  - name: dialTimeout
+    required: false
+    description: "Dial timeout duration"
+    example: "5s"
+    default: "5s"
+  - name: readTimeout
+    required: false
+    description: "Read timeout duration"
+    example: "3s"
+    default: "3s"
+  - name: writeTimeout
+    required: false
+    description: "Write timeout duration"
+    example: "3s"
+    default: "3s"
+  - name: poolSize
+    required: false
+    description: "Connection pool size"
+    example: '10'
+    default: '10'
+  - name: poolTimeout
+    required: false
+    description: "Connection pool timeout"
+    example: "4s"
+    default: "4s"
+  - name: maxConnAge
+    required: false
+    description: "Maximum connection age"
+    example: "30m"
+    default: "30m"
+  - name: minIdleConns
+    required: false
+    description: "Minimum idle connections"
+    example: '0'
+    default: '0'
+  - name: idleTimeout
+    required: false
+    description: "Idle timeout duration"
+    example: "5m"
+    default: "5m"
+  - name: idleCheckFrequency
+    required: false
+    description: "Idle check frequency"
+    example: "1m"
+    default: "1m"
+  - name: maxRetries
+    required: false
+    description: "Maximum number of retries when attempting to acquire a lock"
+    example: '3'
+    default: '3'
+  - name: maxRetryBackoff
+    required: false
+    description: "Maximum backoff duration between retries"
+    example: "2s"
+    default: "2s"
+  - name: redeliverInterval
+    required: false
+    description: "Redeliver interval for re-attempting lock acquisition"
+    example: "15s"
+    default: "15s"
+  - name: processingTimeout
+    required: false
+    description: "Processing timeout for lock ownership"
+    example: "60s"
+    default: "60s"
+  - name: enableTLS
+    required: false
+    type: bool
+    description: "Whether to enable TLS encryption"
+    example: "false"
+    default: "false"
+  - name: useEntraID
+    required: false
+    type: bool
+    description: "Whether to use Entra ID for authentication"
+    example: "false"
+    default: "false"
+  - name: failover
+    required: false
+    type: bool
+    description: "Whether to enable failover mode (for Sentinel)"
+    example: "false"
+    default: "false"
+  - name: sentinelMasterName
+    required: false
+    description: "The Sentinel master name (used if redisType is 'sentinel')"
+    example: "mymaster"

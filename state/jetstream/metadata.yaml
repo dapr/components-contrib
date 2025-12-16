@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: jetstream
+version: v1
+status: alpha
+title: "JetStream KV"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-jetstream-kv/
+metadata:
+  - name: name
+    type: string
+    required: false
+    description: The name of the bucket to use.
+    example: "my_bucket"
+    default: "dapr.io - statestore.jetstream"
+  - name: natsURL
+    type: string
+    required: true
+    description: The NATS URL to use.
+    example: "nats://localhost:4222"
+  - name: jwt
+    type: string
+    required: false
+    description: The JWT to use.
+    example: "my_jwt"
+  - name: seedKey
+    type: string
+    required: false
+    description: The seed key to use.
+    example: "my_seed_key"
+  - name: bucket
+    type: string
+    required: true
+    description: The bucket to use.
+    example: "my_bucket"

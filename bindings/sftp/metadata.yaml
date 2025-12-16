@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: sftp
+version: v1
+status: alpha
+title: "Secure File Transfer Protocol (SFTP)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sftp/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Upload file via SFTP"
+    - name: get
+      description: "Download file from SFTP"
+    - name: delete
+      description: "Delete file from SFTP"
+    - name: list
+      description: "List files in SFTP directory"
+authenticationProfiles:
+  - title: "Password Authentication"
+    description: |
+      Authenticate using username and password.
+    metadata:
+      - name: username
+        required: true
+        description: "The SFTP username"
+        example: "sftpuser"
+      - name: password
+        required: true
+        sensitive: true
+        description: "The SFTP password"
+        example: "password"
+  - title: "Private Key Authentication"
+    description: |
+      Authenticate using username and private key.
+    metadata:
+      - name: username
+        required: true
+        description: "The SFTP username"
+        example: "sftpuser"
+      - name: privateKey
+        required: true
+        sensitive: true
+        description: "The private key for authentication"
+        example: "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+      - name: privateKeyPassphrase
+        required: false
+        sensitive: true
+        description: "The passphrase for the private key"
+        example: "your-passphrase"
+metadata:
+  - name: address
+    required: true
+    description: "The SFTP server address (host:port)"
+    example: "sftp.example.com:22"
+  - name: rootPath
+    required: true
+    description: "The root directory path on the SFTP server"
+    example: "/home/sftpuser"
+  - name: fileName
+    required: false
+    description: "The file name (can be overridden in request metadata)"
+    example: "data.txt"
+  - name: hostPublicKey
+    required: false
+    description: "The host public key for verification"
+  - name: knownHostsFile
+    required: false
+    description: "Path to the known_hosts file"
+    example: "/path/to/known_hosts"
+  - name: insecureIgnoreHostKey
+    required: false
+    description: "Skip host key verification (insecure)"
+    example: "false"
+    default: "false"

@@ -1,0 +1,191 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: jetstream
+version: v1
+status: beta
+title: "JetStream"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-jetstream/
+authenticationProfiles:
+  - title: "Basic Authentication"
+    description: "Connect to NATS JetStream without authentication."
+    metadata:
+      - name: natsURL
+        type: string
+        required: true
+        description: The NATS server URL.
+        example: "nats://localhost:4222"
+  - title: "Token Authentication"
+    description: "Connect to NATS JetStream using token authentication."
+    metadata:
+      - name: natsURL
+        type: string
+        required: true
+        description: The NATS server URL.
+        example: "nats://localhost:4222"
+      - name: token
+        type: string
+        required: true
+        description: The NATS authentication token.
+        example: "auth-token"
+  - title: "JWT Authentication"
+    description: "Connect to NATS JetStream using JWT authentication."
+    metadata:
+      - name: natsURL
+        type: string
+        required: true
+        description: The NATS server URL.
+        example: "nats://localhost:4222"
+      - name: jwt
+        type: string
+        required: true
+        description: The JWT token for authentication.
+        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      - name: seedKey
+        type: string
+        required: true
+        description: The seed key for JWT authentication.
+        example: "SUAELX7XZIRRCNOQKCXQWFN6M3EBKUTBWK6YQKL4QFLKCUQJSEZL7ZCL7KQ"
+  - title: "TLS Authentication"
+    description: "Connect to NATS JetStream using TLS client certificates."
+    metadata:
+      - name: natsURL
+        type: string
+        required: true
+        description: The NATS server URL.
+        example: "nats://localhost:4222"
+      - name: tls_client_cert
+        type: string
+        required: true
+        description: The TLS client certificate.
+        example: |
+          -----BEGIN CERTIFICATE-----
+          XXX
+          -----END CERTIFICATE-----
+      - name: tls_client_key
+        type: string
+        required: true
+        description: The TLS client private key.
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          XXX
+          -----END PRIVATE KEY-----
+metadata:
+  - name: name
+    type: string
+    required: false
+    description: The name of the JetStream connection.
+    example: "dapr-jetstream"
+    default: "dapr.io - pubsub.jetstream"
+  - name: streamName
+    type: string
+    required: false
+    description: The name of the JetStream stream.
+    example: "my-stream"
+  - name: durableName
+    type: string
+    required: false
+    description: The durable name for the consumer.
+    example: "my-durable"
+  - name: queueGroupName
+    type: string
+    required: false
+    description: The queue group name for load balancing.
+    example: "my-queue-group"
+  - name: startSequence
+    type: number
+    required: false
+    description: The starting sequence number for message delivery.
+    example: "1"
+  - name: startTime
+    type: number
+    required: false
+    description: The starting time (Unix timestamp) for message delivery.
+    example: "1640995200"
+    default: "0"
+  - name: flowControl
+    type: bool
+    required: false
+    description: Enable flow control for the consumer.
+    example: "false"
+    default: "false"
+  - name: ackWait
+    type: string
+    required: false
+    description: The acknowledgment wait time.
+    example: "30s"
+  - name: maxDeliver
+    type: number
+    required: false
+    description: The maximum number of message deliveries.
+    example: "5"
+  - name: maxAckPending
+    type: number
+    required: false
+    description: The maximum number of unacknowledged messages.
+    example: "100"
+  - name: replicas
+    type: number
+    required: false
+    description: The number of stream replicas.
+    example: "3"
+  - name: memoryStorage
+    type: bool
+    required: false
+    description: Use memory storage for the stream.
+    example: "false"
+    default: "false"
+  - name: rateLimit
+    type: number
+    required: false
+    description: The rate limit for message consumption.
+    example: "1000"
+  - name: heartbeat
+    type: string
+    required: false
+    description: The heartbeat interval.
+    example: "30s"
+  - name: deliverPolicy
+    type: string
+    required: true
+    description: The delivery policy (all, last, new, sequence, time).
+    example: "all"
+    allowedValues:
+      - "all"
+      - "last"
+      - "new"
+      - "sequence"
+      - "time"
+  - name: ackPolicy
+    type: string
+    required: false
+    description: The acknowledgment policy.
+    example: "explicit"
+    allowedValues:
+      - "explicit"
+      - "all"
+      - "none"
+    default: "explicit"
+  - name: domain
+    type: string
+    required: false
+    description: The JetStream domain.
+    example: "my-domain"
+  - name: apiPrefix
+    type: string
+    required: false
+    description: The API prefix for JetStream.
+    example: "$JS.API"
+  - name: concurrency
+    type: string
+    required: false
+    description: The concurrency mode (single, parallel).
+    example: "single"
+    default: "single"
+  - name: backOff
+    type: string
+    required: false
+    description: The backoff configuration for message delivery for the consumer.
+    example: "[1s, 2s, 4s]"

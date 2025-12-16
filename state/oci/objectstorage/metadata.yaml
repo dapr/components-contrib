@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: oci.objectstorage
+version: v1
+status: alpha
+title: "OCI Object Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-oci-objectstorage/
+authenticationProfiles:
+  - title: "API Key Authentication"
+    description: "Authenticate using OCI API key with user OCID, fingerprint, and private key."
+    metadata:
+      - name: region
+        type: string
+        required: true
+        description: The OCI region where the bucket is located.
+        example: "us-ashburn-1"
+      - name: userOCID
+        type: string
+        required: true
+        description: The OCID of the user.
+        example: "ocid1.user.oc1..example"
+      - name: fingerPrint
+        type: string
+        required: true
+        description: The fingerprint of the API key.
+        example: "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+      - name: privateKey
+        type: string
+        required: true
+        description: The private key for API authentication.
+        example: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+      - name: tenancyOCID
+        type: string
+        required: true
+        description: The OCID of the tenancy.
+        example: "ocid1.tenancy.oc1..example"
+  - title: "Instance Principal Authentication"
+    description: "Authenticate using OCI instance principal (automatically available on OCI compute instances)."
+    metadata:
+      - name: instancePrincipalAuthentication
+        type: bool
+        required: true
+        description: Set to true to use instance principal authentication.
+        example: "true"
+        default: "false"
+  - title: "Configuration File Authentication"
+    description: "Authenticate using OCI configuration file."
+    metadata:
+      - name: configFileAuthentication
+        type: bool
+        required: true
+        description: Set to true to use configuration file authentication.
+        example: "true"
+        default: "false"
+      - name: configFilePath
+        type: string
+        required: true
+        description: Path to the OCI configuration file.
+        example: "~/.oci/config"
+      - name: configFileProfile
+        type: string
+        required: false
+        description: Profile name in the OCI configuration file.
+        example: "DEFAULT"
+        default: ""
+metadata:
+  - name: bucketName
+    type: string
+    required: true
+    description: The name of the OCI Object Storage bucket.
+    example: "my-bucket"
+  - name: compartmentOCID
+    type: string
+    required: true
+    description: The OCID of the compartment containing the bucket.
+    example: "ocid1.compartment.oc1..example"
+  - name: namespace
+    type: string
+    required: false
+    description: The OCI namespace for the object storage.
+    example: "my-namespace"

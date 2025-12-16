@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: crypto
+name: azure.keyvault
+version: v1
+status: alpha
+title: "Azure Key Vault"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-cryptography/azure-key-vault/
+builtinAuthenticationProfiles:
+  - name: "azuread"
+metadata:
+  - name: vaultName
+    type: string
+    required: true
+    description: |
+      Name of the Azure Key Vault resource.
+    example: "key-vault"
+  - name: requestTimeout
+    type: duration
+    required: false
+    description: |
+      Timeout for network requests, as a Go duration string.
+    example: "30s"
+    default: "30s"

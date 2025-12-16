@@ -231,6 +231,7 @@ func (m *MySQL) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureTTL,
+		state.FeatureKeysLike,
 	}
 }
 
@@ -371,12 +372,12 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 	}
 
 	// Check if expiredate column exists - to cater cases when table was created before v1.11.
-	columnExists, err := columnExists(ctx, m.db, schemaName, stateTableName, "expiredate", m.timeout)
+	ce, err := columnExists(ctx, m.db, schemaName, stateTableName, "expiredate", m.timeout)
 	if err != nil {
 		return err
 	}
 
-	if !columnExists {
+	if !ce {
 		m.logger.Infof("Adding expiredate column to MySql state table '%s'", stateTableName)
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
 			`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP NULL;`, stateTableName))
@@ -387,6 +388,29 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 			`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, stateTableName))
 		if err != nil {
 			return err
+		}
+	}
+
+	// Check is row_id column exists - to cater cases when table was created before v1.17
+	ce, err = columnExists(ctx, m.db, schemaName, stateTableName, "row_id", m.timeout)
+	if err != nil {
+		return err
+	}
+
+	if !ce {
+		m.logger.Infof("Adding row_id column to MySql state table '%s'", stateTableName)
+		stmt := fmt.Sprintf(`
+        ALTER TABLE %s
+          ADD COLUMN row_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          ADD UNIQUE KEY row_id_uidx (row_id);`, stateTableName)
+
+		if _, err = m.db.ExecContext(ctx, stmt); err != nil {
+			// If the unique index already exists (e.g., rerun), ignore duplicate
+			// key-name errors.
+			// MySQL errno 1061 / SQLSTATE 42000; MariaDB uses the same errno.
+			if !strings.Contains(err.Error(), "Error 1061") && !strings.Contains(strings.ToLower(err.Error()), "duplicate key name") {
+				return err
+			}
 		}
 	}
 
@@ -605,27 +629,20 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
 	} else if req.Options.Concurrency == state.FirstWrite {
+		// Insert only if there's no non-expired row for this id.
+		// If a row exists but is expired, treat it as deleted and allow insert.
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
-		query = `REPLACE INTO ` + m.tableName + `
-			WITH a AS (
-				SELECT
-					? AS id,
-					? AS value,
-					? AS isbinary,
-					CURRENT_TIMESTAMP AS insertDate,
-					CURRENT_TIMESTAMP AS updateDate,
-					? AS eTag,
-					` + ttlQuery + ` AS expiredate
-				WHERE NOT EXISTS (
-					SELECT 1
-					FROM ` + m.tableName + `
-					WHERE id = ?
-						AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)
-				)
-			)
-			SELECT * FROM a`
-		params = []any{req.Key, enc, isBinary, eTag, req.Key}
+		query = `INSERT INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
+SELECT ?, ?, ?, ?, ` + ttlQuery + `
+FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM ` + m.tableName + `
+  WHERE id = ?
+    AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)
+)`
+		params = []any{req.Key, enc, eTag, isBinary, req.Key}
 	} else {
 		query = `REPLACE INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
 			VALUES (?, ?, ?, ?, ` + ttlQuery + `)`
@@ -852,4 +869,93 @@ func (m *MySQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mySQLMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+func (m *MySQL) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	var (
+		args       []any
+		whereParts []string
+	)
+
+	whereParts = append(whereParts,
+		"id LIKE ?",
+		"(expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)",
+	)
+	args = append(args, req.Pattern)
+
+	// Continue strictly AFTER the last returned row_id from previous page
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		// row_id is BIGINT UNSIGNED; parse for clarity (MySQL would coerce strings too)
+		rid, err := strconv.ParseUint(*req.ContinuationToken, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid continue token: %w", err)
+		}
+		whereParts = append(whereParts, "row_id > ?")
+		args = append(args, rid)
+	}
+
+	orderClause := " ORDER BY row_id ASC"
+
+	limitClause := ""
+	var pageSize uint32
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		// fetch one extra to detect "has next"
+		limitClause = " LIMIT ?"
+		args = append(args, pageSize+1)
+	}
+
+	//nolint:gosec
+	query := `
+		SELECT id, row_id
+		FROM ` + m.tableName + `
+		WHERE ` + strings.Join(whereParts, " AND ") + `
+	` + orderClause + limitClause
+
+	runCtx, cancel := context.WithTimeout(ctx, m.timeout)
+	defer cancel()
+
+	rows, err := m.db.QueryContext(runCtx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type rec struct {
+		id    string
+		rowID uint64
+	}
+	recs := make([]rec, 0, 256)
+	for rows.Next() {
+		var id string
+		var rid uint64
+		if err := rows.Scan(&id, &rid); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec{id: id, rowID: rid})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{Keys: make([]string, 0, len(recs))}
+
+	// If we over-fetched, set token to the LAST returned record (index pageSize-1)
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(recs)) > pageSize {
+		lastReturned := recs[pageSize-1]
+		tok := strconv.FormatUint(lastReturned.rowID, 10)
+		resp.ContinuationToken = &tok
+		recs = recs[:pageSize]
+	}
+
+	for _, r := range recs {
+		resp.Keys = append(resp.Keys, r.id)
+	}
+
+	return resp, nil
 }

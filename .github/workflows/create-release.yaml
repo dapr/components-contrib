@@ -42,7 +42,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
         run: |
-          git config user.email "daprweb@diagrid.io"
+          git config user.email "dapr@dapr.io"
           git config user.name "Dapr Bot"
           # Update origin with token
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git

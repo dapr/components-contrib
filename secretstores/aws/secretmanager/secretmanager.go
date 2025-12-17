@@ -54,7 +54,7 @@ type SecretManagerMetaData struct {
 type smSecretStore struct {
 	logger logger.Logger
 
-	secretsManagerClient       *secretsmanager.Client
+	secretsManagerClient       awsCommon.SecretsManagerClient
 	multipleKeyValuesPerSecret bool
 }
 

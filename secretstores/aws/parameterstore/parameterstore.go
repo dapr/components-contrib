@@ -58,7 +58,7 @@ type ssmSecretStore struct {
 	prefix string
 	logger logger.Logger
 
-	ssmClient *ssm.Client
+	ssmClient awsCommon.ParameterStoreClient
 }
 
 // Init creates an AWS secret manager client.
@@ -74,7 +74,7 @@ func (s *ssmSecretStore) Init(ctx context.Context, metadata secretstores.Metadat
 		Region:       m.Region,
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
-		SessionToken: "",
+		SessionToken: m.SessionToken,
 	}
 
 	config, err := awsCommon.NewConfig(ctx, configOpts)

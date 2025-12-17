@@ -19,9 +19,11 @@ import (
 	"errors"
 	"testing"
 
+	awsMock "github.com/dapr/components-contrib/common/aws/mock"
+
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	secretsmanagerTypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
-	awsMock "github.com/dapr/components-contrib/common/aws/mock"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

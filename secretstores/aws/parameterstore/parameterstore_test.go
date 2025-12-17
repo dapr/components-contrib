@@ -168,8 +168,8 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("successfully retrieve bulk secrets", func(t *testing.T) {
 		mockSSM := &awsMock.ParameterStoreClient{
 			DescribeParametersFn: func(ctx context.Context, input *ssm.DescribeParametersInput, optFns ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error) {
-				secret1 := "/aws/dev/secret1"
-				secret2 := "/aws/dev/secret2"
+				secret1 := "/aws/dev/secret1" //nolint:gosec
+				secret2 := "/aws/dev/secret2" //nolint:gosec
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []ssmTypes.ParameterMetadata{
 					{
 						Name: &secret1,
@@ -207,8 +207,8 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("successfully retrieve bulk secrets with prefix", func(t *testing.T) {
 		mockSSM := &awsMock.ParameterStoreClient{
 			DescribeParametersFn: func(ctx context.Context, input *ssm.DescribeParametersInput, optFns ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error) {
-				secret1 := "/prefix/aws/dev/secret1"
-				secret2 := "/prefix/aws/dev/secret2"
+				secret1 := "/prefix/aws/dev/secret1" //nolint:gosec
+				secret2 := "/prefix/aws/dev/secret2" //nolint:gosec
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []ssmTypes.ParameterMetadata{
 					{
 						Name: &secret1,
@@ -247,8 +247,8 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("unsuccessfully retrieve bulk secrets on get parameter", func(t *testing.T) {
 		mockSSM := &awsMock.ParameterStoreClient{
 			DescribeParametersFn: func(ctx context.Context, input *ssm.DescribeParametersInput, optFns ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error) {
-				secret1 := "/aws/dev/secret1"
-				secret2 := "/aws/dev/secret2"
+				secret1 := "/aws/dev/secret1" //nolint:gosec
+				secret2 := "/aws/dev/secret2" //nolint:gosec
 				return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []ssmTypes.ParameterMetadata{
 					{
 						Name: &secret1,

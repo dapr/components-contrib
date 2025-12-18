@@ -35,8 +35,7 @@ authenticationProfiles:
         type: string
         description: |
           The path to the OAuth Client Secret.
-        example: |
-          "/path/to/oauth2/client_secret.json"
+        example: "/path/to/oauth2/client_secret.json"
       - name: oauth2TokenCAPEM
         type: string
         description: |

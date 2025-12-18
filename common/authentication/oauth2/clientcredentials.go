@@ -33,12 +33,13 @@ import (
 // ClientCredentialsMetadata is the metadata fields which can be used by a
 // component to configure an OIDC client_credentials token source.
 type ClientCredentialsMetadata struct {
-	TokenCAPEM   string   `mapstructure:"oauth2TokenCAPEM"`
-	TokenURL     string   `mapstructure:"oauth2TokenURL"`
-	ClientID     string   `mapstructure:"oauth2ClientID"`
-	ClientSecret string   `mapstructure:"oauth2ClientSecret"`
-	Audiences    []string `mapstructure:"oauth2Audiences"`
-	Scopes       []string `mapstructure:"oauth2Scopes"`
+	TokenCAPEM       string   `mapstructure:"oauth2TokenCAPEM"`
+	TokenURL         string   `mapstructure:"oauth2TokenURL"`
+	ClientID         string   `mapstructure:"oauth2ClientID"`
+	ClientSecret     string   `mapstructure:"oauth2ClientSecret"`
+	ClientSecretPath string   `mapstructure:"oauth2ClientSecretPath"`
+	Audiences        []string `mapstructure:"oauth2Audiences"`
+	Scopes           []string `mapstructure:"oauth2Scopes"`
 }
 
 type ClientCredentialsOptions struct {

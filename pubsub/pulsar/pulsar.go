@@ -118,6 +118,8 @@ type Pulsar struct {
 	wg       sync.WaitGroup
 }
 
+var newPulsarClient = pulsar.NewClient
+
 func NewPulsar(l logger.Logger) pubsub.PubSub {
 	return &Pulsar{
 		logger:  l,
@@ -209,39 +211,30 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
 	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
+		credsOpts := oauth2.ClientCredentialsOptions{
+			Logger:       p.logger,
+			TokenURL:     m.ClientCredentialsMetadata.TokenURL,
+			CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
+			ClientID:     m.ClientCredentialsMetadata.ClientID,
+			ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
+			Scopes:       m.ClientCredentialsMetadata.Scopes,
+			Audiences:    m.ClientCredentialsMetadata.Audiences,
+		}
 		if len(m.ClientCredentialsMetadata.ClientSecretPath) > 0 {
-			_, err := oauth2.NewClientCredentials(ctx, oauth2.ClientCredentialsOptions{
-				Logger:       p.logger,
-				TokenURL:     m.ClientCredentialsMetadata.TokenURL,
-				CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
-				ClientID:     m.ClientCredentialsMetadata.ClientID,
-				ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
-				Scopes:       m.ClientCredentialsMetadata.Scopes,
-				Audiences:    m.ClientCredentialsMetadata.Audiences,
-			})
-			if err != nil {
+			if _, err := oauth2.NewClientCredentials(ctx, credsOpts); err != nil {
 				return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
 			}
 			options.Authentication = pulsar.NewAuthenticationTokenFromFile(m.ClientSecretPath)
 		} else {
-			var cc *oauth2.ClientCredentials
-			cc, err = oauth2.NewClientCredentials(ctx, oauth2.ClientCredentialsOptions{
-				Logger:       p.logger,
-				TokenURL:     m.ClientCredentialsMetadata.TokenURL,
-				CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
-				ClientID:     m.ClientCredentialsMetadata.ClientID,
-				ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
-				Scopes:       m.ClientCredentialsMetadata.Scopes,
-				Audiences:    m.ClientCredentialsMetadata.Audiences,
-			})
+			cliCreds, err := oauth2.NewClientCredentials(ctx, credsOpts)
 			if err != nil {
 				return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
 			}
-			options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
+			options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cliCreds.Token)
 		}
 	}
 
-	client, err := pulsar.NewClient(options)
+	client, err := newPulsarClient(options)
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)
 	}

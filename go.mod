@@ -69,7 +69,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20251104160704-920ad8a7b958
 	github.com/dapr/kit v0.16.1
 	github.com/didip/tollbooth/v7 v7.0.1
-	github.com/eclipse/paho.mqtt.golang v1.4.3
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.1

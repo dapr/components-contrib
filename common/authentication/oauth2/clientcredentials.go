@@ -154,6 +154,6 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	}
 
 	c.currentToken = token
-	c.log.Debugf("Token renewed successfully, new expiry: %s", token.Expiry)
+	c.log.Debugf("Oauth token renewed successfully, new expiry: %s", token.Expiry)
 	return nil
 }

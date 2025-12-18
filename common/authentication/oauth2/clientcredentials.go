@@ -143,6 +143,7 @@ func (c *ClientCredentials) Token() (string, error) {
 }
 
 func (c *ClientCredentials) renewToken(ctx context.Context) error {
+	c.log.Debug("renewing token: fetching new token from OAuth server...")
 	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 	if err != nil {
 		return err
@@ -153,5 +154,6 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	}
 
 	c.currentToken = token
+	c.log.Debugf("Token renewed successfully, new expiry: %s", token.Expiry)
 	return nil
 }

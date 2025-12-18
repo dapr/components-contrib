@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	ccreds "golang.org/x/oauth2/clientcredentials"
+
+	"github.com/dapr/kit/logger"
 )
 
 func Test_toConfig(t *testing.T) {
@@ -103,6 +105,7 @@ func Test_TokenRenewal(t *testing.T) {
 	renewed := &oauth2.Token{AccessToken: "new-token", Expiry: time.Now().Add(1 * time.Hour)}
 
 	c := &ClientCredentials{
+		log:          logger.NewLogger("test"),
 		currentToken: expired,
 		fetchTokenFn: func(ctx context.Context) (*oauth2.Token, error) {
 			return renewed, nil

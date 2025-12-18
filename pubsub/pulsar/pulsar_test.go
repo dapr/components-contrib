@@ -680,15 +680,15 @@ func TestInitUsesTokenFromFileWhenClientSecretPathProvided(t *testing.T) {
 	secretPath := writeTempFile(t, "rotating-secret")
 
 	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
 	t.Cleanup(func() {
-		newPulsarClient = pulsar.NewClient
+		p.newClientFn = pulsar.NewClient
 	})
-	newPulsarClient = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
 		capturedOpts = opts
 		return nil, nil
 	}
 
-	p := NewPulsar(logger.NewLogger("test"))
 	md := pubsub.Metadata{}
 	md.Properties = map[string]string{
 		"host":                   "localhost:6650",
@@ -710,15 +710,15 @@ func TestInitUsesTokenSupplierWhenClientSecretPathMissing(t *testing.T) {
 	server := newOAuthTestServer(t)
 
 	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
 	t.Cleanup(func() {
-		newPulsarClient = pulsar.NewClient
+		p.newClientFn = pulsar.NewClient
 	})
-	newPulsarClient = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
 		capturedOpts = opts
 		return nil, nil
 	}
 
-	p := NewPulsar(logger.NewLogger("test"))
 	md := pubsub.Metadata{}
 	md.Properties = map[string]string{
 		"host":               "localhost:6650",
@@ -740,15 +740,15 @@ func TestInitUsesTokenSupplierWhenClientSecretPathMissing(t *testing.T) {
 
 func TestInitUsesTokenWhenProvided(t *testing.T) {
 	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
 	t.Cleanup(func() {
-		newPulsarClient = pulsar.NewClient
+		p.newClientFn = pulsar.NewClient
 	})
-	newPulsarClient = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
 		capturedOpts = opts
 		return nil, nil
 	}
 
-	p := NewPulsar(logger.NewLogger("test"))
 	md := pubsub.Metadata{}
 	md.Properties = map[string]string{
 		"host":  "localhost:6650",

@@ -109,21 +109,23 @@ const (
 type ProcessMode string
 
 type Pulsar struct {
-	logger   logger.Logger
-	client   pulsar.Client
-	metadata pulsarMetadata
-	cache    *lru.Cache[string, pulsar.Producer]
-	closed   atomic.Bool
-	closeCh  chan struct{}
-	wg       sync.WaitGroup
+	logger      logger.Logger
+	client      pulsar.Client
+	metadata    pulsarMetadata
+	cache       *lru.Cache[string, pulsar.Producer]
+	closed      atomic.Bool
+	closeCh     chan struct{}
+	wg          sync.WaitGroup
+	newClientFn pulsarClientFactory
 }
 
-var newPulsarClient = pulsar.NewClient
+type pulsarClientFactory func(pulsar.ClientOptions) (pulsar.Client, error)
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
 	return &Pulsar{
-		logger:  l,
-		closeCh: make(chan struct{}),
+		logger:      l,
+		closeCh:     make(chan struct{}),
+		newClientFn: pulsar.NewClient,
 	}
 }
 
@@ -235,7 +237,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		}
 	}
 
-	client, err := newPulsarClient(options)
+	client, err := p.newClientFn(options)
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)
 	}

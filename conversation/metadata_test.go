@@ -24,10 +24,10 @@ import (
 func TestLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
 		metadata := LangchainMetadata{
-			Key:      "test-key",
-			Model:    DefaultOpenAIModel,
-			CacheTTL: "10m",
-			Endpoint: "https://custom-endpoint.example.com",
+			Key:              "test-key",
+			Model:            DefaultOpenAIModel,
+			ResponseCacheTTL: "10m",
+			Endpoint:         "https://custom-endpoint.example.com",
 		}
 
 		bytes, err := json.Marshal(metadata)
@@ -39,7 +39,7 @@ func TestLangchainMetadata(t *testing.T) {
 
 		assert.Equal(t, metadata.Key, unmarshaled.Key)
 		assert.Equal(t, metadata.Model, unmarshaled.Model)
-		assert.Equal(t, metadata.CacheTTL, unmarshaled.CacheTTL)
+		assert.Equal(t, metadata.ResponseCacheTTL, unmarshaled.ResponseCacheTTL)
 		assert.Equal(t, metadata.Endpoint, unmarshaled.Endpoint)
 	})
 

@@ -51,7 +51,9 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	e.model = r.Model
+	if r.Model != nil {
+		e.model = *r.Model
+	}
 
 	return nil
 }
@@ -62,12 +64,25 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
+// approximateTokensFromLength estimates the number of tokens based on text length.
+// This uses a rough approximation: ~1 token per 4 chars.
+// Reasoning behind 4 char per token:
+// - LLM tokens are subword units, not individual characters
+// - Text averages ~4-5 chars per token
+// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
+// We round up division to avoid undercounting tokens.
+func approximateTokensFromLength(textLength int) int64 {
+	if textLength == 0 {
+		return 0
+	}
+	return int64((textLength + 3) / 4)
+}
+
 // Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	if r == nil || r.Message == nil {
 		return &conversation.Response{
-			ConversationContext: r.ConversationContext,
-			Outputs:             []conversation.Result{},
+			Outputs: []conversation.Result{},
 		}, nil
 	}
 
@@ -121,23 +136,32 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 	// iterate over each message in the request to echo back the content in the response. We respond with the acummulated content of the message parts and tool responses
 	contentFromMessaged := make([]string, 0, len(*r.Message))
+	var promptTextLength int
 	for _, message := range *r.Message {
 		for _, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
 				// append to slice that we'll join later with new line separators
 				contentFromMessaged = append(contentFromMessaged, p.Text)
+				promptTextLength += len(p.Text)
 			case llms.ToolCall:
 				// in case we added explicit tool calls on the request like on multi-turn conversations. We still append tool calls for each tool defined in the request.
 				toolCalls = append(toolCalls, p)
 			case llms.ToolCallResponse:
 				// show tool responses on the request like on multi-turn conversations
 				contentFromMessaged = append(contentFromMessaged, fmt.Sprintf("Tool Response for tool ID '%s' with name '%s': %s", p.ToolCallID, p.Name, p.Content))
+				promptTextLength += len(p.Content)
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
 		}
 	}
+
+	responseContent := strings.Join(contentFromMessaged, "\n")
+
+	promptTokens := approximateTokensFromLength(promptTextLength)
+	completionTokens := approximateTokensFromLength(len(responseContent))
+	totalTokens := promptTokens + completionTokens
 
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
@@ -148,7 +172,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
-			Content: strings.Join(contentFromMessaged, "\n"),
+			Content: responseContent,
 		},
 	}
 
@@ -161,9 +185,22 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
+	// allow per request model overrides
+	modelName := e.model
+	if r.Model != nil && *r.Model != "" {
+		modelName = *r.Model
+	}
+
+	usage := &conversation.Usage{
+		CompletionTokens: completionTokens,
+		PromptTokens:     promptTokens,
+		TotalTokens:      totalTokens,
+	}
+
 	res = &conversation.Response{
-		ConversationContext: r.ConversationContext,
-		Outputs:             []conversation.Result{output},
+		Outputs: []conversation.Result{output},
+		Usage:   usage,
+		Model:   modelName,
 	}
 
 	return res, nil

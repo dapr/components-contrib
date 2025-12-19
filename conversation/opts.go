@@ -22,10 +22,28 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/cache"
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
-// CacheModel creates a prompt query cache with a configured TTL
-func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, error) {
+// BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
+func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
+	options := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(key),
+	}
+
+	if endpoint != "" {
+		options = append(options, openai.WithBaseURL(endpoint))
+	}
+
+	return options
+}
+
+// CacheResponses creates a response cache with a configured TTL.
+// This caches the final LLM responses (outputs) based on the input messages and call options.
+// When the same prompt with the same options is requested, the cached response is returned
+// without making an API call to the LLM provider, reducing latency and cost.
+func CacheResponses(ctx context.Context, ttl string, model llms.Model) (llms.Model, error) {
 	d, err := time.ParseDuration(ttl)
 	if err != nil {
 		return model, fmt.Errorf("failed to parse cacheTTL duration: %s", err)

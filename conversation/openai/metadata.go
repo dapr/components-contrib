@@ -20,6 +20,7 @@ import "github.com/dapr/components-contrib/conversation"
 // OpenAILangchainMetadata extends LangchainMetadata with OpenAI-specific properties.
 type OpenAILangchainMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
+	Key                            string `json:"key"`
 	APIType                        string `json:"apiType" mapstructure:"apiType"`
 	APIVersion                     string `json:"apiVersion" mapstructure:"apiVersion"`
 }

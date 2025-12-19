@@ -16,6 +16,7 @@ package mistral
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 
@@ -50,9 +51,12 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
+	if md.Key == "" {
+		return errors.New("mistral api key is required")
+	}
+
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetMistralModel(md.Model)
-
 	llm, err := mistral.New(
 		mistral.WithModel(model),
 		mistral.WithAPIKey(md.Key),
@@ -63,8 +67,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	m.LLM.Model = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.LLM.Model)
+	if md.ResponseCacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, m.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

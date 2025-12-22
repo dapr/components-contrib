@@ -256,6 +256,13 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: error open file %s: %w", path, err)
 	}
 
+	defer func() {
+		closeErr := file.Close()
+		if closeErr != nil {
+			sftp.logger.Errorf("sftp binding error: error close file: %w", closeErr)
+		}
+	}()
+
 	b, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("sftp binding error: error read file %s: %w", path, err)

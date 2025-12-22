@@ -220,7 +220,7 @@ jobs:
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v5
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}

@@ -9,3 +9,28 @@ services:
     ports:
       - "2222:22"
 
+  sftpgo:
+    image: drakkan/sftpgo:latest
+    container_name: sftpgo
+    ports:
+      - "2224:2022"   # SFTP
+      - "8080:8080"   # Admin UI (optional)
+    environment:
+      # SFTP listener
+      SFTPGO_SFTPD__BINDINGS__0__PORT: 2022
+
+      # Data provider: SQLite (stores users/admins/config)
+      SFTPGO_DATA_PROVIDER__DRIVER: sqlite
+      # SQLite DB path (absolute path is allowed)
+      SFTPGO_DATA_PROVIDER__NAME: /var/lib/sftpgo/sftpgo.db
+
+      # Bootstrap admin user
+      SFTPGO_DEFAULT_ADMIN_USERNAME: admin
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: admin123
+    volumes:
+      # Persist SFTPGo metadata + storage
+      - ./sftpgo-data:/var/lib/sftpgo
+      # Equivalent to ./upload mounted inside the container
+      - ./upload:/var/lib/sftpgo/data/foo/upload
+    restart: unless-stopped
+

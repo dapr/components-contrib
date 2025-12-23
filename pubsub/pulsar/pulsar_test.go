@@ -647,6 +647,226 @@ func TestParsePulsarMetadataReplicateSubscriptionState(t *testing.T) {
 	}
 }
 
+func TestParsePulsarMetadataCompressionType(t *testing.T) {
+	tt := []struct {
+		name            string
+		compressionType string
+		expected        string
+		expectedPulsar  pulsar.CompressionType
+		err             bool
+	}{
+		{
+			name:            "test valid compression type - none",
+			compressionType: "none",
+			expected:        "none",
+			expectedPulsar:  pulsar.NoCompression,
+			err:             false,
+		},
+		{
+			name:            "test valid compression type - lz4",
+			compressionType: "lz4",
+			expected:        "lz4",
+			expectedPulsar:  pulsar.LZ4,
+			err:             false,
+		},
+		{
+			name:            "test valid compression type - zlib",
+			compressionType: "zlib",
+			expected:        "zlib",
+			expectedPulsar:  pulsar.ZLib,
+			err:             false,
+		},
+		{
+			name:            "test valid compression type - zstd",
+			compressionType: "zstd",
+			expected:        "zstd",
+			expectedPulsar:  pulsar.ZSTD,
+			err:             false,
+		},
+		{
+			name:            "test valid compression type - empty defaults to none",
+			compressionType: "",
+			expected:        "none",
+			expectedPulsar:  pulsar.NoCompression,
+			err:             false,
+		},
+		{
+			name:            "test valid compression type - case insensitive",
+			compressionType: "LZ4",
+			expected:        "lz4",
+			expectedPulsar:  pulsar.LZ4,
+			err:             false,
+		},
+		{
+			name:            "test invalid compression type",
+			compressionType: "invalid",
+			err:             true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+			m.Properties = map[string]string{
+				"host":            "a",
+				"compressionType": tc.compressionType,
+			}
+			meta, err := parsePulsarMetadata(m)
+
+			if tc.err {
+				require.Error(t, err)
+				assert.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, meta.CompressionType)
+			assert.Equal(t, tc.expectedPulsar, getCompressionType(meta.CompressionType))
+		})
+	}
+}
+
+func TestParsePulsarMetadataCompressionLevel(t *testing.T) {
+	tt := []struct {
+		name             string
+		compressionLevel string
+		expected         string
+		expectedPulsar   pulsar.CompressionLevel
+		err              bool
+	}{
+		{
+			name:             "test valid compression level - default",
+			compressionLevel: "default",
+			expected:         "default",
+			expectedPulsar:   pulsar.Default,
+			err:              false,
+		},
+		{
+			name:             "test valid compression level - faster",
+			compressionLevel: "faster",
+			expected:         "faster",
+			expectedPulsar:   pulsar.Faster,
+			err:              false,
+		},
+		{
+			name:             "test valid compression level - better",
+			compressionLevel: "better",
+			expected:         "better",
+			expectedPulsar:   pulsar.Better,
+			err:              false,
+		},
+		{
+			name:             "test valid compression level - empty defaults to default",
+			compressionLevel: "",
+			expected:         "default",
+			expectedPulsar:   pulsar.Default,
+			err:              false,
+		},
+		{
+			name:             "test valid compression level - case insensitive",
+			compressionLevel: "FASTER",
+			expected:         "faster",
+			expectedPulsar:   pulsar.Faster,
+			err:              false,
+		},
+		{
+			name:             "test invalid compression level",
+			compressionLevel: "invalid",
+			err:              true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+			m.Properties = map[string]string{
+				"host":             "a",
+				"compressionLevel": tc.compressionLevel,
+			}
+			meta, err := parsePulsarMetadata(m)
+
+			if tc.err {
+				require.Error(t, err)
+				assert.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, meta.CompressionLevel)
+			assert.Equal(t, tc.expectedPulsar, getCompressionLevel(meta.CompressionLevel))
+		})
+	}
+}
+
+func TestParsePulsarMetadataCompressionCombination(t *testing.T) {
+	tt := []struct {
+		name             string
+		compressionType  string
+		compressionLevel string
+		expectedType     string
+		expectedLevel    string
+		err              bool
+	}{
+		{
+			name:             "test default compression settings",
+			compressionType:  "",
+			compressionLevel: "",
+			expectedType:     "none",
+			expectedLevel:    "default",
+			err:              false,
+		},
+		{
+			name:             "test lz4 with faster compression",
+			compressionType:  "lz4",
+			compressionLevel: "faster",
+			expectedType:     "lz4",
+			expectedLevel:    "faster",
+			err:              false,
+		},
+		{
+			name:             "test zstd with better compression",
+			compressionType:  "zstd",
+			compressionLevel: "better",
+			expectedType:     "zstd",
+			expectedLevel:    "better",
+			err:              false,
+		},
+		{
+			name:            "test invalid compression type",
+			compressionType: "invalid",
+			err:             true,
+		},
+		{
+			name:             "test invalid compression level",
+			compressionType:  "lz4",
+			compressionLevel: "invalid",
+			err:              true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			m := pubsub.Metadata{}
+			m.Properties = map[string]string{
+				"host":             "a",
+				"compressionType":  tc.compressionType,
+				"compressionLevel": tc.compressionLevel,
+			}
+			meta, err := parsePulsarMetadata(m)
+
+			if tc.err {
+				require.Error(t, err)
+				assert.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedType, meta.CompressionType)
+			assert.Equal(t, tc.expectedLevel, meta.CompressionLevel)
+		})
+	}
+}
+
 func TestSanitiseURL(t *testing.T) {
 	tests := []struct {
 		name     string

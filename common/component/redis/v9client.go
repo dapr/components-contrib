@@ -16,9 +16,11 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"strings"
 	"time"
 
+	redisotel "github.com/redis/go-redis/extra/redisotel/v9"
 	v9 "github.com/redis/go-redis/v9"
 )
 
@@ -460,8 +462,17 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		}
 	}
 
+	client := v9.NewClient(options)
+
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		return nil, fmt.Errorf("failed to instrument Redis tracing: %w", err)
+	}
+	if err := redisotel.InstrumentMetrics(client); err != nil {
+		return nil, fmt.Errorf("failed to instrument Redis metrics: %w", err)
+	}
+
 	return v9Client{
-		client:       v9.NewClient(options),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,

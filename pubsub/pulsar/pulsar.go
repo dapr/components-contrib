@@ -61,6 +61,7 @@ const (
 	cachedNumProducer = 10
 	pulsarPrefix      = "pulsar://"
 	pulsarToken       = "token"
+
 	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic,
 	// see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details.
 	topicFormat                = "%s://%s/%s/%s"

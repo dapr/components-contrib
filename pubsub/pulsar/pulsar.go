@@ -104,6 +104,18 @@ const (
 
 	subscribeModeDurable    = "durable"
 	subscribeModeNonDurable = "non_durable"
+
+	compressionTypeKey  = "compressionType"
+	compressionLevelKey = "compressionLevel"
+
+	compressionTypeNone = "none"
+	compressionTypeLZ4  = "lz4"
+	compressionTypeZLib = "zlib"
+	compressionTypeZSTD = "zstd"
+
+	compressionLevelDefault = "default"
+	compressionLevelFaster  = "faster"
+	compressionLevelBetter  = "better"
 )
 
 type ProcessMode string
@@ -162,6 +174,16 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m.SubscriptionMode, err = parseSubscriptionMode(meta.Properties[subscribeMode])
 	if err != nil {
 		return nil, errors.New("invalid subscription mode")
+	}
+
+	m.CompressionType, err = parseCompressionType(meta.Properties[compressionTypeKey])
+	if err != nil {
+		return nil, errors.New("invalid compression type. Accepted values are `none`, `lz4`, `zlib` and `zstd`")
+	}
+
+	m.CompressionLevel, err = parseCompressionLevel(meta.Properties[compressionLevelKey])
+	if err != nil {
+		return nil, errors.New("invalid compression level. Accepted values are `default`, `faster` and `better`")
 	}
 
 	for k, v := range meta.Properties {
@@ -297,6 +319,8 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 			BatchingMaxPublishDelay: p.metadata.BatchingMaxPublishDelay,
 			BatchingMaxMessages:     p.metadata.BatchingMaxMessages,
 			BatchingMaxSize:         p.metadata.BatchingMaxSize,
+			CompressionType:         getCompressionType(p.metadata.CompressionType),
+			CompressionLevel:        getCompressionLevel(p.metadata.CompressionLevel),
 		}
 
 		if hasSchema {
@@ -483,6 +507,54 @@ func getSubscriptionMode(subsModeStr string) pulsar.SubscriptionMode {
 		return pulsar.NonDurable
 	default:
 		return pulsar.Durable
+	}
+}
+
+func parseCompressionType(in string) (string, error) {
+	compType := strings.ToLower(in)
+	switch compType {
+	case compressionTypeNone, compressionTypeLZ4, compressionTypeZLib, compressionTypeZSTD:
+		return compType, nil
+	case "":
+		return compressionTypeNone, nil
+	default:
+		return "", fmt.Errorf("invalid compression type: %s", compType)
+	}
+}
+
+func getCompressionType(compTypeStr string) pulsar.CompressionType {
+	switch compTypeStr {
+	case compressionTypeLZ4:
+		return pulsar.LZ4
+	case compressionTypeZLib:
+		return pulsar.ZLib
+	case compressionTypeZSTD:
+		return pulsar.ZSTD
+	default:
+		return pulsar.NoCompression
+	}
+}
+
+func parseCompressionLevel(in string) (string, error) {
+	compLevel := strings.ToLower(in)
+	switch compLevel {
+	case compressionLevelDefault, compressionLevelFaster, compressionLevelBetter:
+		return compLevel, nil
+	case "":
+		return compressionLevelDefault, nil
+	default:
+		return "", fmt.Errorf("invalid compression level: %s", compLevel)
+	}
+}
+
+func getCompressionLevel(compLevelStr string) pulsar.CompressionLevel {
+	switch compLevelStr {
+	case compressionLevelFaster:
+		return pulsar.Faster
+	case compressionLevelBetter:
+		return pulsar.Better
+	default:
+		return pulsar.Default
 	}
 }
 

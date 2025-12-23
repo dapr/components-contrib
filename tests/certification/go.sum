@@ -303,8 +303,8 @@ github.com/bytedance/gopkg v0.0.0-20240711085056-a03554c296f8/go.mod h1:FtQG3YbQ
 github.com/bytedance/mockey v1.0.0-rc.0/go.mod h1:+Jm/fzWZAuhEDrPXVjDf/jLM2BlLXJkwk94zf2JZ3X4=
 github.com/bytedance/mockey v1.2.0 h1:847+X2fBSM4s/AIN4loO5d16PCgEj53j7Q8YVB+8P6c=
 github.com/bytedance/mockey v1.2.0/go.mod h1:+Jm/fzWZAuhEDrPXVjDf/jLM2BlLXJkwk94zf2JZ3X4=
-github.com/camunda/zeebe/clients/go/v8 v8.2.12 h1:VWkbyhcZFXLqrLXLjICFrKk7Y4Hia9ldKIFoO5V5M8o=
-github.com/camunda/zeebe/clients/go/v8 v8.2.12/go.mod h1:4mpOks0uLXPbOCW82g/H9ZHDfdr90ikvFBWGwDV+fG8=
+github.com/camunda/zeebe/clients/go/v8 v8.5.25 h1:CwQWKBSR4PvOzcV0FmkSaNAayazjqtgJ+yjVQ2NFY1s=
+github.com/camunda/zeebe/clients/go/v8 v8.5.25/go.mod h1:oLhBlv65aO2sV5FJ/dfEREyeqbrPHbJdv0lr5wJujJ8=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=

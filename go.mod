@@ -111,7 +111,7 @@ require (
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/sftp v1.13.7
-	github.com/puzpuzpuz/xsync/v3 v3.0.0
+	github.com/puzpuzpuz/xsync/v3 v3.5.1
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/redis/go-redis/v9 v9.6.3
 	github.com/riferrei/srclient v0.7.2

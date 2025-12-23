@@ -64,7 +64,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/cyphar/filepath-securejoin v0.2.4
+	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20251104160704-920ad8a7b958
 	github.com/dapr/kit v0.16.1
@@ -120,7 +120,7 @@ require (
 	github.com/spf13/cast v1.8.0
 	github.com/spiffe/go-spiffe/v2 v2.5.0
 	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732

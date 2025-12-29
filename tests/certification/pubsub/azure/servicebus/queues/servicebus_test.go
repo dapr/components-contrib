@@ -797,6 +797,7 @@ func TestServicebusQueuesAuthentication(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
+		Step("wait for sidecar to be ready", flow.Sleep(10*time.Second)).
 		Step(fmt.Sprintf("publish messages to queue: %s", queueActiveName), publishMessages(metadata, sidecarName1, queueActiveName, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has received messages published to queue", assertMessages(10*time.Second, consumerGroup1)).

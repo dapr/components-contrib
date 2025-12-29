@@ -53,22 +53,23 @@ const (
 	appID1 = "app-1"
 	appID2 = "app-2"
 
-	numMessages       = 10
-	appPort           = 8000
-	portOffset        = 2
-	messageKey        = "partitionKey"
-	pubsubName        = "messagebus"
-	queueActiveName   = "certification-pubsub-queue-active"
-	queuePassiveName  = "certification-pubsub-queue-passive"
-	queueToBeCreated  = "certification-queue-per-test-run"
-	queueDefaultName  = "certification-queue-default"
-	partition0        = "partition-0"
-	partition1        = "partition-1"
+	numMessages      = 10
+	appPort          = 8000
+	portOffset       = 2
+	messageKey       = "partitionKey"
+	pubsubName       = "messagebus"
+	queueActiveName  = "certification-pubsub-queue-active"
+	queuePassiveName = "certification-pubsub-queue-passive"
+	queueToBeCreated = "certification-queue-per-test-run"
+	queueDefaultName = "certification-queue-default"
+	partition0       = "partition-0"
+	partition1       = "partition-1"
 )
 
 func TestServicebusQueues(t *testing.T) {
-	consumerGroup1 := watcher.NewUnordered()
-	consumerGroup2 := watcher.NewUnordered()
+	// For queues, messages are competing between consumers - each message is received by only ONE consumer.
+	// Use a single shared watcher that both apps will feed into.
+	sharedWatcher := watcher.NewUnordered()
 
 	// subscriber of the given queue
 	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
@@ -148,9 +149,9 @@ func TestServicebusQueues(t *testing.T) {
 
 	flow.New(t, "servicebus queues certification basic test").
 
-		// Run subscriberApplication app1
+		// Run subscriberApplication app1 - both apps use the same sharedWatcher
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+			subscriberApplication(appID1, queueActiveName, sharedWatcher))).
 
 		// Run the Dapr sidecar with the servicebus queues component 1
 		Step(sidecar.Run(sidecarName1,
@@ -162,9 +163,9 @@ func TestServicebusQueues(t *testing.T) {
 			)...,
 		)).
 
-		// Run subscriberApplication app2
+		// Run subscriberApplication app2 - both apps use the same sharedWatcher
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID2, queueActiveName, consumerGroup2))).
+			subscriberApplication(appID2, queueActiveName, sharedWatcher))).
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
@@ -176,11 +177,11 @@ func TestServicebusQueues(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
-		Step("publish messages to queue", publishMessages(nil, sidecarName1, queueActiveName, consumerGroup1, consumerGroup2)).
+		// For queues, only register expectations once since messages compete between consumers
+		Step("publish messages to queue", publishMessages(nil, sidecarName1, queueActiveName, sharedWatcher)).
 		Step("publish messages to unused queue", publishMessages(nil, sidecarName1, queuePassiveName)).
-		Step("verify if app1 has received messages published to active queue", assertMessages(10*time.Second, consumerGroup1)).
-		Step("verify if app2 has received messages published to active queue", assertMessages(10*time.Second, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Step("verify all messages received by competing consumers", assertMessages(10*time.Second, sharedWatcher)).
+		Step("reset", flow.Reset(sharedWatcher)).
 		Run()
 }
 
@@ -505,6 +506,11 @@ func TestServicebusQueuesNetworkInterruption(t *testing.T) {
 func TestServicebusQueuesEntityManagement(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
+	// Use a unique queue name that does NOT exist in Azure
+	// This test verifies that publishing fails when entity management is disabled
+	// and the queue doesn't exist
+	nonExistentQueue := fmt.Sprintf("non-existent-queue-%s", uuid.New().String())
+
 	// Set the partition key on all messages so they are written to the same partition.
 	metadata := map[string]string{
 		messageKey: partition0,
@@ -583,7 +589,7 @@ func TestServicebusQueuesEntityManagement(t *testing.T) {
 				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
 			)...,
 		)).
-		Step(fmt.Sprintf("publish messages to queueDefault: %s", queueDefaultName), publishMessages(metadata, sidecarName1, queueDefaultName, consumerGroup1)).
+		Step(fmt.Sprintf("publish messages to non-existent queue: %s", nonExistentQueue), publishMessages(metadata, sidecarName1, nonExistentQueue, consumerGroup1)).
 		Run()
 }
 
@@ -794,6 +800,546 @@ func TestServicebusQueuesAuthentication(t *testing.T) {
 		Step(fmt.Sprintf("publish messages to queue: %s", queueActiveName), publishMessages(metadata, sidecarName1, queueActiveName, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has received messages published to queue", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesMessageMetadata tests that message metadata is correctly passed
+func TestServicebusQueuesMessageMetadata(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s, pubsub: %s, queue: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, queueName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for queue: %s, index: %03d, uniqueId: %s", metadata[messageKey], queueName, i, uuid.New().String())
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing messages with metadata. sidecarName: %s, queueName: %s", sidecarName, queueName)
+
+			publishOptions := dapr.PublishEventWithMetadata(metadata)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message, publishOptions)
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - message metadata").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages with metadata", publishMessages(metadata, sidecarName1, queueActiveName, consumerGroup1)).
+		Step("verify messages received", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesMultipleQueues tests publishing to multiple queues
+func TestServicebusQueuesMultipleQueues(t *testing.T) {
+	activeQueueWatcher := watcher.NewUnordered()
+	passiveQueueWatcher := watcher.NewUnordered()
+
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	multiQueueSubscriber := func(appID string, activeWatcher, passiveWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueActiveName,
+					Route:      "/active",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					activeWatcher.Observe(e.Data)
+					ctx.Logf("Active Queue - Message Received: %s", e.Data)
+					return false, nil
+				}),
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queuePassiveName,
+					Route:      "/passive",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					passiveWatcher.Observe(e.Data)
+					ctx.Logf("Passive Queue - Message Received: %s", e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, queueName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for queue: %s, index: %03d, uniqueId: %s", metadata[messageKey], queueName, i, uuid.New().String())
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing messages. sidecarName: %s, queueName: %s", sidecarName, queueName)
+
+			publishOptions := dapr.PublishEventWithMetadata(metadata)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message, publishOptions)
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - multiple queues").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			multiQueueSubscriber(appID1, activeQueueWatcher, passiveQueueWatcher))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish to active queue", publishMessages(metadata, sidecarName1, queueActiveName, activeQueueWatcher)).
+		Step("publish to passive queue", publishMessages(metadata, sidecarName1, queuePassiveName, passiveQueueWatcher)).
+		Step("verify active queue messages", assertMessages(10*time.Second, activeQueueWatcher)).
+		Step("verify passive queue messages", assertMessages(10*time.Second, passiveQueueWatcher)).
+		Step("reset", flow.Reset(activeQueueWatcher, passiveQueueWatcher)).
+		Run()
+}
+
+// TestServicebusQueuesLargeMessages tests handling of larger message payloads
+func TestServicebusQueuesLargeMessages(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Large Message Received, length: %d", len(fmt.Sprintf("%v", e.Data)))
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishLargeMessages := func(sidecarName string, queueName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// Create larger messages (1KB each)
+			messages := make([]string, 5)
+			for i := range messages {
+				// Create a 1KB payload
+				payload := make([]byte, 1024)
+				for j := range payload {
+					payload[j] = byte('A' + (j % 26))
+				}
+				messages[i] = fmt.Sprintf("large-message-%03d-%s-%s", i, uuid.New().String(), string(payload))
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing large messages. sidecarName: %s, queueName: %s", sidecarName, queueName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing large message of length: %d", len(message))
+				err := client.PublishEvent(ctx, pubsubName, queueName, message)
+				require.NoError(ctx, err, "error publishing large message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - large messages").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish large messages", publishLargeMessages(sidecarName1, queueActiveName, consumerGroup1)).
+		Step("verify large messages received", assertMessages(15*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesSequentialPublish tests sequential message publishing and ordering
+func TestServicebusQueuesSequentialPublish(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Sequential Message Received: %s", e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishSequentialMessages := func(sidecarName string, queueName string, batchNum int, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("batch-%d-message-%03d-%s", batchNum, i, uuid.New().String())
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing batch %d messages. sidecarName: %s, queueName: %s", batchNum, sidecarName, queueName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message)
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - sequential publish").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish batch 1", publishSequentialMessages(sidecarName1, queueActiveName, 1, consumerGroup1)).
+		Step("publish batch 2", publishSequentialMessages(sidecarName1, queueActiveName, 2, consumerGroup1)).
+		Step("verify all messages received", assertMessages(15*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesReconnection tests that the component reconnects after sidecar restart
+func TestServicebusQueuesReconnection(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received after reconnection: %s", e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(sidecarName string, queueName string, prefix string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("%s-message-%03d-%s", prefix, i, uuid.New().String())
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing %s messages. sidecarName: %s, queueName: %s", prefix, sidecarName, queueName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message)
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - reconnection").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish initial messages", publishMessages(sidecarName1, queueActiveName, "initial", consumerGroup1)).
+		Step("verify initial messages", assertMessages(10*time.Second, consumerGroup1)).
+		Step("stop sidecar", sidecar.Stop(sidecarName1)).
+		Step("wait for shutdown", flow.Sleep(5*time.Second)).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish after reconnect", publishMessages(sidecarName1, queueActiveName, "reconnected", consumerGroup1)).
+		Step("verify reconnected messages", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesEmptyMessages tests handling of empty message payloads
+func TestServicebusQueuesEmptyMessages(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received: %v (length: %d)", e.Data, len(fmt.Sprintf("%v", e.Data)))
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMinimalMessages := func(sidecarName string, queueName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// Test minimal valid messages
+			messages := []string{
+				"a",           // single char
+				"ab",          // two chars
+				"test",        // short word
+				"hello world", // simple message
+				"12345",       // numeric string
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing minimal messages. sidecarName: %s, queueName: %s", sidecarName, queueName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing minimal message: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message)
+				require.NoError(ctx, err, "error publishing minimal message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - minimal messages").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish minimal messages", publishMinimalMessages(sidecarName1, queueActiveName, consumerGroup1)).
+		Step("verify minimal messages received", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
+// TestServicebusQueuesConcurrentPublishers tests multiple publishers sending to the same queue
+func TestServicebusQueuesConcurrentPublishers(t *testing.T) {
+	sharedWatcher := watcher.NewUnordered()
+
+	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      queueName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message from concurrent publisher: %s", e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishFromSidecar := func(sidecarName string, queueName string, publisherID string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, 5) // 5 messages per publisher
+			for i := range messages {
+				messages[i] = fmt.Sprintf("publisher-%s-message-%03d-%s", publisherID, i, uuid.New().String())
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publisher %s sending messages via %s", publisherID, sidecarName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				err := client.PublishEvent(ctx, pubsubName, queueName, message)
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus queues certification - concurrent publishers").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, queueActiveName, sharedWatcher))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step(sidecar.Run(sidecarName2,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
+		)).
+		Step("publisher 1 sends messages", publishFromSidecar(sidecarName1, queueActiveName, "1", sharedWatcher)).
+		Step("publisher 2 sends messages", publishFromSidecar(sidecarName2, queueActiveName, "2", sharedWatcher)).
+		Step("verify all messages from both publishers", assertMessages(15*time.Second, sharedWatcher)).
+		Step("reset", flow.Reset(sharedWatcher)).
 		Run()
 }
 

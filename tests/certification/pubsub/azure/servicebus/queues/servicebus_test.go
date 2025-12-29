@@ -1114,6 +1114,8 @@ func TestServicebusQueuesSequentialPublish(t *testing.T) {
 // TestServicebusQueuesReconnection tests that the component reconnects after sidecar restart
 func TestServicebusQueuesReconnection(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
+	// Use unique queue name to avoid interference from other tests
+	uniqueQueueName := fmt.Sprintf("certification-reconnection-%s", uuid.New().String()[:8])
 
 	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
@@ -1165,7 +1167,7 @@ func TestServicebusQueuesReconnection(t *testing.T) {
 
 	flow.New(t, "servicebus queues certification - reconnection").
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+			subscriberApplication(appID1, uniqueQueueName, consumerGroup1))).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1174,8 +1176,9 @@ func TestServicebusQueuesReconnection(t *testing.T) {
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
-		Step("publish initial messages", publishMessages(sidecarName1, queueActiveName, "initial", consumerGroup1)).
+		Step("publish initial messages", publishMessages(sidecarName1, uniqueQueueName, "initial", consumerGroup1)).
 		Step("verify initial messages", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset watcher", flow.Reset(consumerGroup1)).
 		Step("stop sidecar", sidecar.Stop(sidecarName1)).
 		Step("wait for shutdown", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
@@ -1186,15 +1189,17 @@ func TestServicebusQueuesReconnection(t *testing.T) {
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
-		Step("publish after reconnect", publishMessages(sidecarName1, queueActiveName, "reconnected", consumerGroup1)).
+		Step("publish after reconnect", publishMessages(sidecarName1, uniqueQueueName, "reconnected", consumerGroup1)).
 		Step("verify reconnected messages", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }
 
-// TestServicebusQueuesEmptyMessages tests handling of empty message payloads
+// TestServicebusQueuesEmptyMessages tests handling of minimal message payloads
 func TestServicebusQueuesEmptyMessages(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
+	// Use unique queue name to avoid interference from other tests
+	uniqueQueueName := fmt.Sprintf("certification-minimal-messages-%s", uuid.New().String()[:8])
 
 	subscriberApplication := func(appID string, queueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
@@ -1214,13 +1219,14 @@ func TestServicebusQueuesEmptyMessages(t *testing.T) {
 
 	publishMinimalMessages := func(sidecarName string, queueName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-			// Test minimal valid messages
+			// Test minimal valid messages with unique identifiers to avoid collisions
+			testID := uuid.New().String()[:8]
 			messages := []string{
-				"a",           // single char
-				"ab",          // two chars
-				"test",        // short word
-				"hello world", // simple message
-				"12345",       // numeric string
+				fmt.Sprintf("minimal-a-%s", testID),
+				fmt.Sprintf("minimal-ab-%s", testID),
+				fmt.Sprintf("minimal-test-%s", testID),
+				fmt.Sprintf("minimal-hello-%s", testID),
+				fmt.Sprintf("minimal-12345-%s", testID),
 			}
 
 			for _, messageWatcher := range messageWatchers {
@@ -1250,7 +1256,7 @@ func TestServicebusQueuesEmptyMessages(t *testing.T) {
 
 	flow.New(t, "servicebus queues certification - minimal messages").
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, queueActiveName, consumerGroup1))).
+			subscriberApplication(appID1, uniqueQueueName, consumerGroup1))).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
 				embedded.WithComponentsPath("./components/consumer_one"),
@@ -1259,7 +1265,7 @@ func TestServicebusQueuesEmptyMessages(t *testing.T) {
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
-		Step("publish minimal messages", publishMinimalMessages(sidecarName1, queueActiveName, consumerGroup1)).
+		Step("publish minimal messages", publishMinimalMessages(sidecarName1, uniqueQueueName, consumerGroup1)).
 		Step("verify minimal messages received", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()

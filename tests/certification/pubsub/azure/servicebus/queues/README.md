@@ -67,10 +67,16 @@ Unlike topics (publish-subscribe), queues use **competing consumer** semantics:
     - Verify multiple sequential batch publishes
 
 12. **TestServicebusQueuesReconnection** - Sidecar restart recovery
-    - Verify component reconnects after sidecar restart
+    - Run dapr application with 1 publisher and 1 subscriber
+    - Publish initial messages and verify receipt
+    - Stop and restart the sidecar
+    - Publish new messages after reconnection
+    - Verify component reconnects and new messages are received
+    - Uses unique queue per test run to avoid interference
 
 13. **TestServicebusQueuesEmptyMessages** - Minimal messages
     - Verify handling of minimal/edge-case message payloads
+    - Uses unique queue per test run to avoid interference
 
 14. **TestServicebusQueuesConcurrentPublishers** - Multiple publishers
     - Verify multiple sidecars publishing to the same queue
@@ -86,6 +92,8 @@ The following queues should exist or will be auto-created:
 - `certification-pubsub-queue-active`
 - `certification-pubsub-queue-passive`
 - `certification-queue-per-test-run`
+
+**Note**: Some tests (Reconnection, EmptyMessages, EntityManagement) create unique queues with UUID suffixes to avoid interference between test runs.
 
 ## Environment Variables
 
@@ -187,3 +195,12 @@ sudo tc qdisc del dev eth0 root
 - Check Azure Service Bus connectivity
 - Verify the namespace is accessible from your network
 - Check for any firewall rules blocking ports 5671/5672 (AMQP)
+
+### Tests Fail with "elements differ" or Unexpected Messages
+- Some tests use shared queues that may have residual messages from previous runs
+- Wait a few minutes for messages to expire or manually purge the queue
+- Tests like Reconnection and EmptyMessages use unique queues to avoid this issue
+
+### Entity Management Test Fails
+- Ensure the queue name used doesn't already exist in the namespace
+- The test uses a unique UUID-based queue name to avoid conflicts

@@ -9,6 +9,9 @@ import (
 	"github.com/tmc/langchaingo/llms"
 )
 
+// NOTE: These are all workarounds due to langchaingo limitations,
+// or limitations of certain components (so far only mistral and ollama).
+
 // CreateToolCallPart creates mistral and ollama api compatible tool call messages.
 // Most LLM providers can handle tool calls using the tool call object;
 // however, mistral and ollama requires it as text in conversation history.
@@ -116,15 +119,16 @@ func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) *conversati
 	return nil
 }
 
-// convertSchemaForLangchain converts a JSON schema map to llms.StructuredOutputSchema
-func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutputSchema, error) {
+// convertToStructuredOutputSchema is an internal helper that converts a JSON schema map to langchaingo's llms.StructuredOutputSchema.
+// It recursively processes nested objects and arrays to build the complete schema structure.
+func convertToStructuredOutputSchema(schemaMap map[string]any) (*llms.StructuredOutputSchema, error) {
 	if schemaMap == nil {
 		return nil, errors.New("schema map cannot be nil")
 	}
 
 	schemaTypeStr, ok := schemaMap["type"].(string)
 	if !ok {
-		return nil, fmt.Errorf("schema type is required")
+		return nil, errors.New("schema type is required")
 	}
 
 	schema := &llms.StructuredOutputSchema{
@@ -155,7 +159,7 @@ func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutput
 			if eStr, ok := e.(string); ok {
 				enumStrings = append(enumStrings, eStr)
 			} else {
-				// if enum contains non-string values, convert to string representation
+				// if enum contains non-string values, convert to string
 				enumStrings = append(enumStrings, fmt.Sprintf("%v", e))
 			}
 		}
@@ -169,11 +173,13 @@ func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutput
 			schema.Properties = make(map[string]*llms.StructuredOutputSchema)
 			for propName, propValue := range properties {
 				if propMap, ok := propValue.(map[string]any); ok {
-					propSchema, err := convertSchemaForLangchain(propMap)
+					propSchema, err := convertToStructuredOutputSchema(propMap)
 					if err != nil {
 						return nil, fmt.Errorf("failed to convert property %q: %w", propName, err)
 					}
 					schema.Properties[propName] = propSchema
+				} else {
+					return nil, fmt.Errorf("property %q must be a map, got %T", propName, propValue)
 				}
 			}
 		}
@@ -182,7 +188,7 @@ func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutput
 	// handle array items
 	if schema.Type == llms.SchemaTypeArray {
 		if items, ok := schemaMap["items"].(map[string]any); ok {
-			itemsSchema, err := convertSchemaForLangchain(items)
+			itemsSchema, err := convertToStructuredOutputSchema(items)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert array items: %w", err)
 			}
@@ -193,10 +199,10 @@ func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutput
 	return schema, nil
 }
 
-// convertJSONSchemaForLangchain converts a JSON schema map to langchain's llms.StructuredOutputDefinition
+// convertToStructuredOutputDefinition converts a JSON schema map to langchain's llms.StructuredOutputDefinition.
 // Based on langchain's structured output implementation:
 // https://github.com/tmc/langchaingo/commit/5b6a093e5995485fdf061609cf987be84be947e2#diff-bb2609d8b74a6201524e3f8c9408b2866e19620c7ee0af3c6c947a5302baf6a1
-func convertJSONSchemaForLangchain(jsonSchema map[string]any) (*llms.StructuredOutputDefinition, error) {
+func convertToStructuredOutputDefinition(jsonSchema map[string]any) (*llms.StructuredOutputDefinition, error) {
 	if jsonSchema == nil {
 		return nil, errors.New("json schema cannot be nil")
 	}
@@ -205,13 +211,13 @@ func convertJSONSchemaForLangchain(jsonSchema map[string]any) (*llms.StructuredO
 		return nil, errors.New("schema type is required and must be a string")
 	}
 
-	schema, err := convertSchemaForLangchain(jsonSchema)
+	schema, err := convertToStructuredOutputSchema(jsonSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert schema: %w", err)
 	}
 
 	// build StructuredOutputDefinition
-	// use default name and description if not provided
+	// name is not a required json schema field, so we use a default value if not provided for langchaingo's llms.StructuredOutputDefinition.Name
 	name := "response"
 	if n, ok := jsonSchema["name"].(string); ok && n != "" {
 		name = n

@@ -137,7 +137,7 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	}
 
 	if r.ResponseFormatAsJSONSchema != nil {
-		structuredOutput, err := convertJSONSchemaForLangchain(r.ResponseFormatAsJSONSchema)
+		structuredOutput, err := convertToStructuredOutputDefinition(r.ResponseFormatAsJSONSchema)
 		if err != nil {
 			logger.Warnf("failed to convert response format to structured output, will continue without structured output: %v", err)
 		} else {

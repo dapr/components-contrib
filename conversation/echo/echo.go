@@ -177,7 +177,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	}
 
 	// allow per request model overrides
-	modelName := e.model
+	var modelName string
 	if r.Model != nil && *r.Model != "" {
 		modelName = *r.Model
 	} else {

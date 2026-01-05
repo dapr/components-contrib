@@ -178,10 +178,8 @@ func TestConvertToStructuredOutputDefinition(t *testing.T) {
 			if tt.wantErr {
 				assert.Nil(t, result)
 				assert.Error(t, err)
-			} else {
-				if tt.validate != nil {
-					tt.validate(t, result, err)
-				}
+			} else if tt.validate != nil {
+				tt.validate(t, result, err)
 			}
 		})
 	}
@@ -544,10 +542,8 @@ func TestConvertToStructuredOutputSchema(t *testing.T) {
 			if tt.wantErr {
 				assert.Nil(t, result)
 				assert.Error(t, err)
-			} else {
-				if tt.validate != nil {
-					tt.validate(t, result, err)
-				}
+			} else if tt.validate != nil {
+				tt.validate(t, result, err)
 			}
 		})
 	}
@@ -787,7 +783,7 @@ func TestStringMapToAny(t *testing.T) {
 			input: map[string]string{},
 			validate: func(t *testing.T, result map[string]any) {
 				assert.NotNil(t, result)
-				assert.Len(t, result, 0)
+				assert.Empty(t, result)
 			},
 		},
 		{

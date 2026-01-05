@@ -134,21 +134,18 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 	// iterate over each message in the request to echo back the content in the response. We respond with the acummulated content of the message parts and tool responses
 	contentFromMessaged := make([]string, 0, len(*r.Message))
-	var promptTextLength int
 	for _, message := range *r.Message {
 		for _, part := range message.Parts {
 			switch p := part.(type) {
 			case llms.TextContent:
 				// append to slice that we'll join later with new line separators
 				contentFromMessaged = append(contentFromMessaged, p.Text)
-				promptTextLength += len(p.Text)
 			case llms.ToolCall:
 				// in case we added explicit tool calls on the request like on multi-turn conversations. We still append tool calls for each tool defined in the request.
 				toolCalls = append(toolCalls, p)
 			case llms.ToolCallResponse:
 				// show tool responses on the request like on multi-turn conversations
 				contentFromMessaged = append(contentFromMessaged, fmt.Sprintf("Tool Response for tool ID '%s' with name '%s': %s", p.ToolCallID, p.Name, p.Content))
-				promptTextLength += len(p.Content)
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
@@ -156,10 +153,6 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	}
 
 	responseContent := strings.Join(contentFromMessaged, "\n")
-
-	promptTokens := approximateTokensFromWords(promptTextLength)
-	completionTokens := approximateTokensFromWords(len(responseContent))
-	totalTokens := promptTokens + completionTokens
 
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
@@ -187,12 +180,15 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	modelName := e.model
 	if r.Model != nil && *r.Model != "" {
 		modelName = *r.Model
+	} else {
+		modelName = e.model
 	}
 
+	tokenCount := approximateTokensFromWords(responseContent)
 	usage := &conversation.Usage{
-		CompletionTokens: completionTokens,
-		PromptTokens:     promptTokens,
-		TotalTokens:      totalTokens,
+		CompletionTokens: tokenCount,
+		PromptTokens:     tokenCount,
+		TotalTokens:      tokenCount + tokenCount,
 	}
 
 	res = &conversation.Response{

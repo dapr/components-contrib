@@ -79,7 +79,6 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata, responseFormat *
 }
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	o.logger.Infof("hello sam in contrib")
 	md := OpenAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {

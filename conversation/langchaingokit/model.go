@@ -49,6 +49,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, context.DeadlineExceeded
+		}
 		return nil, err
 	}
 
@@ -69,6 +72,15 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	}, nil
 }
 
+// NOTE: ollama does not provide a stop reason at all,
+// so server side best we can do is say unknown if this is empty.
+func normalizeFinishReason(stopReason string) string {
+	if stopReason == "" {
+		return "unknown"
+	}
+	return stopReason
+}
+
 func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage) {
 	if len(choices) == 0 {
 		return nil, nil
@@ -83,7 +95,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 	outputs := make([]conversation.Result, 0, len(choices))
 	for i := range choices {
 		choice := conversation.Choice{
-			FinishReason: choices[i].StopReason,
+			FinishReason: normalizeFinishReason(choices[i].StopReason),
 			Index:        int64(i),
 		}
 
@@ -96,7 +108,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		}
 
 		output := conversation.Result{
-			StopReason: choices[i].StopReason,
+			StopReason: normalizeFinishReason(choices[i].StopReason),
 			Choices:    []conversation.Choice{choice},
 		}
 

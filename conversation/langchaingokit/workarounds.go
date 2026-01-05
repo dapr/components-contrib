@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dapr/components-contrib/conversation"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 // NOTE: These are all workarounds due to langchaingo limitations,

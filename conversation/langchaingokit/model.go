@@ -17,8 +17,9 @@ package langchaingokit
 import (
 	"context"
 
-	"github.com/dapr/kit/logger"
 	"github.com/tmc/langchaingo/llms"
+
+	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/conversation"
 )

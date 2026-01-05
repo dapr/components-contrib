@@ -46,7 +46,7 @@ type Request struct {
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
 	Metadata map[string]string `json:"metadata"`
 
-	ResponseFormatAsJsonSchema map[string]any `json:"responseFormatAsJsonSchema"`
+	ResponseFormatAsJSONSchema map[string]any `json:"responseFormatAsJsonSchema"`
 	PromptCacheRetention       time.Duration  `json:"promptCacheRetention"`
 	Model                      *string        `json:"model"`
 

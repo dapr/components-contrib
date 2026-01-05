@@ -590,7 +590,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 				},
-				ResponseFormatAsJsonSchema: responseFormat,
+				ResponseFormatAsJSONSchema: responseFormat,
 			}
 			if component == "openai" {
 				req.Temperature = 1
@@ -626,7 +626,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			// create a long prompt to ensure it's cacheable (OpenAI requires >1024 tokens)
 			longPrompt := "You are a helpful assistant. " + strings.Repeat("This is important context information that should be cached. ", 100) + "The end of the prompt."
 
-			promptCacheRetention := time.Duration(24 * time.Hour)
+			promptCacheRetention := 24 * time.Hour
 
 			// first request - no cached tokens
 			req1 := &conversation.Request{

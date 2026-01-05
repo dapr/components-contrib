@@ -64,18 +64,16 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
-// approximateTokensFromLength estimates the number of tokens based on text length.
-// This uses a rough approximation: ~1 token per 4 chars.
-// Reasoning behind 4 char per token:
-// - LLM tokens are subword units, not individual characters
-// - Text averages ~4-5 chars per token
+// approximateTokensFromWords estimates the number of tokens based on word count.
 // ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-// We round up division to avoid undercounting tokens.
-func approximateTokensFromLength(textLength int) int64 {
-	if textLength == 0 {
+func approximateTokensFromWords(text string) int64 {
+	if text == "" {
 		return 0
 	}
-	return int64((textLength + 3) / 4)
+
+	// split on whitespace to count words
+	wordCount := len(strings.Fields(text))
+	return int64(wordCount)
 }
 
 // Converse returns one output per input message.
@@ -159,8 +157,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 	responseContent := strings.Join(contentFromMessaged, "\n")
 
-	promptTokens := approximateTokensFromLength(promptTextLength)
-	completionTokens := approximateTokensFromLength(len(responseContent))
+	promptTokens := approximateTokensFromWords(promptTextLength)
+	completionTokens := approximateTokensFromWords(len(responseContent))
 	totalTokens := promptTokens + completionTokens
 
 	stopReason := "stop"

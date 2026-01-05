@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/dapr/kit/logger"
@@ -137,8 +138,8 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 
-	if r.ResponseFormatAsJsonSchema != nil {
-		structuredOutput, err := convertJsonSchemaForLangchain(r.ResponseFormatAsJsonSchema)
+	if r.ResponseFormatAsJSONSchema != nil {
+		structuredOutput, err := convertJSONSchemaForLangchain(r.ResponseFormatAsJSONSchema)
 		if err != nil {
 			logger.Warnf("failed to convert response format to structured output, will continue without structured output: %v", err)
 		} else {
@@ -193,16 +194,16 @@ func stringMapToAny(m map[string]string) map[string]any {
 	return out
 }
 
-// convertJsonSchemaForLangchain converts a JSON schema map to langchain's llms.StructuredOutputDefinition
+// convertJSONSchemaForLangchain converts a JSON schema map to langchain's llms.StructuredOutputDefinition
 // Based on langchain's structured output implementation:
 // https://github.com/tmc/langchaingo/commit/5b6a093e5995485fdf061609cf987be84be947e2#diff-bb2609d8b74a6201524e3f8c9408b2866e19620c7ee0af3c6c947a5302baf6a1
-func convertJsonSchemaForLangchain(jsonSchema map[string]any) (*llms.StructuredOutputDefinition, error) {
+func convertJSONSchemaForLangchain(jsonSchema map[string]any) (*llms.StructuredOutputDefinition, error) {
 	if jsonSchema == nil {
-		return nil, fmt.Errorf("json schema cannot be nil")
+		return nil, errors.New("json schema cannot be nil")
 	}
 
 	if _, ok := jsonSchema["type"].(string); !ok {
-		return nil, fmt.Errorf("schema type is required and must be a string")
+		return nil, errors.New("schema type is required and must be a string")
 	}
 
 	schema, err := convertSchemaForLangchain(jsonSchema)
@@ -238,7 +239,7 @@ func convertJsonSchemaForLangchain(jsonSchema map[string]any) (*llms.StructuredO
 // convertSchemaForLangchain converts a JSON schema map to llms.StructuredOutputSchema
 func convertSchemaForLangchain(schemaMap map[string]any) (*llms.StructuredOutputSchema, error) {
 	if schemaMap == nil {
-		return nil, fmt.Errorf("schema map cannot be nil")
+		return nil, errors.New("schema map cannot be nil")
 	}
 
 	schemaTypeStr, ok := schemaMap["type"].(string)

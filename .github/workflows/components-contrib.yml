@@ -37,7 +37,7 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}

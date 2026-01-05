@@ -1,0 +1,44 @@
+name: Dependabot modtidy-all
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+    
+permissions:
+    contents: read
+    pull-requests: write
+
+jobs:
+    modtidy-all:
+        if: github.actor == 'dependabot[bot]'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+            - name: Set up Go
+              uses: actions/setup-go@v6
+              with:
+                  go-version-file: 'go.mod'
+            - name: Run go mod tidy for all modules
+              run: |
+                make modtidy-all
+            - name: Prepare repo and detect changes
+              id: detect_changes
+              run: |
+                git config --global user.name "github-actions[bot]"
+                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+                git add .
+                # Exit status 0 => no changes. Set output for next steps.
+                if git diff --cached --quiet; then
+                  echo "changes=false" >> $GITHUB_OUTPUT
+                else
+                  echo "changes=true" >> $GITHUB_OUTPUT
+                fi
+            - name: Commit and push changes
+              if: steps.detect_changes.outputs.changes == 'true'
+              run: |
+                git commit -m "chore(deps): run go mod tidy for all modules"
+                git push -u origin HEAD:${{ github.event.pull_request.head.ref }}
+            - name: No changes to commit
+              if: steps.detect_changes.outputs.changes == 'false'
+              run: echo "No changes to commit"

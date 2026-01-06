@@ -75,8 +75,8 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	h.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)
+	if m.ResponseCacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

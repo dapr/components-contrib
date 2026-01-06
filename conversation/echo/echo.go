@@ -51,7 +51,9 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	e.model = r.Model
+	if r.Model != nil {
+		e.model = *r.Model
+	}
 
 	return nil
 }
@@ -60,6 +62,18 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.Request{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+// approximateTokensFromWords estimates the number of tokens based on word count.
+// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
+func approximateTokensFromWords(text string) int64 {
+	if text == "" {
+		return 0
+	}
+
+	// split on whitespace to count words
+	wordCount := len(strings.Fields(text))
+	return int64(wordCount)
 }
 
 // Converse returns one output per input message.
@@ -139,6 +153,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		}
 	}
 
+	responseContent := strings.Join(contentFromMessaged, "\n")
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
 		stopReason = "tool_calls"
@@ -148,7 +163,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
-			Content: strings.Join(contentFromMessaged, "\n"),
+			Content: responseContent,
 		},
 	}
 
@@ -161,9 +176,17 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
+	tokenCount := approximateTokensFromWords(responseContent)
+	usage := &conversation.Usage{
+		CompletionTokens: tokenCount,
+		PromptTokens:     tokenCount,
+		TotalTokens:      tokenCount + tokenCount,
+	}
+
 	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
 		Outputs:             []conversation.Result{output},
+		Usage:               usage,
 	}
 
 	return res, nil

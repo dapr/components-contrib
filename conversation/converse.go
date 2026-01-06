@@ -17,6 +17,7 @@ package conversation
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -43,16 +44,19 @@ type Request struct {
 	ConversationContext string                `json:"conversationContext"`
 	Temperature         float64               `json:"temperature"`
 
-	// from metadata
-	Key       string   `json:"key"`
-	Model     string   `json:"model"`
-	Endpoints []string `json:"endpoints"`
-	Policy    string   `json:"loadBalancingPolicy"`
+	// Metadata fields that are separate from the actual component metadata fields
+	// that get passed to the LLM through the conversation.
+	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
+	Metadata map[string]string `json:"metadata"`
+	Model    *string           `json:"model"`
+
+	PromptCacheRetention time.Duration `json:"promptCacheRetention"`
 }
 
 type Response struct {
 	ConversationContext string   `json:"conversationContext"`
 	Outputs             []Result `json:"outputs"`
+	Usage               *Usage   `json:"usage,omitempty"`
 }
 
 type Result struct {

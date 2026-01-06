@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 
 	sftpClient "github.com/pkg/sftp"
@@ -167,23 +166,9 @@ func (sftp *Sftp) create(_ context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	c := sftp.c
-
-	file, fileName, err := c.create(path)
+	fileName, err := sftp.c.create(req.Data, path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error create file %s: %w", path, err)
-	}
-
-	defer func() {
-		closeErr := file.Close()
-		if closeErr != nil {
-			sftp.logger.Errorf("sftp binding error: error close file: %w", closeErr)
-		}
-	}()
-
-	_, err = file.Write(req.Data)
-	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error write file: %w", err)
+		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
 	jsonResponse, err := json.Marshal(createResponse{
@@ -249,20 +234,13 @@ func (sftp *Sftp) get(_ context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("sftp binding error: %w", err)
 	}
 
-	c := sftp.c
-
-	file, err := c.get(path)
+	data, err := sftp.c.get(path)
 	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error open file %s: %w", path, err)
-	}
-
-	b, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("sftp binding error: error read file %s: %w", path, err)
+		return nil, fmt.Errorf("sftp binding error: error reading file %s: %w", path, err)
 	}
 
 	return &bindings.InvokeResponse{
-		Data: b,
+		Data: data,
 	}, nil
 }
 

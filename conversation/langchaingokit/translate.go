@@ -4,8 +4,7 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 )
 
-// NOTE: These are all workarounds due to langchaingo limitations,
-// or limitations of certain components (so far only mistral and ollama).
+// NOTE: These are all translations due to langchaingo data types.
 
 // extractInt64FromGenInfo extracts an int64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
 func extractInt64FromGenInfo(genInfo map[string]any, key string) int64 {

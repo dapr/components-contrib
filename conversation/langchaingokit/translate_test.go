@@ -18,9 +18,10 @@ limitations under the License.
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/conversation"
 )
 
 func TestExtractInt64FromGenInfo(t *testing.T) {

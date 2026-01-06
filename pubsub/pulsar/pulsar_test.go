@@ -14,6 +14,9 @@ limitations under the License.
 package pulsar
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -22,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func TestParsePulsarMetadata(t *testing.T) {
@@ -889,4 +893,114 @@ func TestSanitiseURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitUsesTokenFromFileWhenClientSecretPathProvided(t *testing.T) {
+	server := newOAuthTestServer(t)
+	secretPath := writeTempFile(t, "rotating-secret")
+
+	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	t.Cleanup(func() {
+		p.newClientFn = pulsar.NewClient
+	})
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+		capturedOpts = opts
+		return nil, nil
+	}
+
+	md := pubsub.Metadata{}
+	md.Properties = map[string]string{
+		"host":                   "localhost:6650",
+		"oauth2TokenURL":         server.URL,
+		"oauth2ClientID":         "client-id",
+		"oauth2ClientSecretPath": secretPath,
+		"oauth2Scopes":           "scope1",
+		"oauth2Audiences":        "aud1",
+	}
+	err := p.Init(t.Context(), md)
+
+	require.NoError(t, err)
+	require.NotNil(t, capturedOpts.Authentication)
+	expected := pulsar.NewAuthenticationTokenFromFile(secretPath)
+	assert.IsType(t, expected, capturedOpts.Authentication)
+}
+
+func TestInitUsesTokenSupplierWhenClientSecretPathMissing(t *testing.T) {
+	server := newOAuthTestServer(t)
+
+	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	t.Cleanup(func() {
+		p.newClientFn = pulsar.NewClient
+	})
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+		capturedOpts = opts
+		return nil, nil
+	}
+
+	md := pubsub.Metadata{}
+	md.Properties = map[string]string{
+		"host":               "localhost:6650",
+		"oauth2TokenURL":     server.URL,
+		"oauth2ClientID":     "client-id",
+		"oauth2ClientSecret": "client-secret",
+		"oauth2Scopes":       "scope1",
+		"oauth2Audiences":    "aud1",
+	}
+	err := p.Init(t.Context(), md)
+
+	require.NoError(t, err)
+	require.NotNil(t, capturedOpts.Authentication)
+	expected := pulsar.NewAuthenticationTokenFromSupplier(func() (string, error) {
+		return "", nil
+	})
+	assert.IsType(t, expected, capturedOpts.Authentication)
+}
+
+func TestInitUsesTokenWhenProvided(t *testing.T) {
+	var capturedOpts pulsar.ClientOptions
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	t.Cleanup(func() {
+		p.newClientFn = pulsar.NewClient
+	})
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+		capturedOpts = opts
+		return nil, nil
+	}
+
+	md := pubsub.Metadata{}
+	md.Properties = map[string]string{
+		"host":  "localhost:6650",
+		"token": "my-token",
+	}
+	err := p.Init(t.Context(), md)
+
+	require.NoError(t, err)
+	require.NotNil(t, capturedOpts.Authentication)
+	expected := pulsar.NewAuthenticationToken("my-token")
+	assert.IsType(t, expected, capturedOpts.Authentication)
+}
+
+func newOAuthTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"token","token_type":"bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func writeTempFile(t *testing.T, content string) string {
+	t.Helper()
+
+	f, err := os.CreateTemp(t.TempDir(), "pulsar-secret-*")
+	require.NoError(t, err)
+	_, err = f.WriteString(content)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	return f.Name()
 }

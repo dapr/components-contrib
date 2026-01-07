@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"math/rand"
 	"os"
+	"os/exec"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -36,15 +37,19 @@ import (
 
 const (
 	ProxySftp        = "0.0.0.0:2223"
-	ConnectionString = "0.0.0.0:2222"
+	ConnectionString = "0.0.0.0:2224"
 )
 
+var log = logger.NewLogger("sftp-test")
+
 func TestIntegrationCases(t *testing.T) {
-	cleanUp := setupSftp(t)
-	defer cleanUp()
+	//cleanUp := setupSftp(t)
+	//defer cleanUp()
+	log.SetOutputLevel(logger.DebugLevel)
 	time.Sleep(1 * time.Second)
 	t.Run("List operation", testListOperation)
 	t.Run("Create operation", testCreateOperation)
+	t.Run("Poison get", testPoisonGet)
 	t.Run("Reconnections", testReconnect)
 }
 
@@ -80,7 +85,7 @@ func testListOperation(t *testing.T) {
 	m := bindings.Metadata{}
 
 	m.Properties = map[string]string{
-		"rootPath":              "/upload",
+		"rootPath":              "/data/foo/upload",
 		"address":               ProxySftp,
 		"username":              "foo",
 		"password":              "pass",
@@ -300,4 +305,61 @@ func testReconnect(t *testing.T) {
 		currentReconnects := proxy.ReconnectionCount.Load()
 		assert.InDelta(t, expectedReconnects, currentReconnects, 2.0, "Expected %d reconnections, got %d", expectedReconnects, currentReconnects)
 	})
+}
+
+func testPoisonGet(t *testing.T) {
+	proxy := &sftp.Proxy{
+		ListenAddr:   ProxySftp,
+		UpstreamAddr: ConnectionString,
+	}
+	defer proxy.Close()
+	go proxy.ListenAndServe()
+	c := Sftp{
+		logger: log,
+	}
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{
+		"rootPath":              "/data/foo/upload",
+		"address":               ProxySftp,
+		"username":              "foo",
+		"password":              "pass",
+		"insecureIgnoreHostKey": "true",
+	}
+
+	err := c.Init(t.Context(), m)
+	require.NoError(t, err)
+
+	r, err := c.Invoke(t.Context(), &bindings.InvokeRequest{
+		Operation: bindings.CreateOperation,
+		Data:      []byte("test data 1"),
+		Metadata: map[string]string{
+			"fileName": "test.txt",
+		},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, r.Data)
+
+	get := func() error {
+		r, err := c.Invoke(t.Context(), &bindings.InvokeRequest{
+			Operation: bindings.GetOperation,
+			Metadata: map[string]string{
+				"fileName": "test.txt",
+			},
+		})
+		if r != nil {
+			log.Infof("Response: %s", r.Data)
+		}
+		return err
+	}
+
+	err = get()
+	require.NoError(t, err)
+
+	require.NoError(t, exec.Command("docker", "exec", "sftpgo", "chmod", "600", "/var/lib/sftpgo/data/foo/upload").Run())
+	err = get()
+	require.Error(t, err)
+
+	require.NoError(t, exec.Command("docker", "exec", "sftpgo", "chmod", "777", "/var/lib/sftpgo/data/foo/upload").Run())
+	err = get()
+	require.NoError(t, err)
 }

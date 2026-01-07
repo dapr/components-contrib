@@ -169,6 +169,9 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token() (*sarama.AccessToken, error) {
 		return nil, fmt.Errorf("failed to build token: %w", err)
 	}
 
+	// Some IdPs require the audience to be set as a single string
+	token.Options().Enable(jwt.FlattenAudience)
+
 	var signOptions []jwt.Option
 	if ts.Kid != "" {
 		headers := jws.NewHeaders()

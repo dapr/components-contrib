@@ -16,6 +16,7 @@ package openai
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,11 +26,12 @@ import (
 
 func TestOpenaiLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
+		ttl := 10 * time.Minute
 		metadata := OpenAILangchainMetadata{
 			LangchainMetadata: conversation.LangchainMetadata{
 				Key:              "test-key",
 				Model:            "gpt-4",
-				ResponseCacheTTL: "10m",
+				ResponseCacheTTL: &ttl,
 				Endpoint:         "https://custom-endpoint.openai.azure.com/",
 			},
 			APIType:    "azure",

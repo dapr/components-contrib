@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -40,7 +41,10 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
-	outputs, usage := a.NormalizeConverseResult(resp.Choices)
+	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
+	if err != nil {
+		return nil, err
+	}
 
 	res = &conversation.Response{
 		// TODO: Fix this, we never used this ConversationContext field to begin with.
@@ -53,15 +57,19 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	return res, nil
 }
 
-func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage) {
+func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage, error) {
 	if len(choices) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
 	var usage *conversation.Usage
 	if len(choices) > 0 && choices[0].GenerationInfo != nil {
-		usage = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
+		var err error
+		usage, err = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract usage metrics: %v", err)
+		}
 	}
 
 	outputs := make([]conversation.Result, 0, len(choices))
@@ -87,7 +95,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		outputs = append(outputs, output)
 	}
 
-	return outputs, usage
+	return outputs, usage, nil
 }
 
 func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
@@ -108,7 +116,7 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 	}
 
 	// Handle prompt cache retention for OpenAI's extended prompt caching feature
-	if r.PromptCacheRetention > 0 {
+	if r.PromptCacheRetention != nil {
 		if r.Metadata == nil {
 			r.Metadata = make(map[string]string)
 		}
@@ -118,7 +126,8 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		// In langchain there is a llms.WithPromptCaching(true) option that is incompatible with Openai yielding an err bc then it tries to use a bool instead of a string,
 		// because openai expects this to be a time duration string but used with langchain with their llms.WithPromptCachine(true) does not translate properly.
 		// When Langchain fixes this then we can update accordingly :)
-		r.Metadata["prompt_cache_retention"] = r.PromptCacheRetention.String()
+		const metadataPromptCacheKey = "prompt_cache_retention"
+		r.Metadata[metadataPromptCacheKey] = r.PromptCacheRetention.String()
 	}
 
 	// Openai accepts this as map[string]string but langchain expects map[string]any,

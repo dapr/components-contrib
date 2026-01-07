@@ -16,6 +16,7 @@ package conversation
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,10 +24,11 @@ import (
 
 func TestLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
+		ttl := time.Duration(10 * time.Minute)
 		metadata := LangchainMetadata{
 			Key:              "test-key",
 			Model:            DefaultOpenAIModel,
-			ResponseCacheTTL: "10m",
+			ResponseCacheTTL: &ttl,
 			Endpoint:         "https://custom-endpoint.example.com",
 		}
 

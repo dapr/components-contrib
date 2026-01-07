@@ -66,7 +66,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	g.LLM.Model = llm
 
-	if md.ResponseCacheTTL != "" {
+	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr

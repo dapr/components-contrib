@@ -50,7 +50,7 @@ type Request struct {
 	Metadata map[string]string `json:"metadata"`
 	Model    *string           `json:"model"`
 
-	PromptCacheRetention time.Duration `json:"promptCacheRetention"`
+	PromptCacheRetention *time.Duration `json:"promptCacheRetention,omitempty"`
 }
 
 type Response struct {

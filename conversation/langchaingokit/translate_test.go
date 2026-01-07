@@ -1,7 +1,5 @@
-package langchaingokit
-
 /*
-Copyright 2025 The Dapr Authors
+Copyright 2026 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+package langchaingokit
+
 import (
 	"testing"
 
@@ -26,54 +26,65 @@ import (
 
 func TestExtractInt64FromGenInfo(t *testing.T) {
 	tests := []struct {
-		name     string
-		genInfo  map[string]any
-		key      string
-		expected int64
+		name        string
+		genInfo     map[string]any
+		key         string
+		expected    int64
+		expectedErr bool
 	}{
 		{
 			name: "extract int64 value",
 			genInfo: map[string]any{
-				"CompletionTokens": int64(100),
+				completionKey: int64(100),
 			},
-			key:      "CompletionTokens",
-			expected: int64(100),
+			key:         completionKey,
+			expected:    int64(100),
+			expectedErr: false,
 		},
 		{
 			name: "missing key",
 			genInfo: map[string]any{
 				"OtherKey": int64(50),
 			},
-			key:      "CompletionTokens",
-			expected: int64(0),
+			key:         completionKey,
+			expected:    int64(0),
+			expectedErr: false,
 		},
 		{
-			name:     "nil genInfo returns zero",
-			genInfo:  nil,
-			key:      "CompletionTokens",
-			expected: int64(0),
+			name:        "nil genInfo returns zero",
+			genInfo:     nil,
+			key:         completionKey,
+			expected:    int64(0),
+			expectedErr: false,
 		},
 		{
 			name: "wrong type returns zero",
 			genInfo: map[string]any{
-				"CompletionTokens": "not an int",
+				completionKey: "not an int",
 			},
-			key:      "CompletionTokens",
-			expected: int64(0),
+			key:         completionKey,
+			expected:    int64(0),
+			expectedErr: true,
 		},
 		{
 			name: "zero value",
 			genInfo: map[string]any{
-				"CompletionTokens": int64(0),
+				completionKey: int64(0),
 			},
-			key:      "CompletionTokens",
-			expected: int64(0),
+			key:         completionKey,
+			expected:    int64(0),
+			expectedErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractInt64FromGenInfo(tt.genInfo, tt.key)
+			result, err := extractInt64FromGenInfo(tt.genInfo, tt.key)
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -83,30 +94,33 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 	tests := []struct {
 		name     string
 		genInfo  map[string]any
-		validate func(t *testing.T, result *conversation.Usage)
+		validate func(t *testing.T, result *conversation.Usage, err error)
 	}{
 		{
 			name:    "nil genInfo",
 			genInfo: nil,
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				assert.Nil(t, result)
 			},
 		},
 		{
 			name:    "empty genInfo",
 			genInfo: map[string]any{},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				assert.Nil(t, result)
 			},
 		},
 		{
 			name: "basic usage",
 			genInfo: map[string]any{
-				"CompletionTokens": int64(100),
-				"PromptTokens":     int64(50),
-				"TotalTokens":      int64(150),
+				completionKey: int64(100),
+				promptKey:     int64(50),
+				totalKey:      int64(150),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, int64(100), result.CompletionTokens)
 				assert.Equal(t, int64(50), result.PromptTokens)
@@ -118,15 +132,16 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "usage with completion token details",
 			genInfo: map[string]any{
-				"CompletionTokens":                   int64(200),
-				"PromptTokens":                       int64(100),
-				"TotalTokens":                        int64(300),
-				"CompletionAcceptedPredictionTokens": int64(10),
-				"CompletionAudioTokens":              int64(5),
-				"CompletionReasoningTokens":          int64(15),
-				"CompletionRejectedPredictionTokens": int64(2),
+				completionKey:         int64(200),
+				promptKey:             int64(100),
+				totalKey:              int64(300),
+				completionAcceptedKey: int64(10),
+				completionAudioKey:    int64(5),
+				reasoningKey:          int64(15),
+				rejectedKey:           int64(2),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, int64(200), result.CompletionTokens)
 				assert.NotNil(t, result.CompletionTokensDetails)
@@ -140,13 +155,14 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "usage with prompt token details",
 			genInfo: map[string]any{
-				"CompletionTokens":   int64(150),
-				"PromptTokens":       int64(75),
-				"TotalTokens":        int64(225),
-				"PromptAudioTokens":  int64(10),
-				"PromptCachedTokens": int64(20),
+				completionKey:   int64(150),
+				promptKey:       int64(75),
+				totalKey:        int64(225),
+				promptAudioKey:  int64(10),
+				promptCachedKey: int64(20),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, int64(150), result.CompletionTokens)
 				assert.Nil(t, result.CompletionTokensDetails)
@@ -158,17 +174,18 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "usage with all details",
 			genInfo: map[string]any{
-				"CompletionTokens":                   int64(250),
-				"PromptTokens":                       int64(125),
-				"TotalTokens":                        int64(375),
-				"CompletionAcceptedPredictionTokens": int64(20),
-				"CompletionAudioTokens":              int64(8),
-				"CompletionReasoningTokens":          int64(25),
-				"CompletionRejectedPredictionTokens": int64(3),
-				"PromptAudioTokens":                  int64(15),
-				"PromptCachedTokens":                 int64(30),
+				completionKey:         int64(250),
+				promptKey:             int64(125),
+				totalKey:              int64(375),
+				completionAcceptedKey: int64(20),
+				completionAudioKey:    int64(8),
+				reasoningKey:          int64(25),
+				rejectedKey:           int64(3),
+				promptAudioKey:        int64(15),
+				promptCachedKey:       int64(30),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, int64(250), result.CompletionTokens)
 				assert.Equal(t, int64(125), result.PromptTokens)
@@ -186,15 +203,16 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "completion details with zero values are not included",
 			genInfo: map[string]any{
-				"CompletionTokens":                   int64(100),
-				"PromptTokens":                       int64(50),
-				"TotalTokens":                        int64(150),
-				"CompletionAcceptedPredictionTokens": int64(0),
-				"CompletionAudioTokens":              int64(0),
-				"CompletionReasoningTokens":          int64(0),
-				"CompletionRejectedPredictionTokens": int64(0),
+				completionKey:         int64(100),
+				promptKey:             int64(50),
+				totalKey:              int64(150),
+				completionAcceptedKey: int64(0),
+				completionAudioKey:    int64(0),
+				reasoningKey:          int64(0),
+				rejectedKey:           int64(0),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Nil(t, result.CompletionTokensDetails)
 			},
@@ -202,13 +220,14 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "prompt details with zero values are not included",
 			genInfo: map[string]any{
-				"CompletionTokens":   int64(100),
-				"PromptTokens":       int64(50),
-				"TotalTokens":        int64(150),
-				"PromptAudioTokens":  int64(0),
-				"PromptCachedTokens": int64(0),
+				completionKey:   int64(100),
+				promptKey:       int64(50),
+				totalKey:        int64(150),
+				promptAudioKey:  int64(0),
+				promptCachedKey: int64(0),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Nil(t, result.PromptTokensDetails)
 			},
@@ -216,15 +235,34 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		{
 			name: "completion details included if any field is non-zero",
 			genInfo: map[string]any{
-				"CompletionTokens":                   int64(100),
-				"PromptTokens":                       int64(50),
-				"TotalTokens":                        int64(150),
-				"CompletionAcceptedPredictionTokens": int64(0),
-				"CompletionAudioTokens":              int64(5),
-				"CompletionReasoningTokens":          int64(0),
-				"CompletionRejectedPredictionTokens": int64(0),
+				completionKey:         int64(100),
+				promptKey:             int64(50),
+				totalKey:              int64(150),
+				completionAcceptedKey: int64(0),
+				completionAudioKey:    int64(5),
+				reasoningKey:          int64(0),
+				rejectedKey:           int64(0),
 			},
-			validate: func(t *testing.T, result *conversation.Usage) {
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.NotNil(t, result.CompletionTokensDetails)
+				assert.Equal(t, int64(5), result.CompletionTokensDetails.AudioTokens)
+			},
+		},
+		{
+			name: "completion details included with invalid type",
+			genInfo: map[string]any{
+				completionKey:         int64(100),
+				promptKey:             int64(50),
+				totalKey:              int64(150),
+				completionAcceptedKey: int64(0),
+				completionAudioKey:    int64(5),
+				reasoningKey:          int64(0),
+				rejectedKey:           "i am the invalid type here",
+			},
+			validate: func(t *testing.T, result *conversation.Usage, err error) {
+				require.Error(t, err)
 				require.NotNil(t, result)
 				assert.NotNil(t, result.CompletionTokensDetails)
 				assert.Equal(t, int64(5), result.CompletionTokensDetails.AudioTokens)
@@ -234,8 +272,8 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractUsageFromLangchainGenerationInfo(tt.genInfo)
-			tt.validate(t, result)
+			result, err := extractUsageFromLangchainGenerationInfo(tt.genInfo)
+			tt.validate(t, result, err)
 		})
 	}
 }

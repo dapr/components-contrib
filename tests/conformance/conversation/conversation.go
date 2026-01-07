@@ -560,7 +560,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 				},
-				PromptCacheRetention: promptCacheRetention,
+				PromptCacheRetention: &promptCacheRetention,
 				Metadata: map[string]string{
 					"prompt_cache_retention": "24h",
 				},
@@ -615,7 +615,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 				},
-				PromptCacheRetention: promptCacheRetention,
+				PromptCacheRetention: &promptCacheRetention,
 				Metadata: map[string]string{
 					"prompt_cache_retention": "24h",
 				},

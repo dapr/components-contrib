@@ -1,49 +1,115 @@
+/*
+Copyright 2026 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package langchaingokit
 
 import (
+	"fmt"
+
 	"github.com/dapr/components-contrib/conversation"
 )
 
 // NOTE: These are all translations due to langchaingo data types.
 
+// exposing to use also in tests
+const (
+	completionKey         = "CompletionTokens"
+	promptKey             = "PromptTokens"
+	totalKey              = "TotalTokens"
+	completionAcceptedKey = "CompletionAcceptedPredictionTokens"
+	completionAudioKey    = "CompletionAudioTokens"
+	reasoningKey          = "CompletionReasoningTokens"
+	rejectedKey           = "CompletionRejectedPredictionTokens"
+	promptAudioKey        = "PromptAudioTokens"
+	promptCachedKey       = "PromptCachedTokens"
+)
+
 // extractInt64FromGenInfo extracts an int64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
-func extractInt64FromGenInfo(genInfo map[string]any, key string) int64 {
+func extractInt64FromGenInfo(genInfo map[string]any, key string) (int64, error) {
 	if v, ok := genInfo[key]; ok {
 		switch val := v.(type) {
 		case int64:
-			return val
+			return val, nil
 		case int:
-			return int64(val)
+			return int64(val), nil
 		case int32:
-			return int64(val)
+			return int64(val), nil
 		case float64:
-			return int64(val)
+			return int64(val), nil
 		case float32:
-			return int64(val)
+			return int64(val), nil
+		default:
+			return 0, fmt.Errorf("failed to extract usage metrics for type: %T", val)
 		}
 	}
-	return 0
+	return 0, nil
 }
 
 // extractUsageFromLangchainGenerationInfo extracts usage statistics from langchaingo's GenerationInfo map.
 // Magic strings are based on the fields here:
 // ref: https://github.com/openai/openai-go/blob/main/completion.go#L192 for CompletionUsageCompletionTokensDetails
 // ref: https://github.com/openai/openai-go/blob/main/completion.go#L162 for CompletionUsagePromptTokensDetails
-func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) *conversation.Usage {
+func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) (*conversation.Usage, error) {
 	if genInfo == nil {
-		return nil
+		return nil, nil
 	}
 
 	usage := &conversation.Usage{}
-	usage.CompletionTokens = extractInt64FromGenInfo(genInfo, "CompletionTokens")
-	usage.PromptTokens = extractInt64FromGenInfo(genInfo, "PromptTokens")
-	usage.TotalTokens = extractInt64FromGenInfo(genInfo, "TotalTokens")
+	completionTokens, err := extractInt64FromGenInfo(genInfo, completionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract completion tokens: %v", err)
+	}
+	usage.CompletionTokens = completionTokens
+
+	promptTokens, err := extractInt64FromGenInfo(genInfo, promptKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract prompt tokens: %v", err)
+	}
+	usage.PromptTokens = promptTokens
+
+	totalTokens, err := extractInt64FromGenInfo(genInfo, totalKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract total tokens: %v", err)
+	}
+	usage.TotalTokens = totalTokens
+
+	acceptedTokens, err := extractInt64FromGenInfo(genInfo, completionAcceptedKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract completion accepted prediction tokens: %v", err)
+	}
+
+	audioTokens, err := extractInt64FromGenInfo(genInfo, completionAudioKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract completion audio tokens: %v", err)
+	}
+
+	reasoningTokens, err := extractInt64FromGenInfo(genInfo, reasoningKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract completion reasoning tokens: %v", err)
+	}
+
+	rejectedTokens, err := extractInt64FromGenInfo(genInfo, rejectedKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract completion rejected prediction tokens: %v", err)
+	}
 
 	completionDetails := &conversation.CompletionTokensDetails{
-		AcceptedPredictionTokens: extractInt64FromGenInfo(genInfo, "CompletionAcceptedPredictionTokens"),
-		AudioTokens:              extractInt64FromGenInfo(genInfo, "CompletionAudioTokens"),
-		ReasoningTokens:          extractInt64FromGenInfo(genInfo, "CompletionReasoningTokens"),
-		RejectedPredictionTokens: extractInt64FromGenInfo(genInfo, "CompletionRejectedPredictionTokens"),
+		AcceptedPredictionTokens: acceptedTokens,
+		AudioTokens:              audioTokens,
+		ReasoningTokens:          reasoningTokens,
+		RejectedPredictionTokens: rejectedTokens,
 	}
 
 	if completionDetails.AcceptedPredictionTokens > 0 || completionDetails.AudioTokens > 0 ||
@@ -51,9 +117,19 @@ func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) *conversati
 		usage.CompletionTokensDetails = completionDetails
 	}
 
+	promptAudioTokens, err := extractInt64FromGenInfo(genInfo, promptAudioKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract prompt audio tokens: %v", err)
+	}
+
+	promptCachedTokens, err := extractInt64FromGenInfo(genInfo, promptCachedKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract prompt cached tokens: %v", err)
+	}
+
 	promptDetails := &conversation.PromptTokensDetails{
-		AudioTokens:  extractInt64FromGenInfo(genInfo, "PromptAudioTokens"),
-		CachedTokens: extractInt64FromGenInfo(genInfo, "PromptCachedTokens"),
+		AudioTokens:  promptAudioTokens,
+		CachedTokens: promptCachedTokens,
 	}
 
 	if promptDetails.AudioTokens > 0 || promptDetails.CachedTokens > 0 {
@@ -62,8 +138,8 @@ func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) *conversati
 
 	// Only return usage if we have at least some data
 	if usage.CompletionTokens > 0 || usage.PromptTokens > 0 || usage.TotalTokens > 0 {
-		return usage
+		return usage, nil
 	}
 
-	return nil
+	return nil, nil
 }

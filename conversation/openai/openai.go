@@ -82,7 +82,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.LLM.Model = llm
 
-	if md.ResponseCacheTTL != "" {
+	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr

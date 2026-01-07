@@ -72,8 +72,7 @@ func approximateTokensFromWords(text string) int64 {
 	}
 
 	// split on whitespace to count words
-	wordCount := len(strings.Fields(text))
-	return int64(wordCount)
+	return int64(len(strings.Fields(text)))
 }
 
 // Converse returns one output per input message.

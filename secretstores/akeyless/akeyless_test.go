@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	testAccessIdIAM = "p-xt3sT2nah7gpwm"
-	testAccessIdJwt = "p-xt3sT2nah7gpom"
-	testAccessIdKey = "p-xt3sT2nah7gpam"
+	testAccessIDIAM = "p-xt3sT2nah7gpwm"
+	testAccessIDJwt = "p-xt3sT2nah7gpom"
+	testAccessIDKey = "p-xt3sT2nah7gpam"
 	testAccessKey   = "ABCD1233xxx="
 	// {
 	// "sub": "1234567890",
@@ -39,14 +39,14 @@ var (
 	mockStaticSecretPasswordItemName     = "/static-secret-password-test"
 	mockDynamicSecretItemName            = "/dynamic-secret-test"
 	mockRotatedSecretItemName            = "/rotated-secret-test"
-	mockDescribeStaticSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretItem)
-	mockDescribeStaticSecretType         = STATIC_SECRET_RESPONSE
+	mockDescribeStaticSecretName         = "/path/to/akeyless" + mockStaticSecretItem
+	mockDescribeStaticSecretType         = StaticSecretResponse
 	mockDescribeStaticSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeStaticSecretName,
 		ItemType:  &mockDescribeStaticSecretType,
 		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
-	mockStaticSecretJSONName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretJSONItemName)
+	mockStaticSecretJSONName             = "/path/to/akeyless" + mockStaticSecretJSONItemName
 	mockGetSingleSecretJSONValueResponse = map[string]map[string]string{
 		mockStaticSecretJSONName: {
 			"some": "json",
@@ -57,15 +57,15 @@ var (
 		ItemType:  &mockDescribeStaticSecretType,
 		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
-	mockStaticSecretPasswordName             = fmt.Sprintf("/path/to/akeyless%s", mockStaticSecretPasswordItemName)
+	mockStaticSecretPasswordName             = "/path/to/akeyless" + mockStaticSecretPasswordItemName
 	mockGetSingleSecretPasswordValueResponse = map[string]map[string]string{
 		mockStaticSecretPasswordName: {
 			"password": testSecretValue,
 			"username": "akeyless",
 		},
 	}
-	mockDescribeDynamicSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockDynamicSecretItemName)
-	mockDescribeDynamicSecretType         = DYNAMIC_SECRET_RESPONSE
+	mockDescribeDynamicSecretName         = "/path/to/akeyless" + mockDynamicSecretItemName
+	mockDescribeDynamicSecretType         = DynamicSecretResponse
 	mockDescribeDynamicSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeDynamicSecretName,
 		ItemType:  &mockDescribeDynamicSecretType,
@@ -80,8 +80,8 @@ var (
 		"value": "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}",
 		"error": "",
 	}
-	mockDescribeRotatedSecretName         = fmt.Sprintf("/path/to/akeyless%s", mockRotatedSecretItemName)
-	mockDescribeRotatedSecretType         = ROTATED_SECRET_RESPONSE
+	mockDescribeRotatedSecretName         = "/path/to/akeyless" + mockRotatedSecretItemName
+	mockDescribeRotatedSecretType         = RotatedSecretResponse
 	mockDescribeRotatedSecretItemResponse = akeyless.Item{
 		ItemName:  &mockDescribeRotatedSecretName,
 		ItemType:  &mockDescribeRotatedSecretType,
@@ -126,12 +126,12 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 			URL: metadata.GatewayURL,
 		},
 	}
-	config.UserAgent = USER_AGENT
-	config.AddDefaultHeader("akeylessclienttype", USER_AGENT)
+	config.UserAgent = UserAgent
+	config.AddDefaultHeader("akeylessclienttype", UserAgent)
 
 	akeylessSecretStore.v2 = akeyless.NewAPIClient(config).V2Api
 
-	out, _, err := akeylessSecretStore.v2.Auth(context.Background()).Body(*authRequest).Execute()
+	out, _, err := akeylessSecretStore.v2.Auth(context.TODO()).Body(*authRequest).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
@@ -227,7 +227,7 @@ func TestInit(t *testing.T) {
 			metadata: secretstores.Metadata{
 				Base: metadata.Base{
 					Properties: map[string]string{
-						"accessId":   testAccessIdKey,
+						"accessId":   testAccessIDKey,
 						"accessKey":  testAccessKey,
 						"gatewayUrl": mockGateway.URL,
 					},
@@ -240,7 +240,7 @@ func TestInit(t *testing.T) {
 			metadata: secretstores.Metadata{
 				Base: metadata.Base{
 					Properties: map[string]string{
-						"accessId":   testAccessIdJwt,
+						"accessId":   testAccessIDJwt,
 						"jwt":        testJWT,
 						"gatewayUrl": mockGateway.URL,
 					},
@@ -253,7 +253,7 @@ func TestInit(t *testing.T) {
 			metadata: secretstores.Metadata{
 				Base: metadata.Base{
 					Properties: map[string]string{
-						"accessId":   testAccessIdIAM,
+						"accessId":   testAccessIDIAM,
 						"gatewayUrl": mockGateway.URL,
 					},
 				},
@@ -298,9 +298,9 @@ func TestInit(t *testing.T) {
 				}
 			} else {
 				// Use normal Init for other test cases
-				err := store.Init(context.Background(), tt.metadata)
+				err := store.Init(t.Context(), tt.metadata)
 				if tt.expectError {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
 					assert.NoError(t, err)
 					assert.NotNil(t, store.v2)
@@ -319,8 +319,8 @@ func TestGetSecretWithoutInit(t *testing.T) {
 		Name: "test-secret",
 	}
 
-	_, err := store.GetSecret(context.Background(), req)
-	assert.Error(t, err)
+	_, err := store.GetSecret(t.Context(), req)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -330,8 +330,8 @@ func TestBulkGetSecretWithoutInit(t *testing.T) {
 
 	req := secretstores.BulkGetSecretRequest{}
 
-	_, err := store.BulkGetSecret(context.Background(), req)
-	assert.Error(t, err)
+	_, err := store.BulkGetSecret(t.Context(), req)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -361,12 +361,12 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name: "valid metadata with access id and key",
 			properties: map[string]string{
-				"accessId":  testAccessIdKey,
+				"accessId":  testAccessIDKey,
 				"accessKey": testAccessKey,
 			},
 			expectError: false,
 			expected: &akeylessMetadata{
-				AccessID:   testAccessIdKey,
+				AccessID:   testAccessIDKey,
 				AccessKey:  testAccessKey,
 				GatewayURL: "https://api.akeyless.io", // Default gateway URL
 			},
@@ -374,13 +374,13 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name: "valid metadata with access id and jwt",
 			properties: map[string]string{
-				"accessId":   testAccessIdJwt,
+				"accessId":   testAccessIDJwt,
 				"jwt":        testJWT,
 				"gatewayUrl": mockGateway.URL,
 			},
 			expectError: false,
 			expected: &akeylessMetadata{
-				AccessID:   testAccessIdJwt,
+				AccessID:   testAccessIDJwt,
 				JWT:        testJWT,
 				GatewayURL: mockGateway.URL,
 			},
@@ -388,12 +388,12 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name: "valid metadata with access id aws_iam",
 			properties: map[string]string{
-				"accessId":   testAccessIdIAM,
+				"accessId":   testAccessIDIAM,
 				"gatewayUrl": mockGateway.URL,
 			},
 			expectError: false,
 			expected: &akeylessMetadata{
-				AccessID:   testAccessIdIAM,
+				AccessID:   testAccessIDIAM,
 				GatewayURL: mockGateway.URL,
 			},
 		},
@@ -433,7 +433,7 @@ func TestParseMetadata(t *testing.T) {
 
 			result, err := store.parseMetadata(meta)
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
@@ -450,14 +450,14 @@ func TestMockServerReturnsAuthOutput(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	assert.NoError(t, err)
 	assert.NotNil(t, store.v2)
 	assert.NotNil(t, store.token)
@@ -473,7 +473,7 @@ func TestMockAWSCloudID(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdIAM,
+				"accessId":   testAccessIDIAM,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
@@ -497,14 +497,14 @@ func TestGetSecret(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
@@ -534,7 +534,7 @@ func TestGetSecret(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := store.GetSecret(context.Background(), tt.request)
+			response, err := store.GetSecret(t.Context(), tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Empty(t, response.Data)
@@ -549,8 +549,7 @@ func TestGetSecret(t *testing.T) {
 }
 
 func TestGetSingleSecretJSON(t *testing.T) {
-
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -589,31 +588,30 @@ func TestGetSingleSecretJSON(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
+	response, err := store.GetSecret(t.Context(), secretstores.GetSecretRequest{
 		Name: mockStaticSecretJSONName,
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, response.Data)
 	assert.Contains(t, response.Data, mockStaticSecretJSONName)
-	assert.Equal(t, "{\"some\":\"json\"}", response.Data[mockStaticSecretJSONName])
+	assert.JSONEq(t, "{\"some\":\"json\"}", response.Data[mockStaticSecretJSONName])
 
 	mockGateway.Close()
 }
 
 func TestGetSingleSecretPassword(t *testing.T) {
-
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -652,24 +650,24 @@ func TestGetSingleSecretPassword(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	response, err := store.GetSecret(context.Background(), secretstores.GetSecretRequest{
+	response, err := store.GetSecret(t.Context(), secretstores.GetSecretRequest{
 		Name: mockStaticSecretPasswordName,
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, response.Data)
 	assert.Contains(t, response.Data, mockStaticSecretPasswordName)
-	assert.Equal(t, "{\"password\":\"r3vE4L3D\",\"username\":\"akeyless\"}", response.Data[mockStaticSecretPasswordName])
+	assert.JSONEq(t, "{\"password\":\"r3vE4L3D\",\"username\":\"akeyless\"}", response.Data[mockStaticSecretPasswordName])
 
 	mockGateway.Close()
 }
@@ -681,26 +679,26 @@ func TestGetSecretType(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
 	secretType, err := store.getSecretType(ctx, mockDescribeStaticSecretName)
 	assert.NoError(t, err)
-	assert.Equal(t, STATIC_SECRET_RESPONSE, secretType)
+	assert.Equal(t, StaticSecretResponse, secretType)
 }
 
 func TestGetSingleDynamicSecret(t *testing.T) {
 
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var mockGateway = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -735,25 +733,25 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeDynamicSecretName, DYNAMIC_SECRET_RESPONSE)
-	assert.NoError(t, err)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeDynamicSecretName, DynamicSecretResponse)
+	require.NoError(t, err)
 	assert.Equal(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
 	mockGateway.Close()
 }
 func TestGetSingleRotatedSecret(t *testing.T) {
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var mockGateway = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -788,19 +786,19 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := store.Init(ctx, meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeRotatedSecretName, ROTATED_SECRET_RESPONSE)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeRotatedSecretName, RotatedSecretResponse)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 
@@ -809,7 +807,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 
 func TestGetBulkSecretValues(t *testing.T) {
 
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var mockGateway = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -869,18 +867,18 @@ func TestGetBulkSecretValues(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+	response, err := store.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, response.Data)
 
@@ -901,16 +899,16 @@ func TestGetBulkSecretValues(t *testing.T) {
 	// Check static secret (JSON)
 	jsonSecretKey := "/static-secret-json-test"
 	assert.Contains(t, response.Data, jsonSecretKey)
-	assert.Equal(t, "{\"some\":\"json\"}", response.Data[jsonSecretKey][jsonSecretKey])
+	assert.JSONEq(t, "{\"some\":\"json\"}", response.Data[jsonSecretKey][jsonSecretKey])
 
 	// Check dynamic secret
-	dynamicSecretKey := "/path/to/akeyless/dynamic-secret-test"
+	dynamicSecretKey := "/path/to/akeyless/dynamic-secret-test" //nolint:gosec // G101: test data only
 	assert.Contains(t, response.Data, dynamicSecretKey)
 	expectedDynamicValue := "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}"
 	assert.Equal(t, expectedDynamicValue, response.Data[dynamicSecretKey][dynamicSecretKey])
 
 	// Check rotated secret
-	rotatedSecretKey := "/path/to/akeyless/rotated-secret-test"
+	rotatedSecretKey := "/path/to/akeyless/rotated-secret-test" //nolint:gosec // G101: test data only
 	assert.Contains(t, response.Data, rotatedSecretKey)
 	assert.Equal(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", response.Data[rotatedSecretKey][rotatedSecretKey])
 
@@ -931,7 +929,7 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 	dynamicSecret1 := "/path/to/dynamic/secrets/dynamic1"
 	dynamicSecret2 := "/path/to/dynamic/secrets/dynamic2"
 	rotatedSecret1 := "/path/to/rotated/secrets/rotated1"
-	mixedStaticSecret := "/path/to/mixed/secrets/mixed-static"
+	mixedStaticSecret := "/path/to/mixed/secrets/mixed-static" //nolint:gosec // G101: test data only
 	mixedDynamicSecret := "/path/to/mixed/secrets/mixed-dynamic"
 	mixedRotatedSecret := "/path/to/mixed/secrets/mixed-rotated"
 
@@ -982,7 +980,7 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 		IsEnabled: func(b bool) *bool { return &b }(true),
 	}
 
-	var mockGateway *httptest.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var mockGateway = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Handle different endpoints
@@ -1165,18 +1163,18 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 	meta := secretstores.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"accessId":   testAccessIdKey,
+				"accessId":   testAccessIDKey,
 				"accessKey":  testAccessKey,
 				"gatewayUrl": mockGateway.URL,
 			},
 		},
 	}
 
-	err := store.Init(context.Background(), meta)
+	err := store.Init(t.Context(), meta)
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	response, err := store.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+	response, err := store.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, response.Data)
 
@@ -1233,32 +1231,32 @@ func TestParseSecretTypes(t *testing.T) {
 		{
 			name:     "all",
 			input:    "all",
-			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
+			expected: []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
 		},
 		{
 			name:     "static",
 			input:    "static",
-			expected: []string{STATIC_SECRET_TYPE},
+			expected: []string{StaticSecretType},
 		},
 		{
 			name:     "dynamic",
 			input:    "dynamic",
-			expected: []string{DYNAMIC_SECRET_TYPE},
+			expected: []string{DynamicSecretType},
 		},
 		{
 			name:     "rotated",
 			input:    "rotated",
-			expected: []string{ROTATED_SECRET_TYPE},
+			expected: []string{RotatedSecretType},
 		},
 		{
 			name:     "static,dynamic",
 			input:    "static,dynamic",
-			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE},
+			expected: []string{StaticSecretType, DynamicSecretType},
 		},
 		{
 			name:     "static,dynamic,rotated",
 			input:    "static,dynamic,rotated",
-			expected: []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
+			expected: []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
 		},
 		{
 			name:        "invalid",
@@ -1275,19 +1273,19 @@ func TestParseSecretTypes(t *testing.T) {
 			name:        "mixed case",
 			input:       "Static,Dynamic,ROTATED",
 			expectError: false,
-			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
+			expected:    []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
 		},
 		{
 			name:        "duplicates",
 			input:       "static-secret,dynamic-secret,static-secret",
 			expectError: false,
-			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE},
+			expected:    []string{StaticSecretType, DynamicSecretType},
 		},
 		{
 			name:        "mixed sdk format and direct format",
 			input:       "static-secret,dynamic-secret,rotated-secret,static",
 			expectError: false,
-			expected:    []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE},
+			expected:    []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
 		},
 		{
 			name:        "invalid type",

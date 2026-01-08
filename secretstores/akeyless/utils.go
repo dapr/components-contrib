@@ -19,54 +19,54 @@ import (
 )
 
 const (
-	AUTH_JWT                   = "jwt"
-	AUTH_DEFAULT               = "access_key"
-	AUTH_IAM                   = "aws_iam"
-	AUTH_K8S                   = "k8s"
-	PUBLIC_GATEWAY_URL         = "https://api.akeyless.io"
-	USER_AGENT                 = "dapr.io/akeyless-secret-store"
-	STATIC_SECRET_RESPONSE     = "STATIC_SECRET"
-	DYNAMIC_SECRET_RESPONSE    = "DYNAMIC_SECRET"
-	ROTATED_SECRET_RESPONSE    = "ROTATED_SECRET"
-	STATIC_SECRET_TYPE         = "static-secret"
-	DYNAMIC_SECRET_TYPE        = "dynamic-secret"
-	ROTATED_SECRET_TYPE        = "rotated-secret"
-	ALL_SECRET_TYPES           = "all"
-	CLIENT_SOURCE              = "akeylessclienttype"
-	PATH_DEFAULT               = "/"
-	METADATA_PATH_KEY          = "path"
-	METADATA_SECRETS_TYPE_KEY  = "secrets_type"
-	TOKEN_REFRESH_GRACE_PERIOD = 5 * time.Minute
+	AuthJWT                 = "jwt"
+	AuthDefault             = "access_key"
+	AuthIAM                 = "aws_iam"
+	AuthK8S                 = "k8s"
+	PublicGatewayURL        = "https://api.akeyless.io"
+	UserAgent               = "dapr.io/akeyless-secret-store"
+	StaticSecretResponse    = "STATIC_SECRET"
+	DynamicSecretResponse   = "DYNAMIC_SECRET"
+	RotatedSecretResponse   = "ROTATED_SECRET"
+	StaticSecretType        = "static-secret"
+	DynamicSecretType       = "dynamic-secret"
+	RotatedSecretType       = "rotated-secret"
+	AllSecretTypes          = "all"
+	ClientSource            = "akeylessclienttype"
+	PathDefault             = "/"
+	MetadataPathKey         = "path"
+	MetadataSecretsTypeKey  = "secrets_type"
+	TokenRefreshGracePeriod = 5 * time.Minute
 )
 
-var supportedSecretTypes = []string{STATIC_SECRET_TYPE, DYNAMIC_SECRET_TYPE, ROTATED_SECRET_TYPE}
+var supportedSecretTypes = []string{StaticSecretType, DynamicSecretType, RotatedSecretType}
 
 // AccessTypeCharMap maps single-character access types to their display names.
 var accessTypeCharMap = map[string]string{
-	"a": AUTH_DEFAULT,
-	"o": AUTH_JWT,
-	"w": AUTH_IAM,
-	"k": AUTH_K8S,
+	"a": AuthDefault,
+	"o": AuthJWT,
+	"w": AuthIAM,
+	"k": AuthK8S,
 }
 
-// AccessIdRegex is the compiled regular expression for validating Akeyless Access IDs.
-var accessIdRegex = regexp.MustCompile(`^p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})$`)
+// AccessIDRegex is the compiled regular expression for validating Akeyless Access IDs.
+var accessIDRegex = regexp.MustCompile(`^p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})$`)
 
-// isValidAccessIdFormat validates the format of an Akeyless Access ID.
+// isValidAccessIDFormat validates the format of an Akeyless Access ID.
 // The format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12}).
 // It returns true if the format is valid, and false otherwise.
-func isValidAccessIdFormat(accessId string) bool {
-	return accessIdRegex.MatchString(accessId)
+func isValidAccessIDFormat(accessID string) bool {
+	return accessIDRegex.MatchString(accessID)
 }
 
 // extractAccessTypeChar extracts the Akeyless Access Type character from a valid Access ID.
 // The access type character is the second to last character of the ID part.
 // It returns the single-character access type (e.g., 'a', 'o') or an empty string and an error if the format is invalid.
-func extractAccessTypeChar(accessId string) (string, error) {
-	if !isValidAccessIdFormat(accessId) {
+func extractAccessTypeChar(accessID string) (string, error) {
+	if !isValidAccessIDFormat(accessID) {
 		return "", errors.New("invalid access ID format")
 	}
-	parts := strings.Split(accessId, "-")
+	parts := strings.Split(accessID, "-")
 	idPart := parts[1] // Get the part after "p-"
 	// The access type char is the second-to-last character
 	return string(idPart[len(idPart)-2]), nil
@@ -106,7 +106,7 @@ func stringifyStaticSecret(secretValue any, secretName string) (string, error) {
 
 	switch valueType := secretValue.(type) {
 	case string:
-		secretValue = string(valueType)
+		// valueType is already a string, no conversion needed
 	case map[string]string:
 		encoded, marshalErr := json.Marshal(valueType)
 		if marshalErr != nil {
@@ -128,7 +128,11 @@ func stringifyStaticSecret(secretValue any, secretName string) (string, error) {
 		err = fmt.Errorf("failed to assert type of secret response to string for secret '%s'", secretName)
 	}
 
-	return string(secretValue.(string)), err
+	// At this point, secretValue should be a string (either from case string or from marshaling)
+	if err != nil {
+		return "", err
+	}
+	return secretValue.(string), nil
 }
 
 type secretResultCollection struct {
@@ -153,10 +157,10 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 	}
 
 	switch *secret.ItemType {
-	case STATIC_SECRET_RESPONSE:
+	case StaticSecretResponse:
 		logger.Debugf("static secret '%s' is active", *secret.ItemName)
 		isActive = true
-	case DYNAMIC_SECRET_RESPONSE:
+	case DynamicSecretResponse:
 		// Check if ItemGeneralInfo is available, if not, include the secret
 		if secret.ItemGeneralInfo != nil &&
 			secret.ItemGeneralInfo.DynamicSecretProducerDetails != nil &&
@@ -173,7 +177,7 @@ func isSecretActive(secret akeyless.Item, logger logger.Logger) bool {
 			logger.Debugf("dynamic secret '%s' is missing detailed info. adding to filtered secrets...", *secret.ItemName)
 			isActive = true
 		}
-	case ROTATED_SECRET_RESPONSE:
+	case RotatedSecretResponse:
 		// Check if ItemGeneralInfo is available, if not, include the secret
 		if secret.ItemGeneralInfo != nil &&
 			secret.ItemGeneralInfo.RotatedSecretDetails != nil &&
@@ -233,7 +237,7 @@ func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeyless.Au
 // It accepts a comma-separated string of secret types and returns a slice of supported secret types.
 func parseSecretTypes(secretTypes string) ([]string, error) {
 	// Handle "all" or empty string which returns all supported secret types
-	if secretTypes == ALL_SECRET_TYPES || secretTypes == "" {
+	if secretTypes == AllSecretTypes || secretTypes == "" {
 		return supportedSecretTypes, nil
 	}
 
@@ -246,9 +250,9 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 
 	// Map metadata.secret_types to supportedSecretTypes
 	typeMap := map[string]string{
-		"static":  STATIC_SECRET_TYPE,
-		"dynamic": DYNAMIC_SECRET_TYPE,
-		"rotated": ROTATED_SECRET_TYPE,
+		"static":  StaticSecretType,
+		"dynamic": DynamicSecretType,
+		"rotated": RotatedSecretType,
 	}
 
 	for _, t := range types {
@@ -257,7 +261,7 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 			result = append(result, mappedType)
 		} else {
 			// Allow direct SDK format
-			if t == STATIC_SECRET_TYPE || t == DYNAMIC_SECRET_TYPE || t == ROTATED_SECRET_TYPE {
+			if t == StaticSecretType || t == DynamicSecretType || t == RotatedSecretType {
 				result = append(result, t)
 			} else {
 				return nil, fmt.Errorf("invalid secret type '%s', supported types: static[-secret], dynamic[-secret], rotated[-secret]", t)
@@ -278,10 +282,10 @@ func parseSecretTypes(secretTypes string) ([]string, error) {
 	return unique, nil
 }
 
-func createTLSConfig(gatewayTlsCa string) (*tls.Config, error) {
+func createTLSConfig(gatewayTLSCa string) (*tls.Config, error) {
 
 	// Decode base64 to PEM
-	certBytes, err := base64.StdEncoding.DecodeString(gatewayTlsCa)
+	certBytes, err := base64.StdEncoding.DecodeString(gatewayTLSCa)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64-encoded gateway TLS CA: %w", err)
 	}

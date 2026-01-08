@@ -45,7 +45,7 @@ func NewAkeylessSecretStore(logger logger.Logger) secretstores.SecretStore {
 // akeylessMetadata contains the metadata for the Akeyless secret store.
 type akeylessMetadata struct {
 	GatewayURL             string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
-	GatewayTlsCa           string `json:"gatewayTlsCa" mapstructure:"gatewayTlsCa"`
+	GatewayTLSCa           string `json:"gatewayTlsCa" mapstructure:"gatewayTlsCa"`
 	JWT                    string `json:"jwt" mapstructure:"jwt"`
 	AccessID               string `json:"accessId" mapstructure:"accessId"`
 	AccessKey              string `json:"accessKey" mapstructure:"accessKey"`
@@ -82,7 +82,6 @@ func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metada
 // Authenticate authenticates with Akeyless using the provided metadata.
 // It returns an error if the authentication fails.
 func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeylessMetadata) error {
-
 	a.logger.Debug("Creating authentication request to Akeyless...")
 	authRequest := akeyless.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
@@ -104,29 +103,28 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 
 	// Depending on the access type we set the appropriate authentication method
 	switch accessType {
-	case AUTH_DEFAULT:
+	case AuthDefault:
 		if metadata.AccessKey == "" {
 			return errors.New("accessKey is required for API key authentication")
 		}
 		authRequest.SetAccessKey(metadata.AccessKey)
-	case AUTH_IAM:
-		authRequest.SetAccessType(AUTH_IAM)
-		id, err := aws.GetCloudId()
-		if err != nil {
-			return errors.New("unable to get cloud ID: " + err.Error())
+	case AuthIAM:
+		authRequest.SetAccessType(AuthIAM)
+		cloudID, cloudErr := aws.GetCloudId()
+		if cloudErr != nil {
+			return errors.New("unable to get cloud ID: " + cloudErr.Error())
 		}
-		authRequest.SetCloudId(id)
-	case AUTH_JWT:
-		authRequest.SetAccessType(AUTH_JWT)
+		authRequest.SetCloudId(cloudID)
+	case AuthJWT:
+		authRequest.SetAccessType(AuthJWT)
 		if metadata.JWT == "" {
 			return errors.New("jwt is required for JWT authentication")
 		}
 		authRequest.SetJwt(metadata.JWT)
-	case AUTH_K8S:
-		authRequest.SetAccessType(AUTH_K8S)
-		err := setK8SAuthConfiguration(*metadata, authRequest, a)
-		if err != nil {
-			return errors.New("failed to set k8s auth configuration: " + err.Error())
+	case AuthK8S:
+		authRequest.SetAccessType(AuthK8S)
+		if k8sErr := setK8SAuthConfiguration(*metadata, authRequest, a); k8sErr != nil {
+			return errors.New("failed to set k8s auth configuration: " + k8sErr.Error())
 		}
 	}
 
@@ -138,15 +136,15 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 			URL: metadata.GatewayURL,
 		},
 	}
-	config.UserAgent = USER_AGENT
-	config.AddDefaultHeader(CLIENT_SOURCE, USER_AGENT)
+	config.UserAgent = UserAgent
+	config.AddDefaultHeader(ClientSource, UserAgent)
 
 	// Configure TLS if gatewayTlsCa is provided
-	if metadata.GatewayTlsCa != "" {
+	if metadata.GatewayTLSCa != "" {
 		a.logger.Debug("configuring TLS for Akeyless client...")
-		tlsConfig, err := createTLSConfig(metadata.GatewayTlsCa)
-		if err != nil {
-			return errors.New("failed to create TLS configuration: " + err.Error())
+		tlsConfig, tlsErr := createTLSConfig(metadata.GatewayTLSCa)
+		if tlsErr != nil {
+			return errors.New("failed to create TLS configuration: " + tlsErr.Error())
 		}
 
 		httpClient := &http.Client{
@@ -162,20 +160,23 @@ func (a *akeylessSecretStore) authenticate(ctx context.Context, metadata *akeyle
 
 	a.logger.Debug("authenticating with Akeyless...")
 	out, httpResponse, err := a.v2.Auth(ctx).Body(*authRequest).Execute()
+	if httpResponse != nil && httpResponse.Body != nil {
+		defer httpResponse.Body.Close()
+	}
 	if err != nil {
 		if httpResponse != nil {
 			return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %w", httpResponse.StatusCode, err)
 		}
 		return fmt.Errorf("failed to authenticate with Akeyless: %w", err)
 	}
-	if httpResponse == nil || httpResponse.StatusCode != 200 {
+	if httpResponse == nil || httpResponse.StatusCode != http.StatusOK {
 		statusCode := 0
 		status := "unknown"
 		if httpResponse != nil {
 			statusCode = httpResponse.StatusCode
 			status = httpResponse.Status
 		}
-		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %s", statusCode, status)
+		return fmt.Errorf("failed to authenticate with Akeyless (HTTP status code: %d): %s", statusCode, status) //nolint:stylecheck // ST1005: error message needs to include status code
 	}
 	if out != nil && out.GetToken() == "" {
 		return errors.New("authentication failed, no token returned")
@@ -250,8 +251,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 	// get secrets path to retrieve secrets from
 	// use root path if not specified
 	var secretsPath string
-	if value, ok := req.Metadata[METADATA_PATH_KEY]; ok {
-
+	if value, ok := req.Metadata[MetadataPathKey]; ok {
 		// normalize path
 		if !strings.HasPrefix(value, "/") {
 			secretsPath = "/" + value
@@ -259,14 +259,14 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 
 		a.logger.Debugf("using path '%s' from metadata...", secretsPath)
 	} else {
-		a.logger.Debugf("no path found in metadata, using default path '%s'", PATH_DEFAULT)
-		secretsPath = PATH_DEFAULT
+		a.logger.Debugf("no path found in metadata, using default path '%s'", PathDefault)
+		secretsPath = PathDefault
 	}
 
 	// get secrets type to retrieve secrets from
 	// use all types if not specified
 	var requestedTypes []string
-	if value, ok := req.Metadata[METADATA_SECRETS_TYPE_KEY]; ok {
+	if value, ok := req.Metadata[MetadataSecretsTypeKey]; ok {
 		parsedTypes, err := parseSecretTypes(value)
 		if err != nil {
 			return response, fmt.Errorf("invalid secrets_type metadata: %w", err)
@@ -274,7 +274,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		requestedTypes = parsedTypes
 		a.logger.Debugf("using secrets types '%v' from metadata...", requestedTypes)
 	} else {
-		a.logger.Debugf("no '%s' found in metadata, using all supported secret types '%v'", METADATA_SECRETS_TYPE_KEY, supportedSecretTypes)
+		a.logger.Debugf("no '%s' found in metadata, using all supported secret types '%v'", MetadataSecretsTypeKey, supportedSecretTypes)
 		requestedTypes = supportedSecretTypes
 	}
 
@@ -314,7 +314,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 			defer wg.Done()
 			if len(staticItemNames) == 1 {
 				staticSecretName := staticItemNames[0]
-				value, err := a.getSingleSecretValue(ctx, staticSecretName, STATIC_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, staticSecretName, StaticSecretResponse)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: staticSecretName, value: "", err: err}
 				} else {
@@ -335,7 +335,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range dynamicItemNames {
-				value, err := a.getSingleSecretValue(ctx, item, DYNAMIC_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, item, DynamicSecretResponse)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -349,7 +349,7 @@ func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 		go func() {
 			defer wg.Done()
 			for _, item := range rotatedItemNames {
-				value, err := a.getSingleSecretValue(ctx, item, ROTATED_SECRET_RESPONSE)
+				value, err := a.getSingleSecretValue(ctx, item, RotatedSecretResponse)
 				if err != nil {
 					secretResultChannels <- secretResultCollection{name: item, value: "", err: err}
 				} else {
@@ -396,7 +396,6 @@ func (a *akeylessSecretStore) Close() error {
 
 // parseMetadata parses the metadata from the component configuration.
 func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeylessMetadata, error) {
-
 	a.logger.Debug("Parsing metadata...")
 	var m akeylessMetadata
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
@@ -409,14 +408,14 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 		return nil, errors.New("accessId is required")
 	}
 
-	if !isValidAccessIdFormat(m.AccessID) {
+	if !isValidAccessIDFormat(m.AccessID) {
 		return nil, errors.New("invalid accessId format, expected format is p-([A-Za-z0-9]{14}|[A-Za-z0-9]{12})")
 	}
 
 	// Set default gateway URL if not specified
 	if m.GatewayURL == "" {
-		a.logger.Infof("Gateway URL is not set, using default value %s...", PUBLIC_GATEWAY_URL)
-		m.GatewayURL = PUBLIC_GATEWAY_URL
+		a.logger.Infof("Gateway URL is not set, using default value %s...", PublicGatewayURL)
+		m.GatewayURL = PublicGatewayURL
 	} else {
 		_, err = url.ParseRequestURI(m.GatewayURL)
 		if err != nil {
@@ -431,7 +430,6 @@ func (a *akeylessSecretStore) parseMetadata(meta secretstores.Metadata) (*akeyle
 }
 
 func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName string) (string, error) {
-
 	if err := a.ensureValidToken(ctx); err != nil {
 		return "", fmt.Errorf("failed to ensure valid token: %w", err)
 	}
@@ -444,7 +442,7 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 
 	describeItem.SetToken(token)
 
-	result, _, err := a.executeWithRetryOn401(
+	result, httpResponse, err := a.executeWithRetryOn401(
 		ctx,
 		"DescribeItem",
 		describeItem,
@@ -452,6 +450,9 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 			describeItem.SetToken(newToken)
 		},
 	)
+	if httpResponse != nil && httpResponse.Body != nil {
+		defer httpResponse.Body.Close()
+	}
 
 	if err != nil {
 		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
@@ -491,20 +492,20 @@ func (a *akeylessSecretStore) executeWithRetryOn401(
 		v2Value := reflect.ValueOf(a.v2)
 		method := v2Value.MethodByName(methodName)
 		if !method.IsValid() {
-			return nil, nil, fmt.Errorf("method %s not found on V2ApiService", methodName)
+			return nil, nil, errors.New("method " + methodName + " not found on V2ApiService")
 		}
 
 		// Call the method with context: a.v2.MethodName(ctx)
 		ctxValue := reflect.ValueOf(ctx)
 		callResult := method.Call([]reflect.Value{ctxValue})
 		if len(callResult) == 0 {
-			return nil, nil, fmt.Errorf("method %s returned no values", methodName)
+			return nil, nil, errors.New("method " + methodName + " returned no values")
 		}
 
 		// Get the Body() method from the result: result.Body()
 		bodyMethod := callResult[0].MethodByName("Body")
 		if !bodyMethod.IsValid() {
-			return nil, nil, fmt.Errorf("Body method not found on result of %s", methodName)
+			return nil, nil, errors.New("Body method not found on result of " + methodName)
 		}
 
 		// Call Body(*body): result.Body(*body)
@@ -517,19 +518,19 @@ func (a *akeylessSecretStore) executeWithRetryOn401(
 		// Pass the value to Body()
 		bodyCallResult := bodyMethod.Call([]reflect.Value{bodyValue})
 		if len(bodyCallResult) == 0 {
-			return nil, nil, fmt.Errorf("Body method returned no values")
+			return nil, nil, errors.New("Body method returned no values")
 		}
 
 		// Get the Execute() method: result.Body(*body).Execute()
 		executeMethod := bodyCallResult[0].MethodByName("Execute")
 		if !executeMethod.IsValid() {
-			return nil, nil, fmt.Errorf("Execute method not found on Body result")
+			return nil, nil, errors.New("Execute method not found on Body result")
 		}
 
 		// Execute the API call: result.Body(*body).Execute()
 		executeResult := executeMethod.Call([]reflect.Value{})
 		if len(executeResult) < 3 {
-			return nil, nil, fmt.Errorf("Execute method did not return 3 values (result, response, error)")
+			return nil, nil, errors.New("Execute method did not return 3 values (result, response, error)")
 		}
 
 		// Extract results
@@ -586,11 +587,11 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 	a.mu.RUnlock()
 
 	switch secretType {
-	case STATIC_SECRET_RESPONSE:
+	case StaticSecretResponse:
 		getSecretValue := akeyless.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(token)
 
-		result, _, apiErr := a.executeWithRetryOn401(
+		result, httpResponse, apiErr := a.executeWithRetryOn401(
 			ctx,
 			"GetSecretValue",
 			getSecretValue,
@@ -598,6 +599,9 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 				getSecretValue.SetToken(newToken)
 			},
 		)
+		if httpResponse != nil && httpResponse.Body != nil {
+			defer httpResponse.Body.Close()
+		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
@@ -625,11 +629,11 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 			break
 		}
 
-	case DYNAMIC_SECRET_RESPONSE:
+	case DynamicSecretResponse:
 		getDynamicSecretValue := akeyless.NewGetDynamicSecretValue(secretName)
 		getDynamicSecretValue.SetToken(token)
 
-		result, _, apiErr := a.executeWithRetryOn401(
+		result, httpResponse, apiErr := a.executeWithRetryOn401(
 			ctx,
 			"GetDynamicSecretValue",
 			getDynamicSecretValue,
@@ -637,6 +641,9 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 				getDynamicSecretValue.SetToken(newToken)
 			},
 		)
+		if httpResponse != nil && httpResponse.Body != nil {
+			defer httpResponse.Body.Close()
+		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
@@ -673,11 +680,11 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 		// Return the value field directly (already a JSON string with credentials)
 		secretValue = dynamicSecretResp.Value
 
-	case ROTATED_SECRET_RESPONSE:
+	case RotatedSecretResponse:
 		getRotatedSecretValue := akeyless.NewGetRotatedSecretValue(secretName)
 		getRotatedSecretValue.SetToken(token)
 
-		result, _, apiErr := a.executeWithRetryOn401(
+		result, httpResponse, apiErr := a.executeWithRetryOn401(
 			ctx,
 			"GetRotatedSecretValue",
 			getRotatedSecretValue,
@@ -685,6 +692,9 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 				getRotatedSecretValue.SetToken(newToken)
 			},
 		)
+		if httpResponse != nil && httpResponse.Body != nil {
+			defer httpResponse.Body.Close()
+		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
@@ -729,6 +739,9 @@ func (a *akeylessSecretStore) getBulkStaticSecretValues(ctx context.Context, sec
 	getSecretsValues.SetToken(token)
 
 	secretRespMap, httpResponse, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+	if httpResponse != nil && httpResponse.Body != nil {
+		defer httpResponse.Body.Close()
+	}
 
 	// Handle 401 Unauthorized by re-authenticating and retrying once
 	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
@@ -745,7 +758,10 @@ func (a *akeylessSecretStore) getBulkStaticSecretValues(ctx context.Context, sec
 		a.mu.RUnlock()
 
 		getSecretsValues.SetToken(token)
-		secretRespMap, _, apiErr = a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+		secretRespMap, httpResponse, apiErr = a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
+		if httpResponse != nil && httpResponse.Body != nil {
+			defer httpResponse.Body.Close()
+		}
 	}
 
 	if apiErr != nil {
@@ -785,7 +801,7 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 
 	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
-	result, _, err := a.executeWithRetryOn401(
+	result, httpResponse, err := a.executeWithRetryOn401(
 		ctx,
 		"ListItems",
 		listItems,
@@ -793,6 +809,9 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 			listItems.SetToken(newToken)
 		},
 	)
+	if httpResponse != nil && httpResponse.Body != nil {
+		defer httpResponse.Body.Close()
+	}
 
 	if err != nil {
 		return nil, err
@@ -830,18 +849,17 @@ func (a *akeylessSecretStore) separateItemsByType(items []akeyless.Item) ([]stri
 		itemType := *item.ItemType
 
 		switch itemType {
-		case STATIC_SECRET_RESPONSE:
+		case StaticSecretResponse:
 			staticItems = append(staticItems, item)
-		case DYNAMIC_SECRET_RESPONSE:
+		case DynamicSecretResponse:
 			dynamicItems = append(dynamicItems, item)
-		case ROTATED_SECRET_RESPONSE:
+		case RotatedSecretResponse:
 			rotatedItems = append(rotatedItems, item)
 		}
 	}
 
 	// listItems can get quite large, so we don't need all item details, we can use the item names instead
 	// and free memory
-	items = nil
 	staticItemNames := getItemNames(staticItems)
 	dynamicItemNames := getItemNames(dynamicItems)
 	rotatedItemNames := getItemNames(rotatedItems)
@@ -881,7 +899,7 @@ func (a *akeylessSecretStore) ensureValidToken(ctx context.Context) error {
 		return nil
 	}
 
-	tokenValid := time.Now().Before(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD))
+	tokenValid := time.Now().Before(expiry.Add(-TokenRefreshGracePeriod))
 	if tokenValid {
 		return nil
 	}
@@ -893,7 +911,7 @@ func (a *akeylessSecretStore) ensureValidToken(ctx context.Context) error {
 
 	// Double-check after acquiring lock (another goroutine might have refreshed)
 	expiry = a.tokenExpiry
-	if expiry.IsZero() || time.Now().Before(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD)) {
+	if expiry.IsZero() || time.Now().Before(expiry.Add(-TokenRefreshGracePeriod)) {
 		return nil
 	}
 
@@ -926,7 +944,7 @@ func (a *akeylessSecretStore) startTokenRefreshRoutine(ctx context.Context, meta
 				return
 			}
 
-			refreshDuration := time.Until(expiry.Add(-TOKEN_REFRESH_GRACE_PERIOD))
+			refreshDuration := time.Until(expiry.Add(-TokenRefreshGracePeriod))
 			if refreshDuration <= 0 {
 				refreshDuration = time.Minute // Refresh immediately if less than 1 minute left
 			}

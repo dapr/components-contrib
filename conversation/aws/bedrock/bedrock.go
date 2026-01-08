@@ -42,9 +42,8 @@ type AWSBedrockMetadata struct {
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
-
-	Model            string `json:"model"`
-	ResponseCacheTTL string `json:"responseCacheTTL" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL"`
+	Model        string `json:"model"`
+	CacheTTL     string `json:"cacheTTL"`
 }
 
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
@@ -84,8 +83,8 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 	b.LLM.Model = llm
 
-	if m.ResponseCacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, b.LLM.Model)
+	if m.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

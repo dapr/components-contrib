@@ -64,18 +64,6 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	return
 }
 
-// approximateTokensFromWords estimates the number of tokens based on word count.
-// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-func approximateTokensFromWords(text string) int64 {
-	if text == "" {
-		return 0
-	}
-
-	// split on whitespace to count words
-	wordCount := len(strings.Fields(text))
-	return int64(wordCount)
-}
-
 // Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	if r == nil || r.Message == nil {
@@ -184,16 +172,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		modelName = e.model
 	}
 
-	tokenCount := approximateTokensFromWords(responseContent)
-	usage := &conversation.Usage{
-		CompletionTokens: tokenCount,
-		PromptTokens:     tokenCount,
-		TotalTokens:      tokenCount + tokenCount,
-	}
-
 	res = &conversation.Response{
 		Outputs: []conversation.Result{output},
-		Usage:   usage,
 		Model:   modelName,
 	}
 

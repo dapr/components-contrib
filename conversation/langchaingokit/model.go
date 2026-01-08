@@ -32,9 +32,9 @@ type LLM struct {
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	if r.LlmTimeout > 0 {
+	if r.LlmTimeout != nil {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, r.LlmTimeout)
+		ctx, cancel = context.WithTimeout(ctx, *r.LlmTimeout)
 		defer func() {
 			cancel()
 		}()
@@ -55,7 +55,7 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
-	outputs, usage := a.NormalizeConverseResult(resp.Choices)
+	outputs := a.NormalizeConverseResult(resp.Choices)
 
 	// capture request override, otherwise grab component specified model
 	var model string
@@ -67,7 +67,6 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	return &conversation.Response{
 		Model:   model,
-		Usage:   usage,
 		Outputs: outputs,
 	}, nil
 }
@@ -81,15 +80,9 @@ func normalizeFinishReason(stopReason string) string {
 	return stopReason
 }
 
-func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage) {
+func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) []conversation.Result {
 	if len(choices) == 0 {
-		return nil, nil
-	}
-
-	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
-	var usage *conversation.Usage
-	if len(choices) > 0 && choices[0].GenerationInfo != nil {
-		usage = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
+		return nil
 	}
 
 	outputs := make([]conversation.Result, 0, len(choices))
@@ -115,7 +108,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		outputs = append(outputs, output)
 	}
 
-	return outputs, usage
+	return outputs
 }
 
 // getOptionsFromRequest enables a way per request to override component level settings,
@@ -146,20 +139,6 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 		}
 		// Note: WithJSONMode() is not needed when using WithStructuredOutput,
 		// as structured output already returns JSON so do NOT add that here in this block!
-	}
-
-	// Handle prompt cache retention for OpenAI's extended prompt caching feature
-	if r.PromptCacheRetention > 0 {
-		if r.Metadata == nil {
-			r.Metadata = make(map[string]string)
-		}
-		// OpenAI expects this as a top-level parameter, but we are forced to pass it via metadata,
-		// and langchaingo should forward it to the OpenAI client.
-		// NOTE: This is absolutely a complete hack that I guarantee you does work.
-		// In langchain there is a llms.WithPromptCaching(true) option that is incompatible with Openai yielding an err bc then it tries to use a bool instead of a string,
-		// because openai expects this to be a time duration string but used with langchain with their llms.WithPromptCachine(true) does not translate properly.
-		// When Langchain fixes this then we can update accordingly :)
-		r.Metadata["prompt_cache_retention"] = r.PromptCacheRetention.String()
 	}
 
 	// NOTE: we can add these in future! There are others...

@@ -44,20 +44,17 @@ type Request struct {
 	// Metadata fields that are separate from the actual component metadata fields
 	// that get passed to the LLM through the conversation.
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
-	Metadata map[string]string `json:"metadata"`
-
-	ResponseFormatAsJSONSchema map[string]any `json:"responseFormatAsJsonSchema"`
-	PromptCacheRetention       time.Duration  `json:"promptCacheRetention"`
-	Model                      *string        `json:"model"`
+	Metadata                   map[string]string `json:"metadata"`
+	ResponseFormatAsJSONSchema map[string]any    `json:"responseFormatAsJsonSchema"`
+	Model                      *string           `json:"model"`
 
 	// LlmTimeout specifies the max duration to wait for the LLM to complete a conversation request.
 	// Langchaingo timeout is respected, so if this is set, it will override the provider's timeout.
-	LlmTimeout time.Duration `json:"llmTimeout"`
+	LlmTimeout *time.Duration `json:"llmTimeout"`
 }
 
 type Response struct {
 	Outputs []Result `json:"outputs"`
-	Usage   *Usage   `json:"usage,omitempty"`
 	Model   string   `json:"model"`
 }
 

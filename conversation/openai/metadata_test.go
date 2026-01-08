@@ -27,10 +27,10 @@ func TestOpenaiLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
 		metadata := OpenAILangchainMetadata{
 			LangchainMetadata: conversation.LangchainMetadata{
-				Key:              "test-key",
-				Model:            "gpt-4",
-				ResponseCacheTTL: "10m",
-				Endpoint:         "https://custom-endpoint.openai.azure.com/",
+				Key:      "test-key",
+				Model:    "gpt-4",
+				CacheTTL: "10m",
+				Endpoint: "https://custom-endpoint.openai.azure.com/",
 			},
 			APIType:    "azure",
 			APIVersion: "2025-01-01-preview",
@@ -45,7 +45,7 @@ func TestOpenaiLangchainMetadata(t *testing.T) {
 
 		assert.Equal(t, metadata.Key, unmarshaled.Key)
 		assert.Equal(t, metadata.Model, unmarshaled.Model)
-		assert.Equal(t, metadata.ResponseCacheTTL, unmarshaled.ResponseCacheTTL)
+		assert.Equal(t, metadata.CacheTTL, unmarshaled.CacheTTL)
 		assert.Equal(t, metadata.Endpoint, unmarshaled.Endpoint)
 		assert.Equal(t, metadata.APIType, unmarshaled.APIType)
 		assert.Equal(t, metadata.APIVersion, unmarshaled.APIVersion)

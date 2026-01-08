@@ -60,8 +60,8 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.LLM.Model = llm
 
-	if md.ResponseCacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
+	if md.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

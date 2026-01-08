@@ -44,7 +44,7 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
-func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata, responseFormat *openai.ResponseFormat) ([]openai.Option, error) {
+func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option, error) {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	var model string
 	// we support lowercase and uppercase here
@@ -86,7 +86,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 	o.md = md
 
-	options, err := o.buildClientOptions(md, nil)
+	options, err := o.buildClientOptions(md)
 	if err != nil {
 		return err
 	}
@@ -98,8 +98,8 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.LLM.Model = llm
 
-	if md.ResponseCacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
+	if md.CacheTTL != "" {
+		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

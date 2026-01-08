@@ -33,12 +33,13 @@ import (
 // ClientCredentialsMetadata is the metadata fields which can be used by a
 // component to configure an OIDC client_credentials token source.
 type ClientCredentialsMetadata struct {
-	TokenCAPEM   string   `mapstructure:"oauth2TokenCAPEM"`
-	TokenURL     string   `mapstructure:"oauth2TokenURL"`
-	ClientID     string   `mapstructure:"oauth2ClientID"`
-	ClientSecret string   `mapstructure:"oauth2ClientSecret"`
-	Audiences    []string `mapstructure:"oauth2Audiences"`
-	Scopes       []string `mapstructure:"oauth2Scopes"`
+	TokenCAPEM       string   `mapstructure:"oauth2TokenCAPEM"`
+	TokenURL         string   `mapstructure:"oauth2TokenURL"`
+	ClientID         string   `mapstructure:"oauth2ClientID"`
+	ClientSecret     string   `mapstructure:"oauth2ClientSecret"`
+	ClientSecretPath string   `mapstructure:"oauth2ClientSecretPath"`
+	Audiences        []string `mapstructure:"oauth2Audiences"`
+	Scopes           []string `mapstructure:"oauth2Scopes"`
 }
 
 type ClientCredentialsOptions struct {
@@ -142,6 +143,7 @@ func (c *ClientCredentials) Token() (string, error) {
 }
 
 func (c *ClientCredentials) renewToken(ctx context.Context) error {
+	c.log.Debug("renewing token: fetching new token from OAuth server...")
 	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 	if err != nil {
 		return err
@@ -152,5 +154,6 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	}
 
 	c.currentToken = token
+	c.log.Debugf("OAuth token renewed successfully, new expiry: %s", token.Expiry)
 	return nil
 }

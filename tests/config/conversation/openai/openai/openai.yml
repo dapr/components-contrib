@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{OPENAI_API_KEY}}"
     - name: model
-      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 
+      value: "gpt-4o"   # use default for provider or customize via environment variable as defined in conversation/models.go 

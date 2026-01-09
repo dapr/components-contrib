@@ -19,16 +19,20 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/conversation"
 )
 
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
+	model  string
+	logger logger.Logger
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	opts := getOptionsFromRequest(r)
+	opts := getOptionsFromRequest(r, a.logger)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
@@ -37,43 +41,71 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, context.DeadlineExceeded
+		}
 		return nil, err
 	}
 
-	outputs := make([]conversation.Result, 0, len(resp.Choices))
-	for i := range resp.Choices {
+	outputs := a.NormalizeConverseResult(resp.Choices)
+
+	// capture request override, otherwise grab component specified model
+	var model string
+	if r.Model != nil {
+		model = *r.Model
+	} else {
+		model = a.model
+	}
+
+	return &conversation.Response{
+		Model:   model,
+		Outputs: outputs,
+	}, nil
+}
+
+// NOTE: ollama does not provide a stop reason at all,
+// so server side best we can do is say unknown if this is empty.
+func normalizeFinishReason(stopReason string) string {
+	if stopReason == "" {
+		return "unknown"
+	}
+	return stopReason
+}
+
+func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) []conversation.Result {
+	if len(choices) == 0 {
+		return nil
+	}
+
+	outputs := make([]conversation.Result, 0, len(choices))
+	for i := range choices {
 		choice := conversation.Choice{
-			FinishReason: resp.Choices[i].StopReason,
+			FinishReason: normalizeFinishReason(choices[i].StopReason),
 			Index:        int64(i),
 		}
 
-		if resp.Choices[i].Content != "" {
-			choice.Message.Content = resp.Choices[i].Content
+		if choices[i].Content != "" {
+			choice.Message.Content = choices[i].Content
 		}
 
-		if resp.Choices[i].ToolCalls != nil {
-			choice.Message.ToolCallRequest = &resp.Choices[i].ToolCalls
+		if choices[i].ToolCalls != nil {
+			choice.Message.ToolCallRequest = &choices[i].ToolCalls
 		}
 
 		output := conversation.Result{
-			StopReason: resp.Choices[i].StopReason,
+			StopReason: normalizeFinishReason(choices[i].StopReason),
 			Choices:    []conversation.Choice{choice},
 		}
 
 		outputs = append(outputs, output)
 	}
 
-	res = &conversation.Response{
-		// TODO: Fix this, we never used this ConversationContext field to begin with.
-		// This needs improvements to be useful.
-		ConversationContext: r.ConversationContext,
-		Outputs:             outputs,
-	}
-
-	return res, nil
+	return outputs
 }
 
-func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
+// getOptionsFromRequest enables a way per request to override component level settings,
+// as well as in general define request settings for the conversation.
+func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts ...llms.CallOption) []llms.CallOption {
 	if opts == nil {
 		opts = make([]llms.CallOption, 0)
 	}
@@ -90,5 +122,44 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 
+	if r.ResponseFormatAsJSONSchema != nil {
+		structuredOutput, err := convertToStructuredOutputDefinition(r.ResponseFormatAsJSONSchema)
+		if err != nil {
+			logger.Warnf("failed to convert response format to structured output, will continue without structured output: %v", err)
+		} else {
+			opts = append(opts, llms.WithStructuredOutput(structuredOutput))
+		}
+		// Note: WithJSONMode() is not needed when using WithStructuredOutput,
+		// as structured output already returns JSON so do NOT add that here in this block!
+	}
+
+	// NOTE: we can add these in future! There are others...
+	// llms.WithThinkingMode()
+	// llms.WithCacheControl()
+	// llms.WithMaxLength()
+	// llms.WithMinLength()
+	// llms.WithMaxTokens()
+
+	if r.Model != nil {
+		opts = append(opts, llms.WithModel(*r.Model))
+	}
+
+	// Openai accepts this as map[string]string but langchain expects map[string]any,
+	// so we go with openai for our type opinion here, and therefore I convert accordingly.
+	if r.Metadata != nil {
+		opts = append(opts, llms.WithMetadata(stringMapToAny(r.Metadata)))
+	}
+
 	return opts
+}
+
+func stringMapToAny(m map[string]string) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

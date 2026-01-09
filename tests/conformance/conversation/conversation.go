@@ -15,6 +15,7 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
-	"github.com/dapr/components-contrib/conversation/mistral"
+	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 
@@ -46,7 +47,10 @@ func NewTestConfig(componentName string) TestConfig {
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, conv conversation.Conversation, component string) {
-	providerStopReasons := []string{"stop", "end_turn", "FinishReasonStop", "tool_calls"}
+	// load, unload, and length are stop reasons for ollama
+	// FINISH, stop_sequence, max_tokens are stop reasons for bedrock
+	// unknown we custom add as langchaingo does not provide stop reasons for ollama, so we put unknown for this value
+	providerStopReasons := []string{"stop", "end_turn", "FinishReasonStop", "tool_calls", "load", "unload", "length", "FINISH", "stop_sequence", "max_tokens", "unknown"}
 
 	t.Run("init", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -85,8 +89,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
-
 			require.NoError(t, err)
+			require.NotNil(t, resp)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 		})
@@ -113,7 +117,8 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			require.NoError(t, err)
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-			// anthropic responds with end_turn but other llm providers return with stop
+			// anthropic responds with end_turn but other llm providers return with
+			// also, ollama due to limitations in langchaingo does not provide a stop reason, so we in the backend (contrib normalizeFinishReason() provide one)
 			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
 			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 		})
@@ -150,6 +155,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
 			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason), resp.Outputs[0].StopReason)
+			t.Logf("Stop reason for %s: '%s'", component, resp.Outputs[0].StopReason)
 			assert.Empty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 		})
 		t.Run("test assistant message type", func(t *testing.T) {
@@ -173,8 +179,33 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			var assistantMsgs []llms.MessageContent
 
-			// mistral must have tool info wrapped as text
-			if component != "mistral" {
+			// mistral and ollama must have tool info wrapped as text
+			if component == "mistral" || component == "ollama" {
+				assistantMsgs = []llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "assistant msg"},
+						},
+					},
+					{
+						Role: llms.ChatMessageTypeAI,
+						Parts: []llms.ContentPart{
+							langchaingokit.CreateToolCallPart(&toolCall),
+						},
+					},
+					// anthropic expects a conversation to end with a user message to generate a response,
+					// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
+					// otherwise it assumes the conversation is over.
+					langchaingokit.CreateToolResponseMessage(toolResponse),
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "continue the conversation"},
+						},
+					},
+				}
+			} else {
 				assistantMsgs = []llms.MessageContent{
 					{
 						Role: llms.ChatMessageTypeAI,
@@ -204,31 +235,6 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						},
 					},
 				}
-			} else {
-				assistantMsgs = []llms.MessageContent{
-					{
-						Role: llms.ChatMessageTypeAI,
-						Parts: []llms.ContentPart{
-							llms.TextContent{Text: "assistant msg"},
-						},
-					},
-					{
-						Role: llms.ChatMessageTypeAI,
-						Parts: []llms.ContentPart{
-							mistral.CreateToolCallPart(&toolCall),
-						},
-					},
-					// anthropic expects a conversation to end with a user message to generate a response,
-					// therefore, in testing an assistant msg we must also include a human msg for it to generate an output for us;
-					// otherwise it assumes the conversation is over.
-					mistral.CreateToolResponseMessage(toolResponse),
-					{
-						Role: llms.ChatMessageTypeHuman,
-						Parts: []llms.ContentPart{
-							llms.TextContent{Text: "continue the conversation"},
-						},
-					},
-				}
 			}
 
 			req := &conversation.Request{
@@ -238,7 +244,6 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				req.Temperature = 1
 			}
 			resp, err := conv.Converse(ctx, req)
-
 			require.NoError(t, err)
 
 			// We expect a single output. In the future, depending on request (so probably a different test),
@@ -247,6 +252,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
 			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
+			t.Logf("Stop reason for %s: '%s'", component, resp.Outputs[0].StopReason)
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil && len(*resp.Outputs[0].Choices[0].Message.ToolCallRequest) > 0 {
 				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 				require.JSONEq(t, `{"test": "value"}`, (*resp.Outputs[0].Choices[0].Message.ToolCallRequest)[0].FunctionCall.Arguments)
@@ -278,6 +284,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 			// anthropic responds with end_turn but other llm providers return with stop
 			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
+			t.Logf("Stop reason for %s: '%s'", component, resp.Outputs[0].StopReason)
 			if resp.Outputs[0].Choices[0].Message.ToolCallRequest != nil {
 				assert.Empty(t, *resp.Outputs[0].Choices[0].Message.ToolCallRequest)
 			}
@@ -358,7 +365,15 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				}
 
 				// mistral must have tool info wrapped as text
-				if component != "mistral" {
+				if component == "mistral" || component == "ollama" {
+					responseMessages = append(responseMessages,
+						llms.MessageContent{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{langchaingokit.CreateToolCallPart(&toolCall)},
+						},
+						langchaingokit.CreateToolResponseMessage(toolResponse),
+					)
+				} else {
 					responseMessages = append(responseMessages,
 						llms.MessageContent{
 							Role:  llms.ChatMessageTypeAI,
@@ -368,14 +383,6 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 							Role:  llms.ChatMessageTypeTool,
 							Parts: []llms.ContentPart{toolResponse},
 						},
-					)
-				} else {
-					responseMessages = append(responseMessages,
-						llms.MessageContent{
-							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
-						},
-						mistral.CreateToolResponseMessage(toolResponse),
 					)
 				}
 
@@ -390,9 +397,11 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				require.NoError(t, err2)
 				assert.Len(t, resp2.Outputs, 1)
 				assert.NotEmpty(t, resp2.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Stop reason for %s (tool resp2): '%s'", component, resp2.Outputs[0].StopReason)
 				assert.True(t, slices.Contains(providerStopReasons, resp2.Outputs[0].StopReason))
 			} else {
 				assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Stop reason for %s (tool resp): '%s'", component, resp.Outputs[0].StopReason)
 				assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason))
 			}
 		})
@@ -481,7 +490,21 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				}
 
 				var toolResponseMessages []llms.MessageContent
-				if component != "mistral" {
+				if component == "mistral" || component == "ollama" {
+					toolResponseMessages = []llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "What's the status of my transaction T1001?"},
+							},
+						},
+						{
+							Role:  llms.ChatMessageTypeAI,
+							Parts: []llms.ContentPart{langchaingokit.CreateToolCallPart(&toolCall)},
+						},
+						langchaingokit.CreateToolResponseMessage(toolResponse),
+					}
+				} else {
 					toolResponseMessages = []llms.MessageContent{
 						{
 							Role: llms.ChatMessageTypeHuman,
@@ -500,20 +523,6 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 							},
 						},
 					}
-				} else {
-					toolResponseMessages = []llms.MessageContent{
-						{
-							Role: llms.ChatMessageTypeHuman,
-							Parts: []llms.ContentPart{
-								llms.TextContent{Text: "What's the status of my transaction T1001?"},
-							},
-						},
-						{
-							Role:  llms.ChatMessageTypeAI,
-							Parts: []llms.ContentPart{mistral.CreateToolCallPart(&toolCall)},
-						},
-						mistral.CreateToolResponseMessage(toolResponse),
-					}
 				}
 
 				req2 := &conversation.Request{
@@ -527,12 +536,175 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 				require.NoError(t, err)
 				assert.Len(t, resp2.Outputs, 1)
 				assert.NotEmpty(t, resp2.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Stop reason for %s (history resp2): '%s'", component, resp2.Outputs[0].StopReason)
 				assert.True(t, slices.Contains(providerStopReasons, resp2.Outputs[0].StopReason))
 			} else {
 				// it is valid too if no tool call was generated
 				assert.NotEmpty(t, resp1.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Stop reason for %s (history resp1): '%s'", component, resp1.Outputs[0].StopReason)
 				assert.True(t, slices.Contains(providerStopReasons, resp1.Outputs[0].StopReason))
 			}
 		})
+
+		t.Run("test response format returned", func(t *testing.T) {
+			if component == "echo" || component == "ollama" || component == "bedrock" {
+				t.Skipf("component %s doesn't support structured output", component)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+
+			responseFormat := map[string]any{
+				"type":   "object",
+				"strict": true,
+				"properties": map[string]any{
+					"calculation": map[string]any{
+						"type":        "string",
+						"description": "The mathematical expression being calculated",
+					},
+					"result": map[string]any{
+						"type":        "number",
+						"description": "The numerical result of the calculation",
+					},
+					"explanation": map[string]any{
+						"type":        "string",
+						"description": "A brief explanation of how you got the result",
+					},
+					"confidence": map[string]any{
+						"type":        "string",
+						"enum":        []any{"low", "medium", "high"},
+						"description": "Your confidence level in this answer",
+					},
+				},
+				"required":             []any{"calculation", "result", "explanation", "confidence"},
+				"additionalProperties": false,
+			}
+
+			req := &conversation.Request{
+				Message: &[]llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							// NOTE: this is the part that guarantees the field addition works.
+							llms.TextContent{Text: "What is 2+2? Provide your answer in the structured format that I provided."},
+						},
+					},
+				},
+				ResponseFormatAsJSONSchema: responseFormat,
+			}
+			if component == "openai" {
+				req.Temperature = 1
+			}
+
+			resp, err := conv.Converse(ctx, req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Len(t, resp.Outputs, 1)
+			content := resp.Outputs[0].Choices[0].Message.Content
+			assert.NotEmpty(t, content)
+			t.Logf("Structured output response content: %s", content)
+
+			var result struct {
+				Calculation string  `json:"calculation"`
+				Result      float64 `json:"result"`
+				Explanation string  `json:"explanation"`
+				Confidence  string  `json:"confidence"`
+			}
+
+			err = json.Unmarshal([]byte(content), &result)
+			require.NoError(t, err, "Response should be valid JSON matching the provided schema")
+			assert.NotEmpty(t, result.Calculation, "Response should contain the 'calculation' field")
+			assert.Equal(t, float64(4), result.Result, "Result should be 4")
+			assert.NotEmpty(t, result.Explanation, "Response should contain the 'explanation' field")
+			assert.Contains(t, []string{"low", "medium", "high"}, result.Confidence, "Confidence should be one of the enum values")
+		})
+
+		t.Run("test per request model override", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+
+			var modelName string
+			switch component {
+			case "ollama":
+				modelName = "llama3.2:latest"
+			case "anthropic":
+				modelName = "claude-3-5-sonnet-20241022"
+			case "mistral":
+				modelName = "mistral-small-latest"
+			case "googleai":
+				modelName = "gemini-2.0-flash-exp"
+			case "openai":
+				modelName = "gpt-3.5-turbo"
+			case "azure":
+				modelName = "gpt-4"
+			case "bedrock":
+				t.Skipf("skipping model override subtest for bedrock until we fill out use case to support testing other models")
+			default:
+				modelName = "gpt-3.5-turbo"
+			}
+			req := &conversation.Request{
+				Message: &[]llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "say hello"},
+						},
+					},
+				},
+				Model: &modelName,
+			}
+			if component == "openai" {
+				req.Temperature = 1
+			}
+
+			resp, err := conv.Converse(ctx, req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Len(t, resp.Outputs, 1)
+			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+			if resp.Model != "" {
+				assert.Equal(t, modelName, resp.Model)
+			}
+		})
+
+		t.Run("test HTTP client timeout enforcement", func(t *testing.T) {
+			t.Run("short timeout causes error", func(t *testing.T) {
+				propsShortTimeout := make(map[string]string)
+				for k, v := range props {
+					propsShortTimeout[k] = v
+				}
+				propsShortTimeout["httpClientTimeout"] = "1ms"
+
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+
+				err := conv.Init(ctx, conversation.Metadata{
+					Base: metadata.Base{
+						Properties: propsShortTimeout,
+					},
+				})
+				require.NoError(t, err)
+
+				req := &conversation.Request{
+					Message: &[]llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "say hello"},
+							},
+						},
+					},
+				}
+				if component == "openai" {
+					req.Temperature = 1
+				}
+
+				ctx2, cancel2 := context.WithTimeout(t.Context(), 10*time.Second)
+				defer cancel2()
+
+				_, err = conv.Converse(ctx2, req)
+				require.Error(t, err)
+			})
+		})
+
 	})
 }

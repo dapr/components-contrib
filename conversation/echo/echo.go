@@ -51,7 +51,9 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	e.model = r.Model
+	if r.Model != nil {
+		e.model = *r.Model
+	}
 
 	return nil
 }
@@ -66,8 +68,7 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	if r == nil || r.Message == nil {
 		return &conversation.Response{
-			ConversationContext: r.ConversationContext,
-			Outputs:             []conversation.Result{},
+			Outputs: []conversation.Result{},
 		}, nil
 	}
 
@@ -139,6 +140,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		}
 	}
 
+	responseContent := strings.Join(contentFromMessaged, "\n")
+
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
 		stopReason = "tool_calls"
@@ -148,7 +151,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
-			Content: strings.Join(contentFromMessaged, "\n"),
+			Content: responseContent,
 		},
 	}
 
@@ -161,9 +164,17 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
+	// allow per request model overrides
+	var modelName string
+	if r.Model != nil && *r.Model != "" {
+		modelName = *r.Model
+	} else {
+		modelName = e.model
+	}
+
 	res = &conversation.Response{
-		ConversationContext: r.ConversationContext,
-		Outputs:             []conversation.Result{output},
+		Outputs: []conversation.Result{output},
+		Model:   modelName,
 	}
 
 	return res, nil

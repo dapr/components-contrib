@@ -16,16 +16,14 @@ package mistral
 
 import (
 	"context"
+	"errors"
 	"reflect"
-	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/mistral"
 )
 
@@ -50,13 +48,21 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
+	if md.Key == "" {
+		return errors.New("mistral api key is required")
+	}
+
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetMistralModel(md.Model)
-
-	llm, err := mistral.New(
+	options := []mistral.Option{
 		mistral.WithModel(model),
 		mistral.WithAPIKey(md.Key),
-	)
+	}
+
+	// NOTE: Mistral has a WithTimeout option; however, it is not used or added to the mistral client so we do not add it,
+	// and this is another case of Mistral being an outlier for the conversation components.
+
+	llm, err := mistral.New(options...)
 	if err != nil {
 		return err
 	}
@@ -82,58 +88,4 @@ func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 func (m *Mistral) Close() error {
 	return nil
-}
-
-// CreateToolCallPart creates mistral api compatible tool call messages.
-// Most LLM providers can handle tool calls using the tool call object;
-// however, mistral requires it as text in conversation history.
-func CreateToolCallPart(toolCall *llms.ToolCall) llms.ContentPart {
-	if toolCall == nil {
-		return nil
-	}
-
-	if toolCall.FunctionCall == nil {
-		return llms.TextContent{
-			Text: "Tool call [ID: " + toolCall.ID + "]: <no function call>",
-		}
-	}
-
-	return llms.TextContent{
-		Text: "Tool call [ID: " + toolCall.ID + "]: " + toolCall.FunctionCall.Name + "(" + toolCall.FunctionCall.Arguments + ")",
-	}
-}
-
-// CreateToolResponseMessage creates mistral api compatible tool response message
-// using the human role specifically otherwise mistral will reject the tool response message.
-// Most LLM providers can handle tool call responses using the tool call response object;
-// however, mistral requires it as text in conversation history.
-func CreateToolResponseMessage(responses ...llms.ContentPart) llms.MessageContent {
-	msg := llms.MessageContent{
-		Role: llms.ChatMessageTypeHuman,
-	}
-	if len(responses) == 0 {
-		return msg
-	}
-	var toolID, name string
-
-	mistralContentParts := make([]string, 0, len(responses))
-	for _, response := range responses {
-		if resp, ok := response.(llms.ToolCallResponse); ok {
-			if toolID == "" {
-				toolID = resp.ToolCallID
-			}
-			if name == "" {
-				name = resp.Name
-			}
-			mistralContentParts = append(mistralContentParts, resp.Content)
-		}
-	}
-	if len(mistralContentParts) > 0 {
-		msg.Parts = []llms.ContentPart{
-			llms.TextContent{
-				Text: "Tool response [ID: " + toolID + ", Name: " + name + "]: " + strings.Join(mistralContentParts, "\n"),
-			},
-		}
-	}
-	return msg
 }

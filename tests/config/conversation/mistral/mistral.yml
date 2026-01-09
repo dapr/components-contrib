@@ -9,4 +9,5 @@ spec:
     - name: key
       value: "${{MISTRAL_API_KEY}}"
     - name: model
-      value: ""   # use default for provider or customize via environment variable as defined in conversation/models.go 
+      value: "mistral-large-latest"   # use default for provider or customize via environment variable as defined in conversation/models.go 
+      # NOTE: I had to up the model for the conformance test confirming that the json response is correct...

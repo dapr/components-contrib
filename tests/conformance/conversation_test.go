@@ -21,8 +21,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/anthropic"
 	"github.com/dapr/components-contrib/conversation/aws/bedrock"
@@ -34,6 +32,8 @@ import (
 	"github.com/dapr/components-contrib/conversation/openai"
 	conf_conversation "github.com/dapr/components-contrib/tests/conformance/conversation"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConversationConformance(t *testing.T) {
@@ -136,6 +136,34 @@ func loadConversationComponent(name string) conversation.Conversation {
 		return ollama.NewOllama(testLogger)
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
+	case "deepseek":
+		logger.Infof("TODO add deepseek conformance tests")
+		return nil
+	default:
+		return nil
+	}
+}
+
+func loadConversationComponentForTimeoutTests(name string) conversation.Conversation {
+	switch name {
+	case "openai.openai":
+		return openai.NewOpenAI(testLogger)
+	case "anthropic":
+		return anthropic.NewAnthropic(testLogger)
+	case "googleai":
+		return googleai.NewGoogleAI(testLogger)
+	case "mistral":
+		logger.Infof("Mistral is not supported for timeout tests")
+		return nil
+	case "huggingface":
+		return huggingface.NewHuggingface(testLogger)
+	case "ollama":
+		return ollama.NewOllama(testLogger)
+	case "bedrock":
+		return bedrock.NewAWSBedrock(testLogger)
+	case "deepseek":
+		logger.Infof("TODO add deepseek timeout tests")
+		return nil
 	default:
 		return nil
 	}

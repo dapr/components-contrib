@@ -41,3 +41,17 @@ metadata:
       Max tokens for each request
     type: number
     example: "2048"
+  - name: httpClientTimeout
+    required: false
+    description: |
+      Maximum duration for HTTP client requests to the Deepseek API.
+    type: duration
+    example: '30s'
+    default: '0s'
+  - name: idleConnectionTimeout
+    required: false
+    description: |
+      Maximum duration an idle HTTP connection can remain open before being closed.
+    type: duration
+    example: '30s'
+    default: '90s'

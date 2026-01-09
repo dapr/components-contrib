@@ -24,14 +24,12 @@ import (
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
 )
 
-// CacheModel creates a prompt query cache with a configured TTL
-func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, error) {
-	d, err := time.ParseDuration(ttl)
-	if err != nil {
-		return model, fmt.Errorf("failed to parse cacheTTL duration: %s", err)
-	}
-
-	mem, err := inmemory.New(ctx, inmemory.WithExpiration(d))
+// CacheResponses creates a response cache with a configured TTL.
+// This caches the final LLM responses (outputs) based on the input messages and call options.
+// When the same prompt with the same options is requested, the cached response is returned
+// without making an API call to the LLM provider, reducing latency and cost.
+func CacheResponses(ctx context.Context, ttl *time.Duration, model llms.Model) (llms.Model, error) {
+	mem, err := inmemory.New(ctx, inmemory.WithExpiration(*ttl))
 	if err != nil {
 		return model, fmt.Errorf("failed to create llm cache: %s", err)
 	}

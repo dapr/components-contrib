@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -40,27 +41,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
-	outputs := make([]conversation.Result, 0, len(resp.Choices))
-	for i := range resp.Choices {
-		choice := conversation.Choice{
-			FinishReason: resp.Choices[i].StopReason,
-			Index:        int64(i),
-		}
-
-		if resp.Choices[i].Content != "" {
-			choice.Message.Content = resp.Choices[i].Content
-		}
-
-		if resp.Choices[i].ToolCalls != nil {
-			choice.Message.ToolCallRequest = &resp.Choices[i].ToolCalls
-		}
-
-		output := conversation.Result{
-			StopReason: resp.Choices[i].StopReason,
-			Choices:    []conversation.Choice{choice},
-		}
-
-		outputs = append(outputs, output)
+	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
+	if err != nil {
+		return nil, err
 	}
 
 	res = &conversation.Response{
@@ -68,9 +51,51 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		// This needs improvements to be useful.
 		ConversationContext: r.ConversationContext,
 		Outputs:             outputs,
+		Usage:               usage,
 	}
 
 	return res, nil
+}
+
+func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage, error) {
+	if len(choices) == 0 {
+		return nil, nil, nil
+	}
+
+	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
+	var usage *conversation.Usage
+	if len(choices) > 0 && choices[0].GenerationInfo != nil {
+		var err error
+		usage, err = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract usage metrics: %v", err)
+		}
+	}
+
+	outputs := make([]conversation.Result, 0, len(choices))
+	for i, c := range choices {
+		choice := conversation.Choice{
+			FinishReason: c.StopReason,
+			Index:        int64(i),
+		}
+
+		if choices[i].Content != "" {
+			choice.Message.Content = choices[i].Content
+		}
+
+		if choices[i].ToolCalls != nil {
+			choice.Message.ToolCallRequest = &choices[i].ToolCalls
+		}
+
+		output := conversation.Result{
+			StopReason: c.StopReason,
+			Choices:    []conversation.Choice{choice},
+		}
+
+		outputs = append(outputs, output)
+	}
+
+	return outputs, usage, nil
 }
 
 func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
@@ -90,5 +115,37 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 
+	// Handle prompt cache retention for OpenAI's extended prompt caching feature
+	if r.PromptCacheRetention != nil {
+		if r.Metadata == nil {
+			r.Metadata = make(map[string]string)
+		}
+		// OpenAI expects this as a top-level parameter, but we are forced to pass it via metadata,
+		// and langchaingo should forward it to the OpenAI client.
+		// NOTE: This is absolutely a complete hack that I guarantee you does work.
+		// In langchain there is a llms.WithPromptCaching(true) option that is incompatible with Openai yielding an err bc then it tries to use a bool instead of a string,
+		// because openai expects this to be a time duration string but used with langchain with their llms.WithPromptCachine(true) does not translate properly.
+		// When Langchain fixes this then we can update accordingly :)
+		const metadataPromptCacheKey = "prompt_cache_retention"
+		r.Metadata[metadataPromptCacheKey] = r.PromptCacheRetention.String()
+	}
+
+	// Openai accepts this as map[string]string but langchain expects map[string]any,
+	// so we go with openai for our type opinion here, and therefore I convert accordingly.
+	if r.Metadata != nil {
+		opts = append(opts, llms.WithMetadata(stringMapToAny(r.Metadata)))
+	}
+
 	return opts
+}
+
+func stringMapToAny(m map[string]string) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

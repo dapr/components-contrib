@@ -17,6 +17,7 @@ package bedrock
 import (
 	"context"
 	"reflect"
+	"time"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/conversation"
@@ -37,13 +38,13 @@ type AWSBedrock struct {
 }
 
 type AWSBedrockMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Model        string `json:"model"`
-	CacheTTL     string `json:"cacheTTL"`
+	Region           string         `json:"region"`
+	Endpoint         string         `json:"endpoint"`
+	AccessKey        string         `json:"accessKey"`
+	SecretKey        string         `json:"secretKey"`
+	SessionToken     string         `json:"sessionToken"`
+	Model            string         `json:"model"`
+	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL"`
 }
 
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
@@ -83,8 +84,8 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 	b.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, b.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

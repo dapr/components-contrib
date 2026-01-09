@@ -63,8 +63,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	m.LLM.Model = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, m.LLM.Model)
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, m.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

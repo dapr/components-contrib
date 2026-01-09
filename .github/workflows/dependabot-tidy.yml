@@ -14,6 +14,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.head_ref }}   # ensure we are not checking out the merge commit, but the working branch instead
             - name: Set up Go
               uses: actions/setup-go@v6
               with:
@@ -26,7 +28,6 @@ jobs:
               run: |
                 git config --global user.name "github-actions[bot]"
                 git config --global user.email "github-actions[bot]@users.noreply.github.com"
-                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
                 git add .
                 # Exit status 0 => no changes. Set output for next steps.
                 if git diff --cached --quiet; then
@@ -38,7 +39,7 @@ jobs:
               if: steps.detect_changes.outputs.changes == 'true'
               run: |
                 git commit -m "chore(deps): run go mod tidy for all modules"
-                git push -u origin HEAD:${{ github.event.pull_request.head.ref }}
+                git push --set-upstream origin HEAD
             - name: No changes to commit
               if: steps.detect_changes.outputs.changes == 'false'
               run: echo "No changes to commit"

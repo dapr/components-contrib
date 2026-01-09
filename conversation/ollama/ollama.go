@@ -51,9 +51,15 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetOllamaModel(md.Model)
 
-	llm, err := ollama.New(
+	options := []ollama.Option{
 		ollama.WithModel(model),
-	)
+	}
+
+	if httpClient := conversation.BuildHTTPClient(md.HttpClientTimeout, md.IdleConnectionTimeout); httpClient != nil {
+		options = append(options, ollama.WithHTTPClient(httpClient))
+	}
+
+	llm, err := ollama.New(options...)
 	if err != nil {
 		return err
 	}

@@ -32,14 +32,6 @@ type LLM struct {
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	if r.LlmTimeout != nil {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, *r.LlmTimeout)
-		defer func() {
-			cancel()
-		}()
-	}
-
 	opts := getOptionsFromRequest(r, a.logger)
 
 	var messages []llms.MessageContent

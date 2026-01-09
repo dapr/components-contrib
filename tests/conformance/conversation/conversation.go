@@ -666,56 +666,45 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 		})
 
-		t.Run("test llm timeout 30s", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
-			defer cancel()
-			timeout := 30 * time.Second
+		t.Run("test HTTP client timeout enforcement", func(t *testing.T) {
+			t.Run("short timeout causes error", func(t *testing.T) {
+				propsShortTimeout := make(map[string]string)
+				for k, v := range props {
+					propsShortTimeout[k] = v
+				}
+				propsShortTimeout["httpClientTimeout"] = "1ms"
 
-			req := &conversation.Request{
-				Message: &[]llms.MessageContent{
-					{
-						Role: llms.ChatMessageTypeHuman,
-						Parts: []llms.ContentPart{
-							llms.TextContent{Text: "what is the time?"},
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+
+				err := conv.Init(ctx, conversation.Metadata{
+					Base: metadata.Base{
+						Properties: propsShortTimeout,
+					},
+				})
+				require.NoError(t, err)
+
+				req := &conversation.Request{
+					Message: &[]llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "say hello"},
+							},
 						},
 					},
-				},
-				LlmTimeout: &timeout,
-			}
-			if component == "openai" {
-				req.Temperature = 1
-			}
+				}
+				if component == "openai" {
+					req.Temperature = 1
+				}
 
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			assert.Len(t, resp.Outputs, 1)
-			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
+				ctx2, cancel2 := context.WithTimeout(t.Context(), 10*time.Second)
+				defer cancel2()
+
+				_, err = conv.Converse(ctx2, req)
+				require.Error(t, err)
+			})
 		})
 
-		t.Run("test llm timeout 1s", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
-			defer cancel()
-			timeout := 1 * time.Second
-
-			req := &conversation.Request{
-				Message: &[]llms.MessageContent{
-					{
-						Role: llms.ChatMessageTypeHuman,
-						Parts: []llms.ContentPart{
-							llms.TextContent{Text: "what is the time?"},
-						},
-					},
-				},
-				LlmTimeout: &timeout,
-			}
-			if component == "openai" {
-				req.Temperature = 1
-			}
-
-			_, err := conv.Converse(ctx, req)
-			// confirm deadline exceeded error
-			require.ErrorIs(t, err, context.DeadlineExceeded)
-		})
 	})
 }

@@ -34,3 +34,17 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: httpClientTimeout
+    required: false
+    description: |
+      Maximum duration for HTTP client requests to the Anthropic API.
+    type: duration
+    example: '30s'
+    default: '0s'
+  - name: idleConnectionTimeout
+    required: false
+    description: |
+      Maximum duration an idle HTTP connection can remain open before being closed.
+    type: duration
+    example: '30s'
+    default: '90s'

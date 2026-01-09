@@ -17,8 +17,10 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/tmc/langchaingo/httputil"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/cache"
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
@@ -26,7 +28,8 @@ import (
 )
 
 // BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
-func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
+// It optionally configures HTTP client timeouts if provided.
+func BuildOpenAIClientOptions(model, key, endpoint string, httpClientTimeout, idleConnectionTimeout *time.Duration) []openai.Option {
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(key),
@@ -34,6 +37,10 @@ func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
 
 	if endpoint != "" {
 		options = append(options, openai.WithBaseURL(endpoint))
+	}
+
+	if httpClient := BuildHTTPClient(httpClientTimeout, idleConnectionTimeout); httpClient != nil {
+		options = append(options, openai.WithHTTPClient(httpClient))
 	}
 
 	return options
@@ -52,4 +59,29 @@ func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, 
 	}
 
 	return cache.New(model, mem), nil
+}
+
+// BuildHTTPClient creates an HTTP client with custom timeouts if specified in the metadata.
+func BuildHTTPClient(httpClientTimeout, idleConnectionTimeout *time.Duration) *http.Client {
+	if httpClientTimeout == nil && idleConnectionTimeout == nil {
+		return nil
+	}
+
+	transport := &http.Transport{}
+	if idleConnectionTimeout != nil {
+		transport.IdleConnTimeout = *idleConnectionTimeout
+	}
+
+	httpClient := &http.Client{
+		// wrap with httputil.Transport to preserve user-agent
+		Transport: &httputil.Transport{
+			Transport: transport,
+		},
+	}
+
+	if httpClientTimeout != nil {
+		httpClient.Timeout = *httpClientTimeout
+	}
+
+	return httpClient
 }

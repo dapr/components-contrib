@@ -54,10 +54,15 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetMistralModel(md.Model)
-	llm, err := mistral.New(
+	options := []mistral.Option{
 		mistral.WithModel(model),
 		mistral.WithAPIKey(md.Key),
-	)
+	}
+
+	// NOTE: Mistral has a WithTimeout option; however, it is not used or added to the mistral client so we do not add it,
+	// and this is another case of Mistral being an outlier for the conversation components.
+
+	llm, err := mistral.New(options...)
 	if err != nil {
 		return err
 	}

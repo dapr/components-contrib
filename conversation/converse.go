@@ -17,7 +17,6 @@ package conversation
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -47,10 +46,6 @@ type Request struct {
 	Metadata                   map[string]string `json:"metadata"`
 	ResponseFormatAsJSONSchema map[string]any    `json:"responseFormatAsJsonSchema"`
 	Model                      *string           `json:"model"`
-
-	// LlmTimeout specifies the max duration to wait for the LLM to complete a conversation request.
-	// Langchaingo timeout is respected, so if this is set, it will override the provider's timeout.
-	LlmTimeout *time.Duration `json:"llmTimeout"`
 }
 
 type Response struct {

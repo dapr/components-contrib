@@ -47,10 +47,8 @@ type Request struct {
 	// Metadata fields that are separate from the actual component metadata fields
 	// that get passed to the LLM through the conversation.
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
-	Metadata map[string]string `json:"metadata"`
-	Model    *string           `json:"model"`
-
-	PromptCacheRetention *time.Duration `json:"promptCacheRetention,omitempty"`
+	Metadata             map[string]string `json:"metadata"`
+	PromptCacheRetention *time.Duration    `json:"promptCacheRetention,omitempty"`
 }
 
 type Response struct {

@@ -42,6 +42,8 @@ type pulsarMetadata struct {
 	ReplicateSubscriptionState       bool                      `mapstructure:"replicateSubscriptionState"`
 	SubscriptionMode                 string                    `mapstructure:"subscribeMode"`
 	Token                            string                    `mapstructure:"token"`
+	CompressionType                  string                    `mapstructure:"compressionType"`
+	CompressionLevel                 string                    `mapstructure:"compressionLevel"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }
 

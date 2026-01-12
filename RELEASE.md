@@ -31,7 +31,7 @@ Pre-releases use tags like `v1.11.0-rc.0`, `-rc.1`, and so on. They are created 
 
 ## Stable Release
 
-Create a stable tag without the rc suffix (for example `v1.11.0`).
+Create a stable tag without the rc suffix (for example `v1.11.0`). Ensure the new release is set to `latest` and not a `pre-release`
 CI will build and publish the release.
 
 ## Patch Releases

@@ -1,0 +1,73 @@
+version: 2
+updates:
+  # Git
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  # gomod main pkg
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  # gomod build-tools
+  - package-ecosystem: "gomod"
+    directory: "/build-tools"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  # gomod middleware
+  - package-ecosystem: "gomod"
+    directories: 
+      - "/middleware/http/was/example"
+      - "/middleware/http/wasm/internal/e2e-guests/rewrite"
+      - "/middleware/http/wasm/internal/e2e-guests/config"
+      - "/middleware/http/wasm/internal/e2e-guests/output"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  # gomod bindings
+  - package-ecosystem: "gomod"
+    directories: 
+      - "/bindings/wasm/testdata/example"
+      - "/bindings/wasm/testdata/http"
+      - "/bindings/wasm/testdata/args"
+      - "/bindings/wasm/testdata/loop"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  # gomod tests
+  - package-ecosystem: "gomod"
+    directories: 
+      - "/tests/e2e/pubsub/jetstream"
+      - "/tests/certification"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+  

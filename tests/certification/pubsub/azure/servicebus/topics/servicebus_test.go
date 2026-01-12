@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1084,10 +1086,16 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 
 	sessionWatcher := watcher.NewOrdered()
 
+	// Track active messages per session to ensure no parallel processing within a session
+	var (
+		fifoMu             sync.Mutex
+		fifoActivePerSess  = make(map[string]int)
+		fifoParallelIssues atomic.Int32
+	)
+
 	// subscriber of the given topic
 	subscriberApplicationWithSessions := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
-			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
 					PubsubName: pubsubName,
@@ -1098,9 +1106,31 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 						"maxConcurrentSessions": "1",
 					},
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					// Track/Observe the data of the event.
+					// Extract session ID (if present) to track concurrency
+					var sessionID string
+					if m := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data)); len(m) > 1 {
+						sessionID = m[1]
+					}
+
+					fifoMu.Lock()
+					active := fifoActivePerSess[sessionID]
+					if active > 0 {
+						fifoParallelIssues.Add(1)
+						ctx.Logf("Session %s already has %d active messages", sessionID, active)
+					}
+					fifoActivePerSess[sessionID] = active + 1
+					fifoMu.Unlock()
+
+					// Simulate handler work to widen potential overlap window
+					time.Sleep(20 * time.Millisecond)
+
 					messagesWatcher.Observe(e.Data)
 					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+
+					fifoMu.Lock()
+					fifoActivePerSess[sessionID]--
+					fifoMu.Unlock()
+
 					return false, nil
 				}),
 			)
@@ -1221,6 +1251,9 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 				if !assert.Equal(t, ordered, observed) {
 					t.Errorf("expected: %v, observed: %v", ordered, observed)
 				}
+
+				// Assert no parallel violations within the single session
+				assert.Equal(t, int32(0), fifoParallelIssues.Load(), "no parallel processing within a session expected")
 			}
 
 			return nil
@@ -1256,6 +1289,215 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 		Run()
 }
 
+// TestServicebusWithConcurrentSessionsFIFO validates that multiple sessions can be
+// processed concurrently while each session maintains strict FIFO ordering.
+func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
+	topic := "sessions-concurrent-fifo"
+	numSessions := 5
+
+	sessionWatcher := watcher.NewUnordered()
+
+	var (
+		mu               sync.Mutex
+		globalOrder      []string // tracks session IDs in the order messages were received
+		activePerSession = make(map[string]int)
+		parallelIssues   atomic.Int32
+	)
+
+	subscriberApplicationWithSessions := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+					Metadata: map[string]string{
+						"requireSessions":       "true",
+						"maxConcurrentSessions": "5",
+					},
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messagesWatcher.Observe(e.Data)
+
+					// Track session ID and enforce single in-flight per session
+					match := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data))
+					var sessionID string
+					if len(match) > 1 {
+						sessionID = match[1]
+						mu.Lock()
+						inflight := activePerSession[sessionID]
+						if inflight > 0 {
+							parallelIssues.Add(1)
+							ctx.Logf("Session %s already has %d active messages", sessionID, inflight)
+						}
+						activePerSession[sessionID] = inflight + 1
+						globalOrder = append(globalOrder, sessionID)
+						mu.Unlock()
+					}
+
+					// Simulate work
+					time.Sleep(30 * time.Millisecond)
+
+					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, data: %s",
+						appID, e.PubsubName, e.Topic, e.ID, e.Data)
+
+					if sessionID != "" {
+						mu.Lock()
+						activePerSession[sessionID]--
+						mu.Unlock()
+					}
+
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages := make([]string, numMessages)
+			for i := range messages {
+				var msgSuffix string
+				if metadata["SessionId"] != "" {
+					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
+				}
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s",
+					metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			client := sidecar.GetClient(ctx, sidecarName)
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, m := range messageWatchers {
+				_, exp, obs := m.Partial(ctx, timeout)
+
+				var observed []string
+				if obs != nil {
+					for _, v := range obs.([]interface{}) {
+						observed = append(observed, v.(string))
+					}
+				}
+				var expected []string
+				if exp != nil {
+					for _, v := range exp.([]interface{}) {
+						expected = append(expected, v.(string))
+					}
+				}
+
+				// Group messages by session
+				sessionMessages := make(map[string][]string)
+				for _, msg := range observed {
+					match := sessionIDRegex.FindStringSubmatch(msg)
+					if len(match) > 0 {
+						sessionID := match[1]
+						sessionMessages[sessionID] = append(sessionMessages[sessionID], msg)
+					} else {
+						t.Error("session id not found in message")
+					}
+				}
+
+				require.Greater(t, len(sessionMessages), 1,
+					"should receive messages from multiple sessions concurrently")
+
+				// Verify FIFO ordering per session
+				for sessionID, msgs := range sessionMessages {
+					var expectedForSession []string
+					for _, msg := range expected {
+						match := sessionIDRegex.FindStringSubmatch(msg)
+						if len(match) > 0 && match[1] == sessionID {
+							expectedForSession = append(expectedForSession, msg)
+						}
+					}
+
+					require.Equal(t, expectedForSession, msgs,
+						"session %s messages must be in FIFO order", sessionID)
+				}
+
+				// Check global order to prove concurrent processing
+				// If processed sequentially, all messages from one session would come before the next
+				// If processed concurrently, session IDs will be interleaved
+				mu.Lock()
+				orderCopy := make([]string, len(globalOrder))
+				copy(orderCopy, globalOrder)
+				mu.Unlock()
+
+				if len(orderCopy) > 1 {
+					// Check if we have session interleaving
+					hasInterleaving := false
+					seenSessions := make(map[string]bool)
+					lastSession := ""
+
+					for _, sessionID := range orderCopy {
+						if sessionID != lastSession && seenSessions[sessionID] {
+							// We've seen this session before but with a different session in between
+							hasInterleaving = true
+							break
+						}
+						seenSessions[sessionID] = true
+						lastSession = sessionID
+					}
+
+					require.True(t, hasInterleaving,
+						"global order must show session interleaving, proving concurrent processing")
+
+					ctx.Logf("Successfully processed %d sessions concurrently with FIFO ordering maintained",
+						len(sessionMessages))
+
+					// Assert no parallel violations within a single session
+					assert.Equal(t, int32(0), parallelIssues.Load(), "no parallel processing within a session expected")
+				}
+			}
+			return nil
+		}
+	}
+
+	f := flow.New(t, "servicebus certification concurrent sessions FIFO test").
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		))
+
+	for i := 0; i < numSessions; i++ {
+		sessionID := fmt.Sprintf("session-%d", i)
+		f = f.Step(fmt.Sprintf("publish messages to %s", sessionID),
+			publishMessages(map[string]string{"SessionId": sessionID}, sidecarName1, topic, sessionWatcher))
+	}
+
+	f.Step("verify all sessions processed with FIFO ordering and concurrency", assertMessages(30*time.Second, sessionWatcher)).
+		Step("reset", flow.Reset(sessionWatcher)).
+		Run()
+}
+
 // TestServicebusWithSessionsRoundRobin tests that if we publish messages to the same
 // topic but with 2 different session ids (session1 and session2), then eventually
 // the receiver will receive messages from both the sessions.
@@ -1266,10 +1508,16 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 
 	sessionWatcher := watcher.NewUnordered()
 
+	// Concurrency tracking for round-robin scenario
+	var (
+		rrMu             sync.Mutex
+		rrActivePerSess  = make(map[string]int)
+		rrParallelIssues atomic.Int32
+	)
+
 	// subscriber of the given topic
 	subscriberApplicationWithSessions := func(appID string, topicName string, messageWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
-			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
 					PubsubName: pubsubName,
@@ -1281,9 +1529,31 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 						"sessionIdleTimeoutInSec": "2", // timeout and try another session
 					},
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					// Track/Observe the data of the event.
+					// Extract session ID
+					var sessionID string
+					if m := sessionIDRegex.FindStringSubmatch(fmt.Sprintf("%s", e.Data)); len(m) > 1 {
+						sessionID = m[1]
+					}
+
+					rrMu.Lock()
+					active := rrActivePerSess[sessionID]
+					if active > 0 {
+						rrParallelIssues.Add(1)
+						ctx.Logf("Session %s already has %d active messages", sessionID, active)
+					}
+					rrActivePerSess[sessionID] = active + 1
+					rrMu.Unlock()
+
+					// Simulate work
+					time.Sleep(15 * time.Millisecond)
+
 					messageWatcher.Observe(e.Data)
 					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+
+					rrMu.Lock()
+					rrActivePerSess[sessionID]--
+					rrMu.Unlock()
+
 					return false, nil
 				}),
 			)
@@ -1340,6 +1610,9 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 			for _, m := range messageWatchers {
 				m.Assert(ctx, 25*timeout)
 			}
+
+			// Assert no parallel violations
+			assert.Equal(t, int32(0), rrParallelIssues.Load(), "no parallel processing within a session expected")
 
 			return nil
 		}

@@ -895,7 +895,7 @@ func TestSanitiseURL(t *testing.T) {
 	}
 }
 
-func TestInitUsesTokenFromFileWhenClientSecretPathProvided(t *testing.T) {
+func TestInitUsesTokenSupplierWhenClientSecretPathProvided(t *testing.T) {
 	server := newOAuthTestServer(t)
 	secretPath := writeTempFile(t, "rotating-secret")
 
@@ -922,7 +922,9 @@ func TestInitUsesTokenFromFileWhenClientSecretPathProvided(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, capturedOpts.Authentication)
-	expected := pulsar.NewAuthenticationTokenFromFile(secretPath)
+	expected := pulsar.NewAuthenticationTokenFromSupplier(func() (string, error) {
+		return "", nil
+	})
 	assert.IsType(t, expected, capturedOpts.Authentication)
 }
 

@@ -245,10 +245,12 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 			Audiences:    m.ClientCredentialsMetadata.Audiences,
 		}
 		if len(m.ClientCredentialsMetadata.ClientSecretPath) > 0 {
-			if _, err = oauth2.NewClientCredentials(ctx, credsOpts); err != nil {
+			var cliCreds *oauth2.ClientCredentials
+			cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)
+			if err != nil {
 				return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
 			}
-			options.Authentication = pulsar.NewAuthenticationTokenFromFile(m.ClientSecretPath)
+			options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cliCreds.Token) // ✅ FIXED
 		} else {
 			var cliCreds *oauth2.ClientCredentials
 			cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)

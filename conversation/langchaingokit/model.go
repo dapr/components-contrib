@@ -41,9 +41,6 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return nil, context.DeadlineExceeded
-		}
 		return nil, err
 	}
 

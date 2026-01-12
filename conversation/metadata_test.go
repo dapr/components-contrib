@@ -24,7 +24,7 @@ import (
 
 func TestLangchainMetadata(t *testing.T) {
 	t.Run("json marshaling with endpoint", func(t *testing.T) {
-		ttl := time.Duration(10 * time.Minute)
+		ttl := 10 * time.Minute
 		metadata := LangchainMetadata{
 			Key:              "test-key",
 			Model:            DefaultOpenAIModel,

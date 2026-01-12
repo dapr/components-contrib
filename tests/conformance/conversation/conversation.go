@@ -618,54 +618,6 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Contains(t, []string{"low", "medium", "high"}, result.Confidence, "Confidence should be one of the enum values")
 		})
 
-		t.Run("test per request model override", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
-			defer cancel()
-
-			var modelName string
-			switch component {
-			case "ollama":
-				modelName = "llama3.2:latest"
-			case "anthropic":
-				modelName = "claude-3-5-sonnet-20241022"
-			case "mistral":
-				modelName = "mistral-small-latest"
-			case "googleai":
-				modelName = "gemini-2.0-flash-exp"
-			case "openai":
-				modelName = "gpt-3.5-turbo"
-			case "azure":
-				modelName = "gpt-4"
-			case "bedrock":
-				t.Skipf("skipping model override subtest for bedrock until we fill out use case to support testing other models")
-			default:
-				modelName = "gpt-3.5-turbo"
-			}
-			req := &conversation.Request{
-				Message: &[]llms.MessageContent{
-					{
-						Role: llms.ChatMessageTypeHuman,
-						Parts: []llms.ContentPart{
-							llms.TextContent{Text: "say hello"},
-						},
-					},
-				},
-				Model: &modelName,
-			}
-			if component == "openai" {
-				req.Temperature = 1
-			}
-
-			resp, err := conv.Converse(ctx, req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			assert.Len(t, resp.Outputs, 1)
-			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
-			if resp.Model != "" {
-				assert.Equal(t, modelName, resp.Model)
-			}
-		})
-
 		t.Run("test HTTP client timeout enforcement", func(t *testing.T) {
 			t.Run("short timeout causes error", func(t *testing.T) {
 				propsShortTimeout := make(map[string]string)

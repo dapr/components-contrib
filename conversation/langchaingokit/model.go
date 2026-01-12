@@ -47,19 +47,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
-	outputs := a.NormalizeConverseResult(resp.Choices)
-
-	// capture request override, otherwise grab component specified model
-	var model string
-	if r.Model != nil {
-		model = *r.Model
-	} else {
-		model = a.model
-	}
-
 	return &conversation.Response{
-		Model:   model,
-		Outputs: outputs,
+		Model:   a.model,
+		Outputs: a.NormalizeConverseResult(resp.Choices),
 	}, nil
 }
 
@@ -139,10 +129,6 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	// llms.WithMaxLength()
 	// llms.WithMinLength()
 	// llms.WithMaxTokens()
-
-	if r.Model != nil {
-		opts = append(opts, llms.WithModel(*r.Model))
-	}
 
 	// Openai accepts this as map[string]string but langchain expects map[string]any,
 	// so we go with openai for our type opinion here, and therefore I convert accordingly.

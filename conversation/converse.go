@@ -45,7 +45,6 @@ type Request struct {
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
 	Metadata                   map[string]string `json:"metadata"`
 	ResponseFormatAsJSONSchema map[string]any    `json:"responseFormatAsJsonSchema"`
-	Model                      *string           `json:"model"`
 }
 
 type Response struct {

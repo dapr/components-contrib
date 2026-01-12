@@ -32,7 +32,6 @@ import (
 
 // Echo implement is only for test.
 type Echo struct {
-	model  string
 	logger logger.Logger
 }
 
@@ -49,10 +48,6 @@ func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
 	err := kmeta.DecodeMetadata(meta.Properties, r)
 	if err != nil {
 		return err
-	}
-
-	if r.Model != nil {
-		e.model = *r.Model
 	}
 
 	return nil
@@ -164,17 +159,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
-	// allow per request model overrides
-	var modelName string
-	if r.Model != nil && *r.Model != "" {
-		modelName = *r.Model
-	} else {
-		modelName = e.model
-	}
-
 	res = &conversation.Response{
 		Outputs: []conversation.Result{output},
-		Model:   modelName,
 	}
 
 	return res, nil

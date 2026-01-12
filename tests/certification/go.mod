@@ -17,7 +17,7 @@ require (
 	github.com/camunda/zeebe/clients/go/v8 v8.2.12
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cloudwego/kitex v0.5.0
+	github.com/cloudwego/kitex v0.15.4
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.16.0-rc.8
 	github.com/dapr/dapr v1.16.0-rc.8
@@ -111,18 +111,24 @@ require (
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
-	github.com/bytedance/gopkg v0.0.0-20240711085056-a03554c296f8 // indirect
+	github.com/bytedance/gopkg v0.1.3 // indirect
+	github.com/bytedance/sonic v1.14.2 // indirect
+	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
-	github.com/choleraehyq/pid v0.0.20 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.15.2 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
-	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.2.0 // indirect
-	github.com/cloudwego/gopkg v0.1.0 // indirect
-	github.com/cloudwego/iasm v0.2.0 // indirect
-	github.com/cloudwego/netpoll v0.3.2 // indirect
-	github.com/cloudwego/thriftgo v0.3.0 // indirect
+	github.com/cloudwego/base64x v0.1.6 // indirect
+	github.com/cloudwego/configmanager v0.2.3 // indirect
+	github.com/cloudwego/dynamicgo v0.7.1 // indirect
+	github.com/cloudwego/fastpb v0.0.5 // indirect
+	github.com/cloudwego/frugal v0.3.0 // indirect
+	github.com/cloudwego/gopkg v0.1.8 // indirect
+	github.com/cloudwego/kitex/pkg/protocol/bthrift v0.0.0-20260112072316-5cf426cf9e1b // indirect
+	github.com/cloudwego/localsession v0.2.1 // indirect
+	github.com/cloudwego/netpoll v0.7.2 // indirect
+	github.com/cloudwego/runtimex v0.1.1 // indirect
+	github.com/cloudwego/thriftgo v0.4.3 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/dapr/durabletask-go v0.9.0 // indirect
@@ -130,7 +136,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/didip/tollbooth/v7 v7.0.1 // indirect
-	github.com/dlclark/regexp2 v1.10.0 // indirect
+	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dubbogo/gost v1.13.1 // indirect
 	github.com/dubbogo/triple v1.1.8 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -141,6 +147,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fatih/color v1.17.0 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
@@ -201,6 +208,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -217,6 +225,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
@@ -282,13 +291,14 @@ require (
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
-	github.com/tidwall/gjson v1.17.0 // indirect
+	github.com/tidwall/gjson v1.17.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/tmc/langchaingo v0.1.13 // indirect
+	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/vmware/vmware-go-kcl v1.5.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -315,7 +325,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/arch v0.10.0 // indirect
+	golang.org/x/arch v0.14.0 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/mod v0.29.0 // indirect

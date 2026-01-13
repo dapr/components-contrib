@@ -14,8 +14,12 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -206,5 +210,44 @@ func TestDeleteOption(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := s3.delete(t.Context(), &r)
 		require.Error(t, err)
+	})
+}
+
+func TestForcePathStylePresignURL(t *testing.T) {
+	bucket := "dapr-s3-test"
+	key := "filename.txt"
+	region := "us-east-1"
+
+	cfg := aws.Config{
+		Region:      region,
+		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider("AKID", "SECRET", "")),
+	}
+
+	t.Run("forcePathStyle=false", func(t *testing.T) {
+		s3Client := s3.NewFromConfig(cfg)
+		presignClient := s3.NewPresignClient(s3Client)
+		presigned, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+			Bucket: &bucket,
+			Key:    &key,
+		})
+		require.NoError(t, err)
+		require.Contains(t, presigned.URL, ".s3.")
+		require.Contains(t, presigned.URL, bucket)
+		require.Contains(t, presigned.URL, key)
+		require.Equal(t, "https://"+bucket+".s3."+region+".amazonaws.com/"+key, presigned.URL[:len("https://"+bucket+".s3."+region+".amazonaws.com/"+key)])
+	})
+
+	t.Run("forcePathStyle=true", func(t *testing.T) {
+		s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
+		presignClient := s3.NewPresignClient(s3Client)
+		presigned, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+			Bucket: &bucket,
+			Key:    &key,
+		})
+		require.NoError(t, err)
+		require.Contains(t, presigned.URL, "/"+bucket+"/"+key)
+		require.Equal(t, "https://s3."+region+".amazonaws.com/"+bucket+"/"+key, presigned.URL[:len("https://s3."+region+".amazonaws.com/"+bucket+"/"+key)])
 	})
 }

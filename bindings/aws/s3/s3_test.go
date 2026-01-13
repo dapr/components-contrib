@@ -14,7 +14,6 @@ limitations under the License.
 package s3
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -41,8 +40,8 @@ func TestParseMetadata(t *testing.T) {
 			"DisableSSL":     "true",
 			"InsecureSSL":    "1",
 		}
-		s3 := AWSS3{}
-		meta, err := s3.parseMetadata(m)
+		awsS3 := AWSS3{}
+		meta, err := awsS3.parseMetadata(m)
 
 		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
@@ -67,8 +66,8 @@ func TestParseS3Tags(t *testing.T) {
 			"storageClass": "STANDARD_IA",
 			"tags":         "project=myproject,year=2024",
 		}
-		s3 := AWSS3{}
-		parsedTags, err := s3.parseS3Tags(request.Metadata["tags"])
+		awsS3 := AWSS3{}
+		parsedTags, err := awsS3.parseS3Tags(request.Metadata["tags"])
 
 		require.NoError(t, err)
 		assert.Equal(t, "project=myproject&year=2024", *parsedTags)
@@ -87,8 +86,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"SessionToken":   "token",
 			"ForcePathStyle": "YES",
 		}
-		s3 := AWSS3{}
-		meta, err := s3.parseMetadata(m)
+		awsS3 := AWSS3{}
+		meta, err := awsS3.parseMetadata(m)
 		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
@@ -135,8 +134,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"SessionToken":   "token",
 			"ForcePathStyle": "true",
 		}
-		s3 := AWSS3{}
-		meta, err := s3.parseMetadata(m)
+		awsS3 := AWSS3{}
+		meta, err := awsS3.parseMetadata(m)
 		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
@@ -168,8 +167,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"SessionToken":   "token",
 			"ForcePathStyle": "true",
 		}
-		s3 := AWSS3{}
-		meta, err := s3.parseMetadata(m)
+		awsS3 := AWSS3{}
+		meta, err := awsS3.parseMetadata(m)
 		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
@@ -192,23 +191,23 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 }
 
 func TestGetOption(t *testing.T) {
-	s3 := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
-	s3.metadata = &s3Metadata{}
+	s3Binding := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
+	s3Binding.metadata = &s3Metadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.get(t.Context(), &r)
+		_, err := s3Binding.get(t.Context(), &r)
 		require.Error(t, err)
 	})
 }
 
 func TestDeleteOption(t *testing.T) {
-	s3 := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
-	s3.metadata = &s3Metadata{}
+	s3Binding := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
+	s3Binding.metadata = &s3Metadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.delete(t.Context(), &r)
+		_, err := s3Binding.delete(t.Context(), &r)
 		require.Error(t, err)
 	})
 }
@@ -226,7 +225,7 @@ func TestForcePathStylePresignURL(t *testing.T) {
 	t.Run("forcePathStyle=false", func(t *testing.T) {
 		s3Client := s3.NewFromConfig(cfg)
 		presignClient := s3.NewPresignClient(s3Client)
-		presigned, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		presigned, err := presignClient.PresignGetObject(t.Context(), &s3.GetObjectInput{
 			Bucket: &bucket,
 			Key:    &key,
 		})
@@ -242,7 +241,7 @@ func TestForcePathStylePresignURL(t *testing.T) {
 			o.UsePathStyle = true
 		})
 		presignClient := s3.NewPresignClient(s3Client)
-		presigned, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		presigned, err := presignClient.PresignGetObject(t.Context(), &s3.GetObjectInput{
 			Bucket: &bucket,
 			Key:    &key,
 		})

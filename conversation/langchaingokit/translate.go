@@ -36,21 +36,36 @@ const (
 	promptCachedKey       = "PromptCachedTokens"
 )
 
-// extractInt64FromGenInfo extracts an int64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
-func extractInt64FromGenInfo(genInfo map[string]any, key string) (uint64, error) {
+// extractUint64FromGenInfo extracts a uint64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
+func extractUint64FromGenInfo(genInfo map[string]any, key string) (uint64, error) {
 	if v, ok := genInfo[key]; ok {
 		switch val := v.(type) {
 		case uint64:
 			return val, nil
 		case int:
+			if val < 0 {
+				return 0, fmt.Errorf("negative value for %s: %d", key, val)
+			}
 			return uint64(val), nil
 		case int64:
+			if val < 0 {
+				return 0, fmt.Errorf("negative value for %s: %d", key, val)
+			}
 			return uint64(val), nil
 		case int32:
+			if val < 0 {
+				return 0, fmt.Errorf("negative value for %s: %d", key, val)
+			}
 			return uint64(val), nil
 		case float64:
+			if val < 0 {
+				return 0, fmt.Errorf("negative value for %s: %f", key, val)
+			}
 			return uint64(val), nil
 		case float32:
+			if val < 0 {
+				return 0, fmt.Errorf("negative value for %s: %f", key, val)
+			}
 			return uint64(val), nil
 		default:
 			return 0, fmt.Errorf("failed to extract usage metrics for type: %T", val)
@@ -69,40 +84,40 @@ func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) (*conversat
 	}
 
 	usage := &conversation.Usage{}
-	completionTokens, err := extractInt64FromGenInfo(genInfo, completionKey)
+	completionTokens, err := extractUint64FromGenInfo(genInfo, completionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract completion tokens: %v", err)
 	}
 	usage.CompletionTokens = completionTokens
 
-	promptTokens, err := extractInt64FromGenInfo(genInfo, promptKey)
+	promptTokens, err := extractUint64FromGenInfo(genInfo, promptKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract prompt tokens: %v", err)
 	}
 	usage.PromptTokens = promptTokens
 
-	totalTokens, err := extractInt64FromGenInfo(genInfo, totalKey)
+	totalTokens, err := extractUint64FromGenInfo(genInfo, totalKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract total tokens: %v", err)
 	}
 	usage.TotalTokens = totalTokens
 
-	acceptedTokens, err := extractInt64FromGenInfo(genInfo, completionAcceptedKey)
+	acceptedTokens, err := extractUint64FromGenInfo(genInfo, completionAcceptedKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract completion accepted prediction tokens: %v", err)
 	}
 
-	audioTokens, err := extractInt64FromGenInfo(genInfo, completionAudioKey)
+	audioTokens, err := extractUint64FromGenInfo(genInfo, completionAudioKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract completion audio tokens: %v", err)
 	}
 
-	reasoningTokens, err := extractInt64FromGenInfo(genInfo, reasoningKey)
+	reasoningTokens, err := extractUint64FromGenInfo(genInfo, reasoningKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract completion reasoning tokens: %v", err)
 	}
 
-	rejectedTokens, err := extractInt64FromGenInfo(genInfo, rejectedKey)
+	rejectedTokens, err := extractUint64FromGenInfo(genInfo, rejectedKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract completion rejected prediction tokens: %v", err)
 	}
@@ -119,12 +134,12 @@ func extractUsageFromLangchainGenerationInfo(genInfo map[string]any) (*conversat
 		usage.CompletionTokensDetails = completionDetails
 	}
 
-	promptAudioTokens, err := extractInt64FromGenInfo(genInfo, promptAudioKey)
+	promptAudioTokens, err := extractUint64FromGenInfo(genInfo, promptAudioKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract prompt audio tokens: %v", err)
 	}
 
-	promptCachedTokens, err := extractInt64FromGenInfo(genInfo, promptCachedKey)
+	promptCachedTokens, err := extractUint64FromGenInfo(genInfo, promptCachedKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract prompt cached tokens: %v", err)
 	}

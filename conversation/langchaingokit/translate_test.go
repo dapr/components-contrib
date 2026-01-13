@@ -79,7 +79,7 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := extractInt64FromGenInfo(tt.genInfo, tt.key)
+			result, err := extractUint64FromGenInfo(tt.genInfo, tt.key)
 			if tt.expectedErr {
 				require.Error(t, err)
 			} else {

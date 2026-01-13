@@ -137,7 +137,7 @@ func loadConversationComponent(name string) conversation.Conversation {
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
 	case "deepseek":
-		logger.Infof("TODO add deepseek conformance tests")
+		testLogger.Infof("TODO add deepseek conformance tests")
 		return nil
 	default:
 		return nil
@@ -153,7 +153,7 @@ func loadConversationComponentForTimeoutTests(name string) conversation.Conversa
 	case "googleai":
 		return googleai.NewGoogleAI(testLogger)
 	case "mistral":
-		logger.Infof("Mistral is not supported for timeout tests")
+		testLogger.Infof("Mistral is not supported for timeout tests")
 		return nil
 	case "huggingface":
 		return huggingface.NewHuggingface(testLogger)
@@ -162,7 +162,7 @@ func loadConversationComponentForTimeoutTests(name string) conversation.Conversa
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
 	case "deepseek":
-		logger.Infof("TODO add deepseek timeout tests")
+		testLogger.Infof("TODO add deepseek timeout tests")
 		return nil
 	default:
 		return nil

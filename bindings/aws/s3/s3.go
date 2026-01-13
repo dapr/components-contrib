@@ -15,12 +15,14 @@ package s3
 
 import (
 	"context"
+	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -113,26 +115,6 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
-//func (s *AWSS3) getAWSConfig(opts awsAuth.Options) *aws.Config {
-//	cfg := awsAuth.GetConfig(opts).WithS3ForcePathStyle(s.metadata.ForcePathStyle).WithDisableSSL(s.metadata.DisableSSL)
-//
-//	// Use a custom HTTP client to allow self-signed certs
-//	if s.metadata.InsecureSSL {
-//		customTransport := http.DefaultTransport.(*http.Transport).Clone()
-//		customTransport.TLSClientConfig = &tls.Config{
-//			//nolint:gosec
-//			InsecureSkipVerify: true,
-//		}
-//		client := &http.Client{
-//			Transport: customTransport,
-//		}
-//		cfg = cfg.WithHTTPClient(client)
-//
-//		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
-//	}
-//	return cfg
-//}
-
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -160,14 +142,45 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return fmt.Errorf("s3 binding error: cannot create AWS config: %w", err)
 	}
 
-	// handle forcepathstyle
-	// handle insecuressl
-	// handle custom http transport
+	var s3Options []func(*s3.Options)
 
-	s.s3Client = s3.NewFromConfig(awsConfig)
+	if m.ForcePathStyle {
+		s3Options = append(s3Options, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
+	}
+
+	if m.DisableSSL {
+		awsConfig.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{},
+			},
+		}
+	}
+
+	if m.InsecureSSL {
+		customTransport := &http.Transport{}
+		if awsConfig.HTTPClient != nil {
+			if client, ok := awsConfig.HTTPClient.(*http.Client); ok {
+				if t, ok := client.Transport.(*http.Transport); ok {
+					customTransport = t.Clone()
+				}
+			}
+		}
+		if customTransport.TLSClientConfig == nil {
+			customTransport.TLSClientConfig = &tls.Config{}
+		}
+		customTransport.TLSClientConfig.InsecureSkipVerify = true
+		awsConfig.HTTPClient = &http.Client{
+			Transport: customTransport,
+		}
+		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+	}
+
+	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
 
 	if s.s3Client == nil {
-		return fmt.Errorf("s3 binding error: cannot create S3 client")
+		return errors.New("s3 binding error: cannot create S3 client")
 	}
 
 	s.s3Downloader = manager.NewDownloader(s.s3Client)
@@ -193,7 +206,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
@@ -224,8 +237,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	var r io.Reader
-	if metadata.FilePath != "" {
-		r, err = os.Open(metadata.FilePath)
+	if md.FilePath != "" {
+		r, err = os.Open(md.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
@@ -233,17 +246,17 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		r = strings.NewReader(commonutils.Unquote(req.Data))
 	}
 
-	if metadata.DecodeBase64 {
+	if md.DecodeBase64 {
 		r = b64.NewDecoder(b64.StdEncoding, r)
 	}
 
 	var storageClass types.StorageClass
-	if metadata.StorageClass != "" {
-		storageClass = types.StorageClass(metadata.StorageClass)
+	if md.StorageClass != "" {
+		storageClass = types.StorageClass(md.StorageClass)
 	}
 
 	resultUpload, err := s.s3Uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket:       ptr.Of(metadata.Bucket),
+		Bucket:       ptr.Of(md.Bucket),
 		Key:          ptr.Of(key),
 		Body:         r,
 		ContentType:  contentType,
@@ -255,8 +268,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	var presignURL string
-	if metadata.PresignTTL != "" {
-		url, presignErr := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
+	if md.PresignTTL != "" {
+		url, presignErr := s.presignObject(ctx, md.Bucket, key, md.PresignTTL)
 		if presignErr != nil {
 			return nil, fmt.Errorf("s3 binding error: %s", presignErr)
 		}
@@ -282,7 +295,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
@@ -292,11 +305,11 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	if metadata.PresignTTL == "" {
+	if md.PresignTTL == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataPresignTTL)
 	}
 
-	url, err := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
+	url, err := s.presignObject(ctx, md.Bucket, key, md.PresignTTL)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: %w", err)
 	}
@@ -333,7 +346,7 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 }
 
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata : %w", err)
 	}
@@ -360,7 +373,7 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 	}
 
 	var data []byte
-	if metadata.EncodeBase64 {
+	if md.EncodeBase64 {
 		encoded := b64.StdEncoding.EncodeToString(buff.Bytes())
 		data = []byte(encoded)
 	} else {
@@ -506,6 +519,9 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 // GetComponentMetadata returns the metadata of the component.
 func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := s3Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err != nil {
+		s.logger.Warnf("error getting metadata info: %v", err)
+	}
 	return
 }

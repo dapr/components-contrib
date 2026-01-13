@@ -21,6 +21,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+
 	"github.com/dapr/components-contrib/bindings"
 	awsCommon "github.com/dapr/components-contrib/common/aws"
 	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
@@ -133,6 +134,5 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (a *AWSSNS) Close() error {
-
 	return nil
 }

@@ -29,7 +29,7 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 		name        string
 		genInfo     map[string]any
 		key         string
-		expected    int64
+		expected    uint64
 		expectedErr bool
 	}{
 		{
@@ -38,7 +38,7 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 				completionKey: int64(100),
 			},
 			key:         completionKey,
-			expected:    int64(100),
+			expected:    uint64(100),
 			expectedErr: false,
 		},
 		{
@@ -47,14 +47,14 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 				"OtherKey": int64(50),
 			},
 			key:         completionKey,
-			expected:    int64(0),
+			expected:    uint64(0),
 			expectedErr: false,
 		},
 		{
 			name:        "nil genInfo returns zero",
 			genInfo:     nil,
 			key:         completionKey,
-			expected:    int64(0),
+			expected:    uint64(0),
 			expectedErr: false,
 		},
 		{
@@ -63,7 +63,7 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 				completionKey: "not an int",
 			},
 			key:         completionKey,
-			expected:    int64(0),
+			expected:    uint64(0),
 			expectedErr: true,
 		},
 		{
@@ -72,7 +72,7 @@ func TestExtractInt64FromGenInfo(t *testing.T) {
 				completionKey: int64(0),
 			},
 			key:         completionKey,
-			expected:    int64(0),
+			expected:    uint64(0),
 			expectedErr: false,
 		},
 	}
@@ -122,9 +122,9 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			validate: func(t *testing.T, result *conversation.Usage, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, int64(100), result.CompletionTokens)
-				assert.Equal(t, int64(50), result.PromptTokens)
-				assert.Equal(t, int64(150), result.TotalTokens)
+				assert.Equal(t, uint64(100), result.CompletionTokens)
+				assert.Equal(t, uint64(50), result.PromptTokens)
+				assert.Equal(t, uint64(150), result.TotalTokens)
 				assert.Nil(t, result.CompletionTokensDetails)
 				assert.Nil(t, result.PromptTokensDetails)
 			},
@@ -143,12 +143,12 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			validate: func(t *testing.T, result *conversation.Usage, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, int64(200), result.CompletionTokens)
+				assert.Equal(t, uint64(200), result.CompletionTokens)
 				assert.NotNil(t, result.CompletionTokensDetails)
-				assert.Equal(t, int64(10), result.CompletionTokensDetails.AcceptedPredictionTokens)
-				assert.Equal(t, int64(5), result.CompletionTokensDetails.AudioTokens)
-				assert.Equal(t, int64(15), result.CompletionTokensDetails.ReasoningTokens)
-				assert.Equal(t, int64(2), result.CompletionTokensDetails.RejectedPredictionTokens)
+				assert.Equal(t, uint64(10), result.CompletionTokensDetails.AcceptedPredictionTokens)
+				assert.Equal(t, uint64(5), result.CompletionTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(15), result.CompletionTokensDetails.ReasoningTokens)
+				assert.Equal(t, uint64(2), result.CompletionTokensDetails.RejectedPredictionTokens)
 				assert.Nil(t, result.PromptTokensDetails)
 			},
 		},
@@ -164,11 +164,11 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			validate: func(t *testing.T, result *conversation.Usage, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, int64(150), result.CompletionTokens)
+				assert.Equal(t, uint64(150), result.CompletionTokens)
 				assert.Nil(t, result.CompletionTokensDetails)
 				assert.NotNil(t, result.PromptTokensDetails)
-				assert.Equal(t, int64(10), result.PromptTokensDetails.AudioTokens)
-				assert.Equal(t, int64(20), result.PromptTokensDetails.CachedTokens)
+				assert.Equal(t, uint64(10), result.PromptTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(20), result.PromptTokensDetails.CachedTokens)
 			},
 		},
 		{
@@ -187,17 +187,17 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			validate: func(t *testing.T, result *conversation.Usage, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, int64(250), result.CompletionTokens)
-				assert.Equal(t, int64(125), result.PromptTokens)
-				assert.Equal(t, int64(375), result.TotalTokens)
+				assert.Equal(t, uint64(250), result.CompletionTokens)
+				assert.Equal(t, uint64(125), result.PromptTokens)
+				assert.Equal(t, uint64(375), result.TotalTokens)
 				assert.NotNil(t, result.CompletionTokensDetails)
-				assert.Equal(t, int64(20), result.CompletionTokensDetails.AcceptedPredictionTokens)
-				assert.Equal(t, int64(8), result.CompletionTokensDetails.AudioTokens)
-				assert.Equal(t, int64(25), result.CompletionTokensDetails.ReasoningTokens)
-				assert.Equal(t, int64(3), result.CompletionTokensDetails.RejectedPredictionTokens)
+				assert.Equal(t, uint64(20), result.CompletionTokensDetails.AcceptedPredictionTokens)
+				assert.Equal(t, uint64(8), result.CompletionTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(25), result.CompletionTokensDetails.ReasoningTokens)
+				assert.Equal(t, uint64(3), result.CompletionTokensDetails.RejectedPredictionTokens)
 				assert.NotNil(t, result.PromptTokensDetails)
-				assert.Equal(t, int64(15), result.PromptTokensDetails.AudioTokens)
-				assert.Equal(t, int64(30), result.PromptTokensDetails.CachedTokens)
+				assert.Equal(t, uint64(15), result.PromptTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(30), result.PromptTokensDetails.CachedTokens)
 			},
 		},
 		{
@@ -247,7 +247,7 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.NotNil(t, result.CompletionTokensDetails)
-				assert.Equal(t, int64(5), result.CompletionTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(5), result.CompletionTokensDetails.AudioTokens)
 			},
 		},
 		{
@@ -265,7 +265,7 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 				require.Error(t, err)
 				require.NotNil(t, result)
 				assert.NotNil(t, result.CompletionTokensDetails)
-				assert.Equal(t, int64(5), result.CompletionTokensDetails.AudioTokens)
+				assert.Equal(t, uint64(5), result.CompletionTokensDetails.AudioTokens)
 			},
 		},
 	}

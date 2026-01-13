@@ -37,19 +37,21 @@ const (
 )
 
 // extractInt64FromGenInfo extracts an int64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
-func extractInt64FromGenInfo(genInfo map[string]any, key string) (int64, error) {
+func extractInt64FromGenInfo(genInfo map[string]any, key string) (uint64, error) {
 	if v, ok := genInfo[key]; ok {
 		switch val := v.(type) {
-		case int64:
+		case uint64:
 			return val, nil
 		case int:
-			return int64(val), nil
+			return uint64(val), nil
+		case int64:
+			return uint64(val), nil
 		case int32:
-			return int64(val), nil
+			return uint64(val), nil
 		case float64:
-			return int64(val), nil
+			return uint64(val), nil
 		case float32:
-			return int64(val), nil
+			return uint64(val), nil
 		default:
 			return 0, fmt.Errorf("failed to extract usage metrics for type: %T", val)
 		}

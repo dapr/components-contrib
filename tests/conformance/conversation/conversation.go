@@ -593,7 +593,7 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 						resp1.Usage.CompletionTokensDetails.AcceptedPredictionTokens,
 						resp1.Usage.CompletionTokensDetails.RejectedPredictionTokens)
 				}
-				assert.Greater(t, resp1.Usage.TotalTokens, int64(0), "Total tokens should be greater than 0")
+				assert.Greater(t, resp1.Usage.TotalTokens, uint64(0), "Total tokens should be greater than 0")
 			} else {
 				t.Logf("Request 1: No usage data returned")
 			}

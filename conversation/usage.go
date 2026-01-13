@@ -15,23 +15,23 @@ package conversation
 
 // Usage represents token usage statistics for a completion request
 type Usage struct {
-	CompletionTokens        int64                    `json:"completionTokens"`
-	PromptTokens            int64                    `json:"promptTokens"`
-	TotalTokens             int64                    `json:"totalTokens"`
+	CompletionTokens        uint64                   `json:"completionTokens"`
+	PromptTokens            uint64                   `json:"promptTokens"`
+	TotalTokens             uint64                   `json:"totalTokens"`
 	CompletionTokensDetails *CompletionTokensDetails `json:"completionTokensDetails,omitempty"`
 	PromptTokensDetails     *PromptTokensDetails     `json:"promptTokensDetails,omitempty"`
 }
 
 // CompletionTokensDetails provides breakdown of completion tokens
 type CompletionTokensDetails struct {
-	AcceptedPredictionTokens int64 `json:"acceptedPredictionTokens"`
-	AudioTokens              int64 `json:"audioTokens"`
-	ReasoningTokens          int64 `json:"reasoningTokens"`
-	RejectedPredictionTokens int64 `json:"rejectedPredictionTokens"`
+	AcceptedPredictionTokens uint64 `json:"acceptedPredictionTokens"`
+	AudioTokens              uint64 `json:"audioTokens"`
+	ReasoningTokens          uint64 `json:"reasoningTokens"`
+	RejectedPredictionTokens uint64 `json:"rejectedPredictionTokens"`
 }
 
 // PromptTokensDetails provides breakdown of prompt tokens
 type PromptTokensDetails struct {
-	AudioTokens  int64 `json:"audioTokens"`
-	CachedTokens int64 `json:"cachedTokens"`
+	AudioTokens  uint64 `json:"audioTokens"`
+	CachedTokens uint64 `json:"cachedTokens"`
 }

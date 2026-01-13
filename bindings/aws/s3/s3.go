@@ -23,6 +23,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -32,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 
 	"github.com/google/uuid"
 
@@ -141,8 +144,17 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("s3 binding error: cannot create AWS config: %w", err)
 	}
-
+	// Use custom endpoint resolver V2
 	var s3Options []func(*s3.Options)
+
+	s3Options = append(s3Options, func(o *s3.Options) {
+		o.EndpointResolverV2 = &s3EndpointResolverV2{
+			Region:         m.Region,
+			Endpoint:       m.Endpoint,
+			ForcePathStyle: m.ForcePathStyle,
+			Bucket:         m.Bucket,
+		}
+	})
 
 	if m.ForcePathStyle {
 		s3Options = append(s3Options, func(o *s3.Options) {
@@ -179,11 +191,7 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
 	}
 
-	if m.Endpoint != "" {
-		s3Options = append(s3Options, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(m.Endpoint)
-		})
-	}
+	// Remove BaseEndpoint logic, as endpoint resolver now handles it
 
 	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
 
@@ -532,4 +540,46 @@ func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 		s.logger.Warnf("error getting metadata info: %v", err)
 	}
 	return
+}
+
+// s3EndpointResolverV2 implements aws.EndpointResolverV2 for S3
+// It constructs the endpoint URL manually based on ForcePathStyle, region, bucket, and endpoint.
+type s3EndpointResolverV2 struct {
+	Region         string
+	Endpoint       string
+	ForcePathStyle bool
+	Bucket         string
+}
+
+func (r *s3EndpointResolverV2) ResolveEndpoint(ctx context.Context,
+	params s3.EndpointParameters,
+) (smithyendpoints.Endpoint, error) {
+	region := ""
+	if params.Region != nil {
+		region = *params.Region
+	}
+
+	endpoint := r.Endpoint
+	if endpoint == "" {
+		endpoint = "s3." + region + ".amazonaws.com"
+	}
+
+	urlStr := ""
+	if r.ForcePathStyle {
+		// Path-style: https://s3.<region>.amazonaws.com/<bucket>/<key>
+		urlStr = "https://" + endpoint
+	} else {
+		// Virtual-hosted-style: https://<bucket>.s3.<region>.amazonaws.com/<key>
+		urlStr = "https://" + r.Bucket + "." + endpoint
+	}
+
+	uri, err := url.Parse(urlStr)
+	if err != nil {
+		return smithyendpoints.Endpoint{}, err
+	}
+
+	return smithyendpoints.Endpoint{
+		URI:        *uri,
+		Properties: smithy.Properties{},
+	}, nil
 }

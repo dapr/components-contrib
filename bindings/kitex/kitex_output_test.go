@@ -17,10 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/cloudwego/gopkg/protocol/thrift"
 	"github.com/cloudwego/kitex"
 	"github.com/cloudwego/kitex-examples/kitex_gen/api"
-	"github.com/cloudwego/kitex/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,9 +46,8 @@ func TestInvoke(t *testing.T) {
 	output := NewKitexOutput(logger.NewLogger("test"))
 
 	// 2 create req bytes
-	codec := utils.NewThriftMessageCodec()
 	req := &api.EchoEchoArgs{Req: &api.Request{Message: "hello dapr"}}
-	reqData, err := codec.Encode(MethodName, thrift.CALL, 0, req)
+	reqData, err := thrift.MarshalFastMsg(MethodName, thrift.CALL, 0, req)
 	require.NoError(t, err)
 
 	// 3. Invoke dapr kitex output binding, get rsp bytes
@@ -69,7 +67,7 @@ func TestInvoke(t *testing.T) {
 
 	// 4. get resp value
 	result := &api.EchoEchoResult{}
-	_, _, err = codec.Decode(resp.Data, result)
+	_, _, err = thrift.UnmarshalFastMsg(resp.Data, result)
 	require.NoError(t, err)
 	assert.Equal(t, "hello dapr,hi Kitex", result.Success.Message)
 }

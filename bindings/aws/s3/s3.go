@@ -153,6 +153,7 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if m.DisableSSL {
 		awsConfig.HTTPClient = &http.Client{
 			Transport: &http.Transport{
+				//nolint:gosec
 				TLSClientConfig: &tls.Config{},
 			},
 		}
@@ -168,6 +169,7 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 			}
 		}
 		if customTransport.TLSClientConfig == nil {
+			//nolint:gosec
 			customTransport.TLSClientConfig = &tls.Config{}
 		}
 		customTransport.TLSClientConfig.InsecureSkipVerify = true

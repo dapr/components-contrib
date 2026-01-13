@@ -179,6 +179,12 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
 	}
 
+	if m.Endpoint != "" {
+		s3Options = append(s3Options, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(m.Endpoint)
+		})
+	}
+
 	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
 
 	if s.s3Client == nil {

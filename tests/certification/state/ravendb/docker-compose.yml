@@ -5,8 +5,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # - RAVEN_LICENSE=${RAVENDBLICENSE}
-      - RAVEN_LICENSE={"Id":"6d893e6d-cdac-4c1c-8810-b11e20a5869c","Name":"Vega It","Keys":["RDmHXk0ABmD9H6ELRySZMYbQ0","EP4yYO973FoBDIrNbT007BxqO","MGyYeDCVHdIpTimlB8bVyTkOR","q87EokgHVD9OiTfR9JoROJ4zM","Zp6Y/TBAmDiFoV61tLbZCQZ3D","rNzgIHGvLzaOM7K+78biAZX+x","GmHEmsbcuKHvZSHyKzQ8BABYE","DNy4xBSYoSQMqKywtLi8wJzEy","MzQVFjc4OTo7PD0+nwIfIJ8CI","CCfAiEgnwIjIJ8CJCCfAiUgnw","ImIJ8CJyCfAiggnwIpIJ8CKiC","fAisgnwIsIJ8CLSCfAi4gnwIv","IJ8CMCCfAzZAAZ8CQiCfAkMgn","wJEIJ8CRSCfAkYgnwJHIJ8CSC","BDJEQJYulcnwRBYOZc"]}
+      - RAVEN_LICENSE=${RAVENDBLICENSE}
       - RAVEN_DATABASE=testdapr
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true

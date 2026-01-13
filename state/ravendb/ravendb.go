@@ -442,15 +442,18 @@ func (r *RavenDB) Close() error {
 }
 
 func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
-	configurationExppiration := ravendb.ExpirationConfiguration{
+	configurationExpiration := ravendb.ExpirationConfiguration{
 		Disabled:             !r.metadata.EnableTTL,
 		DeleteFrequencyInSec: &r.metadata.TTLFrequency,
 	}
-	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExppiration)
+	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExpiration)
 	if err != nil {
 		return
 	}
-	store.Maintenance().Send(operation)
+	err = store.Maintenance().Send(operation)
+	if err != nil {
+		r.logger.Debug(err)
+	}
 }
 
 func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {

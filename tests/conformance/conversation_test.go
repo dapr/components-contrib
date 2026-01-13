@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/conversation/openai"
 	conf_conversation "github.com/dapr/components-contrib/tests/conformance/conversation"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/require"
 )
 

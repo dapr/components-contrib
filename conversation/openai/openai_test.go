@@ -128,6 +128,6 @@ func TestEndpointInMetadata(t *testing.T) {
 		return keys
 	}())
 
-	_, exists := md["endpoint"]
+	_, exists := md["Endpoint"]
 	assert.True(t, exists, "endpoint field should exist in metadata")
 }

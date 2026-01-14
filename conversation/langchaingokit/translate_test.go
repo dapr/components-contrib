@@ -251,7 +251,7 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			},
 		},
 		{
-			name: "completion details included with invalid type",
+			name: "invalid type",
 			genInfo: map[string]any{
 				completionKey:         int64(100),
 				promptKey:             int64(50),
@@ -263,9 +263,7 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 			},
 			validate: func(t *testing.T, result *conversation.Usage, err error) {
 				require.Error(t, err)
-				require.NotNil(t, result)
-				assert.NotNil(t, result.CompletionTokensDetails)
-				assert.Equal(t, uint64(5), result.CompletionTokensDetails.AudioTokens)
+				require.Nil(t, result)
 			},
 		},
 	}

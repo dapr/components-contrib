@@ -48,7 +48,7 @@ jobs:
             go install github.com/wadey/gocovmerge@${{ env.GOCOVMERGE_VER }}
         
         - name: Download workflow artifact
-          uses: dawidd6/action-download-artifact@v2.24.3
+          uses: dawidd6/action-download-artifact@v6
           with:
             workflow: certification.yml
             workflow_conclusion: "success"
@@ -59,7 +59,7 @@ jobs:
             path: tmp/cert_code_cov
         
         - name: Download workflow artifact
-          uses: dawidd6/action-download-artifact@v2.24.3
+          uses: dawidd6/action-download-artifact@v6
           with:
             workflow: conformance.yml
             workflow_conclusion: "success"

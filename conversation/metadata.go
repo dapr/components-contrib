@@ -31,6 +31,5 @@ type LangchainMetadata struct {
 	Model                 string         `json:"model"`
 	CacheTTL              string         `json:"cacheTTL"`
 	Endpoint              string         `json:"endpoint"`
-	HttpClientTimeout     *time.Duration `json:"httpClientTimeout,omitempty" mapstructure:"httpClientTimeout"`
 	IdleConnectionTimeout *time.Duration `json:"idleConnectionTimeout,omitempty" mapstructure:"idleConnectionTimeout"`
 }

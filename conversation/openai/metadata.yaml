@@ -57,13 +57,6 @@ metadata:
       - "azure"
     example: 'azure'
     default: 'open_ai'
-  - name: httpClientTimeout
-    required: false
-    description: |
-      Maximum duration for HTTP client requests to the OpenAI API.
-    type: duration
-    example: '30s'
-    default: '0s'
   - name: idleConnectionTimeout
     required: false
     description: |

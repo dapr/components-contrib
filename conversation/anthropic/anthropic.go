@@ -56,7 +56,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		anthropic.WithToken(m.Key),
 	}
 
-	if httpClient := conversation.BuildHTTPClient(m.HttpClientTimeout, m.IdleConnectionTimeout); httpClient != nil {
+	if httpClient := conversation.BuildHTTPClient(m.IdleConnectionTimeout); httpClient != nil {
 		options = append(options, anthropic.WithHTTPClient(httpClient))
 	}
 

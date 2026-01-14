@@ -28,8 +28,9 @@ import (
 )
 
 // BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
-// It optionally configures HTTP client timeouts if provided.
-func BuildOpenAIClientOptions(model, key, endpoint string, httpClientTimeout, idleConnectionTimeout *time.Duration) []openai.Option {
+// It optionally configures HTTP client with idle connection timeout if provided.
+// HTTP client timeout is set from resiliency policy configuration.
+func BuildOpenAIClientOptions(model, key, endpoint string, idleConnectionTimeout *time.Duration) []openai.Option {
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(key),
@@ -39,7 +40,7 @@ func BuildOpenAIClientOptions(model, key, endpoint string, httpClientTimeout, id
 		options = append(options, openai.WithBaseURL(endpoint))
 	}
 
-	if httpClient := BuildHTTPClient(httpClientTimeout, idleConnectionTimeout); httpClient != nil {
+	if httpClient := BuildHTTPClient(idleConnectionTimeout); httpClient != nil {
 		options = append(options, openai.WithHTTPClient(httpClient))
 	}
 
@@ -61,15 +62,15 @@ func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, 
 	return cache.New(model, mem), nil
 }
 
-// BuildHTTPClient creates an HTTP client with custom timeouts if specified in the metadata.
-func BuildHTTPClient(httpClientTimeout, idleConnectionTimeout *time.Duration) *http.Client {
-	if httpClientTimeout == nil && idleConnectionTimeout == nil {
+// BuildHTTPClient creates an HTTP client with idle connection timeout if specified in the metadata.
+// The HTTP client timeout is set to 0 to rely on context deadlines (set via resiliency policy timeouts) via http.NewRequestWithContext within Langchain.
+func BuildHTTPClient(idleConnectionTimeout *time.Duration) *http.Client {
+	if idleConnectionTimeout == nil {
 		return nil
 	}
 
-	transport := &http.Transport{}
-	if idleConnectionTimeout != nil {
-		transport.IdleConnTimeout = *idleConnectionTimeout
+	transport := &http.Transport{
+		IdleConnTimeout: *idleConnectionTimeout,
 	}
 
 	httpClient := &http.Client{
@@ -77,10 +78,9 @@ func BuildHTTPClient(httpClientTimeout, idleConnectionTimeout *time.Duration) *h
 		Transport: &httputil.Transport{
 			Transport: transport,
 		},
-	}
-
-	if httpClientTimeout != nil {
-		httpClient.Timeout = *httpClientTimeout
+		// Timeout is set to 0 to rely on context deadlines set by any configured resiliency policies
+		// The context deadline will be respected via http.NewRequestWithContext in Langchain.
+		Timeout: 0,
 	}
 
 	return httpClient

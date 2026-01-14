@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/anthropic"
 	"github.com/dapr/components-contrib/conversation/aws/bedrock"
@@ -32,7 +34,6 @@ import (
 	"github.com/dapr/components-contrib/conversation/openai"
 	conf_conversation "github.com/dapr/components-contrib/tests/conformance/conversation"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConversationConformance(t *testing.T) {

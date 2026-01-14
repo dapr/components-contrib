@@ -19,6 +19,7 @@ import (
 	"io"
 
 	"github.com/tmc/langchaingo/llms"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -45,6 +46,10 @@ type Request struct {
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
 	Metadata                   map[string]string `json:"metadata"`
 	ResponseFormatAsJSONSchema map[string]any    `json:"responseFormatAsJsonSchema"`
+
+	// TODO: rm these in future PR as they are not used
+	Parameters          map[string]*anypb.Any `json:"parameters"`
+	ConversationContext string                `json:"conversationContext"`
 }
 
 type Response struct {

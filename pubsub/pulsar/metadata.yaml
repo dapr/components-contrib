@@ -34,8 +34,13 @@ authenticationProfiles:
       - name: oauth2ClientSecretPath
         type: string
         description: |
-          The path to the OAuth Client Secret.
-        example: "/path/to/oauth2/client_secret.json"
+          The path to a plain text file containing the OAuth Client Secret.
+        example: "/path/to/oauth2/client_secret.txt"
+      - name: oauth2CredentialsFile
+        type: string
+        description: |
+          The path to a JSON file containing both client_id and client_secret.
+        example: "/path/to/oauth2/credentials.json"
       - name: oauth2TokenCAPEM
         type: string
         description: |

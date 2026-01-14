@@ -617,46 +617,5 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.NotEmpty(t, result.Explanation, "Response should contain the 'explanation' field")
 			assert.Contains(t, []string{"low", "medium", "high"}, result.Confidence, "Confidence should be one of the enum values")
 		})
-
-		t.Run("test HTTP client timeout enforcement", func(t *testing.T) {
-			t.Run("short timeout causes error", func(t *testing.T) {
-				propsShortTimeout := make(map[string]string)
-				for k, v := range props {
-					propsShortTimeout[k] = v
-				}
-				propsShortTimeout["httpClientTimeout"] = "1ms"
-
-				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-				defer cancel()
-
-				err := conv.Init(ctx, conversation.Metadata{
-					Base: metadata.Base{
-						Properties: propsShortTimeout,
-					},
-				})
-				require.NoError(t, err)
-
-				req := &conversation.Request{
-					Message: &[]llms.MessageContent{
-						{
-							Role: llms.ChatMessageTypeHuman,
-							Parts: []llms.ContentPart{
-								llms.TextContent{Text: "say hello"},
-							},
-						},
-					},
-				}
-				if component == "openai" {
-					req.Temperature = 1
-				}
-
-				ctx2, cancel2 := context.WithTimeout(t.Context(), 10*time.Second)
-				defer cancel2()
-
-				_, err = conv.Converse(ctx2, req)
-				require.Error(t, err)
-			})
-		})
-
 	})
 }

@@ -37,7 +37,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 const (
@@ -261,6 +261,7 @@ func S3SForcePathStyle(t *testing.T) {
 			unmarshalErr := json.Unmarshal(cout.Data, &createResponse)
 			require.NoError(t, unmarshalErr)
 			assert.Equal(t, createResponse.Location, forcePathStyle)
+			t.Logf("[debug]Create Object presignurl: %s", createResponse.PresignURL)
 
 			out, invokeDeleteErr := deleteObjectRequest(ctx, client, objectName)
 			require.NoError(t, invokeDeleteErr)

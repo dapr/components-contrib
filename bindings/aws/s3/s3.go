@@ -21,20 +21,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
+
 	"github.com/google/uuid"
 
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
+
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -60,9 +67,14 @@ const (
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
 type AWSS3 struct {
-	metadata     *s3Metadata
-	authProvider awsAuth.Provider
-	logger       logger.Logger
+	metadata *s3Metadata
+	logger   logger.Logger
+
+	s3Client *s3.Client
+
+	s3Downloader    *manager.Downloader
+	s3Uploader      *manager.Uploader
+	s3PresignClient *s3.PresignClient
 }
 
 type s3Metadata struct {
@@ -106,26 +118,6 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
-func (s *AWSS3) getAWSConfig(opts awsAuth.Options) *aws.Config {
-	cfg := awsAuth.GetConfig(opts).WithS3ForcePathStyle(s.metadata.ForcePathStyle).WithDisableSSL(s.metadata.DisableSSL)
-
-	// Use a custom HTTP client to allow self-signed certs
-	if s.metadata.InsecureSSL {
-		customTransport := http.DefaultTransport.(*http.Transport).Clone()
-		customTransport.TLSClientConfig = &tls.Config{
-			//nolint:gosec
-			InsecureSkipVerify: true,
-		}
-		client := &http.Client{
-			Transport: customTransport,
-		}
-		cfg = cfg.WithHTTPClient(client)
-
-		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
-	}
-	return cfg
-}
-
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -134,29 +126,88 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 	s.metadata = m
 
-	opts := awsAuth.Options{
-		Logger:       s.logger,
-		Properties:   metadata.Properties,
+	opts := awsCommonAuth.Options{
+		Logger: s.logger,
+
+		Properties: metadata.Properties,
+
 		Region:       m.Region,
 		Endpoint:     m.Endpoint,
 		AccessKey:    m.AccessKey,
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
+
+		// TODO: Add ARN provider config support
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, s.getAWSConfig(opts))
+
+	awsConfig, err := awsCommon.NewConfig(ctx, opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("s3 binding error: cannot create AWS config: %w", err)
 	}
-	s.authProvider = provider
+	// Use custom endpoint resolver V2
+	var s3Options []func(*s3.Options)
+
+	s3Options = append(s3Options, func(o *s3.Options) {
+		o.EndpointResolverV2 = &s3EndpointResolverV2{
+			Region:         m.Region,
+			Endpoint:       m.Endpoint,
+			ForcePathStyle: m.ForcePathStyle,
+			Bucket:         m.Bucket,
+		}
+	})
+
+	if m.ForcePathStyle {
+		s3Options = append(s3Options, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
+	}
+
+	if m.DisableSSL {
+		awsConfig.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				//nolint:gosec
+				TLSClientConfig: &tls.Config{},
+			},
+		}
+	}
+
+	if m.InsecureSSL {
+		customTransport := &http.Transport{}
+		if awsConfig.HTTPClient != nil {
+			if client, ok := awsConfig.HTTPClient.(*http.Client); ok {
+				if t, ok := client.Transport.(*http.Transport); ok {
+					customTransport = t.Clone()
+				}
+			}
+		}
+		if customTransport.TLSClientConfig == nil {
+			//nolint:gosec
+			customTransport.TLSClientConfig = &tls.Config{}
+		}
+		customTransport.TLSClientConfig.InsecureSkipVerify = true
+		awsConfig.HTTPClient = &http.Client{
+			Transport: customTransport,
+		}
+		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+	}
+
+	// Remove BaseEndpoint logic, as endpoint resolver now handles it
+
+	s.s3Client = s3.NewFromConfig(awsConfig, s3Options...)
+
+	if s.s3Client == nil {
+		return errors.New("s3 binding error: cannot create S3 client")
+	}
+
+	s.s3Downloader = manager.NewDownloader(s.s3Client)
+	s.s3Uploader = manager.NewUploader(s.s3Client)
+	s.s3PresignClient = s3.NewPresignClient(s.s3Client)
 
 	return nil
 }
 
 func (s *AWSS3) Close() error {
-	if s.authProvider != nil {
-		return s.authProvider.Close()
-	}
+	// No resources to close
 	return nil
 }
 
@@ -171,7 +222,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
@@ -202,8 +253,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	var r io.Reader
-	if metadata.FilePath != "" {
-		r, err = os.Open(metadata.FilePath)
+	if md.FilePath != "" {
+		r, err = os.Open(md.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
@@ -211,17 +262,17 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		r = strings.NewReader(commonutils.Unquote(req.Data))
 	}
 
-	if metadata.DecodeBase64 {
+	if md.DecodeBase64 {
 		r = b64.NewDecoder(b64.StdEncoding, r)
 	}
 
-	var storageClass *string
-	if metadata.StorageClass != "" {
-		storageClass = aws.String(metadata.StorageClass)
+	var storageClass types.StorageClass
+	if md.StorageClass != "" {
+		storageClass = types.StorageClass(md.StorageClass)
 	}
 
-	resultUpload, err := s.authProvider.S3().Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:       ptr.Of(metadata.Bucket),
+	resultUpload, err := s.s3Uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket:       ptr.Of(md.Bucket),
 		Key:          ptr.Of(key),
 		Body:         r,
 		ContentType:  contentType,
@@ -233,8 +284,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	var presignURL string
-	if metadata.PresignTTL != "" {
-		url, presignErr := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
+	if md.PresignTTL != "" {
+		url, presignErr := s.presignObject(ctx, md.Bucket, key, md.PresignTTL)
 		if presignErr != nil {
 			return nil, fmt.Errorf("s3 binding error: %s", presignErr)
 		}
@@ -260,7 +311,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
@@ -270,11 +321,11 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	if metadata.PresignTTL == "" {
+	if md.PresignTTL == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataPresignTTL)
 	}
 
-	url, err := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
+	url, err := s.presignObject(ctx, md.Bucket, key, md.PresignTTL)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: %w", err)
 	}
@@ -296,20 +347,22 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
-	objReq, _ := s.authProvider.S3().S3.GetObjectRequest(&s3.GetObjectInput{
+
+	presigned, err := s.s3PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: ptr.Of(bucket),
 		Key:    ptr.Of(key),
+	}, func(po *s3.PresignOptions) {
+		po.Expires = d
 	})
-	url, err := objReq.Presign(d)
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: failed to presign URL: %w", err)
 	}
 
-	return url, nil
+	return presigned.URL, nil
 }
 
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	md, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata : %w", err)
 	}
@@ -319,24 +372,24 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	buff := &aws.WriteAtBuffer{}
-	_, err = s.authProvider.S3().Downloader.DownloadWithContext(ctx,
-		buff,
+	buff := manager.WriteAtBuffer{}
+	_, err = s.s3Downloader.Download(ctx,
+		&buff,
 		&s3.GetObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
 			Key:    ptr.Of(key),
 		},
 	)
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var noSuchKey *types.NoSuchKey
+		if errors.As(err, &noSuchKey) {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
 
 	var data []byte
-	if metadata.EncodeBase64 {
+	if md.EncodeBase64 {
 		encoded := b64.StdEncoding.EncodeToString(buff.Bytes())
 		data = []byte(encoded)
 	} else {
@@ -354,7 +407,7 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
-	_, err := s.authProvider.S3().S3.DeleteObjectWithContext(
+	_, err := s.s3Client.DeleteObject(
 		ctx,
 		&s3.DeleteObjectInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
@@ -362,8 +415,8 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	)
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var noSuchKey *types.NoSuchKey
+		if errors.As(err, &noSuchKey) {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
@@ -381,11 +434,13 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	}
 
 	if payload.MaxResults < 1 {
+		s.logger.Errorf("s3 binding warning: list operation: maxResults must be between 1 and %d. Using default value %d", math.MaxInt32, defaultMaxResults)
 		payload.MaxResults = defaultMaxResults
 	}
-	result, err := s.authProvider.S3().S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+
+	result, err := s.s3Client.ListObjects(ctx, &s3.ListObjectsInput{
 		Bucket:    ptr.Of(s.metadata.Bucket),
-		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
+		MaxKeys:   ptr.Of(payload.MaxResults),
 		Marker:    ptr.Of(payload.Marker),
 		Prefix:    ptr.Of(payload.Prefix),
 		Delimiter: ptr.Of(payload.Delimiter),
@@ -480,6 +535,51 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 // GetComponentMetadata returns the metadata of the component.
 func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := s3Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err != nil {
+		s.logger.Warnf("error getting metadata info: %v", err)
+	}
 	return
+}
+
+// s3EndpointResolverV2 implements aws.EndpointResolverV2 for S3
+// It constructs the endpoint URL manually based on ForcePathStyle, region, bucket, and endpoint.
+type s3EndpointResolverV2 struct {
+	Region         string
+	Endpoint       string
+	ForcePathStyle bool
+	Bucket         string
+}
+
+func (r *s3EndpointResolverV2) ResolveEndpoint(ctx context.Context,
+	params s3.EndpointParameters,
+) (smithyendpoints.Endpoint, error) {
+	region := ""
+	if params.Region != nil {
+		region = *params.Region
+	}
+
+	endpoint := r.Endpoint
+	if endpoint == "" {
+		endpoint = "s3." + region + ".amazonaws.com"
+	}
+
+	urlStr := ""
+	if r.ForcePathStyle {
+		// Path-style: https://s3.<region>.amazonaws.com/<bucket>/<key>
+		urlStr = "https://" + endpoint
+	} else {
+		// Virtual-hosted-style: https://<bucket>.s3.<region>.amazonaws.com/<key>
+		urlStr = "https://" + r.Bucket + "." + endpoint
+	}
+
+	uri, err := url.Parse(urlStr)
+	if err != nil {
+		return smithyendpoints.Endpoint{}, err
+	}
+
+	return smithyendpoints.Endpoint{
+		URI:        *uri,
+		Properties: smithy.Properties{},
+	}, nil
 }

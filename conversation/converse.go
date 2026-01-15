@@ -53,8 +53,9 @@ type Request struct {
 }
 
 type Response struct {
-	Outputs []Result `json:"outputs"`
-	Model   string   `json:"model"`
+	Outputs             []Result `json:"outputs"`
+	Model               string   `json:"model"`
+	ConversationContext string   `json:"conversationContext,omitempty"`
 }
 
 type Result struct {

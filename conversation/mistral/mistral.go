@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
+	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/mistral"
 )
 
@@ -88,4 +89,18 @@ func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 
 func (m *Mistral) Close() error {
 	return nil
+}
+
+// CreateToolCallPart creates mistral and ollama api compatible tool call messages.
+// This is a wrapper around langchaingokit.CreateToolCallPart for runtime compatibility.
+// TODO: rm this in future PR to use the langchaingokit.CreateToolCallPart directly.
+func CreateToolCallPart(toolCall *llms.ToolCall) llms.ContentPart {
+	return langchaingokit.CreateToolCallPart(toolCall)
+}
+
+// CreateToolResponseMessage creates mistral and ollama api compatible tool response message.
+// This is a wrapper around langchaingokit.CreateToolResponseMessage for runtime compatibility.
+// TODO: rm this in future PR to use the langchaingokit.CreateToolResponseMessage directly.
+func CreateToolResponseMessage(responses ...llms.ContentPart) llms.MessageContent {
+	return langchaingokit.CreateToolResponseMessage(responses...)
 }

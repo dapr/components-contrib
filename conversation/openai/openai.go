@@ -53,7 +53,7 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option
 	} else {
 		model = conversation.GetOpenAIModel(md.Model)
 	}
-	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint, md.IdleConnectionTimeout)
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
 
 	// apply options specifically for azure openai
 	// TODO: in future, there is also an openai.APITypeAzureAD that we can add.

@@ -54,7 +54,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	// endpoint from https://ai.google.dev/gemini-api/docs/openai
 	const endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
-	opts := conversation.BuildOpenAIClientOptions(model, key, endpoint, md.IdleConnectionTimeout)
+	opts := conversation.BuildOpenAIClientOptions(model, key, endpoint)
 
 	llm, err := openai.New(opts...)
 	if err != nil {

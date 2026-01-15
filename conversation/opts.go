@@ -28,9 +28,8 @@ import (
 )
 
 // BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
-// It optionally configures HTTP client with idle connection timeout if provided.
 // HTTP client timeout is set from resiliency policy configuration.
-func BuildOpenAIClientOptions(model, key, endpoint string, idleConnectionTimeout *time.Duration) []openai.Option {
+func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(key),
@@ -40,7 +39,7 @@ func BuildOpenAIClientOptions(model, key, endpoint string, idleConnectionTimeout
 		options = append(options, openai.WithBaseURL(endpoint))
 	}
 
-	if httpClient := BuildHTTPClient(idleConnectionTimeout); httpClient != nil {
+	if httpClient := BuildHTTPClient(); httpClient != nil {
 		options = append(options, openai.WithHTTPClient(httpClient))
 	}
 
@@ -62,21 +61,14 @@ func CacheModel(ctx context.Context, ttl string, model llms.Model) (llms.Model, 
 	return cache.New(model, mem), nil
 }
 
-// BuildHTTPClient creates an HTTP client with idle connection timeout if specified in the metadata.
-// The HTTP client timeout is set to 0 to rely on context deadlines (set via resiliency policy timeouts) via http.NewRequestWithContext within Langchain.
-func BuildHTTPClient(idleConnectionTimeout *time.Duration) *http.Client {
-	if idleConnectionTimeout == nil {
-		return nil
-	}
-
-	transport := &http.Transport{
-		IdleConnTimeout: *idleConnectionTimeout,
-	}
-
+// BuildHTTPClient creates an HTTP client with timeout set to 0 to rely on context deadlines.
+// The context deadline will be respected via http.NewRequestWithContext within Langchain.
+// This allows resiliency policy timeouts from runtime to propagate through to the HTTP client for the LLM provider.
+func BuildHTTPClient() *http.Client {
 	httpClient := &http.Client{
 		// wrap with httputil.Transport to preserve user-agent
 		Transport: &httputil.Transport{
-			Transport: transport,
+			Transport: http.DefaultTransport,
 		},
 		// Timeout is set to 0 to rely on context deadlines set by any configured resiliency policies
 		// The context deadline will be respected via http.NewRequestWithContext in Langchain.

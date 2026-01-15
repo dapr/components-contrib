@@ -57,10 +57,3 @@ metadata:
       - "azure"
     example: 'azure'
     default: 'open_ai'
-  - name: idleConnectionTimeout
-    required: false
-    description: |
-      Maximum duration an idle HTTP connection can remain open before being closed.
-    type: duration
-    example: '30s'
-    default: '90s'

@@ -63,7 +63,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		md.Endpoint = defaultEndpoint
 	}
 
-	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint, md.IdleConnectionTimeout)
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
 	llm, err := openai.New(options...)
 	if err != nil {
 		return err

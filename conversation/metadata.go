@@ -15,8 +15,6 @@ limitations under the License.
 package conversation
 
 import (
-	"time"
-
 	"github.com/dapr/components-contrib/metadata"
 )
 
@@ -27,9 +25,8 @@ type Metadata struct {
 
 // LangchainMetadata is a common metadata structure for langchain supported implementations.
 type LangchainMetadata struct {
-	Key                   string         `json:"key"`
-	Model                 string         `json:"model"`
-	CacheTTL              string         `json:"cacheTTL"`
-	Endpoint              string         `json:"endpoint"`
-	IdleConnectionTimeout *time.Duration `json:"idleConnectionTimeout,omitempty" mapstructure:"idleConnectionTimeout"`
+	Key      string `json:"key"`
+	Model    string `json:"model"`
+	CacheTTL string `json:"cacheTTL"`
+	Endpoint string `json:"endpoint"`
 }

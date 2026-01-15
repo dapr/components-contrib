@@ -55,7 +55,7 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 		ollama.WithModel(model),
 	}
 
-	if httpClient := conversation.BuildHTTPClient(md.IdleConnectionTimeout); httpClient != nil {
+	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
 		options = append(options, ollama.WithHTTPClient(httpClient))
 	}
 

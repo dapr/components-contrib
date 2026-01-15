@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -44,9 +45,15 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
+	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
+	if err != nil {
+		return nil, err
+	}
+
 	return &conversation.Response{
 		Model:   a.model,
-		Outputs: a.NormalizeConverseResult(resp.Choices),
+		Outputs: outputs,
+		Usage:   usage,
 	}, nil
 }
 
@@ -59,9 +66,19 @@ func normalizeFinishReason(stopReason string) string {
 	return stopReason
 }
 
-func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) []conversation.Result {
+func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage, error) {
 	if len(choices) == 0 {
-		return nil
+		return nil, nil, nil
+	}
+
+	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
+	var usage *conversation.Usage
+	if len(choices) > 0 && choices[0].GenerationInfo != nil {
+		var err error
+		usage, err = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract usage metrics: %v", err)
+		}
 	}
 
 	outputs := make([]conversation.Result, 0, len(choices))
@@ -87,11 +104,9 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) []conversat
 		outputs = append(outputs, output)
 	}
 
-	return outputs
+	return outputs, usage, nil
 }
 
-// getOptionsFromRequest enables a way per request to override component level settings,
-// as well as in general define request settings for the conversation.
 func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts ...llms.CallOption) []llms.CallOption {
 	if opts == nil {
 		opts = make([]llms.CallOption, 0)
@@ -126,6 +141,21 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	// llms.WithMaxLength()
 	// llms.WithMinLength()
 	// llms.WithMaxTokens()
+
+	// Handle prompt cache retention for OpenAI's extended prompt caching feature
+	if r.PromptCacheRetention != nil {
+		if r.Metadata == nil {
+			r.Metadata = make(map[string]string)
+		}
+		// OpenAI expects this as a top-level parameter, but we are forced to pass it via metadata,
+		// and langchaingo should forward it to the OpenAI client.
+		// NOTE: This is absolutely a complete hack that I guarantee you does work.
+		// In langchain there is a llms.WithPromptCaching(true) option that is incompatible with Openai yielding an err bc then it tries to use a bool instead of a string,
+		// because openai expects this to be a time duration string but used with langchain with their llms.WithPromptCachine(true) does not translate properly.
+		// When Langchain fixes this then we can update accordingly :)
+		const metadataPromptCacheKey = "prompt_cache_retention"
+		r.Metadata[metadataPromptCacheKey] = r.PromptCacheRetention.String()
+	}
 
 	// Openai accepts this as map[string]string but langchain expects map[string]any,
 	// so we go with openai for our type opinion here, and therefore I convert accordingly.

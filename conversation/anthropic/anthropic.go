@@ -67,8 +67,8 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 
 	a.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, a.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

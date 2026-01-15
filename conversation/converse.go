@@ -17,6 +17,7 @@ package conversation
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -46,6 +47,7 @@ type Request struct {
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
 	Metadata                   map[string]string `json:"metadata"`
 	ResponseFormatAsJSONSchema map[string]any    `json:"responseFormatAsJsonSchema"`
+	PromptCacheRetention       *time.Duration    `json:"promptCacheRetention,omitempty"`
 
 	// TODO: rm these in future PR as they are not used
 	Parameters          map[string]*anypb.Any `json:"parameters"`
@@ -56,6 +58,7 @@ type Response struct {
 	Outputs             []Result `json:"outputs"`
 	Model               string   `json:"model"`
 	ConversationContext string   `json:"conversationContext,omitempty"`
+	Usage               *Usage   `json:"usage,omitempty"`
 }
 
 type Result struct {

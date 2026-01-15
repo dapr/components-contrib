@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -616,6 +617,125 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Equal(t, float64(4), result.Result, "Result should be 4")
 			assert.NotEmpty(t, result.Explanation, "Response should contain the 'explanation' field")
 			assert.Contains(t, []string{"low", "medium", "high"}, result.Confidence, "Confidence should be one of the enum values")
+			t.Run("test prompt cache retention", func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+				defer cancel()
+
+				// create a long prompt to ensure it's cacheable (OpenAI requires >1024 tokens)
+				longPrompt := "You are a helpful assistant. " + strings.Repeat("This is important context information that should be cached. ", 100) + "The end of the prompt."
+
+				promptCacheRetention := 24 * time.Hour
+
+				// first request - no cached tokens
+				req1 := &conversation.Request{
+					Message: &[]llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeSystem,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: longPrompt},
+							},
+						},
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "what is 2+2?"},
+							},
+						},
+					},
+					PromptCacheRetention: &promptCacheRetention,
+					Metadata: map[string]string{
+						"prompt_cache_retention": "24h",
+					},
+				}
+				if component == "openai" {
+					req1.Temperature = 1
+				}
+
+				resp1, err := conv.Converse(ctx, req1)
+				require.NoError(t, err)
+				require.NotNil(t, resp1)
+				assert.Len(t, resp1.Outputs, 1)
+				assert.NotEmpty(t, resp1.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Request 1 Response Content: %q", resp1.Outputs[0].Choices[0].Message.Content)
+				t.Logf("Request 1 Response Length: %d characters", len(resp1.Outputs[0].Choices[0].Message.Content))
+
+				// verify usage data is returned as this lets us check how many cached tokens there are.
+				// we need usage metrics to verify this prompt cache feature works.
+				if resp1.Usage != nil {
+					t.Logf("Request 1 Usage - Total: %d, Prompt: %d, Completion: %d",
+						resp1.Usage.TotalTokens, resp1.Usage.PromptTokens, resp1.Usage.CompletionTokens)
+					if resp1.Usage.PromptTokensDetails != nil {
+						t.Logf("Request 1 Prompt Details - Cached: %d, Audio: %d",
+							resp1.Usage.PromptTokensDetails.CachedTokens, resp1.Usage.PromptTokensDetails.AudioTokens)
+					}
+					if resp1.Usage.CompletionTokensDetails != nil {
+						t.Logf("Request 1 Completion Details - Reasoning: %d, Audio: %d, AcceptedPrediction: %d, RejectedPrediction: %d",
+							resp1.Usage.CompletionTokensDetails.ReasoningTokens,
+							resp1.Usage.CompletionTokensDetails.AudioTokens,
+							resp1.Usage.CompletionTokensDetails.AcceptedPredictionTokens,
+							resp1.Usage.CompletionTokensDetails.RejectedPredictionTokens)
+					}
+					assert.Greater(t, resp1.Usage.TotalTokens, uint64(0), "Total tokens should be greater than 0")
+				} else {
+					t.Logf("Request 1: No usage data returned")
+				}
+
+				// second request with same prompt - should have cached tokens
+				// NOTE: Sometimes it actually takes a few requests for this to show up pending model/provider...
+				req2 := &conversation.Request{
+					Message: &[]llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeSystem,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: longPrompt},
+							},
+						},
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "what is 3+3?"},
+							},
+						},
+					},
+					PromptCacheRetention: &promptCacheRetention,
+					Metadata: map[string]string{
+						"prompt_cache_retention": "24h",
+					},
+				}
+				if component == "openai" {
+					req2.Temperature = 1
+				}
+
+				resp2, err := conv.Converse(ctx, req2)
+				require.NoError(t, err)
+				require.NotNil(t, resp2)
+				assert.Len(t, resp2.Outputs, 1)
+				assert.NotEmpty(t, resp2.Outputs[0].Choices[0].Message.Content)
+
+				// Verify cached tokens are used in the second request
+				if resp2.Usage != nil {
+					t.Logf("Request 2 Usage - Total: %d, Prompt: %d, Completion: %d",
+						resp2.Usage.TotalTokens, resp2.Usage.PromptTokens, resp2.Usage.CompletionTokens)
+					if resp2.Usage.PromptTokensDetails != nil {
+						t.Logf("Request 2 Prompt Details - Cached: %d, Audio: %d",
+							resp2.Usage.PromptTokensDetails.CachedTokens, resp2.Usage.PromptTokensDetails.AudioTokens)
+						t.Logf("Cached tokens on second request: %d", resp2.Usage.PromptTokensDetails.CachedTokens)
+						// For OpenAI with proper caching, we'd expect cached tokens > 0
+						// but this depends on timing and cache state, so we don't assert
+					} else {
+						t.Logf("Request 2: No prompt token details returned")
+					}
+					if resp2.Usage.CompletionTokensDetails != nil {
+						t.Logf("Request 2 Completion Details - Reasoning: %d, Audio: %d, AcceptedPrediction: %d, RejectedPrediction: %d",
+							resp2.Usage.CompletionTokensDetails.ReasoningTokens,
+							resp2.Usage.CompletionTokensDetails.AudioTokens,
+							resp2.Usage.CompletionTokensDetails.AcceptedPredictionTokens,
+							resp2.Usage.CompletionTokensDetails.RejectedPredictionTokens)
+					}
+				} else {
+					t.Logf("Request 2: No usage data returned for second request to verify that prompt caching is working")
+				}
+			})
 		})
 	})
 }

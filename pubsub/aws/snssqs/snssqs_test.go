@@ -508,3 +508,77 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 	arn := ps.buildARN("sns", "myTopic")
 	r.Equal("arn:aws-cn:sns:cn-northwest-1:123456789012:myTopic", arn)
 }
+
+func Test_getMessageGroupID(t *testing.T) {
+	t.Parallel()
+
+	fixtures := []struct {
+		name            string
+		componentProps  map[string]string
+		requestMetadata map[string]string
+		expectedGroupID string
+	}{
+		{
+			name:            "Request with fifoMessageGroupId",
+			componentProps:  map[string]string{"fifoMessageGroupID": "component-group-id"},
+			requestMetadata: map[string]string{"fifoMessageGroupID": "request-group-id"},
+			expectedGroupID: "request-group-id",
+		},
+		{
+			name:            "Request with blank fifoMessageGroupId",
+			componentProps:  map[string]string{"fifoMessageGroupID": "component-group-id"},
+			requestMetadata: map[string]string{"fifoMessageGroupID": ""},
+			expectedGroupID: "component-group-id",
+		},
+		{
+			name:            "Request without fifoMessageGroupId",
+			componentProps:  map[string]string{"fifoMessageGroupID": "component-group-id"},
+			requestMetadata: map[string]string{},
+			expectedGroupID: "component-group-id",
+		},
+		{
+			name:            "Component without fifoMessageGroupId",
+			componentProps:  map[string]string{},
+			requestMetadata: map[string]string{},
+			// Should be the default generated value
+			expectedGroupID: "c",
+		},
+	}
+
+	for _, f := range fixtures {
+		t.Run(f.name, func(t *testing.T) {
+			r := require.New(t)
+			l := logger.NewLogger("SnsSqs unit test")
+			l.SetOutputLevel(logger.DebugLevel)
+			ps := snsSqs{
+				logger: l,
+				id:     f.name,
+			}
+
+			props := map[string]string{
+				"consumerID": "c",
+				"accessKey":  "a",
+				"secretKey":  "s",
+				"fifo":       "true",
+			}
+			for k, v := range f.componentProps {
+				props[k] = v
+			}
+
+			md, err := ps.getSnsSqsMetadata(pubsub.Metadata{
+				Base: metadata.Base{Properties: props},
+			})
+
+			r.NoError(err)
+			ps.metadata = md
+
+			req := pubsub.PublishRequest{
+				Metadata:   f.requestMetadata,
+				PubsubName: "test-pubsub",
+				Topic:      "test-topic",
+			}
+			groupID := ps.getMessageGroupID(&req)
+			r.Equal(f.expectedGroupID, *groupID)
+		})
+	}
+}

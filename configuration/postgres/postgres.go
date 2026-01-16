@@ -143,9 +143,9 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 		region := configOpts.Region
 		config.MaxConnLifetime = time.Minute * 10
 		config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
-			pwd, err := auth.BuildAuthToken(ctx, fmt.Sprintf("%s:%d", pgConfig.Host, pgConfig.Port), region, pgConfig.User, p.awsAuthProvider)
-			if err != nil {
-				return fmt.Errorf("failed to get database token: %w", err)
+			pwd, tokenErr := auth.BuildAuthToken(ctx, fmt.Sprintf("%s:%d", pgConfig.Host, pgConfig.Port), region, pgConfig.User, p.awsAuthProvider)
+			if tokenErr != nil {
+				return fmt.Errorf("failed to get database token: %w", tokenErr)
 			}
 
 			pgConfig.Password = pwd

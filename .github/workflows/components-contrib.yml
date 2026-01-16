@@ -62,7 +62,7 @@ jobs:
         run: make check-component-metadata
       - name: Run golangci-lint
         if: steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v6.0.1
+        uses: golangci/golangci-lint-action@v9.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true

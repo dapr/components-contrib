@@ -86,6 +86,7 @@ type KafkaMetadata struct {
 	OidcClientAssertionKey  string              `mapstructure:"oidcClientAssertionKey"`
 	OidcResource            string              `mapstructure:"oidcResource"`
 	OidcAudience            string              `mapstructure:"oidcAudience"`
+	OidcKid                 string              `mapstructure:"oidcKid"`
 	internalOidcScopes      []string            `mapstructure:"-"`
 	TLSDisable              bool                `mapstructure:"disableTls"`
 	TLSSkipVerify           bool                `mapstructure:"skipVerify"`

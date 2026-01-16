@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
@@ -32,6 +33,7 @@ type OpenAI struct {
 	langchaingokit.LLM
 
 	logger logger.Logger
+	md     OpenAILangchainMetadata
 }
 
 func NewOpenAI(logger logger.Logger) conversation.Conversation {
@@ -42,37 +44,51 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
+func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option, error) {
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	var model string
+	// we support lowercase and uppercase here
+	if strings.EqualFold(md.APIType, "azure") {
+		model = conversation.GetAzureOpenAIModel(md.Model)
+	} else {
+		model = conversation.GetOpenAIModel(md.Model)
+	}
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
+
+	// apply options specifically for azure openai
+	// TODO: in future, there is also an openai.APITypeAzureAD that we can add.
+	if strings.EqualFold(md.APIType, "azure") {
+		if md.Endpoint == "" || md.APIVersion == "" {
+			return nil, errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
+		}
+		options = append(options,
+			openai.WithAPIType(openai.APITypeAzure),
+			openai.WithAPIVersion(md.APIVersion),
+
+			// apparently this is required for azure openai (but not for openai)
+			// https://github.com/tmc/langchaingo/blob/509308ff01c13e662d5613d3aea793fabe18edd2/llms/openai/openaillm_option.go#L78
+			openai.WithEmbeddingModel(md.Model),
+		)
+
+		// NOTE: This is also an option here.
+		// https://github.com/tmc/langchaingo/blob/509308ff01c13e662d5613d3aea793fabe18edd2/llms/openai/openaillm_option.go#L89
+		// openai.WithEmbeddingDimentions(),
+	}
+
+	return options, nil
+}
+
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := OpenAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
 	}
+	o.md = md
 
-	// Resolve model via central helper (uses metadata, then env var, then default)
-	var model string
-	if md.APIType == "azure" {
-		model = conversation.GetAzureOpenAIModel(md.Model)
-	} else {
-		model = conversation.GetOpenAIModel(md.Model)
-	}
-	// Create options for OpenAI client
-	options := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
-	}
-
-	// Add custom endpoint if provided
-	if md.Endpoint != "" {
-		options = append(options, openai.WithBaseURL(md.Endpoint))
-	}
-
-	if md.APIType == "azure" {
-		if md.Endpoint == "" || md.APIVersion == "" {
-			return errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
-		}
-
-		options = append(options, openai.WithAPIType(openai.APITypeAzure), openai.WithAPIVersion(md.APIVersion))
+	options, err := o.buildClientOptions(md)
+	if err != nil {
+		return err
 	}
 
 	llm, err := openai.New(options...)
@@ -82,14 +98,15 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.LLM.Model = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
 		o.LLM.Model = cachedModel
 	}
+
 	return nil
 }
 

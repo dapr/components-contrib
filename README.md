@@ -1,3 +1,5 @@
+# DEBUG
+
 # Components Contrib
 
 [![Build, Lint, Unit Test - complete matrix](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml/badge.svg?branch=main&event=schedule)](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml)

@@ -20,16 +20,20 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/conversation"
 )
 
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
+	model  string
+	logger logger.Logger
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	opts := getOptionsFromRequest(r)
+	opts := getOptionsFromRequest(r, a.logger)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
@@ -46,15 +50,20 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		return nil, err
 	}
 
-	res = &conversation.Response{
-		// TODO: Fix this, we never used this ConversationContext field to begin with.
-		// This needs improvements to be useful.
-		ConversationContext: r.ConversationContext,
-		Outputs:             outputs,
-		Usage:               usage,
-	}
+	return &conversation.Response{
+		Model:   a.model,
+		Outputs: outputs,
+		Usage:   usage,
+	}, nil
+}
 
-	return res, nil
+// NOTE: ollama does not provide a stop reason at all,
+// so server side best we can do is say unknown if this is empty.
+func normalizeFinishReason(stopReason string) string {
+	if stopReason == "" {
+		return "unknown"
+	}
+	return stopReason
 }
 
 func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversation.Result, *conversation.Usage, error) {
@@ -73,9 +82,9 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 	}
 
 	outputs := make([]conversation.Result, 0, len(choices))
-	for i, c := range choices {
+	for i := range choices {
 		choice := conversation.Choice{
-			FinishReason: c.StopReason,
+			FinishReason: normalizeFinishReason(choices[i].StopReason),
 			Index:        int64(i),
 		}
 
@@ -88,7 +97,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		}
 
 		output := conversation.Result{
-			StopReason: c.StopReason,
+			StopReason: normalizeFinishReason(choices[i].StopReason),
 			Choices:    []conversation.Choice{choice},
 		}
 
@@ -98,7 +107,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 	return outputs, usage, nil
 }
 
-func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []llms.CallOption {
+func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts ...llms.CallOption) []llms.CallOption {
 	if opts == nil {
 		opts = make([]llms.CallOption, 0)
 	}
@@ -114,6 +123,24 @@ func getOptionsFromRequest(r *conversation.Request, opts ...llms.CallOption) []l
 	if r.ToolChoice != nil {
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
+
+	if r.ResponseFormatAsJSONSchema != nil {
+		structuredOutput, err := convertToStructuredOutputDefinition(r.ResponseFormatAsJSONSchema)
+		if err != nil {
+			logger.Warnf("failed to convert response format to structured output, will continue without structured output: %v", err)
+		} else {
+			opts = append(opts, llms.WithStructuredOutput(structuredOutput))
+		}
+		// Note: WithJSONMode() is not needed when using WithStructuredOutput,
+		// as structured output already returns JSON so do NOT add that here in this block!
+	}
+
+	// NOTE: we can add these in future! There are others...
+	// llms.WithThinkingMode()
+	// llms.WithCacheControl()
+	// llms.WithMaxLength()
+	// llms.WithMinLength()
+	// llms.WithMaxTokens()
 
 	// Handle prompt cache retention for OpenAI's extended prompt caching feature
 	if r.PromptCacheRetention != nil {

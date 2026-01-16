@@ -401,7 +401,7 @@ jobs:
       - name: Build message
         if: always() && env.PR_NUMBER != ''
         # Abusing of the github-script action to be able to write this in JS
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')

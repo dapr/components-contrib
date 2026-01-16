@@ -14,8 +14,8 @@ limitations under the License.
 package postgres
 
 import (
-	"context"
 	"fmt"
+	"net"
 	"regexp"
 	"testing"
 
@@ -126,7 +126,7 @@ func TestValidateInput(t *testing.T) {
 }
 
 func TestPostgresConfigurationWithIAM(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Testing use of moto to mock AWS services for IAM authentication
 	motoContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -138,13 +138,13 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 		Started: true,
 	})
 	require.NoError(t, err)
-	defer motoContainer.Terminate(ctx)
+	defer func() { _ = motoContainer.Terminate(ctx) }()
 
 	motoHost, err := motoContainer.Host(ctx)
 	require.NoError(t, err)
 	motoPort, err := motoContainer.MappedPort(ctx, "5000")
 	require.NoError(t, err)
-	motoURL := fmt.Sprintf("http://%s:%s", motoHost, motoPort.Port())
+	motoURL := "http://" + net.JoinHostPort(motoHost, motoPort.Port())
 
 	t.Setenv("AWS_ENDPOINT_URL", motoURL)
 	t.Setenv("AWS_ACCESS_KEY_ID", "testing")
@@ -167,23 +167,23 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 		Started: true,
 	})
 	require.NoError(t, err)
-	defer pgContainer.Terminate(ctx)
+	defer func() { _ = pgContainer.Terminate(ctx) }()
 
 	pgHost, err := pgContainer.Host(ctx)
 	require.NoError(t, err)
 	pgPort, err := pgContainer.MappedPort(ctx, "5432")
 	require.NoError(t, err)
 
-	pgConnString := fmt.Sprintf("postgres://postgres:password@%s:%s/testdb?sslmode=disable", pgHost, pgPort.Port())
+	pgConnString := "postgres://postgres:password@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable"
 
 	pgConn, err := pgx.Connect(ctx, pgConnString)
 	require.NoError(t, err)
-	defer pgConn.Close(ctx)
+	defer func() { _ = pgConn.Close(ctx) }()
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 
-	token, err := auth.BuildAuthToken(ctx, fmt.Sprintf("%s:%s", pgHost, pgPort.Port()), "us-east-1", "testuser", cfg.Credentials)
+	token, err := auth.BuildAuthToken(ctx, net.JoinHostPort(pgHost, pgPort.Port()), "us-east-1", "testuser", cfg.Credentials)
 	require.NoError(t, err)
 
 	_, err = pgConn.Exec(ctx, fmt.Sprintf("CREATE USER testuser WITH PASSWORD '%s'", token))
@@ -197,7 +197,7 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 
 	t.Run("Valid IAM Authentication", func(t *testing.T) {
 		metadata := map[string]string{
-			"connectionString": fmt.Sprintf("postgres://testuser@%s:%s/testdb?sslmode=disable", pgHost, pgPort.Port()),
+			"connectionString": "postgres://testuser@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable",
 			"table":            "config_table",
 			"useAWSIAM":        "true",
 			"awsRegion":        "us-east-1",
@@ -206,12 +206,12 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 		}
 
 		store := NewPostgresConfigurationStore(logger.NewLogger("test"))
-		err = store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
+		err := store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
 		require.NoError(t, err)
 
 		t.Run("Get Request", func(t *testing.T) {
-			resp, err := store.Get(ctx, &configuration.GetRequest{})
-			require.NoError(t, err)
+			resp, err2 := store.Get(ctx, &configuration.GetRequest{})
+			require.NoError(t, err2)
 			assert.Empty(t, resp.Items)
 		})
 
@@ -221,7 +221,7 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 
 	t.Run("Invalid IAM Authentication", func(t *testing.T) {
 		metadata := map[string]string{
-			"connectionString": fmt.Sprintf("postgres://testuser@%s:%s/testdb?sslmode=disable", pgHost, pgPort.Port()),
+			"connectionString": "postgres://testuser@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable",
 			"table":            "config_table",
 			"useAWSIAM":        "true",
 			"awsRegion":        "us-east-1",
@@ -230,11 +230,10 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 		}
 
 		store := NewPostgresConfigurationStore(logger.NewLogger("test"))
-		err = store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
+		err := store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
 		require.Error(t, err)
 
 		err = store.Close()
 		require.NoError(t, err)
 	})
-
 }

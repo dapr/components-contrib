@@ -134,9 +134,9 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 			Endpoint:              opts.Endpoint,
 		}
 
-		provider, err := awsAuth.NewCredentialProvider(ctx, configOpts, nil)
-		if err != nil {
-			return err
+		provider, providerErr := awsAuth.NewCredentialProvider(ctx, configOpts, nil)
+		if providerErr != nil {
+			return providerErr
 		}
 
 		p.awsAuthProvider = provider

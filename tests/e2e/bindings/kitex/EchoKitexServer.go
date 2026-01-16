@@ -17,19 +17,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/cloudwego/gopkg/protocol/thrift"
 	"github.com/cloudwego/kitex-examples/kitex_gen/api"
 	"github.com/cloudwego/kitex-examples/kitex_gen/api/echo"
 	"github.com/cloudwego/kitex/pkg/klog"
-	"github.com/cloudwego/kitex/pkg/utils"
 )
 
 func GenerateEchoReq(message string) (reqData []byte, err error) {
-	codec := utils.NewThriftMessageCodec()
-
 	req := &api.EchoEchoArgs{Req: &api.Request{Message: message}}
 
-	reqData, err = codec.Encode("echo", thrift.CALL, 0, req)
+	reqData, err = thrift.MarshalFastMsg("echo", thrift.CALL, 0, req)
 	if err != nil {
 		return nil, err
 	}

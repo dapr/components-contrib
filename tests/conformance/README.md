@@ -112,6 +112,11 @@ Noting, the pattern to run other specific conformance tests
 ```bash
 go test -v -tags=conftests -count=1 ./tests/conformance -run="Test<api capitalized>Conformance/<component name>"
 ```
+
+For conversation components you must run the Init() with the subtest, so use a command such as:
+```bash
+go test -v -tags=conftests -count=1 ./tests/conformance -run="TestConversationConformance/<provider>.*(init|<other test func>)"
+```
  
 If you want to combine VS Code & dlv for debugging so you can set breakpoints in the IDE, create a debug launch configuration as follows:
 

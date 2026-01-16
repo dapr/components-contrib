@@ -50,16 +50,13 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetGoogleAIModel(md.Model)
+	key, _ := meta.GetProperty("key")
 
-	opts := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
-		// endpoint from https://ai.google.dev/gemini-api/docs/openai
-		openai.WithBaseURL("https://generativelanguage.googleapis.com/v1beta/openai/"),
-	}
-	llm, err := openai.New(
-		opts...,
-	)
+	// endpoint from https://ai.google.dev/gemini-api/docs/openai
+	const endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+	opts := conversation.BuildOpenAIClientOptions(model, key, endpoint)
+
+	llm, err := openai.New(opts...)
 	if err != nil {
 		return err
 	}

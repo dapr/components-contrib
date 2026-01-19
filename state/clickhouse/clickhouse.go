@@ -39,8 +39,13 @@ type StateStore struct {
 	config clickhouseMetadata
 }
 
-// maxIdentifierLength is the maximum length for database and table names in ClickHouse
-const maxIdentifierLength = 256
+// maxIdentifierLength is the maximum length for database and table names in ClickHouse.
+// ClickHouse itself doesn't enforce a strict limit, but identifier names map to filesystem
+// filenames. On ext4 (and most Linux filesystems), the max filename length is 255 bytes.
+// ClickHouse also appends suffixes like ".sql", ".detached", etc., so we use 250 to leave
+// room for these suffixes and avoid "filename too long" errors.
+// See: https://github.com/ClickHouse/ClickHouse/issues/36485
+const maxIdentifierLength = 250
 
 type clickhouseMetadata struct {
 	ClickhouseURL string `mapstructure:"clickhouseUrl"`

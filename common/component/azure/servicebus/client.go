@@ -277,20 +277,26 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 	return nil
 }
 
-// EnsureTopic creates the queue if it doesn't exist.
+// EnsureQueue creates the queue if it doesn't exist.
 // Returns with nil error if the admin client doesn't exist.
 func (c *Client) EnsureQueue(ctx context.Context, queue string) error {
+	return c.EnsureQueueWithSessions(ctx, queue, false)
+}
+
+// EnsureQueueWithSessions creates the queue if it doesn't exist, with optional session support.
+// Returns with nil error if the admin client doesn't exist.
+func (c *Client) EnsureQueueWithSessions(ctx context.Context, queue string, requireSessions bool) error {
 	if c.adminClient == nil {
 		return nil
 	}
 
-	shouldCreate, err := c.shouldCreateQueue(ctx, queue)
+	shouldCreate, err := c.shouldCreateQueue(ctx, queue, requireSessions)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreate {
-		err = c.createQueue(ctx, queue)
+		err = c.createQueue(ctx, queue, requireSessions)
 		if err != nil {
 			return err
 		}
@@ -358,7 +364,7 @@ func (c *Client) createSubscription(parentCtx context.Context, topic, subscripti
 	return nil
 }
 
-func (c *Client) shouldCreateQueue(parentCtx context.Context, queue string) (bool, error) {
+func (c *Client) shouldCreateQueue(parentCtx context.Context, queue string, requireSessions bool) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -370,15 +376,25 @@ func (c *Client) shouldCreateQueue(parentCtx context.Context, queue string) (boo
 		// If res nil, the queue does not exist
 		return true, nil
 	}
+
+	// Check if the session requirement matches
+	if notEqual(res.RequiresSession, &requireSessions) {
+		queueHasSessions := res.RequiresSession != nil && *res.RequiresSession
+		if queueHasSessions {
+			return false, fmt.Errorf("queue %s is session-enabled but component has requireSessions=false; set requireSessions=true in component metadata", queue)
+		}
+		return false, fmt.Errorf("queue %s is not session-enabled but component has requireSessions=true; the queue cannot be changed to use sessions after creation", queue)
+	}
+
 	return false, nil
 }
 
-func (c *Client) createQueue(parentCtx context.Context, queue string) error {
+func (c *Client) createQueue(parentCtx context.Context, queue string, requireSessions bool) error {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
 	_, err := c.adminClient.CreateQueue(ctx, queue, &sbadmin.CreateQueueOptions{
-		Properties: c.metadata.CreateQueueProperties(),
+		Properties: c.metadata.CreateQueueProperties(requireSessions),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create queue %s: %w", queue, err)

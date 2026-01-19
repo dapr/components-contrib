@@ -10,6 +10,7 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus-queues
 capabilities:
   - ttl
+  - sessions
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a connection string."
@@ -107,4 +108,29 @@ metadata:
     type: number
     example: "1000"
     default: "500"
+  - name: requireSessions
+    description: "Enable sessions (FIFO) for the queue. When enabled, messages with the same session ID are processed in order. Automatically enabled when sessionIds is set."
+    type: bool
+    default: 'false'
+    example: 'true'
+  - name: sessionIdleTimeoutInSec
+    description: "Timeout in seconds for waiting on a session to receive messages. If no messages are received within this time, the session receiver closes and a new session is accepted. Only applies when requireSessions is true."
+    type: number
+    default: '60'
+    example: '120'
+  - name: maxConcurrentSessions
+    description: "Maximum number of concurrent sessions to process. Each session is processed by a dedicated receiver, allowing parallel processing of different sessions while maintaining order within each session. Only applies when requireSessions is true and sessionIds is not set."
+    type: number
+    default: '8'
+    example: '16'
+  - name: sessionIds
+    description: |
+      Comma-separated list of session IDs for partitioned session mode. When set:
+      - Publishers MUST include a SessionId from this list in message metadata
+      - Subscribers will connect to each session ID explicitly
+      - Scale up to N replicas (where N = number of session IDs)
+      - Each session guarantees FIFO ordering
+      This mode provides controlled, predictable partitioning for scalable ordered processing.
+    type: string
+    example: 'partition-1, partition-2, partition-3'
   

@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.azure.servicebus.queues
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: SERVICE_BUS_CONNECTION_STRING
+        key: SERVICE_BUS_CONNECTION_STRING
+    # Partitioned session mode: explicit session IDs for controlled scaling
+    - name: sessionIds
+      value: "partition-A, partition-B, partition-C"
+    - name: sessionIdleTimeoutInSec
+      value: "30"
+auth:
+  secretStore: envvar-secret-store

@@ -17,13 +17,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -36,93 +33,12 @@ import (
 // ClientCredentialsMetadata is the metadata fields which can be used by a
 // component to configure an OIDC client_credentials token source.
 type ClientCredentialsMetadata struct {
-	TokenCAPEM          string   `mapstructure:"oauth2TokenCAPEM"`
-	TokenURL            string   `mapstructure:"oauth2TokenURL"`
-	ClientID            string   `mapstructure:"oauth2ClientID"`
-	ClientSecret        string   `mapstructure:"oauth2ClientSecret"`
-	ClientSecretPath    string   `mapstructure:"oauth2ClientSecretPath"`
-	CredentialsFilePath string   `mapstructure:"oauth2CredentialsFile"`
-	Audiences           []string `mapstructure:"oauth2Audiences"`
-	Scopes              []string `mapstructure:"oauth2Scopes"`
-}
-
-// ResolveCredentials loads client_id and client_secret from files if configured.
-func (m *ClientCredentialsMetadata) ResolveCredentials() error {
-	if m.CredentialsFilePath != "" && m.ClientSecretPath != "" {
-		return errors.New("'oauth2CredentialsFile' and 'oauth2ClientSecretPath' fields are mutually exclusive")
-	}
-
-	if m.CredentialsFilePath != "" {
-		fileClientID, fileClientSecret, fileIssuerURL, err := LoadCredentialsFromJSONFile(m.CredentialsFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to load credentials from JSON file: %w", err)
-		}
-
-		// Metadata overrides file values
-		if m.ClientID == "" {
-			m.ClientID = fileClientID
-		}
-		if m.ClientSecret == "" {
-			m.ClientSecret = fileClientSecret
-		}
-		if m.TokenURL == "" {
-			m.TokenURL = fileIssuerURL
-		}
-		return nil
-	}
-
-	if m.ClientSecretPath != "" {
-		// Metadata overrides file value
-		if m.ClientSecret == "" {
-			secretBytes, err := os.ReadFile(m.ClientSecretPath)
-			if err != nil {
-				return fmt.Errorf("could not read oauth2 client secret from file %q: %w", m.ClientSecretPath, err)
-			}
-			m.ClientSecret = strings.TrimSpace(string(secretBytes))
-		}
-		return nil
-	}
-
-	return nil
-}
-
-// ToOptions converts ClientCredentialsMetadata to ClientCredentialsOptions.
-func (m *ClientCredentialsMetadata) ToOptions(logger logger.Logger) ClientCredentialsOptions {
-	return ClientCredentialsOptions{
-		Logger:       logger,
-		TokenURL:     m.TokenURL,
-		CAPEM:        []byte(m.TokenCAPEM),
-		ClientID:     m.ClientID,
-		ClientSecret: m.ClientSecret,
-		Scopes:       m.Scopes,
-		Audiences:    m.Audiences,
-	}
-}
-
-// CredentialsFile represents a JSON credentials file.
-type CredentialsFile struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	IssuerURL    string `json:"issuer_url"`
-}
-
-// LoadCredentialsFromJSONFile reads client_id, client_secret, and issuer_url from a JSON file.
-func LoadCredentialsFromJSONFile(filePath string) (clientID, clientSecret, issuerURL string, err error) {
-	secretBytes, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", "", "", fmt.Errorf("could not read oauth2 credentials from file %q: %w", filePath, err)
-	}
-
-	var creds CredentialsFile
-	if err := json.Unmarshal(secretBytes, &creds); err != nil {
-		return "", "", "", fmt.Errorf("failed to parse JSON credentials file: %w", err)
-	}
-
-	if creds.ClientID == "" || creds.ClientSecret == "" || creds.IssuerURL == "" {
-		return "", "", "", errors.New("credentials file must contain client_id, client_secret, and issuer_url")
-	}
-
-	return creds.ClientID, creds.ClientSecret, creds.IssuerURL, nil
+	TokenCAPEM   string   `mapstructure:"oauth2TokenCAPEM"`
+	TokenURL     string   `mapstructure:"oauth2TokenURL"`
+	ClientID     string   `mapstructure:"oauth2ClientID"`
+	ClientSecret string   `mapstructure:"oauth2ClientSecret"`
+	Audiences    []string `mapstructure:"oauth2Audiences"`
+	Scopes       []string `mapstructure:"oauth2Scopes"`
 }
 
 type ClientCredentialsOptions struct {
@@ -226,7 +142,6 @@ func (c *ClientCredentials) Token() (string, error) {
 }
 
 func (c *ClientCredentials) renewToken(ctx context.Context) error {
-	c.log.Debug("renewing token: fetching new token from OAuth server...")
 	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 	if err != nil {
 		return err
@@ -237,6 +152,5 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	}
 
 	c.currentToken = token
-	c.log.Debugf("OAuth token renewed successfully, new expiry: %s", token.Expiry)
 	return nil
 }

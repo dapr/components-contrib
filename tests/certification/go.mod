@@ -68,6 +68,8 @@ require (
 	github.com/Azure/go-amqp v1.0.5 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/BurntSushi/toml v1.1.0 // indirect
+	github.com/ClickHouse/ch-go v0.67.0 // indirect
+	github.com/ClickHouse/clickhouse-go/v2 v2.40.1 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.2.1 // indirect
@@ -79,6 +81,7 @@ require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/alphadose/haxmap v1.4.0 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/anshal21/go-worker v1.1.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
@@ -154,6 +157,8 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/go-chi/cors v1.2.1 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -261,6 +266,7 @@ require (
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/oracle/coherence-go-client/v2 v2.2.0 // indirect
 	github.com/panjf2000/ants/v2 v2.11.3 // indirect
+	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
@@ -281,6 +287,7 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
@@ -315,14 +322,14 @@ require (
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
-	go.opentelemetry.io/otel v1.36.0 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/zipkin v1.34.0 // indirect
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect

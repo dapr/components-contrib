@@ -64,7 +64,7 @@ func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 		return errors.New("component is closed")
 	}
 
-	a.bus.Publish(req.Topic, req.Data, req.Metadata)
+	a.bus.Publish(req.Topic, req.Data)
 
 	return nil
 }
@@ -75,9 +75,9 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 	}
 
 	// For this component we allow built-in retries because it is backed by memory
-	retryHandler := func(data []byte, md map[string]string) {
+	retryHandler := func(data []byte) {
 		for range 10 {
-			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: md})
+			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata})
 			if handleErr == nil {
 				break
 			}

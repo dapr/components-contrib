@@ -14,11 +14,7 @@ limitations under the License.
 */
 package conversation
 
-import (
-	"time"
-
-	"github.com/dapr/components-contrib/metadata"
-)
+import "github.com/dapr/components-contrib/metadata"
 
 // Metadata represents a set of conversation specific properties.
 type Metadata struct {
@@ -27,8 +23,8 @@ type Metadata struct {
 
 // LangchainMetadata is a common metadata structure for langchain supported implementations.
 type LangchainMetadata struct {
-	Key              string         `json:"key" mapstructure:"key"`
-	Model            string         `json:"model" mapstructure:"model"`
-	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL"`
-	Endpoint         string         `json:"endpoint" mapstructure:"endpoint"`
+	Key      string `json:"key"`
+	Model    string `json:"model"`
+	CacheTTL string `json:"cacheTTL"`
+	Endpoint string `json:"endpoint"`
 }

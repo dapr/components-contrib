@@ -18,4 +18,3 @@ components:
     operations: []
   - component: bedrock
     operations: []
-# TODO: We are missing tests for deepseek.

@@ -17,10 +17,9 @@ limitations under the License.
 
 package deepseek
 
-import "github.com/dapr/components-contrib/conversation"
-
 type DeepseekMetadata struct {
-	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
-	Key                            string `json:"key"`
-	MaxTokens                      int    `json:"maxTokens"`
+	Key       string `json:"key"`
+	MaxTokens int    `json:"maxTokens"`
+	Model     string `json:"model"`
+	Endpoint  string `json:"endpoint"`
 }

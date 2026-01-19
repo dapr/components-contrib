@@ -21,10 +21,7 @@ metadata:
   - name: model
     required: false
     description: |
-      The model identifier or inference profile ARN to use. Defaults to Bedrock's default provider model from Amazon.
-      You can specify either:
-      - A model ID (e.g., "amazon.titan-text-express-v1") that supports on-demand throughput
-      - An inference profile ARN for models that require it (found in the AWS Bedrock console under "Cross-Region Inference")
+      The LLM to use. Defaults to Bedrock's default provider model from Amazon.
     type: string
     example: 'amazon.titan-text-express-v1'
   - name: cacheTTL

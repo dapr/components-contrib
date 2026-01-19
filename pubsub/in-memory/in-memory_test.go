@@ -102,39 +102,8 @@ func TestRetry(t *testing.T) {
 	assert.Equal(t, 5, i)
 }
 
-func TestMessageMetadataPropagation(t *testing.T) {
-	bus := New(logger.NewLogger("test"))
-	bus.Init(t.Context(), pubsub.Metadata{})
-
-	ch := make(chan []byte)
-	metadataCh := make(chan map[string]string)
-	bus.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
-		return publishWithMetadata(ch, metadataCh, msg)
-	})
-
-	bus.Publish(t.Context(), &pubsub.PublishRequest{Data: []byte("ABCD"), Metadata: map[string]string{
-		"test": "test",
-	}, Topic: "demo"})
-
-	assert.Equal(t, "ABCD", string(<-ch))
-	assert.Equal(t, map[string]string{
-		"test": "test",
-	}, <-metadataCh)
-}
-
 func publish(ch chan []byte, msg *pubsub.NewMessage) error {
 	go func() { ch <- msg.Data }()
-
-	return nil
-}
-
-func publishWithMetadata(ch chan []byte, mdCh chan map[string]string, msg *pubsub.NewMessage) error {
-	err := publish(ch, msg)
-	if err != nil {
-		return err
-	}
-
-	go func() { mdCh <- msg.Metadata }()
 
 	return nil
 }

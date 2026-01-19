@@ -25,6 +25,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.3.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
 	github.com/Azure/go-amqp v1.0.5
+	github.com/ClickHouse/clickhouse-go/v2 v2.35.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/IBM/sarama v1.45.2
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
@@ -169,6 +170,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
+	github.com/ClickHouse/ch-go v0.66.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
@@ -188,7 +190,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
-	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/apache/thrift v0.13.0 // indirect
@@ -254,6 +256,8 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
@@ -357,6 +361,7 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/panjf2000/ants/v2 v2.11.3 // indirect
+	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
@@ -382,6 +387,7 @@ require (
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect

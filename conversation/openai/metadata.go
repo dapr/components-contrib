@@ -15,9 +15,7 @@ limitations under the License.
 
 package openai
 
-import (
-	"github.com/dapr/components-contrib/conversation"
-)
+import "github.com/dapr/components-contrib/conversation"
 
 // OpenAILangchainMetadata extends LangchainMetadata with OpenAI-specific properties.
 type OpenAILangchainMetadata struct {

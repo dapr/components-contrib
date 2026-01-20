@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: akeyless
+version: v1
+status: beta
+title: "Akeyless Secret Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/akeyless/
+metadata:
+  - name: gatewayUrl
+    required: false
+    description: |
+      The URL to the Akeyless Gateway API. Default is https://api.akeyless.io.
+    default: "https://api.akeyless.io"
+    example: "https://your.akeyless.gw"
+    type: string
+  - name: gatewayTlsCa
+    required: false
+    description: |
+      base64-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway
+      with a self-signed or custom CA certificate. 
+    example: "LS0tLS1CRUdJTi..."
+    type: string
+    sensitive: true
+  - name: accessId
+    required: true
+    description: |
+      The Akeyless Access ID. Currently supported authentication methods are: API keys (`access_key`, default), JWT (`jwt`) and AWS IAM (`aws_iam`).
+    example: "p-123456780wm"
+    type: string
+  - name: jwt
+    required: false
+    description: |
+      If using the JWT authentication method, specify it here.
+    example: "eyJ..."
+    type: string
+    sensitive: true
+  - name: accessKey
+    required: false
+    description: |
+      If using the API key (access_key) authentication method, specify it here.
+    example: "ABCD1233...="
+    type: string
+    sensitive: true
+  - name: k8sAuthConfigName
+    required: false
+    description: |
+      If using the k8s auth method, specify the name of the k8s auth config.
+    example: "k8s-auth-config"
+    type: string
+  - name: k8sGatewayUrl
+    required: false
+    description: |
+      The gateway URL that where the k8s auth config is located.
+    example: "http://gw.akeyless.svc.cluster.local:8000"
+    type: string
+  - name: k8sServiceAccountToken
+    required: false
+    description: |
+      If using the k8s auth method, specify the service account token. If not specified,
+      we will try to read it from the default service account token file.
+    example: "eyJ..."
+    type: string
+    sensitive: true
+  - name: k8sAuthConfigName
+    required: false
+    description: |
+      If using the k8s auth method, specify the name of the k8s auth config.
+    example: "k8s-auth-config"
+    type: string
+  - name: k8sGatewayUrl
+    required: false
+    description: |
+      The gateway URL that where the k8s auth config is located.
+    example: "https://gw.akeyless.svc.cluster.local"
+    type: string
+  - name: k8sServiceAccountToken
+    required: false
+    description: |
+      If using the k8s auth method, specify the service account token. If not specified,
+      we will try to read it from the default service account token file.
+    example: "eyJ..."
+    type: string
+    sensitive: true

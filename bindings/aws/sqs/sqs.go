@@ -140,10 +140,13 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 					if err == nil {
 						msgHandle := m.ReceiptHandle
 						if msgHandle != nil {
-							_, _ = a.sqsClient.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+							_, deleteError := a.sqsClient.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
 								QueueUrl:      url,
 								ReceiptHandle: msgHandle,
 							})
+							if deleteError != nil {
+								a.logger.Errorf("failed to delete message from queue %q: %v", url, deleteError)
+							}
 						}
 					}
 				}
@@ -189,6 +192,10 @@ func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AWSSQS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sqsMetadata{}
-	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType); err != nil {
+		if a != nil && a.logger != nil {
+			a.logger.Errorf("failed to get component metadata: %v", err)
+		}
+	}
 	return
 }

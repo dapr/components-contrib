@@ -128,7 +128,7 @@ func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsMetadata{}
 	err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	if err != nil {
-		a.logger.Warnf("GetComponentMetadata: %v", err)
+		a.logger.Errorf("failed to get component metadata: %v", err)
 	}
 	return
 }

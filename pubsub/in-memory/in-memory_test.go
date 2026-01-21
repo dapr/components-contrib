@@ -15,7 +15,6 @@ package inmemory
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,29 +80,39 @@ func TestWildcards(t *testing.T) {
 	assert.Equal(t, "3", string(<-ch2))
 }
 
-func TestRetry(t *testing.T) {
+func TestMessageMetadataPropagation(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
 	bus.Init(t.Context(), pubsub.Metadata{})
 
 	ch := make(chan []byte)
-	i := -1
-
+	metadataCh := make(chan map[string]string)
 	bus.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
-		i++
-		if i < 5 {
-			return errors.New("if at first you don't succeed")
-		}
-
-		return publish(ch, msg)
+		return publishWithMetadata(ch, metadataCh, msg)
 	})
 
-	bus.Publish(t.Context(), &pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
+	bus.Publish(t.Context(), &pubsub.PublishRequest{Data: []byte("ABCD"), Metadata: map[string]string{
+		"test": "test",
+	}, Topic: "demo"})
+
 	assert.Equal(t, "ABCD", string(<-ch))
-	assert.Equal(t, 5, i)
+	assert.Equal(t, map[string]string{
+		"test": "test",
+	}, <-metadataCh)
 }
 
 func publish(ch chan []byte, msg *pubsub.NewMessage) error {
 	go func() { ch <- msg.Data }()
+
+	return nil
+}
+
+func publishWithMetadata(ch chan []byte, mdCh chan map[string]string, msg *pubsub.NewMessage) error {
+	err := publish(ch, msg)
+	if err != nil {
+		return err
+	}
+
+	go func() { mdCh <- msg.Metadata }()
 
 	return nil
 }

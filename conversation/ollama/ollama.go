@@ -51,17 +51,23 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetOllamaModel(md.Model)
 
-	llm, err := ollama.New(
+	options := []ollama.Option{
 		ollama.WithModel(model),
-	)
+	}
+
+	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
+		options = append(options, ollama.WithHTTPClient(httpClient))
+	}
+
+	llm, err := ollama.New(options...)
 	if err != nil {
 		return err
 	}
 
 	o.LLM.Model = llm
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

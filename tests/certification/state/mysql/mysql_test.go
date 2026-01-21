@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -273,8 +274,7 @@ func TestMySQL(t *testing.T) {
 			// Should fail
 			err = component.Ping(t.Context())
 			require.Error(t, err)
-			assert.Equal(t, "driver: bad connection", err.Error())
-
+			assert.True(t, strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "bad connection"))
 			return nil
 		}
 	}

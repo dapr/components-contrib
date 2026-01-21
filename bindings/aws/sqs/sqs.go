@@ -21,11 +21,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -33,12 +34,12 @@ import (
 
 // AWSSQS allows receiving and sending data to/from AWS SQS.
 type AWSSQS struct {
-	authProvider awsAuth.Provider
-	queueName    string
-	logger       logger.Logger
-	wg           sync.WaitGroup
-	closeCh      chan struct{}
-	closed       atomic.Bool
+	sqsClient *sqs.Client
+	queueName string
+	logger    logger.Logger
+	wg        sync.WaitGroup
+	closeCh   chan struct{}
+	closed    atomic.Bool
 }
 
 // TODO: the metadata fields need updating to use the builtin aws auth provider fully and reflect in metadata.yaml
@@ -66,7 +67,7 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	opts := awsAuth.Options{
+	configOpts := awsCommonAuth.Options{
 		Logger:       a.logger,
 		Properties:   metadata.Properties,
 		Region:       m.Region,
@@ -75,14 +76,12 @@ func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
 	if err != nil {
 		return err
 	}
-	a.authProvider = provider
+	a.sqsClient = sqs.NewFromConfig(awsConfig)
 	a.queueName = m.QueueName
-
 	return nil
 }
 
@@ -92,16 +91,15 @@ func (a *AWSSQS) Operations() []bindings.OperationKind {
 
 func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msgBody := string(req.Data)
-	url, err := a.authProvider.Sqs().QueueURL(ctx, a.queueName)
+	url, err := a.getQueueURL(ctx, a.queueName)
 	if err != nil {
 		a.logger.Errorf("failed to get queue url: %v", err)
+		return nil, err
 	}
-
-	_, err = a.authProvider.Sqs().Sqs.SendMessageWithContext(ctx, &sqs.SendMessageInput{
+	_, err = a.sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
 		MessageBody: &msgBody,
 		QueueUrl:    url,
 	})
-
 	return nil, err
 }
 
@@ -109,36 +107,29 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 	if a.closed.Load() {
 		return errors.New("binding is closed")
 	}
-
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-
-		// Repeat until the context is canceled or component is closed
 		for {
 			if ctx.Err() != nil || a.closed.Load() {
 				return
 			}
-			url, err := a.authProvider.Sqs().QueueURL(ctx, a.queueName)
+			url, err := a.getQueueURL(ctx, a.queueName)
 			if err != nil {
 				a.logger.Errorf("failed to get queue url: %v", err)
+				continue
 			}
-
-			result, err := a.authProvider.Sqs().Sqs.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
-				QueueUrl: url,
-				AttributeNames: aws.StringSlice([]string{
-					"SentTimestamp",
-				}),
-				MaxNumberOfMessages: aws.Int64(1),
-				MessageAttributeNames: aws.StringSlice([]string{
-					"All",
-				}),
-				WaitTimeSeconds: aws.Int64(20),
+			result, err := a.sqsClient.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+				QueueUrl:              url,
+				AttributeNames:        []sqsTypes.QueueAttributeName{"SentTimestamp"}, // Use string literal for attribute name
+				MaxNumberOfMessages:   1,
+				MessageAttributeNames: []string{"All"},
+				WaitTimeSeconds:       20,
 			})
 			if err != nil {
 				a.logger.Errorf("Unable to receive message from queue %q, %v.", url, err)
+				continue
 			}
-
 			if len(result.Messages) > 0 {
 				for _, m := range result.Messages {
 					body := m.Body
@@ -148,16 +139,18 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 					_, err := handler(ctx, &res)
 					if err == nil {
 						msgHandle := m.ReceiptHandle
-
-						// Use a background context here because ctx may be canceled already
-						a.authProvider.Sqs().Sqs.DeleteMessageWithContext(context.Background(), &sqs.DeleteMessageInput{
-							QueueUrl:      url,
-							ReceiptHandle: msgHandle,
-						})
+						if msgHandle != nil {
+							_, deleteError := a.sqsClient.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+								QueueUrl:      url,
+								ReceiptHandle: msgHandle,
+							})
+							if deleteError != nil {
+								a.logger.Errorf("failed to delete message from queue %q: %v", url, deleteError)
+							}
+						}
 					}
 				}
 			}
-
 			select {
 			case <-ctx.Done():
 			case <-a.closeCh:
@@ -165,8 +158,17 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 			}
 		}
 	}()
-
 	return nil
+}
+
+func (a *AWSSQS) getQueueURL(ctx context.Context, queueName string) (*string, error) {
+	out, err := a.sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+		QueueName: &queueName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out.QueueUrl, nil
 }
 
 func (a *AWSSQS) Close() error {
@@ -174,9 +176,6 @@ func (a *AWSSQS) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
-	if a.authProvider != nil {
-		return a.authProvider.Close()
-	}
 	return nil
 }
 
@@ -193,6 +192,10 @@ func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AWSSQS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sqsMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType); err != nil {
+		if a != nil && a.logger != nil {
+			a.logger.Errorf("failed to get component metadata: %v", err)
+		}
+	}
 	return
 }

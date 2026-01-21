@@ -18,12 +18,13 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms/openai"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-	"github.com/tmc/langchaingo/llms/openai"
 )
 
 type Ollama struct {

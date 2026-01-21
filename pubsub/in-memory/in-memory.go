@@ -18,7 +18,6 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/dapr/components-contrib/common/eventbus"
 	"github.com/dapr/components-contrib/metadata"
@@ -74,20 +73,10 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 		return errors.New("component is closed")
 	}
 
-	// For this component we allow built-in retries because it is backed by memory
 	retryHandler := func(data []byte, md map[string]string) {
-		for range 10 {
-			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: md})
-			if handleErr == nil {
-				break
-			}
-			a.log.Error(handleErr)
-			select {
-			case <-time.After(100 * time.Millisecond):
-				// Nop
-			case <-ctx.Done():
-				return
-			}
+		err := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: md})
+		if err != nil {
+			a.log.Error(err)
 		}
 	}
 	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)

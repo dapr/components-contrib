@@ -73,13 +73,14 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 		return errors.New("component is closed")
 	}
 
-	retryHandler := func(data []byte, md map[string]string) {
+	loghandler := func(data []byte, md map[string]string) {
 		err := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: md})
 		if err != nil {
 			a.log.Error(err)
 		}
 	}
-	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)
+
+	err := a.bus.SubscribeAsync(req.Topic, loghandler, true)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 		case <-ctx.Done():
 		case <-a.closeCh:
 		}
-		err := a.bus.Unsubscribe(req.Topic, retryHandler)
+		err := a.bus.Unsubscribe(req.Topic, loghandler)
 		if err != nil {
 			a.log.Errorf("error while unsubscribing from topic %s: %v", req.Topic, err)
 		}

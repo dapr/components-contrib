@@ -10,4 +10,5 @@ services:
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true
       - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+      - RAVEN_License_ThrowOnInvalidOrMissingLicense=true
     restart: unless-stopped

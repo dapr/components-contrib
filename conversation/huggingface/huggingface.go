@@ -54,7 +54,6 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetHuggingFaceModel(m.Model)
-
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {
 		endpoint = m.Endpoint
@@ -62,11 +61,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
-	options := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(m.Key),
-		openai.WithBaseURL(endpoint),
-	}
+	options := conversation.BuildOpenAIClientOptions(model, m.Key, endpoint)
 
 	llm, err := openai.New(options...)
 	if err != nil {

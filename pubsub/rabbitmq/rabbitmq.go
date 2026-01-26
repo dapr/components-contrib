@@ -499,8 +499,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 }
 
 func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
-	r.channelMutex.RLock()
-	defer r.channelMutex.RUnlock()
+	r.channelMutex.Lock()
+	defer r.channelMutex.Unlock()
 
 	if r.channel == nil {
 		return nil, r.connectionCount, nil, errors.New(errorChannelNotInitialized)

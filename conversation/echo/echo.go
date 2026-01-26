@@ -70,8 +70,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			conversationContext = r.ConversationContext
 		}
 		return &conversation.Response{
-			ConversationContext: conversationContext,
 			Outputs:             []conversation.Result{},
+			ConversationContext: conversationContext,
 		}, nil
 	}
 

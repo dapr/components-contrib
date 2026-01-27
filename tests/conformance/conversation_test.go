@@ -136,6 +136,9 @@ func loadConversationComponent(name string) conversation.Conversation {
 		return ollama.NewOllama(testLogger)
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
+	case "deepseek":
+		testLogger.Infof("TODO add deepseek conformance tests")
+		return nil
 	default:
 		return nil
 	}

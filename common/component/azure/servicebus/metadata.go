@@ -76,6 +76,20 @@ const (
 	keyQueueName                       = "queueName"
 )
 
+// Session-related keys.
+const (
+	RequireSessionsMetadataKey       = "requireSessions"
+	SessionIdleTimeoutMetadataKey    = "sessionIdleTimeoutInSec"
+	MaxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
+	SessionIDsMetadataKey            = "sessionIds"
+)
+
+// Session-related defaults.
+const (
+	DefaultSesssionIdleTimeoutInSec = 60
+	DefaultMaxConcurrentSessions    = 8
+)
+
 // Defaults.
 const (
 	// Default timeout for network requests.
@@ -239,7 +253,7 @@ func (a Metadata) CreateSubscriptionProperties(opts SubscribeOptions) *sbadmin.S
 }
 
 // CreateQueueProperties returns the QueueProperties object to create new Queues in Service Bus.
-func (a Metadata) CreateQueueProperties() *sbadmin.QueueProperties {
+func (a Metadata) CreateQueueProperties(requireSessions bool) *sbadmin.QueueProperties {
 	properties := &sbadmin.QueueProperties{}
 
 	if a.MaxDeliveryCount != nil {
@@ -256,6 +270,10 @@ func (a Metadata) CreateQueueProperties() *sbadmin.QueueProperties {
 
 	if a.AutoDeleteOnIdleInSec != nil {
 		properties.AutoDeleteOnIdle = toDurationISOString(*a.AutoDeleteOnIdleInSec)
+	}
+
+	if requireSessions {
+		properties.RequiresSession = ptr.Of(true)
 	}
 
 	return properties

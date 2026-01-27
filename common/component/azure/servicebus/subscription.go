@@ -31,13 +31,6 @@ import (
 )
 
 const (
-	RequireSessionsMetadataKey       = "requireSessions"
-	SessionIdleTimeoutMetadataKey    = "sessionIdleTimeoutInSec"
-	MaxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
-
-	DefaultSesssionIdleTimeoutInSec = 60
-	DefaultMaxConcurrentSessions    = 8
-
 	// Maximum number of concurrent operations such as lock renewals or message completion/abandonment
 	maxConcurrentOps = 20
 )

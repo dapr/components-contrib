@@ -14,7 +14,7 @@ require (
 	github.com/apache/pulsar-client-go v0.18.0
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.55.6
-	github.com/camunda/zeebe/clients/go/v8 v8.2.12
+	github.com/camunda/zeebe/clients/go/v8 v8.5.25
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cloudwego/kitex v0.15.4

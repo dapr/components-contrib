@@ -20,6 +20,6 @@
     },
     "dependencies": {
         "itty-router": "3.0.12",
-        "jose": "4.14.4"
+        "jose": "4.15.5"
     }
 }

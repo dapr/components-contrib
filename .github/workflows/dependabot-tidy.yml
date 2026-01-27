@@ -2,10 +2,11 @@ name: Dependabot modtidy-all
 on:
     pull_request:
         types: [opened, synchronize, reopened]
-    
+
 permissions:
     contents: write
     pull-requests: write
+    actions: write
 
 jobs:
     modtidy-all:
@@ -37,9 +38,25 @@ jobs:
                 fi
             - name: Commit and push changes
               if: steps.detect_changes.outputs.changes == 'true'
+              id: commit_push
               run: |
                 git commit -m "chore(deps): run go mod tidy for all modules"
                 git push --set-upstream origin HEAD
+                echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            - name: Trigger workflow runs on new commit
+              if: steps.detect_changes.outputs.changes == 'true'
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                REPO: ${{ github.repository }}
+                SHA: ${{ steps.commit_push.outputs.commit_sha }}
+              run: |
+                for WORKFLOW_FILE in components-contrib.yml conformance.yml certification.yml fossa.yml; do
+                  curl -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_FILE/dispatches \
+                    -d "{\"ref\": \"${SHA}\"}"
+                done
             - name: No changes to commit
               if: steps.detect_changes.outputs.changes == 'false'
               run: echo "No changes to commit"

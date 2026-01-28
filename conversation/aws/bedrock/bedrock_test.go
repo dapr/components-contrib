@@ -30,8 +30,8 @@ import (
 )
 
 func TestNewAWSBedrock(t *testing.T) {
-	logger := logger.NewLogger("bedrock test")
-	b := NewAWSBedrock(logger)
+	lg := logger.NewLogger("bedrock test")
+	b := NewAWSBedrock(lg)
 	assert.NotNil(t, b)
 	assert.Implements(t, (*conversation.Conversation)(nil), b)
 }
@@ -69,20 +69,20 @@ func TestInit(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "with cacheTTL",
+			name: "with responseCacheTTL",
 			metadata: map[string]string{
-				"region":   "us-east-1",
-				"model":    "amazon.titan-text-lite-v1",
-				"cacheTTL": "5m",
+				"region":           "us-east-1",
+				"model":            "amazon.titan-text-lite-v1",
+				"responseCacheTTL": "5m",
 			},
 			expectError: false,
 		},
 		{
-			name: "invalid cacheTTL",
+			name: "invalid responseCacheTTL",
 			metadata: map[string]string{
-				"region":   "us-east-1",
-				"model":    "amazon.titan-text-lite-v1",
-				"cacheTTL": "invalid",
+				"region":           "us-east-1",
+				"model":            "amazon.titan-text-lite-v1",
+				"responseCacheTTL": "invalid",
 			},
 			expectError: true,
 		},
@@ -120,7 +120,7 @@ func TestGetComponentMetadata(t *testing.T) {
 	md := b.GetComponentMetadata()
 	assert.NotEmpty(t, md)
 
-	expectedFields := []string{"Region", "Endpoint", "AccessKey", "SecretKey", "SessionToken", "Model", "CacheTTL", "AssumeRoleArn", "TrustAnchorArn", "TrustProfileArn"}
+	expectedFields := []string{"Region", "Endpoint", "AccessKey", "SecretKey", "SessionToken", "Model", "responseCacheTTL", "AssumeRoleArn", "TrustAnchorArn", "TrustProfileArn"}
 	for _, field := range expectedFields {
 		_, exists := md[field]
 		assert.True(t, exists, "Field %s should exist in metadata", field)

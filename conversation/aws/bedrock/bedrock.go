@@ -46,7 +46,7 @@ type AWSBedrockMetadata struct {
 	SecretKey        string         `json:"secretKey"`
 	SessionToken     string         `json:"sessionToken"`
 	Model            string         `json:"model"`
-	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL"`
+	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL" mdaliases:"cacheTTL"`
 
 	// TODO: @mikeee - Consider exporting awsCommonAuth.awsRAOpts and using it here
 	AssumeRoleArn   string `json:"assumeRoleArn"`
@@ -117,7 +117,7 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 func (b *AWSBedrock) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := AWSBedrockMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

@@ -1,8 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.24.6
-
-toolchain go1.24.7
+go 1.24.11
 
 require (
 	cloud.google.com/go/pubsub v1.49.0
@@ -14,15 +12,15 @@ require (
 	github.com/apache/pulsar-client-go v0.18.0
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.55.6
-	github.com/camunda/zeebe/clients/go/v8 v8.2.12
+	github.com/camunda/zeebe/clients/go/v8 v8.5.25
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cloudwego/kitex v0.15.4
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.16.0-rc.8
-	github.com/dapr/dapr v1.16.0-rc.8
-	github.com/dapr/go-sdk v1.10.0-rc-1.0.20240507160435-33180dd89a46
-	github.com/dapr/kit v0.16.1
+	github.com/dapr/components-contrib v1.16.8
+	github.com/dapr/dapr v1.16.8
+	github.com/dapr/go-sdk v1.13.0
+	github.com/dapr/kit v0.16.2-0.20251124175541-3ac186dff64d
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-redis/redis/v8 v8.11.5
@@ -33,7 +31,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx/v2 v2.0.21
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	github.com/rabbitmq/amqp091-go v1.9.0
+	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/riferrei/srclient v0.7.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tylertreat/comcast v1.0.1
@@ -132,8 +130,8 @@ require (
 	github.com/cloudwego/runtimex v0.1.1 // indirect
 	github.com/cloudwego/thriftgo v0.4.3 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
-	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
-	github.com/dapr/durabletask-go v0.9.0 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
+	github.com/dapr/durabletask-go v0.10.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -273,7 +271,7 @@ require (
 	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
-	github.com/puzpuzpuz/xsync/v3 v3.0.0 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/redis/go-redis/v9 v9.6.3 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -344,7 +342,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect

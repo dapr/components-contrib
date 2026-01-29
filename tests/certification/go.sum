@@ -418,8 +418,6 @@ github.com/cyphar/filepath-securejoin v0.6.1 h1:5CeZ1jPXEiYt3+Z6zqprSAgSWiggmpVy
 github.com/cyphar/filepath-securejoin v0.6.1/go.mod h1:A8hd4EnAeyujCJRrICiOWqjS1AX0a9kM5XL+NwKoYSc=
 github.com/dapr/dapr v1.16.8 h1:Lsl0JEhYq6EoV3LxmAbu5Ip30//Lax/9QGH/QeQ/HjY=
 github.com/dapr/dapr v1.16.8/go.mod h1:m2cYe+R8+OuhMm9V8OdeyK8xOMNjS2ZkzaVwtGa1AFE=
-github.com/dapr/dapr v1.17.0-rc.3 h1:eEDD9eZRIQTGVmPPalW++Gg0Hb84OSSEk5LsxrE6v8A=
-github.com/dapr/dapr v1.17.0-rc.3/go.mod h1:BboW5+mQJkqzb6W7s7MZ3lavbPiwuaKjVU8I7/lwvas=
 github.com/dapr/durabletask-go v0.10.2 h1:LrPcfyvVC30uqfsQgV1m6NHPXlYTwFxnpuVWxt4Q8/E=
 github.com/dapr/durabletask-go v0.10.2/go.mod h1:0Ts4rXp74JyG19gDWPcwNo5V6NBZzhARzHF5XynmA7Q=
 github.com/dapr/go-sdk v1.13.0 h1:Qw2BmUonClQ9yK/rrEEaFL1PyDgq616RrvYj0CT67Lk=

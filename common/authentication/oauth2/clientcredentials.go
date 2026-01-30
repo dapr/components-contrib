@@ -118,8 +118,8 @@ func LoadCredentialsFromJSONFile(filePath string) (clientID, clientSecret, issue
 		return "", "", "", fmt.Errorf("failed to parse JSON credentials file: %w", err)
 	}
 
-	if creds.ClientID == "" || creds.ClientSecret == "" || creds.IssuerURL == "" {
-		return "", "", "", errors.New("credentials file must contain client_id, client_secret, and issuer_url")
+	if creds.ClientID == "" || creds.ClientSecret == "" {
+		return "", "", "", errors.New("credentials file must contain client_id and client_secret")
 	}
 
 	return creds.ClientID, creds.ClientSecret, creds.IssuerURL, nil

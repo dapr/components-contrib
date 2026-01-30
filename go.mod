@@ -51,6 +51,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.4
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.42.10
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.32.4
+	github.com/aws/aws-sdk-go-v2/service/ses v1.34.18
 	github.com/aws/aws-sdk-go-v2/service/sns v1.34.7
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.8
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0

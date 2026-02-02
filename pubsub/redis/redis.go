@@ -246,6 +246,17 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
+		if r.clientSettings.AckOnError {
+			r.logger.Infof("Acknowledging Redis message %s on error to avoid re-delivery beyond the configured retry count", msg.messageID)
+			// Use the background context in case subscriptionCtx is already closed.
+			if err := r.client.XAck(context.Background(), msg.message.Topic, r.clientSettings.ConsumerID, msg.messageID); err != nil {
+				r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
+
+				return err
+			}
+			return nil
+		}
+
 		return err
 	}
 

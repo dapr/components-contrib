@@ -109,6 +109,10 @@ type Settings struct {
 	// The TTL of stream entries
 	StreamTTL time.Duration `mapstructure:"streamTTL" mdonly:"pubsub"`
 
+	// When true, acknowledgements are sent even if the handler returns an error.
+	// This honors the runtime resiliency policy and disables Redis redelivery once the runtime resiliency policy has finished retrying.
+	AckOnError bool `mapstructure:"ackOnError" mdonly:"pubsub"`
+
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`

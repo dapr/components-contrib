@@ -34,7 +34,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.21
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.9.0
-	github.com/riferrei/srclient v0.7.2
+	github.com/riferrei/srclient v0.7.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.14.0
@@ -235,7 +235,7 @@ require (
 	github.com/lestrrat-go/httprc v1.0.5 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
-	github.com/linkedin/goavro/v2 v2.14.0 // indirect
+	github.com/linkedin/goavro/v2 v2.14.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

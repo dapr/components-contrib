@@ -102,7 +102,8 @@ func TestProcessStreams(t *testing.T) {
 	// act
 	testRedisStream := &redisStreams{
 		logger:         logger.NewLogger("test"),
-		clientSettings: &commonredis.Settings{},
+		client:         &stubRedisClient{},
+		clientSettings: &commonredis.Settings{ConsumerID: "group"},
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
@@ -140,7 +141,8 @@ func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
 	// act
 	testRedisStream := &redisStreams{
 		logger:         logger.NewLogger("test"),
-		clientSettings: &commonredis.Settings{},
+		client:         &stubRedisClient{},
+		clientSettings: &commonredis.Settings{ConsumerID: "group"},
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
@@ -153,42 +155,13 @@ func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
 	assert.Equal(t, 3, messageCount)
 }
 
-func TestProcessMessageAckOnErrorDisabled(t *testing.T) {
+func TestProcessMessageAcksOnError(t *testing.T) {
 	client := &stubRedisClient{}
 	rs := &redisStreams{
 		logger: logger.NewLogger("test"),
 		client: client,
 		clientSettings: &commonredis.Settings{
 			ConsumerID: "group",
-			AckOnError: false,
-		},
-	}
-
-	msg := redisMessageWrapper{
-		ctx:       context.Background(),
-		messageID: "1-0",
-		message: pubsub.NewMessage{
-			Topic: "topic",
-		},
-		handler: func(context.Context, *pubsub.NewMessage) error {
-			return errors.New("retry")
-		},
-	}
-
-	err := rs.processMessage(msg)
-
-	require.Error(t, err)
-	assert.Equal(t, 0, client.ackCount)
-}
-
-func TestProcessMessageAckOnErrorEnabled(t *testing.T) {
-	client := &stubRedisClient{}
-	rs := &redisStreams{
-		logger: logger.NewLogger("test"),
-		client: client,
-		clientSettings: &commonredis.Settings{
-			ConsumerID: "group",
-			AckOnError: true,
 		},
 	}
 
@@ -212,7 +185,7 @@ func TestProcessMessageAckOnErrorEnabled(t *testing.T) {
 	assert.Equal(t, "1-0", client.ackMessageID)
 }
 
-func TestProcessMessageAckOnErrorAckFailure(t *testing.T) {
+func TestProcessMessageAckFailureOnError(t *testing.T) {
 	client := &stubRedisClient{
 		ackErr: errors.New("ack-failed"),
 	}
@@ -221,7 +194,6 @@ func TestProcessMessageAckOnErrorAckFailure(t *testing.T) {
 		client: client,
 		clientSettings: &commonredis.Settings{
 			ConsumerID: "group",
-			AckOnError: true,
 		},
 	}
 

@@ -98,12 +98,6 @@ metadata:
     example: "30s"
     type: duration
     default: "15s"
-  - name: ackOnError
-    required: false
-    description: |
-      When true, acknowledgements are sent even if the handler returns an error/retry. Use to respect the runtime resiliency policy and stop Redis redelivery after the runtime resiliency policy has exhausted its retries.
-    example: "true"
-    type: bool
   - name: queueDepth
     required: false
     description: |

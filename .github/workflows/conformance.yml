@@ -204,7 +204,7 @@ jobs:
 
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v3.1.2
 
     - name: Set Cloudflare env vars
       if: matrix.require-cloudflare-credentials == 'true'

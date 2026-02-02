@@ -166,7 +166,7 @@ func TestProcessMessageAcksOnError(t *testing.T) {
 	}
 
 	msg := redisMessageWrapper{
-		ctx:       context.Background(),
+		ctx:       t.Context(),
 		messageID: "1-0",
 		message: pubsub.NewMessage{
 			Topic: "topic",
@@ -198,7 +198,7 @@ func TestProcessMessageAckFailureOnError(t *testing.T) {
 	}
 
 	msg := redisMessageWrapper{
-		ctx:       context.Background(),
+		ctx:       t.Context(),
 		messageID: "1-0",
 		message: pubsub.NewMessage{
 			Topic: "topic",

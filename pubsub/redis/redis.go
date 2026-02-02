@@ -248,7 +248,7 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 		// always ack to stop Redis redelivery after the runtime resiliency policy has been applied
 		if err := r.client.XAck(context.Background(), msg.message.Topic, r.clientSettings.ConsumerID, msg.messageID); err != nil {
 			r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
-	
+
 			return err
 		}
 		return nil

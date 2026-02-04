@@ -245,13 +245,11 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	}
 	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
-		// always ack to stop Redis redelivery after the runtime resiliency policy has been applied
 		if ctx.Err() != nil {
 			// If the subscription context is cancelled (shutdown/timeout), skip ACK so Redis can redeliver after restart.
 			return err
 		}
-		// Use the background context in case subscriptionCtx is already closed, ie a race condition between this line and the one above.
-		if err := r.client.XAck(context.Background(), msg.message.Topic, r.clientSettings.ConsumerID, msg.messageID); err != nil {
+		if err := r.client.XAck(ctx, msg.message.Topic, r.clientSettings.ConsumerID, msg.messageID); err != nil {
 			r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
 
 			return err

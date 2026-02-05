@@ -47,4 +47,46 @@ func TestParseMetadata(t *testing.T) {
 		require.Error(t, err, "Expected err to be returned.")
 		require.ErrorContains(t, err, "namespace is missing in metadata", "Error message not same.")
 	})
+	t.Run("parse metadata with labelSelector", func(t *testing.T) {
+		labelSelector := "app=myapp"
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "labelSelector": labelSelector}
+
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
+
+		require.NoError(t, err, "Expected no error.")
+		assert.Equal(t, nsName, i.metadata.Namespace, "The namespaces should be the same.")
+		assert.Equal(t, labelSelector, i.metadata.LabelSelector, "The labelSelector should be the same.")
+	})
+	t.Run("parse metadata with fieldSelector", func(t *testing.T) {
+		fieldSelector := "involvedObject.kind=Pod"
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "fieldSelector": fieldSelector}
+
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
+
+		require.NoError(t, err, "Expected no error.")
+		assert.Equal(t, nsName, i.metadata.Namespace, "The namespaces should be the same.")
+		assert.Equal(t, fieldSelector, i.metadata.FieldSelector, "The fieldSelector should be the same.")
+	})
+	t.Run("parse metadata with both selectors", func(t *testing.T) {
+		labelSelector := "app=myapp"
+		fieldSelector := "involvedObject.kind=Pod"
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"namespace":     nsName,
+			"labelSelector": labelSelector,
+			"fieldSelector": fieldSelector,
+		}
+
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
+
+		require.NoError(t, err, "Expected no error.")
+		assert.Equal(t, nsName, i.metadata.Namespace, "The namespaces should be the same.")
+		assert.Equal(t, labelSelector, i.metadata.LabelSelector, "The labelSelector should be the same.")
+		assert.Equal(t, fieldSelector, i.metadata.FieldSelector, "The fieldSelector should be the same.")
+	})
 }

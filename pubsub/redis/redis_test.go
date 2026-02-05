@@ -102,7 +102,8 @@ func TestProcessStreams(t *testing.T) {
 	// act
 	testRedisStream := &redisStreams{
 		logger:         logger.NewLogger("test"),
-		clientSettings: &commonredis.Settings{},
+		client:         &stubRedisClient{},
+		clientSettings: &commonredis.Settings{ConsumerID: "group"},
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
@@ -140,7 +141,8 @@ func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
 	// act
 	testRedisStream := &redisStreams{
 		logger:         logger.NewLogger("test"),
-		clientSettings: &commonredis.Settings{},
+		client:         &stubRedisClient{},
+		clientSettings: &commonredis.Settings{ConsumerID: "group"},
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
@@ -151,6 +153,66 @@ func TestProcessStreamsWithoutEventMetadata(t *testing.T) {
 
 	// assert
 	assert.Equal(t, 3, messageCount)
+}
+
+func TestProcessMessageAcksOnError(t *testing.T) {
+	client := &stubRedisClient{}
+	rs := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID: "group",
+		},
+	}
+
+	msg := redisMessageWrapper{
+		ctx:       t.Context(),
+		messageID: "1-0",
+		message: pubsub.NewMessage{
+			Topic: "topic",
+		},
+		handler: func(context.Context, *pubsub.NewMessage) error {
+			return errors.New("retry")
+		},
+	}
+
+	err := rs.processMessage(msg)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, client.ackCount)
+	assert.Equal(t, "topic", client.ackStream)
+	assert.Equal(t, "group", client.ackGroup)
+	assert.Equal(t, "1-0", client.ackMessageID)
+}
+
+func TestProcessMessageAckFailureOnError(t *testing.T) {
+	client := &stubRedisClient{
+		ackErr: errors.New("ack-failed"),
+	}
+	rs := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID: "group",
+		},
+	}
+
+	msg := redisMessageWrapper{
+		ctx:       t.Context(),
+		messageID: "1-0",
+		message: pubsub.NewMessage{
+			Topic: "topic",
+		},
+		handler: func(context.Context, *pubsub.NewMessage) error {
+			return errors.New("retry")
+		},
+	}
+
+	err := rs.processMessage(msg)
+
+	require.Error(t, err)
+	assert.Equal(t, client.ackErr, err)
+	assert.Equal(t, 1, client.ackCount)
 }
 
 func generateRedisStreamTestData(messageCount int, data string, metadata string) []commonredis.RedisXMessage {
@@ -176,3 +238,107 @@ func generateRedisStreamTestData(messageCount int, data string, metadata string)
 
 	return xmessageArray
 }
+
+type stubRedisClient struct {
+	ackCount     int
+	ackErr       error
+	ackStream    string
+	ackGroup     string
+	ackMessageID string
+}
+
+func (s *stubRedisClient) GetNilValueError() commonredis.RedisError {
+	return commonredis.RedisError("nil")
+}
+
+func (s *stubRedisClient) Context() context.Context {
+	return context.Background()
+}
+
+func (s *stubRedisClient) DoRead(context.Context, ...interface{}) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *stubRedisClient) DoWrite(context.Context, ...interface{}) error {
+	return nil
+}
+
+func (s *stubRedisClient) Del(context.Context, ...string) error {
+	return nil
+}
+
+func (s *stubRedisClient) Get(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (s *stubRedisClient) GetDel(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (s *stubRedisClient) Close() error {
+	return nil
+}
+
+func (s *stubRedisClient) PingResult(context.Context) (string, error) {
+	return "", nil
+}
+
+func (s *stubRedisClient) ConfigurationSubscribe(context.Context, *commonredis.ConfigurationSubscribeArgs) {
+}
+
+func (s *stubRedisClient) SetNX(context.Context, string, interface{}, time.Duration) (*bool, error) {
+	return nil, nil
+}
+
+func (s *stubRedisClient) EvalInt(context.Context, string, []string, ...interface{}) (*int, error, error) {
+	i := 0
+	return &i, nil, nil
+}
+
+func (s *stubRedisClient) XAdd(context.Context, string, int64, string, map[string]interface{}) (string, error) {
+	return "", nil
+}
+
+func (s *stubRedisClient) XGroupCreateMkStream(context.Context, string, string, string) error {
+	return nil
+}
+
+func (s *stubRedisClient) XAck(ctx context.Context, stream string, group string, messageID string) error {
+	s.ackCount++
+	s.ackStream = stream
+	s.ackGroup = group
+	s.ackMessageID = messageID
+	return s.ackErr
+}
+
+func (s *stubRedisClient) XReadGroupResult(context.Context, string, string, []string, int64, time.Duration) ([]commonredis.RedisXStream, error) {
+	return nil, nil
+}
+
+func (s *stubRedisClient) XPendingExtResult(context.Context, string, string, string, string, int64) ([]commonredis.RedisXPendingExt, error) {
+	return nil, nil
+}
+
+func (s *stubRedisClient) XClaimResult(context.Context, string, string, string, time.Duration, []string) ([]commonredis.RedisXMessage, error) {
+	return nil, nil
+}
+
+func (s *stubRedisClient) TxPipeline() commonredis.RedisPipeliner {
+	return &stubRedisPipeliner{}
+}
+
+func (s *stubRedisClient) TTLResult(context.Context, string) (time.Duration, error) {
+	return 0, nil
+}
+
+func (s *stubRedisClient) AuthACL(context.Context, string, string) error {
+	return nil
+}
+
+type stubRedisPipeliner struct{}
+
+func (p *stubRedisPipeliner) Exec(context.Context) error {
+	return nil
+}
+
+func (p *stubRedisPipeliner) Do(context.Context, ...interface{}) {}

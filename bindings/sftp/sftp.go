@@ -53,6 +53,7 @@ type sftpMetadata struct {
 	HostPublicKey         []byte `json:"hostPublicKey"`
 	KnownHostsFile        string `json:"knownHostsFile"`
 	InsecureIgnoreHostKey bool   `json:"insecureIgnoreHostKey"`
+	SequentialMode        bool   `json:"sequentialMode"`
 }
 
 type createResponse struct {
@@ -128,7 +129,7 @@ func (sftp *Sftp) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 
 	sftp.metadata = m
-	sftp.c, err = newClient(m.Address, config, sftp.logger)
+	sftp.c, err = newClient(m.Address, config, m.SequentialMode, sftp.logger)
 	if err != nil {
 		return fmt.Errorf("sftp binding error: create sftp client error: %w", err)
 	}

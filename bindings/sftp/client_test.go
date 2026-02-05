@@ -125,4 +125,3 @@ func TestShouldReconnect(t *testing.T) {
 		assert.True(t, c.shouldReconnect(err))
 	})
 }
-

@@ -36,9 +36,10 @@ type Client struct {
 	lock           sync.RWMutex
 	needsReconnect atomic.Bool
 	log            logger.Logger
+	sequentialMode bool
 }
 
-func newClient(address string, config *ssh.ClientConfig, log logger.Logger) (*Client, error) {
+func newClient(address string, config *ssh.ClientConfig, sequentialMode bool, log logger.Logger) (*Client, error) {
 	if address == "" || config == nil {
 		return nil, errors.New("sftp binding error: client not initialized")
 	}
@@ -55,11 +56,12 @@ func newClient(address string, config *ssh.ClientConfig, log logger.Logger) (*Cl
 	}
 
 	return &Client{
-		sshClient:  sshClient,
-		sftpClient: newSftpClient,
-		address:    address,
-		config:     config,
-		log:        log,
+		sshClient:      sshClient,
+		sftpClient:     newSftpClient,
+		address:        address,
+		config:         config,
+		log:            log,
+		sequentialMode: sequentialMode,
 	}, nil
 }
 
@@ -202,8 +204,14 @@ func (c *Client) withReconnection(fn func() error) error {
 }
 
 func (c *Client) do(fn func() error) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	if c.sequentialMode {
+		c.lock.Lock()
+		defer c.lock.Unlock()
+		return fn()
+	}
+
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return fn()
 }
 

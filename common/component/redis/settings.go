@@ -16,15 +16,21 @@ package redis
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dapr/kit/config"
 )
 
+const defaultRedisPort = "6379"
+
 type Settings struct {
 	// The Redis host
 	Host string `mapstructure:"redisHost"`
+	// The Redis port (optional, appended to Host if Host does not already contain a port)
+	Port string `mapstructure:"redisPort"`
 	// The Redis password
 	Password string `mapstructure:"redisPassword"`
 	// The Redis username
@@ -119,7 +125,66 @@ func (s *Settings) Decode(in interface{}) error {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 
+	resolved, err := resolveHost(s.Host, s.Port)
+	if err != nil {
+		return err
+	}
+	s.Host = resolved
+
 	return nil
+}
+
+// resolveHost ensures Host contains a port. If Host already includes a port
+// (contains ":"), it is returned unchanged. Otherwise, the separate Port value
+// is appended; when Port is empty the Redis default (6379) is used.
+// For comma-separated host lists (cluster/sentinel), each entry is resolved
+// individually.
+// Returns an error if any address already contains a port that conflicts with
+// a separately configured port value.
+func resolveHost(host, port string) (string, error) {
+	if host == "" {
+		return host, nil
+	}
+
+	// Comma-separated addresses (cluster or sentinel mode).
+	if strings.Contains(host, ",") {
+		addrs := strings.Split(host, ",")
+		for i, addr := range addrs {
+			resolved, err := resolveAddr(strings.TrimSpace(addr), port)
+			if err != nil {
+				return "", err
+			}
+			addrs[i] = resolved
+		}
+		return strings.Join(addrs, ","), nil
+	}
+
+	return resolveAddr(host, port)
+}
+
+// resolveAddr appends port to a single address when it does not already
+// contain one. Returns an error if the address already contains a port that
+// conflicts with the separately configured port value.
+func resolveAddr(addr, port string) (string, error) {
+	if addr == "" {
+		return addr, nil
+	}
+
+	// Already has a port.
+	if _, existingPort, err := net.SplitHostPort(addr); err == nil {
+		if port != "" && port != existingPort {
+			return "", fmt.Errorf(
+				"redis host %q already contains port %s, but redisPort is set to %s; "+
+					"either remove the port from redisHost or remove the redisPort setting",
+				addr, existingPort, port)
+		}
+		return addr, nil
+	}
+
+	if port == "" {
+		port = defaultRedisPort
+	}
+	return net.JoinHostPort(addr, port), nil
 }
 
 func (s *Settings) SetCertificate(fn func(cert *tls.Certificate)) error {

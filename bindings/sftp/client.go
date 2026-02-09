@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	sysPath "path"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -108,12 +109,16 @@ func (c *Client) create(data []byte, path string) (string, error) {
 	createFn := func() error {
 		// Only create directory if it doesn't already exist
 		// This prevents "not a directory" errors on strict SFTP servers like Axway MFT
-		if dir != "" && dir != "." && dir != "/" {
-			_, statErr := c.sftpClient.Stat(dir)
-			if statErr != nil {
+		dir = sysPath.Clean(dir)
+		if dir != "." {
+			if _, statErr := c.sftpClient.Stat(dir); statErr != nil {
 				// Directory doesn't exist, create it
-				if mkdirErr := c.sftpClient.MkdirAll(dir); mkdirErr != nil {
-					return fmt.Errorf("error create dir %s: %w", dir, mkdirErr)
+				if isDirNotExistError(statErr) {
+					if mkdirErr := c.sftpClient.MkdirAll(dir); mkdirErr != nil {
+						return fmt.Errorf("error create dir %s: %w", dir, mkdirErr)
+					}
+				} else {
+					return fmt.Errorf("error checking dir %s: %w", dir, statErr)
 				}
 			}
 		}
@@ -207,11 +212,11 @@ func (c *Client) do(fn func() error) error {
 	if c.sequentialMode {
 		c.lock.Lock()
 		defer c.lock.Unlock()
-		return fn()
+	} else {
+		c.lock.RLock()
+		defer c.lock.RUnlock()
 	}
 
-	c.lock.RLock()
-	defer c.lock.RUnlock()
 	return fn()
 }
 
@@ -301,4 +306,11 @@ func (c *Client) shouldReconnect(err error) bool {
 	}
 
 	return true
+}
+
+func isDirNotExistError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, sftpClient.ErrSSHFxNoSuchFile)
 }

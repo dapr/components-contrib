@@ -206,7 +206,7 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 func (r *RavenDB) Ping(ctx context.Context) error {
 	session, err := r.documentStore.OpenSession("")
 	if err != nil {
-		return fmt.Errorf("error opening session while storing data faild with error %s", err)
+		return fmt.Errorf("pinging database failed with error %s", err)
 	}
 	defer session.Close()
 
@@ -216,7 +216,7 @@ func (r *RavenDB) Ping(ctx context.Context) error {
 func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
-		return fmt.Errorf("error opening session while storing data faild with error %s", err)
+		return fmt.Errorf("opening session while sending transaction failed with error %s", err)
 	}
 	defer session.Close()
 	for _, o := range request.Operations {
@@ -254,14 +254,14 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 	}
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
-		return []state.BulkGetResponse{}, fmt.Errorf("error opening session while storing data faild with error %s", err)
+		return []state.BulkGetResponse{}, fmt.Errorf("opening session while getting bulk data failed with error %s", err)
 	}
 	defer session.Close()
 
 	items := make(map[string]*Item, len(keys))
 	err = session.LoadMulti(items, keys)
 	if err != nil {
-		return []state.BulkGetResponse{}, fmt.Errorf("faield bulk get with error: %s", err)
+		return []state.BulkGetResponse{}, fmt.Errorf("failed bulk get with error: %s", err)
 	}
 
 	resp := make([]state.BulkGetResponse, 0, len(items))
@@ -325,7 +325,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 	if req.Options.Concurrency == state.FirstWrite {
 		// First write wins, we send empty change vector to check if exists
 
-		// current SDK version of go doesn't let us to check concurency violation on items that are not in databse.
+		// current version of the go ravendb SDK doesn't let us check concurrency violation on items that are not in the database.
 		// we need to try to load, and do regullar save if item is not in DB (real first save)
 		// if we have item in DB we can try to override it with concurency check
 		var newItem *Item

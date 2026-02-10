@@ -312,5 +312,7 @@ func isDirNotExistError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, sftpClient.ErrSSHFxNoSuchFile)
+
+	return errors.Is(err, sftpClient.ErrSSHFxNoSuchFile) ||
+		strings.Contains(strings.ToLower(err.Error()), "file does not exist")
 }

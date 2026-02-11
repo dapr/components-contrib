@@ -123,8 +123,11 @@ func checkCryptographyComponents() {
 	fmt.Println("\nChecking cryptography components...")
 	// below is not actually a component. Cryptography section in contrib needs quite a bit of clean up/organization to clean this up so I don't have to "ignore" it.
 	ignoreContribComponents := []string{"pubkey_cache"}
-	// We ignore the dapr prefixes here bc they are captured properly without the dapr prefix.
-	ignoreDaprComponents := []string{"dapr.localstorage", "dapr.kubernetes.secrets", "dapr.jwks"}
+	// For crypto, runtime components are registered with a dapr.* prefix (for example, dapr.jwks)
+	// while contrib components use the unprefixed name (for example, jwks).
+	// Instead of ignoring the dapr.* names, we treat "dapr" as a vendor prefix in normalization
+	// so counts still line up.
+	ignoreDaprComponents := []string{}
 	// TODO: in future update this to cryptography once we have a cryptography component in contrib and not crypto components
 	checkComponents("crypto", ignoreDaprComponents, ignoreContribComponents)
 }
@@ -320,8 +323,9 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
 		}
 	} else {
-		// For bindings, capture both RegisterInputBinding and RegisterOutputBinding
-		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterInputBinding\|RegisterOutputBinding" ../dapr/cmd/daprd/components/%s_*.go`, componentType))
+		// For bindings, capture both RegisterInputBinding and RegisterOutputBinding.
+		// Also include files that are disabled but still present for registration (bindings_kitex.go_disabled)
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterInputBinding\|RegisterOutputBinding" ../dapr/cmd/daprd/components/%s_*.go*`, componentType))
 		registeredOutput, err = registeredCmd.Output()
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)
@@ -359,14 +363,12 @@ func validateComponents(contribComponents []string, componentType string) ([]str
 }
 
 func checkComponentRegistration(contrib, componentType string) error {
-	// For registration files, convert component name to file naming convention
-	// EX: alicloud.tablestore -> state_alicloud_tablestore.go
-	compFileName := getRegistrationFileName(contrib, componentType)
-
-	fileExistsCmd := exec.Command("ls", compFileName)
-	_, err := fileExistsCmd.Output()
+	// For registration files, resolve the actual registration filename.
+	// This supports both the normal filename (e.g. bindings_kitex.go) and
+	// disabled variants that share the same prefix (e.g. bindings_kitex.go_disabled).
+	compFileName, err := getRegistrationFilePath(contrib, componentType)
 	if err != nil {
-		return fmt.Errorf("registration file for '%s' not found: %s", contrib, compFileName)
+		return err
 	}
 
 	// Check if this is a versioned component
@@ -377,7 +379,7 @@ func checkComponentRegistration(contrib, componentType string) error {
 		if strings.HasPrefix(lastPart, "v") && len(lastPart) <= 3 {
 			// This is a versioned component, check if the base component is registered
 			baseComponent := strings.Join(parts[:len(parts)-1], ".")
-			if err := checkComponentIsActuallyRegisteredInFile(baseComponent, compFileName); err != nil {
+			if err := checkComponentIsActuallyRegisteredInFile(baseComponent, componentType, compFileName); err != nil {
 				return fmt.Errorf("versioned component '%s' base component '%s' not registered in %s: %v", contrib, baseComponent, compFileName, err)
 			}
 			if verbose {
@@ -387,7 +389,7 @@ func checkComponentRegistration(contrib, componentType string) error {
 		}
 	}
 
-	if err := checkComponentIsActuallyRegisteredInFile(contrib, compFileName); err != nil {
+	if err := checkComponentIsActuallyRegisteredInFile(contrib, componentType, compFileName); err != nil {
 		return fmt.Errorf("component '%s' not registered in %s: %v", contrib, compFileName, err)
 	}
 
@@ -397,25 +399,36 @@ func checkComponentRegistration(contrib, componentType string) error {
 	return nil
 }
 
-// checkComponentIsActuallyRegisteredInFile basically checks for if the component name string is within the file
+// checkComponentIsActuallyRegisteredInFile basically checks if the component name string is within the file
 // to ensure it is properly registered within runtime.
-func checkComponentIsActuallyRegisteredInFile(contrib, registrationFile string) error {
-	// Use grep to find the exact component name in quotes
-	grepCmd := exec.Command("grep", "-q", fmt.Sprintf(`"%s"`, contrib), registrationFile)
-	_, err := grepCmd.Output()
-	if err != nil {
-		return fmt.Errorf("component '%s' not found in registration file '%s'", contrib, registrationFile)
+func checkComponentIsActuallyRegisteredInFile(contrib, componentType, registrationFile string) error {
+	namesToCheck := []string{contrib}
+
+	// Crypto providers are registered with a dapr.* prefix in runtime (for example, dapr.jwks),
+	// while contrib uses the unprefixed name (for example, jwks). Treat either as valid.
+	if componentType == "crypto" {
+		namesToCheck = append(namesToCheck, fmt.Sprintf("dapr.%s", contrib))
 	}
 
-	return nil
+	for _, name := range namesToCheck {
+		grepCmd := exec.Command("grep", "-q", fmt.Sprintf(`"%s"`, name), registrationFile)
+		if _, err := grepCmd.Output(); err == nil {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("component '%s' (or dapr.%s) not found in registration file '%s'", contrib, contrib, registrationFile)
 }
 
 func checkBuildTag(contrib, componentType string) error {
-	compFileName := getRegistrationFileName(contrib, componentType)
+	compFileName, err := getRegistrationFilePath(contrib, componentType)
+	if err != nil {
+		return err
+	}
 
 	// Check for "go:build allcomponents"
 	buildTagCmd := exec.Command("grep", "-q", "allcomponents", compFileName)
-	_, err := buildTagCmd.Output()
+	_, err = buildTagCmd.Output()
 	if err != nil {
 		return fmt.Errorf("build tag for 'allcomponents' not found in %s", compFileName)
 	}
@@ -436,7 +449,7 @@ func normalizeComponentName(contrib string) string {
 	parts := strings.Split(contrib, ".")
 	// Note: I am putting http as a vendor prefix, but that should be removed and all http middleware components should be http.blah bc
 	// in future we could add grpc middleware components.
-	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare", "ibm", "tencentcloud", "huaweicloud", "twilio", "http"}
+	vendorPrefixes := []string{"hashicorp", "aws", "azure", "gcp", "alicloud", "oci", "cloudflare", "ibm", "tencentcloud", "huaweicloud", "twilio", "http", "dapr"}
 	versionSuffixes := []string{"v1", "v2", "internal"}
 
 	// Handle 2-part names (vendor.component)
@@ -642,6 +655,34 @@ func getRegistrationFileName(contrib, componentType string) string {
 	}
 
 	return fmt.Sprintf("../dapr/cmd/daprd/components/%s_%s.go", componentType, fileName)
+}
+
+// getRegistrationFilePath returns the actual registration file path on disk.
+// It first looks for the exact expected filename (something like bindings_kitex.go).
+// If that does not exist, it falls back to any file that has the same prefix,
+// which allows handling disabled files like bindings_kitex.go_disabled.
+func getRegistrationFilePath(contrib, componentType string) (string, error) {
+	compFileName := getRegistrationFileName(contrib, componentType)
+
+	// First try the exact filename.
+	fileExistsCmd := exec.Command("ls", compFileName)
+	if _, err := fileExistsCmd.Output(); err == nil {
+		return compFileName, nil
+	}
+
+	// Fallback: treat the expected filename as a prefix and look for any match.
+	prefixCmd := exec.Command("sh", "-c", fmt.Sprintf("ls %s*", compFileName))
+	output, err := prefixCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("registration file for '%s' not found: %s", contrib, compFileName)
+	}
+
+	paths := strings.Fields(string(output))
+	if len(paths) == 0 {
+		return "", fmt.Errorf("registration file for '%s' not found: %s", contrib, compFileName)
+	}
+
+	return paths[0], nil
 }
 
 // parseRegisteredComponents parses the output of the grep command to find all registered components

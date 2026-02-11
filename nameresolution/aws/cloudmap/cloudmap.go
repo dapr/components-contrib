@@ -30,6 +30,31 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+// convertConfigurationToStringMap converts the generic Configuration field into a map[string]string for aws auth fields
+func convertConfigurationToStringMap(cfg any) map[string]string {
+	if cfg == nil {
+		return nil
+	}
+
+	switch v := cfg.(type) {
+	case map[string]string:
+		return v
+	case map[string]any:
+		out := make(map[string]string, len(v))
+		for k, val := range v {
+			switch t := val.(type) {
+			case string:
+				out[k] = t
+			default:
+				out[k] = fmt.Sprint(t)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 // ServiceDiscoveryClient interface for mocking
 type ServiceDiscoveryClient interface {
 	GetNamespace(ctx context.Context, input *servicediscovery.GetNamespaceInput, opts ...func(*servicediscovery.Options)) (*servicediscovery.GetNamespaceOutput, error)
@@ -75,6 +100,7 @@ func (r *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 	// Initialize AWS auth provider
 	opts := awsAuth.Options{
 		Logger:       r.logger,
+		Properties:   convertConfigurationToStringMap(metadata.Configuration),
 		Region:       meta.Region,
 		Endpoint:     meta.Endpoint,
 		AccessKey:    meta.AccessKey,

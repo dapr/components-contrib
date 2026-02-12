@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.servicebus.queues
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: AzureServiceBusConnectionString
+        key: AzureServiceBusConnectionString
+    - name: disableEntityManagement
+      value: "true"
+auth:
+  secretstore: envvar-secret-store

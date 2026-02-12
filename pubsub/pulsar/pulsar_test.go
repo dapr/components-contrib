@@ -946,8 +946,8 @@ func TestSubscribe_AppliesMetadataOptions(t *testing.T) {
 	require.NoError(t, err)
 	p.metadata = *parsedMeta
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure we stop the background listener logic
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 
 	req := pubsub.SubscribeRequest{
 		Topic:    "my-topic",

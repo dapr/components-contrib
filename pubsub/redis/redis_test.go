@@ -286,7 +286,7 @@ func TestPollNewMessagesLoopWhenXReadGroupResultReturnsRedisNil(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		rs.pollNewMessagesLoop(ctx, "stream", func(context.Context, *pubsub.NewMessage) error { return nil })

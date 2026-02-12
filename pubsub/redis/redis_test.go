@@ -338,12 +338,8 @@ type stubRedisClient struct {
 	readGroupErr   error // if set, XReadGroupResult returns (nil, readGroupErr)
 }
 
-func (s *stubRedisClient) GetNilValueError() commonredis.RedisError {
-	str := s.nilValueErrStr
-	if str == "" {
-		str = "nil"
-	}
-	return commonredis.RedisError(str)
+func (s *stubRedisClient) IsNilValueError(err error) bool {
+	return err != nil && err.Error() == s.nilValueErrStr
 }
 
 func (s *stubRedisClient) Context() context.Context {

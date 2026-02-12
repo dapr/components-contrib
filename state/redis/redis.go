@@ -223,7 +223,7 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 func (r *StateStore) directGet(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.DoRead(ctx, "GET", req.Key)
 	if err != nil {
-		if errors.Is(err, r.client.GetNilValueError()) {
+		if r.client.IsNilValueError(err) {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
@@ -243,7 +243,7 @@ func (r *StateStore) directGet(ctx context.Context, req *state.GetRequest) (*sta
 func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.DoRead(ctx, "HGETALL", req.Key) // Prefer values with ETags
 	if err != nil {
-		if errors.Is(err, r.client.GetNilValueError()) {
+		if r.client.IsNilValueError(err) {
 			return &state.GetResponse{}, nil
 		}
 		return r.directGet(ctx, req) // Falls back to original get for backward compats.
@@ -279,7 +279,7 @@ func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*st
 func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.DoRead(ctx, "JSON.GET", req.Key)
 	if err != nil {
-		if errors.Is(err, r.client.GetNilValueError()) {
+		if r.client.IsNilValueError(err) {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err

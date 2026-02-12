@@ -70,7 +70,7 @@ type RedisPipeliner interface {
 
 //nolint:interfacebloat
 type RedisClient interface {
-	GetNilValueError() RedisError
+	IsNilValueError(error) bool
 	Context() context.Context
 	DoRead(ctx context.Context, args ...interface{}) (interface{}, error)
 	DoWrite(ctx context.Context, args ...interface{}) error

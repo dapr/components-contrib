@@ -59,6 +59,26 @@ func TestInvokeCreate(t *testing.T) {
 	assert.JSONEq(t, testData, getRes.(string))
 }
 
+// TestInvokeGetMissingKeyReturnsEmptyNotError ensures that when a key does not exist
+// we don't propagate 'redis: nil' as an error to users
+func TestInvokeGetMissingKeyReturnsEmptyNotError(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+
+	res, err := bind.Invoke(t.Context(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": "nonexistent-key"},
+		Operation: bindings.GetOperation,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Empty(t, res.Data)
+}
+
 func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()

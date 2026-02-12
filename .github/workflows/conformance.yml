@@ -148,7 +148,7 @@ jobs:
         export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
         echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
 
-    - uses: Azure/login@v1
+    - uses: Azure/login@v2
       if: matrix.required-secrets != ''
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}

@@ -87,7 +87,7 @@ func TestParseRedisMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		assert.Equal(t, fakeProperties[host], m.Host)
+		assert.Equal(t, "fake.redis.com:6379", m.Host)
 		assert.Equal(t, fakeProperties[password], m.Password)
 		assert.Equal(t, fakeProperties[username], m.Username)
 		assert.Equal(t, fakeProperties[sentinelUsername], m.SentinelUsername)

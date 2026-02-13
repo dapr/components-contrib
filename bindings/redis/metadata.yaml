@@ -69,8 +69,22 @@ authenticationProfiles:
 metadata:
   - name: redisHost
     required: true
-    description: Connection-string for the Redis host
+    description: |
+      Connection-string for the Redis host. If "redisType" is "cluster" it
+      can be multiple hosts separated by commas or just a single host.
+      The port can be included in the host string (e.g. "host:6379") or
+      provided separately via "redisPort".
     example: "redis-master.default.svc.cluster.local:6379"
+    type: string
+  - name: redisPort
+    required: false
+    description: |
+      The Redis port. Optional: if "redisHost" already contains a port, this
+      field must either match or be omitted. When "redisHost" does not include
+      a port and this field is not set, the default Redis port 6379 is used.
+      In cluster mode, this port is applied to every host in the
+      comma-separated list.
+    example: "6379"
     type: string
   - name: enableTLS
     type: bool

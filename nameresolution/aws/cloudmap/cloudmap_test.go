@@ -374,3 +374,40 @@ func TestResolve(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertConfigurationToStringMap(t *testing.T) {
+	t.Run("nil configuration", func(t *testing.T) {
+		got := convertConfigurationToStringMap(nil)
+		assert.Nil(t, got)
+	})
+
+	t.Run("map string to string", func(t *testing.T) {
+		in := map[string]string{
+			"region": "us-west-2",
+			"foo":    "bar",
+		}
+		got := convertConfigurationToStringMap(in)
+		assert.Equal(t, len(in), len(got))
+		for k, v := range in {
+			assert.Equal(t, v, got[k])
+		}
+	})
+
+	t.Run("map string to any with mixed types", func(t *testing.T) {
+		in := map[string]any{
+			"string": "value",
+			"int":    42,
+			"bool":   true,
+		}
+		got := convertConfigurationToStringMap(in)
+		assert.Equal(t, len(in), len(got))
+		assert.Equal(t, "value", got["string"])
+		assert.Equal(t, "42", got["int"])
+		assert.Equal(t, "true", got["bool"])
+	})
+
+	t.Run("unsupported type returns nil", func(t *testing.T) {
+		got := convertConfigurationToStringMap([]string{"not", "a", "map"})
+		assert.Nil(t, got)
+	})
+}

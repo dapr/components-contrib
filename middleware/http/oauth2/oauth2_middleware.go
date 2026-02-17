@@ -75,10 +75,16 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	}
 
 	forceHTTPS := kitstrings.IsTruthy(meta.ForceHTTPS)
+
+	var scopes []string
+	if meta.Scopes != "" {
+		scopes = strings.Split(meta.Scopes, ",")
+	}
+
 	conf := &oauth2.Config{
 		ClientID:     meta.ClientID,
 		ClientSecret: meta.ClientSecret,
-		Scopes:       strings.Split(meta.Scopes, ","),
+		Scopes:       scopes,
 		RedirectURL:  meta.RedirectURL,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  meta.AuthURL,

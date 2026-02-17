@@ -98,14 +98,13 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return err
 	}
 	// TODO: Operation timeout?
-	store, err := r.getRavenDBStore(ctx)
+	err = r.setRavenDBStore(ctx)
 	if err != nil {
 		return errors.New("error in creating Raven DB Store")
 	}
 
-	r.initTTL(store)
-	r.setupDatabase(store)
-	r.documentStore = store
+	r.initTTL()
+	r.setupDatabase()
 
 	return nil
 }
@@ -129,7 +128,7 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 	err = session.SaveChanges()
 	if err != nil {
-		if isConcurrencyException(err) {
+		if _, ok := err.(*ravendb.ConcurrencyError); ok {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return errors.New("error saving changes")
@@ -195,7 +194,7 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 	err = session.SaveChanges()
 	if err != nil {
-		if isConcurrencyException(err) {
+		if _, ok := err.(*ravendb.ConcurrencyError); ok {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return fmt.Errorf("error saving changes %s", err)
@@ -234,7 +233,7 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 
 	err = session.SaveChanges()
 	if err != nil {
-		if isConcurrencyException(err) {
+		if _, ok := err.(*ravendb.ConcurrencyError); ok {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return fmt.Errorf("error during transaction, aborting the transaction: %w", err)
@@ -407,18 +406,18 @@ func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, 
 	return nil
 }
 
-func (r *RavenDB) getRavenDBStore(ctx context.Context) (*ravendb.DocumentStore, error) {
+func (r *RavenDB) setRavenDBStore(ctx context.Context) error {
 	serverNodes := []string{r.metadata.ServerURL}
 	store := ravendb.NewDocumentStore(serverNodes, r.metadata.DatabaseName)
 	if strings.HasPrefix(r.metadata.ServerURL, httpsPrefix) {
 		cer, err := tls.LoadX509KeyPair(r.metadata.CertPath, r.metadata.KeyPath)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		store.Certificate = &cer
 		x509cert, err := x509.ParseCertificate(cer.Certificate[0])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		store.TrustStore = x509cert
 		if store.TrustStore == nil {
@@ -427,9 +426,11 @@ func (r *RavenDB) getRavenDBStore(ctx context.Context) (*ravendb.DocumentStore, 
 	}
 
 	if err := store.Initialize(); err != nil {
-		return nil, err
+		return err
 	}
-	return store, nil
+	r.documentStore = store
+
+	return nil
 }
 
 func (r *RavenDB) Close() error {
@@ -441,7 +442,7 @@ func (r *RavenDB) Close() error {
 	return nil
 }
 
-func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
+func (r *RavenDB) initTTL() {
 	configurationExpiration := ravendb.ExpirationConfiguration{
 		Disabled:             !r.metadata.EnableTTL,
 		DeleteFrequencyInSec: &r.metadata.TTLFrequency,
@@ -450,15 +451,15 @@ func (r *RavenDB) initTTL(store *ravendb.DocumentStore) {
 	if err != nil {
 		return
 	}
-	err = store.Maintenance().Send(operation)
+	err = r.documentStore.Maintenance().Send(operation)
 	if err != nil {
 		r.logger.Debug(err)
 	}
 }
 
-func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {
+func (r *RavenDB) setupDatabase() {
 	operation := ravendb.NewGetDatabaseRecordOperation(r.metadata.DatabaseName)
-	err := store.Maintenance().Server().Send(operation)
+	err := r.documentStore.Maintenance().Server().Send(operation)
 	if err == nil {
 		if operation.Command != nil && operation.Command.RavenCommandBase.StatusCode == http.StatusNotFound {
 			databaseRecord := ravendb.DatabaseRecord{
@@ -466,7 +467,7 @@ func (r *RavenDB) setupDatabase(store *ravendb.DocumentStore) {
 				Disabled:     false,
 			}
 			createOp := ravendb.NewCreateDatabaseOperation(&databaseRecord, 1)
-			err = store.Maintenance().Server().Send(createOp)
+			err = r.documentStore.Maintenance().Server().Send(createOp)
 			if err != nil {
 				return
 			}
@@ -497,13 +498,6 @@ func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {
 	}
 
 	return m, nil
-}
-
-func isConcurrencyException(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "Optimistic concurrency violation")
 }
 
 func RandStringRunes(n int) string {

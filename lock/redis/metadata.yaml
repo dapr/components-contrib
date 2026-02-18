@@ -59,8 +59,10 @@ metadata:
   - name: redisHost
     required: true
     description: |
-      Connection-string for the redis host. The port can be included in the
-      host string (e.g. "host:6379") or provided separately via "redisPort".
+      Connection-string for the redis host. If "redisType" is "cluster" it
+      can be multiple hosts separated by commas or just a single host.
+      The port can be included in the host string (e.g. "host:6379") or
+      provided separately via "redisPort".
     example: '"localhost:6379"'
     type: string
   - name: redisPort

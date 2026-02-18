@@ -16,6 +16,7 @@ package oauth2
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/fasthttp-contrib/sessions"
@@ -60,6 +61,64 @@ func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 	).ServeHTTP(w, r)
 
 	assert.Equal(t, "Bearer abcd", r.Header.Get("someHeader"))
+}
+
+func TestOAuth2EmptyScopesProducesNilSlice(t *testing.T) {
+	log := logger.NewLogger("oauth2.test")
+
+	tests := []struct {
+		name          string
+		scopes        string
+		expectScope   bool
+		expectedScope string // expected value of the scope query parameter (space-delimited per RFC 6749)
+	}{
+		{name: "empty scopes omits scope param", scopes: "", expectScope: false, expectedScope: ""},
+		{name: "single scope", scopes: "api", expectScope: true, expectedScope: "api"},
+		{name: "multiple scopes", scopes: "api,refresh_token", expectScope: true, expectedScope: "api refresh_token"},
+		{name: "salesforce no scopes", scopes: "", expectScope: false, expectedScope: ""},
+		{name: "three scopes", scopes: "openid,profile,email", expectScope: true, expectedScope: "openid profile email"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var metadata middleware.Metadata
+			metadata.Properties = map[string]string{
+				"clientID":       "testId",
+				"clientSecret":   "testSecret",
+				"scopes":         tt.scopes,
+				"authURL":        "https://idp:9999/authorize",
+				"tokenURL":       "https://idp:9999/token",
+				"redirectUrl":    "https://localhost:9999",
+				"authHeaderName": "Authorization",
+			}
+
+			handler, err := NewOAuth2Middleware(log).GetHandler(t.Context(), metadata)
+			require.NoError(t, err)
+
+			// Issue an unauthenticated request — the middleware should redirect to the auth URL
+			r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
+			w := httptest.NewRecorder()
+
+			handler(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}),
+			).ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusFound, w.Code)
+			location := w.Header().Get("Location")
+			redirectURL, err := url.Parse(location)
+			require.NoError(t, err)
+
+			scopeValues := redirectURL.Query()["scope"]
+			if !tt.expectScope {
+				assert.Empty(t, scopeValues, "scope parameter should not be present when scopes metadata is empty")
+			} else {
+				require.Len(t, scopeValues, 1, "scope parameter should appear exactly once")
+				assert.Equal(t, tt.expectedScope, scopeValues[0], "scope value should match expected space-delimited scopes")
+			}
+		})
+	}
 }
 
 func TestOAuth2CreatesAuthorizationHeaderGetNativeMetadata(t *testing.T) {

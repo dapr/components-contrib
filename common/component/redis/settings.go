@@ -146,11 +146,22 @@ func resolveHost(host, port string) (string, error) {
 		return host, nil
 	}
 
+	// Validate port if provided.
+	if port != "" {
+		portNum, err := strconv.Atoi(port)
+		if err != nil {
+			return "", fmt.Errorf("redisPort %q is not a valid integer: %w", port, err)
+		}
+		if portNum < 1 || portNum > 65535 {
+			return "", fmt.Errorf("redisPort must be between 1 and 65535, got %d", portNum)
+		}
+	}
+
 	// Comma-separated addresses (cluster or sentinel mode).
 	if strings.Contains(host, ",") {
 		parts := strings.Split(host, ",")
-		addrs:= make([]string, len(parts))
-		for i, addr := range addrs {
+		addrs := make([]string, len(parts))
+		for i, addr := range parts {
 			resolved, err := resolveAddr(strings.TrimSpace(addr), port)
 			if err != nil {
 				return "", err

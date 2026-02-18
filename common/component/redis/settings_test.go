@@ -83,6 +83,24 @@ func TestResolveHost(t *testing.T) {
 			want: "node1:6380,node2:6380,node3:6380",
 		},
 		{
+			name: "mixed cluster hosts: some with matching port, some without",
+			host: "node1:6380,node2,node3:6380",
+			port: "6380",
+			want: "node1:6380,node2:6380,node3:6380",
+		},
+		{
+			name: "mixed cluster hosts: some with port, some without, using default 6379",
+			host: "node1:6379,node2,node3",
+			port: "",
+			want: "node1:6379,node2:6379,node3:6379",
+		},
+		{
+			name:    "mixed cluster hosts: one entry conflicts with redisPort",
+			host:    "node1:6380,node2,node3:9999",
+			port:    "6380",
+			wantErr: true,
+		},
+		{
 			name: "sentinel addresses without ports",
 			host: "sentinel1,sentinel2,sentinel3",
 			port: "26379",
@@ -105,6 +123,36 @@ func TestResolveHost(t *testing.T) {
 			host: "redis.staging.example.com",
 			port: "6379",
 			want: "redis.staging.example.com:6379",
+		},
+		{
+			name:    "invalid port: not a number",
+			host:    "redis-master",
+			port:    "abc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid port: too high",
+			host:    "redis-master",
+			port:    "99999",
+			wantErr: true,
+		},
+		{
+			name:    "invalid port: zero",
+			host:    "redis-master",
+			port:    "0",
+			wantErr: true,
+		},
+		{
+			name:    "invalid port: negative",
+			host:    "redis-master",
+			port:    "-1",
+			wantErr: true,
+		},
+		{
+			name: "valid port: upper boundary",
+			host: "redis-master",
+			port: "65535",
+			want: "redis-master:65535",
 		},
 	}
 

@@ -147,7 +147,7 @@ func TestLoadCredentialsFromJSONFile(t *testing.T) {
 
 		_, _, _, err = LoadCredentialsFromJSONFile(tmpFile.Name())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "must contain client_id, client_secret, and issuer_url")
+		assert.Contains(t, err.Error(), "must contain client_id and client_secret")
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {

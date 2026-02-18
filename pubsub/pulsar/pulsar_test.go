@@ -1056,7 +1056,7 @@ func TestInitFailsWhenClientCredentialsTypeMissingClientSecret(t *testing.T) {
 	err := p.Init(t.Context(), md)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must contain client_id, client_secret, and issuer_url")
+	assert.Contains(t, err.Error(), "must contain client_id and client_secret")
 }
 
 func TestInitUsesTokenSupplierWhenClientSecretPathMissing(t *testing.T) {

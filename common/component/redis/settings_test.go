@@ -8,6 +8,223 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResolveHost(t *testing.T) {
+	tests := []struct {
+		name    string
+		host    string
+		port    uint16
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "host:port already present",
+			host: "redis-master:6379",
+			port: 0,
+			want: "redis-master:6379",
+		},
+		{
+			name: "host:port matching separate port",
+			host: "redis-master:6379",
+			port: 6379,
+			want: "redis-master:6379",
+		},
+		{
+			name:    "host:port conflicts with separate port",
+			host:    "redis-master:6379",
+			port:    6380,
+			wantErr: true,
+		},
+		{
+			name: "host only with separate port",
+			host: "redis-master",
+			port: 6380,
+			want: "redis-master:6380",
+		},
+		{
+			name: "host only defaults to 6379",
+			host: "redis-master",
+			port: 0,
+			want: "redis-master:6379",
+		},
+		{
+			name: "empty host returns empty",
+			host: "",
+			port: 6379,
+			want: "",
+		},
+		{
+			name: "cluster hosts all with ports",
+			host: "node1:6379,node2:6379,node3:6379",
+			port: 0,
+			want: "node1:6379,node2:6379,node3:6379",
+		},
+		{
+			name: "cluster hosts without ports get the specified port applied",
+			host: "node1,node2,node3",
+			port: 6380,
+			want: "node1:6380,node2:6380,node3:6380",
+		},
+		{
+			name: "cluster hosts without ports default to 6379",
+			host: "node1,node2,node3",
+			port: 0,
+			want: "node1:6379,node2:6379,node3:6379",
+		},
+		{
+			name:    "cluster hosts one conflicts with separate port",
+			host:    "node1:6379,node2,node3:6381",
+			port:    6380,
+			wantErr: true,
+		},
+		{
+			name: "cluster hosts with spaces around commas",
+			host: "node1 , node2 , node3",
+			port: 6380,
+			want: "node1:6380,node2:6380,node3:6380",
+		},
+		{
+			name: "mixed cluster hosts: some with matching port, some without",
+			host: "node1:6380,node2,node3:6380",
+			port: 6380,
+			want: "node1:6380,node2:6380,node3:6380",
+		},
+		{
+			name: "mixed cluster hosts: some with port, some without, using default 6379",
+			host: "node1:6379,node2,node3",
+			port: 0,
+			want: "node1:6379,node2:6379,node3:6379",
+		},
+		{
+			name:    "mixed cluster hosts: one entry conflicts with redisPort",
+			host:    "node1:6380,node2,node3:9999",
+			port:    6380,
+			wantErr: true,
+		},
+		{
+			name: "sentinel addresses without ports",
+			host: "sentinel1,sentinel2,sentinel3",
+			port: 26379,
+			want: "sentinel1:26379,sentinel2:26379,sentinel3:26379",
+		},
+		{
+			name: "IPv6 address with port in brackets",
+			host: "[::1]:6379",
+			port: 0,
+			want: "[::1]:6379",
+		},
+		{
+			name:    "IPv6 address with port conflicts with separate port",
+			host:    "[::1]:6379",
+			port:    6380,
+			wantErr: true,
+		},
+		{
+			name: "FQDN host without port",
+			host: "redis.staging.example.com",
+			port: 6379,
+			want: "redis.staging.example.com:6379",
+		},
+		{
+			name: "valid port: upper boundary",
+			host: "redis-master",
+			port: 65535,
+			want: "redis-master:65535",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveHost(tt.host, tt.port)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "redisPort")
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestSettingsDecodeResolvesHostPort(t *testing.T) {
+	t.Run("decode with separate port", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master",
+			"redisPort": "6380",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "redis-master:6380", s.Host)
+	})
+
+	t.Run("decode with host:port matching separate port", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master:6379",
+			"redisPort": "6379",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "redis-master:6379", s.Host)
+	})
+
+	t.Run("decode with host:port conflicting separate port errors", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master:6379",
+			"redisPort": "6380",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "redisPort")
+	})
+
+	t.Run("decode with host only defaults port", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "redis-master:6379", s.Host)
+	})
+
+	t.Run("decode cluster hosts with separate port", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "node1,node2,node3",
+			"redisPort": "6380",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "node1:6380,node2:6380,node3:6380", s.Host)
+	})
+
+	t.Run("decode cluster host conflict errors", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "node1:6379,node2,node3",
+			"redisPort": "6380",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "redisPort")
+	})
+
+	t.Run("decode with invalid port rejects at decode", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master",
+			"redisPort": "abc",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("decode with out-of-range port rejects at decode", func(t *testing.T) {
+		s := Settings{}
+		err := s.Decode(map[string]string{
+			"redisHost": "redis-master",
+			"redisPort": "99999",
+		})
+		require.Error(t, err)
+	})
+}
+
 func TestSettings(t *testing.T) {
 	t.Run("test set certificate, missing data", func(t *testing.T) {
 		var c *tls.Certificate

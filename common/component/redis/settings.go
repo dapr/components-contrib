@@ -148,7 +148,8 @@ func resolveHost(host, port string) (string, error) {
 
 	// Comma-separated addresses (cluster or sentinel mode).
 	if strings.Contains(host, ",") {
-		addrs := strings.Split(host, ",")
+		parts := strings.Split(host, ",")
+		addrs:= make([]string, len(parts))
 		for i, addr := range addrs {
 			resolved, err := resolveAddr(strings.TrimSpace(addr), port)
 			if err != nil {

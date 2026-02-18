@@ -59,7 +59,7 @@ func TestResolveHost(t *testing.T) {
 			want: "node1:6379,node2:6379,node3:6379",
 		},
 		{
-			name: "cluster hosts without ports get separate port",
+			name: "cluster hosts without ports get the specified port applied",
 			host: "node1,node2,node3",
 			port: "6380",
 			want: "node1:6380,node2:6380,node3:6380",

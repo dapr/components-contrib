@@ -72,22 +72,22 @@ func maskLeft(s string) string {
 // getPartitionFromRegion returns the AWS partition for a given region.
 // TODO: @mikeee - remove this partition acquisition.
 func getPartitionFromRegion(region string) string {
-	if strings.HasPrefix(region, "cn-") {
+	switch {
+	case strings.HasPrefix(region, "cn-"):
 		return "aws-cn"
-	} else if strings.HasPrefix(region, "eusc-") {
+	case strings.HasPrefix(region, "eusc-"):
 		return "aws-eusc"
-	} else if strings.HasPrefix(region, "us-iso-") {
+	case strings.HasPrefix(region, "us-iso-"):
 		return "aws-iso"
-	} else if strings.HasPrefix(region, "us-isob-") {
+	case strings.HasPrefix(region, "us-isob-"):
 		return "aws-iso-b"
-	} else if strings.HasPrefix(region, "eu-isoe-") {
+	case strings.HasPrefix(region, "eu-isoe-"):
 		return "aws-iso-e"
-	} else if strings.HasPrefix(region, "us-isof-") {
+	case strings.HasPrefix(region, "us-isof-"):
 		return "aws-iso-f"
-	} else if strings.HasPrefix(region, "us-gov-") {
+	case strings.HasPrefix(region, "us-gov-"):
 		return "aws-us-gov"
-	} else {
-		// Default partition for standard AWS regions
+	default:
 		return "aws"
 	}
 }

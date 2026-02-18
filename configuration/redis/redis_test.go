@@ -254,7 +254,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties["sentinelMasterName"] = "tesSentinelMasterName"
 	testProperties["redisDB"] = "1"
 	testSettings := redisComponent.Settings{
-		Host:                  "testHost",
+		Host:                  "testHost:6379",
 		Password:              "testPassword",
 		SentinelUsername:      "testSentinelUsername",
 		SentinelPassword:      "testSentinelPassword",
@@ -270,7 +270,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testDefaultProperties := make(map[string]string)
 	testDefaultProperties["redisHost"] = "testHost"
 	defaultSettings := redisComponent.Settings{
-		Host:                  "testHost",
+		Host:                  "testHost:6379",
 		Password:              "",
 		SentinelUsername:      "",
 		SentinelPassword:      "",

@@ -140,7 +140,7 @@ func (r *RavenDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
-		return &state.GetResponse{}, fmt.Errorf("error opening session while storing data faild with error %s", err)
+		return &state.GetResponse{}, fmt.Errorf("opening session while storing data failed with error %s", err)
 	}
 	defer session.Close()
 

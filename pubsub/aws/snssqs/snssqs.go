@@ -212,7 +212,7 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 }
 
 func (s *snsSqs) buildARN(serviceName, entityName string) string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.internalPartition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.Partition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
 }
 
 func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, error) {

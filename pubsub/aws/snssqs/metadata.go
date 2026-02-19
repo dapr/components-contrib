@@ -3,11 +3,10 @@ package snssqs
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/metadata"
-
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
 
 type snsSqsMetadata struct {
@@ -25,7 +24,7 @@ type snsSqsMetadata struct {
 	// TODO: rm the alias on region in Dapr 1.17.
 	Region string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	// aws partition in which SNS/SQS should create resources.
-	internalPartition string `mapstructure:"-"`
+	Partition string `mapstructure:"partition" mdignore:"true"`
 	// name of the queue for this application. The is provided by the runtime as "consumerID".
 	SqsQueueName string `mapstructure:"consumerID" mdignore:"true"`
 	// name of the dead letter queue for this application.
@@ -70,6 +69,29 @@ func maskLeft(s string) string {
 	return string(rs)
 }
 
+// getPartitionFromRegion returns the AWS partition for a given region.
+// TODO: @mikeee - remove this partition acquisition.
+func getPartitionFromRegion(region string) string {
+	switch {
+	case strings.HasPrefix(region, "cn-"):
+		return "aws-cn"
+	case strings.HasPrefix(region, "eusc-"):
+		return "aws-eusc"
+	case strings.HasPrefix(region, "us-iso-"):
+		return "aws-iso"
+	case strings.HasPrefix(region, "us-isob-"):
+		return "aws-iso-b"
+	case strings.HasPrefix(region, "eu-isoe-"):
+		return "aws-iso-e"
+	case strings.HasPrefix(region, "us-isof-"):
+		return "aws-iso-f"
+	case strings.HasPrefix(region, "us-gov-"):
+		return "aws-us-gov"
+	default:
+		return "aws"
+	}
+}
+
 func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := &snsSqsMetadata{
 		AssetsManagementTimeoutSeconds: assetsManagementDefaultTimeoutSeconds,
@@ -85,10 +107,9 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 	}
 
 	if md.Region != "" {
-		if partition, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), md.Region); ok {
-			md.internalPartition = partition.ID()
-		} else {
-			md.internalPartition = "aws"
+		// Use an explicitly provided partition if available.
+		if md.Partition == "" {
+			md.Partition = getPartitionFromRegion(md.Region)
 		}
 	}
 

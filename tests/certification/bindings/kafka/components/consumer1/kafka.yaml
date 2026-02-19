@@ -24,3 +24,5 @@ spec:
     value: 50ms
   - name: backOffDuration
     value: 50ms
+  - name: clientConnectionTopicMetadataRefreshInterval
+    value: 15s

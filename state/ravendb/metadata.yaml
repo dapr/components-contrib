@@ -3,7 +3,7 @@ schemaVersion: v1
 type: state
 name: ravendb
 version: v1
-status: development-only
+status: alpha
 title: "RavenDB"
 urls:
   - title: Reference

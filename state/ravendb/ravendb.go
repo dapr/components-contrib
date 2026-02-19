@@ -157,7 +157,7 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		return &state.GetResponse{}, fmt.Errorf("error getting metadata for %s", req.Key)
 	}
 
-	var meta map[string]string
+	meta := make(map[string]string)
 	ttl, okTTL := ravenMeta.Get(expires)
 	if okTTL {
 		meta = map[string]string{
@@ -275,19 +275,23 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			}
 			resp = append(resp, convert)
 		} else {
+			meta := make(map[string]string)
 			ravenMeta, err := session.GetMetadataFor(current)
 			etagResp := ""
 			if err == nil {
-				eTag, okETag := ravenMeta.Get(changeVector)
-				if okETag {
+				if eTag, okETag := ravenMeta.Get(changeVector); okETag {
 					etagResp = eTag.(string)
 				}
+				if ttl, okTTL := ravenMeta.Get(expires); okTTL {
+					meta[state.GetRespMetaKeyTTLExpireTime] = ttl.(string)
+				}
 			}
+
 			convert := state.BulkGetResponse{
 				Key:      current.ID,
 				Data:     []byte(current.Value),
 				ETag:     &etagResp,
-				Metadata: make(map[string]string),
+				Metadata: meta,
 			}
 			resp = append(resp, convert)
 		}

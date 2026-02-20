@@ -27,14 +27,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -60,9 +63,11 @@ const (
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
 type AWSS3 struct {
-	metadata     *s3Metadata
-	authProvider awsAuth.Provider
-	logger       logger.Logger
+	metadata  *s3Metadata
+	s3Client  *s3.Client
+	tmClient  *transfermanager.Client
+	presigner *s3.PresignClient
+	logger    logger.Logger
 }
 
 type s3Metadata struct {
@@ -106,26 +111,6 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 
-func (s *AWSS3) getAWSConfig(opts awsAuth.Options) *aws.Config {
-	cfg := awsAuth.GetConfig(opts).WithS3ForcePathStyle(s.metadata.ForcePathStyle).WithDisableSSL(s.metadata.DisableSSL)
-
-	// Use a custom HTTP client to allow self-signed certs
-	if s.metadata.InsecureSSL {
-		customTransport := http.DefaultTransport.(*http.Transport).Clone()
-		customTransport.TLSClientConfig = &tls.Config{
-			//nolint:gosec
-			InsecureSkipVerify: true,
-		}
-		client := &http.Client{
-			Transport: customTransport,
-		}
-		cfg = cfg.WithHTTPClient(client)
-
-		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
-	}
-	return cfg
-}
-
 // Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
@@ -134,7 +119,11 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 	s.metadata = m
 
-	opts := awsAuth.Options{
+	if s.metadata.DisableSSL && s.metadata.Endpoint != "" && !strings.HasPrefix(s.metadata.Endpoint, "http://") && !strings.HasPrefix(s.metadata.Endpoint, "https://") {
+		s.metadata.Endpoint = "http://" + s.metadata.Endpoint
+	}
+
+	configOpts := awsCommonAuth.Options{
 		Logger:       s.logger,
 		Properties:   metadata.Properties,
 		Region:       m.Region,
@@ -143,20 +132,38 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, s.getAWSConfig(opts))
+
+	var awsCfg aws.Config
+	if s.metadata.InsecureSSL {
+		customTransport := http.DefaultTransport.(*http.Transport).Clone()
+		customTransport.TLSClientConfig = &tls.Config{
+			//nolint:gosec
+			InsecureSkipVerify: true,
+		}
+		client := &http.Client{Transport: customTransport}
+		awsCfg, err = awsCommon.NewConfig(ctx, configOpts, awsCommon.WithHTTPClient(client))
+		if err == nil {
+			s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+		}
+	} else {
+		awsCfg, err = awsCommon.NewConfig(ctx, configOpts)
+	}
 	if err != nil {
 		return err
 	}
-	s.authProvider = provider
+
+	s.s3Client = s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.UsePathStyle = s.metadata.ForcePathStyle
+	})
+	// transfermanager for multipart/managed uploads
+	s.tmClient = transfermanager.New(s.s3Client)
+	s.presigner = s3.NewPresignClient(s.s3Client)
 
 	return nil
 }
 
 func (s *AWSS3) Close() error {
-	if s.authProvider != nil {
-		return s.authProvider.Close()
-	}
+	// nothing to cleanup
 	return nil
 }
 
@@ -220,18 +227,46 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		storageClass = aws.String(metadata.StorageClass)
 	}
 
-	resultUpload, err := s.authProvider.S3().Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:       ptr.Of(metadata.Bucket),
-		Key:          ptr.Of(key),
-		Body:         r,
-		ContentType:  contentType,
-		StorageClass: storageClass,
-		Tagging:      tagging,
-	})
+	uploadIn := &transfermanager.UploadObjectInput{
+		Bucket: ptr.Of(metadata.Bucket),
+		Key:    ptr.Of(key),
+		Body:   r,
+	}
+	if contentType != nil {
+		uploadIn.ContentType = contentType
+	}
+	if storageClass != nil {
+		uploadIn.StorageClass = tmtypes.StorageClass(*storageClass)
+	}
+	if tagging != nil {
+		uploadIn.Tagging = tagging
+	}
+
+	uploadOut, err := s.tmClient.UploadObject(ctx, uploadIn)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
 	}
 
+	// location/path construction
+	var location string
+	if uploadOut != nil && uploadOut.Location != nil && *uploadOut.Location != "" {
+		location = *uploadOut.Location
+	} else if s.metadata.Endpoint != "" {
+		ep := strings.TrimRight(s.metadata.Endpoint, "/")
+		location = fmt.Sprintf("%s/%s/%s", ep, metadata.Bucket, key)
+	} else {
+		if s.metadata.ForcePathStyle {
+			location = fmt.Sprintf("https://s3.amazonaws.com/%s/%s", metadata.Bucket, key)
+		} else {
+			location = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", metadata.Bucket, key)
+		}
+	}
+
+	resultLocation := location
+	var versionID *string
+	if uploadOut != nil {
+		versionID = uploadOut.VersionID
+	}
 	var presignURL string
 	if metadata.PresignTTL != "" {
 		url, presignErr := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
@@ -243,8 +278,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	jsonResponse, err := json.Marshal(createResponse{
-		Location:   resultUpload.Location,
-		VersionID:  resultUpload.VersionID,
+		Location:   resultLocation,
+		VersionID:  versionID,
 		PresignURL: presignURL,
 	})
 	if err != nil {
@@ -296,16 +331,14 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
-	objReq, _ := s.authProvider.S3().S3.GetObjectRequest(&s3.GetObjectInput{
+	presignResult, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: ptr.Of(bucket),
 		Key:    ptr.Of(key),
-	})
-	url, err := objReq.Presign(d)
+	}, func(po *s3.PresignOptions) { po.Expires = d })
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: failed to presign URL: %w", err)
 	}
-
-	return url, nil
+	return presignResult.URL, nil
 }
 
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -319,28 +352,30 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	buff := &aws.WriteAtBuffer{}
-	_, err = s.authProvider.S3().Downloader.DownloadWithContext(ctx,
-		buff,
-		&s3.GetObjectInput{
-			Bucket: ptr.Of(s.metadata.Bucket),
-			Key:    ptr.Of(key),
-		},
-	)
+	resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: ptr.Of(s.metadata.Bucket),
+		Key:    ptr.Of(key),
+	})
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
+	defer resp.Body.Close()
+
+	dataBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error reading S3 object body: %w", err)
+	}
 
 	var data []byte
 	if metadata.EncodeBase64 {
-		encoded := b64.StdEncoding.EncodeToString(buff.Bytes())
+		encoded := b64.StdEncoding.EncodeToString(dataBytes)
 		data = []byte(encoded)
 	} else {
-		data = buff.Bytes()
+		data = dataBytes
 	}
 
 	return &bindings.InvokeResponse{
@@ -354,16 +389,13 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
-	_, err := s.authProvider.S3().S3.DeleteObjectWithContext(
-		ctx,
-		&s3.DeleteObjectInput{
-			Bucket: ptr.Of(s.metadata.Bucket),
-			Key:    ptr.Of(key),
-		},
-	)
+	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: ptr.Of(s.metadata.Bucket),
+		Key:    ptr.Of(key),
+	})
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
@@ -383,9 +415,9 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if payload.MaxResults < 1 {
 		payload.MaxResults = defaultMaxResults
 	}
-	result, err := s.authProvider.S3().S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+	result, err := s.s3Client.ListObjects(ctx, &s3.ListObjectsInput{
 		Bucket:    ptr.Of(s.metadata.Bucket),
-		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
+		MaxKeys:   ptr.Of(payload.MaxResults),
 		Marker:    ptr.Of(payload.Marker),
 		Prefix:    ptr.Of(payload.Prefix),
 		Delimiter: ptr.Of(payload.Delimiter),
@@ -447,7 +479,7 @@ func (s *AWSS3) parseS3Tags(raw string) (*string, error) {
 		return nil, nil
 	}
 
-	return aws.String(strings.Join(pairs, "&")), nil
+	return ptr.Of(strings.Join(pairs, "&")), nil
 }
 
 // Helper to merge config and request metadata.

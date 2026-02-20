@@ -25,7 +25,9 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
@@ -57,7 +59,9 @@ type kubernetesMetadata struct {
 	// Note: we add mdignore to this so the metadata parser doesn't throw an error if resyncPeriodInSec on the metadata.yaml file.
 	// It has the ResyncPeriodInSec as a field, but we don't need users to see both resyncPeriod and resyncPeriodInSec,
 	// so the mdignore is just to make CI happy since we support both representations.
-	ResyncPeriod time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec" mdignore:"true"`
+	ResyncPeriod  time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec" mdignore:"true"`
+	LabelSelector string        `mapstructure:"labelSelector"`
+	FieldSelector string        `mapstructure:"fieldSelector"`
 }
 
 // NewKubernetes returns a new Kubernetes event input binding.
@@ -112,12 +116,39 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 	if k.closed.Load() {
 		return errors.New("binding is closed")
 	}
+
+	// Build field selector from metadata
+	fieldSelector := fields.Everything()
+	if k.metadata.FieldSelector != "" {
+		selector, err := fields.ParseSelector(k.metadata.FieldSelector)
+		if err != nil {
+			return fmt.Errorf("failed to parse fieldSelector: %w", err)
+		}
+		fieldSelector = selector
+	}
+
+	// Validate label selector if provided
+	if k.metadata.LabelSelector != "" {
+		_, err := labels.Parse(k.metadata.LabelSelector)
+		if err != nil {
+			return fmt.Errorf("failed to parse labelSelector: %w", err)
+		}
+	}
+
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
 		k.metadata.Namespace,
-		fields.Everything(),
+		fieldSelector,
 	)
+	
+	// Set label selector if provided
+	if k.metadata.LabelSelector != "" {
+		watchlist.ListOptions = func(options *metav1.ListOptions) {
+			options.LabelSelector = k.metadata.LabelSelector
+		}
+	}
+
 	resultChan := make(chan EventResponse)
 	// TODO:
 	// cache.NewInformer is deprecated: Use NewInformerWithOptions instead.

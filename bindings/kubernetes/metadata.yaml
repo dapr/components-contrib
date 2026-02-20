@@ -31,3 +31,11 @@ metadata:
     description: "The resync period in seconds"
     example: '30s'
     default: '10s'
+  - name: labelSelector
+    required: false
+    description: "Label selector to filter Kubernetes events"
+    example: "app=myapp,environment=production"
+  - name: fieldSelector
+    required: false
+    description: "Field selector to filter Kubernetes events"
+    example: "involvedObject.kind=Pod,reason=Failed"

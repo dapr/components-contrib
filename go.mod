@@ -117,6 +117,7 @@ require (
 	github.com/pkg/sftp v1.13.7
 	github.com/puzpuzpuz/xsync/v3 v3.5.1
 	github.com/rabbitmq/amqp091-go v1.9.0
+	github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427
 	github.com/redis/go-redis/v9 v9.6.3
 	github.com/riferrei/srclient v0.7.3
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible

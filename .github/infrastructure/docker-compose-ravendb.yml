@@ -1,0 +1,14 @@
+services:
+  ravendb:
+    image: ravendb/ravendb
+    container_name: RavenDb
+    ports:
+      - "8080:8080"
+    environment:
+      - RAVEN_LICENSE={"Id":"b75b6995-5f1f-440f-bcaa-40f7388ecf90","Name":"Vega IT","Keys":["jwX1/epkfQHHLKF0UX8+DRCGP","zwoUaohApGfVHZ0rmZ4Cvaj4a","653+JiPtKVTANiZw6wxdD7XB6","3OfgLC8++bvE8T8JhuTD12PQt","nFzHL2zUPhlP5q+9mI8NmAzbu","tTXscNl13tFX1GLgcWkZYNN80","H7RrWQXwKc+HJ4q1d2catABYE","DNy4xBSYoSQMqKywtLi8wJzEy","MzQVFjc4OTo7PD0+nwIfIJ8CI","CCfAiEgnwIjIJ8CJCCfAiUgnw","ImIJ8CJyCfAiggnwIpIJ8CKiC","fAisgnwIsIJ8CLSCfAi4gnwIv","IJ8CMCCfAzZAAZ8CQiCfAkMgn","wJEIJ8CRSCfAkYgnwJHIJ8CSA","BDJEQJYgVdnwRBYAJd"]}
+      - RAVEN_DATABASE=testdapr
+      - RAVEN_Setup_Mode=None
+      - RAVEN_License_Eula_Accepted=true
+      - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+      - RAVEN_License_ThrowOnInvalidOrMissingLicense=true
+    restart: unless-stopped

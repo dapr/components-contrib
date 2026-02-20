@@ -226,12 +226,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
 
-    - name: Set RavenDB env vars
-      if: matrix.require-ravendb-credentials == 'true'
-      run: |
-        echo "::add-mask::${{ secrets.RAVENDBLICENSE }}"
-        echo "RAVENDBLICENSE=${{ secrets.RAVENDBLICENSE }}" >> $GITHUB_ENV
-
     - name: Start MongoDB
       if: matrix.mongodb-version != ''
       uses: supercharge/mongodb-github-action@1.12.1

@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.ravendb
+  version: v1
+  metadata:
+    - name: DatabaseName
+      value: "testdapr"
+    - name: ServerURL
+      value: "http://127.0.0.1:8080"
+    - name: TTLFrequency
+      value: "1"

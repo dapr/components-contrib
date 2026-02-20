@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: ravendb
+version: v1
+status: alpha
+title: "RavenDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-ravendb/
+capabilities:
+  - crud
+authenticationProfiles:
+  - title: "No authentication"
+    description: |
+      No authentication. Connect via connection string
+    metadata:
+      - name : connectionString
+        required: true
+        description: |
+          Connection string to ravenDB cluster
+        example: '"http://live-test.ravendb.net"'
+metadata:
+  - name: DatabaseName
+    description: |
+      The name of the database to use.
+    default: '"daprStore"'
+    example: '"daprStore"'
+  - name: ServerURL
+    description: |
+      Url to ravendb cluster
+    default: '"127.0.0.1"'
+    example: '"http://live-test.ravendb.net"'
+  - name: CertPath
+    description: |
+      Path to the certificate for secure connection
+    example: "/path/to/cert"
+  - name: KeyPath
+    description: |
+      Path to the key for secure connection
+    example: "/path/to/key"
+  - name: EnableTTL
+    description: |
+      Boolean value that enables or disables RaveDB TTL functionality
+    example: "true"
+    default: "true"
+  - name: TTLFrequency
+    description: |
+      Sets RavenDB frequency on running the background expiration task and deleting records
+    example: "15"
+    default: "60"

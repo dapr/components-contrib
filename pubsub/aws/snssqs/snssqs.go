@@ -393,6 +393,9 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 }
 
 func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
+	if reqGroupID := req.Metadata["fifoMessageGroupID"]; len(reqGroupID) > 0 {
+		return &reqGroupID
+	}
 	if len(s.metadata.FifoMessageGroupID) > 0 {
 		return &s.metadata.FifoMessageGroupID
 	}

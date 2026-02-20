@@ -1,0 +1,49 @@
+#
+# Copyright 2025 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: Create a release
+
+on:
+  workflow_dispatch:
+    inputs:
+      rel_version:
+        description: 'Release version (examples: 1.16.0-rc.1, 1.16.0)'
+        required: true 
+        type: string
+
+permissions: {}
+
+jobs:
+  create-release:
+    name: Creates release branch and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install required packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install pcre2-utils
+      - name: Create release branch and tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+        run: |
+          git config user.email "dapr@dapr.io"
+          git config user.name "Dapr Bot"
+          # Update origin with token
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          ./.github/scripts/create-release.sh ${{ inputs.rel_version }}

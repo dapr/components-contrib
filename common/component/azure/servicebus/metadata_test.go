@@ -543,3 +543,64 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		require.Error(t, parseErr3)
 	})
 }
+
+func TestCreateQueueProperties(t *testing.T) {
+	t.Run("queue properties without sessions", func(t *testing.T) {
+		m := Metadata{
+			MaxDeliveryCount:              ptrOf(int32(10)),
+			LockDurationInSec:             ptrOf(60),
+			DefaultMessageTimeToLiveInSec: ptrOf(3600),
+			AutoDeleteOnIdleInSec:         ptrOf(7200),
+		}
+
+		props := m.CreateQueueProperties(false)
+
+		require.NotNil(t, props)
+		assert.Equal(t, int32(10), *props.MaxDeliveryCount)
+		assert.Nil(t, props.RequiresSession)
+	})
+
+	t.Run("queue properties with sessions enabled", func(t *testing.T) {
+		m := Metadata{
+			MaxDeliveryCount:              ptrOf(int32(10)),
+			LockDurationInSec:             ptrOf(60),
+			DefaultMessageTimeToLiveInSec: ptrOf(3600),
+			AutoDeleteOnIdleInSec:         ptrOf(7200),
+		}
+
+		props := m.CreateQueueProperties(true)
+
+		require.NotNil(t, props)
+		assert.Equal(t, int32(10), *props.MaxDeliveryCount)
+		require.NotNil(t, props.RequiresSession)
+		assert.True(t, *props.RequiresSession)
+	})
+
+	t.Run("queue properties with minimal metadata", func(t *testing.T) {
+		m := Metadata{}
+
+		props := m.CreateQueueProperties(false)
+
+		require.NotNil(t, props)
+		assert.Nil(t, props.MaxDeliveryCount)
+		assert.Nil(t, props.LockDuration)
+		assert.Nil(t, props.DefaultMessageTimeToLive)
+		assert.Nil(t, props.AutoDeleteOnIdle)
+		assert.Nil(t, props.RequiresSession)
+	})
+
+	t.Run("queue properties with sessions enabled and minimal metadata", func(t *testing.T) {
+		m := Metadata{}
+
+		props := m.CreateQueueProperties(true)
+
+		require.NotNil(t, props)
+		require.NotNil(t, props.RequiresSession)
+		assert.True(t, *props.RequiresSession)
+	})
+}
+
+// ptrOf returns a pointer to the value (helper for tests)
+func ptrOf[T any](v T) *T {
+	return &v
+}

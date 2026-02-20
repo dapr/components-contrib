@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -50,16 +49,6 @@ func (m *mockServiceDiscoveryAPI) DiscoverInstances(ctx context.Context, input *
 	return m.discoverInstancesResp, m.discoverInstancesErr
 }
 
-type mockAuthProvider struct {
-	awsAuth.Provider
-	closeCalled bool
-}
-
-func (m *mockAuthProvider) Close() error {
-	m.closeCalled = true
-	return nil
-}
-
 func TestCloudMapResolver(t *testing.T) {
 	t.Run("init with valid namespace ID", func(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test")).(*Resolver)
@@ -71,7 +60,6 @@ func TestCloudMapResolver(t *testing.T) {
 			},
 		}
 		r.client = mockClient
-		r.authProvider = &mockAuthProvider{}
 
 		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
@@ -96,7 +84,6 @@ func TestCloudMapResolver(t *testing.T) {
 			},
 		}
 		r.client = mockClient
-		r.authProvider = &mockAuthProvider{}
 
 		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
@@ -123,7 +110,6 @@ func TestCloudMapResolver(t *testing.T) {
 			},
 		}
 		r.client = mockClient
-		r.authProvider = &mockAuthProvider{}
 
 		err := r.Init(t.Context(), nameresolution.Metadata{
 			Configuration: map[string]interface{}{
@@ -259,17 +245,6 @@ func TestCloudMapResolver(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "10.0.0.1:3500", addr)
-	})
-
-	t.Run("close with auth provider", func(t *testing.T) {
-		r := NewResolver(logger.NewLogger("test")).(*Resolver)
-		mockAuthProvider := &mockAuthProvider{}
-		r.authProvider = mockAuthProvider
-
-		err := r.Close()
-
-		require.NoError(t, err)
-		assert.True(t, mockAuthProvider.closeCalled)
 	})
 }
 

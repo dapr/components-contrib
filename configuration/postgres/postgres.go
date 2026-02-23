@@ -129,8 +129,8 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 			AccessKey:             opts.AccessKey,
 			SecretKey:             opts.SecretKey,
 			SessionToken:          opts.SessionToken,
-			AssumeRoleArn:         opts.AssumeRoleARN,
-			AssumeRoleSessionName: opts.SessionName,
+			AssumeRoleArn:         opts.AssumeRoleArn,
+			AssumeRoleSessionName: opts.AssumeRoleSessionName,
 			Endpoint:              opts.Endpoint,
 		}
 

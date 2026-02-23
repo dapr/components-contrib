@@ -165,17 +165,16 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		// Configure the KCL worker with custom endpoints for LocalStack.
-		config, err := awsCommon.NewKinesisWorkerConfig(a.awsCfg, a.streamName, a.consumerName, a.consumerMode)
-		if err != nil {
-			return fmt.Errorf("unable to build kinesis worker configuration: %w", err)
+		config, cfgErr := awsCommon.NewKinesisWorkerConfig(a.awsCfg, a.streamName, a.consumerName, a.consumerMode)
+		if cfgErr != nil {
+			return fmt.Errorf("unable to build kinesis worker configuration: %w", cfgErr)
 		}
 		if a.metadata.Endpoint != "" {
 			config.KinesisEndpoint = a.metadata.Endpoint
 			config.DynamoDBEndpoint = a.metadata.Endpoint
 		}
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
-		err = a.worker.Start()
-		if err != nil {
+		if err = a.worker.Start(); err != nil {
 			return err
 		}
 	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {

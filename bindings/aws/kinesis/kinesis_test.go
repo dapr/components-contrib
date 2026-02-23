@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/dapr/components-contrib/bindings"
 )
 

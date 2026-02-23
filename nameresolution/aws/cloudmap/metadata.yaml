@@ -25,4 +25,4 @@ metadata:
     type: number
     required: false
     description: Default port for the Dapr sidecar when DAPR_PORT is not set on the instance.
-    example: 3500
+    example: "3500"

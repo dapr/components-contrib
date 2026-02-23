@@ -126,6 +126,8 @@ func TestValidateInput(t *testing.T) {
 }
 
 func TestPostgresConfigurationWithIAM(t *testing.T) {
+	testcontainers.SkipIfProviderIsNotHealthy(t)
+
 	ctx := t.Context()
 
 	// Testing use of moto to mock AWS services for IAM authentication

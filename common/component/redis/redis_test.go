@@ -50,7 +50,7 @@ const (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		host:                  "fake.redis.com",
+		host:                  "fake.redis.com:6379",
 		password:              "fakePassword",
 		username:              "fakeUsername",
 		sentinelUsername:      "fakeSentinelUsername",

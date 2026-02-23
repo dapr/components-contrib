@@ -44,6 +44,7 @@ const (
 	stateStoreName          = "statestore"
 	certificationTestPrefix = "stable-certification-"
 	stateStoreNoConfigError = "error saving state: rpc error: code = FailedPrecondition desc = state store statestore is not configured"
+	testNonexistentKey      = "ThisKeyDoesNotExistInTheStateStore"
 )
 
 func TestRedis(t *testing.T) {
@@ -75,11 +76,21 @@ func TestRedis(t *testing.T) {
 		}
 		defer client.Close()
 
+		// HGETALL path
+		item, err := client.GetState(ctx, stateStoreName, testNonexistentKey, nil)
+		require.NoError(t, err)
+		assert.Nil(t, item.Value)
+
+		// JSON.GET path
+		item, err = client.GetState(ctx, stateStoreName, testNonexistentKey, map[string]string{"contentType": "application/json"})
+		require.NoError(t, err)
+		assert.Nil(t, item.Value)
+
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("redisCert"), nil)
 		require.NoError(t, err)
 
 		// get state
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		require.NoError(t, err)
 		assert.Equal(t, "redisCert", string(item.Value))
 

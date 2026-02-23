@@ -72,6 +72,9 @@ type Kafka struct {
 	latestSchemaCacheWriteLock sync.RWMutex
 	latestSchemaCacheReadLock  sync.Mutex
 
+	// Whether to encode/decode Avro into Avro JSON or standard JSON
+	useAvroJSON bool
+
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
 	internalContextCancel func()
@@ -234,6 +237,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
 		k.srClient.CodecCreationEnabled(true)
 		k.srClient.CodecJsonEnabled(!meta.UseAvroJSON)
+		k.useAvroJSON = meta.UseAvroJSON
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {
 			k.srClient.SetCredentials(meta.SchemaRegistryAPIKey, meta.SchemaRegistryAPISecret)
@@ -411,18 +415,27 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 		if errSchema != nil {
 			return nil, nil, errSchema
 		}
-		codec := schema.Codec()
 
+		codec, errCodec := k.getCodec(schema)
+		if errCodec != nil {
+			return nil, nil, errCodec
+		}
+		defer k.latestSchemaCacheWriteLock.Unlock()
 		k.latestSchemaCacheWriteLock.Lock()
 		k.latestSchemaCache[subject] = SchemaCacheEntry{schema: schema, codec: codec, expirationTime: time.Now().Add(k.latestSchemaCacheTTL)}
-		k.latestSchemaCacheWriteLock.Unlock()
+
 		return schema, codec, nil
 	}
 	schema, err := srClient.GetLatestSchema(getSchemaSubject(topic))
 	if err != nil {
 		return nil, nil, err
 	}
-	return schema, schema.Codec(), nil
+	codec, errCodec := k.getCodec(schema)
+	if errCodec != nil {
+		return nil, nil, errCodec
+	}
+
+	return schema, codec, nil
 }
 
 func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error) {
@@ -431,6 +444,17 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 	}
 
 	return k.srClient, nil
+}
+
+func (k *Kafka) getCodec(schema *srclient.Schema) (*goavro.Codec, error) {
+	// The data coming through is either Avro JSON or standard JSON.
+	// Force creation of a new codec instance for serialization and deserialization to avoid state mutation issues.
+	// https://github.com/linkedin/goavro/issues/299
+	// Once the bug is fixed, we can remove this and use the codec directly from schema.Codec()
+	if k.useAvroJSON {
+		return goavro.NewCodec(schema.Schema())
+	}
+	return goavro.NewCodecForStandardJSONFull(schema.Schema())
 }
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {

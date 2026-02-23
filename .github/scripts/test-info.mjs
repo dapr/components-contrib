@@ -172,6 +172,16 @@ const components = {
         conformanceSetup: 'docker-compose.sh vernemq',
         sourcePkg: ['bindings/mqtt3'],
     },
+    'bindings.mysql': {
+        certification: true,
+    },
+    'bindings.mysql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh mysql',
+        sourcePkg: [
+            'bindings/mysql',
+        ],
+    },
     'bindings.postgres': {
         certification: true,
     },
@@ -826,6 +836,12 @@ const components = {
         certification: true,
         requireGCPCredentials: true,
         certificationSetup: 'certification-state.gcp.firestore-setup.sh',
+    },
+    'state.ravendb': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh ravendb',
+        requireRavenDBCredentials: true,
     },
 }
 

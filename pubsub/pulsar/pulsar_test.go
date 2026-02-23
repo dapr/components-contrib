@@ -14,6 +14,7 @@ limitations under the License.
 package pulsar
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -1054,7 +1056,7 @@ func TestInitFailsWhenClientCredentialsTypeMissingClientSecret(t *testing.T) {
 	err := p.Init(t.Context(), md)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must contain client_id, client_secret, and issuer_url")
+	assert.Contains(t, err.Error(), "must contain client_id and client_secret")
 }
 
 func TestInitUsesTokenSupplierWhenClientSecretPathMissing(t *testing.T) {
@@ -1135,3 +1137,78 @@ func writeTempFile(t *testing.T, content string) string {
 	require.NoError(t, f.Close())
 	return f.Name()
 }
+
+func TestSubscribe_AppliesMetadataOptions(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+
+	md := pubsub.Metadata{
+		Base: metadata.Base{Properties: map[string]string{
+			"host":                     "localhost:6650",
+			"consumerID":               "my-test-consumer",
+			"topic":                    "my-topic",
+			"subscribeInitialPosition": "earliest",
+			"subscribeMode":            "non_durable",
+		}},
+	}
+
+	var capturedOptions pulsar.ConsumerOptions
+	mockClient := &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			capturedOptions = options
+			return &MockPulsarConsumer{
+				Ch: make(chan pulsar.ConsumerMessage),
+			}, nil
+		},
+	}
+	p.client = mockClient
+
+	parsedMeta, err := parsePulsarMetadata(md)
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	req := pubsub.SubscribeRequest{
+		Topic:    "my-topic",
+		Metadata: md.Properties,
+	}
+
+	err = p.Subscribe(ctx, req, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Verify Initial Position: Should be Earliest (1), NOT Latest (0)
+	assert.Equal(t, pulsar.SubscriptionPositionEarliest, capturedOptions.SubscriptionInitialPosition,
+		"Bug: SubscriptionInitialPosition defaulted to 'Latest' instead of 'Earliest'")
+
+	// Verify Subscription Mode: Should be NonDurable (1), NOT Durable (0)
+	assert.Equal(t, pulsar.NonDurable, capturedOptions.SubscriptionMode,
+		"Bug: SubscriptionMode defaulted to 'Durable' instead of 'NonDurable'")
+}
+
+type MockPulsarClient struct {
+	pulsar.Client
+	SubscribeFn func(pulsar.ConsumerOptions) (pulsar.Consumer, error)
+}
+
+func (m *MockPulsarClient) Subscribe(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+	if m.SubscribeFn != nil {
+		return m.SubscribeFn(options)
+	}
+	return nil, nil
+}
+
+func (m *MockPulsarClient) Close() {}
+
+type MockPulsarConsumer struct {
+	pulsar.Consumer
+	Ch chan pulsar.ConsumerMessage
+}
+
+func (m *MockPulsarConsumer) Chan() <-chan pulsar.ConsumerMessage {
+	return m.Ch
+}
+
+func (m *MockPulsarConsumer) Close() {}

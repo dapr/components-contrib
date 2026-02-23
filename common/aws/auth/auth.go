@@ -18,6 +18,20 @@ const (
 	ProviderTypeUnknown // Or default
 )
 
+// EnvironmentSettings stores generic metadata.
+type EnvironmentSettings struct {
+	Metadata map[string]string
+}
+
+// NewEnvironmentSettings constructs a new EnvironmentSettings struct from
+// raw metadata.
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
+	es := EnvironmentSettings{
+		Metadata: md,
+	}
+	return es, nil
+}
+
 type Options struct {
 	Logger     logger.Logger
 	Properties map[string]string

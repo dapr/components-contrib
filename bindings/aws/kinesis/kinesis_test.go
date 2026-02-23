@@ -14,10 +14,13 @@ limitations under the License.
 package kinesis
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -45,4 +48,21 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "endpoint", meta.Endpoint)
 	assert.Equal(t, "token", meta.SessionToken)
 	assert.Equal(t, "extended", meta.KinesisConsumerMode)
+}
+
+func TestReadConfigError(t *testing.T) {
+	kinesis := &AWSKinesis{
+		metadata:     &kinesisMetadata{KinesisConsumerMode: SharedThroughput},
+		awsCfg:       aws.Config{},
+		streamName:   "stream",
+		consumerName: "consumer",
+		consumerMode: SharedThroughput,
+	}
+	err := kinesis.Read(t.Context(), func(ctx context.Context, resp *bindings.ReadResponse) ([]byte, error) {
+		return nil, nil
+	})
+	require.Error(t, err)
+	errStr := err.Error()
+	assert.Contains(t, errStr, "unable to build kinesis worker configuration")
+	assert.Contains(t, errStr, "region is required for Kinesis worker config")
 }

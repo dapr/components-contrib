@@ -25,8 +25,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/common/authentication/azure"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -48,7 +48,7 @@ type PostgresAuthMetadata struct {
 	QueryExecMode         string        `mapstructure:"queryExecMode"`
 
 	azureEnv azure.EnvironmentSettings
-	awsEnv   aws.EnvironmentSettings
+	awsEnv   awsAuth.EnvironmentSettings
 }
 
 // Reset the object.
@@ -91,7 +91,7 @@ func (m *PostgresAuthMetadata) InitWithMetadata(meta map[string]string, opts Ini
 		}
 	case opts.AWSIAMEnabled && m.UseAWSIAM:
 		// Populate the AWS environment if using AWS IAM
-		m.awsEnv, err = aws.NewEnvironmentSettings(meta)
+		m.awsEnv, err = awsAuth.NewEnvironmentSettings(meta)
 		if err != nil {
 			return err
 		}
@@ -216,7 +216,7 @@ func (m *PostgresAuthMetadata) buildURLConnectionString(metadata map[string]stri
 	return u.String(), nil
 }
 
-func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properties map[string]string) (*aws.Options, error) {
+func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properties map[string]string) (*awsAuth.Options, error) {
 	awsRegion, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "AWSRegion")
 	region, _ := metadata.GetMetadataProperty(m.awsEnv.Metadata, "region")
 	if region == "" {
@@ -246,13 +246,13 @@ func (m *PostgresAuthMetadata) BuildAwsIamOptions(logger logger.Logger, properti
 	if sessionName == "" {
 		sessionName = "DaprDefaultSession"
 	}
-	return &aws.Options{
-		Region:        region,
-		AccessKey:     awsAccessKey,
-		SecretKey:     awsSecretKey,
-		SessionToken:  sessionToken,
-		AssumeRoleARN: assumeRoleArn,
-		SessionName:   sessionName,
+	return &awsAuth.Options{
+		Region:                region,
+		AccessKey:             awsAccessKey,
+		SecretKey:             awsSecretKey,
+		SessionToken:          sessionToken,
+		AssumeRoleArn:         assumeRoleArn,
+		AssumeRoleSessionName: sessionName,
 
 		Logger:     logger,
 		Properties: properties,

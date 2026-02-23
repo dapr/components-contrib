@@ -77,3 +77,8 @@ metadata:
     description: "Skip host key verification (insecure)"
     example: "false"
     default: "false"
+  - name: sequentialMode
+    required: false
+    description: "Used to specify if concurrent operations are allowed within a single connection"
+    example: "false"
+    default: "false"

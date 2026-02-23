@@ -24,3 +24,5 @@ spec:
     value: admin-secret
   - name: disableTls
     value: "true"
+  - name: clientConnectionTopicMetadataRefreshInterval
+    value: 15s

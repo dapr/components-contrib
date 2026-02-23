@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"time"
 
@@ -106,8 +107,8 @@ func (c v9Client) Get(ctx context.Context, key string) (string, error) {
 	return c.client.Get(ctx, key).Result()
 }
 
-func (c v9Client) GetNilValueError() RedisError {
-	return RedisError(v9.Nil.Error())
+func (c v9Client) IsNilValueError(err error) bool {
+	return errors.Is(err, v9.Nil)
 }
 
 func (c v9Client) Context() context.Context {

@@ -9,7 +9,7 @@ import (
 )
 
 // NOTE: These are all workarounds due to langchaingo limitations,
-// or limitations of certain components (so far only mistral and ollama).
+// or limitations of certain components (so far only mistral).
 
 // CreateToolCallPart creates mistral and ollama api compatible tool call messages.
 // Most LLM providers can handle tool calls using the tool call object;

@@ -27,9 +27,10 @@ metadata:
       - An inference profile ARN for models that require it (found in the AWS Bedrock console under "Cross-Region Inference")
     type: string
     example: 'amazon.titan-text-express-v1'
-  - name: cacheTTL
+  - name: responseCacheTTL
     required: false
     description: |
-      A time-to-live value for a prompt cache to expire. Uses Golang durations
+      A time-to-live value for a prompt/response cache to expire. Uses Go duration strings (e.g. "5m", "1h").
+      The component also supports the legacy key `cacheTTL` via mapstructure aliases.
     type: string
     example: '10m'

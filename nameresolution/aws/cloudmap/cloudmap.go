@@ -24,11 +24,37 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 )
+
+// convertConfigurationToStringMap converts the generic Configuration field into a map[string]string for aws auth fields
+func convertConfigurationToStringMap(cfg any) map[string]string {
+	if cfg == nil {
+		return nil
+	}
+
+	switch v := cfg.(type) {
+	case map[string]string:
+		return v
+	case map[string]any:
+		out := make(map[string]string, len(v))
+		for k, val := range v {
+			switch t := val.(type) {
+			case string:
+				out[k] = t
+			default:
+				out[k] = fmt.Sprint(t)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
 
 // ServiceDiscoveryClient interface for mocking
 type ServiceDiscoveryClient interface {
@@ -39,7 +65,6 @@ type ServiceDiscoveryClient interface {
 
 // Resolver is the AWS CloudMap name resolver.
 type Resolver struct {
-	authProvider    awsAuth.Provider
 	client          ServiceDiscoveryClient
 	logger          logger.Logger
 	namespaceID     string
@@ -72,24 +97,16 @@ func (r *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 		r.defaultDaprPort = meta.DefaultDaprPort
 	}
 
-	// Initialize AWS auth provider
-	opts := awsAuth.Options{
+	authOpts := awsAuth.Options{
 		Logger:       r.logger,
+		Properties:   convertConfigurationToStringMap(metadata.Configuration),
 		Region:       meta.Region,
 		Endpoint:     meta.Endpoint,
 		AccessKey:    meta.AccessKey,
 		SecretKey:    meta.SecretKey,
 		SessionToken: meta.SessionToken,
 	}
-	cfg := awsAuth.GetConfig(opts)
-	provider, err := awsAuth.NewProvider(ctx, opts, cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create AWS provider: %w", err)
-	}
-	r.authProvider = provider
-
-	// Create AWS SDK v2 config
-	awsCfg, err := awsAuth.GetConfigV2(meta.AccessKey, meta.SecretKey, meta.SessionToken, meta.Region, meta.Endpoint)
+	awsCfg, err := awsCommon.NewConfig(ctx, authOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS config: %w", err)
 	}
@@ -196,9 +213,6 @@ func (r *Resolver) resolveIDMulti(ctx context.Context, req nameresolution.Resolv
 
 // Close implements io.Closer.
 func (r *Resolver) Close() error {
-	if r.authProvider != nil {
-		return r.authProvider.Close()
-	}
 	return nil
 }
 

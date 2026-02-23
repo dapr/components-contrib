@@ -197,6 +197,9 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				// Sleep to allow messages to pile up and be delivered as a batch.
 				time.Sleep(1 * time.Second)
 				t.Logf("Simulating subscriber error")
+				mu.Lock()
+				delete(awaitingMessages, dataString) // drop the message to avoid infinite re-delivery, dapr resiliency policy will apply if defined
+				mu.Unlock()
 				return errors.New("conf test simulated error")
 			}
 
@@ -284,6 +287,10 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						// Sleep to allow messages to pile up and be delivered as a batch.
 						time.Sleep(1 * time.Second)
 						t.Logf("Simulating subscriber error")
+
+						muBulk.Lock()
+						delete(awaitingMessagesBulk, dataString) // drop the message to avoid infinite re-delivery, dapr resiliency policy will apply if defined
+						muBulk.Unlock()
 
 						bulkResponses[i].EntryId = msg.EntryId
 						bulkResponses[i].Error = errors.New("conf test simulated error")
@@ -530,15 +537,17 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
 					var topic string
 					if k%2 == 0 {
+						if sent1Ch == nil {
+							continue // subscriber 1 is closed, do not publish to this topic
+						}
 						topic = config.TestMultiTopic1Name
-						if sent1Ch != nil {
-							sent1Ch <- string(data)
-						}
+						sent1Ch <- string(data)
 					} else {
-						topic = config.TestMultiTopic2Name
-						if sent2Ch != nil {
-							sent2Ch <- string(data)
+						if sent2Ch == nil {
+							continue // subscriber 2 is closed, do not publish to this topic
 						}
+						topic = config.TestMultiTopic2Name
+						sent2Ch <- string(data)
 					}
 					err := ps.Publish(ctx, &pubsub.PublishRequest{
 						Data:       data,

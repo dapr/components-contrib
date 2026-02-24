@@ -29,8 +29,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -56,8 +57,6 @@ type PostgreSQL struct {
 	etagColumn    string
 	enableAzureAD bool
 	enableAWSIAM  bool
-
-	awsAuthProvider awsAuth.Provider
 }
 
 type Options struct {
@@ -116,13 +115,20 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 
-		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
-		if err != nil {
+		authOpts := awsAuth.Options{
+			Logger:                p.logger,
+			Properties:            meta.Properties,
+			Region:                opts.Region,
+			AccessKey:             opts.AccessKey,
+			SecretKey:             opts.SecretKey,
+			SessionToken:          opts.SessionToken,
+			AssumeRoleArn:         opts.AssumeRoleArn,
+			AssumeRoleSessionName: opts.AssumeRoleSessionName,
+			Endpoint:              opts.Endpoint,
+		}
+		if err = awsCommon.ConfigurePostgresIAM(ctx, config, authOpts); err != nil {
 			return err
 		}
-		p.awsAuthProvider = provider
-		p.awsAuthProvider.UpdatePostgres(ctx, config)
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
@@ -504,22 +510,17 @@ func (p *PostgreSQL) CleanupExpired() error {
 	return nil
 }
 
-// Close implements io.Close.
+// Close implements io.Closer.
 func (p *PostgreSQL) Close() error {
 	if p.db != nil {
 		p.db.Close()
 		p.db = nil
 	}
 
-	errs := make([]error, 2)
 	if p.gc != nil {
-		errs[0] = p.gc.Close()
+		return p.gc.Close()
 	}
-
-	if p.awsAuthProvider != nil {
-		errs[1] = p.awsAuthProvider.Close()
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // GetCleanupInterval returns the cleanupInterval property.

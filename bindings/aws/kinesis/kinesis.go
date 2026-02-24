@@ -28,11 +28,10 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/interfaces"
-	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/interfaces"
+	"github.com/vmware/vmware-go-kcl-v2/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	awsCommon "github.com/dapr/components-contrib/common/aws"
 	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
@@ -42,8 +41,7 @@ import (
 
 // AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
 type AWSKinesis struct {
-	authProvider awsAuth.Provider
-	metadata     *kinesisMetadata
+	metadata *kinesisMetadata
 
 	worker *worker.Worker
 
@@ -54,6 +52,7 @@ type AWSKinesis struct {
 	consumerMode string
 
 	kinesisClient *kinesis.Client
+	awsCfg        aws.Config
 
 	closed  atomic.Bool
 	closeCh chan struct{}
@@ -123,21 +122,6 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 	a.consumerName = m.ConsumerName
 	a.metadata = m
 
-	opts := awsAuth.Options{
-		Logger:       a.logger,
-		Properties:   metadata.Properties,
-		Region:       m.Region,
-		AccessKey:    m.AccessKey,
-		SecretKey:    m.SecretKey,
-		SessionToken: "",
-	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
-	if err != nil {
-		return err
-	}
-	a.authProvider = provider
-
 	configOpts := awsCommonAuth.Options{
 		Logger:       a.logger,
 		Properties:   metadata.Properties,
@@ -151,6 +135,7 @@ func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error
 	if err != nil {
 		return fmt.Errorf("error getting AWS config: %w", err)
 	}
+	a.awsCfg = awsCfg
 	a.kinesisClient = kinesis.NewFromConfig(awsCfg)
 	return nil
 }
@@ -179,15 +164,17 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	}
 
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
-		// Configure the KCL worker with custom endpoints for LocalStack
-		config := a.authProvider.Kinesis().WorkerCfg(ctx, a.streamName, a.consumerName, a.consumerMode)
+		// Configure the KCL worker with custom endpoints for LocalStack.
+		config, cfgErr := awsCommon.NewKinesisWorkerConfig(a.awsCfg, a.streamName, a.consumerName, a.consumerMode)
+		if cfgErr != nil {
+			return fmt.Errorf("unable to build kinesis worker configuration: %w", cfgErr)
+		}
 		if a.metadata.Endpoint != "" {
 			config.KinesisEndpoint = a.metadata.Endpoint
 			config.DynamoDBEndpoint = a.metadata.Endpoint
 		}
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), config)
-		err = a.worker.Start()
-		if err != nil {
+		if err = a.worker.Start(); err != nil {
 			return err
 		}
 	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
@@ -205,7 +192,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		}
 	}
 
-	stream, err := a.authProvider.Kinesis().Stream(ctx, a.streamName)
+	stream, err := awsCommon.StreamARN(ctx, a.kinesisClient, a.streamName)
 	if err != nil {
 		return fmt.Errorf("failed to get kinesis stream arn: %v", err)
 	}
@@ -299,9 +286,6 @@ func (a *AWSKinesis) Close() error {
 		close(a.closeCh)
 	}
 	a.wg.Wait()
-	if a.authProvider != nil {
-		return a.authProvider.Close()
-	}
 	return nil
 }
 

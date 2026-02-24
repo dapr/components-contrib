@@ -17,8 +17,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	"github.com/dapr/components-contrib/common/aws"
 	kitmd "github.com/dapr/kit/metadata"
 )
 

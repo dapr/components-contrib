@@ -5,9 +5,14 @@ on:
     tags:
       - '*'
 
+permissions: {}
+
 jobs:
   upload-bundle:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -19,7 +24,8 @@ jobs:
       - name: Build component-metadata-bundle.json
         run: make bundle-component-metadata
       - name: Upload component-metadata-bundle.json
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.DAPR_BOT_TOKEN }}
+          generate_release_notes: true
           files: component-metadata-bundle.json

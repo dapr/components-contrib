@@ -138,8 +138,6 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 
 	ctx := t.Context()
 
-	fmt.Println("TestPostgresConfigurationWithIAM")
-
 	// Testing use of moto to mock AWS services for IAM authentication
 	motoContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{

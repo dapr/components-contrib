@@ -86,3 +86,34 @@ jobs:
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: codecov/codecov-action@v3
+
+  check-metadata-bundle-changes:
+    name: Detect metadata file changes
+    runs-on: ubuntu-latest
+    outputs:
+      metadata: ${{ steps.filter.outputs.metadata }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            metadata:
+              - '**/metadata.yaml'
+              - 'component-metadata-schema.json'
+
+  check-metadata-bundle:
+    name: Check component metadata bundle
+    needs: check-metadata-bundle-changes
+    if: needs.check-metadata-bundle-changes.outputs.metadata == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+          cache: 'false'
+      - name: Check component metadata bundle can be generated
+        run: make bundle-component-metadata

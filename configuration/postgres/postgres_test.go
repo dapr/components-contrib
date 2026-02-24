@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -126,6 +127,15 @@ func TestValidateInput(t *testing.T) {
 }
 
 func TestPostgresConfigurationWithIAM(t *testing.T) {
+	// testcontainers spins up Linux containers (moto, postgres) that rely on the
+	// bridge network driver. On Windows, Docker runs in Windows-container mode and
+	// does not ship the bridge plugin, so container creation fails even when the
+	// Docker daemon is reachable. Skip explicitly rather than letting the test hang
+	// or produce a confusing "plugin not found" error.
+	if runtime.GOOS != "linux" {
+		t.Skip("testcontainers bridge network unavailable on non-Linux platforms")
+	}
+
 	ctx := t.Context()
 
 	// Testing use of moto to mock AWS services for IAM authentication

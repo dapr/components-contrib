@@ -132,8 +132,8 @@ func TestPostgresConfigurationWithIAM(t *testing.T) {
 	// does not ship the bridge plugin, so container creation fails even when the
 	// Docker daemon is reachable. Skip explicitly rather than letting the test hang
 	// or produce a confusing "plugin not found" error.
-	if runtime.GOOS == "windows" {
-		t.Skip("testcontainers bridge network unavailable on Windows")
+	if runtime.GOOS != "linux" {
+		t.Skip("testcontainers bridge network unavailable on non-Linux platforms")
 	}
 
 	ctx := t.Context()

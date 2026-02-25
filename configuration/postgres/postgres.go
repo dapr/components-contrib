@@ -262,6 +262,12 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	if pgNotifyChannel == "" {
 		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
 	}
+	if len(pgNotifyChannel) > maxIdentifierLength {
+		return "", fmt.Errorf("pgNotifyChannel name is too long - '%s'. max allowed length is %d", pgNotifyChannel, maxIdentifierLength)
+	}
+	if !allowedTableNameChars.MatchString(pgNotifyChannel) {
+		return "", fmt.Errorf("invalid pgNotifyChannel name '%s'. non-alphanumerics or upper cased names are not supported", pgNotifyChannel)
+	}
 	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }
 

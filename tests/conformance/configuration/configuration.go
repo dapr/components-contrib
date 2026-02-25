@@ -265,6 +265,24 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
+		if strings.HasPrefix(component, postgresComponent) {
+			t.Run("subscriber with pgNotifyChannel in request metadata (backward compat)", func(t *testing.T) {
+				ID, err := store.Subscribe(t.Context(),
+					&configuration.SubscribeRequest{
+						Keys: getKeys(initValues1),
+						Metadata: map[string]string{
+							"pgNotifyChannel": "config",
+						},
+					},
+					func(ctx context.Context, e *configuration.UpdateEvent) error {
+						return nil
+					})
+				require.NoError(t, err, "expected no error on subscribe with pgNotifyChannel in request metadata")
+				err = store.Unsubscribe(t.Context(), &configuration.UnsubscribeRequest{ID: ID})
+				require.NoError(t, err, "expected no error on unsubscribe")
+			})
+		}
+
 		t.Run("wait", func(t *testing.T) {
 			time.Sleep(defaultWaitDuration)
 		})

@@ -126,6 +126,71 @@ func TestValidateInput(t *testing.T) {
 	require.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
 }
 
+func TestMetadataPgNotifyChannel(t *testing.T) {
+	t.Run("custom pgNotifyChannel is parsed correctly", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  "myconfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Equal(t, "myconfig", m.PgNotifyChannel)
+	})
+
+	t.Run("missing pgNotifyChannel is allowed at init", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Empty(t, m.PgNotifyChannel)
+	})
+
+	t.Run("invalid pgNotifyChannel with uppercase fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  "MyConfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid pgNotifyChannel name")
+	})
+
+	t.Run("invalid pgNotifyChannel with special chars fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  "config; DROP TABLE--",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid pgNotifyChannel name")
+	})
+
+	t.Run("pgNotifyChannel exceeding max length fails", func(t *testing.T) {
+		m := metadata{}
+		longName := ""
+		for i := 0; i < maxIdentifierLength+1; i++ {
+			longName += "a"
+		}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  longName,
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "pgNotifyChannel name is too long")
+	})
+}
+
 func TestPostgresConfigurationWithIAM(t *testing.T) {
 	// testcontainers spins up Linux containers (moto, postgres) that rely on the
 	// bridge network driver. On Windows, Docker runs in Windows-container mode and

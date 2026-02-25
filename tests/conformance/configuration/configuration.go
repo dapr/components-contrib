@@ -37,9 +37,7 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
-	postgresComponent      = "postgresql"
-	pgNotifyChannelKey     = "pgNotifyChannel"
-	pgNotifyChannel        = "config"
+	postgresComponent = "postgresql"
 )
 
 type TestConfig struct {
@@ -153,7 +151,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 		// Creating trigger for postgres config updater
 		if strings.HasPrefix(component, postgresComponent) {
-			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
+			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger("config")
 			require.NoError(t, err)
 		}
 
@@ -222,16 +220,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	})
 
 	t.Run("subscribe", func(t *testing.T) {
-		subscribeMetadata := make(map[string]string)
-		if strings.HasPrefix(component, postgresComponent) {
-			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
-		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
 			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: subscribeMetadata,
+					Metadata: make(map[string]string),
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC1 <- e
@@ -246,7 +240,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: subscribeMetadata,
+					Metadata: make(map[string]string),
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC2 <- e
@@ -261,7 +255,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(t.Context(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: subscribeMetadata,
+					Metadata: make(map[string]string),
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC3 <- e

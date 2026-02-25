@@ -252,7 +252,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		return "", errors.New("configuration store is closed")
 	}
 
-	pgNotifyChannel := ""
+	pgNotifyChannel := p.metadata.PgNotifyChannel
 	for k, v := range req.Metadata {
 		if strings.ToLower(k) == "pgnotifychannel" { //nolint:gocritic
 			pgNotifyChannel = v
@@ -260,7 +260,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if pgNotifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
+		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
 	}
 	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }

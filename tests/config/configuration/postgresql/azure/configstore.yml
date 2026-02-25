@@ -18,3 +18,5 @@ spec:
       value: "true"
     - name: table
       value: configtable
+    - name: pgNotifyChannel
+      value: config

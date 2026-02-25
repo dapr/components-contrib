@@ -19,10 +19,13 @@ import (
 	"testing"
 	"time"
 
-	dynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
+	"github.com/dapr/components-contrib/state/aws/dynamodb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
@@ -30,8 +33,6 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -143,11 +144,9 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				{
 					Type: client.StateOperationTypeUpsert,
 					Item: &client.SetStateItem{
-						Key:   ktx1,
-						Value: []byte("reqValTx1"),
-						Etag: &client.ETag{
-							Value: "test",
-						},
+						Key:      ktx1,
+						Value:    []byte("reqValTx1"),
+						Etag:     nil,
 						Metadata: map[string]string{},
 					},
 				},
@@ -161,11 +160,9 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				{
 					Type: client.StateOperationTypeUpsert,
 					Item: &client.SetStateItem{
-						Key:   ktx2,
-						Value: []byte("reqValTx2"),
-						Etag: &client.ETag{
-							Value: "test",
-						},
+						Key:      ktx2,
+						Value:    []byte("reqValTx2"),
+						Etag:     nil,
 						Metadata: map[string]string{},
 					},
 				},

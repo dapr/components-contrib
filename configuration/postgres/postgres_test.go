@@ -177,7 +177,7 @@ func TestMetadataPgNotifyChannel(t *testing.T) {
 	t.Run("pgNotifyChannel exceeding max length fails", func(t *testing.T) {
 		m := metadata{}
 		longName := ""
-		for i := 0; i < maxIdentifierLength+1; i++ {
+		for range maxIdentifierLength + 1 {
 			longName += "a"
 		}
 		props := map[string]string{

@@ -37,7 +37,7 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
-	postgresComponent = "postgresql"
+	postgresComponent      = "postgresql"
 )
 
 type TestConfig struct {

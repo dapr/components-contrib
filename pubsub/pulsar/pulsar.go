@@ -15,10 +15,12 @@ package pulsar
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -464,7 +466,7 @@ func validateJSONAgainstAvroSchema(value interface{}, schema avro.Schema) error 
 		}
 		return nil
 	default:
-		return nil
+		return fmt.Errorf("unsupported avro schema type: %T", schema)
 	}
 }
 
@@ -474,7 +476,9 @@ func validateRecord(value interface{}, schema *avro.RecordSchema) error {
 		return fmt.Errorf("expected object for record %q, got %T", schema.Name(), value)
 	}
 
+	schemaFields := make(map[string]struct{}, len(schema.Fields()))
 	for _, field := range schema.Fields() {
+		schemaFields[field.Name()] = struct{}{}
 		fieldVal, exists := obj[field.Name()]
 		if !exists {
 			if !field.HasDefault() {
@@ -484,6 +488,13 @@ func validateRecord(value interface{}, schema *avro.RecordSchema) error {
 		}
 		if err := validateJSONAgainstAvroSchema(fieldVal, field.Type()); err != nil {
 			return fmt.Errorf("field %q: %w", field.Name(), err)
+		}
+	}
+
+	// Check for extra fields not defined in the schema.
+	for key := range obj {
+		if _, exists := schemaFields[key]; !exists {
+			return fmt.Errorf("unknown field %q is not defined in the schema for record %q", key, schema.Name())
 		}
 	}
 
@@ -553,7 +564,7 @@ func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
 		if _, ok := value.(bool); !ok {
 			return fmt.Errorf("expected boolean, got %T", value)
 		}
-	case avro.Int, avro.Long:
+	case avro.Int:
 		// JSON numbers are float64 when unmarshalled via encoding/json
 		f, ok := value.(float64)
 		if !ok {
@@ -561,6 +572,25 @@ func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
 		}
 		if f != float64(int64(f)) {
 			return fmt.Errorf("expected integer, got floating-point number %v", f)
+		}
+		// Avro int is 32-bit signed
+		if f < math.MinInt32 || f > math.MaxInt32 {
+			return fmt.Errorf("value %v overflows avro int (must be between %d and %d)", f, math.MinInt32, math.MaxInt32)
+		}
+	case avro.Long:
+		// JSON numbers are float64 when unmarshalled via encoding/json
+		f, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("expected integer, got %T", value)
+		}
+		if f != float64(int64(f)) {
+			return fmt.Errorf("expected integer, got floating-point number %v", f)
+		}
+		// Avro long is 64-bit signed. Note: float64 loses precision above 2^53,
+		// but the integer check above (f == float64(int64(f))) already guards
+		// against values that cannot be exactly represented.
+		if f < math.MinInt64 || f > math.MaxInt64 {
+			return fmt.Errorf("value %v overflows avro long (must be between %d and %d)", f, int64(math.MinInt64), int64(math.MaxInt64))
 		}
 	case avro.Float, avro.Double:
 		if _, ok := value.(float64); !ok {
@@ -597,8 +627,15 @@ func validateFixed(value interface{}, schema *avro.FixedSchema) error {
 	if !ok {
 		return fmt.Errorf("expected string for fixed %q, got %T", schema.Name(), value)
 	}
+	// Avro fixed values in JSON may be represented as raw strings (byte length
+	// must match schema size) or as base64-encoded strings. We first check the
+	// raw byte length; if that does not match, we attempt a base64 decode and
+	// compare the decoded length as a fallback.
 	if len(str) != schema.Size() {
-		return fmt.Errorf("fixed %q expects size %d, got %d", schema.Name(), schema.Size(), len(str))
+		decoded, err := base64.StdEncoding.DecodeString(str)
+		if err != nil || len(decoded) != schema.Size() {
+			return fmt.Errorf("fixed %q expects size %d, got %d bytes (base64 decode also failed or produced wrong length)", schema.Name(), schema.Size(), len(str))
+		}
 	}
 	return nil
 }

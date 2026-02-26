@@ -687,6 +687,261 @@ func TestParsePublishMetadataAvroSchemaWithArrays(t *testing.T) {
 	})
 }
 
+func TestParsePublishMetadataAvroSchemaWithMap(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Config",
+		"namespace": "test",
+		"fields": [
+			{"name": "settings", "type": {"type": "map", "values": "string"}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid map", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"settings": {"key1": "value1", "key2": "value2"}}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("invalid map value type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"settings": {"key1": 123}}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "map key")
+	})
+
+	t.Run("map field is not an object", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"settings": "not_a_map"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected object for map type")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithEnum(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Shirt",
+		"namespace": "test",
+		"fields": [
+			{"name": "color", "type": {"type": "enum", "name": "Color", "symbols": ["RED", "GREEN", "BLUE"]}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid enum value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"color": "RED"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("invalid enum value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"color": "YELLOW"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "not a valid symbol")
+	})
+
+	t.Run("enum field wrong type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"color": 42}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected string for enum")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithBoolean(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Feature",
+		"namespace": "test",
+		"fields": [
+			{"name": "name", "type": "string"},
+			{"name": "enabled", "type": "boolean"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid boolean true", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "dark_mode", "enabled": true}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("valid boolean false", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "dark_mode", "enabled": false}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("boolean field wrong type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "dark_mode", "enabled": "yes"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected boolean")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Hash",
+		"namespace": "test",
+		"fields": [
+			{"name": "md5", "type": {"type": "fixed", "name": "MD5", "size": 16}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid fixed raw bytes length", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"md5": "0123456789abcdef"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("invalid fixed wrong size", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"md5": "tooshort"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fixed")
+		assert.Contains(t, err.Error(), "size")
+	})
+
+	t.Run("fixed field wrong type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"md5": 12345}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected string for fixed")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaIntOverflow(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Numbers",
+		"namespace": "test",
+		"fields": [
+			{"name": "small", "type": "int"},
+			{"name": "big", "type": "long"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("int within range", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"small": 2147483647, "big": 100}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("int overflow positive", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"small": 2147483648, "big": 100}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "overflows avro int")
+	})
+
+	t.Run("int overflow negative", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"small": -2147483649, "big": 100}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "overflows avro int")
+	})
+
+	t.Run("long accepts large value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"small": 1, "big": 2147483648}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaUnknownFields(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Person",
+		"namespace": "test",
+		"fields": [
+			{"name": "name", "type": "string"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("extra field rejected", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "John", "extra": "field"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown field")
+		assert.Contains(t, err.Error(), "extra")
+	})
+}
+
 func TestMissingHost(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": ""}

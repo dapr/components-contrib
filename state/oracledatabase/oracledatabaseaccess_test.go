@@ -297,10 +297,16 @@ func TestBulkGetRowsErrFailure(t *testing.T) {
 		metadata: oracleDatabaseMetadata{TableName: "state"},
 	}
 
-	// Return one row successfully, then simulate a rows.Err() after iteration
+	// sqlmock's RowError(N, err) causes rows.Next() to return false (with the
+	// error surfaced via rows.Err()) when attempting to read row at index N.
+	// We need at least N+1 rows added for RowError(N) to fire; the error
+	// prevents the Nth row from being read. So we add a dummy second row
+	// (key2) and set RowError(1, ...) -- key1 at index 0 is scanned
+	// successfully, then the attempt to advance to index 1 fails.
 	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
 		AddRow("key1", `"value1"`, "N", "etag1", nil).
-		RowError(0, errors.New("network timeout"))
+		AddRow("key2", `"value2"`, "N", "etag2", nil).
+		RowError(1, errors.New("network timeout"))
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
@@ -312,16 +318,28 @@ func TestBulkGetRowsErrFailure(t *testing.T) {
 
 	res, err := o.BulkGet(t.Context(), req)
 	require.NoError(t, err)
+	require.Len(t, res, 3)
 
-	// key2 and key3 were not found, so they should have error entries
-	foundErrors := 0
+	// Build a map for easier assertion regardless of ordering.
+	byKey := make(map[string]state.BulkGetResponse, len(res))
 	for _, r := range res {
-		if r.Error != "" {
-			foundErrors++
-			assert.Contains(t, r.Error, "network timeout")
-		}
+		byKey[r.Key] = r
 	}
-	assert.GreaterOrEqual(t, foundErrors, 1, "unfound keys should have error entries from rows.Err()")
+
+	// key1 was scanned successfully before the error.
+	successfulResult := byKey["key1"]
+	assert.Empty(t, successfulResult.Error)
+	assert.NotNil(t, successfulResult.Data)
+
+	// key2 and key3 were never returned by the DB; they should carry the
+	// rows.Err() message as per-key errors.
+	for _, k := range []string{"key2", "key3"} {
+		r := byKey[k]
+		assert.Equal(t, k, r.Key)
+		assert.NotEmpty(t, r.Error, "unfound key %q should have an error from rows.Err()", k)
+		assert.Contains(t, r.Error, "network timeout")
+		assert.Nil(t, r.Data, "error entry should have nil data")
+	}
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -339,14 +357,21 @@ func TestBulkGetRowsErrAfterAllRowsProcessed(t *testing.T) {
 		metadata: oracleDatabaseMetadata{TableName: "state"},
 	}
 
-	// Return the one requested row successfully, then set rows.Err()
-	// This tests the case where all keys are found but rows.Err() still fires.
-	// go-sqlmock's RowError uses 0-based index; setting error on row 0
-	// causes rows.Next() to return false and rows.Err() to report the error.
-	// To simulate "all rows processed then error", we use CloseError instead.
+	// Return the one requested row successfully, then trigger rows.Err().
+	// This tests the warning-log path where all requested keys are found but
+	// rows.Err() still reports an error (e.g. a late network hiccup).
+	//
+	// sqlmock limitation: CloseError only sets the error returned by
+	// rows.Close(), NOT rows.Err(). To make rows.Err() return an error we
+	// must use RowError. RowError(N) requires at least N+1 rows to be added
+	// so that sqlmock actually attempts to advance to index N. We add a
+	// dummy second row and set RowError(1, ...) -- row 0 (key1) is read
+	// successfully, then the attempt to advance to row 1 fails, and
+	// rows.Err() reports the error.
 	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
 		AddRow("key1", `"value1"`, "N", "etag1", nil).
-		CloseError(errors.New("late network error"))
+		AddRow("dummy", `"dummy"`, "N", "dummy", nil).
+		RowError(1, errors.New("late network error"))
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
@@ -356,10 +381,12 @@ func TestBulkGetRowsErrAfterAllRowsProcessed(t *testing.T) {
 
 	res, err := o.BulkGet(t.Context(), req)
 	require.NoError(t, err)
-	// The single key was found, so the warning path should be hit (logged).
-	// The result should still contain the successfully found key.
+	// key1 was found before the error, so the warning-log branch is taken
+	// (no unfound keys to attach the error to). The result should still
+	// contain the successfully scanned key.
 	require.Len(t, res, 1)
 	assert.Equal(t, "key1", res[0].Key)
+	assert.Empty(t, res[0].Error)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

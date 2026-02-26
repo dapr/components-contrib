@@ -592,7 +592,15 @@ func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
 		if f < math.MinInt64 || f > math.MaxInt64 {
 			return fmt.Errorf("value %v overflows avro long (must be between %d and %d)", f, int64(math.MinInt64), int64(math.MaxInt64))
 		}
-	case avro.Float, avro.Double:
+	case avro.Float:
+		f, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("expected number, got %T", value)
+		}
+		if f > math.MaxFloat32 || f < -math.MaxFloat32 {
+			return fmt.Errorf("value %v overflows avro float (32-bit)", f)
+		}
+	case avro.Double:
 		if _, ok := value.(float64); !ok {
 			return fmt.Errorf("expected number, got %T", value)
 		}
@@ -602,7 +610,7 @@ func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
 		}
 	case avro.Bytes:
 		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected string (base64-encoded bytes), got %T", value)
+			return fmt.Errorf("expected string for bytes, got %T", value)
 		}
 	}
 

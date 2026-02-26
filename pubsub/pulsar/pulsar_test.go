@@ -1007,7 +1007,44 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
 		assert.Contains(t, err.Error(), "payload")
-		assert.Contains(t, err.Error(), "expected string (base64-encoded bytes)")
+		assert.Contains(t, err.Error(), "expected string for bytes")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaFloatOverflow(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Measurement",
+		"namespace": "test",
+		"fields": [
+			{"name": "temperature", "type": "float"},
+			{"name": "precise", "type": "double"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("float field rejects overflow value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 1e300, "precise": 1.0}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "temperature")
+		assert.Contains(t, err.Error(), "overflows avro float (32-bit)")
+	})
+
+	t.Run("double field accepts large value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 36.6, "precise": 1e300}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
 	})
 }
 

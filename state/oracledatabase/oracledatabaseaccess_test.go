@@ -410,3 +410,127 @@ func TestBulkGetEmpty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res)
 }
+
+func TestBulkGetMissingKeys(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// DB only returns key2; key1 and key3 are not in the database.
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key2", `"value2"`, "N", "etag2", nil)
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key2"},
+		{Key: "key3"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 3)
+
+	// Build a map for easier assertion regardless of ordering.
+	byKey := make(map[string]state.BulkGetResponse, len(res))
+	for _, r := range res {
+		byKey[r.Key] = r
+	}
+
+	// key2 was returned by the DB — should have data and etag.
+	r2 := byKey["key2"]
+	assert.Empty(t, r2.Error)
+	assert.NotNil(t, r2.Data)
+	assert.NotNil(t, r2.ETag)
+
+	// key1 and key3 were not in the DB — should be empty entries with no error.
+	for _, k := range []string{"key1", "key3"} {
+		r := byKey[k]
+		assert.Equal(t, k, r.Key)
+		assert.Empty(t, r.Error, "missing key should not have an error")
+		assert.Nil(t, r.Data, "missing key should have nil data")
+		assert.Nil(t, r.ETag, "missing key should have nil etag")
+		assert.Nil(t, r.Metadata, "missing key should have nil metadata")
+	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetRowsScanFailure(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// To trigger a Scan error, pass a string for the expiration_time column.
+	// sql.NullTime.Scan cannot convert a plain string to time.Time,
+	// so rows.Scan() will return an error for that row.
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"value1"`, "N", "etag1", nil).                    // valid row
+		AddRow("key2", `"value2"`, "N", "etag2", "not-a-time-value").     // expiration_time is a string — Scan will fail
+		AddRow("key3", `"value3"`, "N", "etag3", nil)                     // valid row
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key2"},
+		{Key: "key3"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 3)
+
+	// key1 should succeed.
+	assert.Equal(t, "key1", res[0].Key)
+	assert.Empty(t, res[0].Error)
+	assert.NotNil(t, res[0].Data)
+
+	// key2 should have a per-key scan error.
+	assert.NotEmpty(t, res[1].Error, "scan failure should produce a per-key error")
+	assert.Nil(t, res[1].Data, "scan failure entry should have nil data")
+
+	// key3 should succeed despite key2's failure.
+	assert.Equal(t, "key3", res[2].Key)
+	assert.Empty(t, res[2].Error)
+	assert.NotNil(t, res[2].Data)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetEmptyKeyValidation(t *testing.T) {
+	t.Parallel()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: ""},
+		{Key: "key3"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Equal(t, "missing key in bulk get operation", err.Error())
+}

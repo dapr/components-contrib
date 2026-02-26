@@ -252,23 +252,23 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		return "", errors.New("configuration store is closed")
 	}
 
-	pgNotifyChannel := p.metadata.PgNotifyChannel
+	notifyChannel := p.metadata.NotifyChannel
 	for k, v := range req.Metadata {
-		if strings.ToLower(k) == "pgnotifychannel" { //nolint:gocritic
-			pgNotifyChannel = v
+		if strings.ToLower(k) == "notifychannel" { //nolint:gocritic
+			notifyChannel = v
 			break
 		}
 	}
-	if pgNotifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
+	if notifyChannel == "" {
+		return "", fmt.Errorf("unable to subscribe to '%s'. notifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
 	}
-	if len(pgNotifyChannel) > maxIdentifierLength {
-		return "", fmt.Errorf("pgNotifyChannel name is too long - '%s'. max allowed length is %d", pgNotifyChannel, maxIdentifierLength)
+	if len(notifyChannel) > maxIdentifierLength {
+		return "", fmt.Errorf("notifyChannel name is too long - '%s'. max allowed length is %d", notifyChannel, maxIdentifierLength)
 	}
-	if !allowedTableNameChars.MatchString(pgNotifyChannel) {
-		return "", fmt.Errorf("invalid pgNotifyChannel name '%s'. non-alphanumerics or upper cased names are not supported", pgNotifyChannel)
+	if !allowedTableNameChars.MatchString(notifyChannel) {
+		return "", fmt.Errorf("invalid notifyChannel name '%s'. non-alphanumerics or upper cased names are not supported", notifyChannel)
 	}
-	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
+	return p.subscribeToChannel(ctx, notifyChannel, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
@@ -441,12 +441,12 @@ func validateInput(keys []string) error {
 	return nil
 }
 
-func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, notifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
 
 	var subscribeID string
-	pgNotifyCmd := "listen " + pgNotifyChannel
+	pgNotifyCmd := "listen " + notifyChannel
 	subscribeUID, err := uuid.NewRandom()
 	if err != nil {
 		return "", fmt.Errorf("unable to generate subscription id - %w", err)
@@ -457,13 +457,13 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 	p.cancelMap.Store(subscribeID, cancel)
 
 	p.ActiveSubscriptions[subscribeID] = &subscription{
-		channel: pgNotifyChannel,
+		channel: notifyChannel,
 		keys:    req.Keys,
 	}
 
 	p.wg.Add(1)
 	go func() {
-		p.doSubscribe(childContext, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID)
+		p.doSubscribe(childContext, req, handler, pgNotifyCmd, notifyChannel, subscribeID)
 		p.configLock.Lock()
 		delete(p.ActiveSubscriptions, subscribeID)
 		p.configLock.Unlock()

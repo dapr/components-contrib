@@ -126,20 +126,20 @@ func TestValidateInput(t *testing.T) {
 	require.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
 }
 
-func TestMetadataPgNotifyChannel(t *testing.T) {
-	t.Run("custom pgNotifyChannel is parsed correctly", func(t *testing.T) {
+func TestMetadataNotifyChannel(t *testing.T) {
+	t.Run("custom notifyChannel is parsed correctly", func(t *testing.T) {
 		m := metadata{}
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
 			"table":            "configtable",
-			"pgNotifyChannel":  "myconfig",
+			"notifyChannel":    "myconfig",
 		}
 		err := m.InitWithMetadata(props)
 		require.NoError(t, err)
-		assert.Equal(t, "myconfig", m.PgNotifyChannel)
+		assert.Equal(t, "myconfig", m.NotifyChannel)
 	})
 
-	t.Run("missing pgNotifyChannel is allowed at init", func(t *testing.T) {
+	t.Run("missing notifyChannel is allowed at init", func(t *testing.T) {
 		m := metadata{}
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
@@ -147,34 +147,34 @@ func TestMetadataPgNotifyChannel(t *testing.T) {
 		}
 		err := m.InitWithMetadata(props)
 		require.NoError(t, err)
-		assert.Empty(t, m.PgNotifyChannel)
+		assert.Empty(t, m.NotifyChannel)
 	})
 
-	t.Run("invalid pgNotifyChannel with uppercase fails", func(t *testing.T) {
+	t.Run("invalid NotifyChannel with uppercase fails", func(t *testing.T) {
 		m := metadata{}
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
 			"table":            "configtable",
-			"pgNotifyChannel":  "MyConfig",
+			"notifyChannel":    "MyConfig",
 		}
 		err := m.InitWithMetadata(props)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid pgNotifyChannel name")
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
 	})
 
-	t.Run("invalid pgNotifyChannel with special chars fails", func(t *testing.T) {
+	t.Run("invalid notifyChannel with special chars fails", func(t *testing.T) {
 		m := metadata{}
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
 			"table":            "configtable",
-			"pgNotifyChannel":  "config; DROP TABLE--",
+			"notifyChannel":    "config; DROP TABLE--",
 		}
 		err := m.InitWithMetadata(props)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid pgNotifyChannel name")
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
 	})
 
-	t.Run("pgNotifyChannel exceeding max length fails", func(t *testing.T) {
+	t.Run("notifyChannel exceeding max length fails", func(t *testing.T) {
 		m := metadata{}
 		longName := ""
 		for range maxIdentifierLength + 1 {
@@ -183,11 +183,11 @@ func TestMetadataPgNotifyChannel(t *testing.T) {
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
 			"table":            "configtable",
-			"pgNotifyChannel":  longName,
+			"notifyChannel":    longName,
 		}
 		err := m.InitWithMetadata(props)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "pgNotifyChannel name is too long")
+		assert.Contains(t, err.Error(), "notifyChannel name is too long")
 	})
 }
 

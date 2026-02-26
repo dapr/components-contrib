@@ -393,15 +393,19 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 					data []byte
 				)
 				if err = json.Unmarshal([]byte(value), &s); err != nil {
-					response.Error = err.Error()
-					res[n] = response
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: err.Error(),
+					}
 					foundKeys[key] = struct{}{}
 					n++
 					continue
 				}
 				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
-					response.Error = err.Error()
-					res[n] = response
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: err.Error(),
+					}
 					foundKeys[key] = struct{}{}
 					n++
 					continue
@@ -422,8 +426,10 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 	// errors for any keys not yet found, for consistency with other stores.
 	if err = rows.Err(); err != nil {
 		errMsg := err.Error()
+		anyUnfound := false
 		for _, r := range req {
 			if _, ok := foundKeys[r.Key]; !ok {
+				anyUnfound = true
 				if n >= len(req) {
 					break
 				}
@@ -434,6 +440,9 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 				foundKeys[r.Key] = struct{}{}
 				n++
 			}
+		}
+		if !anyUnfound {
+			o.logger.Warnf("Oracle BulkGet: rows iteration error after all rows processed: %v", err)
 		}
 		return res[:n], nil
 	}

@@ -16,14 +16,20 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/dapr/kit/logger"
 )
 
 func TestConnectionString(t *testing.T) {
@@ -152,4 +158,255 @@ func TestConnectionString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBulkGetQueryFailure(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	mock.ExpectQuery("SELECT").WillReturnError(errors.New("connection refused"))
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key2"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+
+	for _, r := range res {
+		assert.NotEmpty(t, r.Error)
+		assert.Contains(t, r.Error, "connection refused")
+		assert.Nil(t, r.Data)
+		assert.Nil(t, r.ETag)
+	}
+	assert.Equal(t, "key1", res[0].Key)
+	assert.Equal(t, "key2", res[1].Key)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetBinaryDecodeFailure(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// First row: valid non-binary data
+	// Second row: binary flag "Y" but value is not valid JSON-encoded base64
+	// Third row: valid binary data
+	validBinaryValue, _ := json.Marshal(base64.StdEncoding.EncodeToString([]byte("hello")))
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"plain text"`, "N", "etag1", nil).
+		AddRow("key2", `not-valid-json`, "Y", "etag2", nil).
+		AddRow("key3", string(validBinaryValue), "Y", "etag3", nil)
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key2"},
+		{Key: "key3"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 3)
+
+	// key1 should succeed
+	assert.Equal(t, "key1", res[0].Key)
+	assert.Empty(t, res[0].Error)
+	assert.NotNil(t, res[0].Data)
+
+	// key2 should have an error with clean struct (no ETag/Metadata leaking)
+	assert.Equal(t, "key2", res[1].Key)
+	assert.NotEmpty(t, res[1].Error)
+	assert.Nil(t, res[1].ETag, "error response should not leak ETag")
+	assert.Nil(t, res[1].Metadata, "error response should not leak Metadata")
+
+	// key3 should succeed
+	assert.Equal(t, "key3", res[2].Key)
+	assert.Empty(t, res[2].Error)
+	assert.Equal(t, []byte("hello"), res[2].Data)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetBinaryBase64DecodeFailure(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// Value is valid JSON string but not valid base64
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"not-valid-base64!!!"`, "Y", "etag1", nil)
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+
+	assert.Equal(t, "key1", res[0].Key)
+	assert.NotEmpty(t, res[0].Error)
+	assert.Nil(t, res[0].ETag, "error response should not leak ETag")
+	assert.Nil(t, res[0].Metadata, "error response should not leak Metadata")
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetRowsErrFailure(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// Return one row successfully, then simulate a rows.Err() after iteration
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"value1"`, "N", "etag1", nil).
+		RowError(0, errors.New("network timeout"))
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key2"},
+		{Key: "key3"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+
+	// key2 and key3 were not found, so they should have error entries
+	foundErrors := 0
+	for _, r := range res {
+		if r.Error != "" {
+			foundErrors++
+			assert.Contains(t, r.Error, "network timeout")
+		}
+	}
+	assert.GreaterOrEqual(t, foundErrors, 1, "unfound keys should have error entries from rows.Err()")
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetRowsErrAfterAllRowsProcessed(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	// Return the one requested row successfully, then set rows.Err()
+	// This tests the case where all keys are found but rows.Err() still fires.
+	// go-sqlmock's RowError uses 0-based index; setting error on row 0
+	// causes rows.Next() to return false and rows.Err() to report the error.
+	// To simulate "all rows processed then error", we use CloseError instead.
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"value1"`, "N", "etag1", nil).
+		CloseError(errors.New("late network error"))
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	// The single key was found, so the warning path should be hit (logged).
+	// The result should still contain the successfully found key.
+	require.Len(t, res, 1)
+	assert.Equal(t, "key1", res[0].Key)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetWithExpiration(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	expTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"value1"`, "N", "etag1", expTime)
+
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+	}
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	assert.Equal(t, "key1", res[0].Key)
+	assert.Empty(t, res[0].Error)
+	assert.NotNil(t, res[0].Metadata)
+	assert.Contains(t, res[0].Metadata, state.GetRespMetaKeyTTLExpireTime)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetEmpty(t *testing.T) {
+	t.Parallel()
+
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		metadata: oracleDatabaseMetadata{TableName: "state"},
+	}
+
+	res, err := o.BulkGet(t.Context(), []state.GetRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, res)
 }

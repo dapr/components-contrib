@@ -67,10 +67,10 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 
 	if m.PgNotifyChannel != "" {
 		if len(m.PgNotifyChannel) > maxIdentifierLength {
-			return fmt.Errorf("pgNotifyChannel name is too long - '%s'. max allowed length is %d", m.PgNotifyChannel, maxIdentifierLength)
+			return fmt.Errorf("pgNotifyChannel name is too long - %q. max allowed length is %d", m.PgNotifyChannel, maxIdentifierLength)
 		}
 		if !allowedTableNameChars.MatchString(m.PgNotifyChannel) {
-			return fmt.Errorf("invalid pgNotifyChannel name '%s'. non-alphanumerics or upper cased names are not supported", m.PgNotifyChannel)
+			return fmt.Errorf("invalid pgNotifyChannel name %q. non-alphanumerics or upper cased names are not supported", m.PgNotifyChannel)
 		}
 	}
 

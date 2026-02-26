@@ -260,13 +260,13 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if notifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'. notifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
+		return "", fmt.Errorf("unable to subscribe to '%q'. notifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
 	}
 	if len(notifyChannel) > maxIdentifierLength {
-		return "", fmt.Errorf("notifyChannel name is too long - '%s'. max allowed length is %d", notifyChannel, maxIdentifierLength)
+		return "", fmt.Errorf("notifyChannel name is too long - '%q'. max allowed length is %d", notifyChannel, maxIdentifierLength)
 	}
 	if !allowedTableNameChars.MatchString(notifyChannel) {
-		return "", fmt.Errorf("invalid notifyChannel name '%s'. non-alphanumerics or upper cased names are not supported", notifyChannel)
+		return "", fmt.Errorf("invalid notifyChannel name '%q'. non-alphanumerics or upper cased names are not supported", notifyChannel)
 	}
 	return p.subscribeToChannel(ctx, notifyChannel, req, handler)
 }

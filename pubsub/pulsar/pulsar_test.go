@@ -942,6 +942,199 @@ func TestParsePublishMetadataAvroSchemaUnknownFields(t *testing.T) {
 	})
 }
 
+func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Measurement",
+		"namespace": "test",
+		"fields": [
+			{"name": "temperature", "type": "float"},
+			{"name": "precise", "type": "double"},
+			{"name": "payload", "type": "bytes"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid float value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 36.6, "precise": 3.14159, "payload": "aGVsbG8="}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("float field wrong type string", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": "hot", "precise": 3.14159, "payload": "aGVsbG8="}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "temperature")
+		assert.Contains(t, err.Error(), "expected number")
+	})
+
+	t.Run("double field wrong type string", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 36.6, "precise": "not_a_number", "payload": "aGVsbG8="}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "precise")
+		assert.Contains(t, err.Error(), "expected number")
+	})
+
+	t.Run("bytes field valid string value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 36.6, "precise": 3.14159, "payload": "aGVsbG8="}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("bytes field wrong type number", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"temperature": 36.6, "precise": 3.14159, "payload": 12345}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "payload")
+		assert.Contains(t, err.Error(), "expected string (base64-encoded bytes)")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaLongRejectsFloat(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Counter",
+		"namespace": "test",
+		"fields": [
+			{"name": "count", "type": "long"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("long field rejects float value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"count": 1.5}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "count")
+		assert.Contains(t, err.Error(), "expected integer, got floating-point number")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaFixedBase64Fallback(t *testing.T) {
+	// Fixed with size 3: base64 of []byte{1,2,3} is "AQID" (4 chars).
+	// Raw string length 4 != size 3, so the fallback base64 decode path is exercised.
+	// Decoded length 3 == size 3, so validation should pass.
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Token",
+		"namespace": "test",
+		"fields": [
+			{"name": "id", "type": {"type": "fixed", "name": "FixedID", "size": 3}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("base64-encoded fixed value passes via fallback", func(t *testing.T) {
+		// "AQID" is base64 for []byte{1,2,3}. len("AQID")=4, size=3,
+		// so raw check fails, but base64 decode gives 3 bytes == size 3.
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"id": "AQID"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaMultiTypeUnion(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Flexible",
+		"namespace": "test",
+		"fields": [
+			{"name": "value", "type": ["null", "string", "int"]}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("union with null value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"value": null}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("union with string value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"value": "hello"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("union with int value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"value": 42}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("union rejects boolean not in union types", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"value": true}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "does not match any type in the union")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaInvalidSchemaDefinition(t *testing.T) {
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    `{this is not valid json or avro schema`,
+	}
+
+	req := &pubsub.PublishRequest{
+		Data: []byte(`{"name": "test"}`),
+	}
+	_, err := parsePublishMetadata(req, sm)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse avro schema")
+}
+
 func TestMissingHost(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": ""}

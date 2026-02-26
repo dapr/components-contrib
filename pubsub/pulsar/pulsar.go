@@ -393,15 +393,18 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		var obj interface{}
 		avroSchema, parseErr := avro.Parse(schema.value)
 		if parseErr != nil {
-			return nil, parseErr
+			return nil, fmt.Errorf("failed to parse avro schema: %w", parseErr)
 		}
 
-		err = avro.Unmarshal(avroSchema, req.Data, &obj)
-		if err != nil {
-			return nil, err
+		var obj interface{}
+		if err = json.Unmarshal(req.Data, &obj); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal JSON payload: %w", err)
+		}
+
+		if err = validateJSONAgainstAvroSchema(obj, avroSchema); err != nil {
+			return nil, fmt.Errorf("avro schema validation failed: %w", err)
 		}
 
 		msg.Value = obj
@@ -434,6 +437,170 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	}
 
 	return msg, nil
+}
+
+// validateJSONAgainstAvroSchema validates a parsed JSON value against an Avro schema.
+func validateJSONAgainstAvroSchema(value interface{}, schema avro.Schema) error {
+	switch s := schema.(type) {
+	case *avro.RecordSchema:
+		return validateRecord(value, s)
+	case *avro.ArraySchema:
+		return validateArray(value, s)
+	case *avro.MapSchema:
+		return validateMap(value, s)
+	case *avro.UnionSchema:
+		return validateUnion(value, s)
+	case *avro.PrimitiveSchema:
+		return validatePrimitive(value, s)
+	case *avro.EnumSchema:
+		return validateEnum(value, s)
+	case *avro.FixedSchema:
+		return validateFixed(value, s)
+	case *avro.RefSchema:
+		return validateJSONAgainstAvroSchema(value, s.Schema())
+	case *avro.NullSchema:
+		if value != nil {
+			return fmt.Errorf("expected null, got %T", value)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func validateRecord(value interface{}, schema *avro.RecordSchema) error {
+	obj, ok := value.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected object for record %q, got %T", schema.Name(), value)
+	}
+
+	for _, field := range schema.Fields() {
+		fieldVal, exists := obj[field.Name()]
+		if !exists {
+			if !field.HasDefault() {
+				return fmt.Errorf("missing required field %q", field.Name())
+			}
+			continue
+		}
+		if err := validateJSONAgainstAvroSchema(fieldVal, field.Type()); err != nil {
+			return fmt.Errorf("field %q: %w", field.Name(), err)
+		}
+	}
+
+	return nil
+}
+
+func validateArray(value interface{}, schema *avro.ArraySchema) error {
+	arr, ok := value.([]interface{})
+	if !ok {
+		return fmt.Errorf("expected array, got %T", value)
+	}
+	for i, item := range arr {
+		if err := validateJSONAgainstAvroSchema(item, schema.Items()); err != nil {
+			return fmt.Errorf("array element [%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func validateMap(value interface{}, schema *avro.MapSchema) error {
+	obj, ok := value.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected object for map type, got %T", value)
+	}
+	for k, v := range obj {
+		if err := validateJSONAgainstAvroSchema(v, schema.Values()); err != nil {
+			return fmt.Errorf("map key %q: %w", k, err)
+		}
+	}
+	return nil
+}
+
+func validateUnion(value interface{}, schema *avro.UnionSchema) error {
+	// null is valid in a union if one of the types is null
+	if value == nil {
+		for _, t := range schema.Types() {
+			if t.Type() == avro.Null {
+				return nil
+			}
+		}
+		return errors.New("null is not allowed by the union type")
+	}
+
+	// Try each type in the union
+	var errs []string
+	for _, t := range schema.Types() {
+		if t.Type() == avro.Null {
+			continue
+		}
+		if err := validateJSONAgainstAvroSchema(value, t); err == nil {
+			return nil
+		} else {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	return fmt.Errorf("value does not match any type in the union: [%s]", strings.Join(errs, "; "))
+}
+
+func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
+	if value == nil {
+		return fmt.Errorf("expected %s, got null", schema.Type())
+	}
+
+	switch schema.Type() {
+	case avro.Boolean:
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("expected boolean, got %T", value)
+		}
+	case avro.Int, avro.Long:
+		// JSON numbers are float64 when unmarshalled via encoding/json
+		f, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("expected integer, got %T", value)
+		}
+		if f != float64(int64(f)) {
+			return fmt.Errorf("expected integer, got floating-point number %v", f)
+		}
+	case avro.Float, avro.Double:
+		if _, ok := value.(float64); !ok {
+			return fmt.Errorf("expected number, got %T", value)
+		}
+	case avro.String:
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("expected string, got %T", value)
+		}
+	case avro.Bytes:
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("expected string (base64-encoded bytes), got %T", value)
+		}
+	}
+
+	return nil
+}
+
+func validateEnum(value interface{}, schema *avro.EnumSchema) error {
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("expected string for enum %q, got %T", schema.Name(), value)
+	}
+	for _, symbol := range schema.Symbols() {
+		if str == symbol {
+			return nil
+		}
+	}
+	return fmt.Errorf("value %q is not a valid symbol for enum %q (valid: %v)", str, schema.Name(), schema.Symbols())
+}
+
+func validateFixed(value interface{}, schema *avro.FixedSchema) error {
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("expected string for fixed %q, got %T", schema.Name(), value)
+	}
+	if len(str) != schema.Size() {
+		return fmt.Errorf("fixed %q expects size %d, got %d", schema.Name(), schema.Size(), len(str))
+	}
+	return nil
 }
 
 func parseSubscriptionType(in string) (string, error) {

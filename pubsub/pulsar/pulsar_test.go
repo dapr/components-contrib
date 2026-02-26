@@ -471,6 +471,222 @@ func TestParsePublishMetadata(t *testing.T) {
 		msg.DeliverAt.Format(time.RFC3339))
 }
 
+func TestParsePublishMetadataAvroSchemaValidation(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Student",
+		"namespace": "test",
+		"fields": [
+			{"name": "studentId", "type": "int"},
+			{"name": "studentName", "type": "string"},
+			{"name": "age", "type": "int"}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid message", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"studentId": 1, "studentName": "John", "age": 25}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("invalid type for age field", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"studentId": 1, "studentName": "John", "age": "not_a_number"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "age")
+	})
+
+	t.Run("missing required field", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"studentId": 1, "studentName": "John"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "missing required field")
+	})
+
+	t.Run("wrong type for studentName field", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"studentId": 1, "studentName": 123, "age": 25}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "studentName")
+	})
+
+	t.Run("invalid JSON payload", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`not valid json`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal JSON payload")
+	})
+
+	t.Run("floating-point value for int field", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"studentId": 1, "studentName": "John", "age": 25.5}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+		assert.Contains(t, err.Error(), "age")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithNullableFields(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Person",
+		"namespace": "test",
+		"fields": [
+			{"name": "name", "type": "string"},
+			{"name": "nickname", "type": ["null", "string"], "default": null}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("nullable field with null value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "John", "nickname": null}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("nullable field with string value", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "John", "nickname": "Johnny"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("nullable field omitted with default", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "John"}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("nullable field with wrong type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "John", "nickname": 123}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithNestedRecord(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Enrollment",
+		"namespace": "test",
+		"fields": [
+			{"name": "id", "type": "int"},
+			{"name": "student", "type": {
+				"type": "record",
+				"name": "Student",
+				"fields": [
+					{"name": "name", "type": "string"},
+					{"name": "age", "type": "int"}
+				]
+			}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid nested record", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"id": 1, "student": {"name": "John", "age": 25}}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("invalid nested record type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"id": 1, "student": {"name": "John", "age": "twenty"}}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "age")
+	})
+
+	t.Run("nested record not an object", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"id": 1, "student": "not_an_object"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected object")
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaWithArrays(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Classroom",
+		"namespace": "test",
+		"fields": [
+			{"name": "name", "type": "string"},
+			{"name": "scores", "type": {"type": "array", "items": "int"}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("valid array", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "Math", "scores": [90, 85, 95]}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("invalid array element type", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name": "Math", "scores": [90, "eighty-five", 95]}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "array element")
+	})
+}
+
 func TestMissingHost(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": ""}

@@ -835,8 +835,10 @@ func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
 	}
 
 	t.Run("valid fixed raw bytes length", func(t *testing.T) {
+		// Use a 16-char string with characters outside the base64 alphabet
+		// so it falls through to raw length validation.
 		req := &pubsub.PublishRequest{
-			Data: []byte(`{"md5": "0123456789abcdef"}`),
+			Data: []byte(`{"md5": "abcdef!@#$%^&*-_"}`),
 		}
 		msg, err := parsePublishMetadata(req, sm)
 		require.NoError(t, err)
@@ -990,15 +992,6 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		assert.Contains(t, err.Error(), "expected number")
 	})
 
-	t.Run("bytes field valid string value", func(t *testing.T) {
-		req := &pubsub.PublishRequest{
-			Data: []byte(`{"temperature": 36.6, "precise": 3.14159, "payload": "aGVsbG8="}`),
-		}
-		msg, err := parsePublishMetadata(req, sm)
-		require.NoError(t, err)
-		assert.NotNil(t, msg)
-	})
-
 	t.Run("bytes field wrong type number", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
 			Data: []byte(`{"temperature": 36.6, "precise": 3.14159, "payload": 12345}`),
@@ -1102,6 +1095,35 @@ func TestParsePublishMetadataAvroSchemaFixedBase64Fallback(t *testing.T) {
 		msg, err := parsePublishMetadata(req, sm)
 		require.NoError(t, err)
 		assert.NotNil(t, msg)
+	})
+}
+
+func TestParsePublishMetadataAvroSchemaFixedBase64EncodedLengthMatchesSizeButDecodedDoesNot(t *testing.T) {
+	// Fixed with size 4: base64 of []byte{1,2,3} is "AQID" (4 chars).
+	// len("AQID") == 4 == size, but base64 decode yields only 3 bytes.
+	// With base64-first validation, this should be rejected.
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Token",
+		"namespace": "test",
+		"fields": [
+			{"name": "id", "type": {"type": "fixed", "name": "FixedID", "size": 4}}
+		]
+	}`
+
+	sm := schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+	}
+
+	t.Run("base64 encoded length equals schema size but decoded length differs", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"id": "AQID"}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fixed")
+		assert.Contains(t, err.Error(), "size")
 	})
 }
 

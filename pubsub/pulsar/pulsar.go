@@ -636,14 +636,17 @@ func validateFixed(value interface{}, schema *avro.FixedSchema) error {
 		return fmt.Errorf("expected string for fixed %q, got %T", schema.Name(), value)
 	}
 	// Avro fixed values in JSON may be represented as raw strings (byte length
-	// must match schema size) or as base64-encoded strings. We first check the
-	// raw byte length; if that does not match, we attempt a base64 decode and
-	// compare the decoded length as a fallback.
-	if len(str) != schema.Size() {
-		decoded, err := base64.StdEncoding.DecodeString(str)
-		if err != nil || len(decoded) != schema.Size() {
-			return fmt.Errorf("fixed %q expects size %d, got %d bytes (base64 decode also failed or produced wrong length)", schema.Name(), schema.Size(), len(str))
+	// must match schema size) or as base64-encoded strings. We try base64 first
+	// to avoid false positives where the encoded string length happens to equal
+	// the schema size but the decoded byte length does not.
+	if decoded, err := base64.StdEncoding.DecodeString(str); err == nil {
+		if len(decoded) != schema.Size() {
+			return fmt.Errorf("fixed %q expects size %d, got %d decoded bytes", schema.Name(), schema.Size(), len(decoded))
 		}
+		return nil
+	}
+	if len(str) != schema.Size() {
+		return fmt.Errorf("fixed %q expects size %d, got %d bytes", schema.Name(), schema.Size(), len(str))
 	}
 	return nil
 }

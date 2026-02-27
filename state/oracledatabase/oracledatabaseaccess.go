@@ -337,7 +337,17 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 
 	rows, err := o.db.QueryContext(ctx, query, params...)
 	if err != nil {
-		return nil, err
+		// If the query fails, return per-key error entries instead of
+		// propagating the error, for consistency with other state stores
+		// (e.g. Redis, SQL Server) which return HTTP 200 with per-key errors.
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: "bulk get query failed: " + err.Error(),
+			}
+		}
+		return res, nil
 	}
 	defer rows.Close()
 
@@ -383,10 +393,22 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 					data []byte
 				)
 				if err = json.Unmarshal([]byte(value), &s); err != nil {
-					return nil, err
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: "failed to decode binary value: " + err.Error(),
+					}
+					foundKeys[key] = struct{}{}
+					n++
+					continue
 				}
 				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
-					return nil, err
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: "failed to decode binary value: " + err.Error(),
+					}
+					foundKeys[key] = struct{}{}
+					n++
+					continue
 				}
 				response.Data = data
 			} else {
@@ -400,8 +422,29 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 		n++
 	}
 
+	// rows.Err() reports errors from iteration; return what we have as per-key
+	// errors for any keys not yet found, for consistency with other stores.
 	if err = rows.Err(); err != nil {
-		return nil, err
+		errMsg := err.Error()
+		anyUnfound := false
+		for _, r := range req {
+			if _, ok := foundKeys[r.Key]; !ok {
+				anyUnfound = true
+				if n >= len(req) {
+					break
+				}
+				res[n] = state.BulkGetResponse{
+					Key:   r.Key,
+					Error: "rows iteration failed: " + errMsg,
+				}
+				foundKeys[r.Key] = struct{}{}
+				n++
+			}
+		}
+		if !anyUnfound {
+			o.logger.Warnf("Oracle BulkGet: rows iteration error after all rows processed: %v", err)
+		}
+		return res[:n], nil
 	}
 
 	// Populate missing keys with empty values

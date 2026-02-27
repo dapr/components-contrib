@@ -344,7 +344,7 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 		for i, r := range req {
 			res[i] = state.BulkGetResponse{
 				Key:   r.Key,
-				Error: err.Error(),
+				Error: "bulk get query failed: " + err.Error(),
 			}
 		}
 		return res, nil
@@ -395,7 +395,7 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 				if err = json.Unmarshal([]byte(value), &s); err != nil {
 					res[n] = state.BulkGetResponse{
 						Key:   key,
-						Error: err.Error(),
+						Error: "failed to decode binary value: " + err.Error(),
 					}
 					foundKeys[key] = struct{}{}
 					n++
@@ -404,7 +404,7 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
 					res[n] = state.BulkGetResponse{
 						Key:   key,
-						Error: err.Error(),
+						Error: "failed to decode binary value: " + err.Error(),
 					}
 					foundKeys[key] = struct{}{}
 					n++
@@ -435,7 +435,7 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 				}
 				res[n] = state.BulkGetResponse{
 					Key:   r.Key,
-					Error: errMsg,
+					Error: "rows iteration failed: " + errMsg,
 				}
 				foundKeys[r.Key] = struct{}{}
 				n++

@@ -186,6 +186,7 @@ func TestBulkGetQueryFailure(t *testing.T) {
 
 	for _, r := range res {
 		assert.NotEmpty(t, r.Error)
+		assert.Contains(t, r.Error, "bulk get query failed:")
 		assert.Contains(t, r.Error, "connection refused")
 		assert.Nil(t, r.Data)
 		assert.Nil(t, r.ETag)
@@ -337,6 +338,7 @@ func TestBulkGetRowsErrFailure(t *testing.T) {
 		r := byKey[k]
 		assert.Equal(t, k, r.Key)
 		assert.NotEmpty(t, r.Error, "unfound key %q should have an error from rows.Err()", k)
+		assert.Contains(t, r.Error, "rows iteration failed:")
 		assert.Contains(t, r.Error, "network timeout")
 		assert.Nil(t, r.Data, "error entry should have nil data")
 	}

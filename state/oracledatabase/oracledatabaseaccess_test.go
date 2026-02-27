@@ -511,9 +511,9 @@ func TestBulkGetRowsScanFailure(t *testing.T) {
 	// sql.NullTime.Scan cannot convert a plain string to time.Time,
 	// so rows.Scan() will return an error for that row.
 	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
-		AddRow("key1", `"value1"`, "N", "etag1", nil).                    // valid row
-		AddRow("key2", `"value2"`, "N", "etag2", "not-a-time-value").     // expiration_time is a string — Scan will fail
-		AddRow("key3", `"value3"`, "N", "etag3", nil)                     // valid row
+		AddRow("key1", `"value1"`, "N", "etag1", nil).                // valid row
+		AddRow("key2", `"value2"`, "N", "etag2", "not-a-time-value"). // expiration_time is a string — Scan will fail
+		AddRow("key3", `"value3"`, "N", "etag3", nil)                 // valid row
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 

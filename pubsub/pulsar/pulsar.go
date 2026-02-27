@@ -15,12 +15,10 @@ package pulsar
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -29,8 +27,8 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
-	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
+	goavro "github.com/linkedin/goavro/v2"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
@@ -395,21 +393,21 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		avroSchema, parseErr := avro.Parse(schema.value)
-		if parseErr != nil {
-			return nil, fmt.Errorf("failed to parse avro schema: %w", parseErr)
+		// Use goavro codec to validate JSON against the Avro schema, consistent
+		// with the Kafka component's approach in common/component/kafka/kafka.go.
+		// NativeFromTextual parses JSON and validates it against the schema in one
+		// step — if the data doesn't conform, it returns an error.
+		codec, codecErr := goavro.NewCodecForStandardJSONFull(schema.value)
+		if codecErr != nil {
+			return nil, fmt.Errorf("failed to parse avro schema: %w", codecErr)
 		}
 
-		var obj interface{}
-		if err = json.Unmarshal(req.Data, &obj); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal JSON payload: %w", err)
+		native, _, nativeErr := codec.NativeFromTextual(req.Data)
+		if nativeErr != nil {
+			return nil, fmt.Errorf("avro schema validation failed: %w", nativeErr)
 		}
 
-		if err = validateJSONAgainstAvroSchema(obj, avroSchema); err != nil {
-			return nil, fmt.Errorf("avro schema validation failed: %w", err)
-		}
-
-		msg.Value = obj
+		msg.Value = native
 	}
 
 	for name, value := range req.Metadata {
@@ -439,216 +437,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	}
 
 	return msg, nil
-}
-
-// validateJSONAgainstAvroSchema validates a parsed JSON value against an Avro schema.
-func validateJSONAgainstAvroSchema(value interface{}, schema avro.Schema) error {
-	switch s := schema.(type) {
-	case *avro.RecordSchema:
-		return validateRecord(value, s)
-	case *avro.ArraySchema:
-		return validateArray(value, s)
-	case *avro.MapSchema:
-		return validateMap(value, s)
-	case *avro.UnionSchema:
-		return validateUnion(value, s)
-	case *avro.PrimitiveSchema:
-		return validatePrimitive(value, s)
-	case *avro.EnumSchema:
-		return validateEnum(value, s)
-	case *avro.FixedSchema:
-		return validateFixed(value, s)
-	case *avro.RefSchema:
-		return validateJSONAgainstAvroSchema(value, s.Schema())
-	case *avro.NullSchema:
-		if value != nil {
-			return fmt.Errorf("expected null, got %T", value)
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported avro schema type: %T", schema)
-	}
-}
-
-func validateRecord(value interface{}, schema *avro.RecordSchema) error {
-	obj, ok := value.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected object for record %q, got %T", schema.Name(), value)
-	}
-
-	schemaFields := make(map[string]struct{}, len(schema.Fields()))
-	for _, field := range schema.Fields() {
-		schemaFields[field.Name()] = struct{}{}
-		fieldVal, exists := obj[field.Name()]
-		if !exists {
-			if !field.HasDefault() {
-				return fmt.Errorf("missing required field %q", field.Name())
-			}
-			continue
-		}
-		if err := validateJSONAgainstAvroSchema(fieldVal, field.Type()); err != nil {
-			return fmt.Errorf("field %q: %w", field.Name(), err)
-		}
-	}
-
-	// Check for extra fields not defined in the schema.
-	for key := range obj {
-		if _, exists := schemaFields[key]; !exists {
-			return fmt.Errorf("unknown field %q is not defined in the schema for record %q", key, schema.Name())
-		}
-	}
-
-	return nil
-}
-
-func validateArray(value interface{}, schema *avro.ArraySchema) error {
-	arr, ok := value.([]interface{})
-	if !ok {
-		return fmt.Errorf("expected array, got %T", value)
-	}
-	for i, item := range arr {
-		if err := validateJSONAgainstAvroSchema(item, schema.Items()); err != nil {
-			return fmt.Errorf("array element [%d]: %w", i, err)
-		}
-	}
-	return nil
-}
-
-func validateMap(value interface{}, schema *avro.MapSchema) error {
-	obj, ok := value.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected object for map type, got %T", value)
-	}
-	for k, v := range obj {
-		if err := validateJSONAgainstAvroSchema(v, schema.Values()); err != nil {
-			return fmt.Errorf("map key %q: %w", k, err)
-		}
-	}
-	return nil
-}
-
-func validateUnion(value interface{}, schema *avro.UnionSchema) error {
-	// null is valid in a union if one of the types is null
-	if value == nil {
-		for _, t := range schema.Types() {
-			if t.Type() == avro.Null {
-				return nil
-			}
-		}
-		return errors.New("null is not allowed by the union type")
-	}
-
-	// Try each type in the union
-	var errs []string
-	for _, t := range schema.Types() {
-		if t.Type() == avro.Null {
-			continue
-		}
-		if err := validateJSONAgainstAvroSchema(value, t); err == nil {
-			return nil
-		} else {
-			errs = append(errs, err.Error())
-		}
-	}
-
-	return fmt.Errorf("value does not match any type in the union: [%s]", strings.Join(errs, "; "))
-}
-
-func validatePrimitive(value interface{}, schema *avro.PrimitiveSchema) error {
-	if value == nil {
-		return fmt.Errorf("expected %s, got null", schema.Type())
-	}
-
-	switch schema.Type() {
-	case avro.Boolean:
-		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("expected boolean, got %T", value)
-		}
-	case avro.Int:
-		// JSON numbers are float64 when unmarshalled via encoding/json
-		f, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("expected integer, got %T", value)
-		}
-		if f != float64(int64(f)) {
-			return fmt.Errorf("expected integer, got floating-point number %v", f)
-		}
-		// Avro int is 32-bit signed
-		if f < math.MinInt32 || f > math.MaxInt32 {
-			return fmt.Errorf("value %v overflows avro int (must be between %d and %d)", f, math.MinInt32, math.MaxInt32)
-		}
-	case avro.Long:
-		// JSON numbers are float64 when unmarshalled via encoding/json
-		f, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("expected integer, got %T", value)
-		}
-		if f != float64(int64(f)) {
-			return fmt.Errorf("expected integer, got floating-point number %v", f)
-		}
-		// Avro long is 64-bit signed. Note: float64 loses precision above 2^53,
-		// but the integer check above (f == float64(int64(f))) already guards
-		// against values that cannot be exactly represented.
-		if f < math.MinInt64 || f > math.MaxInt64 {
-			return fmt.Errorf("value %v overflows avro long (must be between %d and %d)", f, int64(math.MinInt64), int64(math.MaxInt64))
-		}
-	case avro.Float:
-		f, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("expected number, got %T", value)
-		}
-		if f > math.MaxFloat32 || f < -math.MaxFloat32 {
-			return fmt.Errorf("value %v overflows avro float (32-bit)", f)
-		}
-	case avro.Double:
-		if _, ok := value.(float64); !ok {
-			return fmt.Errorf("expected number, got %T", value)
-		}
-	case avro.String:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected string, got %T", value)
-		}
-	case avro.Bytes:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected string for bytes, got %T", value)
-		}
-	}
-
-	return nil
-}
-
-func validateEnum(value interface{}, schema *avro.EnumSchema) error {
-	str, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("expected string for enum %q, got %T", schema.Name(), value)
-	}
-	for _, symbol := range schema.Symbols() {
-		if str == symbol {
-			return nil
-		}
-	}
-	return fmt.Errorf("value %q is not a valid symbol for enum %q (valid: %v)", str, schema.Name(), schema.Symbols())
-}
-
-func validateFixed(value interface{}, schema *avro.FixedSchema) error {
-	str, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("expected string for fixed %q, got %T", schema.Name(), value)
-	}
-	// Avro fixed values in JSON may be represented as raw strings (byte length
-	// must match schema size) or as base64-encoded strings. We try base64 first
-	// to avoid false positives where the encoded string length happens to equal
-	// the schema size but the decoded byte length does not.
-	if decoded, err := base64.StdEncoding.DecodeString(str); err == nil {
-		if len(decoded) != schema.Size() {
-			return fmt.Errorf("fixed %q expects size %d, got %d decoded bytes", schema.Name(), schema.Size(), len(decoded))
-		}
-		return nil
-	}
-	if len(str) != schema.Size() {
-		return fmt.Errorf("fixed %q expects size %d, got %d bytes", schema.Name(), schema.Size(), len(str))
-	}
-	return nil
 }
 
 func parseSubscriptionType(in string) (string, error) {

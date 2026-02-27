@@ -515,7 +515,6 @@ func TestParsePublishMetadataAvroSchemaValidation(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "missing required field")
 	})
 
 	t.Run("wrong type for studentName field", func(t *testing.T) {
@@ -534,7 +533,7 @@ func TestParsePublishMetadataAvroSchemaValidation(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to unmarshal JSON payload")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 
 	t.Run("floating-point value for int field", func(t *testing.T) {
@@ -544,7 +543,6 @@ func TestParsePublishMetadataAvroSchemaValidation(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "age")
 	})
 }
 
@@ -648,7 +646,7 @@ func TestParsePublishMetadataAvroSchemaWithNestedRecord(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected object")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -683,7 +681,7 @@ func TestParsePublishMetadataAvroSchemaWithArrays(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "array element")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -718,7 +716,6 @@ func TestParsePublishMetadataAvroSchemaWithMap(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "map key")
 	})
 
 	t.Run("map field is not an object", func(t *testing.T) {
@@ -727,7 +724,7 @@ func TestParsePublishMetadataAvroSchemaWithMap(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected object for map type")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -762,7 +759,7 @@ func TestParsePublishMetadataAvroSchemaWithEnum(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "not a valid symbol")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 
 	t.Run("enum field wrong type", func(t *testing.T) {
@@ -771,7 +768,7 @@ func TestParsePublishMetadataAvroSchemaWithEnum(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected string for enum")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -815,7 +812,7 @@ func TestParsePublishMetadataAvroSchemaWithBoolean(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected boolean")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -835,10 +832,9 @@ func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
 	}
 
 	t.Run("valid fixed raw bytes length", func(t *testing.T) {
-		// Use a 16-char string with characters outside the base64 alphabet
-		// so it falls through to raw length validation.
+		// goavro expects fixed values as strings with exact byte length matching schema size.
 		req := &pubsub.PublishRequest{
-			Data: []byte(`{"md5": "abcdef!@#$%^&*-_"}`),
+			Data: []byte(`{"md5": "abcdefghijklmnop"}`),
 		}
 		msg, err := parsePublishMetadata(req, sm)
 		require.NoError(t, err)
@@ -851,8 +847,7 @@ func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fixed")
-		assert.Contains(t, err.Error(), "size")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 
 	t.Run("fixed field wrong type", func(t *testing.T) {
@@ -861,7 +856,7 @@ func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected string for fixed")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -896,7 +891,7 @@ func TestParsePublishMetadataAvroSchemaIntOverflow(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "overflows avro int")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 
 	t.Run("int overflow negative", func(t *testing.T) {
@@ -905,7 +900,7 @@ func TestParsePublishMetadataAvroSchemaIntOverflow(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "overflows avro int")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 
 	t.Run("long accepts large value", func(t *testing.T) {
@@ -939,8 +934,7 @@ func TestParsePublishMetadataAvroSchemaUnknownFields(t *testing.T) {
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown field")
-		assert.Contains(t, err.Error(), "extra")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -977,8 +971,6 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "temperature")
-		assert.Contains(t, err.Error(), "expected number")
 	})
 
 	t.Run("double field wrong type string", func(t *testing.T) {
@@ -988,8 +980,6 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "precise")
-		assert.Contains(t, err.Error(), "expected number")
 	})
 
 	t.Run("bytes field wrong type number", func(t *testing.T) {
@@ -999,8 +989,6 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "payload")
-		assert.Contains(t, err.Error(), "expected string for bytes")
 	})
 }
 
@@ -1027,8 +1015,6 @@ func TestParsePublishMetadataAvroSchemaFloatOverflow(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "temperature")
-		assert.Contains(t, err.Error(), "overflows avro float (32-bit)")
 	})
 
 	t.Run("double field accepts large value", func(t *testing.T) {
@@ -1063,15 +1049,11 @@ func TestParsePublishMetadataAvroSchemaLongRejectsFloat(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "count")
-		assert.Contains(t, err.Error(), "expected integer, got floating-point number")
 	})
 }
 
-func TestParsePublishMetadataAvroSchemaFixedBase64Fallback(t *testing.T) {
-	// Fixed with size 3: base64 of []byte{1,2,3} is "AQID" (4 chars).
-	// Raw string length 4 != size 3, so the fallback base64 decode path is exercised.
-	// Decoded length 3 == size 3, so validation should pass.
+func TestParsePublishMetadataAvroSchemaFixedLengthValidation(t *testing.T) {
+	// goavro validates fixed values by raw string byte length matching schema size.
 	avroSchemaJSON := `{
 		"type": "record",
 		"name": "Token",
@@ -1086,44 +1068,22 @@ func TestParsePublishMetadataAvroSchemaFixedBase64Fallback(t *testing.T) {
 		value:    avroSchemaJSON,
 	}
 
-	t.Run("base64-encoded fixed value passes via fallback", func(t *testing.T) {
-		// "AQID" is base64 for []byte{1,2,3}. len("AQID")=4, size=3,
-		// so raw check fails, but base64 decode gives 3 bytes == size 3.
+	t.Run("fixed value with correct raw byte length", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
-			Data: []byte(`{"id": "AQID"}`),
+			Data: []byte(`{"id": "abc"}`),
 		}
 		msg, err := parsePublishMetadata(req, sm)
 		require.NoError(t, err)
 		assert.NotNil(t, msg)
 	})
-}
 
-func TestParsePublishMetadataAvroSchemaFixedBase64EncodedLengthMatchesSizeButDecodedDoesNot(t *testing.T) {
-	// Fixed with size 4: base64 of []byte{1,2,3} is "AQID" (4 chars).
-	// len("AQID") == 4 == size, but base64 decode yields only 3 bytes.
-	// With base64-first validation, this should be rejected.
-	avroSchemaJSON := `{
-		"type": "record",
-		"name": "Token",
-		"namespace": "test",
-		"fields": [
-			{"name": "id", "type": {"type": "fixed", "name": "FixedID", "size": 4}}
-		]
-	}`
-
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
-
-	t.Run("base64 encoded length equals schema size but decoded length differs", func(t *testing.T) {
+	t.Run("fixed value with wrong raw byte length", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
 			Data: []byte(`{"id": "AQID"}`),
 		}
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fixed")
-		assert.Contains(t, err.Error(), "size")
+		assert.Contains(t, err.Error(), "avro schema validation failed")
 	})
 }
 
@@ -1176,7 +1136,6 @@ func TestParsePublishMetadataAvroSchemaMultiTypeUnion(t *testing.T) {
 		_, err := parsePublishMetadata(req, sm)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "avro schema validation failed")
-		assert.Contains(t, err.Error(), "does not match any type in the union")
 	})
 }
 

@@ -482,9 +482,9 @@ func Test_Subscribe(t *testing.T) {
 
 		cancel()
 		assert.Eventually(t, func() bool {
-			return consumeCalled.Load() == 3
+			return cancelCalled.Load() == 3
 		}, time.Second, time.Millisecond)
-		assert.Equal(t, int64(3), cancelCalled.Load())
+		assert.Equal(t, int64(3), consumeCalled.Load())
 
 		k.Subscribe(ctx, SubscriptionHandlerConfig{})
 		assert.Nil(t, k.consumerCancel)

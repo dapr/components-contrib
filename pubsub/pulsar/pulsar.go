@@ -200,9 +200,14 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			}
 		case strings.HasSuffix(k, topicAvroSchemaIdentifier):
 			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
+			codec, codecErr := goavro.NewCodecForStandardJSONFull(v)
+			if codecErr != nil {
+				return nil, fmt.Errorf("failed to parse avro schema for topic %q: %w", topic, codecErr)
+			}
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,
+				codec:    codec,
 			}
 		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
 			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
@@ -393,16 +398,10 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		// Use goavro codec to validate JSON against the Avro schema, consistent
-		// with the Kafka component's approach in common/component/kafka/kafka.go.
-		// NativeFromTextual parses JSON and validates it against the schema in one
-		// step — if the data doesn't conform, it returns an error.
-		codec, codecErr := goavro.NewCodecForStandardJSONFull(schema.value)
-		if codecErr != nil {
-			return nil, fmt.Errorf("failed to parse avro schema: %w", codecErr)
-		}
-
-		native, _, nativeErr := codec.NativeFromTextual(req.Data)
+		// Use the cached goavro codec (compiled once at init) to validate JSON
+		// against the Avro schema. NativeFromTextual parses JSON and validates it
+		// in one step — if the data doesn't conform, it returns an error.
+		native, _, nativeErr := schema.codec.NativeFromTextual(req.Data)
 		if nativeErr != nil {
 			return nil, fmt.Errorf("avro schema validation failed: %w", nativeErr)
 		}

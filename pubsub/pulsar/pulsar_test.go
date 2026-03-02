@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	goavro "github.com/linkedin/goavro/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +31,19 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+// newAvroSchemaMetadata creates a schemaMetadata with a pre-compiled goavro codec,
+// matching the production path where codecs are compiled once at init.
+func newAvroSchemaMetadata(t *testing.T, avroSchemaJSON string) schemaMetadata {
+	t.Helper()
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchemaJSON)
+	require.NoError(t, err, "failed to compile test avro schema")
+	return schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+		codec:    codec,
+	}
+}
 
 func TestParsePulsarMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
@@ -333,6 +347,13 @@ func TestParsePulsarMetadataSubscriptionCombination(t *testing.T) {
 	}
 }
 
+// Simple valid Avro schemas for metadata parsing tests.
+const (
+	testAvroSchema1 = `{"type":"record","name":"S1","fields":[{"name":"id","type":"int"}]}`
+	testAvroSchema2 = `{"type":"record","name":"S2","fields":[{"name":"id","type":"int"}]}`
+	testAvroSchema3 = `{"type":"record","name":"S3","fields":[{"name":"id","type":"int"}]}`
+)
+
 func TestParsePulsarSchemaMetadata(t *testing.T) {
 	t.Run("test json", func(t *testing.T) {
 		m := pubsub.Metadata{}
@@ -354,23 +375,25 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":                         "a",
-			"obiwan.avroschema":            "1",
-			"kenobi.avroschema.avroschema": "2",
+			"obiwan.avroschema":            testAvroSchema1,
+			"kenobi.avroschema.avroschema": testAvroSchema2,
 		}
 		meta, err := parsePulsarMetadata(m)
 
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.avroschema"].value)
+		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["obiwan"].codec)
+		assert.Equal(t, testAvroSchema2, meta.internalTopicSchemas["kenobi.avroschema"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["kenobi.avroschema"].codec)
 	})
 
 	t.Run("test proto", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":                           "a",
-			"obiwan.avroschema":              "1",
+			"obiwan.avroschema":              testAvroSchema1,
 			"kenobi.protoschema.protoschema": "2",
 		}
 		meta, err := parsePulsarMetadata(m)
@@ -378,7 +401,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.protoschema"].value)
 	})
 
@@ -386,7 +409,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":              "a",
-			"obiwan.avroschema": "1",
+			"obiwan.avroschema": testAvroSchema1,
 			"kenobi.jsonschema": "2",
 		}
 		meta, err := parsePulsarMetadata(m)
@@ -394,7 +417,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
@@ -404,7 +427,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":              "a",
-			"obiwan.avroschema": "1",
+			"obiwan.avroschema": testAvroSchema1,
 			"kenobi.jsonschema": "2",
 			"darth.protoschema": "3",
 		}
@@ -413,7 +436,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 3)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, "3", meta.internalTopicSchemas["darth"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
@@ -425,14 +448,15 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":                         "a",
-			"obiwan.jsonschema.avroschema": "1",
+			"obiwan.jsonschema.avroschema": testAvroSchema1,
 		}
 		meta, err := parsePulsarMetadata(m)
 
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 1)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan.jsonschema"].value)
+		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan.jsonschema"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["obiwan.jsonschema"].codec)
 	})
 }
 
@@ -483,10 +507,7 @@ func TestParsePublishMetadataAvroSchemaValidation(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid message", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -557,10 +578,7 @@ func TestParsePublishMetadataAvroSchemaWithNullableFields(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("nullable field with null value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -617,10 +635,7 @@ func TestParsePublishMetadataAvroSchemaWithNestedRecord(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid nested record", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -661,10 +676,7 @@ func TestParsePublishMetadataAvroSchemaWithArrays(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid array", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -695,10 +707,7 @@ func TestParsePublishMetadataAvroSchemaWithMap(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid map", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -738,10 +747,7 @@ func TestParsePublishMetadataAvroSchemaWithEnum(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid enum value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -783,10 +789,7 @@ func TestParsePublishMetadataAvroSchemaWithBoolean(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid boolean true", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -826,10 +829,7 @@ func TestParsePublishMetadataAvroSchemaWithFixed(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid fixed raw bytes length", func(t *testing.T) {
 		// goavro expects fixed values as strings with exact byte length matching schema size.
@@ -871,10 +871,7 @@ func TestParsePublishMetadataAvroSchemaIntOverflow(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("int within range", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -923,10 +920,7 @@ func TestParsePublishMetadataAvroSchemaUnknownFields(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("extra field rejected", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -950,10 +944,7 @@ func TestParsePublishMetadataAvroSchemaFloatDoubleBytes(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("valid float value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -1003,10 +994,7 @@ func TestParsePublishMetadataAvroSchemaFloatOverflow(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("float field rejects overflow value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -1037,10 +1025,7 @@ func TestParsePublishMetadataAvroSchemaLongRejectsFloat(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("long field rejects float value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -1063,10 +1048,7 @@ func TestParsePublishMetadataAvroSchemaFixedLengthValidation(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("fixed value with correct raw byte length", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -1097,10 +1079,7 @@ func TestParsePublishMetadataAvroSchemaMultiTypeUnion(t *testing.T) {
 		]
 	}`
 
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    avroSchemaJSON,
-	}
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
 
 	t.Run("union with null value", func(t *testing.T) {
 		req := &pubsub.PublishRequest{
@@ -1140,15 +1119,14 @@ func TestParsePublishMetadataAvroSchemaMultiTypeUnion(t *testing.T) {
 }
 
 func TestParsePublishMetadataAvroSchemaInvalidSchemaDefinition(t *testing.T) {
-	sm := schemaMetadata{
-		protocol: avroProtocol,
-		value:    `{this is not valid json or avro schema`,
+	// Invalid Avro schemas are now rejected at init time (parsePulsarMetadata),
+	// not at publish time, since the codec is compiled once and cached.
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"host":                          "a",
+		"mytopic" + topicAvroSchemaIdentifier: `{this is not valid json or avro schema`,
 	}
-
-	req := &pubsub.PublishRequest{
-		Data: []byte(`{"name": "test"}`),
-	}
-	_, err := parsePublishMetadata(req, sm)
+	_, err := parsePulsarMetadata(m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse avro schema")
 }

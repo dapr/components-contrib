@@ -383,9 +383,9 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.NotNil(t, meta.internalTopicSchemas["obiwan"].codec)
-		assert.Equal(t, testAvroSchema2, meta.internalTopicSchemas["kenobi.avroschema"].value)
+		assert.JSONEq(t, testAvroSchema2, meta.internalTopicSchemas["kenobi.avroschema"].value)
 		assert.NotNil(t, meta.internalTopicSchemas["kenobi.avroschema"].codec)
 	})
 
@@ -401,7 +401,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.protoschema"].value)
 	})
 
@@ -417,7 +417,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
@@ -436,7 +436,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 3)
-		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, "3", meta.internalTopicSchemas["darth"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
@@ -455,7 +455,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 1)
-		assert.Equal(t, testAvroSchema1, meta.internalTopicSchemas["obiwan.jsonschema"].value)
+		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan.jsonschema"].value)
 		assert.NotNil(t, meta.internalTopicSchemas["obiwan.jsonschema"].codec)
 	})
 }
@@ -1123,7 +1123,7 @@ func TestParsePublishMetadataAvroSchemaInvalidSchemaDefinition(t *testing.T) {
 	// not at publish time, since the codec is compiled once and cached.
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{
-		"host":                          "a",
+		"host":                                "a",
 		"mytopic" + topicAvroSchemaIdentifier: `{this is not valid json or avro schema`,
 	}
 	_, err := parsePulsarMetadata(m)

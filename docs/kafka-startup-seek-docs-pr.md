@@ -96,8 +96,7 @@ spec:
 - Metadata wrappers compile path check:
   - `go test ./pubsub/kafka ./bindings/kafka` ✅
 
-### Local cluster validation (non-PR harness)
-- Environment: k3s namespace `playback`
+### End-to-end validation (non-PR harness)
 - Runtime: custom `daprd` image built with this branch’s `components-contrib` changes
 - Scenario matrix: 33 meaningful combinations of
   - `seekOnStart` (`earliest`, `latest`, `offset`, `timestamp`)
@@ -106,25 +105,3 @@ spec:
   - `seekPartition` (omitted/all vs `0`)
   - baseline `seekOnStart=never`
 - Assertion result: `passed=33, failed=0` ✅
-
-## Suggested PR description (copy/paste)
-
-### What this PR adds
-- Adds opt-in Kafka startup seek controls for `pubsub.kafka` and `bindings.kafka`:
-  - `seekOnStart` (`never|earliest|latest|offset|timestamp`)
-  - `seekValue`
-  - `seekApplyWhen` (`ifNoCheckpoint|always`)
-  - `seekOnce`
-  - `seekPartition`
-
-### Backward compatibility
-- Default remains unchanged (`seekOnStart=never`).
-- Existing components are unaffected unless new metadata is configured.
-
-### Tests and validation
-- `go test ./common/component/kafka`
-- `go test ./pubsub/kafka ./bindings/kafka`
-- Local k3s playback matrix with assertions across 33 scenarios: `passed=33, failed=0`
-
-### Notes for reviewers
-- Contribution includes only component logic, metadata schema updates, and unit tests.

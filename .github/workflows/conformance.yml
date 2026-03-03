@@ -22,7 +22,6 @@ on:
   push:
     branches:
       - 'release-*'
-      - 'gh-readonly-queue/main/*'
   pull_request:
     branches:
       - 'main'

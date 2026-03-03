@@ -69,6 +69,11 @@ type KafkaMetadata struct {
 	Brokers                 string              `mapstructure:"brokers"`
 	internalBrokers         []string            `mapstructure:"-"`
 	ConsumerGroup           string              `mapstructure:"consumerGroup"`
+	SeekOnStart             string              `mapstructure:"seekOnStart"`
+	SeekValue               string              `mapstructure:"seekValue"`
+	SeekApplyWhen           string              `mapstructure:"seekApplyWhen"`
+	SeekOnce                bool                `mapstructure:"seekOnce"`
+	internalStartupSeek     startupSeekConfig   `mapstructure:"-"`
 	ClientID                string              `mapstructure:"clientId"`
 	AuthType                string              `mapstructure:"authType"`
 	SaslUsername            string              `mapstructure:"saslUsername"`
@@ -164,13 +169,16 @@ func (k *Kafka) upgradeMetadata(meta map[string]string) (map[string]string, erro
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
-		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
-		ConsumeRetryInterval:                         100 * time.Millisecond,
-		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
-		internalCompression:                          sarama.CompressionNone,
-		channelBufferSize:                            256,
-		consumerFetchMin:                             1,
-		consumerFetchDefault:                         1024 * 1024,
+		ConsumeRetryEnabled:  k.DefaultConsumeRetryEnabled,
+		ConsumeRetryInterval: 100 * time.Millisecond,
+		SeekOnStart:          seekOnStartNever,
+		SeekApplyWhen:        seekApplyWhenIfNoCheckpoint,
+		SeekOnce:             true,
+		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
+		internalCompression:  sarama.CompressionNone,
+		channelBufferSize:    256,
+		consumerFetchMin:     1,
+		consumerFetchDefault: 1024 * 1024,
 		ClientConnectionTopicMetadataRefreshInterval: defaultClientConnectionTopicMetadataRefreshInterval,
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 		HeartbeatInterval:                            3 * time.Second,
@@ -204,6 +212,12 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		return nil, err
 	}
 	m.internalInitialOffset = initialOffset
+
+	startupSeek, err := parseStartupSeekConfig(meta, m.SeekOnStart, m.SeekValue, m.SeekApplyWhen, m.SeekOnce)
+	if err != nil {
+		return nil, err
+	}
+	m.internalStartupSeek = startupSeek
 
 	if m.Brokers != "" {
 		m.internalBrokers = strings.Split(m.Brokers, ",")

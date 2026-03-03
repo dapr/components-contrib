@@ -45,16 +45,23 @@ type Kafka struct {
 	mockProducer      sarama.SyncProducer
 	clients           *clients
 
-	maxMessageBytes int
-	consumerGroup   string
-	brokers         []string
-	logger          logger.Logger
-	authType        string
-	saslUsername    string
-	saslPassword    string
-	initialOffset   int64
-	config          *sarama.Config
-	escapeHeaders   bool
+	maxMessageBytes    int
+	consumerGroup      string
+	brokers            []string
+	logger             logger.Logger
+	authType           string
+	saslUsername       string
+	saslPassword       string
+	initialOffset      int64
+	config             *sarama.Config
+	escapeHeaders      bool
+	startupSeek        startupSeekConfig
+	startupSeekLock    sync.Mutex
+	startupSeekApplied map[startupSeekKey]struct{}
+	seekClient         sarama.Client
+	seekClientLock     sync.Mutex
+	offsetLookupFn     func(topic string, partition int32, timestampMillis int64) (int64, error)
+	committedOffsetFn  func(topic string, partition int32) (int64, error)
 
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
@@ -150,8 +157,13 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.brokers = meta.internalBrokers
 	k.consumerGroup = meta.ConsumerGroup
 	k.initialOffset = meta.internalInitialOffset
+	k.startupSeek = meta.internalStartupSeek
+	k.startupSeekApplied = map[startupSeekKey]struct{}{}
 	k.authType = meta.AuthType
 	k.escapeHeaders = meta.EscapeHeaders
+	if k.startupSeek.enabled && k.startupSeek.applyWhen == seekApplyWhenAlways && !k.startupSeek.seekOnce {
+		k.logger.Warnf("kafka: startup seek configured with seekApplyWhen=always and seekOnce=false; consumers will re-read from configured startup position on every restart by design")
+	}
 
 	config := sarama.NewConfig()
 	config.Version = meta.internalVersion
@@ -347,6 +359,7 @@ func (k *Kafka) Close() error {
 				k.clients.consumerGroup = nil
 			}
 		}
+		errs[2] = k.closeSeekClient()
 	}
 
 	return errors.Join(errs...)

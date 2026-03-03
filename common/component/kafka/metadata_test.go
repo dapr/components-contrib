@@ -339,6 +339,103 @@ func TestInitialOffset(t *testing.T) {
 	require.Equal(t, sarama.OffsetNewest, meta.internalInitialOffset)
 }
 
+func TestStartupSeekMetadata(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default seek config is disabled", func(t *testing.T) {
+		m := map[string]string{"consumerGroup": "a", "brokers": "a", "authType": noAuthType}
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.False(t, meta.internalStartupSeek.enabled)
+		require.Equal(t, seekModeNever, meta.internalStartupSeek.mode)
+		require.Equal(t, seekApplyWhenIfNoCheckpoint, meta.internalStartupSeek.applyWhen)
+		require.True(t, meta.internalStartupSeek.seekOnce)
+	})
+
+	t.Run("earliest seek parses", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "earliest",
+			"seekValue":     "100",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.True(t, meta.internalStartupSeek.enabled)
+		require.Equal(t, seekModeEarliest, meta.internalStartupSeek.mode)
+	})
+
+	t.Run("offset seek requires value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "offset",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: missing seekValue for seekOnStart=offset", err.Error())
+	})
+
+	t.Run("offset seek validates numeric non-negative value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "offset",
+			"seekValue":     "-1",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid seekValue for seekOnStart=offset", err.Error())
+	})
+
+	t.Run("timestamp seek validates numeric value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "timestamp",
+			"seekValue":     "invalid",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid seekValue for seekOnStart=timestamp", err.Error())
+	})
+
+	t.Run("seekApplyWhen validates value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "latest",
+			"seekApplyWhen": "sometimes",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid seekApplyWhen: sometimes", err.Error())
+	})
+
+	t.Run("seekPartition validates value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "latest",
+			"seekPartition": "-1",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid seekPartition: -1", err.Error())
+	})
+}
+
 func TestTls(t *testing.T) {
 	k := getKafka()
 

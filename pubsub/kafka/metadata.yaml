@@ -297,6 +297,44 @@ metadata:
       allowedValues:
         - "newest"
         - "oldest"
+    - name: seekOnStart
+      type: string
+      description: |
+        Controlled startup seek behavior. When set, this applies startup seeking for assigned partitions in the consumer group session.
+      example: '"earliest"'
+      default: '"never"'
+      allowedValues:
+        - "never"
+        - "earliest"
+        - "latest"
+        - "offset"
+        - "timestamp"
+    - name: seekValue
+      type: string
+      description: |
+        Required when `seekOnStart` is `offset` or `timestamp`. For `offset`, this is the target offset. For `timestamp`, this is Unix milliseconds.
+      example: '"1735689600000"'
+    - name: seekApplyWhen
+      type: string
+      description: |
+        Controls when startup seek is applied. `ifNoCheckpoint` applies only when no committed offset exists for the partition.
+      example: '"ifNoCheckpoint"'
+      default: '"ifNoCheckpoint"'
+      allowedValues:
+        - "always"
+        - "ifNoCheckpoint"
+    - name: seekOnce
+      type: bool
+      description: |
+        Apply startup seek once per component instance for each group/topic/partition assignment.
+      example: '"true"'
+      default: '"true"'
+    - name: seekPartition
+      type: number
+      required: false
+      description: |
+        Optional specific partition to apply startup seek to. If the partition is not assigned in the current session, the component logs a warning and skips.
+      example: '0'
     - name: maxMessageBytes
       type: number
       description: |

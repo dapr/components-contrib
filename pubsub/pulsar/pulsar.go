@@ -27,8 +27,8 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
-	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
+	goavro "github.com/linkedin/goavro/v2"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
@@ -178,9 +178,14 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			}
 		case strings.HasSuffix(k, topicAvroSchemaIdentifier):
 			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
+			codec, codecErr := goavro.NewCodecForStandardJSONFull(v)
+			if codecErr != nil {
+				return nil, fmt.Errorf("failed to parse avro schema for topic %q: %w", topic, codecErr)
+			}
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,
+				codec:    codec,
 			}
 		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
 			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
@@ -369,18 +374,15 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		var obj interface{}
-		avroSchema, parseErr := avro.Parse(schema.value)
-		if parseErr != nil {
-			return nil, parseErr
+		// Use the cached goavro codec (compiled once at init) to validate JSON
+		// against the Avro schema. NativeFromTextual parses JSON and validates it
+		// in one step — if the data doesn't conform, it returns an error.
+		native, _, nativeErr := schema.codec.NativeFromTextual(req.Data)
+		if nativeErr != nil {
+			return nil, fmt.Errorf("avro schema validation failed: %w", nativeErr)
 		}
 
-		err = avro.Unmarshal(avroSchema, req.Data, &obj)
-		if err != nil {
-			return nil, err
-		}
-
-		msg.Value = obj
+		msg.Value = native
 	}
 
 	for name, value := range req.Metadata {

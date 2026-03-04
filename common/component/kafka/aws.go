@@ -98,16 +98,18 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 }
 
 func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
-	// Add SyncProducer specific properties to copy of base config
-	c.config.Producer.RequiredAcks = sarama.WaitForAll
-	c.config.Producer.Retry.Max = 5
-	c.config.Producer.Return.Successes = true
+	// Copy the base config to avoid mutating the shared config pointer,
+	// which would bleed producer settings into the consumer.
+	producerConfig := *c.config
+	producerConfig.Producer.RequiredAcks = sarama.WaitForAll
+	producerConfig.Producer.Retry.Max = 5
+	producerConfig.Producer.Return.Successes = true
 
 	if *c.maxMessageBytes > 0 {
-		c.config.Producer.MaxMessageBytes = *c.maxMessageBytes
+		producerConfig.Producer.MaxMessageBytes = *c.maxMessageBytes
 	}
 
-	saramaClient, err := sarama.NewClient(*c.brokers, c.config)
+	saramaClient, err := sarama.NewClient(*c.brokers, &producerConfig)
 	if err != nil {
 		return nil, err
 	}

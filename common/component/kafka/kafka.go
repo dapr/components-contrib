@@ -43,6 +43,7 @@ type Kafka struct {
 	// These are used to inject mocked clients for tests
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
+	clientsLock       sync.RWMutex
 	clients           *clients
 
 	maxMessageBytes int
@@ -256,6 +257,11 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		}
 	}
 
+	initTimeout := k.initTimeout
+	if initTimeout <= 0 {
+		initTimeout = 30 * time.Second
+	}
+
 	type initResult struct {
 		clients *clients
 		err     error
@@ -271,7 +277,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	case res := <-resultCh:
 		initClients = res.clients
 		err = res.err
-	case <-time.After(k.initTimeout):
+	case <-time.After(initTimeout):
 		// Clean up clients created after timeout.
 		go func() {
 			res := <-resultCh
@@ -284,7 +290,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 				}
 			}
 		}()
-		return fmt.Errorf("kafka init timed out after %v while connecting to brokers", k.initTimeout)
+		return fmt.Errorf("kafka init timed out after %v while connecting to brokers", initTimeout)
 	}
 	if err != nil || initClients == nil {
 		return fmt.Errorf("failed to get latest Kafka clients for initialization: %w", err)
@@ -384,6 +390,7 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
+		k.clientsLock.Lock()
 		if k.clients != nil {
 			if k.clients.producer != nil {
 				errs[0] = k.clients.producer.Close()
@@ -394,6 +401,7 @@ func (k *Kafka) Close() error {
 				k.clients.consumerGroup = nil
 			}
 		}
+		k.clientsLock.Unlock()
 	}
 
 	return errors.Join(errs...)

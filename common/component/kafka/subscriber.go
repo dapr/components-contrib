@@ -47,7 +47,12 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 				postAction = func() {
 					// Guard against double-close: if kafka.Close() has already
 					// been called, the consumer group is already closed there.
-					if !k.closed.Load() && k.clients != nil && k.clients.consumerGroup != nil {
+					if k.closed.Load() {
+						return
+					}
+					k.clientsLock.Lock()
+					defer k.clientsLock.Unlock()
+					if k.clients != nil && k.clients.consumerGroup != nil {
 						k.logger.Debugf("Kafka component is closing. Closing consumer group.")
 						err := k.clients.consumerGroup.Close()
 						if err != nil {
@@ -128,7 +133,7 @@ func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer
 			k.logger.Errorf("Error consuming %v (%d/%d). Retrying...: %v", topics, consecutiveErrors, maxConsecutiveErrors, err)
 			if consecutiveErrors >= maxConsecutiveErrors {
 				k.logger.Warnf("Kafka clients appear unhealthy after %d consecutive consume errors, forcing client re-creation", maxConsecutiveErrors)
-				k.clients = nil
+				k.invalidateClients()
 				consecutiveErrors = 0
 			}
 		} else {

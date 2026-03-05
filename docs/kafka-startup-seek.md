@@ -22,6 +22,7 @@ Default behavior is unchanged when the new metadata is not set.
 
 ### Validation rules
 - `seekOnStart=earliest|latest`: `seekValue` is ignored.
+- `seekOnStart=earliest` is equivalent to Kafka `oldest`; `seekOnStart=latest` is equivalent to Kafka `newest` used by `initialOffset`.
 - `seekOnStart=offset`: `seekValue` must be an integer offset `>=0`.
 - `seekOnStart=timestamp`: `seekValue` must be Unix milliseconds.
 - `seekApplyWhen=ifNoCheckpoint`: seek only when no committed offset exists for the partition.

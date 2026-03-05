@@ -340,6 +340,7 @@ metadata:
     type: string
     description: |
       Controlled startup seek behavior. When set, this applies startup seeking for assigned partitions in the consumer group session.
+      `earliest` is equivalent to Kafka `oldest`, and `latest` is equivalent to Kafka `newest`.
     example: '"earliest"'
     default: '"never"'
     allowedValues:

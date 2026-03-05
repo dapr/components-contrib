@@ -407,6 +407,20 @@ func TestStartupSeekMetadata(t *testing.T) {
 		require.Equal(t, "kafka error: invalid seekValue for seekOnStart=timestamp", err.Error())
 	})
 
+	t.Run("timestamp seek rejects negative value", func(t *testing.T) {
+		m := map[string]string{
+			"consumerGroup": "a",
+			"brokers":       "a",
+			"authType":      noAuthType,
+			"seekOnStart":   "timestamp",
+			"seekValue":     "-1",
+		}
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: invalid seekValue for seekOnStart=timestamp", err.Error())
+	})
+
 	t.Run("seekApplyWhen validates value", func(t *testing.T) {
 		m := map[string]string{
 			"consumerGroup": "a",

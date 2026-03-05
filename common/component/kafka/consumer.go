@@ -266,6 +266,20 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 	claims := session.Claims()
 	partitionMatched := conf.partition == nil
 
+	var offsetManager sarama.OffsetManager
+	if consumer.k.committedOffsetFn == nil {
+		client, err := consumer.k.ensureSeekClient()
+		if err != nil {
+			return fmt.Errorf("error creating seek client for committed offsets: %w", err)
+		}
+
+		offsetManager, err = sarama.NewOffsetManagerFromClient(consumer.k.consumerGroup, client)
+		if err != nil {
+			return fmt.Errorf("error creating offset manager for startup seek: %w", err)
+		}
+		defer offsetManager.Close()
+	}
+
 	for topic, partitions := range claims {
 		for _, partition := range partitions {
 			if conf.partition != nil && partition != *conf.partition {
@@ -279,7 +293,15 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 				continue
 			}
 
-			committedOffset, err := consumer.k.getCommittedOffset(topic, partition)
+			var (
+				committedOffset int64
+				err             error
+			)
+			if offsetManager != nil {
+				committedOffset, err = consumer.k.getCommittedOffsetWithManager(offsetManager, topic, partition)
+			} else {
+				committedOffset, err = consumer.k.getCommittedOffset(topic, partition)
+			}
 			if err != nil {
 				return fmt.Errorf("error reading committed offset for %s/%d: %w", topic, partition, err)
 			}

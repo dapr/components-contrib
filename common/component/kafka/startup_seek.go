@@ -119,7 +119,7 @@ func parseStartupSeekConfig(meta map[string]string, seekOnStart, seekValue, seek
 			return conf, fmt.Errorf("kafka error: missing seekValue for seekOnStart=%s", seekOnStartTS)
 		}
 		ts, err := strconv.ParseInt(seekValue, 10, 64)
-		if err != nil {
+		if err != nil || ts < 0 {
 			return conf, fmt.Errorf("kafka error: invalid seekValue for seekOnStart=%s", seekOnStartTS)
 		}
 		conf.mode = seekModeTimestamp
@@ -200,6 +200,14 @@ func (k *Kafka) getCommittedOffset(topic string, partition int32) (int64, error)
 		return 0, err
 	}
 	defer offsetManager.Close()
+
+	return k.getCommittedOffsetWithManager(offsetManager, topic, partition)
+}
+
+func (k *Kafka) getCommittedOffsetWithManager(offsetManager sarama.OffsetManager, topic string, partition int32) (int64, error) {
+	if offsetManager == nil {
+		return 0, fmt.Errorf("offset manager is nil")
+	}
 
 	partitionManager, err := offsetManager.ManagePartition(topic, partition)
 	if err != nil {

@@ -444,6 +444,34 @@ func Test_SetupStartupSeek(t *testing.T) {
 		session2.AssertNotCalled(t, "ResetOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
+	t.Run("always mode does not require committed offset lookup", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-g": []int32{0}})
+		session.On("ResetOffset", "topic-g", int32(0), sarama.OffsetNewest, "").Return().Once()
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeLatest,
+				applyWhen: seekApplyWhenAlways,
+				seekOnce:  false,
+			},
+			consumerGroup:      "group-g",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return -1, errors.New("should not be called")
+			},
+		}
+
+		err := (&consumer{k: k}).Setup(session)
+		require.NoError(t, err)
+		session.AssertExpectations(t)
+	})
+
 	t.Run("ifNoCheckpoint + seekOnce=true re-applies while checkpoint missing", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
@@ -553,7 +581,7 @@ func Test_SetupStartupSeek(t *testing.T) {
 
 		err := (&consumer{k: k}).Setup(session)
 		require.NoError(t, err)
-		require.Equal(t, int32(1), committedCalls.Load())
+		require.Equal(t, int32(0), committedCalls.Load())
 		session.AssertExpectations(t)
 	})
 

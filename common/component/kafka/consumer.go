@@ -267,7 +267,7 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 	partitionMatched := conf.partition == nil
 
 	var offsetManager sarama.OffsetManager
-	if consumer.k.committedOffsetFn == nil {
+	if conf.applyWhen == seekApplyWhenIfNoCheckpoint && consumer.k.committedOffsetFn == nil {
 		client, err := consumer.k.ensureSeekClient()
 		if err != nil {
 			return fmt.Errorf("error creating seek client for committed offsets: %w", err)
@@ -289,30 +289,32 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 
 			seekKey := makeStartupSeekKey(consumer.k.consumerGroup, topic, partition)
 			seekOnceApplied := conf.seekOnce && consumer.k.wasStartupSeekApplied(seekKey)
-
-			var (
-				committedOffset int64
-				err             error
-			)
-			if offsetManager != nil {
-				committedOffset, err = consumer.k.getCommittedOffsetWithManager(offsetManager, topic, partition)
-			} else {
-				committedOffset, err = consumer.k.getCommittedOffset(topic, partition)
-			}
-			if err != nil {
-				return fmt.Errorf("error reading committed offset for %s/%d: %w", topic, partition, err)
-			}
-
-			if !shouldApplyStartupSeek(conf, committedOffset) {
-				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=checkpoint exists at offset=%d", topic, partition, committedOffset)
-				continue
-			}
-
 			if conf.applyWhen == seekApplyWhenAlways && seekOnceApplied {
 				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=seekOnce already applied", topic, partition)
 				continue
 			}
 
+			if conf.applyWhen == seekApplyWhenIfNoCheckpoint {
+				var (
+					committedOffset int64
+					err             error
+				)
+				if offsetManager != nil {
+					committedOffset, err = consumer.k.getCommittedOffsetWithManager(offsetManager, topic, partition)
+				} else {
+					committedOffset, err = consumer.k.getCommittedOffset(topic, partition)
+				}
+				if err != nil {
+					return fmt.Errorf("error reading committed offset for %s/%d: %w", topic, partition, err)
+				}
+
+				if !shouldApplyStartupSeek(conf, committedOffset) {
+					consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=checkpoint exists at offset=%d", topic, partition, committedOffset)
+					continue
+				}
+			}
+
+			var err error
 			targetOffset := int64(0)
 			reason := ""
 			switch conf.mode {

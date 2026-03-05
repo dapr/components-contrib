@@ -288,10 +288,7 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 			partitionMatched = true
 
 			seekKey := makeStartupSeekKey(consumer.k.consumerGroup, topic, partition)
-			if conf.seekOnce && consumer.k.wasStartupSeekApplied(seekKey) {
-				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=seekOnce already applied", topic, partition)
-				continue
-			}
+			seekOnceApplied := conf.seekOnce && consumer.k.wasStartupSeekApplied(seekKey)
 
 			var (
 				committedOffset int64
@@ -308,6 +305,11 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 
 			if !shouldApplyStartupSeek(conf, committedOffset) {
 				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=checkpoint exists at offset=%d", topic, partition, committedOffset)
+				continue
+			}
+
+			if conf.applyWhen == seekApplyWhenAlways && seekOnceApplied {
+				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=seekOnce already applied", topic, partition)
 				continue
 			}
 
@@ -341,7 +343,7 @@ func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) 
 				consumer.k.logger.Infof("Kafka startup seek applied for %s/%d: targetOffset=%d reason=no checkpoint %s", topic, partition, targetOffset, reason)
 			}
 
-			if conf.seekOnce {
+			if conf.seekOnce && conf.applyWhen == seekApplyWhenAlways {
 				consumer.k.markStartupSeekApplied(seekKey)
 			}
 		}

@@ -326,7 +326,8 @@ metadata:
     - name: seekOnce
       type: bool
       description: |
-        Apply startup seek once per component instance for each group/topic/partition assignment.
+        Apply startup seek once per component instance for each group/topic/partition assignment when `seekApplyWhen` is `always`.
+        When `seekApplyWhen` is `ifNoCheckpoint`, this setting has no effect.
       example: '"true"'
       default: '"true"'
     - name: seekPartition

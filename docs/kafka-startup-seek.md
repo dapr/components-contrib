@@ -1,4 +1,4 @@
-# docs(kafka): Controlled startup seek for Kafka pub/sub and binding
+# Controlled startup seek for Kafka pub/sub and binding
 
 ## Summary
 This change adds an opt-in startup seek capability for Kafka consumers used by `pubsub.kafka` and `bindings.kafka`.
@@ -15,9 +15,9 @@ Default behavior is unchanged when the new metadata is not set.
 | Name | Type | Default | Required | Description |
 |---|---|---|---|---|
 | `seekOnStart` | string | `never` | no | Startup seek mode: `never`, `earliest`, `latest`, `offset`, `timestamp` |
-| `seekValue` | string/int64 | n/a | yes for `offset`/`timestamp` | Offset value or Unix milliseconds, depending on `seekOnStart` |
+| `seekValue` | string | n/a | yes for `offset`/`timestamp` | Offset value or Unix milliseconds, depending on `seekOnStart` |
 | `seekApplyWhen` | string | `ifNoCheckpoint` | no | Apply seek `always` or only `ifNoCheckpoint` (no committed offset) |
-| `seekOnce` | bool | `true` | no | Apply startup seek once per component instance for each group/topic/partition |
+| `seekOnce` | bool | `true` | no | Apply startup seek at most once per component instance for each group/topic/partition when `seekApplyWhen=always`; no effect for `ifNoCheckpoint` |
 | `seekPartition` | int | all claimed partitions | no | Restrict startup seek to one partition |
 
 ### Validation rules
@@ -26,6 +26,7 @@ Default behavior is unchanged when the new metadata is not set.
 - `seekOnStart=timestamp`: `seekValue` must be Unix milliseconds.
 - `seekApplyWhen=ifNoCheckpoint`: seek only when no committed offset exists for the partition.
 - `seekApplyWhen=always`: seek on every startup; with `seekOnce=true`, apply once then skip subsequent sessions.
+- `seekApplyWhen=ifNoCheckpoint`: seek applies whenever no committed offset exists; `seekOnce` does not suppress this re-application.
 
 ## Examples
 

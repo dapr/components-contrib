@@ -202,7 +202,6 @@ require (
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.17 // indirect
@@ -339,7 +338,6 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jhump/protoreflect v1.15.3 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/kataras/go-errors v0.0.3 // indirect

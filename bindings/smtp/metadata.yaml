@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: smtp
+version: v1
+status: alpha
+title: "SMTP"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/smtp/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send email via SMTP"
+authenticationProfiles:
+  - title: "User/Password Authentication"
+    description: |
+      Authenticate with SMTP server using username and password.
+    metadata:
+      - name: user
+        required: true
+        description: "The SMTP username"
+        example: "user@gmail.com"
+      - name: password
+        required: true
+        sensitive: true
+        description: "The SMTP password"
+        example: "password"
+metadata:
+  - name: host
+    required: true
+    description: "The SMTP server host"
+    example: "smtp.gmail.com"
+  - name: port
+    required: false
+    description: "The SMTP server port"
+    example: '587'
+    default: '587'
+  - name: emailFrom
+    required: true
+    description: "The sender email address"
+    example: "sender@example.com"
+  - name: emailTo
+    required: true
+    description: "The recipient email address"
+    example: "recipient@example.com"
+  - name: emailCC
+    required: false
+    description: "The email CC address"
+    example: "cc@example.com"
+  - name: emailBCC
+    required: false
+    description: "The email BCC address"
+    example: "bcc@example.com"
+  - name: priority
+    required: false
+    description: "The email priority"
+    example: '3'
+    default: '3'
+  - name: subject
+    required: true
+    description: "The email subject"
+    example: "Hello from Dapr"
+  - name: skipTLSVerify
+    required: false
+    description: "Skip TLS verification"
+    example: "false"
+    default: "false"

@@ -27,8 +27,8 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
-	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
+	goavro "github.com/linkedin/goavro/v2"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
@@ -104,24 +104,40 @@ const (
 
 	subscribeModeDurable    = "durable"
 	subscribeModeNonDurable = "non_durable"
+
+	compressionTypeKey  = "compressionType"
+	compressionLevelKey = "compressionLevel"
+
+	compressionTypeNone = "none"
+	compressionTypeLZ4  = "lz4"
+	compressionTypeZLib = "zlib"
+	compressionTypeZSTD = "zstd"
+
+	compressionLevelDefault = "default"
+	compressionLevelFaster  = "faster"
+	compressionLevelBetter  = "better"
 )
 
 type ProcessMode string
 
 type Pulsar struct {
-	logger   logger.Logger
-	client   pulsar.Client
-	metadata pulsarMetadata
-	cache    *lru.Cache[string, pulsar.Producer]
-	closed   atomic.Bool
-	closeCh  chan struct{}
-	wg       sync.WaitGroup
+	logger      logger.Logger
+	client      pulsar.Client
+	metadata    pulsarMetadata
+	cache       *lru.Cache[string, pulsar.Producer]
+	closed      atomic.Bool
+	closeCh     chan struct{}
+	wg          sync.WaitGroup
+	newClientFn pulsarClientFactory
 }
+
+type pulsarClientFactory func(pulsar.ClientOptions) (pulsar.Client, error)
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
 	return &Pulsar{
-		logger:  l,
-		closeCh: make(chan struct{}),
+		logger:      l,
+		closeCh:     make(chan struct{}),
+		newClientFn: pulsar.NewClient,
 	}
 }
 
@@ -164,6 +180,16 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		return nil, errors.New("invalid subscription mode")
 	}
 
+	m.CompressionType, err = parseCompressionType(meta.Properties[compressionTypeKey])
+	if err != nil {
+		return nil, errors.New("invalid compression type. Accepted values are `none`, `lz4`, `zlib` and `zstd`")
+	}
+
+	m.CompressionLevel, err = parseCompressionLevel(meta.Properties[compressionLevelKey])
+	if err != nil {
+		return nil, errors.New("invalid compression level. Accepted values are `default`, `faster` and `better`")
+	}
+
 	for k, v := range meta.Properties {
 		switch {
 		case strings.HasSuffix(k, topicJSONSchemaIdentifier):
@@ -174,9 +200,14 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			}
 		case strings.HasSuffix(k, topicAvroSchemaIdentifier):
 			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
+			codec, codecErr := goavro.NewCodecForStandardJSONFull(v)
+			if codecErr != nil {
+				return nil, fmt.Errorf("failed to parse avro schema for topic %q: %w", topic, codecErr)
+			}
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,
+				codec:    codec,
 			}
 		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
 			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
@@ -185,6 +216,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 				value:    v,
 			}
 		}
+	}
+
+	// Resolve credentials from file if ClientSecretPath is set
+	if err := m.ClientCredentialsMetadata.ResolveCredentials(); err != nil {
+		return nil, err
 	}
 
 	return &m, nil
@@ -209,24 +245,16 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
 	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
-		var cc *oauth2.ClientCredentials
-		cc, err = oauth2.NewClientCredentials(ctx, oauth2.ClientCredentialsOptions{
-			Logger:       p.logger,
-			TokenURL:     m.ClientCredentialsMetadata.TokenURL,
-			CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
-			ClientID:     m.ClientCredentialsMetadata.ClientID,
-			ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
-			Scopes:       m.ClientCredentialsMetadata.Scopes,
-			Audiences:    m.ClientCredentialsMetadata.Audiences,
-		})
+		credsOpts := m.ClientCredentialsMetadata.ToOptions(p.logger)
+		var cliCreds *oauth2.ClientCredentials
+		cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)
 		if err != nil {
 			return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
 		}
-
-		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
+		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cliCreds.Token)
 	}
 
-	client, err := pulsar.NewClient(options)
+	client, err := p.newClientFn(options)
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)
 	}
@@ -297,6 +325,8 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 			BatchingMaxPublishDelay: p.metadata.BatchingMaxPublishDelay,
 			BatchingMaxMessages:     p.metadata.BatchingMaxMessages,
 			BatchingMaxSize:         p.metadata.BatchingMaxSize,
+			CompressionType:         getCompressionType(p.metadata.CompressionType),
+			CompressionLevel:        getCompressionLevel(p.metadata.CompressionLevel),
 		}
 
 		if hasSchema {
@@ -368,18 +398,15 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		var obj interface{}
-		avroSchema, parseErr := avro.Parse(schema.value)
-		if parseErr != nil {
-			return nil, parseErr
+		// Use the cached goavro codec (compiled once at init) to validate JSON
+		// against the Avro schema. NativeFromTextual parses JSON and validates it
+		// in one step — if the data doesn't conform, it returns an error.
+		native, _, nativeErr := schema.codec.NativeFromTextual(req.Data)
+		if nativeErr != nil {
+			return nil, fmt.Errorf("avro schema validation failed: %w", nativeErr)
 		}
 
-		err = avro.Unmarshal(avroSchema, req.Data, &obj)
-		if err != nil {
-			return nil, err
-		}
-
-		msg.Value = obj
+		msg.Value = native
 	}
 
 	for name, value := range req.Metadata {
@@ -486,6 +513,54 @@ func getSubscriptionMode(subsModeStr string) pulsar.SubscriptionMode {
 	}
 }
 
+func parseCompressionType(in string) (string, error) {
+	compType := strings.ToLower(in)
+	switch compType {
+	case compressionTypeNone, compressionTypeLZ4, compressionTypeZLib, compressionTypeZSTD:
+		return compType, nil
+	case "":
+		return compressionTypeNone, nil
+	default:
+		return "", fmt.Errorf("invalid compression type: %s", compType)
+	}
+}
+
+func getCompressionType(compTypeStr string) pulsar.CompressionType {
+	switch compTypeStr {
+	case compressionTypeLZ4:
+		return pulsar.LZ4
+	case compressionTypeZLib:
+		return pulsar.ZLib
+	case compressionTypeZSTD:
+		return pulsar.ZSTD
+	default:
+		return pulsar.NoCompression
+	}
+}
+
+func parseCompressionLevel(in string) (string, error) {
+	compLevel := strings.ToLower(in)
+	switch compLevel {
+	case compressionLevelDefault, compressionLevelFaster, compressionLevelBetter:
+		return compLevel, nil
+	case "":
+		return compressionLevelDefault, nil
+	default:
+		return "", fmt.Errorf("invalid compression level: %s", compLevel)
+	}
+}
+
+func getCompressionLevel(compLevelStr string) pulsar.CompressionLevel {
+	switch compLevelStr {
+	case compressionLevelFaster:
+		return pulsar.Faster
+	case compressionLevelBetter:
+		return pulsar.Better
+	default:
+		return pulsar.Default
+	}
+}
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -504,8 +579,8 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		Topic:                       topic,
 		SubscriptionName:            p.metadata.ConsumerID,
 		Type:                        getSubscribeType(subscribeType),
-		SubscriptionInitialPosition: getSubscribePosition(subscribeInitialPosition),
-		SubscriptionMode:            getSubscriptionMode(subscribeMode),
+		SubscriptionInitialPosition: getSubscribePosition(p.metadata.SubscriptionInitialPosition),
+		SubscriptionMode:            getSubscriptionMode(p.metadata.SubscriptionMode),
 		MessageChannel:              channel,
 		NackRedeliveryDelay:         p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:           p.metadata.ReceiverQueueSize,

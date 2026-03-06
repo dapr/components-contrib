@@ -64,7 +64,11 @@ const (
 	respRowsAffectedKey = "rows-affected"
 	respEndTimeKey      = "end-time"
 	respDurationKey     = "duration"
+
+	jsonType = "JSON"
 )
+
+var rawByteType = reflect.TypeOf(&sql.RawBytes{})
 
 // Mysql represents MySQL output bindings.
 type Mysql struct {
@@ -330,6 +334,10 @@ func (m *Mysql) jsonify(rows *sql.Rows) ([]byte, error) {
 func prepareValues(columnTypes []*sql.ColumnType) []any {
 	types := make([]reflect.Type, len(columnTypes))
 	for i, tp := range columnTypes {
+		if tp.DatabaseTypeName() == jsonType {
+			types[i] = rawByteType
+			continue
+		}
 		types[i] = tp.ScanType()
 	}
 

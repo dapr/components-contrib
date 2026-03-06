@@ -20,8 +20,8 @@ metadata:
     type: number
     required: false
     description: "The status code to return for denied responses"
-    example: 403
-    default: 403
+    example: "403"
+    default: "403"
   - name: includedHeaders
     type: string
     required: false
@@ -31,4 +31,4 @@ metadata:
     type: string
     required: false
     description: "Controls whether the middleware reads the entire request body in-memory and make it available for policy decisions"
-    example: false
+    example: "false"

@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: rethinkdb.statechange
+version: v1
+status: beta
+title: "RethinkDB State Change"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/rethinkdb/
+binding:
+  output: false
+  input: true
+  operations:
+    - name: read
+      description: "Listen for state changes in RethinkDB"
+authenticationProfiles:
+  - title: "Basic Authentication"
+    description: "Authenticate using username and password."
+    metadata:
+      - name: address
+        type: string
+        required: false
+        description: The RethinkDB server address.
+        example: "localhost:28015"
+      - name: addresses
+        type: string
+        required: false
+        description: Comma-separated list of RethinkDB server addresses.
+        example: "localhost:28015,localhost:28016"
+      - name: database
+        type: string
+        required: true
+        description: The RethinkDB database name.
+        example: "dapr"
+        default: ""
+      - name: username
+        type: string
+        required: false
+        description: The username for authentication. If not provided, the admin user is used for v1 handshake protocol.
+        example: "admin"
+      - name: password
+        type: string
+        required: false
+        description: The password for authentication. This is only used for v1 handshake protocol.
+        example: "password"
+  - title: "TLS Authentication"
+    description: "Authenticate using client certificate and key."
+    metadata:
+      - name: enableTLS
+        type: bool
+        required: false
+        description: Whether to enable TLS encryption.
+        example: "false"
+        default: "false"
+      - name: clientCert
+        type: string
+        required: true
+        description: The client certificate for TLS authentication.
+        example: "-----BEGIN CERTIFICATE-----\nXXX..."
+      - name: clientKey
+        type: string
+        required: true
+        description: The client key for TLS authentication.
+        example: "-----BEGIN PRIVATE KEY-----\nXXX..."
+        sensitive: true
+metadata:
+  - name: table
+    type: string
+    required: false
+    description: The table name to store state data.
+    example: "daprstate"
+    default: "daprstate"
+  - name: archive
+    type: bool
+    required: false
+    description: Whether to archive changes to a separate table.
+    example: "false"
+    default: "false"
+  - name: timeout
+    type: string
+    required: false
+    description: Connection timeout duration.
+    example: "10s"
+  - name: useJSONNumber
+    type: bool
+    required: false
+    description: Whether to use json.Number instead of float64.
+    example: "false"
+    default: "false"
+  - name: numRetries
+    type: number
+    required: false
+    description: Number of times to retry queries on connection errors.
+    example: "3"
+  - name: hostDecayDuration
+    type: string
+    required: false
+    description: Host decay duration for weighted host selection.
+    example: "5m"
+    default: "5m"
+  - name: useOpentracing
+    type: bool
+    required: false
+    description: Whether to enable opentracing for queries.
+    example: "false"
+    default: "false"
+  - name: writeTimeout
+    type: string
+    required: false
+    description: Write timeout duration."
+    example: "10s"
+  - name: readTimeout
+    type: string
+    required: false
+    description: Read timeout duration."
+    example: "10s"
+  - name: handshakeVersion
+    type: number
+    required: false
+    description: Handshake version for RethinkDB."
+    example: "1"
+  - name: keepAlivePeriod
+    type: string
+    required: false
+    description: Keep alive period duration."
+    example: "30s"
+  - name: maxIdle
+    type: number
+    required: false
+    description: Maximum number of idle connections."
+    example: "5"
+  - name: authKey
+    type: string
+    required: false
+    description: The authentication key for RethinkDB. This field is now deprecated."
+    example: "auth-key"
+    sensitive: true
+  - name: initialCap
+    type: number
+    required: false
+    description: Initial connection pool capacity."
+    example: "5"
+  - name: maxOpen
+    type: number
+    required: false
+    description: Maximum number of open connections."
+    example: "10"
+  - name: discoverHosts
+    type: bool
+    required: false
+    description: Whether to discover hosts."
+    example: "false"
+  - name: nodeRefreshInterval
+    type: string
+    required: false
+    description: Node refresh interval duration."
+    example: "5m"

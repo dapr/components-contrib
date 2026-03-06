@@ -24,7 +24,7 @@ metadata:
   - name: model
     required: false
     description: |
-      The Huggingface model to use. Uses OpenAI-compatible API.
+      The Huggingface model to use. Uses OpenAI-compatible API. Configurable via HUGGINGFACE_MODEL environment variable.
     type: string
     example: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B'
     default: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B'

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: huawei.obs
+version: v1
+status: alpha
+title: "Huawei Object Storage Service (OBS)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/huawei-obs
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Upload file to OBS"
+authenticationProfiles:
+  - title: "Access Key Authentication"
+    description: |
+      Authenticate using Huawei Cloud access key credentials.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The Huawei Cloud access key ID"
+        example: "access-key-id"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The Huawei Cloud secret access key"
+        example: "secret-access-key"
+      - name: region
+        required: true
+        description: "The Huawei Cloud region"
+        example: "cn-north-4"
+metadata:
+  - name: endpoint
+    required: true
+    description: "The OBS endpoint"
+    example: "https://obs.cn-north-4.myhuaweicloud.com"
+  - name: bucket
+    required: true
+    description: "The OBS bucket name"
+    example: "bucket-name"

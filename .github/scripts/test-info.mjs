@@ -172,6 +172,16 @@ const components = {
         conformanceSetup: 'docker-compose.sh vernemq',
         sourcePkg: ['bindings/mqtt3'],
     },
+    'bindings.mysql': {
+        certification: true,
+    },
+    'bindings.mysql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh mysql',
+        sourcePkg: [
+            'bindings/mysql',
+        ],
+    },
     'bindings.postgres': {
         certification: true,
     },
@@ -795,6 +805,23 @@ const components = {
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver', 'common/component/sql'],
     },
+    'state.sqlserver.v2': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        requiredSecrets: ['AzureSqlServerConnectionString'],
+        sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
+    },
+    'state.sqlserver.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        sourcePkg: ['state/sqlserver', 'common/component/sql'],
+    },
+    'state.sqlserver.v2.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
+    },
     // 'state.gcp.firestore.docker': {
     //     conformance: true,
     //     requireDocker: true,
@@ -810,6 +837,12 @@ const components = {
         requireGCPCredentials: true,
         certificationSetup: 'certification-state.gcp.firestore-setup.sh',
     },
+    'state.ravendb': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh ravendb',
+        requireRavenDBCredentials: true,
+    },
 }
 
 /**
@@ -822,6 +855,7 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
+ * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
@@ -843,6 +877,7 @@ const components = {
  * @property {boolean?} require-aws-credentials Requires AWS credentials
  * @property {boolean?} require-gcp-credentials Requires GCP credentials
  * @property {boolean?} require-cloudflare-credentials Requires Cloudflare credentials
+ * @property {boolean?} require-ravendb-credentials Requires RavenDB credentials
  * @property {boolean?} require-terraform Requires Terraform
  * @property {boolean?} require-kind Requires KinD
  * @property {string?} setup-script Setup script
@@ -912,6 +947,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 ? 'true'
                 : undefined,
             'require-cloudflare-credentials': comp.requireCloudflareCredentials
+                ? 'true'
+                : undefined,
+            'require-ravendb-credentials': comp.requireRavenDBCredentials
                 ? 'true'
                 : undefined,
             'require-terraform': comp.requireTerraform ? 'true' : undefined,

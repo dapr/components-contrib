@@ -17,8 +17,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	"github.com/dapr/components-contrib/common/aws"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
@@ -60,7 +60,7 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithM
 		return err
 	}
 
-	// Validate and sanitize inputq
+	// Validate and sanitize input
 	err = m.PostgresAuthMetadata.InitWithMetadata(meta.Properties, opts)
 	if err != nil {
 		return err

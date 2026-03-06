@@ -41,8 +41,6 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	return a
 }
 
-const defaultModel = "claude-3-5-sonnet-20240620"
-
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
 	m := conversation.LangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &m)
@@ -50,23 +48,27 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	model := defaultModel
-	if m.Model != "" {
-		model = m.Model
-	}
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetAnthropicModel(m.Model)
 
-	llm, err := anthropic.New(
+	options := []anthropic.Option{
 		anthropic.WithModel(model),
 		anthropic.WithToken(m.Key),
-	)
+	}
+
+	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
+		options = append(options, anthropic.WithHTTPClient(httpClient))
+	}
+
+	llm, err := anthropic.New(options...)
 	if err != nil {
 		return err
 	}
 
 	a.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, a.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

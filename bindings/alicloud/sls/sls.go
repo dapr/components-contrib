@@ -60,6 +60,7 @@ func NewAliCloudSlsLogstorage(logger logger.Logger) bindings.OutputBinding {
 
 func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// verify the metadata property
+	// TODO: move these to the struct with proper tags
 	if logProject := req.Metadata["project"]; logProject == "" {
 		return nil, errors.New("SLS binding error: project property not supplied")
 	}

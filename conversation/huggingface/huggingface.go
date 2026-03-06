@@ -42,9 +42,6 @@ func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	return h
 }
 
-// Default model - using a popular and reliable model
-const defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-
 // Default HuggingFace OpenAI-compatible endpoint
 const defaultEndpoint = "https://router.huggingface.co/hf-inference/models/{{model}}/v1"
 
@@ -55,11 +52,8 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		return err
 	}
 
-	model := defaultModel
-	if m.Model != "" {
-		model = m.Model
-	}
-
+	// Resolve model via central helper (uses metadata, then env var, then default)
+	model := conversation.GetHuggingFaceModel(m.Model)
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {
 		endpoint = m.Endpoint
@@ -67,11 +61,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
-	options := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(m.Key),
-		openai.WithBaseURL(endpoint),
-	}
+	options := conversation.BuildOpenAIClientOptions(model, m.Key, endpoint)
 
 	llm, err := openai.New(options...)
 	if err != nil {
@@ -80,8 +70,8 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	h.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}

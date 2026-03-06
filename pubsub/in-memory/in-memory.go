@@ -18,7 +18,6 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/dapr/components-contrib/common/eventbus"
 	"github.com/dapr/components-contrib/metadata"
@@ -64,7 +63,7 @@ func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 		return errors.New("component is closed")
 	}
 
-	a.bus.Publish(req.Topic, req.Data)
+	a.bus.Publish(req.Topic, req.Data, req.Metadata)
 
 	return nil
 }
@@ -74,23 +73,14 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 		return errors.New("component is closed")
 	}
 
-	// For this component we allow built-in retries because it is backed by memory
-	retryHandler := func(data []byte) {
-		for range 10 {
-			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata})
-			if handleErr == nil {
-				break
-			}
-			a.log.Error(handleErr)
-			select {
-			case <-time.After(100 * time.Millisecond):
-				// Nop
-			case <-ctx.Done():
-				return
-			}
+	loghandler := func(data []byte, md map[string]string) {
+		err := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: md})
+		if err != nil {
+			a.log.Error(err)
 		}
 	}
-	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)
+
+	err := a.bus.SubscribeAsync(req.Topic, loghandler, true)
 	if err != nil {
 		return err
 	}
@@ -103,7 +93,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 		case <-ctx.Done():
 		case <-a.closeCh:
 		}
-		err := a.bus.Unsubscribe(req.Topic, retryHandler)
+		err := a.bus.Unsubscribe(req.Topic, loghandler)
 		if err != nil {
 			a.log.Errorf("error while unsubscribing from topic %s: %v", req.Topic, err)
 		}

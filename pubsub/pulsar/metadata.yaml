@@ -31,6 +31,16 @@ authenticationProfiles:
         sensitive: true
         description: |
           The OAuth Client Secret.
+      - name: oauth2ClientSecretPath
+        type: string
+        description: |
+          The path to a plain text file containing the OAuth Client Secret.
+        example: "/path/to/oauth2/client_secret.txt"
+      - name: oauth2CredentialsFile
+        type: string
+        description: |
+          The path to a JSON file containing both client_id and client_secret.
+        example: "/path/to/oauth2/credentials.json"
       - name: oauth2TokenCAPEM
         type: string
         description: |
@@ -108,6 +118,32 @@ metadata:
     type: number
     default: '"131072" (128 KB)'
     example: '"131072"'
+  - name: compressionType
+    type: string
+    description: |
+      Sets the compression type for messages sent by the producer.
+      Compression can help reduce message size and improve throughput for large messages.
+    default: '"none"'
+    example: '"lz4"'
+    allowedValues:
+      - none
+      - lz4
+      - zlib
+      - zstd
+    url:
+      title: "Pulsar Message Compression"
+      url: "https://pulsar.apache.org/docs/3.0.x/concepts-messaging/#compression"
+  - name: compressionLevel
+    type: string
+    description: |
+      Sets the compression level when compressionType is enabled.
+      Higher compression levels provide better compression ratios but require more CPU resources.
+    default: '"default"'
+    example: '"faster"'
+    allowedValues:
+      - default
+      - faster
+      - better
   - name: publicKey
     type: string
     description: |

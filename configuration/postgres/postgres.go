@@ -25,14 +25,16 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -52,7 +54,7 @@ type ConfigurationStore struct {
 
 	enableAzureAD   bool
 	enableAWSIAM    bool
-	awsAuthProvider awsAuth.Provider
+	awsAuthProvider awsAuth.CredentialProvider
 }
 
 type subscription struct {
@@ -76,9 +78,24 @@ var (
 	allowedTableNameChars = regexp.MustCompile(`^[a-z0-9./_]*$`)
 )
 
+type Options struct {
+	// Disables support for authenticating with Azure AD
+	NoAzureAD bool
+
+	// Disables support for authenticating with AWS IAM
+	NoAWSIAM bool
+}
+
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
+	return NewPostgresConfigurationStoreWithOptions(logger, Options{})
+}
+
+// NewPostgresConfigurationStoreWithOptions creates a new instance of PostgreSQL store with options.
+func NewPostgresConfigurationStoreWithOptions(logger logger.Logger, opts Options) configuration.Store {
 	return &ConfigurationStore{
-		logger: logger,
+		logger:        logger,
+		enableAzureAD: !opts.NoAzureAD,
+		enableAWSIAM:  !opts.NoAWSIAM,
 	}
 }
 
@@ -105,30 +122,51 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 
-		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
-		if err != nil {
-			return err
+		configOpts := awsAuth.Options{
+			Logger:                p.logger,
+			Properties:            metadata.Properties,
+			Region:                opts.Region,
+			AccessKey:             opts.AccessKey,
+			SecretKey:             opts.SecretKey,
+			SessionToken:          opts.SessionToken,
+			AssumeRoleArn:         opts.AssumeRoleArn,
+			AssumeRoleSessionName: opts.AssumeRoleSessionName,
+			Endpoint:              opts.Endpoint,
 		}
+
+		provider, providerErr := awsAuth.NewCredentialProvider(ctx, configOpts, nil)
+		if providerErr != nil {
+			return providerErr
+		}
+
 		p.awsAuthProvider = provider
-		p.awsAuthProvider.UpdatePostgres(ctx, config)
+		region := configOpts.Region
+		config.MaxConnLifetime = time.Minute * 10
+		config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
+			pwd, tokenErr := auth.BuildAuthToken(ctx, fmt.Sprintf("%s:%d", pgConfig.Host, pgConfig.Port), region, pgConfig.User, p.awsAuthProvider)
+			if tokenErr != nil {
+				return fmt.Errorf("failed to get database token: %w", tokenErr)
+			}
+
+			pgConfig.Password = pwd
+			return nil
+		}
 	}
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer connCancel()
+	p.client, err = pgxpool.NewWithConfig(connCtx, config)
 	if err != nil {
 		return fmt.Errorf("PostgreSQL configuration store connection error: %w", err)
 	}
 
-	err = pool.Ping(ctx)
+	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
+	defer pingCancel()
+	err = p.client.Ping(pingCtx)
 	if err != nil {
 		return fmt.Errorf("PostgreSQL configuration store ping error: %w", err)
 	}
-	p.client = pool
 
-	err = p.client.Ping(ctx)
-	if err != nil {
-		return fmt.Errorf("unable to connect to configuration store: '%w'", err)
-	}
 	// check if table exists
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)
@@ -453,9 +491,5 @@ func (p *ConfigurationStore) Close() error {
 		p.client.Close()
 	}
 
-	errs := make([]error, 1)
-	if p.awsAuthProvider != nil {
-		errs[0] = p.awsAuthProvider.Close()
-	}
-	return errors.Join(errs...)
+	return nil
 }

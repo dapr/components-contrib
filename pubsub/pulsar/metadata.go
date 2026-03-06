@@ -16,6 +16,8 @@ package pulsar
 import (
 	"time"
 
+	goavro "github.com/linkedin/goavro/v2"
+
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 )
 
@@ -42,10 +44,13 @@ type pulsarMetadata struct {
 	ReplicateSubscriptionState       bool                      `mapstructure:"replicateSubscriptionState"`
 	SubscriptionMode                 string                    `mapstructure:"subscribeMode"`
 	Token                            string                    `mapstructure:"token"`
+	CompressionType                  string                    `mapstructure:"compressionType"`
+	CompressionLevel                 string                    `mapstructure:"compressionLevel"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }
 
 type schemaMetadata struct {
 	protocol string
 	value    string
+	codec    *goavro.Codec // cached Avro codec, compiled once at init
 }

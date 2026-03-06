@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.kinesis
+version: v1
+status: alpha
+title: "AWS Kinesis"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kinesis/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Send record to Kinesis stream"
+    - name: read
+      description: "Receive records from Kinesis stream"
+authenticationProfiles:
+  - title: "AWS Access Key Authentication"
+    description: |
+      Authenticate using AWS access key credentials.
+    metadata:
+      - name: accessKey
+        required: true
+        description: "The AWS access key"
+        example: "AKIAIOSFODNN7EXAMPLE"
+      - name: secretKey
+        required: true
+        sensitive: true
+        description: "The AWS secret key"
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: "The AWS session token"
+        example: "TOKEN"
+      - name: region
+        required: true
+        description: "The AWS region"
+        example: "us-east-1"
+metadata:
+  - name: streamName
+    required: true
+    description: "The Kinesis stream name"
+    example: "my-stream"
+  - name: consumerName
+    required: false
+    description: "The consumer name for input binding"
+    example: "my-consumer"
+  - name: mode
+    required: false
+    description: "The consumer mode"
+    example: "shared"
+    default: "shared"
+    allowedValues:
+      - "shared"
+      - "extended"
+  - name: partitionKey
+    required: false
+    description: "The partition key for the Kinesis stream"
+    example: "partition-key"
+  - name: endpoint
+    required: false
+    description: "The Kinesis endpoint URL"
+    example: "http://localhost:4566"

@@ -37,11 +37,11 @@ metadata:
     type: bool
     required: false
     description: Whether to use KubeMQ Event Store (true) or Events (false).
-    example: true
-    default: true
+    example: "true"
+    default: "true"
   - name: disableReDelivery
     type: bool
     required: false
     description: Disable message re-delivery on error.
-    example: false
-    default: false
+    example: "false"
+    default: "false"

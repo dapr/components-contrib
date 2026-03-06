@@ -94,5 +94,5 @@ metadata:
     type: bool
     required: false
     description: Whether to disable indexing for the entity.
-    example: false
-    default: false 
+    example: "false"
+    default: "false" 

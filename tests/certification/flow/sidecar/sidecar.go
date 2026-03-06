@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
@@ -131,6 +132,21 @@ func (s Sidecar) Start(ctx flow.Context) error {
 
 	if options.clientCallback != nil {
 		options.clientCallback(&client)
+	}
+
+	// Wait for the sidecar to be healthy
+	var bo backoff.BackOff = backoff.NewConstantBackOff(100 * time.Millisecond)
+	bo = backoff.WithMaxRetries(bo, 200) // 20 seconds
+	bo = backoff.WithContext(bo, ctx)
+	retryErr := backoff.Retry(func() error {
+		if !rtConf.Healthz.IsReady() {
+			return fmt.Errorf("sidecar is not ready")
+		}
+		return nil
+	}, bo)
+
+	if retryErr != nil {
+		return retryErr
 	}
 
 	return nil

@@ -53,12 +53,12 @@ metadata:
     description: "Specifies additional parameters for requests to the token endpoint"
     example: "param1=value1&param2=value2"
   - name: authStyle
-    type: integer
+    type: number
     required: false
     description: "Optionally specifies how the endpoint wants the client ID & client secret sent. 0: Auto-detect (tries both ways and caches the successful way), 1: Sends client_id and client_secret in POST body as application/x-www-form-urlencoded parameters, 2: Sends client_id and client_secret using HTTP Basic Authorization"
-    example: 0
-    default: 0
+    example: "0"
+    default: "0"
     allowedValues:
-      - 0
-      - 1
-      - 2
+      - "0"
+      - "1"
+      - "2"

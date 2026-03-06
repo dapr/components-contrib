@@ -1,0 +1,62 @@
+name: Dependabot modtidy-all
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions:
+    contents: write
+    pull-requests: write
+    actions: write
+
+jobs:
+    modtidy-all:
+        if: github.actor == 'dependabot[bot]'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.head_ref }}   # ensure we are not checking out the merge commit, but the working branch instead
+            - name: Set up Go
+              uses: actions/setup-go@v6
+              with:
+                  go-version-file: 'go.mod'
+            - name: Run go mod tidy for all modules
+              run: |
+                make modtidy-all
+            - name: Prepare repo and detect changes
+              id: detect_changes
+              run: |
+                git config --global user.name "github-actions[bot]"
+                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                git add .
+                # Exit status 0 => no changes. Set output for next steps.
+                if git diff --cached --quiet; then
+                  echo "changes=false" >> $GITHUB_OUTPUT
+                else
+                  echo "changes=true" >> $GITHUB_OUTPUT
+                fi
+            - name: Commit and push changes
+              if: steps.detect_changes.outputs.changes == 'true'
+              id: commit_push
+              run: |
+                git commit -m "chore(deps): run go mod tidy for all modules"
+                git push --set-upstream origin HEAD
+                echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            - name: Trigger workflow runs on new commit
+              if: steps.detect_changes.outputs.changes == 'true'
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                REPO: ${{ github.repository }}
+                SHA: ${{ steps.commit_push.outputs.commit_sha }}
+              run: |
+                for WORKFLOW_FILE in components-contrib.yml conformance.yml certification.yml fossa.yml; do
+                  curl -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_FILE/dispatches \
+                    -d "{\"ref\": \"${SHA}\"}"
+                done
+            - name: No changes to commit
+              if: steps.detect_changes.outputs.changes == 'false'
+              run: echo "No changes to commit"

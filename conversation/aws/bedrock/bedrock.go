@@ -17,8 +17,11 @@ package bedrock
 import (
 	"context"
 	"reflect"
+	"time"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
@@ -37,13 +40,18 @@ type AWSBedrock struct {
 }
 
 type AWSBedrockMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Model        string `json:"model"`
-	CacheTTL     string `json:"cacheTTL"`
+	Region           string         `json:"region"`
+	Endpoint         string         `json:"endpoint"`
+	AccessKey        string         `json:"accessKey"`
+	SecretKey        string         `json:"secretKey"`
+	SessionToken     string         `json:"sessionToken"`
+	Model            string         `json:"model"`
+	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL" mdaliases:"cacheTTL"`
+
+	// TODO: @mikeee - Consider exporting awsCommonAuth.awsRAOpts and using it here
+	AssumeRoleArn   string `json:"assumeRoleArn"`
+	TrustAnchorArn  string `json:"trustAnchorArn"`
+	TrustProfileArn string `json:"trustProfileArn"`
 }
 
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
@@ -61,7 +69,20 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
-	awsConfig, err := awsAuth.GetConfigV2(m.AccessKey, m.SecretKey, m.SessionToken, m.Region, m.Endpoint)
+	configOpts := awsCommonAuth.Options{
+		Logger:          b.logger,
+		Properties:      nil,
+		Region:          m.Region,
+		AccessKey:       m.AccessKey,
+		SecretKey:       m.SecretKey,
+		SessionToken:    m.SessionToken,
+		AssumeRoleArn:   m.AssumeRoleArn,
+		TrustAnchorArn:  m.TrustAnchorArn,
+		TrustProfileArn: m.TrustProfileArn,
+		Endpoint:        m.Endpoint,
+	}
+
+	awsConfig, err := awsCommon.NewConfig(ctx, configOpts)
 	if err != nil {
 		return err
 	}
@@ -83,8 +104,8 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 	b.LLM.Model = llm
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, b.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, b.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
@@ -96,7 +117,7 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 
 func (b *AWSBedrock) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := AWSBedrockMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

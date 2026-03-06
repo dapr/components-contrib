@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: mqtt3
+version: v1
+status: beta
+title: "MQTT v3"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/mqtt3/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish message to MQTT topic"
+    - name: read
+      description: "Subscribe to MQTT topic"
+authenticationProfiles:
+  - title: "TLS Authentication"
+    description: |
+      Authenticate using TLS certificates.
+    metadata:
+      - name: caCert
+        required: true
+        description: "CA certificate for TLS"
+        example: "-----BEGIN CERTIFICATE-----\n..."
+      - name: clientCert
+        required: true
+        description: "Client certificate for TLS"
+        example: "-----BEGIN CERTIFICATE-----\n..."
+      - name: clientKey
+        required: true
+        sensitive: true
+        description: "Client private key for TLS"
+        example: "-----BEGIN PRIVATE KEY-----\n..."
+metadata:
+  - name: url
+    required: true
+    description: "The MQTT broker URL"
+    example: "tcp://localhost:1883"
+  - name: topic
+    required: true
+    description: "The MQTT topic"
+    example: "my-topic"
+  - name: consumerID
+    required: false
+    description: "The MQTT client ID"
+    example: "my-client"
+  - name: retain
+    required: false
+    description: "Whether to retain messages"
+    example: "false"
+    default: "false"
+  - name: cleanSession
+    required: false
+    description: "Whether to use clean session"
+    example: "true"
+    default: "true"
+  - name: backOffMaxRetries
+    required: false
+    description: "Maximum retries for backoff"
+    example: '3'
+    default: '3'

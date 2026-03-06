@@ -156,12 +156,30 @@ func TestPulsar(t *testing.T) {
 		outf.Close()
 		inf.Close()
 
+		// Create credentials files for testing oauth2ClientSecretPath
+		plainTextCredsFile := filepath.Join(dir, "credentials-plain.txt")
+		require.NoError(t, os.WriteFile(plainTextCredsFile, []byte("bar"), 0o644))
+
+		jsonCredsFile := filepath.Join(dir, "credentials.json")
+		jsonCreds := map[string]string{
+			"client_id":     "foo",
+			"client_secret": "bar",
+			"issuer_url":    "https://localhost:8085/issuer1/token",
+		}
+		jsonCredsBytes, err := json.Marshal(jsonCreds)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(jsonCredsFile, jsonCredsBytes, 0o644))
+
 		td := struct {
-			TmpDir      string
-			OAuth2CAPEM string
+			TmpDir                  string
+			OAuth2CAPEM             string
+			CredentialsFilePath     string
+			CredentialsJSONFilePath string
 		}{
-			TmpDir:      dir,
-			OAuth2CAPEM: strings.ReplaceAll(string(oauth2CA), "\n", "\\n"),
+			TmpDir:                  dir,
+			OAuth2CAPEM:             strings.ReplaceAll(string(oauth2CA), "\n", "\\n"),
+			CredentialsFilePath:     plainTextCredsFile,
+			CredentialsJSONFilePath: jsonCredsFile,
 		}
 
 		tmpl, err := template.New("").ParseFiles(dockerComposeAuthOAuth2YAML)
@@ -938,6 +956,108 @@ func (p *pulsarSuite) TestPulsarSchema() {
 			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestOAuth2WithPlainTextCredentialsFile tests OAuth2 authentication using oauth2ClientSecretPath
+// with a plain text credentials file (backward compatibility).
+func (p *pulsarSuite) TestOAuth2WithPlainTextCredentialsFile() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	if p.authType != "oauth2" {
+		t.Skip("Skipping OAuth2 credentials file test for non-OAuth2 auth type")
+		return
+	}
+
+	flow.New(t, "pulsar certification oauth2 plain text credentials file test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_seven")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestOAuth2WithJSONCredentialsFile tests OAuth2 authentication using oauth2CredentialsFile
+// with a JSON credentials file containing both client_id and client_secret.
+func (p *pulsarSuite) TestOAuth2WithJSONCredentialsFile() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	if p.authType != "oauth2" {
+		t.Skip("Skipping OAuth2 credentials file test for non-OAuth2 auth type")
+		return
+	}
+
+	flow.New(t, "pulsar certification oauth2 json credentials file test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_eight")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }

@@ -30,7 +30,7 @@ jobs:
         GOCOVMERGE_VER: "b5bfa59"
       steps:
         - name: Check out code
-          uses: actions/checkout@v4
+          uses: actions/checkout@v6
           with:
             repository: ${{ env.CHECKOUT_REPO }}
             ref: ${{ env.CHECKOUT_REF }}
@@ -48,7 +48,7 @@ jobs:
             go install github.com/wadey/gocovmerge@${{ env.GOCOVMERGE_VER }}
         
         - name: Download workflow artifact
-          uses: dawidd6/action-download-artifact@v2.24.3
+          uses: dawidd6/action-download-artifact@v12
           with:
             workflow: certification.yml
             workflow_conclusion: "success"
@@ -59,7 +59,7 @@ jobs:
             path: tmp/cert_code_cov
         
         - name: Download workflow artifact
-          uses: dawidd6/action-download-artifact@v2.24.3
+          uses: dawidd6/action-download-artifact@v12
           with:
             workflow: conformance.yml
             workflow_conclusion: "success"

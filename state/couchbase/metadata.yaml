@@ -30,14 +30,14 @@ authenticationProfiles:
         example: "default"
 metadata:
   - name: numReplicasDurableReplication
-    type: integer
+    type: number
     required: false
     description: The number of replicas for durable replication.
-    example: 1
-    default: 0
+    example: "1"
+    default: "0"
   - name: numReplicasDurablePersistence
-    type: integer
+    type: number
     required: false
     description: The number of replicas for durable persistence.
-    example: 1
-    default: 0
+    example: "1"
+    default: "0"

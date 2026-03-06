@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
-type: cryptography
+type: crypto
 name: localstorage
 version: v1
 status: alpha

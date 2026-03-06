@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: twilio.sendgrid
+version: v1
+status: alpha
+title: "Twilio SendGrid"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sendgrid/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send email via SendGrid"
+authenticationProfiles:
+  - title: "API Key Authentication"
+    description: |
+      Authenticate using SendGrid API key.
+    metadata:
+      - name: apiKey
+        required: true
+        sensitive: true
+        description: "The SendGrid API key"
+        example: "SG.api-key"
+metadata:
+  - name: emailFrom
+    required: true
+    description: "The sender email address"
+    example: "sender@example.com"
+  - name: emailFromName
+    required: false
+    description: "The sender name"
+    example: "John Doe"
+  - name: emailTo
+    required: true
+    description: "The recipient email address"
+    example: "recipient@example.com"
+  - name: emailToName
+    required: false
+    description: "The recipient name"
+    example: "Jane Smith"
+  - name: subject
+    required: true
+    description: "The email subject"
+    example: "Hello from Dapr"
+  - name: emailCc
+    required: false
+    description: "The CC email address"
+    example: "cc@example.com"
+  - name: emailBcc
+    required: false
+    description: "The BCC email address"
+    example: "bcc@example.com"
+  - name: dynamicTemplateData
+    required: false
+    description: "The dynamic template data"
+    example: '{"name":"John","age":30}'
+  - name: dynamicTemplateId
+    required: false
+    description: "The dynamic template ID"
+    example: "your-template-id"

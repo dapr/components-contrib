@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: dubbo
+version: v1
+status: alpha
+title: "Apache Dubbo"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Invoke Dubbo service"
+metadata:
+  - name: interfaceName
+    required: true
+    description: "The Dubbo interface name"
+    example: "com.example.UserService"
+  - name: methodName
+    required: true
+    description: "The method name to invoke"
+    example: "getUser"
+  - name: version
+    required: false
+    description: "The service version"
+    example: "1.0.0"
+  - name: group
+    required: false
+    description: "The service group"
+    example: "mygroup"
+  - name: providerHostname
+    required: false
+    description: "The provider hostname"
+    example: "localhost"
+  - name: providerPort
+    required: false
+    description: "The provider port"
+    example: '8080'

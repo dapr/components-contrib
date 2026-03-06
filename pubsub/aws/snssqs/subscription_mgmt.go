@@ -118,7 +118,11 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(con
 
 			sm.lock.Unlock()
 		case <-sm.closeCh:
-			return
+			if sm.topicsHandlers.Size() == 0 {
+				return
+			} else {
+				sm.logger.Info("Shutdown initiated, waiting for all subscriptions to be cleaned up")
+			}
 		}
 	}
 }

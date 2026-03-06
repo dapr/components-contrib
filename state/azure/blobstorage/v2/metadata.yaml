@@ -20,6 +20,24 @@ builtinAuthenticationProfiles:
         description: "The storage account name"
         example: '"mystorageaccount"'
 authenticationProfiles:
+  - title: "SPIFFE Authentication"
+    description: "Authenticate using SPIFFE with Azure AD."
+    metadata:
+      - name: accountName
+        required: true
+        sensitive: false
+        description: "The storage account name"
+        example: '"mystorageaccount"'
+      - name: tenantId
+        required: true
+        sensitive: false
+        description: "The Azure AD tenant ID"
+        example: '"00000000-0000-0000-0000-000000000000"'
+      - name: clientId
+        required: true
+        sensitive: false
+        description: "The Azure AD client ID (application ID)"
+        example: '"00000000-0000-0000-0000-000000000000"'
   - title: "Connection string"
     description: "Authenticate using a connection string."
     metadata:

@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: apns
+version: v1
+status: alpha
+title: "Apple Push Notification Service (APNS)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/apns/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Send push notification via APNS"
+authenticationProfiles:
+  - title: "APNS Key Authentication"
+    description: |
+      Authenticate using APNS key credentials.
+    metadata:
+      - name: key-id
+        required: true
+        description: "The APNS key ID"
+        example: "ABC123DEF4"
+      - name: team-id
+        required: true
+        description: "The APNS team ID"
+        example: "DEF123GHI4"
+      - name: private-key
+        required: true
+        sensitive: true
+        description: "The APNS private key (P8 file content)"
+metadata:
+  - name: development
+    type: bool
+    required: false
+    description: "The APNS environment is development or not"
+    example: "true"
+    default: "false"

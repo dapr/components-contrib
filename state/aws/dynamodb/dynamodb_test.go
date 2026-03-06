@@ -1,6 +1,3 @@
-// TODO: Migrate mocks
-//go:build legacy
-
 /*
 Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,12 +21,13 @@ import (
 	"testing"
 	"time"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	awsMock "github.com/dapr/components-contrib/common/aws/mock"
+	"github.com/dapr/kit/logger"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,27 +45,23 @@ const (
 	pkey      = "partitionKey"
 )
 
+var log logger.Logger
+
+func init() {
+	log = logger.NewLogger("dynamodb-state-store")
+	log.SetOutputLevel(logger.DebugLevel)
+}
+
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
-	mockedDB := &awsAuth.MockDynamoDB{
-		// We're adding this so we can pass the connection check on Init
-		GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
-			return nil, nil
-		},
-	}
 
-	dynamo := awsAuth.DynamoDBClients{
-		DynamoDB: mockedDB,
-	}
-
-	mockedClients := awsAuth.Clients{
-		Dynamo: &dynamo,
-	}
-
-	mockAuthProvider := &awsAuth.StaticAuth{}
-	mockAuthProvider.WithMockClients(&mockedClients)
 	s := StateStore{
-		authProvider: mockAuthProvider,
+		logger: log,
+		dynamodbClient: &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return nil, nil
+			},
+		},
 		partitionKey: defaultPartitionKeyName,
 	}
 
@@ -85,6 +79,7 @@ func TestInit(t *testing.T) {
 			"Table":            "a",
 			"TtlAttributeName": "a",
 		}
+
 		err := s.Init(t.Context(), m)
 		require.NoError(t, err)
 	})
@@ -124,21 +119,13 @@ func TestInit(t *testing.T) {
 			"Table": table,
 		}
 
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
-				return nil, errors.New("Requested resource not found")
-			},
-		}
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
+			logger: log,
+			dynamodbClient: &awsMock.DynamoDBClient{
+				GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+					return nil, errors.New("Requested resource not found")
+				},
+			},
 			partitionKey: defaultPartitionKeyName,
 			table:        table,
 		}
@@ -151,38 +138,30 @@ func TestInit(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	t.Run("Successfully retrieve item", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("someKey"),
+					Item: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "someKey",
 						},
-						"value": {
-							S: aws.String("some value"),
+						"value": &types.AttributeValueMemberS{
+							Value: "some value",
 						},
-						"etag": {
-							S: aws.String("1bdead4badc0ffee"),
+						"etag": &types.AttributeValueMemberS{
+							Value: "1bdead4badc0ffee",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
+
 		req := &state.GetRequest{
 			Key:      "someKey",
 			Metadata: nil,
@@ -197,39 +176,30 @@ func TestGet(t *testing.T) {
 		assert.NotContains(t, out.Metadata, "ttlExpireTime")
 	})
 	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("someKey"),
+					Item: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "someKey",
 						},
-						"value": {
-							S: aws.String("some value"),
+						"value": &types.AttributeValueMemberS{
+							Value: "some value",
 						},
-						"testAttributeName": {
-							N: aws.String("4074862051"),
+						"testAttributeName": &types.AttributeValueMemberN{
+							Value: "4074862051",
 						},
-						"etag": {
-							S: aws.String("1bdead4badc0ffee"),
+						"etag": &types.AttributeValueMemberS{
+							Value: "1bdead4badc0ffee",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider:     mockAuthProvider,
+			logger:           log,
+			dynamodbClient:   mockedDB,
 			ttlAttributeName: "testAttributeName",
 		}
 		req := &state.GetRequest{
@@ -248,40 +218,32 @@ func TestGet(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(4074862051), expireTime.Unix())
 	})
+
 	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("someKey"),
+					Item: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "someKey",
 						},
-						"value": {
-							S: aws.String("some value"),
+						"value": &types.AttributeValueMemberS{
+							Value: "some value",
 						},
-						"testAttributeName": {
-							N: aws.String("35489251"),
+						"testAttributeName": &types.AttributeValueMemberN{
+							Value: "35489251",
 						},
-						"etag": {
-							S: aws.String("1bdead4badc0ffee"),
+						"etag": &types.AttributeValueMemberS{
+							Value: "1bdead4badc0ffee",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider:     mockAuthProvider,
+			logger:           log,
+			dynamodbClient:   mockedDB,
 			ttlAttributeName: "testAttributeName",
 		}
 		req := &state.GetRequest{
@@ -298,24 +260,13 @@ func TestGet(t *testing.T) {
 		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully get item", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
-				return nil, errors.New("failed to retrieve data")
-			},
-		}
-
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
+			dynamodbClient: &awsMock.DynamoDBClient{
+				GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+					return nil, errors.New("failed to retrieve data")
+				},
+			},
+			logger: log,
 		}
 
 		req := &state.GetRequest{
@@ -330,26 +281,15 @@ func TestGet(t *testing.T) {
 		assert.Nil(t, out)
 	})
 	t.Run("Unsuccessfully with empty response", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
-				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{},
-				}, nil
-			},
-		}
-
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
+			dynamodbClient: &awsMock.DynamoDBClient{
+				GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+					return &dynamodb.GetItemOutput{
+						Item: map[string]types.AttributeValue{},
+					}, nil
+				},
+			},
+			logger: log,
 		}
 		req := &state.GetRequest{
 			Key:      "key",
@@ -365,30 +305,19 @@ func TestGet(t *testing.T) {
 		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully with no required key", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
-				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"value2": {
-							S: aws.String("value"),
-						},
-					},
-				}, nil
-			},
-		}
-
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
+			dynamodbClient: &awsMock.DynamoDBClient{
+				GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+					return &dynamodb.GetItemOutput{
+						Item: map[string]types.AttributeValue{
+							"value2": &types.AttributeValueMemberS{
+								Value: "value",
+							},
+						},
+					}, nil
+				},
+			},
+			logger: log,
 		}
 		req := &state.GetRequest{
 			Key:      "key",
@@ -410,39 +339,32 @@ func TestSet(t *testing.T) {
 	}
 
 	t.Run("Successfully set item", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"value"}`),
-				}, *input.Item["value"])
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"value"}`,
+				}, params.Item["value"])
+
+				assert.Len(t, params.Item, 3)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 
 		req := &state.SetRequest{
@@ -456,39 +378,32 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with binary value", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					B: []byte("value"),
-				}, *input.Item["value"])
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberB{
+					Value: []byte("value"),
+				}, params.Item["value"])
+
+				assert.Len(t, params.Item, 3)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 
 		req := &state.SetRequest{
@@ -499,44 +414,77 @@ func TestSet(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Successfully set item with matching etag", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"value"}`),
-				}, *input.Item["value"])
-				assert.Equal(t, "etag = :etag", *input.ConditionExpression)
-				assert.Equal(t, &dynamodb.AttributeValue{
-					S: aws.String("1bdead4badc0ffee"),
-				}, input.ExpressionAttributeValues[":etag"])
-				assert.Len(t, input.Item, 3)
+	t.Run("Successfully set item with binary value", func(t *testing.T) {
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberB{
+					Value: []byte("value"),
+				}, params.Item["value"])
+
+				assert.Len(t, params.Item, 3)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
+		}
+
+		req := &state.SetRequest{
+			Key:   "key",
+			Value: []byte("value"),
+		}
+		err := s.Set(t.Context(), req)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("Successfully set item with matching etag", func(t *testing.T) {
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"value"}`,
+				}, params.Item["value"])
+
+				assert.Equal(t, "etag = :etag", *params.ConditionExpression)
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "1bdead4badc0ffee",
+				}, params.ExpressionAttributeValues[":etag"])
+
+				assert.Len(t, params.Item, 3)
+
+				return &dynamodb.PutItemOutput{
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
+						},
+					},
+				}, nil
+			},
+		}
+
+		s := StateStore{
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		etag := "1bdead4badc0ffee"
 		req := &state.SetRequest{
@@ -551,38 +499,33 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Unsuccessfully set item with mismatched etag", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"value"}`),
-				}, *input.Item["value"])
-				assert.Equal(t, "etag = :etag", *input.ConditionExpression)
-				assert.Equal(t, &dynamodb.AttributeValue{
-					S: aws.String("bogusetag"),
-				}, input.ExpressionAttributeValues[":etag"])
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
 
-				var checkErr dynamodb.ConditionalCheckFailedException
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"value"}`,
+				}, params.Item["value"])
+
+				assert.Equal(t, "etag = :etag", *params.ConditionExpression)
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "bogusetag",
+				}, params.ExpressionAttributeValues[":etag"])
+
+				assert.Len(t, params.Item, 3)
+
+				var checkErr types.ConditionalCheckFailedException
 				return nil, &checkErr
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		etag := "bogusetag"
 		req := &state.SetRequest{
@@ -604,40 +547,34 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with first-write-concurrency", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"value"}`),
-				}, *input.Item["value"])
-				assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"value"}`,
+				}, params.Item["value"])
+
+				assert.Equal(t, "attribute_not_exists(etag)", *params.ConditionExpression)
+
+				assert.Len(t, params.Item, 3)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		req := &state.SetRequest{
 			Key: "key",
@@ -653,35 +590,29 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Unsuccessfully set item with first-write-concurrency", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("key"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"value"}`),
-				}, *input.Item["value"])
-				assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "key",
+				}, params.Item["key"])
 
-				var checkErr dynamodb.ConditionalCheckFailedException
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"value"}`,
+				}, params.Item["value"])
+
+				assert.Equal(t, "attribute_not_exists(etag)", *params.ConditionExpression)
+
+				assert.Len(t, params.Item, 3)
+
+				var checkErr types.ConditionalCheckFailedException
 				return nil, &checkErr
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		req := &state.SetRequest{
 			Key: "key",
@@ -702,38 +633,30 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Len(t, input.Item, 4)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Len(t, params.Item, 4)
+
 				result := DynamoDBItem{}
-				dynamodbattribute.UnmarshalMap(input.Item, &result)
+				require.NoError(t, attributevalue.UnmarshalMap(params.Item, &result))
+
 				assert.Equal(t, "someKey", result.Key)
 				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
-
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider:     mockAuthProvider,
+			logger:           log,
+			dynamodbClient:   mockedDB,
 			ttlAttributeName: "testAttributeName",
 			partitionKey:     defaultPartitionKeyName,
 		}
@@ -750,39 +673,33 @@ func TestSet(t *testing.T) {
 		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
+
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Len(t, input.Item, 4)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Len(t, params.Item, 4)
+
 				result := DynamoDBItem{}
-				dynamodbattribute.UnmarshalMap(input.Item, &result)
+				require.NoError(t, attributevalue.UnmarshalMap(params.Item, &result))
+
 				assert.Equal(t, "someKey", result.Key)
 				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
 				assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
 				assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider:     mockAuthProvider,
+			logger:           log,
+			dynamodbClient:   mockedDB,
 			partitionKey:     defaultPartitionKeyName,
 			ttlAttributeName: "testAttributeName",
 		}
@@ -801,25 +718,16 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Unsuccessfully set item", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 				return nil, errors.New("unable to put item")
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		req := &state.SetRequest{
 			Key: "key",
@@ -830,40 +738,34 @@ func TestSet(t *testing.T) {
 		err := s.Set(t.Context(), req)
 		require.Error(t, err)
 	})
+
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String("someKey"),
-				}, *input.Item["key"])
-				assert.Equal(t, dynamodb.AttributeValue{
-					S: aws.String(`{"Value":"someValue"}`),
-				}, *input.Item["value"])
-				assert.Len(t, input.Item, 3)
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "someKey",
+				}, params.Item["key"])
+
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: `{"Value":"someValue"}`,
+				}, params.Item["value"])
+
+				assert.Len(t, params.Item, 3)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		req := &state.SetRequest{
 			Key: "someKey",
@@ -877,43 +779,35 @@ func TestSet(t *testing.T) {
 		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
+
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
-				assert.Equal(t, map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String("somekey"),
+		mockedDB := &awsMock.DynamoDBClient{
+			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				assert.Equal(t, map[string]types.AttributeValue{
+					"key": &types.AttributeValueMemberS{
+						Value: "somekey",
 					},
-					"value": {
-						S: aws.String(`{"Value":"somevalue"}`),
+					"value": &types.AttributeValueMemberS{
+						Value: "somevalue",
 					},
-					"ttlInSeconds": {
-						N: aws.String("180"),
+					"ttlInSeconds": &types.AttributeValueMemberN{
+						Value: "100",
 					},
-				}, input.Item)
+				}, params.Item)
 
 				return &dynamodb.PutItemOutput{
-					Attributes: map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("value"),
+					Attributes: map[string]types.AttributeValue{
+						"key": &types.AttributeValueMemberS{
+							Value: "value",
 						},
 					},
 				}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider:     mockAuthProvider,
+			logger:           log,
+			dynamodbClient:   mockedDB,
 			ttlAttributeName: "testAttributeName",
 		}
 		req := &state.SetRequest{
@@ -937,31 +831,22 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 
-		mockedDB := &awsAuth.MockDynamoDB{
-			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
-				assert.Equal(t, map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String(req.Key),
+		mockedDB := &awsMock.DynamoDBClient{
+			DeleteItemFn: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				assert.Equal(t, map[string]types.AttributeValue{
+					"key": &types.AttributeValueMemberS{
+						Value: req.Key,
 					},
-				}, input.Key)
+				}, params.Key)
 
 				return nil, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 
 		err := s.Delete(t.Context(), req)
@@ -975,35 +860,25 @@ func TestDelete(t *testing.T) {
 			Key:  "key",
 		}
 
-		mockedDB := &awsAuth.MockDynamoDB{
-			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
-				assert.Equal(t, map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String(req.Key),
+		mockedDB := &awsMock.DynamoDBClient{
+			DeleteItemFn: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				assert.Equal(t, map[string]types.AttributeValue{
+					"key": &types.AttributeValueMemberS{
+						Value: req.Key,
 					},
-				}, input.Key)
-				assert.Equal(t, "etag = :etag", *input.ConditionExpression)
-				assert.Equal(t, &dynamodb.AttributeValue{
-					S: aws.String("1bdead4badc0ffee"),
-				}, input.ExpressionAttributeValues[":etag"])
+				}, params.Key)
+				assert.Equal(t, "etag = :etag", *params.ConditionExpression)
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "1bdead4badc0ffee",
+				}, params.ExpressionAttributeValues[":etag"])
 
 				return nil, nil
 			},
 		}
-
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 
 		err := s.Delete(t.Context(), req)
@@ -1017,36 +892,27 @@ func TestDelete(t *testing.T) {
 			Key:  "key",
 		}
 
-		mockedDB := &awsAuth.MockDynamoDB{
-			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
-				assert.Equal(t, map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String(req.Key),
+		mockedDB := &awsMock.DynamoDBClient{
+			DeleteItemFn: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				assert.Equal(t, map[string]types.AttributeValue{
+					"key": &types.AttributeValueMemberS{
+						Value: req.Key,
 					},
-				}, input.Key)
-				assert.Equal(t, "etag = :etag", *input.ConditionExpression)
-				assert.Equal(t, &dynamodb.AttributeValue{
-					S: aws.String("bogusetag"),
-				}, input.ExpressionAttributeValues[":etag"])
+				}, params.Key)
+				assert.Equal(t, "etag = :etag", *params.ConditionExpression)
+				assert.Equal(t, &types.AttributeValueMemberS{
+					Value: "bogusetag",
+				}, params.ExpressionAttributeValues[":etag"])
 
-				var checkErr dynamodb.ConditionalCheckFailedException
+				var checkErr types.ConditionalCheckFailedException
 				return nil, &checkErr
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
 		}
 		err := s.Delete(t.Context(), req)
 		require.Error(t, err)
@@ -1059,24 +925,15 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("Unsuccessfully delete item", func(t *testing.T) {
-		mockedDB := &awsAuth.MockDynamoDB{
-			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			DeleteItemFn: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
 				return nil, errors.New("unable to delete item")
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
+			dynamodbClient: mockedDB,
+			logger:         log,
 		}
 
 		req := &state.DeleteRequest{
@@ -1112,17 +969,17 @@ func TestMultiTx(t *testing.T) {
 			},
 		}
 
-		mockedDB := &awsAuth.MockDynamoDB{
-			TransactWriteItemsWithContextFn: func(ctx context.Context, input *dynamodb.TransactWriteItemsInput, op ...request.Option) (*dynamodb.TransactWriteItemsOutput, error) {
+		mockedDB := &awsMock.DynamoDBClient{
+			TransactWriteItemsFn: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
 				// ops - duplicates
 				exOps := len(ops) - 1
-				assert.Len(t, input.TransactItems, exOps, "unexpected number of operations")
+				assert.Len(t, params.TransactItems, exOps, "unexpected number of operations")
 
 				txs := map[string]int{
 					"P": 0,
 					"D": 0,
 				}
-				for _, input := range input.TransactItems {
+				for _, input := range params.TransactItems {
 					switch {
 					case input.Put != nil:
 						txs["P"] += 1
@@ -1132,25 +989,15 @@ func TestMultiTx(t *testing.T) {
 				}
 				assert.Equal(t, 1, txs["P"], "unexpected number of Put Operations")
 				assert.Equal(t, 2, txs["D"], "unexpected number of Delete Operations")
-
 				return &dynamodb.TransactWriteItemsOutput{}, nil
 			},
 		}
 
-		dynamo := awsAuth.DynamoDBClients{
-			DynamoDB: mockedDB,
-		}
-
-		mockedClients := awsAuth.Clients{
-			Dynamo: &dynamo,
-		}
-
-		mockAuthProvider := &awsAuth.StaticAuth{}
-		mockAuthProvider.WithMockClients(&mockedClients)
 		s := StateStore{
-			authProvider: mockAuthProvider,
-			table:        tableName,
-			partitionKey: defaultPartitionKeyName,
+			logger:         log,
+			dynamodbClient: mockedDB,
+			table:          tableName,
+			partitionKey:   defaultPartitionKeyName,
 		}
 
 		req := &state.TransactionalStateRequest{

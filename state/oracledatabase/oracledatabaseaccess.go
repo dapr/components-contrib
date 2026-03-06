@@ -337,7 +337,17 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 
 	rows, err := o.db.QueryContext(ctx, query, params...)
 	if err != nil {
-		return nil, err
+		// If the query fails, return per-key error entries instead of
+		// propagating the error, for consistency with other state stores
+		// (e.g. Redis, SQL Server) which return HTTP 200 with per-key errors.
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: "bulk get query failed: " + err.Error(),
+			}
+		}
+		return res, nil
 	}
 	defer rows.Close()
 
@@ -383,10 +393,22 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 					data []byte
 				)
 				if err = json.Unmarshal([]byte(value), &s); err != nil {
-					return nil, err
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: "failed to decode binary value: " + err.Error(),
+					}
+					foundKeys[key] = struct{}{}
+					n++
+					continue
 				}
 				if data, err = base64.StdEncoding.DecodeString(s); err != nil {
-					return nil, err
+					res[n] = state.BulkGetResponse{
+						Key:   key,
+						Error: "failed to decode binary value: " + err.Error(),
+					}
+					foundKeys[key] = struct{}{}
+					n++
+					continue
 				}
 				response.Data = data
 			} else {
@@ -400,8 +422,29 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 		n++
 	}
 
+	// rows.Err() reports errors from iteration; return what we have as per-key
+	// errors for any keys not yet found, for consistency with other stores.
 	if err = rows.Err(); err != nil {
-		return nil, err
+		errMsg := err.Error()
+		anyUnfound := false
+		for _, r := range req {
+			if _, ok := foundKeys[r.Key]; !ok {
+				anyUnfound = true
+				if n >= len(req) {
+					break
+				}
+				res[n] = state.BulkGetResponse{
+					Key:   r.Key,
+					Error: "rows iteration failed: " + errMsg,
+				}
+				foundKeys[r.Key] = struct{}{}
+				n++
+			}
+		}
+		if !anyUnfound {
+			o.logger.Warnf("Oracle BulkGet: rows iteration error after all rows processed: %v", err)
+		}
+		return res[:n], nil
 	}
 
 	// Populate missing keys with empty values
@@ -526,4 +569,81 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 		return false, nil // Likely a table does not exist error
 	}
 	return true, nil
+}
+
+func (o *oracleDatabaseAccess) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if o.db == nil {
+		return nil, errors.New("oracle db not initialized")
+	}
+
+	table := o.metadata.TableName
+
+	baseWhere := " WHERE key LIKE :pat ESCAPE '\\' AND (expiration_time IS NULL OR expiration_time > SYSTIMESTAMP) "
+
+	args := []any{req.Pattern}
+
+	seek := ""
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		seek = " AND key > :token "
+		args = append(args, *req.ContinuationToken)
+	}
+
+	orderBy := " ORDER BY key ASC "
+
+	var query string
+	var pageSize uint32
+
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		take := int64(pageSize + 1)
+
+		query = fmt.Sprintf(`
+SELECT key FROM (
+  SELECT key
+  FROM %s
+  %s%s%s
+)
+WHERE ROWNUM <= :take
+`, table, baseWhere, seek, orderBy)
+
+		args = append(args, take)
+	} else {
+		query = fmt.Sprintf(`
+SELECT key
+FROM %s
+%s%s%s
+`, table, baseWhere, seek, orderBy)
+	}
+
+	rows, err := o.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0, 256)
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{
+		Keys: make([]string, 0, len(keys)),
+	}
+
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(keys)) > pageSize {
+		next := keys[pageSize]
+		resp.ContinuationToken = &next
+		keys = keys[:pageSize]
+	}
+
+	resp.Keys = append(resp.Keys, keys...)
+	return resp, nil
 }

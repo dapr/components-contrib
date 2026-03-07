@@ -43,6 +43,12 @@ func (k *Kafka) latestClients() (*clients, error) {
 		}
 
 		k.clientsLock.Lock()
+		// Double-check: another goroutine may have created clients while we
+		// were waiting for the write lock.
+		if k.clients != nil {
+			k.clientsLock.Unlock()
+			return k.clients, nil
+		}
 		k.clients = &clients{
 			consumerGroup: awsKafkaClients.ConsumerGroup,
 			producer:      awsKafkaClients.Producer,
@@ -74,16 +80,37 @@ func (k *Kafka) latestClients() (*clients, error) {
 			producer:      p,
 		}
 		k.clientsLock.Lock()
+		// Double-check: another goroutine may have created clients while we
+		// were waiting for the write lock.
+		if k.clients != nil {
+			k.clientsLock.Unlock()
+			return k.clients, nil
+		}
 		k.clients = &newStaticClients
 		k.clientsLock.Unlock()
 		return k.clients, nil
 	}
 }
 
-// invalidateClients clears the cached clients, forcing re-creation on
-// the next call to latestClients().
+// invalidateClients closes and clears the cached clients, forcing
+// re-creation on the next call to latestClients().
 func (k *Kafka) invalidateClients() {
 	k.clientsLock.Lock()
+	old := k.clients
 	k.clients = nil
 	k.clientsLock.Unlock()
+
+	// Close old clients outside the lock to avoid holding it during I/O.
+	if old != nil {
+		if old.producer != nil {
+			if err := old.producer.Close(); err != nil {
+				k.logger.Warnf("Error closing old Kafka producer during client invalidation: %v", err)
+			}
+		}
+		if old.consumerGroup != nil {
+			if err := old.consumerGroup.Close(); err != nil {
+				k.logger.Warnf("Error closing old Kafka consumer group during client invalidation: %v", err)
+			}
+		}
+	}
 }

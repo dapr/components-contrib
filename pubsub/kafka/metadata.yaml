@@ -442,6 +442,18 @@ metadata:
         - "range"
         - "sticky"
         - "roundrobin"
+    - name: initTimeout
+      type: duration
+      description: |
+        The timeout for establishing the initial connection to Kafka brokers during component initialization.
+      example: '"30s"'
+      default: '"30s"'
+    - name: closeTimeout
+      type: duration
+      description: |
+        The timeout for waiting on background goroutines to finish gracefully during component Close.
+      example: '"15s"'
+      default: '"15s"'
     - name: excludeHeaderMetaRegex
       type: string
       required: false

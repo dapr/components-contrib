@@ -112,7 +112,13 @@ func (k *Kafka) reloadConsumerGroup() {
 
 func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer) {
 	const maxConsecutiveErrors = 3
+	const maxInvalidationBackoff = 60 * time.Second
 	consecutiveErrors := 0
+
+	invalidationBackoff := k.consumeRetryInterval
+	if invalidationBackoff <= 0 {
+		invalidationBackoff = time.Second
+	}
 
 	for {
 		clients, err := k.latestClients()
@@ -132,12 +138,30 @@ func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer
 			consecutiveErrors++
 			k.logger.Errorf("Error consuming %v (%d/%d). Retrying...: %v", topics, consecutiveErrors, maxConsecutiveErrors, err)
 			if consecutiveErrors >= maxConsecutiveErrors {
-				k.logger.Warnf("Kafka clients appear unhealthy after %d consecutive consume errors, forcing client re-creation", maxConsecutiveErrors)
+				k.logger.Warnf("Kafka clients appear unhealthy after %d consecutive consume errors, forcing client re-creation (backoff: %v)", maxConsecutiveErrors, invalidationBackoff)
 				k.invalidateClients()
 				consecutiveErrors = 0
+
+				select {
+				case <-k.closeCh:
+					return
+				case <-ctx.Done():
+					return
+				case <-time.After(invalidationBackoff):
+				}
+
+				invalidationBackoff *= 2
+				if invalidationBackoff > maxInvalidationBackoff {
+					invalidationBackoff = maxInvalidationBackoff
+				}
+				continue
 			}
 		} else {
 			consecutiveErrors = 0
+			invalidationBackoff = k.consumeRetryInterval
+			if invalidationBackoff <= 0 {
+				invalidationBackoff = time.Second
+			}
 		}
 
 		select {

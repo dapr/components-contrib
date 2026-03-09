@@ -34,6 +34,10 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-22.04
     steps:
+    - name: Set default checkout ref
+      run: |
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
       working-directory: ${{ github.workspace }}

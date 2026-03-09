@@ -77,9 +77,16 @@ metadata:
   - name: enableTLS
     type: bool
     required: false
-    description: | 
+    description: |
       If the Redis instance supports TLS; can be configured to be enabled or disabled.
     example: "true"
+    default: "false"
+  - name: insecureSkipTLSVerify
+    type: bool
+    required: false
+    description: |
+      Skip TLS certificate verification (insecure). Only use for testing.
+    example: "false"
     default: "false"
   - name: clientCert
     required: false

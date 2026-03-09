@@ -87,6 +87,13 @@ metadata:
     example: "false"
     type: bool
     default: "false"
+  - name: insecureSkipTLSVerify
+    required: false
+    description: |
+      Skip TLS certificate verification (insecure). Only use for testing.
+    example: "false"
+    type: bool
+    default: "false"
   - name: clientCert
     required: false
     description: Client certificate for Redis host. No Default. Can be secretKeyRef to use a secret reference

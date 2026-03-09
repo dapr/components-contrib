@@ -112,6 +112,18 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.True(t, m.Failover)
 		assert.Equal(t, "master", m.SentinelMasterName)
 		assert.False(t, m.UseEntraID)
+		assert.False(t, m.InsecureSkipTLSVerify, "InsecureSkipTLSVerify should default to false when not set")
+	})
+
+	t.Run("insecureSkipTLSVerify is set to true", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+		fakeProperties["insecureSkipTLSVerify"] = "true"
+
+		m := &Settings{}
+		err := m.Decode(fakeProperties)
+
+		require.NoError(t, err)
+		assert.True(t, m.InsecureSkipTLSVerify)
 	})
 
 	// TODO: Refactor shared redis code to throw error for missing properties

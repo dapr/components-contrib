@@ -215,6 +215,92 @@ func TestProcessMessageAckFailureOnError(t *testing.T) {
 	assert.Equal(t, 1, client.ackCount)
 }
 
+// TestReclaimPendingMessagesWhenXClaimReturnsRedisNil ensures that when XClaimResult returns
+// redis "key does not exist" (redis: nil), we treat it as message no longer exists and call XAck
+// instead of propagating the error to users.
+func TestReclaimPendingMessagesWhenXClaimReturnsRedisNil(t *testing.T) {
+	client := &stubRedisClient{
+		nilValueErrStr: "redis: nil",
+		pendingResult: []commonredis.RedisXPendingExt{
+			{ID: "1-0", Consumer: "c", Idle: time.Minute, RetryCount: 0},
+		},
+		claimErr: commonredis.RedisError("redis: nil"),
+	}
+	rs := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID:        "group",
+			ProcessingTimeout: time.Second,
+			RedeliverInterval: time.Hour,
+			QueueDepth:        10,
+		},
+	}
+
+	rs.reclaimPendingMessages(t.Context(), "stream", func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	})
+
+	// When XClaim returns redis nil, we ack the message to remove it from pending
+	assert.GreaterOrEqual(t, client.ackCount, 1, "expected XAck to be called for message that no longer exists")
+}
+
+// TestReclaimPendingMessagesWhenXPendingExtReturnsRedisNil ensures that when XPendingExtResult
+// returns redis "key does not exist" (redis: nil), we do not log it as an error and the loop exits
+func TestReclaimPendingMessagesWhenXPendingExtReturnsRedisNil(t *testing.T) {
+	client := &stubRedisClient{
+		nilValueErrStr: "redis: nil",
+		xPendingErr:    commonredis.RedisError("redis: nil"),
+	}
+	rs := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID:        "group",
+			ProcessingTimeout: time.Second,
+			RedeliverInterval: time.Hour,
+			QueueDepth:        10,
+		},
+	}
+
+	// treat as not pending and break when XPending returns redis nil
+	rs.reclaimPendingMessages(t.Context(), "stream", func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	})
+}
+
+// TestPollNewMessagesLoopWhenXReadGroupResultReturnsRedisNil ensures that when XReadGroupResult
+// returns redis "key does not exist" (redis: nil), we do not log it and the loop continues until ctx is canceled
+func TestPollNewMessagesLoopWhenXReadGroupResultReturnsRedisNil(t *testing.T) {
+	client := &stubRedisClient{
+		nilValueErrStr: "redis: nil",
+		readGroupErr:   commonredis.RedisError("redis: nil"),
+	}
+	rs := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID:  "group",
+			QueueDepth:  10,
+			ReadTimeout: commonredis.Duration(time.Second),
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		rs.pollNewMessagesLoop(ctx, "stream", func(context.Context, *pubsub.NewMessage) error { return nil })
+		close(done)
+	}()
+	time.Sleep(2 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("pollNewMessagesLoop did not exit after context cancel")
+	}
+}
+
 func generateRedisStreamTestData(messageCount int, data string, metadata string) []commonredis.RedisXMessage {
 	generateXMessage := func(id int) commonredis.RedisXMessage {
 		values := map[string]interface{}{
@@ -240,15 +326,20 @@ func generateRedisStreamTestData(messageCount int, data string, metadata string)
 }
 
 type stubRedisClient struct {
-	ackCount     int
-	ackErr       error
-	ackStream    string
-	ackGroup     string
-	ackMessageID string
+	ackCount       int
+	ackErr         error
+	ackStream      string
+	ackGroup       string
+	ackMessageID   string
+	nilValueErrStr string // default "nil", used "redis: nil" to test nil key handling
+	pendingResult  []commonredis.RedisXPendingExt
+	claimErr       error // if set, XClaimResult returns (nil, claimErr)
+	xPendingErr    error // if set, XPendingExtResult returns (nil, xPendingErr)
+	readGroupErr   error // if set, XReadGroupResult returns (nil, readGroupErr)
 }
 
-func (s *stubRedisClient) GetNilValueError() commonredis.RedisError {
-	return commonredis.RedisError("nil")
+func (s *stubRedisClient) IsNilValueError(err error) bool {
+	return err != nil && err.Error() == s.nilValueErrStr
 }
 
 func (s *stubRedisClient) Context() context.Context {
@@ -312,14 +403,28 @@ func (s *stubRedisClient) XAck(ctx context.Context, stream string, group string,
 }
 
 func (s *stubRedisClient) XReadGroupResult(context.Context, string, string, []string, int64, time.Duration) ([]commonredis.RedisXStream, error) {
+	if s.readGroupErr != nil {
+		return nil, s.readGroupErr
+	}
 	return nil, nil
 }
 
 func (s *stubRedisClient) XPendingExtResult(context.Context, string, string, string, string, int64) ([]commonredis.RedisXPendingExt, error) {
+	if s.xPendingErr != nil {
+		return nil, s.xPendingErr
+	}
+	if s.pendingResult != nil {
+		result := s.pendingResult
+		s.pendingResult = nil // so next call returns empty and reclaimPendingMessages loop exits
+		return result, nil
+	}
 	return nil, nil
 }
 
 func (s *stubRedisClient) XClaimResult(context.Context, string, string, string, time.Duration, []string) ([]commonredis.RedisXMessage, error) {
+	if s.claimErr != nil {
+		return nil, s.claimErr
+	}
 	return nil, nil
 }
 

@@ -109,7 +109,7 @@ jobs:
     - name: Set default payload repo and ref
       run: |
         echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
-        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
 
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'

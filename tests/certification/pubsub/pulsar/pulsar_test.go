@@ -77,6 +77,7 @@ const (
 	topicToBeCreated            = "certification-topic-per-test-run"
 	topicDefaultName            = "certification-topic-default"
 	topicMultiPartitionName     = "certification-topic-multi-partition8"
+	topicAvroName               = "certification-pubsub-topic-avro"
 	partition0                  = "partition-0"
 	partition1                  = "partition-1"
 	clusterName                 = "pulsarcertification"
@@ -399,7 +400,7 @@ func (p *pulsarSuite) TestPulsar() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -413,7 +414,7 @@ func (p *pulsarSuite) TestPulsar() {
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_two")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -470,7 +471,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -484,7 +485,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_two")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -540,7 +541,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -554,7 +555,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_two")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -612,7 +613,7 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -626,7 +627,7 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_two")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -682,7 +683,7 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
@@ -736,7 +737,7 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -785,7 +786,7 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -859,7 +860,7 @@ func (p *pulsarSuite) TestPulsarDelay() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_three")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_three")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -913,7 +914,9 @@ func (p *pulsarSuite) TestPulsarSchema() {
 			for _, message := range messages {
 				ctx.Logf("Publishing: %q", message)
 
-				err := client.PublishEvent(ctx, pubsubName, topicName, message)
+				err := client.PublishEvent(ctx, pubsubName, topicName, message, dapr.PublishEventWithMetadata(map[string]string{
+					"rawPayload": "true",
+				}))
 				require.NoError(ctx, err, "error publishing message")
 			}
 			return nil
@@ -949,13 +952,93 @@ func (p *pulsarSuite) TestPulsarSchema() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_four")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_four")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+func (p *pulsarSuite) TestPulsarAvroSchema() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				test := &schemaTest{
+					ID:   i,
+					Name: uuid.New().String(),
+				}
+
+				b, _ := json.Marshal(test)
+				messages[i] = string(b)
+			}
+
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+
+				err := client.PublishEvent(ctx, pubsubName, topicName, message, dapr.PublishEventWithMetadata(map[string]string{
+					"rawPayload": "true",
+				}))
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "pulsar certification avro schema test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberSchemaApplication(appID1, topicAvroName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_avro")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to avro topic", publishMessages(sidecarName1, topicAvroName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
@@ -1000,7 +1083,7 @@ func (p *pulsarSuite) TestOAuth2WithPlainTextCredentialsFile() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_seven")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_seven")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -1051,7 +1134,7 @@ func (p *pulsarSuite) TestOAuth2WithJSONCredentialsFile() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_eight")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_eight")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -1171,7 +1254,7 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_one")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
@@ -1185,7 +1268,7 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_two")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
@@ -1266,7 +1349,7 @@ func (p *pulsarSuite) TestPulsarEncryptionFromFile() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_five")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_five")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
@@ -1345,7 +1428,7 @@ func (p *pulsarSuite) TestPulsarEncryptionFromData() {
 		})).
 		Step(sidecar.Run(sidecarName1,
 			append(componentRuntimeOptions(),
-				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_six")),
+				embedded.WithResourcesPath(filepath.Join(p.componentsPath, "consumer_six")),
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),

@@ -1,18 +1,20 @@
 # We run the pulsar services individually as OAuth2 doesn't seem to work in
 # standalone mode. OAuth2 is also only available from pulsar v3 onwards. We use
-# host networking as the mock OAuth server uses the SNI host name to determine
-# the host name of the OAuth2 issuer URL, so we need to have the mock server
-# reachable by localhost from both the pulsar services and the host network.
-version: '3'
+# bridge networking with explicit port publishing so broker ports are reachable
+# from the host test process on macOS.
+networks:
+  pulsar:
+    driver: bridge
+
 services:
   # Start zookeeper
   zookeeper:
     image: apachepulsar/pulsar:4.1.3
-    container_name: zookeeper
     restart: on-failure
-    network_mode: "host"
+    networks:
+      - pulsar
     environment:
-      - metadataStoreUrl=zk:localhost:2181
+      - metadataStoreUrl=zk:zookeeper:2181
       - metricsProvider.httpPort=7000
       - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=256m
     command: >
@@ -27,13 +29,13 @@ services:
 
   # Init cluster metadata
   pulsar-init:
-    container_name: pulsar-init
     image: apachepulsar/pulsar:4.1.3
-    network_mode: "host"
+    networks:
+      - pulsar
     env_file:
       - ./pulsar_auth-oauth2.conf
     command: >
-      bin/pulsar initialize-cluster-metadata --cluster cluster-a --zookeeper localhost:2181 --configuration-store localhost:2181 --web-service-url http://localhost:8080 --broker-service-url pulsar://localhost:6650
+      bin/pulsar initialize-cluster-metadata --cluster cluster-a --zookeeper zookeeper:2181 --configuration-store zookeeper:2181 --web-service-url http://broker:8080 --broker-service-url pulsar://broker:6651
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -41,16 +43,17 @@ services:
   # Start bookie
   bookie:
     image: apachepulsar/pulsar:4.1.3
-    container_name: bookie
     restart: on-failure
-    network_mode: "host"
+    networks:
+      - pulsar
     environment:
       - clusterName=cluster-a
-      - zkServers=localhost:2181
-      - metadataServiceUri=metadata-store:zk:localhost:2181
+      - zkServers=zookeeper:2181
+      - metadataServiceUri=metadata-store:zk:zookeeper:2181
+      - allowStorageExpansion=true
       # otherwise every time we run docker compose uo or down we fail to start due to Cookie
       # See: https://github.com/apache/bookkeeper/blob/405e72acf42bb1104296447ea8840d805094c787/bookkeeper-server/src/main/java/org/apache/bookkeeper/bookie/Cookie.java#L57-68
-      - advertisedAddress=localhost
+      - advertisedAddress=bookie
       - BOOKIE_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
     env_file:
       - ./pulsar_auth-oauth2.conf
@@ -61,27 +64,39 @@ services:
         condition: service_healthy
       pulsar-init:
         condition: service_completed_successfully
-    command: bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && exec bin/pulsar bookie"
+    command: >
+      bash -c "rm -rf data/bookkeeper/journal data/bookkeeper/ledgers && \
+      mkdir -p data/bookkeeper/journal data/bookkeeper/ledgers && \
+      bin/apply-config-from-env.py conf/bookkeeper.conf && exec bin/pulsar bookie"
 
   # Start broker
   broker:
     image: apachepulsar/pulsar:4.1.3
-    container_name: broker
     restart: on-failure
-    network_mode: "host"
+    networks:
+      - pulsar
     env_file:
       - ./pulsar_auth-oauth2.conf
     volumes:
       - "{{ .TmpDir }}:/pulsar/conf/dapr"
+    ports:
+      - "6651:6651"
+      - "8080:8080"
     environment:
-      - metadataStoreUrl=zk:localhost:2181
-      - zookeeperServers=localhost:2181
+      - metadataStoreUrl=zk:zookeeper:2181
+      - zookeeperServers=zookeeper:2181
       - clusterName=cluster-a
+      - brokerServicePort=6651
+      - systemTopicEnabled=false
+      - topicLevelPoliciesEnabled=false
+      - bookkeeperClientRackawarePolicyEnabled=false
+      - bookkeeperClientRegionawarePolicyEnabled=false
+      - bookkeeperClientMinNumRacksPerWriteQuorum=1
       - managedLedgerDefaultEnsembleSize=1
       - managedLedgerDefaultWriteQuorum=1
       - managedLedgerDefaultAckQuorum=1
-      - advertisedAddress=localhost
-      - advertisedListeners=external:pulsar://127.0.0.1:6650
+      - advertisedAddress=broker
+      - advertisedListeners=external:pulsar://127.0.0.1:6651
       - PULSAR_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
     depends_on:
       zookeeper:
@@ -89,3 +104,13 @@ services:
       bookie:
         condition: service_started
     command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
+
+  # Expose host mock OAuth endpoint as localhost inside broker namespace.
+  oauth2-localhost-proxy:
+    image: alpine/socat
+    restart: on-failure
+    network_mode: "service:broker"
+    depends_on:
+      broker:
+        condition: service_started
+    command: ["-d", "-d", "TCP-LISTEN:8085,bind=127.0.0.1,fork,reuseaddr", "TCP:host.docker.internal:8085"]

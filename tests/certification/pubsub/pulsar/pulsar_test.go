@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	stdruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -213,7 +214,7 @@ func TestPulsar(t *testing.T) {
 			authType:          "oauth2",
 			dockerComposeYAML: filepath.Join(dir, "docker-compose.yaml"),
 			componentsPath:    filepath.Join(dir, "components/auth-oauth2"),
-			services:          []string{"zookeeper", "pulsar-init", "bookie", "broker"},
+			services:          []string{"zookeeper", "pulsar-init", "bookie", "broker", "oauth2-localhost-proxy"},
 		})
 	})
 }
@@ -727,6 +728,10 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 
 func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 	t := p.T()
+	if stdruntime.GOOS == "darwin" {
+		t.Skip("network interruption test requires privileged host networking commands on macOS")
+	}
+
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -1538,8 +1543,13 @@ func (p *pulsarSuite) TestPulsarEncryptionFromData() {
 func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
 	t.Helper()
 
+	url := "pulsar://127.0.0.1:6650"
+	if p.authType == "oauth2" {
+		url = "pulsar://127.0.0.1:6651"
+	}
+
 	opts := pulsar.ClientOptions{
-		URL: "pulsar://127.0.0.1:6650",
+		URL: url,
 	}
 	switch p.authType {
 	case "oauth2":

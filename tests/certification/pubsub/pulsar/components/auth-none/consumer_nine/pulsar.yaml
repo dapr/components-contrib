@@ -7,10 +7,10 @@ spec:
   version: v1
   metadata:
   - name: host
-    value: "localhost:6650"
+    value: "127.0.0.1:6650"
   - name: consumerID
     value: certification9
   - name: redeliveryDelay
     value: 200ms
-  - name: certification-pubsub-topic-active.avroschema
+  - name: certification-pubsub-topic-avro.avroschema
     value: "{\"type\":\"record\",\"name\":\"Student\",\"namespace\":\"test\",\"fields\":[{\"name\":\"studentId\",\"type\":\"int\"},{\"name\":\"studentName\",\"type\":\"string\"}]}"

@@ -669,8 +669,26 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 }
 
 func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+	data := msg.Payload()
+
+	// Decode Avro payloads back to JSON for the runtime handler.
+	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
+		native, _, err := sm.codec.NativeFromBinary(data)
+		if err != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro decode failed for topic %q: %w", originTopic, err)
+		}
+
+		jsonBytes, err := sm.codec.TextualFromNative(nil, native)
+		if err != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro to json failed for topic %q: %w", originTopic, err)
+		}
+		data = jsonBytes
+	}
+
 	pubsubMsg := pubsub.NewMessage{
-		Data:     msg.Payload(),
+		Data:     data,
 		Topic:    originTopic,
 		Metadata: msg.Properties(),
 	}

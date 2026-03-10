@@ -1850,12 +1850,20 @@ func TestSubscribe_AppliesMetadataOptions(t *testing.T) {
 
 type MockPulsarClient struct {
 	pulsar.Client
-	SubscribeFn func(pulsar.ConsumerOptions) (pulsar.Consumer, error)
+	SubscribeFn      func(pulsar.ConsumerOptions) (pulsar.Consumer, error)
+	CreateProducerFn func(pulsar.ProducerOptions) (pulsar.Producer, error)
 }
 
 func (m *MockPulsarClient) Subscribe(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
 	if m.SubscribeFn != nil {
 		return m.SubscribeFn(options)
+	}
+	return nil, nil
+}
+
+func (m *MockPulsarClient) CreateProducer(options pulsar.ProducerOptions) (pulsar.Producer, error) {
+	if m.CreateProducerFn != nil {
+		return m.CreateProducerFn(options)
 	}
 	return nil, nil
 }
@@ -1872,3 +1880,191 @@ func (m *MockPulsarConsumer) Chan() <-chan pulsar.ConsumerMessage {
 }
 
 func (m *MockPulsarConsumer) Close() {}
+
+type mockPulsarProducer struct {
+	pulsar.Producer
+	sendCount int
+}
+
+func (m *mockPulsarProducer) Send(ctx context.Context, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+	m.sendCount++
+	return nil, nil
+}
+
+func (m *mockPulsarProducer) Close() {}
+
+type handleMessageTestConsumer struct {
+	pulsar.Consumer
+	ackCount  int
+	nackCount int
+}
+
+func (m *handleMessageTestConsumer) Ack(msg pulsar.Message) error {
+	m.ackCount++
+	return nil
+}
+
+func (m *handleMessageTestConsumer) Nack(msg pulsar.Message) {
+	m.nackCount++
+}
+
+type handleMessageTestMessage struct {
+	pulsar.Message
+	topic      string
+	payload    []byte
+	properties map[string]string
+}
+
+func (m *handleMessageTestMessage) Topic() string {
+	return m.topic
+}
+
+func (m *handleMessageTestMessage) Payload() []byte {
+	return m.payload
+}
+
+func (m *handleMessageTestMessage) Properties() map[string]string {
+	return m.properties
+}
+
+func (m *handleMessageTestMessage) ID() pulsar.MessageID {
+	return nil
+}
+
+func TestHandleMessage_DecodesAvroPayloadForHandler(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Student",
+		"namespace": "test",
+		"fields": [
+			{"name": "studentId", "type": "int"},
+			{"name": "studentName", "type": "string"}
+		]
+	}`
+
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
+	topic := "students"
+	inputJSON := []byte(`{"studentId": 1, "studentName": "John"}`)
+
+	native, _, err := sm.codec.NativeFromTextual(inputJSON)
+	require.NoError(t, err)
+	avroBinary, err := sm.codec.BinaryFromNative(nil, native)
+	require.NoError(t, err)
+
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	p.metadata = pulsarMetadata{
+		internalTopicSchemas: map[string]schemaMetadata{
+			topic: sm,
+		},
+	}
+
+	consumer := &handleMessageTestConsumer{}
+	message := &handleMessageTestMessage{
+		topic:      topic,
+		payload:    avroBinary,
+		properties: map[string]string{"k": "v"},
+	}
+
+	var receivedData []byte
+	handlerErr := p.handleMessage(t.Context(), topic, pulsar.ConsumerMessage{
+		Consumer: consumer,
+		Message:  message,
+	}, func(_ context.Context, msg *pubsub.NewMessage) error {
+		receivedData = msg.Data
+		return nil
+	})
+
+	require.NoError(t, handlerErr)
+	require.NotNil(t, receivedData)
+	assert.JSONEq(t, string(inputJSON), string(receivedData))
+	assert.Equal(t, 1, consumer.ackCount)
+	assert.Equal(t, 0, consumer.nackCount)
+}
+
+func TestHandleMessage_NacksWhenAvroDecodeFails(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Student",
+		"namespace": "test",
+		"fields": [
+			{"name": "studentId", "type": "int"},
+			{"name": "studentName", "type": "string"}
+		]
+	}`
+
+	sm := newAvroSchemaMetadata(t, avroSchemaJSON)
+	topic := "students"
+
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	p.metadata = pulsarMetadata{
+		internalTopicSchemas: map[string]schemaMetadata{
+			topic: sm,
+		},
+	}
+
+	consumer := &handleMessageTestConsumer{}
+	message := &handleMessageTestMessage{
+		topic:      topic,
+		payload:    []byte("not-avro-binary"),
+		properties: map[string]string{"k": "v"},
+	}
+
+	handlerCalled := false
+	err := p.handleMessage(t.Context(), topic, pulsar.ConsumerMessage{
+		Consumer: consumer,
+		Message:  message,
+	}, func(_ context.Context, msg *pubsub.NewMessage) error {
+		handlerCalled = true
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "avro decode failed")
+	assert.False(t, handlerCalled)
+	assert.Equal(t, 0, consumer.ackCount)
+	assert.Equal(t, 1, consumer.nackCount)
+}
+
+func TestPublish_DoesNotSendWhenAvroPayloadInvalid(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "Student",
+		"fields": [
+			{"name": "studentId", "type": "int"},
+			{"name": "studentName", "type": "string"},
+			{"name": "age", "type": "int"}
+		]
+	}`
+
+	topic := "student-topic"
+	producer := &mockPulsarProducer{}
+	client := &MockPulsarClient{
+		CreateProducerFn: func(options pulsar.ProducerOptions) (pulsar.Producer, error) {
+			return producer, nil
+		},
+	}
+
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	t.Cleanup(func() {
+		p.newClientFn = pulsar.NewClient
+	})
+	p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+		return client, nil
+	}
+
+	md := pubsub.Metadata{}
+	md.Properties = map[string]string{
+		"host":                            "localhost:6650",
+		topic + topicAvroSchemaIdentifier: avroSchemaJSON,
+	}
+	require.NoError(t, p.Init(t.Context(), md))
+
+	err := p.Publish(t.Context(), &pubsub.PublishRequest{
+		Topic: topic,
+		Data:  []byte(`{"studentId": 1, "studentName": "John", "age": "not_a_number"}`),
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "avro schema validation failed")
+	assert.Equal(t, 0, producer.sendCount)
+}

@@ -914,9 +914,7 @@ func (p *pulsarSuite) TestPulsarSchema() {
 			for _, message := range messages {
 				ctx.Logf("Publishing: %q", message)
 
-				err := client.PublishEvent(ctx, pubsubName, topicName, message, dapr.PublishEventWithMetadata(map[string]string{
-					"rawPayload": "true",
-				}))
+				err := client.PublishEvent(ctx, pubsubName, topicName, message)
 				require.NoError(ctx, err, "error publishing message")
 			}
 			return nil

@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -360,5 +361,249 @@ func Test_ConsumeClaim(t *testing.T) {
 				mockSession.AssertNotCalled(t, "MarkMessage", msg, "")
 			})
 		})
+	})
+}
+
+func Test_SetupStartupSeek(t *testing.T) {
+	t.Run("ifNoCheckpoint + earliest applies once", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-a": []int32{0}})
+		session.On("ResetOffset", "topic-a", int32(0), sarama.OffsetOldest, "").Return().Once()
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeEarliest,
+				applyWhen: seekApplyWhenIfNoCheckpoint,
+				seekOnce:  false,
+			},
+			consumerGroup:      "group-a",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func() func(topic string, partition int32) (int64, error) {
+				var calls atomic.Int32
+				return func(topic string, partition int32) (int64, error) {
+					if calls.Add(1) == 1 {
+						return -1, nil
+					}
+					return 100, nil
+				}
+			}(),
+		}
+
+		consumer := &consumer{k: k}
+		err := consumer.Setup(session)
+		require.NoError(t, err)
+		session.AssertExpectations(t)
+
+		session2 := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session2.On("Claims").Return(map[string][]int32{"topic-a": []int32{0}})
+
+		err = consumer.Setup(session2)
+		require.NoError(t, err)
+		session2.AssertNotCalled(t, "ResetOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("always + offset + seekOnce=true resets once", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-b": []int32{1}})
+		session.On("ResetOffset", "topic-b", int32(1), int64(12345), "").Return().Once()
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeOffset,
+				value:     12345,
+				applyWhen: seekApplyWhenAlways,
+				seekOnce:  true,
+			},
+			consumerGroup:      "group-b",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return 42, nil
+			},
+		}
+
+		consumer := &consumer{k: k}
+		err := consumer.Setup(session)
+		require.NoError(t, err)
+		session.AssertExpectations(t)
+
+		session2 := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session2.On("Claims").Return(map[string][]int32{"topic-b": []int32{1}})
+
+		err = consumer.Setup(session2)
+		require.NoError(t, err)
+		session2.AssertNotCalled(t, "ResetOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("always mode does not require committed offset lookup", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-g": []int32{0}})
+		session.On("ResetOffset", "topic-g", int32(0), sarama.OffsetNewest, "").Return().Once()
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeLatest,
+				applyWhen: seekApplyWhenAlways,
+				seekOnce:  false,
+			},
+			consumerGroup:      "group-g",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return -1, errors.New("should not be called")
+			},
+		}
+
+		err := (&consumer{k: k}).Setup(session)
+		require.NoError(t, err)
+		session.AssertExpectations(t)
+	})
+
+	t.Run("ifNoCheckpoint + seekOnce=true re-applies while checkpoint missing", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session1 := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session1.On("Claims").Return(map[string][]int32{"topic-f": []int32{0}})
+		session1.On("ResetOffset", "topic-f", int32(0), sarama.OffsetOldest, "").Return().Once()
+
+		session2 := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session2.On("Claims").Return(map[string][]int32{"topic-f": []int32{0}})
+		session2.On("ResetOffset", "topic-f", int32(0), sarama.OffsetOldest, "").Return().Once()
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeEarliest,
+				applyWhen: seekApplyWhenIfNoCheckpoint,
+				seekOnce:  true,
+			},
+			consumerGroup:      "group-f",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return -1, nil
+			},
+		}
+
+		consumer := &consumer{k: k}
+
+		err := consumer.Setup(session1)
+		require.NoError(t, err)
+		session1.AssertExpectations(t)
+
+		err = consumer.Setup(session2)
+		require.NoError(t, err)
+		session2.AssertExpectations(t)
+	})
+
+	t.Run("timestamp seek resolves target offset", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-c": []int32{2}})
+		session.On("ResetOffset", "topic-c", int32(2), int64(456), "").Return().Once()
+
+		var gotTopic string
+		var gotPartition int32
+		var gotTimestamp int64
+
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeTimestamp,
+				value:     1735689600000,
+				applyWhen: seekApplyWhenAlways,
+				seekOnce:  false,
+			},
+			consumerGroup:      "group-c",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return -1, nil
+			},
+			offsetLookupFn: func(topic string, partition int32, timestampMillis int64) (int64, error) {
+				gotTopic = topic
+				gotPartition = partition
+				gotTimestamp = timestampMillis
+				return 456, nil
+			},
+		}
+
+		err := (&consumer{k: k}).Setup(session)
+		require.NoError(t, err)
+		require.Equal(t, "topic-c", gotTopic)
+		require.Equal(t, int32(2), gotPartition)
+		require.Equal(t, int64(1735689600000), gotTimestamp)
+		session.AssertExpectations(t)
+	})
+
+	t.Run("seekPartition restricts resets", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		partition := int32(1)
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-d": []int32{0, 1}})
+		session.On("ResetOffset", "topic-d", int32(1), sarama.OffsetNewest, "").Return().Once()
+
+		var committedCalls atomic.Int32
+		k := &Kafka{
+			logger: logger.NewLogger("test"),
+			startupSeek: startupSeekConfig{
+				enabled:   true,
+				mode:      seekModeLatest,
+				applyWhen: seekApplyWhenAlways,
+				seekOnce:  false,
+				partition: &partition,
+			},
+			consumerGroup:      "group-d",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				committedCalls.Add(1)
+				return -1, nil
+			},
+		}
+
+		err := (&consumer{k: k}).Setup(session)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), committedCalls.Load())
+		session.AssertExpectations(t)
+	})
+
+	t.Run("default config does not reset", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		session.On("Claims").Return(map[string][]int32{"topic-e": []int32{0}})
+
+		k := &Kafka{
+			logger:             logger.NewLogger("test"),
+			startupSeek:        startupSeekConfig{enabled: false},
+			consumerGroup:      "group-e",
+			startupSeekApplied: map[startupSeekKey]struct{}{},
+			committedOffsetFn: func(topic string, partition int32) (int64, error) {
+				return -1, errors.New("should not be called")
+			},
+		}
+
+		err := (&consumer{k: k}).Setup(session)
+		require.NoError(t, err)
+		session.AssertNotCalled(t, "ResetOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }

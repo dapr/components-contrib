@@ -249,7 +249,112 @@ func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
+func (consumer *consumer) Setup(session sarama.ConsumerGroupSession) error {
+	return consumer.setupStartupSeek(session)
+}
+
+func (consumer *consumer) setupStartupSeek(session sarama.ConsumerGroupSession) error {
+	if session == nil {
+		return nil
+	}
+
+	conf := consumer.k.startupSeek
+	if !conf.enabled {
+		return nil
+	}
+
+	claims := session.Claims()
+	partitionMatched := conf.partition == nil
+
+	var offsetManager sarama.OffsetManager
+	if conf.applyWhen == seekApplyWhenIfNoCheckpoint && consumer.k.committedOffsetFn == nil {
+		client, err := consumer.k.ensureSeekClient()
+		if err != nil {
+			return fmt.Errorf("error creating seek client for committed offsets: %w", err)
+		}
+
+		offsetManager, err = sarama.NewOffsetManagerFromClient(consumer.k.consumerGroup, client)
+		if err != nil {
+			return fmt.Errorf("error creating offset manager for startup seek: %w", err)
+		}
+		defer offsetManager.Close()
+	}
+
+	for topic, partitions := range claims {
+		for _, partition := range partitions {
+			if conf.partition != nil && partition != *conf.partition {
+				continue
+			}
+			partitionMatched = true
+
+			seekKey := makeStartupSeekKey(consumer.k.consumerGroup, topic, partition)
+			seekOnceApplied := conf.seekOnce && consumer.k.wasStartupSeekApplied(seekKey)
+			if conf.applyWhen == seekApplyWhenAlways && seekOnceApplied {
+				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=seekOnce already applied", topic, partition)
+				continue
+			}
+
+			if conf.applyWhen == seekApplyWhenIfNoCheckpoint {
+				var (
+					committedOffset int64
+					err             error
+				)
+				if offsetManager != nil {
+					committedOffset, err = consumer.k.getCommittedOffsetWithManager(offsetManager, topic, partition)
+				} else {
+					committedOffset, err = consumer.k.getCommittedOffset(topic, partition)
+				}
+				if err != nil {
+					return fmt.Errorf("error reading committed offset for %s/%d: %w", topic, partition, err)
+				}
+
+				if !shouldApplyStartupSeek(conf, committedOffset) {
+					consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=checkpoint exists at offset=%d", topic, partition, committedOffset)
+					continue
+				}
+			}
+
+			var err error
+			targetOffset := int64(0)
+			reason := ""
+			switch conf.mode {
+			case seekModeEarliest:
+				targetOffset = sarama.OffsetOldest
+				reason = "seekOnStart=earliest"
+			case seekModeLatest:
+				targetOffset = sarama.OffsetNewest
+				reason = "seekOnStart=latest"
+			case seekModeOffset:
+				targetOffset = conf.value
+				reason = fmt.Sprintf("seekOnStart=offset value=%d", conf.value)
+			case seekModeTimestamp:
+				targetOffset, err = consumer.k.getOffsetForTimestamp(topic, partition, conf.value)
+				if err != nil {
+					return fmt.Errorf("error looking up offset by timestamp for %s/%d: %w", topic, partition, err)
+				}
+				reason = fmt.Sprintf("seekOnStart=timestamp value=%d", conf.value)
+			default:
+				consumer.k.logger.Infof("Kafka startup seek skipped for %s/%d: reason=seekOnStart is never", topic, partition)
+				continue
+			}
+
+			session.ResetOffset(topic, partition, targetOffset, "")
+			if conf.applyWhen == seekApplyWhenAlways {
+				consumer.k.logger.Infof("Kafka startup seek applied for %s/%d: targetOffset=%d reason=forced %s", topic, partition, targetOffset, reason)
+			} else {
+				consumer.k.logger.Infof("Kafka startup seek applied for %s/%d: targetOffset=%d reason=no checkpoint %s", topic, partition, targetOffset, reason)
+			}
+
+			if conf.seekOnce && conf.applyWhen == seekApplyWhenAlways {
+				consumer.k.markStartupSeekApplied(seekKey)
+			}
+		}
+	}
+
+	if conf.partition != nil && !partitionMatched {
+		consumer.k.logger.Warnf("Kafka startup seek skipped: configured seekPartition=%d is not claimed in this session", *conf.partition)
+	}
+
 	return nil
 }
 

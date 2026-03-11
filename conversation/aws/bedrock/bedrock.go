@@ -57,6 +57,7 @@ type AWSBedrockMetadata struct {
 func NewAWSBedrock(logger logger.Logger) conversation.Conversation {
 	b := &AWSBedrock{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return b

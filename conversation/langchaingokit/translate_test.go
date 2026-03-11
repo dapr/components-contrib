@@ -17,11 +17,14 @@ package langchaingokit
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/kit/logger"
 )
 
 func TestExtractInt64FromGenInfo(t *testing.T) {
@@ -272,6 +275,116 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := extractUsageFromLangchainGenerationInfo(tt.genInfo)
 			tt.validate(t, result, err)
+		})
+	}
+}
+
+func TestGetOptionsFromRequest(t *testing.T) {
+	log := logger.NewLogger("test")
+
+	toolChoice := "auto"
+	tools := []llms.Tool{
+		{
+			Type: "function",
+			Function: &llms.FunctionDefinition{
+				Name:        "test_func",
+				Description: "a test function",
+			},
+		},
+	}
+	ttl := 5 * time.Minute
+
+	tests := map[string]struct {
+		request      *conversation.Request
+		existingOpts []llms.CallOption
+		validate     func(t *testing.T, r *conversation.Request, opts []llms.CallOption)
+	}{
+		"invalid ResponseFormatAsJSONSchema logs warning and continues": {
+			request: &conversation.Request{
+				ResponseFormatAsJSONSchema: map[string]any{
+					"description": "missing type field",
+				},
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.NotNil(t, opts)
+			},
+		},
+		"valid ResponseFormatAsJSONSchema adds structured output option": {
+			request: &conversation.Request{
+				ResponseFormatAsJSONSchema: map[string]any{
+					"type": "object",
+					"name": "test_schema",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.NotEmpty(t, opts)
+			},
+		},
+		"temperature sets option": {
+			request: &conversation.Request{
+				Temperature: 0.7,
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.NotEmpty(t, opts)
+			},
+		},
+		"zero temperature sets no option": {
+			request: &conversation.Request{},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Empty(t, opts)
+			},
+		},
+		"tools and tool choice set options": {
+			request: &conversation.Request{
+				Tools:      &tools,
+				ToolChoice: &toolChoice,
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Len(t, opts, 2)
+			},
+		},
+		"metadata sets option": {
+			request: &conversation.Request{
+				Metadata: map[string]string{
+					"key": "value",
+				},
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.NotEmpty(t, opts)
+			},
+		},
+		"prompt cache retention adds to metadata": {
+			request: &conversation.Request{
+				PromptCacheRetention: &ttl,
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.NotEmpty(t, opts)
+				assert.NotNil(t, r.Metadata)
+				assert.Equal(t, "5m0s", r.Metadata["prompt_cache_retention"])
+			},
+		},
+		"existing options are preserved": {
+			request: &conversation.Request{
+				Temperature: 0.5,
+			},
+			existingOpts: []llms.CallOption{llms.WithMaxTokens(100)},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Len(t, opts, 2)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				opts := getOptionsFromRequest(tt.request, log, tt.existingOpts...)
+				tt.validate(t, tt.request, opts)
+			})
 		})
 	}
 }

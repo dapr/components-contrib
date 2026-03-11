@@ -40,6 +40,7 @@ const (
 func NewOllama(logger logger.Logger) conversation.Conversation {
 	o := &Ollama{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o

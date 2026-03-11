@@ -124,17 +124,17 @@ func (m *PostgresAuthMetadata) buildDSNConnectionString(metadata map[string]stri
 		if len(kv) == 2 {
 			key := kv[0]
 			if value, ok := metadata[key]; ok {
-				connectionStringSb121.WriteString(fmt.Sprintf("%s=%s ", key, value))
+				fmt.Fprintf(&connectionStringSb121, "%s=%s ", key, value)
 				delete(metadata, key)
 			} else {
-				connectionStringSb121.WriteString(fmt.Sprintf("%s=%s ", key, kv[1]))
+				fmt.Fprintf(&connectionStringSb121, "%s=%s ", key, kv[1])
 			}
 		}
 	}
 	connectionString += connectionStringSb121.String()
 	var connectionStringSb133 strings.Builder
 	for k, v := range metadata {
-		connectionStringSb133.WriteString(fmt.Sprintf("%s=%s ", k, v))
+		fmt.Fprintf(&connectionStringSb133, "%s=%s ", k, v)
 	}
 	connectionString += connectionStringSb133.String()
 

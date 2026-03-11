@@ -121,7 +121,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 
 	if m.APIKey != "" {
 		// use API key authentication
-		var keyCredential *azcore.KeyCredential = azcore.NewKeyCredential(m.APIKey)
+		var keyCredential = azcore.NewKeyCredential(m.APIKey)
 		if keyCredential == nil {
 			return errors.New("error getting credentials object")
 		}

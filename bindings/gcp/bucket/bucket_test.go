@@ -392,11 +392,12 @@ func TestCopyPayload(t *testing.T) {
 		assert.Empty(t, payload.DestinationKey)
 	})
 
-	t.Run("whitespace-only destinationKey is treated as empty", func(t *testing.T) {
+	t.Run("whitespace-only destinationKey is preserved by unmarshal and treated as empty after trimming in copy", func(t *testing.T) {
 		var payload copyPayload
 		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "   "}`), &payload)
 		require.NoError(t, err)
 		assert.Equal(t, "   ", payload.DestinationKey)
+		// Simulate the normalization logic in copy(): after trimming, it should be treated as empty
 		trimmed := strings.TrimSpace(payload.DestinationKey)
 		assert.Empty(t, trimmed)
 	})
@@ -505,12 +506,12 @@ func TestMovePayload(t *testing.T) {
 		assert.Empty(t, payload.DestinationKey)
 	})
 
-	t.Run("whitespace-only destinationKey is treated as empty", func(t *testing.T) {
+	t.Run("whitespace-only destinationKey is preserved by unmarshal and treated as empty after trimming in move", func(t *testing.T) {
 		var payload movePayload
 		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "   "}`), &payload)
 		require.NoError(t, err)
 		assert.Equal(t, "   ", payload.DestinationKey)
-		// After trimming (as done in move/copy), it should be treated as empty
+		// Simulate the normalization logic in move(): after trimming, it should be treated as empty
 		trimmed := strings.TrimSpace(payload.DestinationKey)
 		assert.Empty(t, trimmed)
 	})

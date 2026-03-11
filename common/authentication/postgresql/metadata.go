@@ -118,21 +118,25 @@ func (m *PostgresAuthMetadata) buildConnectionString() (string, error) {
 func (m *PostgresAuthMetadata) buildDSNConnectionString(metadata map[string]string) (string, error) {
 	connectionString := ""
 	parts := strings.Split(m.ConnectionString, " ")
+	var connectionStringSb121 strings.Builder
 	for _, part := range parts {
 		kv := strings.SplitN(part, "=", 2)
 		if len(kv) == 2 {
 			key := kv[0]
 			if value, ok := metadata[key]; ok {
-				connectionString += fmt.Sprintf("%s=%s ", key, value)
+				fmt.Fprintf(&connectionStringSb121, "%s=%s ", key, value)
 				delete(metadata, key)
 			} else {
-				connectionString += fmt.Sprintf("%s=%s ", key, kv[1])
+				fmt.Fprintf(&connectionStringSb121, "%s=%s ", key, kv[1])
 			}
 		}
 	}
+	connectionString += connectionStringSb121.String()
+	var connectionStringSb133 strings.Builder
 	for k, v := range metadata {
-		connectionString += fmt.Sprintf("%s=%s ", k, v)
+		fmt.Fprintf(&connectionStringSb133, "%s=%s ", k, v)
 	}
+	connectionString += connectionStringSb133.String()
 
 	if connectionString == "" {
 		return "", errors.New("failed to build connection string")

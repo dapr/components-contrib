@@ -94,9 +94,9 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(0), m.PrefetchCount)
 		assert.Equal(t, int64(0), m.MaxLen)
 		assert.Equal(t, int64(0), m.MaxLenBytes)
-		assert.Equal(t, "", m.ClientKey)
-		assert.Equal(t, "", m.ClientCert)
-		assert.Equal(t, "", m.CACert)
+		assert.Empty(t, m.ClientKey)
+		assert.Empty(t, m.ClientCert)
+		assert.Empty(t, m.CACert)
 		assert.Equal(t, fanoutExchangeKind, m.ExchangeKind)
 		assert.True(t, m.Durable)
 		assert.False(t, m.PublishMessagePropertiesToMetadata)
@@ -281,15 +281,15 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		assert.NotNil(t, m.TLSProperties.ClientKey, "failed to parse valid client certificate key")
-		block, _ := pem.Decode([]byte(m.TLSProperties.ClientCert))
+		assert.NotNil(t, m.ClientKey, "failed to parse valid client certificate key")
+		block, _ := pem.Decode([]byte(m.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse client certificate from metadata. %v", err)
 		}
 		assert.Equal(t, "daprRabbitMQTest", cert.Subject.CommonName)
 
-		block, _ = pem.Decode([]byte(m.TLSProperties.CACert))
+		block, _ = pem.Decode([]byte(m.CACert))
 		cert, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse ca certificate from metadata. %v", err)

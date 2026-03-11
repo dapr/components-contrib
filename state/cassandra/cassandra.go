@@ -235,14 +235,15 @@ func (c *Cassandra) Delete(ctx context.Context, req *state.DeleteRequest) error 
 func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		sess, err := c.createSession(gocql.All)
 		if err != nil {
 			return nil, err
 		}
 		defer sess.Close()
 		session = sess
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		sess, err := c.createSession(gocql.One)
 		if err != nil {
 			return nil, err
@@ -290,14 +291,15 @@ func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 
 	session := c.session
 
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		sess, err := c.createSession(gocql.Quorum)
 		if err != nil {
 			return err
 		}
 		defer sess.Close()
 		session = sess
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		sess, err := c.createSession(gocql.Any)
 		if err != nil {
 			return err

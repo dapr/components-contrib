@@ -59,7 +59,7 @@ func TestConvertToStructuredOutputDefinition(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "response", result.Name)
-				assert.Equal(t, "", result.Description)
+				assert.Empty(t, result.Description)
 				assert.False(t, result.Strict)
 				assert.NotNil(t, result.Schema)
 				assert.Equal(t, llms.SchemaTypeString, result.Schema.Type)

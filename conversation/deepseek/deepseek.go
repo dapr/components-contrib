@@ -70,7 +70,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	d.LLM.Model = llm
+	d.Model = llm
 	d.md = md
 	return nil
 }

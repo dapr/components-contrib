@@ -73,7 +73,7 @@ func TestLookUpEnv(t *testing.T) {
 	r := LookUpEnv("CONF_TEST_KEY")
 	assert.Equal(t, "testval", r)
 	r = LookUpEnv("CONF_TEST_NOT_THERE")
-	assert.Equal(t, "", r)
+	assert.Empty(t, r)
 }
 
 func TestConvertMetadataToProperties(t *testing.T) {

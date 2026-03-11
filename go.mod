@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.24.13
+go 1.26.1
 
 require (
 	cloud.google.com/go/datastore v1.20.0
@@ -65,8 +65,8 @@ require (
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.15.2
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/cloudwego/gopkg v0.1.8
-	github.com/cloudwego/kitex v0.15.4
-	github.com/cloudwego/kitex-examples v0.1.1
+	github.com/cloudwego/kitex v0.16.1
+	github.com/cloudwego/kitex-examples v0.4.2
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20260219105038-d0cf89ba8acf
@@ -196,7 +196,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
-	github.com/apache/thrift v0.13.0 // indirect
+	github.com/apache/thrift v0.16.0 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -221,17 +221,17 @@ require (
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic v1.14.2 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
+	github.com/bytedance/sonic v1.15.0 // indirect
+	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cloudwego/configmanager v0.2.3 // indirect
-	github.com/cloudwego/dynamicgo v0.7.1 // indirect
+	github.com/cloudwego/dynamicgo v0.8.0 // indirect
 	github.com/cloudwego/fastpb v0.0.5 // indirect
-	github.com/cloudwego/frugal v0.3.0 // indirect
-	github.com/cloudwego/kitex/pkg/protocol/bthrift v0.0.0-20260112072316-5cf426cf9e1b // indirect
+	github.com/cloudwego/frugal v0.3.1 // indirect
+	github.com/cloudwego/kitex/pkg/protocol/bthrift v0.0.0-20260303032616-6ca8782bf856 // indirect
 	github.com/cloudwego/localsession v0.2.1 // indirect
 	github.com/cloudwego/netpoll v0.7.2 // indirect
 	github.com/cloudwego/runtimex v0.1.1 // indirect
@@ -418,7 +418,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
-	github.com/tidwall/gjson v1.17.3 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect

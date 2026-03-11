@@ -66,15 +66,15 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	a.LLM.Model = llm
+	a.Model = llm
 
 	if m.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, a.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, a.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		a.LLM.Model = cachedModel
+		a.Model = cachedModel
 	}
 
 	return nil

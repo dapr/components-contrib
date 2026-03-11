@@ -67,7 +67,7 @@ jobs:
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.64.6"
+      GOLANGCI_LINT_VER: "v2.10.1"
     strategy:
       matrix:
         # TODO: @nelson-parente Upgrade macos latest once dns is fixed.
@@ -146,7 +146,7 @@ jobs:
         run: make check-component-metadata-schema-diff
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v6.0.1
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true

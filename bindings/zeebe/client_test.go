@@ -56,6 +56,6 @@ func TestParseMetadataDefaultValues(t *testing.T) {
 	meta, err := client.parseMetadata(m)
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), meta.GatewayKeepAlive)
-	assert.Equal(t, "", meta.CaCertificatePath)
+	assert.Empty(t, meta.CaCertificatePath)
 	assert.False(t, meta.UsePlaintextConnection)
 }

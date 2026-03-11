@@ -617,11 +617,9 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		sem = make(chan struct{}, s.metadata.ConcurrencyLimit)
 	}
 
-	for {
+	for ctx.Err() == nil {
 		// If the context is canceled, stop requesting messages
-		if ctx.Err() != nil {
-			break
-		}
+
 		// Internally, by default, aws go sdk performs 3 retries with exponential backoff to contact
 		// sqs and try pull messages. Since we are iteratively short polling (based on the defined
 		// s.metadata.messageWaitTimeSeconds) the sdk backoff is not effective as it gets reset per each polling

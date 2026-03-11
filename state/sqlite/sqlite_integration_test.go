@@ -403,7 +403,7 @@ func getItemThatDoesNotExist(t *testing.T, s state.Store) {
 	response, outputObject := getItem(t, s, key)
 	assert.Nil(t, response.Data)
 
-	assert.Equal(t, "", outputObject.Color)
+	assert.Empty(t, outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.

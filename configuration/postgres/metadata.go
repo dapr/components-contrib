@@ -37,7 +37,7 @@ type metadata struct {
 
 func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.ConfigTable = ""
 	m.MaxIdleTimeoutOld = 0
 	m.Timeout = defaultTimeout

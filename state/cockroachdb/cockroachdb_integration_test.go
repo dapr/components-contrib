@@ -492,7 +492,7 @@ func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	key := randomKey()
 	response, outputObject := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
-	assert.Equal(t, "", outputObject.Color)
+	assert.Empty(t, outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
@@ -523,14 +523,14 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
 	// insertdate should have a value and updatedate should be nil.
 	_, insertdate, updatedate := getRowData(t, key)
 	assert.NotNil(t, insertdate)
-	assert.Equal(t, "", updatedate.String)
+	assert.Empty(t, updatedate.String)
 
 	// insertdate should not change, updatedate should have a value.
 	value = &fakeItem{Color: "aqua"}
 	setItem(t, pgs, key, value, nil)
 	_, newinsertdate, updatedate := getRowData(t, key)
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
-	assert.NotEqual(t, "", updatedate.String)
+	assert.NotEmpty(t, updatedate.String)
 
 	deleteItem(t, pgs, key, nil)
 }

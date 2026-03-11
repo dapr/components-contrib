@@ -1,7 +1,6 @@
-version: '3.5'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v21.2.3
+    image: cockroachdb/cockroach:v23.2.29
     hostname: cockroachdb
     command: start-single-node --cluster-name=single-node --logtostderr=WARNING --log-file-verbosity=WARNING --insecure
     restart: always
@@ -9,7 +8,12 @@ services:
       - no-new-privileges
     ports:
       - "26257:26257"
-      
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "--host=localhost:26257", "-e", "SELECT 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
   cockroachdb-init:
     hostname: cockroachdb-init
     image: timveil/cockroachdb-remote-client:latest
@@ -18,4 +22,5 @@ services:
       - COCKROACH_INSECURE=true
       - DATABASE_NAME=dapr_test
     depends_on:
-      - cockroachdb
+      cockroachdb:
+        condition: service_healthy

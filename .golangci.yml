@@ -219,6 +219,16 @@ linters:
     - inamedparam
     - canonicalheader
     - fatcontext
+    # Introduced in golangci-lint v2.
+    - funcorder
+    - arangolint
+    - embeddedstructfieldcheck
+    - noinlineerr
+    - godoclint
+    - unqueryvet
+    - iotamixing
+    - modernize
+    - wsl_v5
 
 formatters:
   exclusions:

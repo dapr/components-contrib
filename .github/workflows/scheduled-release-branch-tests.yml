@@ -1,0 +1,71 @@
+# ------------------------------------------------------------
+# Copyright 2026 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------
+
+name: "Scheduled Release Branch Tests"
+
+# GitHub Actions cron only runs on the default branch.
+# This dispatcher triggers workflow_dispatch on active release branches
+# so the full test suite runs daily on each of them.
+
+on:
+  schedule:
+    # Once daily at 03:00 UTC — offset from the main-branch schedules
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: 'Comma-separated release branches to trigger (leave empty for auto-detect)'
+        required: false
+        type: string
+
+jobs:
+  dispatch:
+    name: Trigger tests on release branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo (for branch listing)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine target branches
+        id: branches
+        env:
+          INPUT_BRANCHES: ${{ inputs.branches }}
+        run: |
+          if [ -n "$INPUT_BRANCHES" ]; then
+            # Manual override: use the provided list
+            echo "branches=$(echo "$INPUT_BRANCHES" | jq -Rc 'split(",")|map(ltrimstr(" "))')" >> "$GITHUB_OUTPUT"
+          else
+            # Auto-detect: last 2 release branches by semver
+            BRANCHES=$(git branch -r --list 'origin/release-*' \
+              | sed 's|origin/||' \
+              | sort -t. -k1,1V -k2,2n \
+              | tail -2 \
+              | jq -Rnc '[inputs | ltrimstr(" ")]')
+            echo "branches=$BRANCHES" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch workflows
+        env:
+          GH_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          TARGET_BRANCHES: ${{ steps.branches.outputs.branches }}
+        run: |
+          WORKFLOWS=("components-contrib-all.yml" "certification.yml" "conformance.yml")
+
+          for branch in $(echo "$TARGET_BRANCHES" | jq -r '.[]'); do
+            for workflow in "${WORKFLOWS[@]}"; do
+              echo "Dispatching $workflow on $branch"
+              gh workflow run "$workflow" --ref "$branch" || echo "  ⚠ Failed to dispatch $workflow on $branch"
+            done
+          done

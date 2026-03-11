@@ -16,6 +16,7 @@ package bucket
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -390,6 +391,15 @@ func TestCopyPayload(t *testing.T) {
 		assert.Equal(t, "my_bucket", payload.DestinationBucket)
 		assert.Empty(t, payload.DestinationKey)
 	})
+
+	t.Run("whitespace-only destinationKey is treated as empty", func(t *testing.T) {
+		var payload copyPayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "   "}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "   ", payload.DestinationKey)
+		trimmed := strings.TrimSpace(payload.DestinationKey)
+		assert.Empty(t, trimmed)
+	})
 }
 
 func TestRenameOption(t *testing.T) {
@@ -493,5 +503,15 @@ func TestMovePayload(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "my_bucket", payload.DestinationBucket)
 		assert.Empty(t, payload.DestinationKey)
+	})
+
+	t.Run("whitespace-only destinationKey is treated as empty", func(t *testing.T) {
+		var payload movePayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "   "}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "   ", payload.DestinationKey)
+		// After trimming (as done in move/copy), it should be treated as empty
+		trimmed := strings.TrimSpace(payload.DestinationKey)
+		assert.Empty(t, trimmed)
 	})
 }

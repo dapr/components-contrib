@@ -427,6 +427,11 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 			if err != nil {
 				return nil, err
 			}
+		case "rawPayload":
+			// Skip rawPayload metadata as it is used by Dapr runtime for publishing
+			// and shouldn't be propagated to message properties to avoid forcing
+			// raw delivery on the subscriber side.
+			continue
 		default:
 			if msg.Properties == nil {
 				msg.Properties = make(map[string]string)
@@ -669,13 +674,69 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 }
 
 func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+	data := msg.Payload()
+
+	// If an Avro schema is registered for this topic, decode binary Avro to JSON.
+	// The goavro codec was compiled once at init in parsePulsarMetadata.
+	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
+		native, _, decodeErr := sm.codec.NativeFromBinary(data)
+		if decodeErr != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro decode failed for topic %q: %w", originTopic, decodeErr)
+		}
+		jsonBytes, encodeErr := sm.codec.TextualFromNative(nil, native)
+		if encodeErr != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro to json failed for topic %q: %w", originTopic, encodeErr)
+		}
+
+		// Wrap the JSON data in a CloudEvent to ensure Dapr treats it correctly
+		// and doesn't try to deliver it as raw payload if metadata is missing.
+		ce := map[string]interface{}{
+			"specversion":     "1.0",
+			"id":              fmt.Sprintf("%v", msg.ID()),
+			"source":          originTopic,
+			"type":            "com.dapr.event.sent",
+			"datacontenttype": "application/json",
+			"data":            json.RawMessage(jsonBytes),
+		}
+		ceBytes, marshalErr := json.Marshal(ce)
+		if marshalErr != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("failed to marshal cloudevent for topic %q: %w", originTopic, marshalErr)
+		}
+		data = ceBytes
+	}
+
 	pubsubMsg := pubsub.NewMessage{
-		Data:     msg.Payload(),
+		Data:     data,
 		Topic:    originTopic,
 		Metadata: msg.Properties(),
 	}
 
-	p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
+	p.logger.Debugf("Processing Pulsar message %s/%#v, properties: %v", msg.Topic(), msg.ID(), msg.Properties())
+
+	// We need to remove the "rawPayload" metadata if present, otherwise the Dapr runtime
+	// will treat the message as raw and not wrap it in a CloudEvent.
+	metadata := msg.Properties()
+	if metadata == nil {
+		metadata = make(map[string]string)
+	} else {
+		newMetadata := make(map[string]string, len(metadata))
+		for k, v := range metadata {
+			if k != "rawPayload" {
+				newMetadata[k] = v
+			}
+		}
+		metadata = newMetadata
+	}
+
+	pubsubMsg.Metadata = metadata
+	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
+		ct := "application/cloudevents+json"
+		pubsubMsg.ContentType = &ct
+	}
+
 	err := handler(ctx, &pubsubMsg)
 	if err != nil {
 		msg.Nack(msg.Message)

@@ -360,6 +360,36 @@ func TestCopyOption(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
 	})
+
+	t.Run("return error if destinationBucket is missing with destinationKey", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"destinationKey": "new/path/file.mp4"}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.copy(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+	})
+}
+
+func TestCopyPayload(t *testing.T) {
+	t.Run("destinationKey is parsed from payload", func(t *testing.T) {
+		var payload copyPayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "new/path/file.mp4"}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "my_bucket", payload.DestinationBucket)
+		assert.Equal(t, "new/path/file.mp4", payload.DestinationKey)
+	})
+
+	t.Run("destinationKey defaults to empty when not provided", func(t *testing.T) {
+		var payload copyPayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket"}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "my_bucket", payload.DestinationBucket)
+		assert.Empty(t, payload.DestinationKey)
+	})
 }
 
 func TestRenameOption(t *testing.T) {
@@ -433,5 +463,35 @@ func TestMoveOption(t *testing.T) {
 		_, err := gs.move(t.Context(), &r)
 		require.Error(t, err)
 		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+	})
+
+	t.Run("return error if destinationBucket is missing with destinationKey", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"destinationKey": "new/path/file.mp4"}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+	})
+}
+
+func TestMovePayload(t *testing.T) {
+	t.Run("destinationKey is parsed from payload", func(t *testing.T) {
+		var payload movePayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket", "destinationKey": "new/path/file.mp4"}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "my_bucket", payload.DestinationBucket)
+		assert.Equal(t, "new/path/file.mp4", payload.DestinationKey)
+	})
+
+	t.Run("destinationKey defaults to empty when not provided", func(t *testing.T) {
+		var payload movePayload
+		err := json.Unmarshal([]byte(`{"destinationBucket": "my_bucket"}`), &payload)
+		require.NoError(t, err)
+		assert.Equal(t, "my_bucket", payload.DestinationBucket)
+		assert.Empty(t, payload.DestinationKey)
 	})
 }

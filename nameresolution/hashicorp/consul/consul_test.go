@@ -200,8 +200,8 @@ func TestInit(t *testing.T) {
 				_ = resolver.Init(t.Context(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
-				assert.Equal(t, 0, mock.mockAgent.serviceRegisterCalled)
-				assert.Equal(t, 1, mock.mockAgent.selfCalled)
+				assert.Equal(t, 0, mock.serviceRegisterCalled)
+				assert.Equal(t, 1, mock.selfCalled)
 			},
 		},
 		{
@@ -219,8 +219,8 @@ func TestInit(t *testing.T) {
 				_ = resolver.Init(t.Context(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
-				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
-				assert.Equal(t, 0, mock.mockAgent.selfCalled)
+				assert.Equal(t, 1, mock.serviceRegisterCalled)
+				assert.Equal(t, 0, mock.selfCalled)
 			},
 		},
 		{
@@ -239,8 +239,8 @@ func TestInit(t *testing.T) {
 				_ = resolver.Init(t.Context(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
-				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
-				assert.Equal(t, 0, mock.mockAgent.selfCalled)
+				assert.Equal(t, 1, mock.serviceRegisterCalled)
+				assert.Equal(t, 0, mock.selfCalled)
 			},
 		},
 	}
@@ -350,7 +350,7 @@ func TestResolveID(t *testing.T) {
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.getKeysCalled.Load() == 2 })
-				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// watcher adds app to registry
@@ -364,11 +364,11 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 2 })
-				assert.Equal(t, 1, mock.mockHealth.stateCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 2 })
+				assert.Equal(t, 1, mock.stateCalled)
 
 				// get healthy nodes and update registry for service in result
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
@@ -379,29 +379,29 @@ func TestResolveID(t *testing.T) {
 				addr, _ = resolver.ResolveID(t.Context(), req)
 				assert.Equal(t, "10.3.245.137:70007", addr)
 
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, 4, mockReg.getCalled)
 
 				// no update when no change in index and payload
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 3 })
-				assert.Equal(t, 2, mock.mockHealth.stateCalled)
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 3 })
+				assert.Equal(t, 2, mock.stateCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// no update when no change in payload
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 4 })
-				assert.Equal(t, 3, mock.mockHealth.stateCalled)
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 4 })
+				assert.Equal(t, 3, mock.stateCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// update when change in index and payload
 				mock.mockHealth.stateResult[0].Status = consul.HealthCritical
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 5 })
-				assert.Equal(t, 4, mock.mockHealth.stateCalled)
-				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 5 })
+				assert.Equal(t, 4, mock.stateCalled)
+				assert.Equal(t, 3, mock.serviceCalled)
 				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 			},
 		},
@@ -508,7 +508,7 @@ func TestResolveID(t *testing.T) {
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
-				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// watcher adds app to registry
@@ -518,32 +518,32 @@ func TestResolveID(t *testing.T) {
 				// add key to mock registry - trigger watcher
 				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
-					services: mock.mockHealth.serviceResult,
+					services: mock.serviceResult,
 				}
 
 				// blocking query - return new index
 				blockingCall <- 2
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 2 })
-				assert.Equal(t, 1, mock.mockHealth.stateCalled)
+				assert.Equal(t, 1, mock.stateCalled)
 
 				// get healthy nodes and update registry for service in result
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
 				_, _ = resolver.ResolveID(t.Context(), req)
 				_, _ = resolver.ResolveID(t.Context(), req)
 				_, _ = resolver.ResolveID(t.Context(), req)
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 
 				// change one check for node1 app to critical
 				node1check1.Status = consul.HealthCritical
 
 				// blocking query - return new index - node1 app is now unhealthy
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 3 })
-				assert.Equal(t, 2, mock.mockHealth.stateCalled)
-				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 3 })
+				assert.Equal(t, 2, mock.stateCalled)
+				assert.Equal(t, 3, mock.serviceCalled)
 				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change remaining check for node1 app to critical
@@ -551,9 +551,9 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index - node1 app is still unhealthy, no change
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 4 })
-				assert.Equal(t, 3, mock.mockHealth.stateCalled)
-				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 4 })
+				assert.Equal(t, 3, mock.stateCalled)
+				assert.Equal(t, 3, mock.serviceCalled)
 				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change one check for node2 app to healthy
@@ -561,9 +561,9 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index - node2 app is still unhealthy, no change
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 5 })
-				assert.Equal(t, 4, mock.mockHealth.stateCalled)
-				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 5 })
+				assert.Equal(t, 4, mock.stateCalled)
+				assert.Equal(t, 3, mock.serviceCalled)
 				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change remaining check for node2 app to healthy
@@ -571,9 +571,9 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index - node2 app is now healthy
 				blockingCall <- 5
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 6 })
-				assert.Equal(t, 5, mock.mockHealth.stateCalled)
-				assert.Equal(t, 4, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 6 })
+				assert.Equal(t, 5, mock.stateCalled)
+				assert.Equal(t, 4, mock.serviceCalled)
 				assert.Equal(t, int32(4), mockReg.addOrUpdateCalled.Load())
 			},
 		},
@@ -653,11 +653,11 @@ func TestResolveID(t *testing.T) {
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
-				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.serviceCalled)
 				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 1 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 1 })
 				mockReg.getKeysResult = &serviceKeys
 				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
@@ -666,14 +666,14 @@ func TestResolveID(t *testing.T) {
 
 				blockingCall <- 2
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 2 })
-				assert.Equal(t, 1, mock.mockHealth.stateCalled)
-				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.stateCalled)
+				assert.Equal(t, 2, mock.serviceCalled)
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
-				mock.mockHealth.stateError = &err
+				mock.stateError = &err
 				blockingCall <- 3
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 2 })
 				assert.Equal(t, 1, mockReg.expireAllCalled)
 			},
 		},
@@ -754,11 +754,11 @@ func TestResolveID(t *testing.T) {
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
-				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.serviceCalled)
 				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 1 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.stateCallStarted.Load() == 1 })
 				mockReg.getKeysResult = &serviceKeys
 				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
@@ -785,7 +785,7 @@ func TestResolveID(t *testing.T) {
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				_, err := resolver.ResolveID(t.Context(), req)
-				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 1, mock.serviceCalled)
 				require.Error(t, err)
 			},
 		},
@@ -911,11 +911,12 @@ func TestResolveID(t *testing.T) {
 				for range 100 {
 					addr, _ := resolver.ResolveID(t.Context(), req)
 
-					if addr == "10.3.245.137:50005" {
+					switch addr {
+					case "10.3.245.137:50005":
 						total1++
-					} else if addr == "234.245.255.228:50005" {
+					case "234.245.255.228:50005":
 						total2++
-					} else {
+					default:
 						t.Fatalf("Received unexpected address: %s", addr)
 					}
 				}
@@ -1050,7 +1051,7 @@ func TestClose(t *testing.T) {
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
-				assert.Equal(t, 1, mock.mockAgent.serviceDeregisterCalled)
+				assert.Equal(t, 1, mock.serviceDeregisterCalled)
 			},
 		},
 		{
@@ -1066,7 +1067,7 @@ func TestClose(t *testing.T) {
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
-				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)
+				assert.Equal(t, 0, mock.serviceDeregisterCalled)
 			},
 		},
 		{
@@ -1082,7 +1083,7 @@ func TestClose(t *testing.T) {
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
-				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)
+				assert.Equal(t, 0, mock.serviceDeregisterCalled)
 			},
 		},
 		{

@@ -69,15 +69,15 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		return err
 	}
 
-	h.LLM.Model = llm
+	h.Model = llm
 
 	if m.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		h.LLM.Model = cachedModel
+		h.Model = cachedModel
 	}
 
 	return nil

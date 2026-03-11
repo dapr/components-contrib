@@ -136,10 +136,12 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	str := "("
 	str += q.whereFieldEqual(f.Key, f.Vals[0])
 
+	var strSb139 strings.Builder
 	for _, v := range f.Vals[1:] {
-		str += " OR "
-		str += q.whereFieldEqual(f.Key, v)
+		strSb139.WriteString(" OR ")
+		strSb139.WriteString(q.whereFieldEqual(f.Key, v))
 	}
+	str += strSb139.String()
 	str += ")"
 	return str, nil
 }
@@ -308,15 +310,17 @@ func translateFieldToFilter(key string) string {
 	filterField := fieldParts[0]
 	fieldParts = fieldParts[1:]
 
+	var filterFieldSb311 strings.Builder
 	for fieldIndex, fieldPart := range fieldParts {
-		filterField += "->"
+		filterFieldSb311.WriteString("->")
 
 		if fieldIndex+1 == len(fieldParts) {
-			filterField += ">"
+			filterFieldSb311.WriteString(">")
 		}
 
-		filterField += "'" + fieldPart + "'"
+		filterFieldSb311.WriteString("'" + fieldPart + "'")
 	}
+	filterField += filterFieldSb311.String()
 
 	return filterField
 }

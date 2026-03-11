@@ -97,15 +97,15 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	o.LLM.Model = llm
+	o.Model = llm
 
 	if md.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		o.LLM.Model = cachedModel
+		o.Model = cachedModel
 	}
 
 	return nil

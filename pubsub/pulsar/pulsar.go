@@ -219,7 +219,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	// Resolve credentials from file if ClientSecretPath is set
-	if err := m.ClientCredentialsMetadata.ResolveCredentials(); err != nil {
+	if err := m.ResolveCredentials(); err != nil {
 		return nil, err
 	}
 
@@ -244,8 +244,8 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	switch {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
-	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
-		credsOpts := m.ClientCredentialsMetadata.ToOptions(p.logger)
+	case len(m.TokenURL) > 0:
+		credsOpts := m.ToOptions(p.logger)
 		var cliCreds *oauth2.ClientCredentials
 		cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)
 		if err != nil {

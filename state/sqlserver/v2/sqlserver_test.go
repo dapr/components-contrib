@@ -282,7 +282,7 @@ func TestValidConfiguration(t *testing.T) {
 			assert.Equal(t, tt.expected.metadata.DatabaseName, sqlStore.metadata.DatabaseName)
 			assert.Equal(t, tt.expected.metadata.MetadataTableName, sqlStore.metadata.MetadataTableName)
 
-			assert.Equal(t, len(tt.expected.metadata.indexedPropertiesParsed), len(sqlStore.metadata.indexedPropertiesParsed))
+			assert.Len(t, sqlStore.metadata.indexedPropertiesParsed, len(tt.expected.metadata.indexedPropertiesParsed))
 			if len(tt.expected.metadata.indexedPropertiesParsed) > 0 && len(tt.expected.metadata.indexedPropertiesParsed) == len(sqlStore.metadata.indexedPropertiesParsed) {
 				for i, e := range tt.expected.metadata.indexedPropertiesParsed {
 					assert.Equal(t, e.ColumnName, sqlStore.metadata.indexedPropertiesParsed[i].ColumnName)

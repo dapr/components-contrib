@@ -251,7 +251,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 
 	// Check SendGrid response is OK
-	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Extract the underlying error message(s) returned from SendGrid REST API
 		sendGridError := sendGridRestError{}
 		json.NewDecoder(strings.NewReader(resp.Body)).Decode(&sendGridError)

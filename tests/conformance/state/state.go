@@ -510,7 +510,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				resp, err := querier.Query(t.Context(), &req)
 				require.NoError(t, err)
-				assert.Equal(t, len(scenario.results), len(resp.Results))
+				assert.Len(t, resp.Results, len(scenario.results))
 				for i := range scenario.results {
 					var expected, actual interface{}
 					err = json.Unmarshal(scenario.results[i].Data, &expected)
@@ -1152,7 +1152,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 			slices.Sort(foundKeys)
 			slices.Sort(expectKeys)
-			assert.EqualValues(t, expectKeys, foundKeys)
+			assert.Equal(t, expectKeys, foundKeys)
 		})
 	} else {
 		t.Run("etag feature not present", func(t *testing.T) {

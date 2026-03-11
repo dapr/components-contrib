@@ -121,8 +121,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 
 	if m.APIKey != "" {
 		// use API key authentication
-		var keyCredential *azcore.KeyCredential
-		keyCredential = azcore.NewKeyCredential(m.APIKey)
+		var keyCredential *azcore.KeyCredential = azcore.NewKeyCredential(m.APIKey)
 		if keyCredential == nil {
 			return errors.New("error getting credentials object")
 		}
@@ -254,15 +253,13 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	// No choices returned
-	if len(resp.Completions.Choices) == 0 {
+	if len(resp.Choices) == 0 {
 		return []azopenai.Choice{}, nil
 	}
 
-	choices := resp.Completions.Choices
+	choices := resp.Choices
 	response = make([]azopenai.Choice, len(choices))
-	for i, c := range choices {
-		response[i] = c
-	}
+	copy(response, choices)
 
 	return response, nil
 }
@@ -340,15 +337,13 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	// No choices returned.
-	if len(res.ChatCompletions.Choices) == 0 {
+	if len(res.Choices) == 0 {
 		return []azopenai.ChatChoice{}, nil
 	}
 
-	choices := res.ChatCompletions.Choices
+	choices := res.Choices
 	response = make([]azopenai.ChatChoice, len(choices))
-	for i, c := range choices {
-		response[i] = c
-	}
+	copy(response, choices)
 
 	return response, nil
 }

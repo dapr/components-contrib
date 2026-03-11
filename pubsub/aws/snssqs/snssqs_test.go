@@ -101,10 +101,10 @@ func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("c", md.SqsQueueName)
-	r.Equal("", md.Endpoint)
+	r.Empty(md.Endpoint)
 	r.Equal("a", md.AccessKey)
 	r.Equal("s", md.SecretKey)
-	r.Equal("", md.SessionToken)
+	r.Empty(md.SessionToken)
 	r.Equal("r", md.Region)
 	r.Equal(pubsub.Parallel, md.ConcurrencyMode)
 	r.Equal(0, md.ConcurrencyLimit)
@@ -113,7 +113,7 @@ func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	r.Equal(int32(2), md.MessageWaitTimeSeconds)
 	r.Equal(int32(10), md.MessageMaxNumber)
 	r.False(md.DisableEntityManagement)
-	r.EqualValues(float64(5), md.AssetsManagementTimeoutSeconds)
+	r.Equal(float64(5), md.AssetsManagementTimeoutSeconds)
 	r.False(md.DisableDeleteOnRetryLimit)
 }
 
@@ -136,7 +136,7 @@ func Test_getSnsSqsMetadata_legacyaliases(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("consumer", md.SqsQueueName)
-	r.Equal("", md.Endpoint)
+	r.Empty(md.Endpoint)
 	r.Equal("acctId", md.AccessKey)
 	r.Equal("secret", md.SecretKey)
 	r.Equal("region", md.Region)

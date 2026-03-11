@@ -11,7 +11,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:usetesting
 package bindings
 
 import (
@@ -257,7 +256,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		})
 	}
 
-	if config.CommonConfig.HasOperation("read") {
+	if config.HasOperation("read") {
 		t.Run("verify read", func(t *testing.T) {
 			testLogger.Info("Verify Read test running ...")
 			// To stop the test from hanging if there's no response, we can setup a simple timeout.

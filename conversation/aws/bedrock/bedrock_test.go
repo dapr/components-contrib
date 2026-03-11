@@ -108,7 +108,7 @@ func TestInit(t *testing.T) {
 				if err != nil {
 					t.Skipf("Skipping test due to AWS config error: %v", err)
 				}
-				assert.NotNil(t, b.LLM.Model)
+				assert.NotNil(t, b.Model)
 				assert.Equal(t, tc.metadata["model"], b.model)
 			}
 		})

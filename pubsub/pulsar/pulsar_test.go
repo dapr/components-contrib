@@ -15,6 +15,8 @@ package pulsar
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -26,8 +28,6 @@ import (
 	goavro "github.com/linkedin/goavro/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"encoding/json"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -2010,4 +2010,103 @@ func TestHandleMessageNoAvroSchema(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rawJSON, receivedData)
 	assert.True(t, consumer.acked)
+}
+
+func TestHandleMessageHandlerErrorNacks(t *testing.T) {
+	// When the handler returns an error, the message must be Nacked (not Acked).
+	const topic = "plain-topic"
+	rawJSON := []byte(`{"event":"test"}`)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: rawJSON, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	handlerErr := errors.New("downstream processing failed")
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		return handlerErr
+	}
+
+	err := p.handleMessage(context.Background(), topic, cm, handler)
+	require.Error(t, err)
+	assert.Equal(t, handlerErr, err)
+	assert.True(t, consumer.nacked, "message must be nacked when handler returns error")
+	assert.False(t, consumer.acked, "message must not be acked when handler returns error")
+}
+
+func TestHandleMessageAvroPropertiesPreserved(t *testing.T) {
+	// Properties from the Pulsar message must be passed through to the handler
+	// even when the Avro decode path is taken.
+	const avroSchema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"int"},{"name":"name","type":"string"}]}`
+	const topic = "my-topic"
+
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchema)
+	require.NoError(t, err)
+
+	native, _, err := codec.NativeFromTextual([]byte(`{"id":1,"name":"test"}`))
+	require.NoError(t, err)
+	avroBinary, err := codec.BinaryFromNative(nil, native)
+	require.NoError(t, err)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: avroProtocol, value: avroSchema, codec: codec},
+			},
+		},
+	}
+
+	props := map[string]string{"trace-id": "abc123", "source": "unit-test"}
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: avroBinary, properties: props, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedMetadata map[string]string
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedMetadata = m.Metadata
+		return nil
+	}
+
+	err = p.handleMessage(context.Background(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.Equal(t, props, receivedMetadata, "properties must be preserved through the Avro decode path")
+}
+
+func TestHandleMessageNonAvroSchemaPassthrough(t *testing.T) {
+	// A topic with a JSON schema (not Avro) must pass raw bytes through
+	// without attempting Avro decode.
+	const topic = "json-schema-topic"
+	rawJSON := []byte(`{"key":"value"}`)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: jsonProtocol, value: `{"type":"object"}`},
+			},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: rawJSON, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedData []byte
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedData = m.Data
+		return nil
+	}
+
+	err := p.handleMessage(context.Background(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.Equal(t, rawJSON, receivedData, "non-Avro schema topics must pass raw bytes through")
+	assert.True(t, consumer.acked)
+	assert.False(t, consumer.nacked)
 }

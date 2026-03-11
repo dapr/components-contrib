@@ -454,13 +454,14 @@ func buildRegexForTopic(topicName string) string {
 	// in practice, seems that (at least some) brokers are more flexible and allow "#" in the middle of a string too
 	var (
 		regexStr string
-		lastPos  int = -1
+		lastPos  = -1
 		start    int
 		okPos    bool
 	)
 	if strings.ContainsAny(topicName, "#+") {
 		regexStr = "^"
 		// It's ok to iterate over bytes here (rather than codepoints) because all characters we're looking for are always single-byte
+		var regexStrSb464 strings.Builder
 		for i := range len(topicName) {
 			// Wildcard chars must either be at the beginning of the string or must follow a /
 			okPos = (i == 0 || topicName[i-1] == '/')
@@ -468,9 +469,9 @@ func buildRegexForTopic(topicName string) string {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
 					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					regexStr += regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)"
+					regexStrSb464.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)")
 				} else {
-					regexStr += regexp.QuoteMeta(topicName[start:i]) + "(.*)"
+					regexStrSb464.WriteString(regexp.QuoteMeta(topicName[start:i]) + "(.*)")
 				}
 				start = i + 1
 			} else if topicName[i] == '+' && okPos {
@@ -484,6 +485,7 @@ func buildRegexForTopic(topicName string) string {
 				start = i + 1
 			}
 		}
+		regexStr += regexStrSb464.String()
 		regexStr += regexp.QuoteMeta(topicName[(lastPos+1):]) + "$"
 	}
 

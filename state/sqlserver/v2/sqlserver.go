@@ -108,7 +108,7 @@ type SQLServer struct {
 // Init initializes the SQL server state store.
 func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.metadata = newMetadata()
-	metadata.Base.GetProperty()
+	metadata.GetProperty()
 	err := s.metadata.Parse(metadata.Properties)
 	if err != nil {
 		return err

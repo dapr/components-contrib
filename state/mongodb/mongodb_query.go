@@ -102,9 +102,10 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	}
 	str := fmt.Sprintf(`{ "value.%s": { "$in": [ `, f.Key)
 
+	var strSb105 strings.Builder
 	for i := range len(f.Vals) {
 		if i > 0 {
-			str += ", "
+			strSb105.WriteString(", ")
 		}
 		switch v := f.Vals[i].(type) {
 		case string:
@@ -113,6 +114,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 			str += fmt.Sprintf("%v", v)
 		}
 	}
+	str += strSb105.String()
 	str += " ] } }"
 
 	return str, nil

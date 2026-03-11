@@ -193,13 +193,15 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 			[ExpireDate] 	DateTime2 NULL,`,
 		m.metadata.SchemaName, m.metadata.TableName, m.metadata.SchemaName, m.metadata.TableName, r.pkColumnType, m.metadata.TableName)
 
+	var tsqlSb196 strings.Builder
 	for _, prop := range m.metadata.indexedPropertiesParsed {
 		if prop.Type != "" {
-			tsql += fmt.Sprintf("\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property)
+			tsqlSb196.WriteString(fmt.Sprintf("\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property))
 		} else {
-			tsql += fmt.Sprintf("\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property)
+			tsqlSb196.WriteString(fmt.Sprintf("\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property))
 		}
 	}
+	tsql += tsqlSb196.String()
 
 	tsql += `
 		[RowVersion] 	ROWVERSION NOT NULL)

@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	stdstrings "strings"
 	"sync"
 	"time"
 
@@ -546,6 +547,7 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 
 type movePayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
 }
 
 func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -566,8 +568,13 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
 	}
 
+	dstKey := stdstrings.TrimSpace(payload.DestinationKey)
+	if dstKey == "" {
+		dstKey = key
+	}
+
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(dstKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
@@ -576,8 +583,13 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, fmt.Errorf("gcp bucket binding error while deleting object: %w", err)
 	}
 
+	msg := fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)
+	if stdstrings.TrimSpace(payload.DestinationKey) != "" {
+		msg = fmt.Sprintf("object %s moved to %s/%s", key, payload.DestinationBucket, dstKey)
+	}
+
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)),
+		Data: []byte(msg),
 	}, nil
 }
 
@@ -620,6 +632,7 @@ func (g *GCPStorage) rename(ctx context.Context, req *bindings.InvokeRequest) (*
 
 type copyPayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
 }
 
 func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -640,13 +653,23 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
 	}
 
+	dstKey := stdstrings.TrimSpace(payload.DestinationKey)
+	if dstKey == "" {
+		dstKey = key
+	}
+
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(dstKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
 
+	msg := fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)
+	if stdstrings.TrimSpace(payload.DestinationKey) != "" {
+		msg = fmt.Sprintf("object %s copied to %s/%s", key, payload.DestinationBucket, dstKey)
+	}
+
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)),
+		Data: []byte(msg),
 	}, nil
 }

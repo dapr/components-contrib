@@ -102,6 +102,14 @@ type KafkaMetadata struct {
 	internalVersion         sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions  map[string]string   `mapstructure:"-"`
 
+	// Timeout for the Init() call (connecting to brokers, creating clients).
+	// If zero, defaults to 30s.
+	InitTimeout time.Duration `mapstructure:"initTimeout"`
+
+	// Timeout for the Close() call (waiting for goroutines to finish).
+	// If zero, defaults to 15s.
+	CloseTimeout time.Duration `mapstructure:"closeTimeout"`
+
 	// configs for kafka client
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
@@ -166,6 +174,8 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	m := KafkaMetadata{
 		ConsumeRetryEnabled:                          k.DefaultConsumeRetryEnabled,
 		ConsumeRetryInterval:                         100 * time.Millisecond,
+		InitTimeout:                                  30 * time.Second,
+		CloseTimeout:                                 15 * time.Second,
 		internalVersion:                              sarama.V2_0_0_0, //nolint:nosnakecase
 		internalCompression:                          sarama.CompressionNone,
 		channelBufferSize:                            256,

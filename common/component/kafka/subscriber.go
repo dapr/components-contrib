@@ -45,12 +45,20 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 			if errors.Is(err, pubsub.ErrGracefulShutdown) {
 				k.logger.Debugf("Kafka component is closing. Context is done due to shutdown process.")
 				postAction = func() {
+					// Guard against double-close: if kafka.Close() has already
+					// been called, the consumer group is already closed there.
+					if k.closed.Load() {
+						return
+					}
+					k.clientsLock.Lock()
+					defer k.clientsLock.Unlock()
 					if k.clients != nil && k.clients.consumerGroup != nil {
 						k.logger.Debugf("Kafka component is closing. Closing consumer group.")
 						err := k.clients.consumerGroup.Close()
 						if err != nil {
-							k.logger.Errorf("failed to close consumer group: %w", err)
+							k.logger.Errorf("failed to close consumer group: %v", err)
 						}
+						k.clients.consumerGroup = nil
 					}
 				}
 			}
@@ -103,6 +111,15 @@ func (k *Kafka) reloadConsumerGroup() {
 }
 
 func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer) {
+	const maxConsecutiveErrors = 3
+	const maxInvalidationBackoff = 60 * time.Second
+	consecutiveErrors := 0
+
+	invalidationBackoff := k.consumeRetryInterval
+	if invalidationBackoff <= 0 {
+		invalidationBackoff = time.Second
+	}
+
 	for {
 		clients, err := k.latestClients()
 		if err != nil || clients == nil {
@@ -118,7 +135,33 @@ func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer
 			return
 		}
 		if err != nil {
-			k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+			consecutiveErrors++
+			k.logger.Errorf("Error consuming %v (%d/%d). Retrying...: %v", topics, consecutiveErrors, maxConsecutiveErrors, err)
+			if consecutiveErrors >= maxConsecutiveErrors {
+				k.logger.Warnf("Kafka clients appear unhealthy after %d consecutive consume errors, forcing client re-creation (backoff: %v)", maxConsecutiveErrors, invalidationBackoff)
+				k.invalidateClients()
+				consecutiveErrors = 0
+
+				select {
+				case <-k.closeCh:
+					return
+				case <-ctx.Done():
+					return
+				case <-time.After(invalidationBackoff):
+				}
+
+				invalidationBackoff *= 2
+				if invalidationBackoff > maxInvalidationBackoff {
+					invalidationBackoff = maxInvalidationBackoff
+				}
+				continue
+			}
+		} else {
+			consecutiveErrors = 0
+			invalidationBackoff = k.consumeRetryInterval
+			if invalidationBackoff <= 0 {
+				invalidationBackoff = time.Second
+			}
 		}
 
 		select {

@@ -43,6 +43,7 @@ type Kafka struct {
 	// These are used to inject mocked clients for tests
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
+	clientsLock       sync.RWMutex
 	clients           *clients
 
 	maxMessageBytes int
@@ -86,6 +87,9 @@ type Kafka struct {
 	DefaultConsumeRetryEnabled bool
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
+
+	initTimeout  time.Duration
+	closeTimeout time.Duration
 
 	excludeHeaderMetaRegex *regexp.Regexp
 	awsConfig              *aws2.Config
@@ -232,6 +236,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 	k.consumeRetryEnabled = meta.ConsumeRetryEnabled
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
+	k.initTimeout = meta.InitTimeout
+	k.closeTimeout = meta.CloseTimeout
 	if meta.SchemaRegistryURL != "" {
 		k.logger.Infof("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
@@ -251,14 +257,48 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		}
 	}
 
-	clients, err := k.latestClients()
-	if err != nil || clients == nil {
+	initTimeout := k.initTimeout
+	if initTimeout <= 0 {
+		initTimeout = 30 * time.Second
+	}
+
+	type initResult struct {
+		clients *clients
+		err     error
+	}
+	resultCh := make(chan initResult, 1)
+	go func() {
+		c, cerr := k.latestClients()
+		resultCh <- initResult{clients: c, err: cerr}
+	}()
+
+	var initClients *clients
+	select {
+	case res := <-resultCh:
+		initClients = res.clients
+		err = res.err
+	case <-time.After(initTimeout):
+		// Clean up clients created after timeout.
+		go func() {
+			res := <-resultCh
+			if res.clients != nil {
+				if res.clients.producer != nil {
+					res.clients.producer.Close()
+				}
+				if res.clients.consumerGroup != nil {
+					res.clients.consumerGroup.Close()
+				}
+			}
+		}()
+		return fmt.Errorf("kafka init timed out after %v while connecting to brokers", initTimeout)
+	}
+	if err != nil || initClients == nil {
 		return fmt.Errorf("failed to get latest Kafka clients for initialization: %w", err)
 	}
-	if clients.producer == nil {
+	if initClients.producer == nil {
 		return errors.New("component is closed")
 	}
-	if clients.consumerGroup == nil {
+	if initClients.consumerGroup == nil {
 		return errors.New("component is closed")
 	}
 
@@ -319,8 +359,21 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 }
 
 func (k *Kafka) Close() error {
-	defer k.wg.Wait()
-	defer k.consumerWG.Wait()
+	closeTimeout := k.closeTimeout
+	if closeTimeout <= 0 {
+		closeTimeout = 15 * time.Second
+	}
+
+	defer func() {
+		if !waitGroupWithTimeout(&k.wg, closeTimeout) {
+			k.logger.Warnf("Kafka close: timed out after %v waiting for subscriber goroutines", closeTimeout)
+		}
+	}()
+	defer func() {
+		if !waitGroupWithTimeout(&k.consumerWG, closeTimeout) {
+			k.logger.Warnf("Kafka close: timed out after %v waiting for consumer goroutine", closeTimeout)
+		}
+	}()
 
 	errs := make([]error, 3)
 	if k.closed.CompareAndSwap(false, true) {
@@ -337,6 +390,7 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
+		k.clientsLock.Lock()
 		if k.clients != nil {
 			if k.clients.producer != nil {
 				errs[0] = k.clients.producer.Close()
@@ -347,9 +401,26 @@ func (k *Kafka) Close() error {
 				k.clients.consumerGroup = nil
 			}
 		}
+		k.clientsLock.Unlock()
 	}
 
 	return errors.Join(errs...)
+}
+
+// waitGroupWithTimeout waits for a WaitGroup with a timeout.
+// Returns true if the WaitGroup completed, false if the timeout fired.
+func waitGroupWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	ch := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+	select {
+	case <-ch:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 func getSchemaSubject(topic string) string {

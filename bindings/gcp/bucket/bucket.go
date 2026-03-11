@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	stdstrings "strings"
 	"sync"
 	"time"
 
@@ -567,12 +568,13 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
 	}
 
-	if payload.DestinationKey == "" {
-		payload.DestinationKey = key
+	dstKey := stdstrings.TrimSpace(payload.DestinationKey)
+	if dstKey == "" {
+		dstKey = key
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(payload.DestinationKey)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(dstKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
@@ -582,7 +584,7 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s moved to %s/%s", key, payload.DestinationBucket, dstKey)),
 	}, nil
 }
 
@@ -646,17 +648,18 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
 	}
 
-	if payload.DestinationKey == "" {
-		payload.DestinationKey = key
+	dstKey := stdstrings.TrimSpace(payload.DestinationKey)
+	if dstKey == "" {
+		dstKey = key
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(payload.DestinationKey)
+	dst := g.client.Bucket(payload.DestinationBucket).Object(dstKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s copied to %s/%s", key, payload.DestinationBucket, dstKey)),
 	}, nil
 }

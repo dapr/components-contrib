@@ -270,7 +270,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				authErr := kitretry.NotifyRecover(
 					func() error {
-						var innerAuthErr error = client.AuthACL(ctx, username, token.Token)
+						var innerAuthErr = client.AuthACL(ctx, username, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,

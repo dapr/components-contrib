@@ -346,7 +346,7 @@ func (c *Coherence) BulkSet(ctx context.Context, req []state.SetRequest, _ state
 }
 
 func (c *Coherence) BulkDelete(ctx context.Context, req []state.DeleteRequest, opts state.BulkStoreOpts) error {
-	var err error = state.CheckRequestOptions(req)
+	var err = state.CheckRequestOptions(req)
 	if err != nil {
 		return err
 	}

@@ -195,9 +195,9 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 	var tsqlSb194 strings.Builder
 	for _, prop := range m.metadata.indexedPropertiesParsed {
 		if prop.Type != "" {
-			tsqlSb194.WriteString(fmt.Sprintf("\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property))
+			fmt.Fprintf(&tsqlSb194, "\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property)
 		} else {
-			tsqlSb194.WriteString(fmt.Sprintf("\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property))
+			fmt.Fprintf(&tsqlSb194, "\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property)
 		}
 	}
 	tsql += tsqlSb194.String()

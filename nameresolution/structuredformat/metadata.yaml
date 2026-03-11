@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: nameresolution
+name: structuredformat
+version: v1
+status: alpha
+title: "StructuredFormat"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/nr-structuredformat/
+metadata:
+  - name: structuredType
+    type: string
+    required: true
+    allowedValues: ["json", "yaml", "jsonFile", "yamlFile"]
+    description: Format type of the structured data.
+    example: "json"
+  - name: stringValue
+    type: string
+    required: false
+    description: Inline JSON/YAML string (required if structuredType is json/yaml).
+    example: '{"appInstances":{"myapp":[{"ipv4":"127.0.0.1","port":4433}]}}'
+  - name: filePath
+    type: string
+    required: false
+    description: Path to JSON/YAML file (required if structuredType is jsonFile/yamlFile).
+    example: "/etc/dapr/services.yaml"

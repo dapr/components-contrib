@@ -87,10 +87,15 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 		endpointParams, _ = url.ParseQuery("")
 	}
 
+	var scopes []string
+	if meta.Scopes != "" {
+		scopes = strings.Split(meta.Scopes, ",")
+	}
+
 	conf := &clientcredentials.Config{
 		ClientID:       meta.ClientID,
 		ClientSecret:   meta.ClientSecret,
-		Scopes:         strings.Split(meta.Scopes, ","),
+		Scopes:         scopes,
 		TokenURL:       meta.TokenURL,
 		EndpointParams: endpointParams,
 		AuthStyle:      oauth2.AuthStyle(meta.AuthStyle),
@@ -154,7 +159,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Cli
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.HeaderName, "headerName")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientID, "clientID")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientSecret, "clientSecret")
-	m.checkMetadataValueExists(&errorString, &middlewareMetadata.Scopes, "scopes")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.TokenURL, "tokenURL")
 
 	if middlewareMetadata.PathFilter != "" {

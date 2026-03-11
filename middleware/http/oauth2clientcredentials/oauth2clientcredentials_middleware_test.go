@@ -47,7 +47,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(t.Context(), metadata)
-	require.EqualError(t, err, "metadata errors: Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. ")
+	require.EqualError(t, err, "metadata errors: Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'tokenURL' needs to be set. ")
 
 	// Invalid authStyle (non int)
 	metadata.Properties = map[string]string{
@@ -70,6 +70,69 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	metadata.Properties["authStyle"] = "-1"
 	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(t.Context(), metadata)
 	require.EqualError(t, err4, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
+}
+
+// TestOAuth2ClientCredentialsEmptyScopes verifies that empty or missing scopes
+// produce a nil scope slice (so the OAuth token request omits the scope parameter).
+func TestOAuth2ClientCredentialsEmptyScopes(t *testing.T) {
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	m, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
+
+	tests := []struct {
+		name   string
+		scopes string
+	}{
+		{name: "missing scopes key", scopes: ""},
+		{name: "empty string scopes", scopes: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			props := map[string]string{
+				"clientID":     "testId",
+				"clientSecret": "testSecret",
+				"tokenURL":     "https://localhost:9999",
+				"headerName":   "someHeader",
+				"authStyle":    "1",
+			}
+			if tt.scopes != "" {
+				props["scopes"] = tt.scopes
+			}
+
+			md := middleware.Metadata{
+				Base: metadata.Base{Properties: props},
+			}
+
+			meta, err := m.getNativeMetadata(md)
+			require.NoError(t, err)
+			assert.Empty(t, meta.Scopes)
+		})
+	}
+}
+
+// TestOAuth2ClientCredentialsScopesPopulated verifies that provided scopes are correctly split.
+func TestOAuth2ClientCredentialsScopesPopulated(t *testing.T) {
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	m, ok := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
+	require.True(t, ok)
+
+	md := middleware.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"clientID":     "testId",
+				"clientSecret": "testSecret",
+				"scopes":       "read,write",
+				"tokenURL":     "https://localhost:9999",
+				"headerName":   "someHeader",
+				"authStyle":    "1",
+			},
+		},
+	}
+
+	meta, err := m.getNativeMetadata(md)
+	require.NoError(t, err)
+	assert.Equal(t, "read,write", meta.Scopes)
 }
 
 // TestOAuth2ClientCredentialsToken will check

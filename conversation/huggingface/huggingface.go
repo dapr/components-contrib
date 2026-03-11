@@ -37,6 +37,7 @@ type Huggingface struct {
 func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	h := &Huggingface{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return h

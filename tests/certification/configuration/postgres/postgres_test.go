@@ -56,8 +56,8 @@ const (
 	configTable         = "configtable"
 	connectionStringKey = "connectionString"
 	configTableKey      = "table"
-	pgNotifyChannelKey  = "pgNotifyChannel"
-	pgNotifyChannel     = "config"
+	notifyChannelKey    = "notifyChannel"
+	notifyChannel       = "config"
 	portOffset          = 2
 	channel1            = "channel1"
 	channel2            = "channel2"
@@ -210,7 +210,7 @@ func TestPostgres(t *testing.T) {
 				require.NoError(t, err)
 				message.Observe(string(updateEventInJson))
 			}, func(md map[string]string) {
-				md[pgNotifyChannelKey] = channel
+				md[notifyChannelKey] = channel
 			})
 			if subscribeIDs[sidecarName] == nil {
 				subscribeIDs[sidecarName] = make([]string, 0)

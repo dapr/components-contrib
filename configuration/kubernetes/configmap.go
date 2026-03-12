@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
@@ -40,16 +41,33 @@ import (
 
 var _ configuration.Store = (*ConfigurationStore)(nil)
 
+// subscriber holds the state for a single subscription registered via Subscribe.
+type subscriber struct {
+	req     *configuration.SubscribeRequest
+	handler configuration.UpdateHandler
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
 // ConfigurationStore implements a Kubernetes ConfigMap-backed configuration store.
+// A single shared informer watches the configured ConfigMap and fans out change
+// events to all registered subscribers, avoiding per-subscription watches against
+// the API server.
 type ConfigurationStore struct {
 	kubeClient kubernetes.Interface
 	metadata   metadata
 	logger     logger.Logger
 
-	cancelMap sync.Map
-	wg        sync.WaitGroup
-	lock      sync.RWMutex
-	closed    atomic.Bool
+	// subscribers maps subscription ID → *subscriber for fan-out.
+	subscribers sync.Map
+
+	// Shared informer lifecycle: started once on first Subscribe, stopped on Close.
+	informerOnce   sync.Once
+	informerCancel context.CancelFunc
+	informerWg     sync.WaitGroup
+
+	lock   sync.RWMutex
+	closed atomic.Bool
 }
 
 // NewKubernetesConfigMapStore returns a new Kubernetes ConfigMap configuration store.
@@ -142,66 +160,65 @@ func (s *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	subscribeID := uuid.New().String()
 	childCtx, cancel := context.WithCancel(ctx)
 
-	s.wg.Add(1)
-	s.cancelMap.Store(subscribeID, cancel)
+	sub := &subscriber{
+		req:     req,
+		handler: handler,
+		ctx:     childCtx,
+		cancel:  cancel,
+	}
+	s.subscribers.Store(subscribeID, sub)
 
-	ns := s.resolveNamespace(req.Metadata)
-
-	watchlist := cache.NewFilteredListWatchFromClient(
-		s.kubeClient.CoreV1().RESTClient(),
-		"configmaps",
-		ns,
-		func(options *metav1.ListOptions) {
-			options.FieldSelector = fields.OneTermEqualSelector("metadata.name", s.metadata.ConfigMapName).String()
-		},
-	)
-
-	// Only UpdateFunc is registered: subscribers receive change-only notifications.
-	// AddFunc is intentionally omitted — the initial List populates the informer
-	// cache but does not notify, matching the behavior of the Redis and PostgreSQL
-	// configuration stores. DeleteFunc is omitted because ConfigMap-level deletion
-	// is not a supported use case; only key-level changes within the ConfigMap
-	// are tracked.
-	_, controller := cache.NewInformerWithOptions(cache.InformerOptions{
-		ListerWatcher: watchlist,
-		ObjectType:    &corev1.ConfigMap{},
-		ResyncPeriod:  s.metadata.ResyncPeriod,
-		Handler: cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(oldObj, newObj any) {
-				s.handleConfigMapUpdate(childCtx, req, handler, oldObj, newObj, subscribeID)
-			},
-		},
-	})
-
-	go func() {
-		defer s.wg.Done()
-		defer cancel()
-		defer s.cancelMap.Delete(subscribeID)
-		controller.Run(childCtx.Done())
-	}()
+	// Start the shared informer on first subscription.
+	s.startInformer()
 
 	return subscribeID, nil
 }
 
-func (s *ConfigurationStore) Unsubscribe(_ context.Context, req *configuration.UnsubscribeRequest) error {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+// startInformer lazily starts a single informer that watches the configured
+// ConfigMap and fans out change events to all registered subscribers.
+func (s *ConfigurationStore) startInformer() {
+	s.informerOnce.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		s.informerCancel = cancel
 
-	if cancel, ok := s.cancelMap.LoadAndDelete(req.ID); ok {
-		cancel.(context.CancelFunc)()
-		return nil
-	}
+		ns := s.resolveNamespace(nil)
 
-	return fmt.Errorf("subscription with id %s does not exist", req.ID)
+		watchlist := cache.NewFilteredListWatchFromClient(
+			s.kubeClient.CoreV1().RESTClient(),
+			"configmaps",
+			ns,
+			func(options *metav1.ListOptions) {
+				options.FieldSelector = fields.OneTermEqualSelector("metadata.name", s.metadata.ConfigMapName).String()
+			},
+		)
+
+		// Only UpdateFunc is registered: subscribers receive change-only notifications.
+		// AddFunc is intentionally omitted — the initial List populates the informer
+		// cache but does not notify, matching the behavior of the Redis and PostgreSQL
+		// configuration stores. DeleteFunc is omitted because ConfigMap-level deletion
+		// is not a supported use case; only key-level changes within the ConfigMap
+		// are tracked.
+		_, controller := cache.NewInformerWithOptions(cache.InformerOptions{
+			ListerWatcher: watchlist,
+			ObjectType:    &corev1.ConfigMap{},
+			ResyncPeriod:  s.metadata.ResyncPeriod,
+			Handler: cache.ResourceEventHandlerFuncs{
+				UpdateFunc: func(oldObj, newObj any) {
+					s.fanOutUpdate(oldObj, newObj)
+				},
+			},
+		})
+
+		s.informerWg.Add(1)
+		go func() {
+			defer s.informerWg.Done()
+			controller.Run(ctx.Done())
+		}()
+	})
 }
 
-func (s *ConfigurationStore) handleConfigMapUpdate(
-	ctx context.Context,
-	req *configuration.SubscribeRequest,
-	handler configuration.UpdateHandler,
-	oldObj, newObj any,
-	subscriptionID string,
-) {
+// fanOutUpdate dispatches ConfigMap change events to all registered subscribers.
+func (s *ConfigurationStore) fanOutUpdate(oldObj, newObj any) {
 	oldCM, ok1 := oldObj.(*corev1.ConfigMap)
 	newCM, ok2 := newObj.(*corev1.ConfigMap)
 	if !ok1 || !ok2 {
@@ -209,13 +226,43 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		return
 	}
 
+	s.subscribers.Range(func(key, value any) bool {
+		sub := value.(*subscriber)
+		subscriptionID := key.(string)
+
+		// Skip and clean up subscribers whose context is done.
+		if sub.ctx.Err() != nil {
+			s.subscribers.Delete(key)
+			return true
+		}
+
+		changedItems := computeChangedItems(sub.req.Keys, oldCM, newCM)
+		if len(changedItems) == 0 {
+			return true
+		}
+
+		if err := sub.handler(sub.ctx, &configuration.UpdateEvent{
+			ID:    subscriptionID,
+			Items: changedItems,
+		}); err != nil {
+			s.logger.Errorf("failed to notify handler for subscription %s: %v", subscriptionID, err)
+		}
+
+		return true
+	})
+}
+
+// computeChangedItems computes the set of configuration items that changed
+// between oldCM and newCM, filtered to only the given subscribedKeys (or all
+// keys if subscribedKeys is empty).
+func computeChangedItems(subscribedKeys []string, oldCM, newCM *corev1.ConfigMap) map[string]*configuration.Item {
 	changedItems := make(map[string]*configuration.Item)
 
-	// Detect added or modified keys in data
+	// Detect added or modified keys in data.
 	for k, newVal := range newCM.Data {
 		oldVal, existed := oldCM.Data[k]
 		if !existed || oldVal != newVal {
-			if isSubscribedKey(req.Keys, k) {
+			if isSubscribedKey(subscribedKeys, k) {
 				changedItems[k] = &configuration.Item{
 					Value:    newVal,
 					Version:  newCM.ResourceVersion,
@@ -225,11 +272,11 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		}
 	}
 
-	// Detect added or modified keys in binaryData
+	// Detect added or modified keys in binaryData.
 	for k, newVal := range newCM.BinaryData {
 		oldVal, existed := oldCM.BinaryData[k]
 		if !existed || !bytes.Equal(oldVal, newVal) {
-			if isSubscribedKey(req.Keys, k) {
+			if isSubscribedKey(subscribedKeys, k) {
 				changedItems[k] = &configuration.Item{
 					Value:    base64.StdEncoding.EncodeToString(newVal),
 					Version:  newCM.ResourceVersion,
@@ -253,7 +300,7 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		_, inNewData := newCM.Data[k]
 		_, inNewBinary := newCM.BinaryData[k]
 		if !inNewData && !inNewBinary {
-			if isSubscribedKey(req.Keys, k) {
+			if isSubscribedKey(subscribedKeys, k) {
 				changedItems[k] = &configuration.Item{
 					Value:    "",
 					Version:  newCM.ResourceVersion,
@@ -263,16 +310,19 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		}
 	}
 
-	if len(changedItems) == 0 {
-		return
+	return changedItems
+}
+
+func (s *ConfigurationStore) Unsubscribe(_ context.Context, req *configuration.UnsubscribeRequest) error {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if sub, ok := s.subscribers.LoadAndDelete(req.ID); ok {
+		sub.(*subscriber).cancel()
+		return nil
 	}
 
-	if err := handler(ctx, &configuration.UpdateEvent{
-		ID:    subscriptionID,
-		Items: changedItems,
-	}); err != nil {
-		s.logger.Errorf("failed to notify handler for subscription %s: %v", subscriptionID, err)
-	}
+	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
 func (s *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
@@ -282,7 +332,6 @@ func (s *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadat
 }
 
 func (s *ConfigurationStore) Close() error {
-	defer s.wg.Wait()
 	// Set closed before acquiring the write lock so that new Subscribe calls
 	// are rejected immediately, even while we wait for existing read-lock holders
 	// (in-flight Subscribe/Unsubscribe) to finish.
@@ -291,18 +340,25 @@ func (s *ConfigurationStore) Close() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.cancelMap.Range(func(key, value any) bool {
-		value.(context.CancelFunc)()
+	// Cancel all subscriber contexts.
+	s.subscribers.Range(func(key, value any) bool {
+		value.(*subscriber).cancel()
 		return true
 	})
-	s.cancelMap.Clear()
+	s.subscribers.Clear()
+
+	// Stop the shared informer if it was started.
+	if s.informerCancel != nil {
+		s.informerCancel()
+	}
+	s.informerWg.Wait()
 
 	return nil
 }
 
 func (s *ConfigurationStore) resolveNamespace(requestMetadata map[string]string) string {
 	if ns, ok := requestMetadata["namespace"]; ok && ns != "" {
-		if validDNS1123Label.MatchString(ns) {
+		if errs := validation.IsDNS1123Label(ns); len(errs) == 0 {
 			return ns
 		}
 		s.logger.Warnf("ignoring invalid namespace override %q in request metadata", ns)

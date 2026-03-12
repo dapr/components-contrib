@@ -385,9 +385,13 @@ func TestUnsubscribe_Valid(t *testing.T) {
 	store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
 
 	cancelled := false
-	store.cancelMap.Store("test-sub-id", context.CancelFunc(func() {
-		cancelled = true
-	}))
+	store.subscribers.Store("test-sub-id", &subscriber{
+		ctx: t.Context(),
+		cancel: context.CancelFunc(func() {
+			cancelled = true
+		}),
+		req: &configuration.SubscribeRequest{},
+	})
 
 	err := store.Unsubscribe(t.Context(), &configuration.UnsubscribeRequest{ID: "test-sub-id"})
 	require.NoError(t, err)
@@ -414,11 +418,15 @@ func TestClose_CancelsAllSubscriptions(t *testing.T) {
 
 	for _, id := range []string{"sub-1", "sub-2", "sub-3"} {
 		capturedID := id
-		store.cancelMap.Store(id, context.CancelFunc(func() {
-			mu.Lock()
-			cancelledIDs = append(cancelledIDs, capturedID)
-			mu.Unlock()
-		}))
+		store.subscribers.Store(id, &subscriber{
+			ctx: t.Context(),
+			cancel: context.CancelFunc(func() {
+				mu.Lock()
+				cancelledIDs = append(cancelledIDs, capturedID)
+				mu.Unlock()
+			}),
+			req: &configuration.SubscribeRequest{},
+		})
 	}
 
 	err := store.Close()
@@ -515,18 +523,8 @@ func TestIsSubscribedKey(t *testing.T) {
 	})
 }
 
-func TestHandleConfigMapUpdate(t *testing.T) {
-	store := newTestStore(t)
-	store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
-
+func TestComputeChangedItems(t *testing.T) {
 	t.Run("detects added and modified keys", func(t *testing.T) {
-		// Verify handler is called with correct changed items when keys are added/modified
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			Data:       map[string]string{"key1": "old-val"},
@@ -536,28 +534,15 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			Data:       map[string]string{"key1": "new-val", "key2": "added"},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Equal(t, "sub-1", receivedEvent.ID)
-		assert.Len(t, receivedEvent.Items, 2)
-		assert.Equal(t, "new-val", receivedEvent.Items["key1"].Value)
-		assert.Equal(t, "added", receivedEvent.Items["key2"].Value)
-		assert.Equal(t, "2", receivedEvent.Items["key1"].Version)
+		assert.Len(t, items, 2)
+		assert.Equal(t, "new-val", items["key1"].Value)
+		assert.Equal(t, "added", items["key2"].Value)
+		assert.Equal(t, "2", items["key1"].Version)
 	})
 
 	t.Run("detects deleted keys with metadata", func(t *testing.T) {
-		// Verify deleted keys have {"deleted": "true"} metadata
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			Data:       map[string]string{"key1": "val1", "key2": "val2"},
@@ -567,26 +552,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			Data:       map[string]string{"key1": "val1"},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Len(t, receivedEvent.Items, 1)
-		assert.Equal(t, "", receivedEvent.Items["key2"].Value)
-		assert.Equal(t, "true", receivedEvent.Items["key2"].Metadata["deleted"])
+		assert.Len(t, items, 1)
+		assert.Equal(t, "", items["key2"].Value)
+		assert.Equal(t, "true", items["key2"].Metadata["deleted"])
 	})
 
 	t.Run("filters by subscribed keys", func(t *testing.T) {
-		// Verify only subscribed keys trigger notifications
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			Data:       map[string]string{"key1": "old1", "key2": "old2"},
@@ -596,48 +569,25 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			Data:       map[string]string{"key1": "new1", "key2": "new2"},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{"key1"}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{"key1"}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Len(t, receivedEvent.Items, 1)
-		assert.Equal(t, "new1", receivedEvent.Items["key1"].Value)
-		assert.Nil(t, receivedEvent.Items["key2"])
+		assert.Len(t, items, 1)
+		assert.Equal(t, "new1", items["key1"].Value)
+		assert.Nil(t, items["key2"])
 	})
 
-	t.Run("no notification when nothing changed", func(t *testing.T) {
-		// Verify handler is NOT called when ConfigMap data is unchanged
-		handlerCalled := false
-		handler := func(_ context.Context, _ *configuration.UpdateEvent) error {
-			handlerCalled = true
-			return nil
-		}
-
+	t.Run("no changes when data is identical", func(t *testing.T) {
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			Data:       map[string]string{"key1": "val1"},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, cm, cm, "sub-1",
-		)
+		items := computeChangedItems([]string{}, cm, cm)
 
-		assert.False(t, handlerCalled)
+		assert.Empty(t, items)
 	})
 
 	t.Run("detects binaryData changes", func(t *testing.T) {
-		// Verify binaryData changes are detected and base64-encoded
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			BinaryData: map[string][]byte{"bin-key": {0x01}},
@@ -647,27 +597,15 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			BinaryData: map[string][]byte{"bin-key": {0x01, 0x02}},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Len(t, receivedEvent.Items, 1)
+		assert.Len(t, items, 1)
 		expected := base64.StdEncoding.EncodeToString([]byte{0x01, 0x02})
-		assert.Equal(t, expected, receivedEvent.Items["bin-key"].Value)
-		assert.Equal(t, "base64", receivedEvent.Items["bin-key"].Metadata["encoding"])
+		assert.Equal(t, expected, items["bin-key"].Value)
+		assert.Equal(t, "base64", items["bin-key"].Metadata["encoding"])
 	})
 
 	t.Run("detects deleted binaryData keys", func(t *testing.T) {
-		// Verify binaryData key deletion produces {"deleted": "true"} metadata
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			BinaryData: map[string][]byte{"bin-key": {0x01}},
@@ -677,25 +615,13 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			BinaryData: map[string][]byte{},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Equal(t, "", receivedEvent.Items["bin-key"].Value)
-		assert.Equal(t, "true", receivedEvent.Items["bin-key"].Metadata["deleted"])
+		assert.Equal(t, "", items["bin-key"].Value)
+		assert.Equal(t, "true", items["bin-key"].Metadata["deleted"])
 	})
 
 	t.Run("key moved from binaryData to data is not marked deleted", func(t *testing.T) {
-		// Verify a key moving from binaryData to data produces an update, not a delete
-		var receivedEvent *configuration.UpdateEvent
-		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
-			receivedEvent = e
-			return nil
-		}
-
 		oldCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 			BinaryData: map[string][]byte{"shared-key": {0x01}},
@@ -705,32 +631,150 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			Data:       map[string]string{"shared-key": "now-text"},
 		}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, oldCM, newCM, "sub-1",
-		)
+		items := computeChangedItems([]string{}, oldCM, newCM)
 
-		require.NotNil(t, receivedEvent)
-		assert.Len(t, receivedEvent.Items, 1)
-		assert.Equal(t, "now-text", receivedEvent.Items["shared-key"].Value)
-		// Must NOT have deleted metadata
-		assert.Empty(t, receivedEvent.Items["shared-key"].Metadata["deleted"])
+		assert.Len(t, items, 1)
+		assert.Equal(t, "now-text", items["shared-key"].Value)
+		assert.Empty(t, items["shared-key"].Metadata["deleted"])
+	})
+}
+
+func TestFanOutUpdate(t *testing.T) {
+	t.Run("dispatches to multiple subscribers", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
+
+		var mu sync.Mutex
+		receivedByID := map[string]*configuration.UpdateEvent{}
+
+		for _, id := range []string{"sub-1", "sub-2"} {
+			capturedID := id
+			store.subscribers.Store(id, &subscriber{
+				ctx:    t.Context(),
+				cancel: func() {},
+				req:    &configuration.SubscribeRequest{Keys: []string{}},
+				handler: func(_ context.Context, e *configuration.UpdateEvent) error {
+					mu.Lock()
+					receivedByID[capturedID] = e
+					mu.Unlock()
+					return nil
+				},
+			})
+		}
+
+		oldCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
+			Data:       map[string]string{"key1": "old"},
+		}
+		newCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
+			Data:       map[string]string{"key1": "new"},
+		}
+
+		store.fanOutUpdate(oldCM, newCM)
+
+		assert.Len(t, receivedByID, 2)
+		assert.Equal(t, "sub-1", receivedByID["sub-1"].ID)
+		assert.Equal(t, "sub-2", receivedByID["sub-2"].ID)
+		assert.Equal(t, "new", receivedByID["sub-1"].Items["key1"].Value)
+	})
+
+	t.Run("filters per subscriber key set", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
+
+		var mu sync.Mutex
+		receivedByID := map[string]*configuration.UpdateEvent{}
+
+		store.subscribers.Store("sub-key1", &subscriber{
+			ctx:    t.Context(),
+			cancel: func() {},
+			req:    &configuration.SubscribeRequest{Keys: []string{"key1"}},
+			handler: func(_ context.Context, e *configuration.UpdateEvent) error {
+				mu.Lock()
+				receivedByID["sub-key1"] = e
+				mu.Unlock()
+				return nil
+			},
+		})
+		store.subscribers.Store("sub-key2", &subscriber{
+			ctx:    t.Context(),
+			cancel: func() {},
+			req:    &configuration.SubscribeRequest{Keys: []string{"key2"}},
+			handler: func(_ context.Context, e *configuration.UpdateEvent) error {
+				mu.Lock()
+				receivedByID["sub-key2"] = e
+				mu.Unlock()
+				return nil
+			},
+		})
+
+		oldCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
+			Data:       map[string]string{"key1": "old1", "key2": "old2"},
+		}
+		newCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
+			Data:       map[string]string{"key1": "new1", "key2": "old2"}, // only key1 changed
+		}
+
+		store.fanOutUpdate(oldCM, newCM)
+
+		assert.Contains(t, receivedByID, "sub-key1")
+		assert.NotContains(t, receivedByID, "sub-key2") // key2 didn't change
+	})
+
+	t.Run("skips cancelled subscribers", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
+
+		cancelledCtx, cancel := context.WithCancel(t.Context())
+		cancel() // cancel immediately
+
+		handlerCalled := false
+		store.subscribers.Store("cancelled-sub", &subscriber{
+			ctx:    cancelledCtx,
+			cancel: cancel,
+			req:    &configuration.SubscribeRequest{Keys: []string{}},
+			handler: func(_ context.Context, _ *configuration.UpdateEvent) error {
+				handlerCalled = true
+				return nil
+			},
+		})
+
+		oldCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
+			Data:       map[string]string{"key1": "old"},
+		}
+		newCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
+			Data:       map[string]string{"key1": "new"},
+		}
+
+		store.fanOutUpdate(oldCM, newCM)
+
+		assert.False(t, handlerCalled)
+		// Verify the cancelled subscriber was cleaned up
+		_, exists := store.subscribers.Load("cancelled-sub")
+		assert.False(t, exists)
 	})
 
 	t.Run("non-ConfigMap objects are ignored", func(t *testing.T) {
-		// Verify handler is not called when objects are not ConfigMaps
-		handlerCalled := false
-		handler := func(_ context.Context, _ *configuration.UpdateEvent) error {
-			handlerCalled = true
-			return nil
-		}
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
 
-		store.handleConfigMapUpdate(
-			t.Context(),
-			&configuration.SubscribeRequest{Keys: []string{}},
-			handler, "not-a-configmap", "not-a-configmap", "sub-1",
-		)
+		handlerCalled := false
+		store.subscribers.Store("sub-1", &subscriber{
+			ctx:    t.Context(),
+			cancel: func() {},
+			req:    &configuration.SubscribeRequest{Keys: []string{}},
+			handler: func(_ context.Context, _ *configuration.UpdateEvent) error {
+				handlerCalled = true
+				return nil
+			},
+		})
+
+		store.fanOutUpdate("not-a-configmap", "not-a-configmap")
 
 		assert.False(t, handlerCalled)
 	})

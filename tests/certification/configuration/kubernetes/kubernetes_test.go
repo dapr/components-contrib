@@ -15,6 +15,7 @@ package kubernetes_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -105,11 +106,15 @@ func TestKubernetes(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Give the informer time to sync
-		time.Sleep(2 * time.Second)
-
-		// Get specific keys
-		items, err := client.GetConfigurationItems(ctx, storeName, []string{key1})
+		// Poll until the sidecar returns the expected keys
+		var items map[string]*dapr.ConfigurationItem
+		for attempt := 0; attempt < 30; attempt++ {
+			items, err = client.GetConfigurationItems(ctx, storeName, []string{key1})
+			if err == nil && len(items) == 1 {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
 		require.NoError(t, err)
 		require.Len(t, items, 1)
 		require.Equal(t, val1, items[key1].Value)
@@ -144,11 +149,43 @@ func TestKubernetes(t *testing.T) {
 						item.Version = ""
 					}
 					updateEventJSON, err := json.Marshal(updateEvent)
-					require.NoError(t, err)
+					if err != nil {
+						log.Errorf("failed to marshal update event: %v", err)
+						return
+					}
 					message.Observe(string(updateEventJSON))
 				})
 			subscribeIDs = append(subscribeIDs, subID)
 			return errSubscribe
+		}
+	}
+
+	// verifySubscriberReady confirms the subscription is active by sending a
+	// probe update and waiting for the notification, avoiding a fixed sleep.
+	verifySubscriberReady := func(messages *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages.Reset()
+
+			probeEvent := configuration.UpdateEvent{
+				Items: map[string]*configuration.Item{
+					key1: {Value: "readiness-probe", Metadata: map[string]string{}},
+				},
+			}
+			probeEventJSON, err := json.Marshal(probeEvent)
+			if err != nil {
+				return fmt.Errorf("failed to marshal readiness probe event: %w", err)
+			}
+			messages.Expect(string(probeEventJSON))
+
+			err = updater.UpdateKey(map[string]*configuration.Item{
+				key1: {Value: "readiness-probe"},
+			})
+			if err != nil {
+				return fmt.Errorf("failed to update readiness probe key: %w", err)
+			}
+
+			messages.Assert(t, 30*time.Second)
+			return nil
 		}
 	}
 
@@ -163,11 +200,14 @@ func TestKubernetes(t *testing.T) {
 					key1: {Value: "updated-val1", Metadata: map[string]string{}},
 				},
 			}
-			updateEventJSON, _ := json.Marshal(updateEvent)
+			updateEventJSON, err := json.Marshal(updateEvent)
+			if err != nil {
+				return fmt.Errorf("failed to marshal expected update event: %w", err)
+			}
 			messages.Expect(string(updateEventJSON))
 
 			// Update the key
-			err := updater.UpdateKey(map[string]*configuration.Item{
+			err = updater.UpdateKey(map[string]*configuration.Item{
 				key1: {Value: "updated-val1"},
 			})
 			require.NoError(t, err)
@@ -188,11 +228,14 @@ func TestKubernetes(t *testing.T) {
 					key2: {Value: "", Metadata: map[string]string{"deleted": "true"}},
 				},
 			}
-			updateEventJSON, _ := json.Marshal(updateEvent)
+			updateEventJSON, err := json.Marshal(updateEvent)
+			if err != nil {
+				return fmt.Errorf("failed to marshal expected delete event: %w", err)
+			}
 			messages.Expect(string(updateEventJSON))
 
 			// Delete the key
-			err := updater.DeleteKey([]string{key2})
+			err = updater.DeleteKey([]string{key2})
 			require.NoError(t, err)
 
 			messages.Assert(t, 30*time.Second)
@@ -239,7 +282,8 @@ func TestKubernetes(t *testing.T) {
 		Step("test get", testGet).
 		// Subscribe and test update notifications
 		Step("start subscriber", subscribeFn([]string{key1, key2}, messageWatcher)).
-		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
+		Step("verify subscriber ready", verifySubscriberReady(messageWatcher)).
+		Step("reset", flow.Reset(messageWatcher)).
 		Step("test subscribe updates", testSubscribe(messageWatcher)).
 		Step("reset", flow.Reset(messageWatcher)).
 		// Test delete notifications

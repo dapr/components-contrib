@@ -16,22 +16,14 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"regexp"
+	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/dapr/components-contrib/configuration"
 	kitmd "github.com/dapr/kit/metadata"
 )
-
-// validDNS1123Subdomain matches DNS subdomain names (ConfigMap names): lowercase alphanumeric,
-// '-' or '.', must start and end with alphanumeric, max 253 chars.
-var validDNS1123Subdomain = regexp.MustCompile(`^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$`)
-
-// validDNS1123Label matches DNS labels (namespace names): lowercase alphanumeric or '-',
-// must start and end with alphanumeric, max 63 chars.
-var validDNS1123Label = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$`)
-
-const maxSubdomainLen = 253
 
 type metadata struct {
 	Namespace      string        `mapstructure:"namespace"`
@@ -53,8 +45,8 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 		return errors.New("configMapName is required")
 	}
 
-	if len(m.ConfigMapName) > maxSubdomainLen || !validDNS1123Subdomain.MatchString(m.ConfigMapName) {
-		return fmt.Errorf("configMapName %q is not a valid Kubernetes resource name (must be a DNS subdomain)", m.ConfigMapName)
+	if errs := validation.IsDNS1123Subdomain(m.ConfigMapName); len(errs) > 0 {
+		return fmt.Errorf("configMapName %q is not a valid Kubernetes resource name: %s", m.ConfigMapName, strings.Join(errs, "; "))
 	}
 
 	m.namespaceExplicit = m.Namespace != ""
@@ -62,8 +54,8 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 		m.Namespace = "default"
 	}
 
-	if !validDNS1123Label.MatchString(m.Namespace) {
-		return fmt.Errorf("namespace %q is not a valid Kubernetes namespace name (must be a DNS label)", m.Namespace)
+	if errs := validation.IsDNS1123Label(m.Namespace); len(errs) > 0 {
+		return fmt.Errorf("namespace %q is not a valid Kubernetes namespace name: %s", m.Namespace, strings.Join(errs, "; "))
 	}
 
 	return nil

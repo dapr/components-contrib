@@ -267,6 +267,12 @@ const components = {
         certification: true,
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
+    'configuration.kubernetes': {
+        certification: true,
+        requireKind: true,
+        certificationSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
+    },
     'configuration.kubernetes.kind': {
         conformance: true,
         requireKind: true,

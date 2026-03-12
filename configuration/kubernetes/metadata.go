@@ -23,14 +23,25 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
-// RFC 1123 DNS label: lowercase alphanumeric or '-', must start and end with alphanumeric.
-var validKubernetesName = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$`)
+// validDNS1123Subdomain matches DNS subdomain names (ConfigMap names): lowercase alphanumeric,
+// '-' or '.', must start and end with alphanumeric, max 253 chars.
+var validDNS1123Subdomain = regexp.MustCompile(`^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$`)
+
+// validDNS1123Label matches DNS labels (namespace names): lowercase alphanumeric or '-',
+// must start and end with alphanumeric, max 63 chars.
+var validDNS1123Label = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$`)
+
+const maxSubdomainLen = 253
 
 type metadata struct {
 	Namespace      string        `mapstructure:"namespace"`
 	ConfigMapName  string        `mapstructure:"configMapName"`
 	KubeconfigPath string        `mapstructure:"kubeconfigPath"`
 	ResyncPeriod   time.Duration `mapstructure:"resyncPeriod"`
+
+	// namespaceExplicit tracks whether the namespace was explicitly set in
+	// component metadata, to distinguish from the "default" fallback.
+	namespaceExplicit bool
 }
 
 func (m *metadata) parse(meta configuration.Metadata) error {
@@ -42,16 +53,17 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 		return errors.New("configMapName is required")
 	}
 
-	if !validKubernetesName.MatchString(m.ConfigMapName) {
-		return fmt.Errorf("configMapName %q is not a valid Kubernetes resource name", m.ConfigMapName)
+	if len(m.ConfigMapName) > maxSubdomainLen || !validDNS1123Subdomain.MatchString(m.ConfigMapName) {
+		return fmt.Errorf("configMapName %q is not a valid Kubernetes resource name (must be a DNS subdomain)", m.ConfigMapName)
 	}
 
+	m.namespaceExplicit = m.Namespace != ""
 	if m.Namespace == "" {
 		m.Namespace = "default"
 	}
 
-	if !validKubernetesName.MatchString(m.Namespace) {
-		return fmt.Errorf("namespace %q is not a valid Kubernetes namespace name", m.Namespace)
+	if !validDNS1123Label.MatchString(m.Namespace) {
+		return fmt.Errorf("namespace %q is not a valid Kubernetes namespace name (must be a DNS label)", m.Namespace)
 	}
 
 	return nil

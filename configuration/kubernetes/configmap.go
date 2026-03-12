@@ -64,19 +64,21 @@ func (s *ConfigurationStore) Init(ctx context.Context, meta configuration.Metada
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	kubeconfigPath := s.metadata.KubeconfigPath
-	if kubeconfigPath == "" {
-		kubeconfigPath = kubeclient.GetKubeconfigPath(s.logger, os.Args)
-	}
+	if s.kubeClient == nil {
+		kubeconfigPath := s.metadata.KubeconfigPath
+		if kubeconfigPath == "" {
+			kubeconfigPath = kubeclient.GetKubeconfigPath(s.logger, os.Args)
+		}
 
-	client, err := kubeclient.GetKubeClient(kubeconfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to create Kubernetes client: %w", err)
+		client, err := kubeclient.GetKubeClient(kubeconfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to create Kubernetes client: %w", err)
+		}
+		s.kubeClient = client
 	}
-	s.kubeClient = client
 
 	ns := s.resolveNamespace(nil)
-	_, err = s.kubeClient.CoreV1().ConfigMaps(ns).Get(ctx, s.metadata.ConfigMapName, metav1.GetOptions{})
+	_, err := s.kubeClient.CoreV1().ConfigMaps(ns).Get(ctx, s.metadata.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get ConfigMap %q in namespace %q: %w", s.metadata.ConfigMapName, ns, err)
 	}
@@ -223,19 +225,6 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		}
 	}
 
-	// Detect deleted keys from data
-	for k := range oldCM.Data {
-		if _, exists := newCM.Data[k]; !exists {
-			if isSubscribedKey(req.Keys, k) {
-				changedItems[k] = &configuration.Item{
-					Value:    "",
-					Version:  newCM.ResourceVersion,
-					Metadata: map[string]string{"deleted": "true"},
-				}
-			}
-		}
-	}
-
 	// Detect added or modified keys in binaryData
 	for k, newVal := range newCM.BinaryData {
 		oldVal, existed := oldCM.BinaryData[k]
@@ -250,9 +239,20 @@ func (s *ConfigurationStore) handleConfigMapUpdate(
 		}
 	}
 
-	// Detect deleted keys from binaryData
+	// Detect deleted keys: a key is deleted only if it existed in old data or
+	// binaryData and is now absent from BOTH new data and binaryData. This
+	// prevents a false deletion when a key moves between data and binaryData.
+	allOldKeys := make(map[string]struct{})
+	for k := range oldCM.Data {
+		allOldKeys[k] = struct{}{}
+	}
 	for k := range oldCM.BinaryData {
-		if _, exists := newCM.BinaryData[k]; !exists {
+		allOldKeys[k] = struct{}{}
+	}
+	for k := range allOldKeys {
+		_, inNewData := newCM.Data[k]
+		_, inNewBinary := newCM.BinaryData[k]
+		if !inNewData && !inNewBinary {
 			if isSubscribedKey(req.Keys, k) {
 				changedItems[k] = &configuration.Item{
 					Value:    "",
@@ -302,13 +302,17 @@ func (s *ConfigurationStore) Close() error {
 
 func (s *ConfigurationStore) resolveNamespace(requestMetadata map[string]string) string {
 	if ns, ok := requestMetadata["namespace"]; ok && ns != "" {
-		if validKubernetesName.MatchString(ns) {
+		if validDNS1123Label.MatchString(ns) {
 			return ns
 		}
 		s.logger.Warnf("ignoring invalid namespace override %q in request metadata", ns)
 	}
-	if ns := os.Getenv("NAMESPACE"); ns != "" {
-		return ns
+	// Use the NAMESPACE env var only when the component metadata did not
+	// explicitly set a namespace value.
+	if !s.metadata.namespaceExplicit {
+		if ns := os.Getenv("NAMESPACE"); ns != "" {
+			return ns
+		}
 	}
 	return s.metadata.Namespace
 }

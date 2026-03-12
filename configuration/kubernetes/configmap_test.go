@@ -111,6 +111,19 @@ func TestMetadata_Parse(t *testing.T) {
 		assert.Equal(t, "default", m.Namespace)
 	})
 
+	t.Run("dotted configMapName is valid (DNS subdomain)", func(t *testing.T) {
+		var m metadata
+		err := m.parse(configuration.Metadata{
+			Base: contribMetadata.Base{
+				Properties: map[string]string{
+					"configMapName": "my.dotted.config",
+				},
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "my.dotted.config", m.ConfigMapName)
+	})
+
 	t.Run("invalid configMapName is rejected", func(t *testing.T) {
 		var m metadata
 		err := m.parse(configuration.Metadata{
@@ -122,6 +135,20 @@ func TestMetadata_Parse(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not a valid Kubernetes resource name")
+	})
+
+	t.Run("dotted namespace is rejected (must be DNS label)", func(t *testing.T) {
+		var m metadata
+		err := m.parse(configuration.Metadata{
+			Base: contribMetadata.Base{
+				Properties: map[string]string{
+					"configMapName": "my-config",
+					"namespace":     "my.namespace",
+				},
+			},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a valid Kubernetes namespace name")
 	})
 
 	t.Run("invalid namespace is rejected", func(t *testing.T) {
@@ -136,6 +163,33 @@ func TestMetadata_Parse(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not a valid Kubernetes namespace name")
+	})
+
+	t.Run("tracks explicit namespace", func(t *testing.T) {
+		var m metadata
+		err := m.parse(configuration.Metadata{
+			Base: contribMetadata.Base{
+				Properties: map[string]string{
+					"configMapName": "my-config",
+					"namespace":     "production",
+				},
+			},
+		})
+		require.NoError(t, err)
+		assert.True(t, m.namespaceExplicit)
+	})
+
+	t.Run("tracks implicit namespace", func(t *testing.T) {
+		var m metadata
+		err := m.parse(configuration.Metadata{
+			Base: contribMetadata.Base{
+				Properties: map[string]string{
+					"configMapName": "my-config",
+				},
+			},
+		})
+		require.NoError(t, err)
+		assert.False(t, m.namespaceExplicit)
 	})
 
 	t.Run("resyncPeriod is parsed", func(t *testing.T) {
@@ -156,23 +210,50 @@ func TestMetadata_Parse(t *testing.T) {
 func TestInit_ConfigMapNotFound(t *testing.T) {
 	// Init should fail when the ConfigMap does not exist in the cluster
 	store := newTestStore(t) // no ConfigMaps pre-created
-	store.metadata = metadata{ConfigMapName: "nonexistent", Namespace: "default"}
 
-	ns := store.resolveNamespace(nil)
-	_, err := store.kubeClient.CoreV1().ConfigMaps(ns).Get(t.Context(), store.metadata.ConfigMapName, metav1.GetOptions{})
+	err := store.Init(t.Context(), configuration.Metadata{
+		Base: contribMetadata.Base{
+			Properties: map[string]string{
+				"configMapName": "nonexistent",
+				"namespace":     "default",
+			},
+		},
+	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	assert.Contains(t, err.Error(), "failed to get ConfigMap")
 }
 
 func TestInit_ConfigMapExists(t *testing.T) {
-	// Verify the ConfigMap existence check passes when the ConfigMap exists
+	// Verify Init succeeds when the ConfigMap exists
 	cm := testConfigMap()
 	store := newTestStore(t, cm)
-	store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default"}
 
-	ns := store.resolveNamespace(nil)
-	_, err := store.kubeClient.CoreV1().ConfigMaps(ns).Get(t.Context(), store.metadata.ConfigMapName, metav1.GetOptions{})
+	err := store.Init(t.Context(), configuration.Metadata{
+		Base: contribMetadata.Base{
+			Properties: map[string]string{
+				"configMapName": "my-config",
+				"namespace":     "default",
+			},
+		},
+	})
 	require.NoError(t, err)
+	assert.Equal(t, "my-config", store.metadata.ConfigMapName)
+	assert.Equal(t, "default", store.metadata.Namespace)
+}
+
+func TestInit_InvalidMetadata(t *testing.T) {
+	// Verify Init fails on invalid metadata (missing configMapName)
+	store := newTestStore(t)
+
+	err := store.Init(t.Context(), configuration.Metadata{
+		Base: contribMetadata.Base{
+			Properties: map[string]string{
+				"namespace": "default",
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configMapName is required")
 }
 
 func TestGet_AllKeys(t *testing.T) {
@@ -366,27 +447,44 @@ func TestClose_PreventsFurtherSubscriptions(t *testing.T) {
 }
 
 func TestNamespaceResolution(t *testing.T) {
-	store := newTestStore(t)
-	store.metadata = metadata{ConfigMapName: "my-config", Namespace: "component-ns"}
-
 	t.Run("request metadata takes precedence", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "component-ns", namespaceExplicit: true}
+
 		ns := store.resolveNamespace(map[string]string{"namespace": "request-ns"})
 		assert.Equal(t, "request-ns", ns)
 	})
 
-	t.Run("env var fallback", func(t *testing.T) {
+	t.Run("env var fallback when namespace not explicit", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "default", namespaceExplicit: false}
+
 		t.Setenv("NAMESPACE", "env-ns")
 		ns := store.resolveNamespace(map[string]string{})
 		assert.Equal(t, "env-ns", ns)
 	})
 
+	t.Run("env var ignored when namespace is explicit", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "component-ns", namespaceExplicit: true}
+
+		t.Setenv("NAMESPACE", "env-ns")
+		ns := store.resolveNamespace(map[string]string{})
+		assert.Equal(t, "component-ns", ns)
+	})
+
 	t.Run("component metadata default", func(t *testing.T) {
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "component-ns", namespaceExplicit: true}
+
 		ns := store.resolveNamespace(map[string]string{})
 		assert.Equal(t, "component-ns", ns)
 	})
 
 	t.Run("invalid namespace override falls back", func(t *testing.T) {
-		// Verify invalid namespace in request metadata is rejected and falls back to component metadata
+		store := newTestStore(t)
+		store.metadata = metadata{ConfigMapName: "my-config", Namespace: "component-ns", namespaceExplicit: true}
+
 		ns := store.resolveNamespace(map[string]string{"namespace": "../../etc"})
 		assert.Equal(t, "component-ns", ns)
 	})
@@ -588,6 +686,36 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 		require.NotNil(t, receivedEvent)
 		assert.Equal(t, "", receivedEvent.Items["bin-key"].Value)
 		assert.Equal(t, "true", receivedEvent.Items["bin-key"].Metadata["deleted"])
+	})
+
+	t.Run("key moved from binaryData to data is not marked deleted", func(t *testing.T) {
+		// Verify a key moving from binaryData to data produces an update, not a delete
+		var receivedEvent *configuration.UpdateEvent
+		handler := func(_ context.Context, e *configuration.UpdateEvent) error {
+			receivedEvent = e
+			return nil
+		}
+
+		oldCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
+			BinaryData: map[string][]byte{"shared-key": {0x01}},
+		}
+		newCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
+			Data:       map[string]string{"shared-key": "now-text"},
+		}
+
+		store.handleConfigMapUpdate(
+			t.Context(),
+			&configuration.SubscribeRequest{Keys: []string{}},
+			handler, oldCM, newCM, "sub-1",
+		)
+
+		require.NotNil(t, receivedEvent)
+		assert.Len(t, receivedEvent.Items, 1)
+		assert.Equal(t, "now-text", receivedEvent.Items["shared-key"].Value)
+		// Must NOT have deleted metadata
+		assert.Empty(t, receivedEvent.Items["shared-key"].Metadata["deleted"])
 	})
 
 	t.Run("non-ConfigMap objects are ignored", func(t *testing.T) {

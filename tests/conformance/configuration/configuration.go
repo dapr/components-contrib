@@ -38,21 +38,27 @@ const (
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
 	postgresComponent      = "postgresql"
+	kubernetesComponent    = "kubernetes"
 	pgNotifyChannelKey     = "pgNotifyChannel"
 	pgNotifyChannel        = "config"
 )
 
 type TestConfig struct {
 	utils.CommonConfig
+	// IgnoreVersion indicates the component uses system-assigned versions
+	// (e.g. Kubernetes ConfigMap resourceVersion) rather than user-defined versions.
+	// When true, conformance tests compare items by value and metadata only.
+	IgnoreVersion bool
 }
 
 func NewTestConfig(componentName string, operations []string, configMap map[string]interface{}) TestConfig {
 	tc := TestConfig{
-		utils.CommonConfig{
+		CommonConfig: utils.CommonConfig{
 			ComponentType: "configuration",
 			ComponentName: componentName,
 			Operations:    utils.NewStringSet(operations...),
 		},
+		IgnoreVersion: strings.HasPrefix(componentName, kubernetesComponent),
 	}
 
 	return tc
@@ -109,12 +115,17 @@ func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter
 	return m, k
 }
 
-func updateAwaitingMessages(awaitingMessages map[string]map[string]struct{}, updatedValues map[string]*configuration.Item) {
+func updateAwaitingMessages(awaitingMessages map[string]map[string]struct{}, updatedValues map[string]*configuration.Item, ignoreVersion bool) {
 	for key, val := range updatedValues {
 		if _, ok := awaitingMessages[key]; !ok {
 			awaitingMessages[key] = make(map[string]struct{})
 		}
-		valString := getStringItem(val)
+		var valString string
+		if ignoreVersion {
+			valString = getStringItemIgnoreVersion(val)
+		} else {
+			valString = getStringItem(val)
+		}
 		awaitingMessages[key][valString] = struct{}{}
 	}
 }
@@ -130,6 +141,37 @@ func getStringItem(item *configuration.Item) string {
 	return string(jsonItem)
 }
 
+// getStringItemIgnoreVersion serializes an Item without the Version field,
+// for components where versions are system-assigned (e.g. Kubernetes ConfigMap resourceVersion).
+func getStringItemIgnoreVersion(item *configuration.Item) string {
+	if item == nil {
+		return ""
+	}
+	normalized := configuration.Item{
+		Value:    item.Value,
+		Metadata: item.Metadata,
+	}
+	jsonItem, err := json.Marshal(normalized)
+	if err != nil {
+		panic(err)
+	}
+	return string(jsonItem)
+}
+
+// assertItemsEqualValues compares items by Value and Metadata only, ignoring Version.
+func assertItemsEqualValues(t *testing.T, expected, actual map[string]*configuration.Item) {
+	t.Helper()
+	assert.Equal(t, len(expected), len(actual), "item count mismatch")
+	for k, expectedItem := range expected {
+		actualItem, ok := actual[k]
+		assert.True(t, ok, "missing key %s", k)
+		if ok {
+			assert.Equal(t, expectedItem.Value, actualItem.Value, "value mismatch for key %s", k)
+			assert.Equal(t, expectedItem.Metadata, actualItem.Metadata, "metadata mismatch for key %s", k)
+		}
+	}
+}
+
 func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig, component string) {
 	var subscribeIDs []string
 	initValues1 := make(map[string]*configuration.Item)
@@ -138,6 +180,8 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	newValues := make(map[string]*configuration.Item)
 	runID := strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
 	counter := 0
+
+	ignoreVersion := config.IgnoreVersion
 
 	awaitingMessages1 := make(map[string]map[string]struct{}, keyCount*4)
 	awaitingMessages2 := make(map[string]map[string]struct{}, keyCount*4)
@@ -189,7 +233,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			resp, err := store.Get(t.Context(), req)
 			require.NoError(t, err)
-			assert.Equal(t, initValues1, resp.Items)
+			if ignoreVersion {
+				assertItemsEqualValues(t, initValues1, resp.Items)
+			} else {
+				assert.Equal(t, initValues1, resp.Items)
+			}
 		})
 
 		t.Run("get with empty key list", func(t *testing.T) {
@@ -202,7 +250,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			resp, err := store.Get(t.Context(), req)
 			require.NoError(t, err)
-			assert.Equal(t, initValues, resp.Items)
+			if ignoreVersion {
+				assertItemsEqualValues(t, initValues, resp.Items)
+			} else {
+				assert.Equal(t, initValues, resp.Items)
+			}
 		})
 
 		t.Run("get with non-existent key list", func(t *testing.T) {
@@ -280,44 +332,51 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			errUpdate1 := updater.UpdateKey(initValues1)
 			require.NoError(t, errUpdate1, "expected no error on updating keys")
 
-			updateAwaitingMessages(awaitingMessages1, initValues1)
-			updateAwaitingMessages(awaitingMessages2, initValues1)
-			updateAwaitingMessages(awaitingMessages3, initValues1)
+			updateAwaitingMessages(awaitingMessages1, initValues1, ignoreVersion)
+			updateAwaitingMessages(awaitingMessages2, initValues1, ignoreVersion)
+			updateAwaitingMessages(awaitingMessages3, initValues1, ignoreVersion)
 
 			// Update initValues2
 			initValues2, counter = updateKeyValues(initValues2, runID, counter, v1)
 			errUpdate2 := updater.UpdateKey(initValues2)
 			require.NoError(t, errUpdate2, "expected no error on updating keys")
 
-			updateAwaitingMessages(awaitingMessages2, initValues2)
-			updateAwaitingMessages(awaitingMessages3, initValues2)
+			updateAwaitingMessages(awaitingMessages2, initValues2, ignoreVersion)
+			updateAwaitingMessages(awaitingMessages3, initValues2, ignoreVersion)
 
 			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)
 			require.NoError(t, errAdd, "expected no error on adding new keys")
 
-			updateAwaitingMessages(awaitingMessages3, newValues)
+			updateAwaitingMessages(awaitingMessages3, newValues, ignoreVersion)
 
-			verifyMessagesReceived(t, processedC1, awaitingMessages1)
-			verifyMessagesReceived(t, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC1, awaitingMessages1, ignoreVersion)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2, ignoreVersion)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3, ignoreVersion)
 		})
 
 		t.Run("delete keys and verify messages received", func(t *testing.T) {
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			require.NoError(t, errDelete, "expected no error on updating keys")
-			if !strings.HasPrefix(component, postgresComponent) {
+			if strings.HasPrefix(component, kubernetesComponent) {
+				// Kubernetes ConfigMap delete notifications include {"deleted": "true"} metadata
+				for k := range initValues2 {
+					initValues2[k] = &configuration.Item{
+						Metadata: map[string]string{"deleted": "true"},
+					}
+				}
+			} else if !strings.HasPrefix(component, postgresComponent) {
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{}
 				}
 			}
 
-			updateAwaitingMessages(awaitingMessages2, initValues2)
-			updateAwaitingMessages(awaitingMessages3, initValues2)
+			updateAwaitingMessages(awaitingMessages2, initValues2, ignoreVersion)
+			updateAwaitingMessages(awaitingMessages3, initValues2, ignoreVersion)
 
-			verifyMessagesReceived(t, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2, ignoreVersion)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3, ignoreVersion)
 		})
 	})
 
@@ -336,11 +395,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			errUpdate := updater.UpdateKey(initValues1)
 			require.NoError(t, errUpdate, "expected no error on updating keys")
 
-			updateAwaitingMessages(awaitingMessages2, initValues1)
-			updateAwaitingMessages(awaitingMessages3, initValues1)
+			updateAwaitingMessages(awaitingMessages2, initValues1, ignoreVersion)
+			updateAwaitingMessages(awaitingMessages3, initValues1, ignoreVersion)
 
-			verifyMessagesReceived(t, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2, ignoreVersion)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3, ignoreVersion)
 			verifyNoMessagesReceived(t, processedC1)
 		})
 
@@ -358,9 +417,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			errUpdate := updater.UpdateKey(initValues1)
 			require.NoError(t, errUpdate, "expected no error on updating keys")
 
-			updateAwaitingMessages(awaitingMessages3, initValues1)
+			updateAwaitingMessages(awaitingMessages3, initValues1, ignoreVersion)
 
-			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3, ignoreVersion)
 			verifyNoMessagesReceived(t, processedC2)
 		})
 
@@ -396,7 +455,7 @@ func verifyNoMessagesReceived(t *testing.T, processedChan chan *configuration.Up
 	}
 }
 
-func verifyMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}) {
+func verifyMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}, ignoreVersion bool) {
 	waiting := true
 	timeout := time.After(defaultMaxReadDuration)
 	for waiting {
@@ -406,7 +465,12 @@ func verifyMessagesReceived(t *testing.T, processedChan chan *configuration.Upda
 				items, keyExists := awaitingMessages[key]
 				assert.True(t, keyExists)
 
-				stringReceivedItem := getStringItem(receivedItem)
+				var stringReceivedItem string
+				if ignoreVersion {
+					stringReceivedItem = getStringItemIgnoreVersion(receivedItem)
+				} else {
+					stringReceivedItem = getStringItem(receivedItem)
+				}
 				_, itemExists := items[stringReceivedItem]
 				assert.True(t, itemExists)
 

@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: kubernetes
+version: v1
+status: alpha
+title: "Kubernetes ConfigMap"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/kubernetes-configmap-configuration-store/
+capabilities: []
+metadata:
+  - name: namespace
+    required: false
+    description: |
+      The Kubernetes namespace of the ConfigMap. Falls back to the NAMESPACE
+      environment variable, then to "default".
+    example: "my-namespace"
+    default: "default"
+    type: string
+  - name: configMapName
+    required: true
+    description: |
+      The name of the Kubernetes ConfigMap to use as the configuration source.
+    example: "my-app-config"
+    type: string
+  - name: kubeconfigPath
+    required: false
+    description: |
+      Path to a kubeconfig file. When running in-cluster, this is not needed.
+      When running outside the cluster, falls back to the KUBECONFIG env var,
+      then to ~/.kube/config.
+    example: "/path/to/kubeconfig"
+    type: string
+  - name: resyncPeriod
+    required: false
+    description: |
+      How often the informer fully re-syncs the ConfigMap state from the API
+      server as a consistency safety net, independent of watch events.
+      Set to "0" (default) to disable periodic resync and rely solely on
+      watch events. Set a duration (e.g. "10m") if you want a periodic
+      full re-read as a guard against missed events.
+    example: "10m"
+    default: "0"
+    type: duration

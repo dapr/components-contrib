@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: configstore
+spec:
+  type: configuration.kubernetes
+  version: v1
+  metadata:
+  - name: namespace
+    value: "default"
+  - name: configMapName
+    value: "dapr-conf-test"

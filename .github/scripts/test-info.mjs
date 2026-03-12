@@ -267,6 +267,12 @@ const components = {
         certification: true,
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
+    'configuration.kubernetes.kind': {
+        conformance: true,
+        requireKind: true,
+        conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
+    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [

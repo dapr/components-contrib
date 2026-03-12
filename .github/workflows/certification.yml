@@ -229,6 +229,10 @@ jobs:
         go-version-file: 'go.mod'
         cache: 'false'
 
+    - name: Start KinD
+      uses: helm/kind-action@v1.13.0
+      if: matrix.require-kind == 'true'
+
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
       run: |

@@ -38,6 +38,7 @@ type Mistral struct {
 func NewMistral(logger logger.Logger) conversation.Conversation {
 	m := &Mistral{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return m

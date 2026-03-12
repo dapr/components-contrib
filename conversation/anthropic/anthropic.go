@@ -36,6 +36,7 @@ type Anthropic struct {
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	a := &Anthropic{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return a

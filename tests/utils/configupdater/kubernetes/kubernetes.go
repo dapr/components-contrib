@@ -15,6 +15,7 @@ package kubernetes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -45,7 +46,7 @@ func NewKubernetesConfigUpdater(logger logger.Logger) configupdater.Updater {
 func (u *ConfigUpdater) Init(props map[string]string) error {
 	u.configMapName = props["configMapName"]
 	if u.configMapName == "" {
-		return fmt.Errorf("configMapName is required")
+		return errors.New("configMapName is required")
 	}
 
 	u.namespace = props["namespace"]

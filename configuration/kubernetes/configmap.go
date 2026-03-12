@@ -341,7 +341,7 @@ func (s *ConfigurationStore) Close() error {
 	defer s.lock.Unlock()
 
 	// Cancel all subscriber contexts.
-	s.subscribers.Range(func(key, value any) bool {
+	s.subscribers.Range(func(_, value any) bool {
 		value.(*subscriber).cancel()
 		return true
 	})

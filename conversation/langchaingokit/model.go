@@ -33,6 +33,7 @@ type LLM struct {
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
+	a.logger.Debugf("Calling LLM model: %s", a.model)
 	opts := getOptionsFromRequest(r, a.logger)
 
 	var messages []llms.MessageContent
@@ -48,6 +49,26 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
 	if err != nil {
 		return nil, err
+	}
+
+	// If tools were provided but the LLM returned neither content nor tool calls
+	// across any choice, treat it as a retriable error rather than silently succeeding.
+	if r.Tools != nil && len(*r.Tools) > 0 {
+		hasUsefulResponse := false
+		for _, output := range outputs {
+			for _, choice := range output.Choices {
+				if choice.Message.Content != "" || choice.Message.ToolCallRequest != nil {
+					hasUsefulResponse = true
+					break
+				}
+			}
+			if hasUsefulResponse {
+				break
+			}
+		}
+		if !hasUsefulResponse {
+			return nil, fmt.Errorf("LLM returned empty response with no tool calls despite %d tools being available", len(*r.Tools))
+		}
 	}
 
 	return &conversation.Response{

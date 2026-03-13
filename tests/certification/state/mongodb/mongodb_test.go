@@ -198,7 +198,7 @@ func TestMongoDB(t *testing.T) {
 			// Test pagination.
 			resp, err = store.KeysLike(ctx, &state.KeysLikeRequest{
 				Pattern:  sidecarName + "||keyslike-workflow||%||metadata",
-				PageSize: ptr.Of(2),
+				PageSize: ptr.Of(uint32(2)),
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Keys, 2)

@@ -293,9 +293,11 @@ func TestGetMongoDBMetadata(t *testing.T) {
 	})
 }
 
+// Compile-time assertion that MongoDB implements KeysLiker.
+var _ state.KeysLiker = (*MongoDB)(nil)
+
 func TestKeysLiker(t *testing.T) {
 	s := NewMongoDB(logger.NewLogger("test"))
-	var _ state.KeysLiker = s.(*MongoDB)
 	assert.True(t, state.FeatureKeysLike.IsPresent(s.Features()), "MongoDB should advertise FeatureKeysLike")
 }
 

@@ -777,9 +777,9 @@ func (m *MongoDB) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*st
 
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(recs)) > pageSize {
-		next := recs[pageSize].Key // first NOT returned
-		resp.ContinuationToken = &next
 		recs = recs[:pageSize]
+		next := recs[pageSize-1].Key // last returned; next query resumes with _id > this
+		resp.ContinuationToken = &next
 	}
 
 	for _, r := range recs {

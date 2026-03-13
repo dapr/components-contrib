@@ -23,3 +23,8 @@ metadata:
     required: true
     description: "The file name to write"
     example: "data.txt"
+  - name: fromTemp
+    description: "If true, resolves rootPath from the system-wide temporary directory."
+    type: bool
+    required: false
+    default: "false"

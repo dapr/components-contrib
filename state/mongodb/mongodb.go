@@ -412,9 +412,14 @@ func getFilterTTL() bson.D {
 	// Since MongoDB doesn't delete the document immediately when the TTL value
 	// is reached, we need to filter out the documents with TTL value less than
 	// the current time.
+	// Use $ifNull so that documents missing the _ttl field entirely are treated
+	// the same as documents with _ttl explicitly set to null.
 	return bson.D{{Key: "$expr", Value: bson.D{
 		{Key: "$or", Value: bson.A{
-			bson.D{{Key: "$eq", Value: bson.A{"$_ttl", primitive.Null{}}}},
+			bson.D{{Key: "$eq", Value: bson.A{
+				bson.D{{Key: "$ifNull", Value: bson.A{"$_ttl", primitive.Null{}}}},
+				primitive.Null{},
+			}}},
 			bson.D{{Key: "$gte", Value: bson.A{"$_ttl", "$$NOW"}}},
 		}},
 	}}}

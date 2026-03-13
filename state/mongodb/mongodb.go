@@ -121,6 +121,7 @@ func NewMongoDB(logger logger.Logger) state.Store {
 			state.FeatureTransactional,
 			state.FeatureQueryAPI,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		logger: logger,
 	}
@@ -717,7 +718,7 @@ func (m *MongoDB) Close() error {
 	return m.client.Disconnect(ctx)
 }
 
-func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+func (m *MongoDB) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
 	if len(req.Pattern) == 0 {
 		return nil, state.ErrKeysLikeEmptyPattern
 	}

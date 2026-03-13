@@ -20,6 +20,9 @@ Available component types:
 * [Configuration stores](configuration/README.md)
 * [Middlewares](middleware/README.md)
 * [Workflow services](workflows/README.md)
+* [Conversation](conversation/README.md)
+* [Cryptography](crypto/README.md)
+* [Distributed Lock](lock/README.md)
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 

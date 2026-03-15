@@ -167,7 +167,7 @@ func (d *StateStore) Features() []state.Feature {
 // Get retrieves a dynamoDB item.
 func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	input := &dynamodb.GetItemInput{
-		ConsistentRead: ptr.Of(req.Options.Consistency == state.Strong),
+		ConsistentRead: ptr.Of(req.Options.Consistency != state.Eventual),
 		TableName:      ptr.Of(d.table),
 		Key: map[string]types.AttributeValue{
 			d.partitionKey: &types.AttributeValueMemberS{

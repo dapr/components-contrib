@@ -137,6 +137,81 @@ func TestInit(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	t.Run("Get item with default consistency (should be strong)", func(t *testing.T) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				// 断言：未指定时，必须默认开启 ConsistentRead
+				assert.NotNil(t, params.ConsistentRead)
+				assert.True(t, *params.ConsistentRead)
+				return &dynamodb.GetItemOutput{
+					Item: map[string]types.AttributeValue{},
+				}, nil
+			},
+		}
+		s := StateStore{
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
+		}
+		req := &state.GetRequest{
+			Key: "someKey",
+			// 不显式设置 Options.Consistency
+		}
+		_, err := s.Get(t.Context(), req)
+		require.NoError(t, err)
+	})
+
+	t.Run("Get item with strong consistency", func(t *testing.T) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				// 断言：指定 strong 时，必须开启 ConsistentRead
+				assert.NotNil(t, params.ConsistentRead)
+				assert.True(t, *params.ConsistentRead)
+				return &dynamodb.GetItemOutput{
+					Item: map[string]types.AttributeValue{},
+				}, nil
+			},
+		}
+		s := StateStore{
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
+		}
+		req := &state.GetRequest{
+			Key: "someKey",
+			Options: state.GetStateOption{
+				Consistency: state.Strong, // 显式指定强一致性
+			},
+		}
+		_, err := s.Get(t.Context(), req)
+		require.NoError(t, err)
+	})
+
+	t.Run("Get item with eventual consistency", func(t *testing.T) {
+		mockedDB := &awsMock.DynamoDBClient{
+			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				// 断言：指定 eventual 时，ConsistentRead 必须为 false
+				assert.NotNil(t, params.ConsistentRead)
+				assert.False(t, *params.ConsistentRead)
+				return &dynamodb.GetItemOutput{
+					Item: map[string]types.AttributeValue{},
+				}, nil
+			},
+		}
+		s := StateStore{
+			logger:         log,
+			dynamodbClient: mockedDB,
+			partitionKey:   defaultPartitionKeyName,
+		}
+		req := &state.GetRequest{
+			Key: "someKey",
+			Options: state.GetStateOption{
+				Consistency: state.Eventual, // 显式指定最终一致性
+			},
+		}
+		_, err := s.Get(t.Context(), req)
+		require.NoError(t, err)
+	})
 	t.Run("Successfully retrieve item", func(t *testing.T) {
 		mockedDB := &awsMock.DynamoDBClient{
 			GetItemFn: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {

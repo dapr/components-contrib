@@ -22,3 +22,10 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: endpoint
+    required: false
+    description: |
+      The URL of the Ollama server.
+    type: string
+    example: 'http://10.20.23.21:11434/v1'
+    default: 'http://localhost:11434/v1'

@@ -16,8 +16,11 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -56,6 +59,19 @@ type Metadata struct {
 	EmailBCC      string `mapstructure:"emailBCC"`
 	Subject       string `mapstructure:"subject"`
 	Priority      int    `mapstructure:"priority"`
+}
+
+// emailAttachment maps the attachment payload.
+type emailAttachment struct {
+	ContentType string `json:"content-type,omitempty"`
+	FileName    string `json:"filename"`
+	Data        string `json:"data"` // Base64 encoded file content
+}
+
+// emailPayload maps the new JSON payload structure supporting attachments.
+type emailPayload struct {
+	Body        string            `json:"body"`
+	Attachments []emailAttachment `json:"attachments"`
 }
 
 // NewSMTP returns a new smtp binding instance.
@@ -111,15 +127,41 @@ func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindin
 	msg.SetHeader("Subject", metadata.Subject)
 	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
 
-	body, err := strconv.Unquote(string(req.Data))
-
-	if err != nil {
-		// When data arrives over gRPC it's not quoted. Unquoting the original data will result in an error.
-		// Instead of unquoting it we'll just use the raw string as that one's already in the right format.
-
-		msg.SetBody("text/html", string(req.Data))
+	var rawData []byte
+	if unquoted, err := strconv.Unquote(string(req.Data)); err == nil {
+		rawData = []byte(unquoted)
 	} else {
-		msg.SetBody("text/html", body)
+		rawData = req.Data
+	}
+
+	var payload emailPayload
+	err = json.Unmarshal(rawData, &payload)
+
+	if err == nil && (len(payload.Attachments) > 0 || payload.Body != "") {
+		msg.SetBody("text/html", payload.Body)
+
+		for _, att := range payload.Attachments {
+			decodedData, decodeErr := base64.StdEncoding.DecodeString(att.Data)
+			if decodeErr != nil {
+				return nil, fmt.Errorf("smtp binding error: failed to decode base64 attachment %s: %w", att.FileName, decodeErr)
+			}
+
+			settings := []gomail.FileSetting{
+				gomail.SetCopyFunc(func(w io.Writer) error {
+					_, writeErr := w.Write(decodedData)
+					return writeErr
+				}),
+			}
+			if att.ContentType != "" {
+				settings = append(settings, gomail.SetHeader(map[string][]string{
+					"Content-Type": {att.ContentType},
+				}))
+			}
+
+			msg.Attach(att.FileName, settings...)
+		}
+	} else {
+		msg.SetBody("text/html", string(rawData))
 	}
 
 	// Send message

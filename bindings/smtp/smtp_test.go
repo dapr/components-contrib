@@ -14,6 +14,7 @@ limitations under the License.
 package smtp
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -319,5 +320,68 @@ func TestMergeWithRequestMetadata_invalidPriorityNotNumber(t *testing.T) {
 
 		assert.NotNil(t, mergedMeta)
 		require.Error(t, err)
+	})
+}
+
+func TestInvokeWithAttachments(t *testing.T) {
+	logger := logger.NewLogger("test")
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{
+		"host":      "127.0.0.1",
+		"port":      "2525",
+		"user":      "user@dapr.io",
+		"password":  "pass",
+		"emailFrom": "from@dapr.io",
+		"emailTo":   "to@dapr.io",
+		"subject":   "Test attachments",
+	}
+
+	s := NewSMTP(logger).(*Mailer)
+	err := s.Init(context.Background(), m)
+	require.NoError(t, err)
+
+	t.Run("Valid JSON payload with invalid base64 attachment", func(t *testing.T) {
+		req := &bindings.InvokeRequest{
+			Data: []byte(`{
+                "body": "<h1>Hello</h1>",
+                "attachments": [
+                    {
+                        "filename": "test.txt",
+                        "data": "!!!invalid_base64!!!",
+                        "content-type": "text/plain"
+                    }
+                ]
+            }`),
+		}
+		_, err := s.Invoke(context.Background(), req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode base64 attachment test.txt")
+	})
+
+	t.Run("Valid JSON payload with valid base64 attachment", func(t *testing.T) {
+		req := &bindings.InvokeRequest{
+			Data: []byte(`{
+                "body": "<h1>Hello</h1>",
+                "attachments": [
+                    {
+                        "filename": "test.txt",
+                        "data": "SGVsbG8gV29ybGQ=", 
+                        "content-type": "text/plain"
+                    }
+                ]
+            }`),
+		}
+		_, err := s.Invoke(context.Background(), req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sending email failed")
+	})
+
+	t.Run("Fallback to raw text body if JSON parsing fails", func(t *testing.T) {
+		req := &bindings.InvokeRequest{
+			Data: []byte(`Just a plain text body, not JSON`),
+		}
+		_, err := s.Invoke(context.Background(), req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sending email failed")
 	})
 }

@@ -27,4 +27,5 @@ metadata:
     description: |
       The URL of the Ollama server.
     type: string
-    example: 'http://127.0.0.1:11434/v1'
+    example: 'http://10.20.23.21:11434/v1'
+    default: 'http://localhost:11434/v1'

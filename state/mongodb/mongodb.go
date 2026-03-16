@@ -121,6 +121,7 @@ func NewMongoDB(logger logger.Logger) state.Store {
 			state.FeatureTransactional,
 			state.FeatureQueryAPI,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		logger: logger,
 	}
@@ -411,9 +412,14 @@ func getFilterTTL() bson.D {
 	// Since MongoDB doesn't delete the document immediately when the TTL value
 	// is reached, we need to filter out the documents with TTL value less than
 	// the current time.
+	// Use $ifNull so that documents missing the _ttl field entirely are treated
+	// the same as documents with _ttl explicitly set to null.
 	return bson.D{{Key: "$expr", Value: bson.D{
 		{Key: "$or", Value: bson.A{
-			bson.D{{Key: "$eq", Value: bson.A{"$_ttl", primitive.Null{}}}},
+			bson.D{{Key: "$eq", Value: bson.A{
+				bson.D{{Key: "$ifNull", Value: bson.A{"$_ttl", primitive.Null{}}}},
+				primitive.Null{},
+			}}},
 			bson.D{{Key: "$gte", Value: bson.A{"$_ttl", "$$NOW"}}},
 		}},
 	}}}
@@ -717,7 +723,7 @@ func (m *MongoDB) Close() error {
 	return m.client.Disconnect(ctx)
 }
 
-func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+func (m *MongoDB) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
 	if len(req.Pattern) == 0 {
 		return nil, state.ErrKeysLikeEmptyPattern
 	}
@@ -776,9 +782,9 @@ func (m *MongoDB) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*sta
 
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(recs)) > pageSize {
-		next := recs[pageSize].Key // first NOT returned
-		resp.ContinuationToken = &next
 		recs = recs[:pageSize]
+		next := recs[pageSize-1].Key // last returned; next query resumes with _id > this
+		resp.ContinuationToken = &next
 	}
 
 	for _, r := range recs {

@@ -670,6 +670,6 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(msg),
+		Data: []byte(fmt.Sprintf("object %s copied to %s/%s", key, payload.DestinationBucket, dstKey)),
 	}, nil
 }

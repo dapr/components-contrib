@@ -152,7 +152,7 @@ func TestMongoDB(t *testing.T) {
 
 	keysLikeTest := func(sidecarName string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
-			cl, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/?directConnection=true"))
+			cl, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
 			require.NoError(t, err)
 			defer cl.Disconnect(ctx)
 

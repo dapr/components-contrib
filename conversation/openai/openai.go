@@ -39,6 +39,7 @@ type OpenAI struct {
 func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	o := &OpenAI{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o

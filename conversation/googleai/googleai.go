@@ -36,6 +36,7 @@ type GoogleAI struct {
 func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	g := &GoogleAI{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return g

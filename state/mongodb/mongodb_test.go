@@ -293,6 +293,79 @@ func TestGetMongoDBMetadata(t *testing.T) {
 	})
 }
 
+// Compile-time assertion that MongoDB implements KeysLiker.
+var _ state.KeysLiker = (*MongoDB)(nil)
+
+func TestKeysLiker(t *testing.T) {
+	s := NewMongoDB(logger.NewLogger("test"))
+	assert.True(t, state.FeatureKeysLike.IsPresent(s.Features()), "MongoDB should advertise FeatureKeysLike")
+}
+
+func TestLikeToRegex(t *testing.T) {
+	tests := map[string]struct {
+		pattern string
+		match   []string
+		noMatch []string
+	}{
+		"wildcard all": {
+			pattern: "%",
+			match:   []string{"abc", "x", ""},
+		},
+		"prefix": {
+			pattern: "abc%",
+			match:   []string{"abc", "abcdef"},
+			noMatch: []string{"xabc", "ab"},
+		},
+		"suffix": {
+			pattern: "%xyz",
+			match:   []string{"xyz", "abcxyz"},
+			noMatch: []string{"xyza"},
+		},
+		"contains": {
+			pattern: "%mid%",
+			match:   []string{"mid", "xxmidyy"},
+			noMatch: []string{"abc"},
+		},
+		"single char wildcard": {
+			pattern: "a_c",
+			match:   []string{"abc", "axc"},
+			noMatch: []string{"ac", "abbc"},
+		},
+		"escaped percent": {
+			pattern: `\%lit`,
+			match:   []string{"%lit"},
+			noMatch: []string{"xxlit"},
+		},
+		"escaped underscore": {
+			pattern: `a\_b`,
+			match:   []string{"a_b"},
+			noMatch: []string{"axb"},
+		},
+		"pipe chars": {
+			pattern: "a||b||%||meta",
+			match:   []string{"a||b||xyz||meta"},
+			noMatch: []string{"a|b|c|meta"},
+		},
+		"workflow pattern": {
+			pattern: `app||dapr.internal.ns.app.workflow||%||metadata`,
+			match:   []string{"app||dapr.internal.ns.app.workflow||inst1||metadata"},
+			noMatch: []string{"app||dapr.internal.ns.app.workflow||inst1||history"},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			re, err := likeToRegex(tc.pattern)
+			require.NoError(t, err)
+			for _, s := range tc.match {
+				assert.True(t, re.MatchString(s), "expected %q to match pattern %q", s, tc.pattern)
+			}
+			for _, s := range tc.noMatch {
+				assert.False(t, re.MatchString(s), "expected %q to NOT match pattern %q", s, tc.pattern)
+			}
+		})
+	}
+}
+
 func TestGoroutineLeak(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

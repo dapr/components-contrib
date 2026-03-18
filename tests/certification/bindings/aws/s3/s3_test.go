@@ -68,6 +68,10 @@ func TestAWSS3CertificationTests(t *testing.T) {
 	t.Run("S3SBase64", func(t *testing.T) {
 		S3SBase64(t)
 	})
+
+	t.Run("S3SBulkOperations", func(t *testing.T) {
+		S3SBulkOperations(t)
+	})
 }
 
 // createObjectRequest is used to make a common binding request for create operation.
@@ -401,6 +405,165 @@ func S3SBase64(t *testing.T) {
 			)...,
 		)).
 		Step("Create blob from file get  encode base64", testCreateFromFileGetEncodeBase64()).
+		Run()
+}
+
+// Verify bulk operations (bulkCreate, bulkGet, bulkDelete).
+func S3SBulkOperations(t *testing.T) {
+	ports, err := dapr_testing.GetFreePorts(2)
+	require.NoError(t, err)
+
+	currentGRPCPort := ports[0]
+	currentHTTPPort := ports[1]
+
+	testBulkCreateGetDelete := func(ctx flow.Context) error {
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// Bulk create 3 objects
+		bulkCreateData := `{
+			"items": [
+				{"key": "bulk-a.txt", "data": "content-a"},
+				{"key": "bulk-b.txt", "data": "content-b"},
+				{"key": "bulk-c.txt", "data": "content-c"}
+			],
+			"concurrency": 2
+		}`
+		createReq := &daprsdk.InvokeBindingRequest{
+			Name:      bindingsMetadataName,
+			Operation: "bulkCreate",
+			Data:      []byte(bulkCreateData),
+			Metadata:  map[string]string{},
+		}
+		createOut, invokeErr := client.InvokeBinding(ctx, createReq)
+		require.NoError(t, invokeErr)
+
+		var createResults []struct {
+			Key      string `json:"key"`
+			Location string `json:"location,omitempty"`
+			Error    string `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal(createOut.Data, &createResults))
+		require.Len(t, createResults, 3)
+		for _, r := range createResults {
+			assert.Empty(t, r.Error, "expected no error for key %s", r.Key)
+			assert.NotEmpty(t, r.Location, "expected location for key %s", r.Key)
+		}
+
+		// Bulk get the 3 objects
+		bulkGetData := `{
+			"items": [
+				{"key": "bulk-a.txt"},
+				{"key": "bulk-b.txt"},
+				{"key": "bulk-c.txt"}
+			],
+			"concurrency": 2
+		}`
+		getReq := &daprsdk.InvokeBindingRequest{
+			Name:      bindingsMetadataName,
+			Operation: "bulkGet",
+			Data:      []byte(bulkGetData),
+			Metadata:  map[string]string{},
+		}
+		getOut, invokeErr := client.InvokeBinding(ctx, getReq)
+		require.NoError(t, invokeErr)
+
+		var getResults []struct {
+			Key   string `json:"key"`
+			Data  []byte `json:"data,omitempty"`
+			Error string `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal(getOut.Data, &getResults))
+		require.Len(t, getResults, 3)
+		expectedContent := map[string]string{
+			"bulk-a.txt": "content-a",
+			"bulk-b.txt": "content-b",
+			"bulk-c.txt": "content-c",
+		}
+		for _, r := range getResults {
+			assert.Empty(t, r.Error, "expected no error for key %s", r.Key)
+			assert.Equal(t, expectedContent[r.Key], string(r.Data), "content mismatch for key %s", r.Key)
+		}
+
+		// Bulk get with a non-existent key (partial failure)
+		bulkGetMixedData := `{
+			"items": [
+				{"key": "bulk-a.txt"},
+				{"key": "does-not-exist.txt"}
+			]
+		}`
+		getMixedReq := &daprsdk.InvokeBindingRequest{
+			Name:      bindingsMetadataName,
+			Operation: "bulkGet",
+			Data:      []byte(bulkGetMixedData),
+			Metadata:  map[string]string{},
+		}
+		getMixedOut, invokeErr := client.InvokeBinding(ctx, getMixedReq)
+		require.NoError(t, invokeErr)
+
+		var mixedResults []struct {
+			Key   string `json:"key"`
+			Data  []byte `json:"data,omitempty"`
+			Error string `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal(getMixedOut.Data, &mixedResults))
+		require.Len(t, mixedResults, 2)
+		// Find results by key
+		for _, r := range mixedResults {
+			if r.Key == "bulk-a.txt" {
+				assert.Empty(t, r.Error)
+				assert.Equal(t, "content-a", string(r.Data))
+			} else {
+				assert.NotEmpty(t, r.Error, "expected error for non-existent key")
+			}
+		}
+
+		// Bulk delete all 3 objects
+		bulkDeleteData := `{
+			"keys": ["bulk-a.txt", "bulk-b.txt", "bulk-c.txt"]
+		}`
+		deleteReq := &daprsdk.InvokeBindingRequest{
+			Name:      bindingsMetadataName,
+			Operation: "bulkDelete",
+			Data:      []byte(bulkDeleteData),
+			Metadata:  map[string]string{},
+		}
+		deleteOut, invokeErr := client.InvokeBinding(ctx, deleteReq)
+		require.NoError(t, invokeErr)
+
+		var deleteResults []struct {
+			Key   string `json:"key"`
+			Error string `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal(deleteOut.Data, &deleteResults))
+		require.Len(t, deleteResults, 3)
+		for _, r := range deleteResults {
+			assert.Empty(t, r.Error, "expected no error for key %s", r.Key)
+		}
+
+		// Confirm deletion by trying to get them individually
+		for _, key := range []string{"bulk-a.txt", "bulk-b.txt", "bulk-c.txt"} {
+			_, getErr := getObjectRequest(ctx, client, key, false)
+			assert.Error(t, getErr)
+			assert.Contains(t, getErr.Error(), objNotFound)
+		}
+
+		return nil
+	}
+
+	flow.New(t, "AWS S3 binding bulk operations").
+		Step(sidecar.Run(sidecarName,
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/basic"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
+		)).
+		Step("BulkCreate/BulkGet/BulkDelete S3 Objects", testBulkCreateGetDelete).
 		Run()
 }
 

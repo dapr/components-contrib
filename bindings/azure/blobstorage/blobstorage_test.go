@@ -534,4 +534,3 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 func TestMaxBatchDeleteSize(t *testing.T) {
 	assert.Equal(t, 256, maxBatchDeleteSize)
 }
-

@@ -952,11 +952,12 @@ func TestBlobStorage(t *testing.T) {
 			"blobNames": blobNames,
 		}
 		deleteData, _ := json.Marshal(deletePayload)
-		_, _ = client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
 			Data:      deleteData,
 		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
 
 		return nil
 	}
@@ -1013,11 +1014,12 @@ func TestBlobStorage(t *testing.T) {
 			"blobNames": blobNames,
 		}
 		deleteData, _ := json.Marshal(deletePayload)
-		_, _ = client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
 			Data:      deleteData,
 		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
 
 		return nil
 	}
@@ -1111,11 +1113,12 @@ func TestBlobStorage(t *testing.T) {
 			"blobNames": blobNames,
 		}
 		deleteData, _ := json.Marshal(deletePayload)
-		_, _ = client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
 			Data:      deleteData,
 		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
 
 		return nil
 	}

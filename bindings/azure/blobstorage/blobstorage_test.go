@@ -317,14 +317,14 @@ func TestBulkDeleteValidation(t *testing.T) {
 		}
 		_, err := blobStorage.bulkDelete(t.Context(), &r)
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrMissingBlobSelection)
+		require.ErrorIs(t, err, ErrMissingBulkDeleteSelection)
 	})
 
 	t.Run("return error when payload is nil", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := blobStorage.bulkDelete(t.Context(), &r)
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrMissingBlobSelection)
+		require.ErrorIs(t, err, ErrMissingBulkDeleteSelection)
 	})
 
 	t.Run("return error when payload is invalid JSON", func(t *testing.T) {
@@ -476,10 +476,11 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 	})
 
 	t.Run("includes data when present", func(t *testing.T) {
-		r := bulkGetResponseItem{BlobName: "test.txt", Data: "hello"}
+		r := bulkGetResponseItem{BlobName: "test.txt", Data: []byte("hello")}
 		data, err := json.Marshal(r)
 		require.NoError(t, err)
-		assert.Contains(t, string(data), `"data":"hello"`)
+		// []byte is marshalled as base64 by encoding/json.
+		assert.Contains(t, string(data), `"data":"aGVsbG8="`)
 	})
 
 	t.Run("includes filePath when present", func(t *testing.T) {
@@ -499,4 +500,28 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 
 func TestMaxBatchDeleteSize(t *testing.T) {
 	assert.Equal(t, 256, maxBatchDeleteSize)
+}
+
+func TestValidatePathWithinDir(t *testing.T) {
+	t.Run("valid path within dir", func(t *testing.T) {
+		err := validatePathWithinDir("/tmp/dest", "/tmp/dest/subdir/file.txt")
+		require.NoError(t, err)
+	})
+
+	t.Run("path traversal rejected", func(t *testing.T) {
+		err := validatePathWithinDir("/tmp/dest", "/tmp/dest/../../../etc/passwd")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "escapes base directory")
+	})
+
+	t.Run("absolute path outside dir rejected", func(t *testing.T) {
+		err := validatePathWithinDir("/tmp/dest", "/etc/passwd")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "escapes base directory")
+	})
+
+	t.Run("path equal to base is valid", func(t *testing.T) {
+		err := validatePathWithinDir("/tmp/dest", "/tmp/dest")
+		require.NoError(t, err)
+	})
 }

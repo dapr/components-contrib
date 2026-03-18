@@ -125,8 +125,10 @@ type bulkGetPayload struct {
 type bulkGetResponseItem struct {
 	BlobName string `json:"blobName"`
 	FilePath string `json:"filePath,omitempty"`
-	Data     string `json:"data,omitempty"`
-	Error    string `json:"error,omitempty"`
+	// Data holds the blob content when using inline mode (no filePath).
+	// JSON-marshalled as base64 since it is []byte, which is safe for binary blobs.
+	Data  []byte `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type bulkCreateItem struct {
@@ -600,7 +602,7 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 					}
 				}
 
-				results[i].Data = buf.String()
+				results[i].Data = buf.Bytes()
 			}
 			return nil
 		})
@@ -624,20 +626,21 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 }
 
 // resolveBulkGetItems builds the work list for bulkGet.
-// Explicit items are taken as-is. Prefix-discovered blobs use destinationDir as base.
+// Explicit items are preserved as-is (including duplicates with different filePaths).
+// Prefix-discovered blobs use destinationDir as base, skipping any already covered by explicit items.
 func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bulkGetPayload) ([]bulkGetItem, error) {
-	seen := make(map[string]struct{})
 	var items []bulkGetItem
 
-	// Add explicit items first.
+	// Track blob names from explicit items so prefix discovery doesn't duplicate them.
+	explicitNames := make(map[string]struct{})
+
+	// Add explicit items as-is (no dedup — same blob with different filePaths is valid).
 	for _, item := range payload.Items {
 		if item.BlobName == "" {
 			continue
 		}
-		if _, ok := seen[item.BlobName]; !ok {
-			seen[item.BlobName] = struct{}{}
-			items = append(items, item)
-		}
+		explicitNames[item.BlobName] = struct{}{}
+		items = append(items, item)
 	}
 
 	// If prefix is set, discover blobs and map them into destinationDir.
@@ -646,6 +649,7 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 			return nil, ErrMissingDestinationDir
 		}
 
+		seen := make(map[string]struct{})
 		options := container.ListBlobsFlatOptions{
 			Prefix: payload.Prefix,
 		}
@@ -659,18 +663,46 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 				if blobItem.Name == nil {
 					continue
 				}
-				if _, ok := seen[*blobItem.Name]; !ok {
-					seen[*blobItem.Name] = struct{}{}
-					items = append(items, bulkGetItem{
-						BlobName: *blobItem.Name,
-						FilePath: ptr.Of(filepath.Join(*payload.DestinationDir, *blobItem.Name)),
-					})
+				// Skip blobs already covered by explicit items.
+				if _, ok := explicitNames[*blobItem.Name]; ok {
+					continue
 				}
+				if _, ok := seen[*blobItem.Name]; ok {
+					continue
+				}
+				seen[*blobItem.Name] = struct{}{}
+
+				destPath := filepath.Join(*payload.DestinationDir, *blobItem.Name)
+				if err := validatePathWithinDir(*payload.DestinationDir, destPath); err != nil {
+					return nil, fmt.Errorf("unsafe blob name %q: %w", *blobItem.Name, err)
+				}
+				items = append(items, bulkGetItem{
+					BlobName: *blobItem.Name,
+					FilePath: ptr.Of(destPath),
+				})
 			}
 		}
 	}
 
 	return items, nil
+}
+
+// validatePathWithinDir ensures that resolvedPath is within baseDir,
+// preventing path traversal attacks from blob names like "../../../etc/passwd".
+func validatePathWithinDir(baseDir, resolvedPath string) error {
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return fmt.Errorf("error resolving base directory: %w", err)
+	}
+	absResolved, err := filepath.Abs(resolvedPath)
+	if err != nil {
+		return fmt.Errorf("error resolving path: %w", err)
+	}
+	// Ensure the resolved path starts with the base directory.
+	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
+		return fmt.Errorf("path %q escapes base directory %q", absResolved, absBase)
+	}
+	return nil
 }
 
 func (a *AzureBlobStorage) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -806,7 +838,7 @@ func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeR
 	}
 
 	if len(names) == 0 {
-		return nil, ErrMissingBlobSelection
+		return nil, ErrMissingBulkDeleteSelection
 	}
 
 	// Build a name→indices map to handle duplicates correctly.
@@ -828,11 +860,16 @@ func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeR
 	}
 
 	// Try batch API first (more efficient), fall back to individual deletes on error.
-	batchErr := a.bulkDeleteBatch(ctx, names, nameIndices, results, batchDeleteOpts)
+	// completedCount tracks how many names were successfully processed by batch chunks,
+	// so the fallback only retries the remaining names.
+	completedCount, batchErr := a.bulkDeleteBatch(ctx, names, nameIndices, results, batchDeleteOpts)
 	if batchErr != nil {
 		// Batch API may fail (e.g. SAS auth without proper permissions).
-		// Fall back to concurrent individual deletes.
-		a.logger.Warnf("batch delete failed, falling back to individual deletes: %v", batchErr)
+		// Fall back to concurrent individual deletes for remaining names only.
+		a.logger.Warnf("batch delete failed after %d/%d items, falling back to individual deletes: %v", completedCount, len(names), batchErr)
+
+		remainingNames := names[completedCount:]
+		remainingOffset := completedCount
 
 		deleteOptions := blob.DeleteOptions{
 			AccessConditions: &blob.AccessConditions{},
@@ -844,16 +881,17 @@ func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeR
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(concurrency)
 
-		for i, name := range names {
-			i, name := i, name
+		for j, name := range remainingNames {
+			j, name := j, name
+			resultIdx := remainingOffset + j
 			g.Go(func() error {
 				blockBlobClient := a.containerClient.NewBlockBlobClient(name)
 				_, err := blockBlobClient.Delete(gctx, &deleteOptions)
 				if err != nil {
 					if bloberror.HasCode(err, bloberror.BlobNotFound) {
-						results[i].Error = "blob not found"
+						results[resultIdx].Error = "blob not found"
 					} else {
-						results[i].Error = err.Error()
+						results[resultIdx].Error = err.Error()
 					}
 				}
 				return nil
@@ -879,7 +917,8 @@ func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeR
 }
 
 // bulkDeleteBatch uses the Azure Blob Batch API to delete blobs in chunks of 256.
-func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, nameIndices map[string][]int, results []bulkDeleteResponseItem, opts *container.BatchDeleteOptions) error {
+// Returns the number of items in completed chunks (for fallback offset) and any error.
+func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, nameIndices map[string][]int, results []bulkDeleteResponseItem, opts *container.BatchDeleteOptions) (int, error) {
 	for batchStart := 0; batchStart < len(names); batchStart += maxBatchDeleteSize {
 		batchEnd := batchStart + maxBatchDeleteSize
 		if batchEnd > len(names) {
@@ -889,18 +928,18 @@ func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, 
 
 		bb, err := a.containerClient.NewBatchBuilder()
 		if err != nil {
-			return fmt.Errorf("error creating batch builder: %w", err)
+			return batchStart, fmt.Errorf("error creating batch builder: %w", err)
 		}
 
 		for _, name := range batch {
 			if err := bb.Delete(name, opts); err != nil {
-				return fmt.Errorf("error adding delete to batch for %q: %w", name, err)
+				return batchStart, fmt.Errorf("error adding delete to batch for %q: %w", name, err)
 			}
 		}
 
 		resp, err := a.containerClient.SubmitBatch(ctx, bb, nil)
 		if err != nil {
-			return fmt.Errorf("error submitting batch delete: %w", err)
+			return batchStart, fmt.Errorf("error submitting batch delete: %w", err)
 		}
 
 		// Map batch responses back to results.
@@ -916,7 +955,7 @@ func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, 
 		}
 	}
 
-	return nil
+	return len(names), nil
 }
 
 func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

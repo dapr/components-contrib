@@ -79,7 +79,7 @@ func TestCockroach(t *testing.T) {
 
 		// Continue re-trying until the context times out, so we can wait for the DB to be up
 		for {
-			dbClient, err = sql.Open("pgx", "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test")
+			dbClient, err = sql.Open("pgx", "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test sslmode=disable")
 			if err == nil || connCtx.Err() != nil {
 				break
 			}
@@ -268,7 +268,7 @@ func TestCockroach(t *testing.T) {
 				Base: metadata.Base{
 					Name: "ttltest",
 					Properties: map[string]string{
-						"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
+						"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test sslmode=disable",
 						"tableName":         "ttl_state",
 						"metadataTableName": "ttl_metadata",
 					},
@@ -328,7 +328,7 @@ func TestCockroach(t *testing.T) {
 					Base: metadata.Base{
 						Name: "ttltest",
 						Properties: map[string]string{
-							"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
+							"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test sslmode=disable",
 							"tableName":         "ttl_state",
 							"metadataTableName": "ttl_metadata",
 						},

@@ -519,8 +519,10 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 		r := bulkGetResponseItem{BlobName: "test.txt", FilePath: fp}
 		data, err := json.Marshal(r)
 		require.NoError(t, err)
-		assert.Contains(t, string(data), fp)
 		assert.Contains(t, string(data), `"filePath":`)
+		var decoded bulkGetResponseItem
+		require.NoError(t, json.Unmarshal(data, &decoded))
+		assert.Equal(t, fp, decoded.FilePath)
 	})
 
 	t.Run("includes error when present", func(t *testing.T) {

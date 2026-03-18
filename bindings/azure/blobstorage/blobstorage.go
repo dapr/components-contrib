@@ -323,25 +323,33 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	}, nil
 }
 
-func (a *AzureBlobStorage) getToFile(ctx context.Context, blockBlobClient *blockblob.Client, filePath string) (*bindings.InvokeResponse, error) {
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-		return nil, fmt.Errorf("error creating directory for %q: %w", filePath, err)
+// downloadBlobToFile downloads a blob directly to a local file, creating parent
+// directories as needed. On error, any partially-written file is removed.
+func downloadBlobToFile(ctx context.Context, blockBlobClient *blockblob.Client, filePath string) error {
+	if mkdirErr := os.MkdirAll(filepath.Dir(filePath), 0o755); mkdirErr != nil {
+		return fmt.Errorf("error creating directory for %q: %w", filePath, mkdirErr)
 	}
 
-	f, err := os.Create(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("error creating file %q: %w", filePath, err)
+	f, createErr := os.Create(filePath)
+	if createErr != nil {
+		return fmt.Errorf("error creating file %q: %w", filePath, createErr)
 	}
 	defer f.Close()
 
-	_, err = blockBlobClient.DownloadFile(ctx, f, nil)
-	if err != nil {
-		// Clean up partial file on error.
+	if _, dlErr := blockBlobClient.DownloadFile(ctx, f, nil); dlErr != nil {
 		os.Remove(filePath)
-		if bloberror.HasCode(err, bloberror.BlobNotFound) {
-			return nil, errors.New("blob not found")
+		if bloberror.HasCode(dlErr, bloberror.BlobNotFound) {
+			return errors.New("blob not found")
 		}
-		return nil, fmt.Errorf("error downloading az blob to file: %w", err)
+		return fmt.Errorf("error downloading blob to file: %w", dlErr)
+	}
+
+	return nil
+}
+
+func (a *AzureBlobStorage) getToFile(ctx context.Context, blockBlobClient *blockblob.Client, filePath string) (*bindings.InvokeResponse, error) {
+	if err := downloadBlobToFile(ctx, blockBlobClient, filePath); err != nil {
+		return nil, err
 	}
 
 	return &bindings.InvokeResponse{
@@ -545,27 +553,10 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
 
 			if item.FilePath != nil && *item.FilePath != "" {
-				// Stream to file via DownloadFile.
+				// Stream to file via shared download helper.
 				filePath := *item.FilePath
-				if mkdirErr := os.MkdirAll(filepath.Dir(filePath), 0o755); mkdirErr != nil {
-					results[i].Error = "error creating directory: " + mkdirErr.Error()
-					return nil
-				}
-
-				f, createErr := os.Create(filePath)
-				if createErr != nil {
-					results[i].Error = "error creating file: " + createErr.Error()
-					return nil
-				}
-				defer f.Close()
-
-				if _, dlErr := blockBlobClient.DownloadFile(gctx, f, nil); dlErr != nil {
-					os.Remove(filePath)
-					if bloberror.HasCode(dlErr, bloberror.BlobNotFound) {
-						results[i].Error = "blob not found"
-					} else {
-						results[i].Error = dlErr.Error()
-					}
+				if dlErr := downloadBlobToFile(gctx, blockBlobClient, filePath); dlErr != nil {
+					results[i].Error = dlErr.Error()
 					return nil
 				}
 
@@ -713,7 +704,7 @@ func (a *AzureBlobStorage) bulkCreate(ctx context.Context, req *bindings.InvokeR
 
 			// Build HTTP headers if contentType is specified.
 			var httpHeaders *blob.HTTPHeaders
-			if item.ContentType != nil {
+			if item.ContentType != nil && *item.ContentType != "" {
 				httpHeaders = &blob.HTTPHeaders{
 					BlobContentType: item.ContentType,
 				}

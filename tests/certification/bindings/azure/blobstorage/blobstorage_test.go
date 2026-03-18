@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -630,8 +631,8 @@ func TestBlobStorage(t *testing.T) {
 
 		items := make([]map[string]string, len(blobNames))
 		for i, name := range blobNames {
-			filePath := sourceDir + "/" + name
-			require.NoError(t, os.MkdirAll(sourceDir+"/bulk", 0o755))
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
 			require.NoError(t, os.WriteFile(filePath, []byte(fileContents[i]), 0o644))
 			items[i] = map[string]string{
 				"blobName":   name,
@@ -643,7 +644,8 @@ func TestBlobStorage(t *testing.T) {
 		createPayload := map[string]interface{}{
 			"items": items,
 		}
-		createData, _ := json.Marshal(createPayload)
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -658,13 +660,14 @@ func TestBlobStorage(t *testing.T) {
 		for i, name := range blobNames {
 			getItems[i] = map[string]string{
 				"blobName": name,
-				"filePath": destDir + "/" + name,
+				"filePath": filepath.Join(destDir, name),
 			}
 		}
 		getPayload := map[string]interface{}{
 			"items": getItems,
 		}
-		getData, _ := json.Marshal(getPayload)
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
 
 		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -680,7 +683,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// Verify downloaded file contents.
 		for i, name := range blobNames {
-			downloaded, readErr := os.ReadFile(destDir + "/" + name)
+			downloaded, readErr := os.ReadFile(filepath.Join(destDir, name))
 			require.NoError(t, readErr)
 			assert.Equal(t, fileContents[i], string(downloaded))
 		}
@@ -689,7 +692,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"blobNames": blobNames,
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -732,7 +736,8 @@ func TestBlobStorage(t *testing.T) {
 			"prefix":         "bulkprefix/",
 			"destinationDir": destDir,
 		}
-		getData, _ := json.Marshal(getPayload)
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
 
 		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -747,7 +752,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// Verify files exist on disk.
 		for _, name := range blobNames {
-			data, readErr := os.ReadFile(destDir + "/" + name)
+			data, readErr := os.ReadFile(filepath.Join(destDir, name))
 			require.NoError(t, readErr)
 			assert.Equal(t, "content of "+name, string(data))
 		}
@@ -756,7 +761,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"prefix": "bulkprefix/",
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
@@ -788,7 +794,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// Get with filePath — should stream to file.
 		destDir := t.TempDir()
-		filePath := destDir + "/" + blobName
+		filePath := filepath.Join(destDir, blobName)
 		out, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "get",
@@ -832,8 +838,8 @@ func TestBlobStorage(t *testing.T) {
 		for i, name := range blobNames {
 			// Write base64-encoded content to source files.
 			encoded := base64.StdEncoding.EncodeToString([]byte(originalContent[i]))
-			filePath := sourceDir + "/" + name
-			require.NoError(t, os.MkdirAll(sourceDir+"/b64bulk", 0o755))
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
 			require.NoError(t, os.WriteFile(filePath, []byte(encoded), 0o644))
 			items[i] = map[string]string{
 				"blobName":   name,
@@ -845,7 +851,8 @@ func TestBlobStorage(t *testing.T) {
 		createPayload := map[string]interface{}{
 			"items": items,
 		}
-		createData, _ := json.Marshal(createPayload)
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -865,7 +872,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"blobNames": blobNames,
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
@@ -891,8 +899,8 @@ func TestBlobStorage(t *testing.T) {
 
 		items := make([]map[string]string, len(blobNames))
 		for i, name := range blobNames {
-			filePath := sourceDir + "/" + name
-			require.NoError(t, os.MkdirAll(sourceDir+"/plainbulk", 0o755))
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
 			require.NoError(t, os.WriteFile(filePath, []byte(contents[i]), 0o644))
 			items[i] = map[string]string{
 				"blobName":   name,
@@ -903,7 +911,8 @@ func TestBlobStorage(t *testing.T) {
 		createPayload := map[string]interface{}{
 			"items": items,
 		}
-		createData, _ := json.Marshal(createPayload)
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -925,13 +934,14 @@ func TestBlobStorage(t *testing.T) {
 		for i, name := range blobNames {
 			getItems[i] = map[string]string{
 				"blobName": name,
-				"filePath": destDir + "/" + name,
+				"filePath": filepath.Join(destDir, name),
 			}
 		}
 		getPayload := map[string]interface{}{
 			"items": getItems,
 		}
-		getData, _ := json.Marshal(getPayload)
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -942,7 +952,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// Verify downloaded files.
 		for i, name := range blobNames {
-			downloaded, readErr := os.ReadFile(destDir + "/" + name)
+			downloaded, readErr := os.ReadFile(filepath.Join(destDir, name))
 			require.NoError(t, readErr)
 			assert.Equal(t, contents[i], string(downloaded))
 		}
@@ -951,7 +961,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"blobNames": blobNames,
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
@@ -985,7 +996,8 @@ func TestBlobStorage(t *testing.T) {
 			"items":       items,
 			"concurrency": 2,
 		}
-		createData, _ := json.Marshal(createPayload)
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
 
 		createOut, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -1013,7 +1025,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"blobNames": blobNames,
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
@@ -1055,7 +1068,8 @@ func TestBlobStorage(t *testing.T) {
 		getPayload := map[string]interface{}{
 			"items": getItems,
 		}
-		getData, _ := json.Marshal(getPayload)
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
 
 		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -1093,7 +1107,8 @@ func TestBlobStorage(t *testing.T) {
 		mixedPayload := map[string]interface{}{
 			"items": mixedItems,
 		}
-		mixedData, _ := json.Marshal(mixedPayload)
+		mixedData, marshalErr := json.Marshal(mixedPayload)
+		require.NoError(t, marshalErr)
 
 		mixedOut, mixedErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
@@ -1122,7 +1137,8 @@ func TestBlobStorage(t *testing.T) {
 		deletePayload := map[string]interface{}{
 			"blobNames": blobNames,
 		}
-		deleteData, _ := json.Marshal(deletePayload)
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
 		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "bulkDelete",
@@ -1155,7 +1171,8 @@ func TestBlobStorage(t *testing.T) {
 		createPayload := map[string]interface{}{
 			"items": items,
 		}
-		createData, _ := json.Marshal(createPayload)
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",

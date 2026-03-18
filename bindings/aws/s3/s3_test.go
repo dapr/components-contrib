@@ -556,6 +556,26 @@ func TestBulkDeleteValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "requires at least one key")
 	})
+
+	t.Run("empty key in list returns per-item error", func(t *testing.T) {
+		srv := fakeS3Server(t)
+		defer srv.Close()
+		s := newTestAWSS3(t, srv.URL)
+
+		payload, _ := json.Marshal(bulkDeletePayload{Keys: []string{"valid.txt", "", "  "}})
+		r := bindings.InvokeRequest{
+			Data:     payload,
+			Metadata: map[string]string{},
+		}
+		resp, err := s.bulkDelete(t.Context(), &r)
+		require.NoError(t, err)
+		var results []bulkItemResult
+		require.NoError(t, json.Unmarshal(resp.Data, &results))
+		require.Len(t, results, 3)
+		assert.Empty(t, results[0].Error, "valid key should succeed")
+		assert.Equal(t, "key is required", results[1].Error)
+		assert.Equal(t, "key is required", results[2].Error)
+	})
 }
 
 func TestBulkPayloadParsing(t *testing.T) {

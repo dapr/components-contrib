@@ -703,24 +703,29 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 
 	results := make([]bulkItemResult, len(payload.Keys))
-	// Initialize all results as success
+	// Initialize results and validate keys; track valid keys for batching Build
+	// a key->indices map to handle duplicates correctly
+	keyIndices := make(map[string][]int, len(payload.Keys))
+	validKeys := make([]string, 0, len(payload.Keys))
 	for i, key := range payload.Keys {
 		results[i] = bulkItemResult{Key: key}
-	}
-
-	// Build a key→index map for O(1) lookups when mapping S3 errors
-	keyIndex := make(map[string]int, len(payload.Keys))
-	for i, key := range payload.Keys {
-		keyIndex[key] = i
-	}
-
-	// Process in batches of 1000 (S3 DeleteObjects limit)
-	for batchStart := 0; batchStart < len(payload.Keys); batchStart += maxDeleteBatchSize {
-		batchEnd := batchStart + maxDeleteBatchSize
-		if batchEnd > len(payload.Keys) {
-			batchEnd = len(payload.Keys)
+		if strings.TrimSpace(key) == "" {
+			results[i].Error = "key is required"
+			continue
 		}
-		batch := payload.Keys[batchStart:batchEnd]
+		if _, exists := keyIndices[key]; !exists {
+			validKeys = append(validKeys, key)
+		}
+		keyIndices[key] = append(keyIndices[key], i)
+	}
+
+	// Process valid keys in batches of 1000 (S3 DeleteObjects limit)
+	for batchStart := 0; batchStart < len(validKeys); batchStart += maxDeleteBatchSize {
+		batchEnd := batchStart + maxDeleteBatchSize
+		if batchEnd > len(validKeys) {
+			batchEnd = len(validKeys)
+		}
+		batch := validKeys[batchStart:batchEnd]
 
 		objects := make([]s3types.ObjectIdentifier, len(batch))
 		for i, key := range batch {
@@ -736,21 +741,23 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 		})
 		if err != nil {
 			// If the entire batch call failed, mark all keys in this batch as failed
-			for i := batchStart; i < batchEnd; i++ {
-				results[i].Error = err.Error()
+			for _, key := range batch {
+				for _, idx := range keyIndices[key] {
+					results[idx].Error = err.Error()
+				}
 			}
 			continue
 		}
 
-		// Map individual errors from S3 response using the key→index map
+		// Map individual errors from S3 response to all matching indices
 		if output != nil {
 			for _, s3err := range output.Errors {
 				if s3err.Key != nil {
-					if idx, ok := keyIndex[*s3err.Key]; ok {
-						msg := "unknown error"
-						if s3err.Message != nil {
-							msg = *s3err.Message
-						}
+					msg := "unknown error"
+					if s3err.Message != nil {
+						msg = *s3err.Message
+					}
+					for _, idx := range keyIndices[*s3err.Key] {
 						results[idx].Error = msg
 					}
 				}

@@ -15,6 +15,7 @@ package blobstorage
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,9 +121,10 @@ func TestBulkGetValidation(t *testing.T) {
 	})
 
 	t.Run("return error when items have only empty blobNames", func(t *testing.T) {
+		tmpDir := t.TempDir()
 		payload := bulkGetPayload{
 			Items: []bulkGetItem{
-				{BlobName: "", FilePath: ptr.Of("/tmp/a")},
+				{BlobName: "", FilePath: ptr.Of(filepath.Join(tmpDir, "a"))},
 			},
 		}
 		data, err := json.Marshal(payload)
@@ -135,9 +137,11 @@ func TestBulkGetValidation(t *testing.T) {
 	})
 
 	t.Run("accept item with filePath for file mode", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		expectedPath := filepath.Join(tmpDir, "blob1")
 		payload := bulkGetPayload{
 			Items: []bulkGetItem{
-				{BlobName: "blob1", FilePath: ptr.Of("/tmp/blob1")},
+				{BlobName: "blob1", FilePath: ptr.Of(expectedPath)},
 			},
 		}
 		data, err := json.Marshal(payload)
@@ -148,7 +152,7 @@ func TestBulkGetValidation(t *testing.T) {
 		require.NoError(t, json.Unmarshal(data, &parsed))
 		require.Len(t, parsed.Items, 1)
 		require.NotNil(t, parsed.Items[0].FilePath)
-		assert.Equal(t, "/tmp/blob1", *parsed.Items[0].FilePath)
+		assert.Equal(t, expectedPath, *parsed.Items[0].FilePath)
 	})
 
 	t.Run("accept item without filePath for inline mode", func(t *testing.T) {
@@ -181,9 +185,10 @@ func TestBulkGetValidation(t *testing.T) {
 	})
 
 	t.Run("return error when concurrency is zero", func(t *testing.T) {
+		tmpDir := t.TempDir()
 		payload := bulkGetPayload{
 			Items: []bulkGetItem{
-				{BlobName: "blob1", FilePath: ptr.Of("/tmp/blob1")},
+				{BlobName: "blob1", FilePath: ptr.Of(filepath.Join(tmpDir, "blob1"))},
 			},
 			Concurrency: ptr.Of(int32(0)),
 		}
@@ -197,9 +202,10 @@ func TestBulkGetValidation(t *testing.T) {
 	})
 
 	t.Run("return error when concurrency is negative", func(t *testing.T) {
+		tmpDir := t.TempDir()
 		payload := bulkGetPayload{
 			Items: []bulkGetItem{
-				{BlobName: "blob1", FilePath: ptr.Of("/tmp/blob1")},
+				{BlobName: "blob1", FilePath: ptr.Of(filepath.Join(tmpDir, "blob1"))},
 			},
 			Concurrency: ptr.Of(int32(-1)),
 		}
@@ -244,10 +250,11 @@ func TestBulkCreateValidation(t *testing.T) {
 	})
 
 	t.Run("return error when item has empty blobName", func(t *testing.T) {
+		tmpDir := t.TempDir()
 		payload := bulkCreatePayload{
 			Items: []bulkCreateItem{
-				{BlobName: "valid", SourcePath: "/tmp/file"},
-				{BlobName: "", SourcePath: "/tmp/file"},
+				{BlobName: "valid", SourcePath: filepath.Join(tmpDir, "file")},
+				{BlobName: "", SourcePath: filepath.Join(tmpDir, "file")},
 			},
 		}
 		data, err := json.Marshal(payload)
@@ -292,9 +299,10 @@ func TestBulkCreateValidation(t *testing.T) {
 	})
 
 	t.Run("return error when concurrency is zero", func(t *testing.T) {
+		tmpDir := t.TempDir()
 		payload := bulkCreatePayload{
 			Items: []bulkCreateItem{
-				{BlobName: "blob1", SourcePath: "/tmp/file"},
+				{BlobName: "blob1", SourcePath: filepath.Join(tmpDir, "file")},
 			},
 			Concurrency: ptr.Of(int32(0)),
 		}
@@ -404,16 +412,27 @@ func TestInvokeUnsupportedOperation(t *testing.T) {
 
 func TestBulkPayloadParsing(t *testing.T) {
 	t.Run("bulkGet payload with concurrency and filePath pointer", func(t *testing.T) {
-		raw := `{"items":[{"blobName":"a.txt"},{"blobName":"b.txt","filePath":"/tmp/b.txt"}],"concurrency":5}`
+		tmpDir := t.TempDir()
+		expectedPath := filepath.Join(tmpDir, "b.txt")
+		payload := bulkGetPayload{
+			Items: []bulkGetItem{
+				{BlobName: "a.txt"},
+				{BlobName: "b.txt", FilePath: ptr.Of(expectedPath)},
+			},
+			Concurrency: ptr.Of(int32(5)),
+		}
+		data, err := json.Marshal(payload)
+		require.NoError(t, err)
+
 		var p bulkGetPayload
-		err := json.Unmarshal([]byte(raw), &p)
+		err = json.Unmarshal(data, &p)
 		require.NoError(t, err)
 		require.Len(t, p.Items, 2)
 		assert.Equal(t, "a.txt", p.Items[0].BlobName)
 		assert.Nil(t, p.Items[0].FilePath)
 		assert.Equal(t, "b.txt", p.Items[1].BlobName)
 		require.NotNil(t, p.Items[1].FilePath)
-		assert.Equal(t, "/tmp/b.txt", *p.Items[1].FilePath)
+		assert.Equal(t, expectedPath, *p.Items[1].FilePath)
 		require.NotNil(t, p.Concurrency)
 		assert.Equal(t, int32(5), *p.Concurrency)
 	})
@@ -427,9 +446,20 @@ func TestBulkPayloadParsing(t *testing.T) {
 	})
 
 	t.Run("bulkCreate payload with inline data and contentType", func(t *testing.T) {
-		raw := `{"items":[{"blobName":"f1.txt","data":"hello"},{"blobName":"f2.txt","sourcePath":"/tmp/f2.txt","contentType":"text/plain"}],"concurrency":3}`
+		tmpDir := t.TempDir()
+		expectedPath := filepath.Join(tmpDir, "f2.txt")
+		payload := bulkCreatePayload{
+			Items: []bulkCreateItem{
+				{BlobName: "f1.txt", Data: ptr.Of("hello")},
+				{BlobName: "f2.txt", SourcePath: expectedPath, ContentType: ptr.Of("text/plain")},
+			},
+			Concurrency: ptr.Of(int32(3)),
+		}
+		data, err := json.Marshal(payload)
+		require.NoError(t, err)
+
 		var p bulkCreatePayload
-		err := json.Unmarshal([]byte(raw), &p)
+		err = json.Unmarshal(data, &p)
 		require.NoError(t, err)
 		assert.Len(t, p.Items, 2)
 		assert.Equal(t, "f1.txt", p.Items[0].BlobName)
@@ -438,7 +468,7 @@ func TestBulkPayloadParsing(t *testing.T) {
 		assert.Empty(t, p.Items[0].SourcePath)
 		assert.Nil(t, p.Items[0].ContentType)
 		assert.Equal(t, "f2.txt", p.Items[1].BlobName)
-		assert.Equal(t, "/tmp/f2.txt", p.Items[1].SourcePath)
+		assert.Equal(t, expectedPath, p.Items[1].SourcePath)
 		assert.Nil(t, p.Items[1].Data)
 		require.NotNil(t, p.Items[1].ContentType)
 		assert.Equal(t, "text/plain", *p.Items[1].ContentType)
@@ -484,10 +514,13 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 	})
 
 	t.Run("includes filePath when present", func(t *testing.T) {
-		r := bulkGetResponseItem{BlobName: "test.txt", FilePath: "/tmp/test.txt"}
+		tmpDir := t.TempDir()
+		fp := filepath.Join(tmpDir, "test.txt")
+		r := bulkGetResponseItem{BlobName: "test.txt", FilePath: fp}
 		data, err := json.Marshal(r)
 		require.NoError(t, err)
-		assert.Contains(t, string(data), `"filePath":"/tmp/test.txt"`)
+		assert.Contains(t, string(data), fp)
+		assert.Contains(t, string(data), `"filePath":`)
 	})
 
 	t.Run("includes error when present", func(t *testing.T) {
@@ -502,26 +535,3 @@ func TestMaxBatchDeleteSize(t *testing.T) {
 	assert.Equal(t, 256, maxBatchDeleteSize)
 }
 
-func TestValidatePathWithinDir(t *testing.T) {
-	t.Run("valid path within dir", func(t *testing.T) {
-		err := validatePathWithinDir("/tmp/dest", "/tmp/dest/subdir/file.txt")
-		require.NoError(t, err)
-	})
-
-	t.Run("path traversal rejected", func(t *testing.T) {
-		err := validatePathWithinDir("/tmp/dest", "/tmp/dest/../../../etc/passwd")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "escapes base directory")
-	})
-
-	t.Run("absolute path outside dir rejected", func(t *testing.T) {
-		err := validatePathWithinDir("/tmp/dest", "/etc/passwd")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "escapes base directory")
-	})
-
-	t.Run("path equal to base is valid", func(t *testing.T) {
-		err := validatePathWithinDir("/tmp/dest", "/tmp/dest")
-		require.NoError(t, err)
-	})
-}

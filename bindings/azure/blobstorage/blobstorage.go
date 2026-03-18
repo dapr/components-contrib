@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
@@ -543,7 +545,7 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 			results[i].BlobName = item.BlobName
 			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
 
-			if item.FilePath != nil {
+			if item.FilePath != nil && *item.FilePath != "" {
 				// Stream to file via DownloadFile.
 				filePath := *item.FilePath
 				if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
@@ -584,22 +586,9 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 				defer resp.Body.Close()
 
 				var buf bytes.Buffer
-				if a.metadata.DecodeBase64 {
-					// DecodeBase64 on get means encode the raw blob to base64 for the caller.
-					encoder := b64.NewEncoder(b64.StdEncoding, &buf)
-					if _, err = io.Copy(encoder, resp.Body); err != nil {
-						results[i].Error = err.Error()
-						return nil
-					}
-					if err = encoder.Close(); err != nil {
-						results[i].Error = err.Error()
-						return nil
-					}
-				} else {
-					if _, err = io.Copy(&buf, resp.Body); err != nil {
-						results[i].Error = err.Error()
-						return nil
-					}
+				if _, err = io.Copy(&buf, resp.Body); err != nil {
+					results[i].Error = err.Error()
+					return nil
 				}
 
 				results[i].Data = buf.Bytes()
@@ -672,8 +661,8 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 				}
 				seen[*blobItem.Name] = struct{}{}
 
-				destPath := filepath.Join(*payload.DestinationDir, *blobItem.Name)
-				if err := validatePathWithinDir(*payload.DestinationDir, destPath); err != nil {
+				destPath, err := securejoin.SecureJoin(*payload.DestinationDir, *blobItem.Name)
+				if err != nil {
 					return nil, fmt.Errorf("unsafe blob name %q: %w", *blobItem.Name, err)
 				}
 				items = append(items, bulkGetItem{
@@ -685,24 +674,6 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 	}
 
 	return items, nil
-}
-
-// validatePathWithinDir ensures that resolvedPath is within baseDir,
-// preventing path traversal attacks from blob names like "../../../etc/passwd".
-func validatePathWithinDir(baseDir, resolvedPath string) error {
-	absBase, err := filepath.Abs(baseDir)
-	if err != nil {
-		return fmt.Errorf("error resolving base directory: %w", err)
-	}
-	absResolved, err := filepath.Abs(resolvedPath)
-	if err != nil {
-		return fmt.Errorf("error resolving path: %w", err)
-	}
-	// Ensure the resolved path starts with the base directory.
-	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
-		return fmt.Errorf("path %q escapes base directory %q", absResolved, absBase)
-	}
-	return nil
 }
 
 func (a *AzureBlobStorage) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

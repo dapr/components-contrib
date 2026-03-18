@@ -1075,7 +1075,13 @@ func TestBlobStorage(t *testing.T) {
 		for _, r := range getResults {
 			blobName := r["blobName"].(string)
 			assert.Empty(t, r["error"], "expected no error for %s", blobName)
-			assert.Equal(t, expected[blobName], r["data"], "data mismatch for %s", blobName)
+			// Data is []byte in the response struct, which encoding/json marshals as base64.
+			// When unmarshalled into map[string]interface{}, it arrives as a base64 string.
+			dataB64, ok := r["data"].(string)
+			require.True(t, ok, "data should be a base64 string for %s", blobName)
+			decoded, decErr := base64.StdEncoding.DecodeString(dataB64)
+			require.NoError(t, decErr, "failed to decode base64 data for %s", blobName)
+			assert.Equal(t, expected[blobName], string(decoded), "data mismatch for %s", blobName)
 			assert.Empty(t, r["filePath"], "filePath should be empty for inline mode")
 		}
 
@@ -1102,7 +1108,11 @@ func TestBlobStorage(t *testing.T) {
 		for _, r := range mixedResults {
 			if r["blobName"] == blobNames[0] {
 				assert.Empty(t, r["error"])
-				assert.Equal(t, contents[0], r["data"])
+				dataB64, ok := r["data"].(string)
+				require.True(t, ok, "data should be a base64 string")
+				decoded, decErr := base64.StdEncoding.DecodeString(dataB64)
+				require.NoError(t, decErr, "failed to decode base64 data")
+				assert.Equal(t, contents[0], string(decoded))
 			} else {
 				assert.NotEmpty(t, r["error"], "expected error for non-existent blob")
 			}

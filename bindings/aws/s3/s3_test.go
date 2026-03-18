@@ -140,8 +140,8 @@ func fakeS3Server(t *testing.T) *httptest.Server {
 func newTestAWSS3(t *testing.T, endpoint string) *AWSS3 {
 	t.Helper()
 	cfg := aws.Config{
-		Region:      "us-east-1",
-		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider("AKID", "SECRET", "")),
+		Region:       "us-east-1",
+		Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider("AKID", "SECRET", "")),
 		BaseEndpoint: &endpoint,
 	}
 	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
@@ -1063,7 +1063,7 @@ func TestBulkCreateFromFile(t *testing.T) {
 	t.Run("upload from filePath", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		srcPath := filepath.Join(tmpDir, "upload.txt")
-		require.NoError(t, os.WriteFile(srcPath, []byte("uploaded from file"), 0o644))
+		require.NoError(t, os.WriteFile(srcPath, []byte("uploaded from file"), 0o600))
 
 		createPayload, _ := json.Marshal(bulkCreatePayload{
 			Items: []bulkCreateItem{
@@ -1102,7 +1102,7 @@ func TestBulkCreateFromFile(t *testing.T) {
 		tmpDir := t.TempDir()
 		srcPath := filepath.Join(tmpDir, "upload-b64.txt")
 		original := "base64 file content"
-		require.NoError(t, os.WriteFile(srcPath, []byte(b64.StdEncoding.EncodeToString([]byte(original))), 0o644))
+		require.NoError(t, os.WriteFile(srcPath, []byte(b64.StdEncoding.EncodeToString([]byte(original))), 0o600))
 
 		createPayload, _ := json.Marshal(bulkCreatePayload{
 			Items: []bulkCreateItem{

@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -423,19 +424,41 @@ func S3SBulkOperations(t *testing.T) {
 		}
 		defer client.Close()
 
+		// Use UUID prefix to avoid key collisions in shared buckets
+		prefix := uuid.New().String() + "/"
+		keyA := prefix + "bulk-a.txt"
+		keyB := prefix + "bulk-b.txt"
+		keyC := prefix + "bulk-c.txt"
+		allKeys := []string{keyA, keyB, keyC}
+
+		// Ensure cleanup even on failure
+		defer func() {
+			bulkDeleteData, _ := json.Marshal(map[string]interface{}{
+				"keys": allKeys,
+			})
+			deleteReq := &daprsdk.InvokeBindingRequest{
+				Name:      bindingsMetadataName,
+				Operation: "bulkDelete",
+				Data:      bulkDeleteData,
+				Metadata:  map[string]string{},
+			}
+			// Best-effort cleanup; ignore errors
+			_, _ = client.InvokeBinding(ctx, deleteReq)
+		}()
+
 		// Bulk create 3 objects
-		bulkCreateData := `{
-			"items": [
-				{"key": "bulk-a.txt", "data": "content-a"},
-				{"key": "bulk-b.txt", "data": "content-b"},
-				{"key": "bulk-c.txt", "data": "content-c"}
-			],
-			"concurrency": 2
-		}`
+		bulkCreateData, _ := json.Marshal(map[string]interface{}{
+			"items": []map[string]string{
+				{"key": keyA, "data": "content-a"},
+				{"key": keyB, "data": "content-b"},
+				{"key": keyC, "data": "content-c"},
+			},
+			"concurrency": 2,
+		})
 		createReq := &daprsdk.InvokeBindingRequest{
 			Name:      bindingsMetadataName,
 			Operation: "bulkCreate",
-			Data:      []byte(bulkCreateData),
+			Data:      bulkCreateData,
 			Metadata:  map[string]string{},
 		}
 		createOut, invokeErr := client.InvokeBinding(ctx, createReq)
@@ -454,18 +477,18 @@ func S3SBulkOperations(t *testing.T) {
 		}
 
 		// Bulk get the 3 objects
-		bulkGetData := `{
-			"items": [
-				{"key": "bulk-a.txt"},
-				{"key": "bulk-b.txt"},
-				{"key": "bulk-c.txt"}
-			],
-			"concurrency": 2
-		}`
+		bulkGetData, _ := json.Marshal(map[string]interface{}{
+			"items": []map[string]string{
+				{"key": keyA},
+				{"key": keyB},
+				{"key": keyC},
+			},
+			"concurrency": 2,
+		})
 		getReq := &daprsdk.InvokeBindingRequest{
 			Name:      bindingsMetadataName,
 			Operation: "bulkGet",
-			Data:      []byte(bulkGetData),
+			Data:      bulkGetData,
 			Metadata:  map[string]string{},
 		}
 		getOut, invokeErr := client.InvokeBinding(ctx, getReq)
@@ -473,32 +496,32 @@ func S3SBulkOperations(t *testing.T) {
 
 		var getResults []struct {
 			Key   string `json:"key"`
-			Data  []byte `json:"data,omitempty"`
+			Data  string `json:"data,omitempty"`
 			Error string `json:"error,omitempty"`
 		}
 		require.NoError(t, json.Unmarshal(getOut.Data, &getResults))
 		require.Len(t, getResults, 3)
 		expectedContent := map[string]string{
-			"bulk-a.txt": "content-a",
-			"bulk-b.txt": "content-b",
-			"bulk-c.txt": "content-c",
+			keyA: "content-a",
+			keyB: "content-b",
+			keyC: "content-c",
 		}
 		for _, r := range getResults {
 			assert.Empty(t, r.Error, "expected no error for key %s", r.Key)
-			assert.Equal(t, expectedContent[r.Key], string(r.Data), "content mismatch for key %s", r.Key)
+			assert.Equal(t, expectedContent[r.Key], r.Data, "content mismatch for key %s", r.Key)
 		}
 
 		// Bulk get with a non-existent key (partial failure)
-		bulkGetMixedData := `{
-			"items": [
-				{"key": "bulk-a.txt"},
-				{"key": "does-not-exist.txt"}
-			]
-		}`
+		bulkGetMixedData, _ := json.Marshal(map[string]interface{}{
+			"items": []map[string]string{
+				{"key": keyA},
+				{"key": prefix + "does-not-exist.txt"},
+			},
+		})
 		getMixedReq := &daprsdk.InvokeBindingRequest{
 			Name:      bindingsMetadataName,
 			Operation: "bulkGet",
-			Data:      []byte(bulkGetMixedData),
+			Data:      bulkGetMixedData,
 			Metadata:  map[string]string{},
 		}
 		getMixedOut, invokeErr := client.InvokeBinding(ctx, getMixedReq)
@@ -506,29 +529,29 @@ func S3SBulkOperations(t *testing.T) {
 
 		var mixedResults []struct {
 			Key   string `json:"key"`
-			Data  []byte `json:"data,omitempty"`
+			Data  string `json:"data,omitempty"`
 			Error string `json:"error,omitempty"`
 		}
 		require.NoError(t, json.Unmarshal(getMixedOut.Data, &mixedResults))
 		require.Len(t, mixedResults, 2)
 		// Find results by key
 		for _, r := range mixedResults {
-			if r.Key == "bulk-a.txt" {
+			if r.Key == keyA {
 				assert.Empty(t, r.Error)
-				assert.Equal(t, "content-a", string(r.Data))
+				assert.Equal(t, "content-a", r.Data)
 			} else {
 				assert.NotEmpty(t, r.Error, "expected error for non-existent key")
 			}
 		}
 
 		// Bulk delete all 3 objects
-		bulkDeleteData := `{
-			"keys": ["bulk-a.txt", "bulk-b.txt", "bulk-c.txt"]
-		}`
+		bulkDeleteData, _ := json.Marshal(map[string]interface{}{
+			"keys": allKeys,
+		})
 		deleteReq := &daprsdk.InvokeBindingRequest{
 			Name:      bindingsMetadataName,
 			Operation: "bulkDelete",
-			Data:      []byte(bulkDeleteData),
+			Data:      bulkDeleteData,
 			Metadata:  map[string]string{},
 		}
 		deleteOut, invokeErr := client.InvokeBinding(ctx, deleteReq)
@@ -545,7 +568,7 @@ func S3SBulkOperations(t *testing.T) {
 		}
 
 		// Confirm deletion by trying to get them individually
-		for _, key := range []string{"bulk-a.txt", "bulk-b.txt", "bulk-c.txt"} {
+		for _, key := range allKeys {
 			_, getErr := getObjectRequest(ctx, client, key, false)
 			assert.Error(t, getErr)
 			assert.Contains(t, getErr.Error(), objNotFound)

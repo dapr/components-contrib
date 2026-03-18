@@ -142,7 +142,7 @@ type bulkDeletePayload struct {
 
 type bulkItemResult struct {
 	Key      string `json:"key"`
-	Data     []byte `json:"data,omitempty"`
+	Data     string `json:"data,omitempty"`
 	Location string `json:"location,omitempty"`
 	Error    string `json:"error,omitempty"`
 }
@@ -291,22 +291,11 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
 	}
 
-	// location/path construction
-	var location string
-	if uploadOut != nil && uploadOut.Location != nil && *uploadOut.Location != "" {
-		location = *uploadOut.Location
-	} else if s.metadata.Endpoint != "" {
-		ep := strings.TrimRight(s.metadata.Endpoint, "/")
-		location = fmt.Sprintf("%s/%s/%s", ep, metadata.Bucket, key)
-	} else {
-		if s.metadata.ForcePathStyle {
-			location = fmt.Sprintf("https://s3.amazonaws.com/%s/%s", metadata.Bucket, key)
-		} else {
-			location = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", metadata.Bucket, key)
-		}
+	var uploadLocation *string
+	if uploadOut != nil {
+		uploadLocation = uploadOut.Location
 	}
-
-	resultLocation := location
+	resultLocation := s.buildLocation(uploadLocation, metadata.Bucket, key)
 	var versionID *string
 	if uploadOut != nil {
 		versionID = uploadOut.VersionID
@@ -492,6 +481,21 @@ func resolveConcurrency(c *int) (int, error) {
 	return *c, nil
 }
 
+// buildLocation constructs the object URL from the upload output or falls back to endpoint/bucket/key conventions.
+func (s *AWSS3) buildLocation(uploadLocation *string, bucket, key string) string {
+	if uploadLocation != nil && *uploadLocation != "" {
+		return *uploadLocation
+	}
+	if s.metadata.Endpoint != "" {
+		ep := strings.TrimRight(s.metadata.Endpoint, "/")
+		return fmt.Sprintf("%s/%s/%s", ep, bucket, key)
+	}
+	if s.metadata.ForcePathStyle {
+		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", bucket, key)
+	}
+	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucket, key)
+}
+
 func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
@@ -532,7 +536,12 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 				Key:    ptr.Of(it.Key),
 			})
 			if gerr != nil {
-				results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+				var apiErr smithy.APIError
+				if errors.As(gerr, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
+					results[idx] = bulkItemResult{Key: it.Key, Error: "object not found"}
+				} else {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+				}
 				return
 			}
 			defer resp.Body.Close()
@@ -549,8 +558,12 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 				var w io.Writer = f
 				if metadata.EncodeBase64 {
 					encoder := b64.NewEncoder(b64.StdEncoding, f)
-					defer encoder.Close()
 					w = encoder
+					defer func() {
+						if cerr := encoder.Close(); cerr != nil && results[idx].Error == "" {
+							results[idx].Error = cerr.Error()
+						}
+					}()
 				}
 
 				if _, gerr = io.Copy(w, resp.Body); gerr != nil {
@@ -569,7 +582,10 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
 					return
 				}
-				encoder.Close()
+				if gerr = encoder.Close(); gerr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+					return
+				}
 			} else {
 				if _, gerr = io.Copy(&buf, resp.Body); gerr != nil {
 					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
@@ -577,7 +593,7 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 				}
 			}
 
-			results[idx] = bulkItemResult{Key: it.Key, Data: buf.Bytes()}
+			results[idx] = bulkItemResult{Key: it.Key, Data: buf.String()}
 		}(i, item)
 	}
 	wg.Wait()
@@ -660,21 +676,11 @@ func (s *AWSS3) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*b
 				return
 			}
 
-			var location string
-			if uploadOut != nil && uploadOut.Location != nil && *uploadOut.Location != "" {
-				location = *uploadOut.Location
-			} else if s.metadata.Endpoint != "" {
-				ep := strings.TrimRight(s.metadata.Endpoint, "/")
-				location = fmt.Sprintf("%s/%s/%s", ep, metadata.Bucket, it.Key)
-			} else {
-				if s.metadata.ForcePathStyle {
-					location = fmt.Sprintf("https://s3.amazonaws.com/%s/%s", metadata.Bucket, it.Key)
-				} else {
-					location = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", metadata.Bucket, it.Key)
-				}
+			var uploadLocation *string
+			if uploadOut != nil {
+				uploadLocation = uploadOut.Location
 			}
-
-			results[idx] = bulkItemResult{Key: it.Key, Location: location}
+			results[idx] = bulkItemResult{Key: it.Key, Location: s.buildLocation(uploadLocation, metadata.Bucket, it.Key)}
 		}(i, item)
 	}
 	wg.Wait()
@@ -700,6 +706,12 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 	// Initialize all results as success
 	for i, key := range payload.Keys {
 		results[i] = bulkItemResult{Key: key}
+	}
+
+	// Build a key→index map for O(1) lookups when mapping S3 errors
+	keyIndex := make(map[string]int, len(payload.Keys))
+	for i, key := range payload.Keys {
+		keyIndex[key] = i
 	}
 
 	// Process in batches of 1000 (S3 DeleteObjects limit)
@@ -730,19 +742,16 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 			continue
 		}
 
-		// Map individual errors from S3 response
+		// Map individual errors from S3 response using the key→index map
 		if output != nil {
 			for _, s3err := range output.Errors {
 				if s3err.Key != nil {
-					for i := batchStart; i < batchEnd; i++ {
-						if results[i].Key == *s3err.Key {
-							msg := "unknown error"
-							if s3err.Message != nil {
-								msg = *s3err.Message
-							}
-							results[i].Error = msg
-							break
+					if idx, ok := keyIndex[*s3err.Key]; ok {
+						msg := "unknown error"
+						if s3err.Message != nil {
+							msg = *s3err.Message
 						}
+						results[idx].Error = msg
 					}
 				}
 			}

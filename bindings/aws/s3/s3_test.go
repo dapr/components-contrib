@@ -38,7 +38,7 @@ import (
 )
 
 // fakeS3Server creates an httptest server that implements minimal S3 GET/PUT/POST/DELETE.
-// Objects are stored in memory keyed by path. Returns the server and a cleanup function.
+// Objects are stored in memory keyed by path.
 func fakeS3Server(t *testing.T) *httptest.Server {
 	t.Helper()
 	var mu sync.RWMutex
@@ -732,7 +732,7 @@ func TestBulkItemResultJSON(t *testing.T) {
 	})
 
 	t.Run("includes data when present", func(t *testing.T) {
-		r := bulkItemResult{Key: "test.txt", Data: []byte("hello")}
+		r := bulkItemResult{Key: "test.txt", Data: "hello"}
 		data, err := json.Marshal(r)
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `"data"`)
@@ -845,7 +845,7 @@ func TestBulkCreateAndGetRoundTrip(t *testing.T) {
 		}
 		for _, r := range getResults {
 			assert.Empty(t, r.Error)
-			assert.Equal(t, expected[r.Key], string(r.Data))
+			assert.Equal(t, expected[r.Key], r.Data)
 		}
 	})
 }
@@ -883,7 +883,7 @@ func TestBulkGetEncodeBase64(t *testing.T) {
 		assert.Empty(t, results[0].Error)
 
 		// Verify the data is valid base64 and decodes to original
-		decoded, err := b64.StdEncoding.DecodeString(string(results[0].Data))
+		decoded, err := b64.StdEncoding.DecodeString(results[0].Data)
 		require.NoError(t, err)
 		assert.Equal(t, "binary content here", string(decoded))
 	})
@@ -902,7 +902,7 @@ func TestBulkGetEncodeBase64(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Data, &results))
 		require.Len(t, results, 1)
 		assert.Empty(t, results[0].Error)
-		assert.Equal(t, "binary content here", string(results[0].Data))
+		assert.Equal(t, "binary content here", results[0].Data)
 	})
 }
 
@@ -940,7 +940,7 @@ func TestBulkCreateDecodeBase64(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Data, &results))
 	require.Len(t, results, 1)
 	assert.Empty(t, results[0].Error)
-	assert.Equal(t, originalContent, string(results[0].Data))
+	assert.Equal(t, originalContent, results[0].Data)
 }
 
 func TestBulkCreateDecodeBase64ThenGetEncodeBase64(t *testing.T) {
@@ -979,7 +979,7 @@ func TestBulkCreateDecodeBase64ThenGetEncodeBase64(t *testing.T) {
 	assert.Empty(t, results[0].Error)
 
 	// The returned data should be base64 of the original content
-	assert.Equal(t, b64Content, string(results[0].Data))
+	assert.Equal(t, b64Content, results[0].Data)
 }
 
 func TestBulkGetToFile(t *testing.T) {
@@ -1018,7 +1018,7 @@ func TestBulkGetToFile(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Data, &results))
 		require.Len(t, results, 1)
 		assert.Empty(t, results[0].Error)
-		assert.Nil(t, results[0].Data, "data should be nil when writing to file")
+		assert.Empty(t, results[0].Data, "data should be empty when writing to file")
 
 		// Verify file contents
 		fileBytes, err := os.ReadFile(outPath)
@@ -1095,7 +1095,7 @@ func TestBulkCreateFromFile(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Data, &getResults))
 		require.Len(t, getResults, 1)
 		assert.Empty(t, getResults[0].Error)
-		assert.Equal(t, "uploaded from file", string(getResults[0].Data))
+		assert.Equal(t, "uploaded from file", getResults[0].Data)
 	})
 
 	t.Run("upload from filePath with decodeBase64", func(t *testing.T) {
@@ -1134,7 +1134,7 @@ func TestBulkCreateFromFile(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Data, &getResults))
 		require.Len(t, getResults, 1)
 		assert.Empty(t, getResults[0].Error)
-		assert.Equal(t, original, string(getResults[0].Data))
+		assert.Equal(t, original, getResults[0].Data)
 	})
 }
 
@@ -1175,10 +1175,10 @@ func TestBulkGetPartialFailure(t *testing.T) {
 	for _, r := range results {
 		if r.Key == "exists.txt" {
 			assert.Empty(t, r.Error)
-			assert.Equal(t, "I exist", string(r.Data))
+			assert.Equal(t, "I exist", r.Data)
 		} else {
 			assert.NotEmpty(t, r.Error, "non-existent key should have an error")
-			assert.Nil(t, r.Data)
+			assert.Empty(t, r.Data)
 		}
 	}
 }

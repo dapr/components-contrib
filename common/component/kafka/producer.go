@@ -201,14 +201,14 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 			AbortTxn() error
 		})
 		if !ok {
-			err := fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+			err := errors.New("exactly-once semantics enabled but producer is not transactional")
 			return pubsub.NewBulkPublishResponse(entries, err), err
 		}
 		sendProducer, ok := clients.producer.(interface {
 			SendMessages([]*sarama.ProducerMessage) error
 		})
 		if !ok {
-			err := fmt.Errorf("producer does not support SendMessages")
+			err := errors.New("producer does not support SendMessages")
 			return pubsub.NewBulkPublishResponse(entries, err), err
 		}
 		k.eosMu.Lock()

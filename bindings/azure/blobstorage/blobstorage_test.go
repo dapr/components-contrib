@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -535,4 +537,176 @@ func TestBulkGetResponseItemJSON(t *testing.T) {
 
 func TestMaxBatchDeleteSize(t *testing.T) {
 	assert.Equal(t, 256, maxBatchDeleteSize)
+}
+
+func TestPresignOption(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+
+	t.Run("return error if blobName is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"signTTL": "15m",
+			},
+		}
+		_, err := blobStorage.presign(t.Context(), &r)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingBlobName)
+	})
+
+	t.Run("return error if signTTL is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"blobName": "test-blob",
+			},
+		}
+		_, err := blobStorage.presign(t.Context(), &r)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingSignTTL)
+	})
+
+	t.Run("return error if signTTL is empty", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"blobName": "test-blob",
+				"signTTL":  "",
+			},
+		}
+		_, err := blobStorage.presign(t.Context(), &r)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingSignTTL)
+	})
+
+	t.Run("return error if signTTL is invalid duration", func(t *testing.T) {
+		// Need a container client for this test path (past metadata validation)
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"blobName": "test-blob",
+				"signTTL":  "not-a-duration",
+			},
+		}
+		_, err = blobStorage.presign(t.Context(), &r)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cannot parse signTTL duration")
+	})
+
+	t.Run("generate SAS URL with valid shared key credential", func(t *testing.T) {
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		r := bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"blobName": "test-blob",
+				"signTTL":  "15m",
+			},
+		}
+		resp, err := blobStorage.presign(t.Context(), &r)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		var presignResp presignResponse
+		err = json.Unmarshal(resp.Data, &presignResp)
+		require.NoError(t, err)
+		assert.Contains(t, presignResp.PresignURL, "testaccount.blob.core.windows.net")
+		assert.Contains(t, presignResp.PresignURL, "testcontainer")
+		assert.Contains(t, presignResp.PresignURL, "test-blob")
+		assert.Contains(t, presignResp.PresignURL, "sig=")
+		assert.Contains(t, presignResp.PresignURL, "se=")
+		assert.Contains(t, presignResp.PresignURL, "sp=r")
+	})
+}
+
+func TestPresignViaInvoke(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+
+	cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+	require.NoError(t, err)
+	client, err := container.NewClientWithSharedKeyCredential(
+		"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+	)
+	require.NoError(t, err)
+	blobStorage.containerClient = client
+
+	t.Run("invoke presign operation", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Operation: presignOperation,
+			Metadata: map[string]string{
+				"blobName": "test-blob",
+				"signTTL":  "1h",
+			},
+		}
+		resp, err := blobStorage.Invoke(t.Context(), &r)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		var presignResp presignResponse
+		err = json.Unmarshal(resp.Data, &presignResp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, presignResp.PresignURL)
+		assert.Contains(t, presignResp.PresignURL, "sig=")
+	})
+}
+
+func TestGenerateSASURL(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+
+	t.Run("return error for invalid TTL", func(t *testing.T) {
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		blockBlobClient := client.NewBlockBlobClient("test-blob")
+		_, err = blobStorage.generateSASURL(blockBlobClient, "invalid")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cannot parse signTTL duration")
+	})
+
+	t.Run("generate valid SAS URL", func(t *testing.T) {
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		blockBlobClient := client.NewBlockBlobClient("myfile.txt")
+		sasURL, err := blobStorage.generateSASURL(blockBlobClient, "30m")
+		require.NoError(t, err)
+		assert.Contains(t, sasURL, "testaccount.blob.core.windows.net")
+		assert.Contains(t, sasURL, "testcontainer")
+		assert.Contains(t, sasURL, "myfile.txt")
+		assert.Contains(t, sasURL, "sig=")
+		assert.Contains(t, sasURL, "sp=r")
+	})
+}
+
+func TestOperationsIncludesPresign(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+	ops := blobStorage.Operations()
+
+	found := false
+	for _, op := range ops {
+		if op == presignOperation {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Operations() should include presign")
 }

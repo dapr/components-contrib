@@ -25,6 +25,8 @@ binding:
       description: "Upload multiple blobs in parallel"
     - name: bulkDelete
       description: "Delete multiple blobs in parallel"
+    - name: presign
+      description: "Generate a presigned SAS URL for a blob. Requires 'blobName' and 'signTTL' metadata. Only supported when the binding is configured with an account key or connection string."
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "azuread"

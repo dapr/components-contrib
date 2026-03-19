@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
@@ -64,12 +66,15 @@ const (
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults  int32 = 5000
-	endpointKey       = "endpoint"
+	// Defines the TTL for a presigned (SAS) URL as a Go duration string (e.g. "15m", "1h").
+	metadataKeySignTTL       = "signTTL"
+	maxResults         int32 = 5000
+	endpointKey              = "endpoint"
 
 	bulkGetOperation    bindings.OperationKind = "bulkGet"
 	bulkCreateOperation bindings.OperationKind = "bulkCreate"
 	bulkDeleteOperation bindings.OperationKind = "bulkDelete"
+	presignOperation    bindings.OperationKind = "presign"
 
 	metadataKeyFilePath = "filePath"
 
@@ -79,7 +84,10 @@ const (
 	maxBatchDeleteSize = 256
 )
 
-var ErrMissingBlobName = errors.New("blobName is a required attribute")
+var (
+	ErrMissingBlobName = errors.New("blobName is a required attribute")
+	ErrMissingSignTTL  = errors.New("signTTL is a required attribute for presign operations")
+)
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
@@ -90,8 +98,13 @@ type AzureBlobStorage struct {
 }
 
 type createResponse struct {
-	BlobURL  string `json:"blobURL"`
-	BlobName string `json:"blobName"`
+	BlobURL    string `json:"blobURL"`
+	BlobName   string `json:"blobName"`
+	PresignURL string `json:"presignURL,omitempty"`
+}
+
+type presignResponse struct {
+	PresignURL string `json:"presignURL"`
 }
 
 type listInclude struct {
@@ -195,6 +208,7 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 		bulkGetOperation,
 		bulkCreateOperation,
 		bulkDeleteOperation,
+		presignOperation,
 	}
 }
 
@@ -244,6 +258,15 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	resp := createResponse{
 		BlobURL: blockBlobClient.URL(),
 	}
+
+	if ttl, ok := req.Metadata[metadataKeySignTTL]; ok && ttl != "" {
+		presignURL, presignErr := a.generateSASURL(blockBlobClient, ttl)
+		if presignErr != nil {
+			return nil, fmt.Errorf("error generating SAS URL: %w", presignErr)
+		}
+		resp.PresignURL = presignURL
+	}
+
 	b, err := json.Marshal(resp)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling create response for azure blob: %w", err)
@@ -603,6 +626,35 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 	}, nil
 }
 
+func (a *AzureBlobStorage) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	blobName, ok := req.Metadata[metadataKeyBlobName]
+	if !ok || blobName == "" {
+		return nil, ErrMissingBlobName
+	}
+
+	ttl, ok := req.Metadata[metadataKeySignTTL]
+	if !ok || ttl == "" {
+		return nil, ErrMissingSignTTL
+	}
+
+	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
+	presignURL, err := a.generateSASURL(blockBlobClient, ttl)
+	if err != nil {
+		return nil, fmt.Errorf("error generating SAS URL: %w", err)
+	}
+
+	jsonResponse, err := json.Marshal(presignResponse{
+		PresignURL: presignURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling presign response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
 // resolveBulkGetItems builds the work list for bulkGet.
 // Explicit items are preserved as-is (including duplicates with different filePaths).
 // Prefix-discovered blobs use destinationDir as base, skipping any already covered by explicit items.
@@ -915,6 +967,23 @@ func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, 
 	return len(names), nil
 }
 
+func (a *AzureBlobStorage) generateSASURL(blockBlobClient *blockblob.Client, ttl string) (string, error) {
+	d, err := time.ParseDuration(ttl)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse signTTL duration %q: %w", ttl, err)
+	}
+
+	permissions := sas.BlobPermissions{Read: true}
+	expiry := time.Now().Add(d)
+
+	sasURL, err := blockBlobClient.GetSASURL(permissions, expiry, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate SAS URL (ensure the binding is configured with an account key or connection string): %w", err)
+	}
+
+	return sasURL, nil
+}
+
 func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -931,6 +1000,8 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 		return a.bulkCreate(ctx, req)
 	case bulkDeleteOperation:
 		return a.bulkDelete(ctx, req)
+	case presignOperation:
+		return a.presign(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

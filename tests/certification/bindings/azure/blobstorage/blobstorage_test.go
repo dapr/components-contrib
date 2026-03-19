@@ -563,6 +563,157 @@ func TestBlobStorage(t *testing.T) {
 		return nil
 	}
 
+	testPresignBlob := func(ctx flow.Context) error {
+		// verifies the presign operation generates a valid SAS URL that can be used to access a blob.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// create a blob first.
+		input := "presign test content"
+		dataBytes := []byte(input)
+
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes,
+			Metadata: map[string]string{
+				"blobName":    "presign-test.txt",
+				"contentType": "text/plain",
+			},
+		}
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+		require.NoError(t, invokeCreateErr)
+
+		// presign the blob.
+		invokePresignRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "presign",
+			Data:      nil,
+			Metadata: map[string]string{
+				"blobName": "presign-test.txt",
+				"signTTL":  "15m",
+			},
+		}
+
+		out, invokePresignErr := client.InvokeBinding(ctx, invokePresignRequest)
+		require.NoError(t, invokePresignErr)
+
+		var presignResp struct {
+			PresignURL string `json:"presignURL"`
+		}
+		unmarshalErr := json.Unmarshal(out.Data, &presignResp)
+		require.NoError(t, unmarshalErr)
+		assert.NotEmpty(t, presignResp.PresignURL)
+		assert.Contains(t, presignResp.PresignURL, "sig=")
+		assert.Contains(t, presignResp.PresignURL, "se=")
+		assert.Contains(t, presignResp.PresignURL, "sp=r")
+
+		// verify the SAS URL can be used to access the blob via HTTP GET.
+		resp, httpErr := http.Get(presignResp.PresignURL) //nolint:gosec
+		require.NoError(t, httpErr)
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, input, string(body))
+
+		// cleanup.
+		_, invokeDeleteErr := deleteBlobRequest(ctx, client, "presign-test.txt", nil)
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
+	testPresignBlobErrors := func(ctx flow.Context) error {
+		// verifies the presign operation returns errors for missing metadata.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// missing blobName.
+		invokePresignNoBlobName := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "presign",
+			Data:      nil,
+			Metadata: map[string]string{
+				"signTTL": "15m",
+			},
+		}
+		_, err := client.InvokeBinding(ctx, invokePresignNoBlobName)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "blobName is a required attribute")
+
+		// missing signTTL.
+		invokePresignNoTTL := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "presign",
+			Data:      nil,
+			Metadata: map[string]string{
+				"blobName": "nonexistent.txt",
+			},
+		}
+		_, err = client.InvokeBinding(ctx, invokePresignNoTTL)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signTTL is a required attribute")
+
+		return nil
+	}
+
+	testCreateWithPresign := func(ctx flow.Context) error {
+		// verifies that passing signTTL during create returns a presigned URL in the response.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		input := "create with presign content"
+		dataBytes := []byte(input)
+
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes,
+			Metadata: map[string]string{
+				"blobName":    "create-presign-test.txt",
+				"contentType": "text/plain",
+				"signTTL":     "15m",
+			},
+		}
+
+		out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+		require.NoError(t, invokeCreateErr)
+
+		var createResp struct {
+			BlobURL    string `json:"blobURL"`
+			PresignURL string `json:"presignURL"`
+		}
+		unmarshalErr := json.Unmarshal(out.Data, &createResp)
+		require.NoError(t, unmarshalErr)
+		assert.NotEmpty(t, createResp.BlobURL)
+		assert.NotEmpty(t, createResp.PresignURL)
+		assert.Contains(t, createResp.PresignURL, "sig=")
+
+		// verify the SAS URL works.
+		resp, httpErr := http.Get(createResp.PresignURL) //nolint:gosec
+		require.NoError(t, httpErr)
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, input, string(body))
+
+		// cleanup.
+		_, invokeDeleteErr := deleteBlobRequest(ctx, client, "create-presign-test.txt", nil)
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
 	testSnapshotDeleteAndList := func(ctx flow.Context) error {
 		// verifies the list operation can list snapshots.
 		// verifies the delete operation can delete snapshots.
@@ -1241,6 +1392,9 @@ func TestBlobStorage(t *testing.T) {
 		Step("Bulk create with inline data", testBulkCreateInlineData).
 		Step("Bulk get inline data", testBulkGetInlineData).
 		Step("Bulk create with content type", testBulkCreateWithContentType).
+		Step("Presign blob and verify SAS URL", testPresignBlob).
+		Step("Presign blob error cases", testPresignBlobErrors).
+		Step("Create blob with presign URL", testCreateWithPresign).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)

@@ -237,7 +237,7 @@ func (consumer *consumer) doBulkCallbackEOS(session sarama.ConsumerGroupSession,
 		AbortTxn() error
 	})
 	if !ok {
-		return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+		return errors.New("exactly-once semantics enabled but producer is not transactional")
 	}
 
 	consumer.k.eosMu.Lock()
@@ -340,7 +340,7 @@ func (consumer *consumer) doCallbackEOS(session sarama.ConsumerGroupSession, mes
 		AbortTxn() error
 	})
 	if !ok {
-		return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+		return errors.New("exactly-once semantics enabled but producer is not transactional")
 	}
 
 	consumer.k.eosMu.Lock()

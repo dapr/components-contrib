@@ -98,23 +98,26 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 			AbortTxn() error
 		})
 		if !ok {
-			return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+			return errors.New("exactly-once semantics enabled but producer is not transactional")
 		}
-		sendProducer, ok := clients.producer.(interface{ SendMessage(*sarama.ProducerMessage) (int32, int64, error) })
+		sendProducer, ok := clients.producer.(interface {
+			SendMessage(*sarama.ProducerMessage) (int32, int64, error)
+		})
 		if !ok {
-			return fmt.Errorf("producer does not support SendMessage")
+			return errors.New("producer does not support SendMessage")
 		}
 		k.eosMu.Lock()
 		defer k.eosMu.Unlock()
 		if err := txnProducer.BeginTxn(); err != nil {
 			return fmt.Errorf("BeginTxn: %w", err)
 		}
-		partition, offset, err = sendProducer.SendMessage(msg)
-		if err != nil {
+		var sendErr error
+		partition, offset, sendErr = sendProducer.SendMessage(msg)
+		if sendErr != nil {
 			if abortErr := txnProducer.AbortTxn(); abortErr != nil {
 				k.logger.Warnf("AbortTxn after SendMessage error: %v", abortErr)
 			}
-			return err
+			return sendErr
 		}
 		if err := txnProducer.CommitTxn(); err != nil {
 			return fmt.Errorf("CommitTxn: %w", err)
@@ -201,7 +204,9 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 			err := fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
 			return pubsub.NewBulkPublishResponse(entries, err), err
 		}
-		sendProducer, ok := clients.producer.(interface{ SendMessages([]*sarama.ProducerMessage) error })
+		sendProducer, ok := clients.producer.(interface {
+			SendMessages([]*sarama.ProducerMessage) error
+		})
 		if !ok {
 			err := fmt.Errorf("producer does not support SendMessages")
 			return pubsub.NewBulkPublishResponse(entries, err), err

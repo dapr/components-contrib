@@ -458,3 +458,14 @@ metadata:
       A regular expression to exclude keys from being converted to/from headers from/to metadata to avoid unwanted downstream side effects.
     example: '"^rawPayload|valueSchemaType$"'
     default: '""'
+  - name: enableExactlyOnceSemantics
+    type: bool
+    required: false
+    description: |
+      When true, enables exactly-once semantics using Kafka transactions.
+      The producer uses a transactional ID and idempotent producer; the consumer
+      uses ReadCommitted isolation. Consumer offsets are committed in the same
+      transaction as any messages published during the handler (via AddOffsetsToTxn
+      and CommitTxn), so consume and publish are atomic. Requires Kafka 0.11+.
+    example: "false"
+    default: "false"

@@ -137,6 +137,35 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 	return nil
 }
 
+// buildOffsetMapForTxn builds a map of topic -> []*PartitionOffsetMetadata for
+// AddOffsetsToTxn. Each partition appears once with the next offset to read (max offset+1).
+func buildOffsetMapForTxn(messages []*sarama.ConsumerMessage) map[string][]*sarama.PartitionOffsetMetadata {
+	// topic -> partition -> next offset (offset+1)
+	nextByTopicPartition := make(map[string]map[int32]int64)
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		if nextByTopicPartition[msg.Topic] == nil {
+			nextByTopicPartition[msg.Topic] = make(map[int32]int64)
+		}
+		next := msg.Offset + 1
+		if cur, ok := nextByTopicPartition[msg.Topic][msg.Partition]; !ok || next > cur {
+			nextByTopicPartition[msg.Topic][msg.Partition] = next
+		}
+	}
+	result := make(map[string][]*sarama.PartitionOffsetMetadata)
+	for topic, partMap := range nextByTopicPartition {
+		for partition, nextOffset := range partMap {
+			result[topic] = append(result[topic], &sarama.PartitionOffsetMetadata{
+				Partition: partition,
+				Offset:    nextOffset,
+			})
+		}
+	}
+	return result
+}
+
 func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string,
 ) error {
@@ -166,25 +195,104 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 		Topic:   topic,
 		Entries: messageValues,
 	}
-	responses, err := handler(session.Context(), &event)
 
-	if err != nil {
-		for i, resp := range responses {
-			// An extra check to confirm that runtime returned responses are in order
-			if resp.EntryId != messageValues[i].EntryId {
-				return errors.New("entry id mismatch while processing bulk messages")
-			}
-			if resp.Error != nil {
-				break
-			}
-			session.MarkMessage(messages[i], "")
-		}
+	var err error
+	if consumer.k.enableExactlyOnceSemantics {
+		err = consumer.doBulkCallbackEOS(session, messages, handler, topic, &event)
 	} else {
-		for _, message := range messages {
-			session.MarkMessage(message, "")
+		responses, handlerErr := handler(session.Context(), &event)
+		err = handlerErr
+		if err != nil {
+			for i, resp := range responses {
+				if i >= len(messageValues) || resp.EntryId != messageValues[i].EntryId {
+					break
+				}
+				if resp.Error != nil {
+					break
+				}
+				session.MarkMessage(messages[i], "")
+			}
+		} else {
+			for _, message := range messages {
+				session.MarkMessage(message, "")
+			}
 		}
 	}
 	return err
+}
+
+// doBulkCallbackEOS runs the handler inside a transaction and commits offsets via AddOffsetsToTxn.
+func (consumer *consumer) doBulkCallbackEOS(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string, event *KafkaBulkMessage,
+) error {
+	clients, err := consumer.k.latestClients()
+	if err != nil || clients == nil {
+		return fmt.Errorf("failed to get Kafka clients for EOS: %w", err)
+	}
+	producer := clients.producer
+	txnProducer, ok := producer.(interface {
+		BeginTxn() error
+		AddOffsetsToTxn(offsets map[string][]*sarama.PartitionOffsetMetadata, groupID string) error
+		CommitTxn() error
+		AbortTxn() error
+	})
+	if !ok {
+		return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+	}
+
+	consumer.k.eosMu.Lock()
+	defer consumer.k.eosMu.Unlock()
+
+	if err := txnProducer.BeginTxn(); err != nil {
+		return fmt.Errorf("BeginTxn: %w", err)
+	}
+
+	responses, handlerErr := handler(session.Context(), event)
+	if handlerErr != nil {
+		if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+			consumer.k.logger.Warnf("AbortTxn after handler error: %v", abortErr)
+		}
+		return handlerErr
+	}
+
+	// Partial success: mark successful entries only by committing their offsets in the txn
+	// We still commit the whole txn; for partial failure we only add offsets for successful entries
+	if responses != nil && len(responses) != len(messages) {
+		// Build offset map only for successfully processed messages
+		var successMsgs []*sarama.ConsumerMessage
+		for i, resp := range responses {
+			if i >= len(messages) {
+				break
+			}
+			if resp.EntryId == event.Entries[i].EntryId && resp.Error == nil {
+				successMsgs = append(successMsgs, messages[i])
+			}
+		}
+		if len(successMsgs) > 0 {
+			offsetMap := buildOffsetMapForTxn(successMsgs)
+			if err := txnProducer.AddOffsetsToTxn(offsetMap, consumer.k.consumerGroup); err != nil {
+				if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+					consumer.k.logger.Warnf("AbortTxn after AddOffsetsToTxn error: %v", abortErr)
+				}
+				return fmt.Errorf("AddOffsetsToTxn: %w", err)
+			}
+		}
+	} else {
+		offsetMap := buildOffsetMapForTxn(messages)
+		if len(offsetMap) > 0 {
+			if err := txnProducer.AddOffsetsToTxn(offsetMap, consumer.k.consumerGroup); err != nil {
+				if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+					consumer.k.logger.Warnf("AbortTxn after AddOffsetsToTxn error: %v", abortErr)
+				}
+				return fmt.Errorf("AddOffsetsToTxn: %w", err)
+			}
+		}
+	}
+
+	if err := txnProducer.CommitTxn(); err != nil {
+		return fmt.Errorf("CommitTxn: %w", err)
+	}
+	return nil
 }
 
 func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {
@@ -207,11 +315,60 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	}
 	event.Metadata = GetEventMetadata(message, consumer.k)
 
+	if consumer.k.enableExactlyOnceSemantics {
+		return consumer.doCallbackEOS(session, message, handlerConfig.Handler, &event)
+	}
+
 	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")
 	}
 	return err
+}
+
+// doCallbackEOS runs the single-message handler inside a transaction and commits offset via AddOffsetsToTxn.
+func (consumer *consumer) doCallbackEOS(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, handler func(context.Context, *NewEvent) error, event *NewEvent) error {
+	clients, err := consumer.k.latestClients()
+	if err != nil || clients == nil {
+		return fmt.Errorf("failed to get Kafka clients for EOS: %w", err)
+	}
+	producer := clients.producer
+	txnProducer, ok := producer.(interface {
+		BeginTxn() error
+		AddOffsetsToTxn(offsets map[string][]*sarama.PartitionOffsetMetadata, groupID string) error
+		CommitTxn() error
+		AbortTxn() error
+	})
+	if !ok {
+		return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+	}
+
+	consumer.k.eosMu.Lock()
+	defer consumer.k.eosMu.Unlock()
+
+	if err := txnProducer.BeginTxn(); err != nil {
+		return fmt.Errorf("BeginTxn: %w", err)
+	}
+
+	if err := handler(session.Context(), event); err != nil {
+		if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+			consumer.k.logger.Warnf("AbortTxn after handler error: %v", abortErr)
+		}
+		return err
+	}
+
+	offsetMap := buildOffsetMapForTxn([]*sarama.ConsumerMessage{message})
+	if err := txnProducer.AddOffsetsToTxn(offsetMap, consumer.k.consumerGroup); err != nil {
+		if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+			consumer.k.logger.Warnf("AbortTxn after AddOffsetsToTxn error: %v", abortErr)
+		}
+		return fmt.Errorf("AddOffsetsToTxn: %w", err)
+	}
+
+	if err := txnProducer.CommitTxn(); err != nil {
+		return fmt.Errorf("CommitTxn: %w", err)
+	}
+	return nil
 }
 
 func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]string {

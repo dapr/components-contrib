@@ -48,6 +48,13 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
     * Test: Begins trying to reconnect & publish
     * Component: Begins trying to reconnect & re-subscribe
 
+### Exactly-once semantics (EOS)
+
+* Run a sidecar/application with `enableExactlyOnceSemantics: true`
+* Test: Publish a batch of messages to the topic (single and bulk)
+* Component: Consumes using transactional semantics (AddOffsetsToTxn + CommitTxn)
+* Test: Asserts all messages received exactly once; includes a bulk-publish step (PublishEvents) to certify the BulkPublish EOS path
+
 ### Data integrity tests
 
 * **TODO** Start a new sidecar/application

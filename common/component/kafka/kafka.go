@@ -89,6 +89,12 @@ type Kafka struct {
 
 	excludeHeaderMetaRegex *regexp.Regexp
 	awsConfig              *aws2.Config
+
+	// enableExactlyOnceSemantics: when true, use transactional producer and commit
+	// consumer offsets via AddOffsetsToTxn + CommitTxn. eosMu serializes batch
+	// processing so only one transaction is active at a time.
+	enableExactlyOnceSemantics bool
+	eosMu                      sync.Mutex
 }
 
 type SchemaType int
@@ -164,6 +170,18 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	config.Producer.Compression = meta.internalCompression
+
+	// Exactly-once semantics: transactional producer + idempotent, consumer ReadCommitted
+	if meta.EnableExactlyOnceSemantics {
+		config.Producer.Transaction.ID = "dapr-" + meta.ConsumerGroup + "-eos"
+		config.Producer.Idempotent = true
+		config.Producer.RequiredAcks = sarama.WaitForAll // required for idempotent producer
+		config.Producer.Transaction.Timeout = 60 * time.Second
+		config.Net.MaxOpenRequests = 1 // required for idempotent producer
+		config.Consumer.IsolationLevel = sarama.ReadCommitted
+		k.enableExactlyOnceSemantics = true
+		k.logger.Info("Kafka component: exactly-once semantics enabled (transactional producer + ReadCommitted consumer)")
+	}
 
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval

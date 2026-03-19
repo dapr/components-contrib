@@ -97,6 +97,23 @@ func TestParseMetadata(t *testing.T) {
 		require.Nil(t, meta)
 		require.Equal(t, "kafka error: invalid kafka version", err.Error())
 	})
+
+	t.Run("enableExactlyOnceSemantics true", func(t *testing.T) {
+		m := getCompleteMetadata()
+		m["enableExactlyOnceSemantics"] = "true"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotNil(t, meta)
+		require.True(t, meta.EnableExactlyOnceSemantics)
+	})
+
+	t.Run("enableExactlyOnceSemantics false by default", func(t *testing.T) {
+		m := getCompleteMetadata()
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotNil(t, meta)
+		require.False(t, meta.EnableExactlyOnceSemantics)
+	})
 }
 
 func TestConsumerIDFallback(t *testing.T) {

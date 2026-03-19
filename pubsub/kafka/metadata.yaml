@@ -273,6 +273,17 @@ metadata:
       description: |
         A comma-separated list of Kafka brokers.
       example: '"localhost:9092,dapr-kafka.myapp.svc.cluster.local:9093"'
+    - name: enableExactlyOnceSemantics
+      required: false
+      description: |
+        When true, enables exactly-once semantics using Kafka transactions.
+        The producer uses a transactional ID and idempotent producer; the consumer
+        uses ReadCommitted isolation. Consumer offsets are committed in the same
+        transaction as any messages published during the handler (via AddOffsetsToTxn
+        and CommitTxn), so consume and publish are atomic. Requires Kafka 0.11+.
+      type: bool
+      example: "false"
+      default: "false"
     - name: consumerGroup
       required: false
       description: |

@@ -362,3 +362,54 @@ func Test_ConsumeClaim(t *testing.T) {
 		})
 	})
 }
+
+func TestBuildOffsetMapForTxn(t *testing.T) {
+	t.Run("single message", func(t *testing.T) {
+		msgs := []*sarama.ConsumerMessage{
+			{Topic: "t1", Partition: 0, Offset: 10},
+		}
+		m := buildOffsetMapForTxn(msgs)
+		require.Len(t, m, 1)
+		require.Len(t, m["t1"], 1)
+		require.Equal(t, int32(0), m["t1"][0].Partition)
+		require.Equal(t, int64(11), m["t1"][0].Offset) // next offset to read
+	})
+	t.Run("multiple partitions same topic", func(t *testing.T) {
+		msgs := []*sarama.ConsumerMessage{
+			{Topic: "t1", Partition: 0, Offset: 5},
+			{Topic: "t1", Partition: 1, Offset: 10},
+		}
+		m := buildOffsetMapForTxn(msgs)
+		require.Len(t, m, 1)
+		require.Len(t, m["t1"], 2)
+		// order may vary
+		var off0, off1 int64
+		for _, p := range m["t1"] {
+			if p.Partition == 0 {
+				off0 = p.Offset
+			} else {
+				off1 = p.Offset
+			}
+		}
+		require.Equal(t, int64(6), off0)
+		require.Equal(t, int64(11), off1)
+	})
+	t.Run("same partition multiple messages uses max next offset", func(t *testing.T) {
+		msgs := []*sarama.ConsumerMessage{
+			{Topic: "t1", Partition: 0, Offset: 5},
+			{Topic: "t1", Partition: 0, Offset: 7},
+		}
+		m := buildOffsetMapForTxn(msgs)
+		require.Len(t, m["t1"], 1)
+		require.Equal(t, int64(8), m["t1"][0].Offset) // max(5+1, 7+1)
+	})
+	t.Run("nil messages skipped", func(t *testing.T) {
+		msgs := []*sarama.ConsumerMessage{
+			{Topic: "t1", Partition: 0, Offset: 1},
+			nil,
+		}
+		m := buildOffsetMapForTxn(msgs)
+		require.Len(t, m["t1"], 1)
+		require.Equal(t, int64(2), m["t1"][0].Offset)
+	})
+}

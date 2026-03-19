@@ -89,14 +89,45 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		})
 	}
 
-	partition, offset, err := clients.producer.SendMessage(msg)
-
-	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
-
-	if err != nil {
-		return err
+	var partition int32
+	var offset int64
+	if k.enableExactlyOnceSemantics {
+		txnProducer, ok := clients.producer.(interface {
+			BeginTxn() error
+			CommitTxn() error
+			AbortTxn() error
+		})
+		if !ok {
+			return fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+		}
+		sendProducer, ok := clients.producer.(interface{ SendMessage(*sarama.ProducerMessage) (int32, int64, error) })
+		if !ok {
+			return fmt.Errorf("producer does not support SendMessage")
+		}
+		k.eosMu.Lock()
+		defer k.eosMu.Unlock()
+		if err := txnProducer.BeginTxn(); err != nil {
+			return fmt.Errorf("BeginTxn: %w", err)
+		}
+		partition, offset, err = sendProducer.SendMessage(msg)
+		if err != nil {
+			if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+				k.logger.Warnf("AbortTxn after SendMessage error: %v", abortErr)
+			}
+			return err
+		}
+		if err := txnProducer.CommitTxn(); err != nil {
+			return fmt.Errorf("CommitTxn: %w", err)
+		}
+	} else {
+		var err error
+		partition, offset, err = clients.producer.SendMessage(msg)
+		if err != nil {
+			return err
+		}
 	}
 
+	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 	return nil
 }
 
@@ -160,9 +191,39 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		msgs = append(msgs, msg)
 	}
 
-	if err := clients.producer.SendMessages(msgs); err != nil {
-		// map the returned error to different entries
-		return k.mapKafkaProducerErrors(err, entries), err
+	if k.enableExactlyOnceSemantics {
+		txnProducer, ok := clients.producer.(interface {
+			BeginTxn() error
+			CommitTxn() error
+			AbortTxn() error
+		})
+		if !ok {
+			err := fmt.Errorf("exactly-once semantics enabled but producer is not transactional")
+			return pubsub.NewBulkPublishResponse(entries, err), err
+		}
+		sendProducer, ok := clients.producer.(interface{ SendMessages([]*sarama.ProducerMessage) error })
+		if !ok {
+			err := fmt.Errorf("producer does not support SendMessages")
+			return pubsub.NewBulkPublishResponse(entries, err), err
+		}
+		k.eosMu.Lock()
+		defer k.eosMu.Unlock()
+		if beginErr := txnProducer.BeginTxn(); beginErr != nil {
+			return pubsub.NewBulkPublishResponse(entries, fmt.Errorf("BeginTxn: %w", beginErr)), beginErr
+		}
+		if err := sendProducer.SendMessages(msgs); err != nil {
+			if abortErr := txnProducer.AbortTxn(); abortErr != nil {
+				k.logger.Warnf("AbortTxn after SendMessages error: %v", abortErr)
+			}
+			return k.mapKafkaProducerErrors(err, entries), err
+		}
+		if commitErr := txnProducer.CommitTxn(); commitErr != nil {
+			return pubsub.NewBulkPublishResponse(entries, fmt.Errorf("CommitTxn: %w", commitErr)), commitErr
+		}
+	} else {
+		if err := clients.producer.SendMessages(msgs); err != nil {
+			return k.mapKafkaProducerErrors(err, entries), err
+		}
 	}
 
 	return pubsub.BulkPublishResponse{}, nil

@@ -126,6 +126,12 @@ type KafkaMetadata struct {
 
 	// header from/to metadata excluded keys regex
 	ExcludeHeaderMetaRegex string `mapstructure:"excludeHeaderMetaRegex"`
+
+	// EnableExactlyOnceSemantics enables Kafka transactional producer and consumer
+	// so that consume and publish (and offset commit) can be done in a single transaction.
+	// When true, the producer uses Transaction.ID and Idempotent=true, and the consumer
+	// uses ReadCommitted isolation. Offsets are committed via AddOffsetsToTxn + CommitTxn.
+	EnableExactlyOnceSemantics bool `mapstructure:"enableExactlyOnceSemantics"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.

@@ -27,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,17 +72,20 @@ const (
 	sidecarNameOIDCCerts     = "dapr-oidc-certs"
 	sidecarNameOIDCSecretKey = "dapr-oidc-secret-key"
 	sidecarNameAvro          = "dapr-avro"
+	sidecarNameEOS           = "dapr-eos"
 	appID1                   = "app-1"
 	appID2                   = "app-2"
 	appID3                   = "app-3"
 	appIDOIDCCerts           = "app-oidc-certs"
 	appIDOIDCSecretKey       = "app-oidc-secret-key"
 	appIDAvro                = "app-avro"
+	appIDEOS                 = "app-eos"
 	clusterName              = "kafkacertification"
 	clusterNameAuth          = "kafkacertification-auth"
 	dockerComposeYAML        = "docker-compose.yml"
 	dockerComposeYAMLAuth    = "docker-compose.auth.yml"
 	numMessages              = 1000
+	numMessagesEOS           = 50 // smaller set for EOS certification
 	appPort                  = 8000
 	portOffset               = 2
 	messageKey               = "partitionKey"
@@ -566,6 +570,141 @@ func TestKafkaAuth(t *testing.T) {
 		Step("send and wait(in-order)", sendTest(sidecarNameOIDCCerts, consumerGroupOIDCCerts)).
 		Step("stop sidecar", sidecar.Stop(sidecarNameOIDCCerts)).
 		Step("stop app", app.Stop(appIDOIDCCerts)).
+		Run()
+}
+
+// TestKafkaExactlyOnceSemantics certifies that the Kafka pubsub component works
+// with enableExactlyOnceSemantics: true (transactional consume + commit via
+// AddOffsetsToTxn). It sends a batch of messages and asserts all are received
+// exactly once: no duplicates (total delivery count == sent count).
+func TestKafkaExactlyOnceSemantics(t *testing.T) {
+	consumerEOS := watcher.NewOrdered()
+	// Record every delivery (including any duplicates) to verify exactly-once.
+	var receivedMu sync.Mutex
+	var deliveryCount int
+
+	application := func(watcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return s.AddTopicEventHandler(&common.Subscription{
+				PubsubName: pubsubName,
+				Topic:      topicName,
+				Route:      "/orders",
+			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				ctx.Logf("EOS consumer received: %s", e.Data)
+				watcher.Observe(e.Data)
+				receivedMu.Lock()
+				deliveryCount++
+				receivedMu.Unlock()
+				return false, nil
+			})
+		}
+	}
+
+	msgs := make([]string, numMessagesEOS)
+	for i := range msgs {
+		msgs[i] = fmt.Sprintf("EOS message %03d", i)
+	}
+	metadata := map[string]string{messageKey: "eos-test"}
+
+	sendRecvEOS := func(ctx flow.Context) error {
+		client := sidecar.GetClient(ctx, sidecarNameEOS)
+		consumerEOS.ExpectStrings(msgs...)
+		for _, msg := range msgs {
+			err := client.PublishEvent(ctx, pubsubName, topicName, msg,
+				dapr.PublishEventWithMetadata(metadata))
+			require.NoError(ctx, err, "error publishing message")
+		}
+		consumerEOS.Assert(ctx, time.Minute)
+		receivedMu.Lock()
+		n := deliveryCount
+		receivedMu.Unlock()
+		require.Equal(t, numMessagesEOS, n, "exactly-once: expected exactly %d deliveries, got %d (duplicates would increase count)", numMessagesEOS, n)
+		return nil
+	}
+
+	// Send the same 50 messages again; we should get exactly 100 total deliveries (no duplicate from one send, no loss).
+	sendSameMessagesAgain := func(ctx flow.Context) error {
+		client := sidecar.GetClient(ctx, sidecarNameEOS)
+		for _, msg := range msgs {
+			err := client.PublishEvent(ctx, pubsubName, topicName, msg,
+				dapr.PublishEventWithMetadata(metadata))
+			require.NoError(ctx, err, "error publishing message second time")
+		}
+		deadline := time.Now().Add(time.Minute)
+		for time.Now().Before(deadline) {
+			receivedMu.Lock()
+			n := deliveryCount
+			receivedMu.Unlock()
+			if n >= 2*numMessagesEOS {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		receivedMu.Lock()
+		n := deliveryCount
+		receivedMu.Unlock()
+		require.Equal(t, 2*numMessagesEOS, n, "after sending same messages twice: expected exactly %d deliveries, got %d", 2*numMessagesEOS, n)
+		return nil
+	}
+
+	// Bulk publish the same 50 messages (exercises BulkPublish EOS path); expect exactly 150 total deliveries.
+	events := make([]interface{}, len(msgs))
+	for i, m := range msgs {
+		events[i] = m
+	}
+	sendBulkEOS := func(ctx flow.Context) error {
+		client := sidecar.GetClient(ctx, sidecarNameEOS)
+		resp := client.PublishEvents(ctx, pubsubName, topicName, events,
+			dapr.PublishEventsWithMetadata(metadata))
+		require.NoError(ctx, resp.Error, "bulk publish failed")
+		require.Empty(ctx, resp.FailedEvents, "bulk publish had failed events: %v", resp.FailedEvents)
+		deadline := time.Now().Add(time.Minute)
+		for time.Now().Before(deadline) {
+			receivedMu.Lock()
+			n := deliveryCount
+			receivedMu.Unlock()
+			if n >= 3*numMessagesEOS {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		receivedMu.Lock()
+		n := deliveryCount
+		receivedMu.Unlock()
+		require.Equal(t, 3*numMessagesEOS, n, "after bulk send: expected exactly %d deliveries, got %d", 3*numMessagesEOS, n)
+		return nil
+	}
+
+	flow.New(t, "kafka exactly-once semantics certification").
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait for broker sockets",
+			network.WaitForAddresses(5*time.Minute, brokers...)).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			config := sarama.NewConfig()
+			config.ClientID = "test-consumer-eos"
+			config.Consumer.Return.Errors = true
+			client, err := sarama.NewConsumer(brokers, config)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
+			return err
+		})).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step(app.Run(appIDEOS, fmt.Sprintf(":%d", appPort), application(consumerEOS))).
+		Step(sidecar.Run(sidecarNameEOS,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumerEOS"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("send and receive with EOS", sendRecvEOS).
+		Step("send same messages again, assert exactly 100 deliveries", sendSameMessagesAgain).
+		Step("bulk publish same messages, assert exactly 150 deliveries", sendBulkEOS).
 		Run()
 }
 

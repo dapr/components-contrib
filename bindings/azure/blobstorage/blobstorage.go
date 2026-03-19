@@ -225,6 +225,17 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobName = id.String()
 	}
 
+	// Extract and validate signTTL before upload so we fail fast and don't
+	// persist it as blob metadata.
+	var signTTL string
+	if ttl, ok := req.Metadata[metadataKeySignTTL]; ok && ttl != "" {
+		if _, err := time.ParseDuration(ttl); err != nil {
+			return nil, fmt.Errorf("cannot parse signTTL duration %q: %w", ttl, err)
+		}
+		signTTL = ttl
+		delete(req.Metadata, metadataKeySignTTL)
+	}
+
 	blobHTTPHeaders, err := storagecommon.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
 	if err != nil {
 		return nil, err
@@ -256,11 +267,12 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	}
 
 	resp := createResponse{
-		BlobURL: blockBlobClient.URL(),
+		BlobURL:  blockBlobClient.URL(),
+		BlobName: blobName,
 	}
 
-	if ttl, ok := req.Metadata[metadataKeySignTTL]; ok && ttl != "" {
-		presignURL, presignErr := a.generateSASURL(blockBlobClient, ttl)
+	if signTTL != "" {
+		presignURL, presignErr := a.generateSASURL(blockBlobClient, signTTL)
 		if presignErr != nil {
 			return nil, fmt.Errorf("error generating SAS URL: %w", presignErr)
 		}
@@ -971,6 +983,9 @@ func (a *AzureBlobStorage) generateSASURL(blockBlobClient *blockblob.Client, ttl
 	d, err := time.ParseDuration(ttl)
 	if err != nil {
 		return "", fmt.Errorf("cannot parse signTTL duration %q: %w", ttl, err)
+	}
+	if d <= 0 {
+		return "", fmt.Errorf("signTTL must be a positive duration, got %q", ttl)
 	}
 
 	permissions := sas.BlobPermissions{Read: true}

@@ -677,6 +677,36 @@ func TestGenerateSASURL(t *testing.T) {
 		require.Contains(t, err.Error(), "cannot parse signTTL duration")
 	})
 
+	t.Run("return error for zero TTL", func(t *testing.T) {
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		blockBlobClient := client.NewBlockBlobClient("test-blob")
+		_, err = blobStorage.generateSASURL(blockBlobClient, "0s")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "signTTL must be a positive duration")
+	})
+
+	t.Run("return error for negative TTL", func(t *testing.T) {
+		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
+		require.NoError(t, err)
+		client, err := container.NewClientWithSharedKeyCredential(
+			"https://testaccount.blob.core.windows.net/testcontainer", cred, nil,
+		)
+		require.NoError(t, err)
+		blobStorage.containerClient = client
+
+		blockBlobClient := client.NewBlockBlobClient("test-blob")
+		_, err = blobStorage.generateSASURL(blockBlobClient, "-5m")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "signTTL must be a positive duration")
+	})
+
 	t.Run("generate valid SAS URL", func(t *testing.T) {
 		cred, err := azblob.NewSharedKeyCredential("testaccount", "dGVzdGtleQ==")
 		require.NoError(t, err)

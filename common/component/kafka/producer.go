@@ -89,7 +89,7 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 			msg.Key = sarama.StringEncoder(value)
 		case partitionNumberKey:
 			pNum, perr := parsePartitionNumber(value)
-			if err != nil {
+			if perr != nil {
 				return perr
 			}
 			msg.Partition = pNum

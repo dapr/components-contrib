@@ -1,4 +1,4 @@
-//go:build e2e certtests
+//go:build e2e || certtests
 // +build e2e certtests
 
 /*

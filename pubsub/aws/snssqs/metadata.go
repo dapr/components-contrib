@@ -126,7 +126,7 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 	}
 
 	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa.
-	if (md.MessageReceiveLimit > 0 || len(md.SqsDeadLettersQueueName) > 0) && (md.MessageReceiveLimit <= 0 || len(md.SqsDeadLettersQueueName) <= 0) {
+	if (md.MessageReceiveLimit > 0 || len(md.SqsDeadLettersQueueName) > 0) && (md.MessageReceiveLimit == 0 || len(md.SqsDeadLettersQueueName) == 0) {
 		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
 	}
 

@@ -1,5 +1,5 @@
-//go:build e2e
-// +build e2e
+//go:build e2e certtests
+// +build e2e certtests
 
 /*
 Copyright 2023 The Dapr Authors

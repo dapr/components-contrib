@@ -197,7 +197,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
-	github.com/apache/thrift v0.16.0 // indirect
+	github.com/apache/thrift v0.19.0 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -500,6 +500,12 @@ replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday
 
 // this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// kitex's bthrift apache adapter only compiles against thrift v0.13.0 (newer
+// versions added context.Context to TProtocol methods). Mirrors the replace
+// in github.com/cloudwego/kitex-examples since replace directives don't
+// propagate from dependencies.
+replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
 
 // Uncomment for local development for testing with changes in the components-contrib && kit repositories.
 // Don't commit with this uncommented!

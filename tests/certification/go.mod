@@ -10,7 +10,7 @@ require (
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.18.0
-	github.com/apache/thrift v0.16.0
+	github.com/apache/thrift v0.19.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.9
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.0
@@ -373,3 +373,7 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+// kitex's bthrift apache adapter only compiles against thrift v0.13.0
+// (newer versions added context.Context to TProtocol methods).
+replace github.com/apache/thrift => github.com/apache/thrift v0.13.0

@@ -526,7 +526,13 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		}
 
 		wg.Add(1)
-		sem <- struct{}{}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			results[i] = bulkItemResult{Key: item.Key, Error: ctx.Err().Error()}
+			wg.Done()
+			continue
+		}
 		go func(idx int, it bulkGetItem) {
 			defer wg.Done()
 			defer func() { <-sem }()
@@ -636,7 +642,13 @@ func (s *AWSS3) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*b
 		}
 
 		wg.Add(1)
-		sem <- struct{}{}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			results[i] = bulkItemResult{Key: item.Key, Error: ctx.Err().Error()}
+			wg.Done()
+			continue
+		}
 		go func(idx int, it bulkCreateItem) {
 			defer wg.Done()
 			defer func() { <-sem }()
@@ -694,6 +706,11 @@ func (s *AWSS3) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*b
 }
 
 func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	_, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+
 	var payload bulkDeletePayload
 	if err := json.Unmarshal(req.Data, &payload); err != nil {
 		return nil, fmt.Errorf("s3 binding error: invalid bulkDelete payload: %w", err)

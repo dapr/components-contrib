@@ -216,7 +216,6 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	var blobName string
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobName = val
-		delete(req.Metadata, metadataKeyBlobName)
 	} else {
 		id, err := uuid.NewRandom()
 		if err != nil {
@@ -225,18 +224,19 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobName = id.String()
 	}
 
-	// Extract and validate signTTL before upload so we fail fast and don't
-	// persist it as blob metadata.
-	var signTTL string
-	if ttl, ok := req.Metadata[metadataKeySignTTL]; ok && ttl != "" {
-		if _, err := time.ParseDuration(ttl); err != nil {
-			return nil, fmt.Errorf("cannot parse signTTL duration %q: %w", ttl, err)
+	// Extract signTTL before upload so we can fail fast and avoid persisting
+	// it as blob metadata. We copy metadata rather than mutating the request.
+	signTTL := req.Metadata[metadataKeySignTTL]
+
+	uploadMetadata := make(map[string]string, len(req.Metadata))
+	for k, v := range req.Metadata {
+		if k == metadataKeySignTTL || k == metadataKeyBlobName {
+			continue
 		}
-		signTTL = ttl
-		delete(req.Metadata, metadataKeySignTTL)
+		uploadMetadata[k] = v
 	}
 
-	blobHTTPHeaders, err := storagecommon.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
+	blobHTTPHeaders, err := storagecommon.CreateBlobHTTPHeadersFromRequest(uploadMetadata, nil, a.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -254,29 +254,33 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		req.Data = decoded
 	}
 
+	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
+
+	// Generate the SAS URL before uploading so we don't leave an orphaned
+	// blob if SAS generation fails.
+	var presignURL string
+	if signTTL != "" {
+		presignURL, err = a.generateSASURL(blockBlobClient, signTTL)
+		if err != nil {
+			return nil, fmt.Errorf("error generating SAS URL: %w", err)
+		}
+	}
+
 	uploadOptions := azblob.UploadBufferOptions{
-		Metadata:                storagecommon.SanitizeMetadata(a.logger, req.Metadata),
+		Metadata:                storagecommon.SanitizeMetadata(a.logger, uploadMetadata),
 		HTTPHeaders:             &blobHTTPHeaders,
 		TransactionalContentMD5: blobHTTPHeaders.BlobContentMD5,
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
 	_, err = blockBlobClient.UploadBuffer(ctx, req.Data, &uploadOptions)
 	if err != nil {
 		return nil, fmt.Errorf("error uploading az blob: %w", err)
 	}
 
 	resp := createResponse{
-		BlobURL:  blockBlobClient.URL(),
-		BlobName: blobName,
-	}
-
-	if signTTL != "" {
-		presignURL, presignErr := a.generateSASURL(blockBlobClient, signTTL)
-		if presignErr != nil {
-			return nil, fmt.Errorf("error generating SAS URL: %w", presignErr)
-		}
-		resp.PresignURL = presignURL
+		BlobURL:    blockBlobClient.URL(),
+		BlobName:   blobName,
+		PresignURL: presignURL,
 	}
 
 	b, err := json.Marshal(resp)
@@ -638,7 +642,7 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 	}, nil
 }
 
-func (a *AzureBlobStorage) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) presign(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	blobName, ok := req.Metadata[metadataKeyBlobName]
 	if !ok || blobName == "" {
 		return nil, ErrMissingBlobName
@@ -1016,7 +1020,7 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 	case bulkDeleteOperation:
 		return a.bulkDelete(ctx, req)
 	case presignOperation:
-		return a.presign(ctx, req)
+		return a.presign(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

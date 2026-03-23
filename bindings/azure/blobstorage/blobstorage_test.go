@@ -548,7 +548,7 @@ func TestPresignOption(t *testing.T) {
 				"signTTL": "15m",
 			},
 		}
-		_, err := blobStorage.presign(t.Context(), &r)
+		_, err := blobStorage.presign(&r)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingBlobName)
 	})
@@ -559,7 +559,7 @@ func TestPresignOption(t *testing.T) {
 				"blobName": "test-blob",
 			},
 		}
-		_, err := blobStorage.presign(t.Context(), &r)
+		_, err := blobStorage.presign(&r)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingSignTTL)
 	})
@@ -571,7 +571,7 @@ func TestPresignOption(t *testing.T) {
 				"signTTL":  "",
 			},
 		}
-		_, err := blobStorage.presign(t.Context(), &r)
+		_, err := blobStorage.presign(&r)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingSignTTL)
 	})
@@ -592,7 +592,7 @@ func TestPresignOption(t *testing.T) {
 				"signTTL":  "not-a-duration",
 			},
 		}
-		_, err = blobStorage.presign(t.Context(), &r)
+		_, err = blobStorage.presign(&r)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot parse signTTL duration")
 	})
@@ -612,7 +612,7 @@ func TestPresignOption(t *testing.T) {
 				"signTTL":  "15m",
 			},
 		}
-		resp, err := blobStorage.presign(t.Context(), &r)
+		resp, err := blobStorage.presign(&r)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 

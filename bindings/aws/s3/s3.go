@@ -712,7 +712,7 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 
 	var payload bulkDeletePayload
-	if err := json.Unmarshal(req.Data, &payload); err != nil {
+	if err = json.Unmarshal(req.Data, &payload); err != nil {
 		return nil, fmt.Errorf("s3 binding error: invalid bulkDelete payload: %w", err)
 	}
 	if len(payload.Keys) == 0 {
@@ -749,7 +749,8 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 			objects[i] = s3types.ObjectIdentifier{Key: ptr.Of(key)}
 		}
 
-		output, err := s.s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		var output *s3.DeleteObjectsOutput
+		output, err = s.s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 			Bucket: ptr.Of(s.metadata.Bucket),
 			Delete: &s3types.Delete{
 				Objects: objects,

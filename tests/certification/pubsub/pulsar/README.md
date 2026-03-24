@@ -52,8 +52,13 @@ The purpose of this module is to provide tests that certify the Pulsar Pubsub as
    - Restart pulsar service
    - Subscriber is subscribed to 1 topic
    - Verify that all expected messages were received
-- Verify ordering process with partitioned topic 
+- Verify ordering process with partitioned topic
    - Run dapr application with 1 publisher and 2 subscriber
-   - Publisher publishes to 1 4-partitioned topic 
+   - Publisher publishes to 1 4-partitioned topic
    - Subscriber is subscribed to 1 topic
    - Verify that all expected messages were received in order
+- Verify Avro schema encode/decode round trip
+   - Run dapr application with 1 publisher and 1 subscriber configured with `.avroschema`
+   - Publisher publishes JSON messages that are Avro-encoded on the publish path
+   - Subscriber receives messages that are decoded from Avro binary back to JSON
+   - Verify that all expected messages were received with correct data

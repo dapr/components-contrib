@@ -538,7 +538,7 @@ func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bind
 			defer func() { <-sem }()
 
 			resp, gerr := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
-				Bucket: ptr.Of(s.metadata.Bucket),
+				Bucket: ptr.Of(metadata.Bucket),
 				Key:    ptr.Of(it.Key),
 			})
 			if gerr != nil {
@@ -706,7 +706,7 @@ func (s *AWSS3) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*b
 }
 
 func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	_, err := s.metadata.mergeWithRequestMetadata(req)
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
@@ -751,7 +751,7 @@ func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 		var output *s3.DeleteObjectsOutput
 		output, err = s.s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-			Bucket: ptr.Of(s.metadata.Bucket),
+			Bucket: ptr.Of(metadata.Bucket),
 			Delete: &s3types.Delete{
 				Objects: objects,
 				Quiet:   ptr.Of(false),

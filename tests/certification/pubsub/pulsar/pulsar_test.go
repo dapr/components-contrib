@@ -882,43 +882,114 @@ type schemaTest struct {
 	Name string `json:"name"`
 }
 
+type avroSchemaTest struct {
+	TestID   int    `json:"testId"`
+	TestName string `json:"testName"`
+}
+
+func subscriberAvroSchemaApplication(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+	return func(ctx flow.Context, s common.Service) error {
+		return multierr.Combine(
+			s.AddTopicEventHandler(&common.Subscription{
+				PubsubName: pubsubName,
+				Topic:      topicName,
+				Route:      "/orders",
+				Metadata:   map[string]string{"rawPayload": "true"},
+			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				// With rawPayload, e.Data arrives as []uint8.
+				// Unmarshal into the typed struct to normalize JSON field order
+				// so that it matches the published strings.
+				dataStr := fmt.Sprintf("%s", e.Data)
+				var obj avroSchemaTest
+				if err := json.Unmarshal([]byte(dataStr), &obj); err != nil {
+					ctx.Logf("failed to unmarshal Avro schema payload in subscriber (appID=%s, topic=%s, id=%s): %v", appID, e.Topic, e.ID, err)
+					// Non-retryable error so the test fails clearly on bad payloads.
+					return false, fmt.Errorf("subscriberAvroSchemaApplication: unmarshal payload: %w", err)
+				}
+				normalized, err := json.Marshal(obj)
+				if err != nil {
+					ctx.Logf("failed to marshal normalized Avro schema payload in subscriber (appID=%s, topic=%s, id=%s): %v", appID, e.Topic, e.ID, err)
+					// Non-retryable error so the test fails clearly on bad normalization.
+					return false, fmt.Errorf("subscriberAvroSchemaApplication: marshal normalized payload: %w", err)
+				}
+				messagesWatcher.Observe(string(normalized))
+				ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+				return false, nil
+			}),
+		)
+	}
+}
+
+func publishSchemaMessages(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	return func(ctx flow.Context) error {
+		// prepare the messages
+		messages := make([]string, numMessages)
+		for i := range messages {
+			test := &schemaTest{
+				ID:   i,
+				Name: uuid.New().String(),
+			}
+
+			b, err := json.Marshal(test)
+			require.NoError(ctx, err, "error marshaling schemaTest")
+			messages[i] = string(b)
+		}
+
+		for _, messageWatcher := range messageWatchers {
+			messageWatcher.ExpectStrings(messages...)
+		}
+
+		// get the sidecar (dapr) client
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		// publish messages
+		ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+		for _, message := range messages {
+			ctx.Logf("Publishing: %q", message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message)
+			require.NoError(ctx, err, "error publishing message")
+		}
+		return nil
+	}
+}
+
+func publishAvroSchemaMessages(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	return func(ctx flow.Context) error {
+		messages := make([]string, numMessages)
+		for i := range messages {
+			test := &avroSchemaTest{
+				TestID:   i,
+				TestName: uuid.New().String(),
+			}
+
+			b, err := json.Marshal(test)
+			require.NoError(ctx, err, "error marshaling avroSchemaTest")
+			messages[i] = string(b)
+		}
+
+		for _, messageWatcher := range messageWatchers {
+			messageWatcher.ExpectStrings(messages...)
+		}
+
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+		for _, message := range messages {
+			ctx.Logf("Publishing: %q", message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message, dapr.PublishEventWithRawPayload())
+			require.NoError(ctx, err, "error publishing message")
+		}
+		return nil
+	}
+}
+
 func (p *pulsarSuite) TestPulsarSchema() {
 	t := p.T()
 	consumerGroup1 := watcher.NewUnordered()
-
-	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// prepare the messages
-			messages := make([]string, numMessages)
-			for i := range messages {
-				test := &schemaTest{
-					ID:   i,
-					Name: uuid.New().String(),
-				}
-
-				b, _ := json.Marshal(test)
-				messages[i] = string(b)
-			}
-
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
-			}
-
-			// get the sidecar (dapr) client
-			client := sidecar.GetClient(ctx, sidecarName)
-
-			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
-
-				err := client.PublishEvent(ctx, pubsubName, topicName, message)
-				require.NoError(ctx, err, "error publishing message")
-			}
-			return nil
-		}
-	}
 
 	flow.New(t, "pulsar certification schema test").
 
@@ -955,7 +1026,73 @@ func (p *pulsarSuite) TestPulsarSchema() {
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
-		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishSchemaMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+func (p *pulsarSuite) TestPulsarAvroSchema() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	avroSchema := `{"type":"record","name":"Example","namespace":"test","fields":[{"name":"testId","type":"int"},{"name":"testName","type":"string"}]}`
+
+	flow.New(t, "pulsar certification avro schema test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberAvroSchemaApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		// Pre-register the Avro schema on the topic so the sidecar's
+		// subscribe call finds it already present on the broker.
+		Step("register avro schema on topic", func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+			defer client.Close()
+
+			producer, err := client.CreateProducer(pulsar.ProducerOptions{
+				Topic:  "persistent://public/default/" + topicActiveName,
+				Schema: pulsar.NewAvroSchema(avroSchema, nil),
+			})
+			if err != nil {
+				return fmt.Errorf("could not create producer to register avro schema: %v", err)
+			}
+			producer.Close()
+
+			return nil
+		}).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_nine")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishAvroSchemaMessages(sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }

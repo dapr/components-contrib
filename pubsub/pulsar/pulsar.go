@@ -669,8 +669,29 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 }
 
 func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+	data := msg.Payload()
+
+	// If an Avro schema is registered for this topic, decode the Avro binary
+	// payload to JSON before passing it to the Dapr runtime. The Pulsar Go
+	// client does not automatically decode msg.Payload() when using Chan(),
+	// so we must do it explicitly here.
+	// The goavro codec was compiled once at init in parsePulsarMetadata.
+	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
+		native, _, decodeErr := sm.codec.NativeFromBinary(data)
+		if decodeErr != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro decode failed for topic %q: %w", originTopic, decodeErr)
+		}
+		jsonBytes, encodeErr := sm.codec.TextualFromNative(nil, native)
+		if encodeErr != nil {
+			msg.Nack(msg.Message)
+			return fmt.Errorf("avro to json conversion failed for topic %q: %w", originTopic, encodeErr)
+		}
+		data = jsonBytes
+	}
+
 	pubsubMsg := pubsub.NewMessage{
-		Data:     msg.Payload(),
+		Data:     data,
 		Topic:    originTopic,
 		Metadata: msg.Properties(),
 	}

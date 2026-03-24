@@ -14,14 +14,20 @@ limitations under the License.
 package blobstorage
 
 import (
+	"bytes"
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
+
+	securejoin "github.com/cyphar/filepath-securejoin"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
@@ -29,6 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/dapr/components-contrib/bindings"
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
@@ -59,6 +66,17 @@ const (
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
 	maxResults  int32 = 5000
 	endpointKey       = "endpoint"
+
+	bulkGetOperation    bindings.OperationKind = "bulkGet"
+	bulkCreateOperation bindings.OperationKind = "bulkCreate"
+	bulkDeleteOperation bindings.OperationKind = "bulkDelete"
+
+	metadataKeyFilePath = "filePath"
+
+	defaultConcurrency int32 = 10
+
+	// Azure Blob Batch API supports up to 256 sub-requests per batch.
+	maxBatchDeleteSize = 256
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -91,6 +109,68 @@ type listPayload struct {
 	Include    listInclude `json:"include"`
 }
 
+type bulkGetItem struct {
+	BlobName string  `json:"blobName"`
+	FilePath *string `json:"filePath,omitempty"`
+}
+
+type bulkGetPayload struct {
+	// Items specifies explicit blob-to-file mappings.
+	Items []bulkGetItem `json:"items,omitempty"`
+	// Prefix lists blobs by prefix; requires DestinationDir.
+	Prefix *string `json:"prefix,omitempty"`
+	// DestinationDir is used as the base directory for prefix-discovered blobs.
+	DestinationDir *string `json:"destinationDir,omitempty"`
+	Concurrency    *int32  `json:"concurrency,omitempty"`
+}
+
+type bulkGetResponseItem struct {
+	BlobName string `json:"blobName"`
+	FilePath string `json:"filePath,omitempty"`
+	// Data holds the blob content when using inline mode (no filePath).
+	// JSON-marshalled as base64 since it is []byte, which is safe for binary blobs.
+	Data  []byte `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+type bulkCreateItem struct {
+	BlobName    string  `json:"blobName"`
+	SourcePath  string  `json:"sourcePath,omitempty"`
+	Data        *string `json:"data,omitempty"`
+	ContentType *string `json:"contentType,omitempty"`
+}
+
+type bulkCreatePayload struct {
+	Items       []bulkCreateItem `json:"items"`
+	Concurrency *int32           `json:"concurrency,omitempty"`
+}
+
+type bulkCreateResponseItem struct {
+	BlobName string `json:"blobName"`
+	BlobURL  string `json:"blobURL,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+type bulkDeletePayload struct {
+	Prefix          *string  `json:"prefix,omitempty"`
+	BlobNames       []string `json:"blobNames,omitempty"`
+	DeleteSnapshots *string  `json:"deleteSnapshots,omitempty"`
+	Concurrency     *int32   `json:"concurrency,omitempty"`
+}
+
+type bulkDeleteResponseItem struct {
+	BlobName string `json:"blobName"`
+	Error    string `json:"error,omitempty"`
+}
+
+var (
+	ErrMissingBlobSelection       = errors.New("at least one of items or prefix is required")
+	ErrEmptyBulkCreateItems       = errors.New("items array must not be empty")
+	ErrMissingDestinationDir      = errors.New("destinationDir is required when using prefix")
+	ErrInvalidConcurrency         = errors.New("concurrency must be greater than 0")
+	ErrMissingBulkDeleteSelection = errors.New("at least one of prefix or blobNames is required")
+)
+
 // NewAzureBlobStorage returns a new Azure Blob Storage instance.
 func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 	return &AzureBlobStorage{logger: logger}
@@ -112,6 +192,9 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		bulkGetOperation,
+		bulkCreateOperation,
+		bulkDeleteOperation,
 	}
 }
 
@@ -184,6 +267,11 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 		return nil, ErrMissingBlobName
 	}
 
+	// If filePath is set, stream directly to file via DownloadFile.
+	if filePath, ok := req.Metadata[metadataKeyFilePath]; ok && filePath != "" {
+		return a.getToFile(ctx, blockBlobClient, filePath)
+	}
+
 	downloadOptions := azblob.DownloadStreamOptions{
 		AccessConditions: &blob.AccessConditions{},
 	}
@@ -232,6 +320,42 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	return &bindings.InvokeResponse{
 		Data:     blobData,
 		Metadata: metadata,
+	}, nil
+}
+
+// downloadBlobToFile downloads a blob directly to a local file, creating parent
+// directories as needed. On error, any partially-written file is removed.
+func downloadBlobToFile(ctx context.Context, blockBlobClient *blockblob.Client, filePath string) error {
+	if mkdirErr := os.MkdirAll(filepath.Dir(filePath), 0o755); mkdirErr != nil {
+		return fmt.Errorf("error creating directory for %q: %w", filePath, mkdirErr)
+	}
+
+	f, createErr := os.Create(filePath)
+	if createErr != nil {
+		return fmt.Errorf("error creating file %q: %w", filePath, createErr)
+	}
+	defer f.Close()
+
+	if _, dlErr := blockBlobClient.DownloadFile(ctx, f, nil); dlErr != nil {
+		os.Remove(filePath)
+		if bloberror.HasCode(dlErr, bloberror.BlobNotFound) {
+			return errors.New("blob not found")
+		}
+		return fmt.Errorf("error downloading blob to file: %w", dlErr)
+	}
+
+	return nil
+}
+
+func (a *AzureBlobStorage) getToFile(ctx context.Context, blockBlobClient *blockblob.Client, filePath string) (*bindings.InvokeResponse, error) {
+	if err := downloadBlobToFile(ctx, blockBlobClient, filePath); err != nil {
+		return nil, err
+	}
+
+	return &bindings.InvokeResponse{
+		Metadata: map[string]string{
+			metadataKeyFilePath: filePath,
+		},
 	}, nil
 }
 
@@ -344,6 +468,453 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}, nil
 }
 
+func getConcurrency(val *int32) (int, error) {
+	if val == nil {
+		return int(defaultConcurrency), nil
+	}
+	if *val <= 0 {
+		return 0, ErrInvalidConcurrency
+	}
+	return int(*val), nil
+}
+
+func (a *AzureBlobStorage) resolveBlobs(ctx context.Context, prefix *string, blobNames []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(blobNames))
+	result := make([]string, 0, len(blobNames))
+
+	// Add explicit blob names first.
+	for _, name := range blobNames {
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; !ok {
+			seen[name] = struct{}{}
+			result = append(result, name)
+		}
+	}
+
+	// If prefix is set, list blobs and merge.
+	if prefix != nil && *prefix != "" {
+		options := container.ListBlobsFlatOptions{
+			Prefix: prefix,
+		}
+		pager := a.containerClient.NewListBlobsFlatPager(&options)
+		for pager.More() {
+			resp, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error listing blobs with prefix %q: %w", *prefix, err)
+			}
+			for _, item := range resp.Segment.BlobItems {
+				if item.Name == nil {
+					continue
+				}
+				if _, ok := seen[*item.Name]; !ok {
+					seen[*item.Name] = struct{}{}
+					result = append(result, *item.Name)
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var payload bulkGetPayload
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("error parsing bulkGet payload: %w", err)
+		}
+	}
+
+	concurrency, err := getConcurrency(payload.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the work list from explicit items and/or prefix discovery.
+	items, err := a.resolveBulkGetItems(ctx, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(items) == 0 {
+		return nil, ErrMissingBlobSelection
+	}
+
+	results := make([]bulkGetResponseItem, len(items))
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(concurrency)
+
+	for i, item := range items {
+		g.Go(func() error {
+			results[i].BlobName = item.BlobName
+			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
+
+			if item.FilePath != nil && *item.FilePath != "" {
+				// Stream to file via shared download helper.
+				filePath := *item.FilePath
+				if dlErr := downloadBlobToFile(gctx, blockBlobClient, filePath); dlErr != nil {
+					results[i].Error = dlErr.Error()
+					return nil
+				}
+
+				results[i].FilePath = filePath
+			} else {
+				// Inline mode: download to memory and return data in response.
+				resp, dlErr := blockBlobClient.DownloadStream(gctx, nil)
+				if dlErr != nil {
+					if bloberror.HasCode(dlErr, bloberror.BlobNotFound) {
+						results[i].Error = "blob not found"
+					} else {
+						results[i].Error = dlErr.Error()
+					}
+					return nil
+				}
+				defer resp.Body.Close()
+
+				var buf bytes.Buffer
+				if _, copyErr := io.Copy(&buf, resp.Body); copyErr != nil {
+					results[i].Error = copyErr.Error()
+					return nil
+				}
+
+				results[i].Data = buf.Bytes()
+			}
+			return nil
+		})
+	}
+
+	if waitErr := g.Wait(); waitErr != nil {
+		return nil, fmt.Errorf("error in bulkGet: %w", waitErr)
+	}
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling bulkGet response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKeyNumber: strconv.Itoa(len(results)),
+		},
+	}, nil
+}
+
+// resolveBulkGetItems builds the work list for bulkGet.
+// Explicit items are preserved as-is (including duplicates with different filePaths).
+// Prefix-discovered blobs use destinationDir as base, skipping any already covered by explicit items.
+func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bulkGetPayload) ([]bulkGetItem, error) {
+	items := make([]bulkGetItem, 0, len(payload.Items))
+
+	// Track blob names from explicit items so prefix discovery doesn't duplicate them.
+	explicitNames := make(map[string]struct{})
+
+	// Add explicit items as-is (no dedup — same blob with different filePaths is valid).
+	for _, item := range payload.Items {
+		if item.BlobName == "" {
+			continue
+		}
+		explicitNames[item.BlobName] = struct{}{}
+		items = append(items, item)
+	}
+
+	// If prefix is set, discover blobs and map them into destinationDir.
+	if payload.Prefix != nil && *payload.Prefix != "" {
+		if payload.DestinationDir == nil || *payload.DestinationDir == "" {
+			return nil, ErrMissingDestinationDir
+		}
+
+		seen := make(map[string]struct{})
+		options := container.ListBlobsFlatOptions{
+			Prefix: payload.Prefix,
+		}
+		pager := a.containerClient.NewListBlobsFlatPager(&options)
+		for pager.More() {
+			resp, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error listing blobs with prefix %q: %w", *payload.Prefix, err)
+			}
+			for _, blobItem := range resp.Segment.BlobItems {
+				if blobItem.Name == nil {
+					continue
+				}
+				// Skip blobs already covered by explicit items.
+				if _, ok := explicitNames[*blobItem.Name]; ok {
+					continue
+				}
+				if _, ok := seen[*blobItem.Name]; ok {
+					continue
+				}
+				seen[*blobItem.Name] = struct{}{}
+
+				destPath, err := securejoin.SecureJoin(*payload.DestinationDir, *blobItem.Name)
+				if err != nil {
+					return nil, fmt.Errorf("unsafe blob name %q: %w", *blobItem.Name, err)
+				}
+				items = append(items, bulkGetItem{
+					BlobName: *blobItem.Name,
+					FilePath: ptr.Of(destPath),
+				})
+			}
+		}
+	}
+
+	return items, nil
+}
+
+func (a *AzureBlobStorage) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var payload bulkCreatePayload
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("error parsing bulkCreate payload: %w", err)
+		}
+	}
+
+	if len(payload.Items) == 0 {
+		return nil, ErrEmptyBulkCreateItems
+	}
+
+	for i, item := range payload.Items {
+		if item.BlobName == "" {
+			return nil, fmt.Errorf("item at index %d is missing blobName", i)
+		}
+		if item.SourcePath == "" && item.Data == nil {
+			return nil, fmt.Errorf("item at index %d is missing both data and sourcePath", i)
+		}
+	}
+
+	concurrency, err := getConcurrency(payload.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]bulkCreateResponseItem, len(payload.Items))
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(concurrency)
+
+	for i, item := range payload.Items {
+		g.Go(func() error {
+			results[i].BlobName = item.BlobName
+
+			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
+
+			// Build HTTP headers if contentType is specified.
+			var httpHeaders *blob.HTTPHeaders
+			if item.ContentType != nil && *item.ContentType != "" {
+				httpHeaders = &blob.HTTPHeaders{
+					BlobContentType: item.ContentType,
+				}
+			}
+
+			if item.Data != nil {
+				// Inline data mode: upload from the provided string.
+				var r io.Reader = strings.NewReader(*item.Data)
+				if a.metadata.DecodeBase64 {
+					r = b64.NewDecoder(b64.StdEncoding, r)
+				}
+				if _, uploadErr := blockBlobClient.UploadStream(gctx, r, &blockblob.UploadStreamOptions{
+					HTTPHeaders: httpHeaders,
+				}); uploadErr != nil {
+					results[i].Error = "error uploading blob: " + uploadErr.Error()
+					return nil
+				}
+			} else {
+				// File-based mode: upload from sourcePath.
+				f, openErr := os.Open(item.SourcePath)
+				if openErr != nil {
+					results[i].Error = "error opening source file: " + openErr.Error()
+					return nil
+				}
+				defer f.Close()
+
+				var uploadErr error
+				if a.metadata.DecodeBase64 {
+					decoder := b64.NewDecoder(b64.StdEncoding, f)
+					_, uploadErr = blockBlobClient.UploadStream(gctx, decoder, &blockblob.UploadStreamOptions{
+						HTTPHeaders: httpHeaders,
+					})
+				} else {
+					_, uploadErr = blockBlobClient.UploadFile(gctx, f, &blockblob.UploadFileOptions{
+						HTTPHeaders: httpHeaders,
+					})
+				}
+				if uploadErr != nil {
+					results[i].Error = "error uploading blob: " + uploadErr.Error()
+					return nil
+				}
+			}
+
+			results[i].BlobURL = blockBlobClient.URL()
+			return nil
+		})
+	}
+
+	if waitErr := g.Wait(); waitErr != nil {
+		return nil, fmt.Errorf("error in bulkCreate: %w", waitErr)
+	}
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling bulkCreate response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKeyNumber: strconv.Itoa(len(results)),
+		},
+	}, nil
+}
+
+func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var payload bulkDeletePayload
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("error parsing bulkDelete payload: %w", err)
+		}
+	}
+
+	if payload.DeleteSnapshots != nil && *payload.DeleteSnapshots != "" {
+		deleteSnapshotsOption := azblob.DeleteSnapshotsOptionType(*payload.DeleteSnapshots)
+		if !a.isValidDeleteSnapshotsOptionType(deleteSnapshotsOption) {
+			return nil, fmt.Errorf("invalid delete snapshot option type: %s; allowed: %s",
+				*payload.DeleteSnapshots, azblob.PossibleDeleteSnapshotsOptionTypeValues())
+		}
+	}
+
+	concurrency, err := getConcurrency(payload.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	names, err := a.resolveBlobs(ctx, payload.Prefix, payload.BlobNames)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(names) == 0 {
+		return nil, ErrMissingBulkDeleteSelection
+	}
+
+	// Build a name→indices map to handle duplicates correctly.
+	nameIndices := make(map[string][]int, len(names))
+	results := make([]bulkDeleteResponseItem, len(names))
+	for i, name := range names {
+		results[i].BlobName = name
+		nameIndices[name] = append(nameIndices[name], i)
+	}
+
+	var batchDeleteOpts *container.BatchDeleteOptions
+	if payload.DeleteSnapshots != nil && *payload.DeleteSnapshots != "" {
+		dsOpt := azblob.DeleteSnapshotsOptionType(*payload.DeleteSnapshots)
+		batchDeleteOpts = &container.BatchDeleteOptions{
+			DeleteOptions: blob.DeleteOptions{
+				DeleteSnapshots: &dsOpt,
+			},
+		}
+	}
+
+	// Try batch API first (more efficient), fall back to individual deletes on error.
+	// completedCount tracks how many names were successfully processed by batch chunks,
+	// so the fallback only retries the remaining names.
+	completedCount, batchErr := a.bulkDeleteBatch(ctx, names, nameIndices, results, batchDeleteOpts)
+	if batchErr != nil {
+		// Batch API may fail (e.g. SAS auth without proper permissions).
+		// Fall back to concurrent individual deletes for remaining names only.
+		a.logger.Warnf("batch delete failed after %d/%d items, falling back to individual deletes: %v", completedCount, len(names), batchErr)
+
+		remainingNames := names[completedCount:]
+		remainingOffset := completedCount
+
+		deleteOptions := blob.DeleteOptions{
+			AccessConditions: &blob.AccessConditions{},
+		}
+		if batchDeleteOpts != nil {
+			deleteOptions.DeleteSnapshots = batchDeleteOpts.DeleteSnapshots
+		}
+
+		g, gctx := errgroup.WithContext(ctx)
+		g.SetLimit(concurrency)
+
+		for j, name := range remainingNames {
+			resultIdx := remainingOffset + j
+			g.Go(func() error {
+				blockBlobClient := a.containerClient.NewBlockBlobClient(name)
+				if _, delErr := blockBlobClient.Delete(gctx, &deleteOptions); delErr != nil {
+					if bloberror.HasCode(delErr, bloberror.BlobNotFound) {
+						results[resultIdx].Error = "blob not found"
+					} else {
+						results[resultIdx].Error = delErr.Error()
+					}
+				}
+				return nil
+			})
+		}
+
+		if waitErr := g.Wait(); waitErr != nil {
+			return nil, fmt.Errorf("error in bulkDelete: %w", waitErr)
+		}
+	}
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling bulkDelete response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKeyNumber: strconv.Itoa(len(results)),
+		},
+	}, nil
+}
+
+// bulkDeleteBatch uses the Azure Blob Batch API to delete blobs in chunks of 256.
+// Returns the number of items in completed chunks (for fallback offset) and any error.
+func (a *AzureBlobStorage) bulkDeleteBatch(ctx context.Context, names []string, nameIndices map[string][]int, results []bulkDeleteResponseItem, opts *container.BatchDeleteOptions) (int, error) {
+	for batchStart := 0; batchStart < len(names); batchStart += maxBatchDeleteSize {
+		batchEnd := batchStart + maxBatchDeleteSize
+		if batchEnd > len(names) {
+			batchEnd = len(names)
+		}
+		batch := names[batchStart:batchEnd]
+
+		bb, bbErr := a.containerClient.NewBatchBuilder()
+		if bbErr != nil {
+			return batchStart, fmt.Errorf("error creating batch builder: %w", bbErr)
+		}
+
+		for _, name := range batch {
+			if delErr := bb.Delete(name, opts); delErr != nil {
+				return batchStart, fmt.Errorf("error adding delete to batch for %q: %w", name, delErr)
+			}
+		}
+
+		resp, submitErr := a.containerClient.SubmitBatch(ctx, bb, nil)
+		if submitErr != nil {
+			return batchStart, fmt.Errorf("error submitting batch delete: %w", submitErr)
+		}
+
+		// Map batch responses back to results.
+		for _, item := range resp.Responses {
+			if item.BlobName == nil {
+				continue
+			}
+			if item.Error != nil {
+				for _, idx := range nameIndices[*item.BlobName] {
+					results[idx].Error = item.Error.Error()
+				}
+			}
+		}
+	}
+
+	return len(names), nil
+}
+
 func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -354,6 +925,12 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 		return a.delete(ctx, req)
 	case bindings.ListOperation:
 		return a.list(ctx, req)
+	case bulkGetOperation:
+		return a.bulkGet(ctx, req)
+	case bulkCreateOperation:
+		return a.bulkCreate(ctx, req)
+	case bulkDeleteOperation:
+		return a.bulkDelete(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

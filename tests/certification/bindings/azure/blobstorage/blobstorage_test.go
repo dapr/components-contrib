@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -614,6 +615,590 @@ func TestBlobStorage(t *testing.T) {
 		return nil
 	}
 
+	testBulkCreateGetDelete := func(ctx flow.Context) error {
+		// Tests the full lifecycle of bulk operations:
+		// bulkCreate → bulkGet → bulkDelete.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// Create temp source files.
+		sourceDir := t.TempDir()
+		blobNames := []string{"bulk/file1.txt", "bulk/file2.txt", "bulk/file3.txt"}
+		fileContents := []string{"content of file 1", "content of file 2", "content of file 3"}
+
+		items := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
+			require.NoError(t, os.WriteFile(filePath, []byte(fileContents[i]), 0o644))
+			items[i] = map[string]string{
+				"blobName":   name,
+				"sourcePath": filePath,
+			}
+		}
+
+		// bulkCreate — upload all files.
+		createPayload := map[string]interface{}{
+			"items": items,
+		}
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkCreate",
+			Data:      createData,
+		})
+		require.NoError(t, invokeCreateErr)
+
+		// bulkGet — download all files to individual target paths.
+		destDir := t.TempDir()
+		getItems := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			getItems[i] = map[string]string{
+				"blobName": name,
+				"filePath": filepath.Join(destDir, name),
+			}
+		}
+		getPayload := map[string]interface{}{
+			"items": getItems,
+		}
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
+
+		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkGet",
+			Data:      getData,
+		})
+		require.NoError(t, invokeGetErr)
+
+		// Verify response contains all items.
+		var getResults []map[string]interface{}
+		require.NoError(t, json.Unmarshal(getOut.Data, &getResults))
+		assert.Len(t, getResults, len(blobNames))
+
+		// Verify downloaded file contents.
+		for i, name := range blobNames {
+			downloaded, readErr := os.ReadFile(filepath.Join(destDir, name))
+			require.NoError(t, readErr)
+			assert.Equal(t, fileContents[i], string(downloaded))
+		}
+
+		// bulkDelete — delete all blobs by explicit names.
+		deletePayload := map[string]interface{}{
+			"blobNames": blobNames,
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, invokeDeleteErr)
+
+		// Verify all blobs are deleted.
+		listOut, listErr := listBlobRequest(ctx, client, "bulk/", "", -1, false, false, false, false, false)
+		require.NoError(t, listErr)
+		assert.Equal(t, "0", listOut.Metadata["number"])
+
+		return nil
+	}
+
+	testBulkGetByPrefix := func(ctx flow.Context) error {
+		// Tests bulkGet using prefix-based selection.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// Create some blobs with a common prefix.
+		blobNames := []string{"bulkprefix/a.txt", "bulkprefix/b.txt"}
+		for _, name := range blobNames {
+			_, err := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+				Name:      "azure-blobstorage-output",
+				Operation: "create",
+				Data:      []byte("content of " + name),
+				Metadata:  map[string]string{"blobName": name},
+			})
+			require.NoError(t, err)
+		}
+
+		// bulkGet by prefix.
+		destDir := t.TempDir()
+		getPayload := map[string]interface{}{
+			"prefix":         "bulkprefix/",
+			"destinationDir": destDir,
+		}
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
+
+		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkGet",
+			Data:      getData,
+		})
+		require.NoError(t, invokeGetErr)
+
+		var getResults []map[string]interface{}
+		require.NoError(t, json.Unmarshal(getOut.Data, &getResults))
+		assert.Len(t, getResults, 2)
+
+		// Verify files exist on disk.
+		for _, name := range blobNames {
+			data, readErr := os.ReadFile(filepath.Join(destDir, name))
+			require.NoError(t, readErr)
+			assert.Equal(t, "content of "+name, string(data))
+		}
+
+		// Cleanup via bulkDelete with prefix.
+		deletePayload := map[string]interface{}{
+			"prefix": "bulkprefix/",
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
+	testGetToFile := func(ctx flow.Context) error {
+		// Tests the single get operation with filePath metadata to stream to file.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// Create a blob.
+		content := "streaming get to file test content"
+		blobName := "gettofile-test.txt"
+		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      []byte(content),
+			Metadata:  map[string]string{"blobName": blobName},
+		})
+		require.NoError(t, invokeCreateErr)
+
+		// Get with filePath — should stream to file.
+		destDir := t.TempDir()
+		filePath := filepath.Join(destDir, blobName)
+		out, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "get",
+			Metadata: map[string]string{
+				"blobName": blobName,
+				"filePath": filePath,
+			},
+		})
+		require.NoError(t, invokeGetErr)
+
+		// Response data should be empty (streamed to file).
+		assert.Empty(t, out.Data)
+		assert.Equal(t, filePath, out.Metadata["filePath"])
+
+		// Verify file content.
+		downloaded, readErr := os.ReadFile(filePath)
+		require.NoError(t, readErr)
+		assert.Equal(t, content, string(downloaded))
+
+		// Cleanup.
+		_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, nil)
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
+	testBulkCreateWithBase64 := func(ctx flow.Context) error {
+		// Tests bulkCreate with decodeBase64 enabled — source files contain
+		// base64-encoded data, which should be decoded during streaming upload.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		sourceDir := t.TempDir()
+		originalContent := []string{"binary content one", "binary content two"}
+		blobNames := []string{"b64bulk/file1.bin", "b64bulk/file2.bin"}
+
+		items := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			// Write base64-encoded content to source files.
+			encoded := base64.StdEncoding.EncodeToString([]byte(originalContent[i]))
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
+			require.NoError(t, os.WriteFile(filePath, []byte(encoded), 0o644))
+			items[i] = map[string]string{
+				"blobName":   name,
+				"sourcePath": filePath,
+			}
+		}
+
+		// bulkCreate with decodeBase64 component config.
+		createPayload := map[string]interface{}{
+			"items": items,
+		}
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkCreate",
+			Data:      createData,
+		})
+		require.NoError(t, invokeCreateErr)
+
+		// Verify uploaded blobs contain decoded (original) content.
+		for i, name := range blobNames {
+			out, getErr := getBlobRequest(ctx, client, name, false)
+			require.NoError(t, getErr)
+			assert.Equal(t, originalContent[i], string(out.Data))
+		}
+
+		// Cleanup via bulkDelete.
+		deletePayload := map[string]interface{}{
+			"blobNames": blobNames,
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+		_, invokeDeleteErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
+	testBulkCreatePlainEncoding := func(ctx flow.Context) error {
+		// Tests bulkCreate without base64 — source files contain plain
+		// text that should be uploaded as-is.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		sourceDir := t.TempDir()
+		contents := []string{"plain text file one", "plain text file two", "plain text file three"}
+		blobNames := []string{"plainbulk/a.txt", "plainbulk/b.txt", "plainbulk/c.txt"}
+
+		items := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			filePath := filepath.Join(sourceDir, name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
+			require.NoError(t, os.WriteFile(filePath, []byte(contents[i]), 0o644))
+			items[i] = map[string]string{
+				"blobName":   name,
+				"sourcePath": filePath,
+			}
+		}
+
+		createPayload := map[string]interface{}{
+			"items": items,
+		}
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkCreate",
+			Data:      createData,
+		})
+		require.NoError(t, invokeCreateErr)
+
+		// Verify blobs contain exact plain text.
+		for i, name := range blobNames {
+			out, getErr := getBlobRequest(ctx, client, name, false)
+			require.NoError(t, getErr)
+			assert.Equal(t, contents[i], string(out.Data))
+		}
+
+		// bulkGet to individual file paths.
+		destDir := t.TempDir()
+		getItems := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			getItems[i] = map[string]string{
+				"blobName": name,
+				"filePath": filepath.Join(destDir, name),
+			}
+		}
+		getPayload := map[string]interface{}{
+			"items": getItems,
+		}
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkGet",
+			Data:      getData,
+		})
+		require.NoError(t, invokeGetErr)
+
+		// Verify downloaded files.
+		for i, name := range blobNames {
+			downloaded, readErr := os.ReadFile(filepath.Join(destDir, name))
+			require.NoError(t, readErr)
+			assert.Equal(t, contents[i], string(downloaded))
+		}
+
+		// Cleanup.
+		deletePayload := map[string]interface{}{
+			"blobNames": blobNames,
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
+
+		return nil
+	}
+
+	testBulkCreateInlineData := func(ctx flow.Context) error {
+		// Tests bulkCreate using inline data (no source files).
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		blobNames := []string{"inline/a.txt", "inline/b.txt"}
+		contents := []string{"inline content A", "inline content B"}
+
+		// bulkCreate with inline data.
+		items := make([]map[string]interface{}, len(blobNames))
+		for i, name := range blobNames {
+			items[i] = map[string]interface{}{
+				"blobName": name,
+				"data":     contents[i],
+			}
+		}
+		createPayload := map[string]interface{}{
+			"items":       items,
+			"concurrency": 2,
+		}
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
+
+		createOut, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkCreate",
+			Data:      createData,
+		})
+		require.NoError(t, invokeCreateErr)
+
+		var createResults []map[string]interface{}
+		require.NoError(t, json.Unmarshal(createOut.Data, &createResults))
+		require.Len(t, createResults, 2)
+		for _, r := range createResults {
+			assert.Empty(t, r["error"], "expected no error for %v", r["blobName"])
+			assert.NotEmpty(t, r["blobURL"], "expected blobURL for %v", r["blobName"])
+		}
+
+		// Verify via regular get.
+		for i, name := range blobNames {
+			out, getErr := getBlobRequest(ctx, client, name, false)
+			require.NoError(t, getErr)
+			assert.Equal(t, contents[i], string(out.Data))
+		}
+
+		// Cleanup.
+		deletePayload := map[string]interface{}{
+			"blobNames": blobNames,
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
+
+		return nil
+	}
+
+	testBulkGetInlineData := func(ctx flow.Context) error {
+		// Tests bulkGet returning data inline (no filePath).
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// Create blobs first.
+		blobNames := []string{"inlineget/x.txt", "inlineget/y.txt"}
+		contents := []string{"data for x", "data for y"}
+		for i, name := range blobNames {
+			_, err := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+				Name:      "azure-blobstorage-output",
+				Operation: "create",
+				Data:      []byte(contents[i]),
+				Metadata:  map[string]string{"blobName": name},
+			})
+			require.NoError(t, err)
+		}
+
+		// bulkGet without filePath — should return data inline.
+		getItems := make([]map[string]string, len(blobNames))
+		for i, name := range blobNames {
+			getItems[i] = map[string]string{
+				"blobName": name,
+			}
+		}
+		getPayload := map[string]interface{}{
+			"items": getItems,
+		}
+		getData, marshalErr := json.Marshal(getPayload)
+		require.NoError(t, marshalErr)
+
+		getOut, invokeGetErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkGet",
+			Data:      getData,
+		})
+		require.NoError(t, invokeGetErr)
+
+		var getResults []map[string]interface{}
+		require.NoError(t, json.Unmarshal(getOut.Data, &getResults))
+		require.Len(t, getResults, 2)
+
+		expected := map[string]string{}
+		for i, name := range blobNames {
+			expected[name] = contents[i]
+		}
+		for _, r := range getResults {
+			blobName := r["blobName"].(string)
+			assert.Empty(t, r["error"], "expected no error for %s", blobName)
+			// Data is []byte in the response struct, which encoding/json marshals as base64.
+			// When unmarshalled into map[string]interface{}, it arrives as a base64 string.
+			dataB64, ok := r["data"].(string)
+			require.True(t, ok, "data should be a base64 string for %s", blobName)
+			decoded, decErr := base64.StdEncoding.DecodeString(dataB64)
+			require.NoError(t, decErr, "failed to decode base64 data for %s", blobName)
+			assert.Equal(t, expected[blobName], string(decoded), "data mismatch for %s", blobName)
+			assert.Empty(t, r["filePath"], "filePath should be empty for inline mode")
+		}
+
+		// Test partial failure: one exists, one doesn't.
+		mixedItems := []map[string]string{
+			{"blobName": blobNames[0]},
+			{"blobName": "inlineget/nonexistent.txt"},
+		}
+		mixedPayload := map[string]interface{}{
+			"items": mixedItems,
+		}
+		mixedData, marshalErr := json.Marshal(mixedPayload)
+		require.NoError(t, marshalErr)
+
+		mixedOut, mixedErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkGet",
+			Data:      mixedData,
+		})
+		require.NoError(t, mixedErr)
+
+		var mixedResults []map[string]interface{}
+		require.NoError(t, json.Unmarshal(mixedOut.Data, &mixedResults))
+		require.Len(t, mixedResults, 2)
+		for _, r := range mixedResults {
+			if r["blobName"] == blobNames[0] {
+				assert.Empty(t, r["error"])
+				dataB64, ok := r["data"].(string)
+				require.True(t, ok, "data should be a base64 string")
+				decoded, decErr := base64.StdEncoding.DecodeString(dataB64)
+				require.NoError(t, decErr, "failed to decode base64 data")
+				assert.Equal(t, contents[0], string(decoded))
+			} else {
+				assert.NotEmpty(t, r["error"], "expected error for non-existent blob")
+			}
+		}
+
+		// Cleanup.
+		deletePayload := map[string]interface{}{
+			"blobNames": blobNames,
+		}
+		deleteData, marshalErr := json.Marshal(deletePayload)
+		require.NoError(t, marshalErr)
+		_, cleanupErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkDelete",
+			Data:      deleteData,
+		})
+		require.NoError(t, cleanupErr, "cleanup bulkDelete failed")
+
+		return nil
+	}
+
+	testBulkCreateWithContentType := func(ctx flow.Context) error {
+		// Tests bulkCreate with per-item contentType.
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		blobName := "contenttype/test.json"
+		contentType := "application/json"
+		data := `{"key":"value"}`
+
+		items := []map[string]interface{}{
+			{
+				"blobName":    blobName,
+				"data":        data,
+				"contentType": contentType,
+			},
+		}
+		createPayload := map[string]interface{}{
+			"items": items,
+		}
+		createData, marshalErr := json.Marshal(createPayload)
+		require.NoError(t, marshalErr)
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "bulkCreate",
+			Data:      createData,
+		})
+		require.NoError(t, invokeCreateErr)
+
+		// Verify content type via list with metadata.
+		listOut, listErr := listBlobRequest(ctx, client, "contenttype/", "", -1, false, false, false, false, false)
+		require.NoError(t, listErr)
+
+		var listItems []map[string]interface{}
+		require.NoError(t, json.Unmarshal(listOut.Data, &listItems))
+		require.Len(t, listItems, 1)
+		props, ok := listItems[0]["Properties"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentType, props["ContentType"])
+
+		// Cleanup.
+		_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, nil)
+		require.NoError(t, invokeDeleteErr)
+
+		return nil
+	}
+
 	flow.New(t, "blobstorage binding authentication using service principal").
 		Step(sidecar.Run(sidecarName,
 			append(componentRuntimeOptions(),
@@ -649,6 +1234,13 @@ func TestBlobStorage(t *testing.T) {
 		Step("Creating a public blob does not work", testCreatePublicBlob(false, "")).
 		Step("Create blob with invalid content hash", testCreateBlobInvalidContentHash).
 		Step("Test snapshot deletion and listing", testSnapshotDeleteAndList).
+		Step("Bulk create, get, and delete", testBulkCreateGetDelete).
+		Step("Bulk get by prefix", testBulkGetByPrefix).
+		Step("Get to file", testGetToFile).
+		Step("Bulk create with plain encoding", testBulkCreatePlainEncoding).
+		Step("Bulk create with inline data", testBulkCreateInlineData).
+		Step("Bulk get inline data", testBulkGetInlineData).
+		Step("Bulk create with content type", testBulkCreateWithContentType).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
@@ -667,6 +1259,7 @@ func TestBlobStorage(t *testing.T) {
 			)...,
 		)).
 		Step("Create blob from file", testCreateBlobFromFile(true)).
+		Step("Bulk create with base64 decoding", testBulkCreateWithBase64).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)

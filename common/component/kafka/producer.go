@@ -18,11 +18,24 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
 
 	"github.com/IBM/sarama"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
+
+// parsePartitionNumber parses and validates a partition number string.
+func parsePartitionNumber(value string) (int32, error) {
+	pNum, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return -1, fmt.Errorf("invalid partitionNumber metadata value %q: %w", value, err)
+	}
+	if pNum < 0 {
+		return -1, fmt.Errorf("partitionNumber must be non-negative, got %d", pNum)
+	}
+	return int32(pNum), nil
+}
 
 func GetSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
 	// Add SyncProducer specific properties to copy of base config
@@ -65,14 +78,21 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		return err
 	}
 	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(serializedData),
+		Topic:     topic,
+		Value:     sarama.ByteEncoder(serializedData),
+		Partition: -1,
 	}
 
 	for name, value := range metadata {
 		switch name {
 		case key, keyMetadataKey:
 			msg.Key = sarama.StringEncoder(value)
+		case partitionNumberKey:
+			pNum, perr := parsePartitionNumber(value)
+			if perr != nil {
+				return perr
+			}
+			msg.Partition = pNum
 		}
 
 		if msg.Headers == nil {
@@ -119,8 +139,9 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 			return k.mapKafkaProducerErrors(err, entries), err
 		}
 		msg := &sarama.ProducerMessage{
-			Topic: topic,
-			Value: sarama.ByteEncoder(serializedData),
+			Topic:     topic,
+			Value:     sarama.ByteEncoder(serializedData),
+			Partition: -1,
 		}
 		// From Sarama documentation
 		// This field is used to hold arbitrary data you wish to include so it
@@ -141,6 +162,12 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 			switch name {
 			case key, keyMetadataKey:
 				msg.Key = sarama.StringEncoder(value)
+			case partitionNumberKey:
+				pNum, err := parsePartitionNumber(value)
+				if err != nil {
+					return pubsub.NewBulkPublishResponse(entries, err), err
+				}
+				msg.Partition = pNum
 			}
 
 			if msg.Headers == nil {

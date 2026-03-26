@@ -164,6 +164,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	config.Producer.Compression = meta.internalCompression
+	config.Producer.Partitioner = newDaprPartitioner
 
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval

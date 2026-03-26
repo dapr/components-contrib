@@ -251,6 +251,41 @@ func TestKafka(t *testing.T) {
 		}
 	}
 
+	// Test logic that sends messages to a specific partition number
+	// and verifies in-order delivery on that partition.
+	sendRecvPartitionNumberTest := func(watchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client := sidecar.GetClient(ctx, sidecarName1)
+
+			msgs := make([]string, numMessages)
+			for i := range msgs {
+				msgs[i] = fmt.Sprintf("Hello, PartitionNumber %03d", i)
+			}
+			for _, m := range watchers {
+				m.ExpectStrings(msgs...)
+			}
+
+			// Send all messages to partition 3 using partitionNumber metadata.
+			md := map[string]string{
+				"partitionNumber": "3",
+			}
+
+			ctx.Log("Sending messages with partitionNumber!")
+			for _, msg := range msgs {
+				err := client.PublishEvent(
+					ctx, pubsubName, topicName, msg,
+					dapr.PublishEventWithMetadata(md))
+				require.NoError(ctx, err, "error publishing message")
+			}
+
+			for _, m := range watchers {
+				m.Assert(ctx, time.Minute)
+			}
+
+			return nil
+		}
+	}
+
 	// sendMessagesInBackground and assertMessages are
 	// Runnables for testing publishing and consuming
 	// messages reliably when infrastructure and network
@@ -378,6 +413,12 @@ func TestKafka(t *testing.T) {
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
 		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
+		Step("reset consumerGroup1 for partition number test", flow.Reset(consumerGroup1)).
+		Step("reset consumerGroup2 for partition number test", flow.Reset(consumerGroup2)).
+		//
+		// Send messages using partitionNumber metadata to target a specific
+		// partition directly. Messages to the same partition should be in-order.
+		Step("send and wait(partitionNumber in-order)", sendRecvPartitionNumberTest(consumerGroup1, consumerGroup2)).
 		// Run the avro consumer
 		Step(app.Run(appIDAvro, fmt.Sprintf(":%d", appPort+portOffset*3),
 			applicationAvro(appIDAvro, consumerGroupAvro))).

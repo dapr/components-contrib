@@ -50,7 +50,10 @@ type pulsarMetadata struct {
 }
 
 type schemaMetadata struct {
-	protocol string
-	value    string
-	codec    *goavro.Codec // cached Avro codec, compiled once at init
+	protocol  string
+	value     string        // inner schema JSON (user-provided)
+	codec     *goavro.Codec // cached Avro codec for inner schema, compiled once at init
+	ceValue   string        // CloudEvents envelope schema JSON (generated)
+	ceCodec   *goavro.Codec // cached Avro codec for CE envelope schema
+	rawSchema bool          // true when topic is configured with .rawschema=true
 }

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,7 +29,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
 	lru "github.com/hashicorp/golang-lru/v2"
-	goavro "github.com/linkedin/goavro/v2"
+	"github.com/linkedin/goavro/v2"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
@@ -69,6 +70,7 @@ const (
 	topicJSONSchemaIdentifier  = ".jsonschema"
 	topicAvroSchemaIdentifier  = ".avroschema"
 	topicProtoSchemaIdentifier = ".protoschema"
+	topicRawSchemaIdentifier   = ".rawschema"
 
 	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
 	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
@@ -190,6 +192,19 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		return nil, errors.New("invalid compression level. Accepted values are `default`, `faster` and `better`")
 	}
 
+	// First pass: collect per-topic rawSchema flags.
+	rawSchemaTopics := make(map[string]bool)
+	for k, v := range meta.Properties {
+		if strings.HasSuffix(k, topicRawSchemaIdentifier) {
+			topic := k[:len(k)-len(topicRawSchemaIdentifier)]
+			parsed, parseErr := strconv.ParseBool(v)
+			if parseErr != nil {
+				return nil, fmt.Errorf("invalid value for %q: %w", k, parseErr)
+			}
+			rawSchemaTopics[topic] = parsed
+		}
+	}
+
 	for k, v := range meta.Properties {
 		switch {
 		case strings.HasSuffix(k, topicJSONSchemaIdentifier):
@@ -204,11 +219,27 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			if codecErr != nil {
 				return nil, fmt.Errorf("failed to parse avro schema for topic %q: %w", topic, codecErr)
 			}
-			m.internalTopicSchemas[topic] = schemaMetadata{
-				protocol: avroProtocol,
-				value:    v,
-				codec:    codec,
+			sm := schemaMetadata{
+				protocol:  avroProtocol,
+				value:     v,
+				codec:     codec,
+				rawSchema: rawSchemaTopics[topic],
 			}
+			// Only wrap in CloudEvents envelope when the topic is not
+			// configured with rawSchema=true.
+			if !sm.rawSchema {
+				ceSchemaJSON, ceErr := wrapInCloudEventsAvroSchema(v)
+				if ceErr != nil {
+					return nil, fmt.Errorf("failed to generate CloudEvents envelope schema for topic %q: %w", topic, ceErr)
+				}
+				ceCodec, ceCodecErr := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
+				if ceCodecErr != nil {
+					return nil, fmt.Errorf("failed to parse CloudEvents envelope schema for topic %q: %w", topic, ceCodecErr)
+				}
+				sm.ceValue = ceSchemaJSON
+				sm.ceCodec = ceCodec
+			}
+			m.internalTopicSchemas[topic] = sm
 		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
 			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
 			m.internalTopicSchemas[topic] = schemaMetadata{
@@ -330,7 +361,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		}
 
 		if hasSchema {
-			opts.Schema = getPulsarSchema(sm)
+			opts.Schema = getRegistrationSchema(sm)
 		}
 
 		if p.useProducerEncryption() {
@@ -367,6 +398,16 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	return nil
 }
 
+// getRegistrationSchema returns the Pulsar schema to register with the broker.
+// For Avro topics with a CE envelope, it returns the CE envelope schema;
+// otherwise it falls back to the inner schema.
+func getRegistrationSchema(sm schemaMetadata) pulsar.Schema {
+	if sm.ceValue != "" {
+		return pulsar.NewAvroSchema(sm.ceValue, nil)
+	}
+	return getPulsarSchema(sm)
+}
+
 func getPulsarSchema(metadata schemaMetadata) pulsar.Schema {
 	switch metadata.protocol {
 	case jsonProtocol:
@@ -398,10 +439,33 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 		msg.Value = obj
 	case avroProtocol:
-		// Use the cached goavro codec (compiled once at init) to validate JSON
-		// against the Avro schema. NativeFromTextual parses JSON and validates it
-		// in one step — if the data doesn't conform, it returns an error.
-		native, _, nativeErr := schema.codec.NativeFromTextual(req.Data)
+		// Select the appropriate codec based on whether the payload is raw or
+		// wrapped in a CloudEvents envelope. When rawPayload=true, the data is the
+		// inner domain event; otherwise it's the full CloudEvents envelope.
+		isRaw, rawErr := metadata.IsRawPayload(req.Metadata)
+		if rawErr != nil {
+			return nil, fmt.Errorf("invalid rawPayload metadata: %w", rawErr)
+		}
+		if isRaw && !schema.rawSchema {
+			return nil, errors.New("rawPayload=true is not compatible with Avro schema topics using CloudEvents envelope; use a topic configured with rawschema=true")
+		}
+		if !isRaw && schema.rawSchema {
+			return nil, errors.New("rawschema=true topics require per-message rawPayload=true; otherwise Dapr wraps in a CloudEvents envelope that won't match the registered schema")
+		}
+		codec := schema.ceCodec
+		data := req.Data
+		if schema.ceCodec == nil {
+			codec = schema.codec
+		} else {
+			// Dapr's CE envelope encodes the "data" field as a JSON string;
+			// the Avro codec expects a nested record. Normalize before encoding.
+			normalized, normErr := normalizeCloudEventForAvro(req.Data)
+			if normErr != nil {
+				return nil, fmt.Errorf("failed to normalize CloudEvents data for Avro: %w", normErr)
+			}
+			data = normalized
+		}
+		native, _, nativeErr := codec.NativeFromTextual(data)
 		if nativeErr != nil {
 			return nil, fmt.Errorf("avro schema validation failed: %w", nativeErr)
 		}
@@ -608,7 +672,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}
 
 	if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {
-		options.Schema = getPulsarSchema(sm)
+		options.Schema = getRegistrationSchema(sm)
 	}
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
@@ -677,12 +741,18 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 	// so we must do it explicitly here.
 	// The goavro codec was compiled once at init in parsePulsarMetadata.
 	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
-		native, _, decodeErr := sm.codec.NativeFromBinary(data)
+		// Use the CE envelope codec when available (matches the schema registered
+		// with the producer/consumer), otherwise fall back to the inner codec.
+		codec := sm.ceCodec
+		if codec == nil {
+			codec = sm.codec
+		}
+		native, _, decodeErr := codec.NativeFromBinary(data)
 		if decodeErr != nil {
 			msg.Nack(msg.Message)
 			return fmt.Errorf("avro decode failed for topic %q: %w", originTopic, decodeErr)
 		}
-		jsonBytes, encodeErr := sm.codec.TextualFromNative(nil, native)
+		jsonBytes, encodeErr := codec.TextualFromNative(nil, native)
 		if encodeErr != nil {
 			msg.Nack(msg.Message)
 			return fmt.Errorf("avro to json conversion failed for topic %q: %w", originTopic, encodeErr)

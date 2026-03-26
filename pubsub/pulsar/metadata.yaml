@@ -193,6 +193,16 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: "<topic-name>.rawschema"
+    type: bool
+    description: |
+      When set to "true", registers the user-provided Avro schema as-is with the Pulsar Schema Registry
+      instead of wrapping it in a CloudEvents envelope schema. This setting only controls which schema is
+      registered; it does not change the wire format. Callers must also publish messages with
+      rawPayload=true to send events without a CloudEvents envelope. Use this for topics that are
+      intended to exclusively receive raw domain payloads.
+    default: 'false'
+    example: '"true", "false"'
   - name: "<topic-name>.jsonschema"
     type: string
     description: |

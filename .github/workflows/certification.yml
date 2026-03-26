@@ -146,7 +146,7 @@ jobs:
         # Current time (used by Terraform)
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
-    - uses: Azure/login@v1
+    - uses: Azure/login@v3
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
       if: matrix.required-secrets != ''

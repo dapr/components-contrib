@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.pulsar
+  version: v1
+  metadata:
+  - name: host
+    value: "localhost:6650"
+  - name: consumerID
+    value: certification10
+  - name: redeliveryDelay
+    value: 200ms
+  - name: certification-pubsub-topic-avro-raw.avroschema
+    value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"testId\",\"type\":\"int\"},{\"name\":\"testName\",\"type\":\"string\"}]}"
+  - name: certification-pubsub-topic-avro-raw.rawschema
+    value: "true"

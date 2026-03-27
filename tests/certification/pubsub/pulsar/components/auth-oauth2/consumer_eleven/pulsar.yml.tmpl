@@ -9,11 +9,13 @@ spec:
   - name: host
     value: "localhost:6650"
   - name: consumerID
-    value: certification4
+    value: certification11
   - name: redeliveryDelay
     value: 200ms
-  - name: certification-pubsub-topic-active.jsonschema
-    value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"}]}"
+  # Pulsar JSON schema uses Avro-compatible record definitions (not JSON Schema Draft).
+  # The component wraps this in a CloudEvents envelope schema automatically.
+  - name: certification-pubsub-topic-json-ce.jsonschema
+    value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"testId\",\"type\":\"int\"},{\"name\":\"testName\",\"type\":\"string\"}]}"
   - name: oauth2TokenURL
     value: https://localhost:8085/issuer1/token
   - name: oauth2ClientID

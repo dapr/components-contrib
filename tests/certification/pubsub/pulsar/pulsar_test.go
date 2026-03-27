@@ -73,6 +73,9 @@ const (
 	messageKey                  = "partitionKey"
 	pubsubName                  = "messagebus"
 	topicActiveName             = "certification-pubsub-topic-active"
+	topicAvroRawName            = "certification-pubsub-topic-avro-raw"
+	topicJSONCEName             = "certification-pubsub-topic-json-ce"
+	topicJSONRawName            = "certification-pubsub-topic-json-raw"
 	topicPassiveName            = "certification-pubsub-topic-passive"
 	topicToBeCreated            = "certification-topic-per-test-run"
 	topicDefaultName            = "certification-topic-default"
@@ -882,43 +885,152 @@ type schemaTest struct {
 	Name string `json:"name"`
 }
 
+type avroSchemaTest struct {
+	TestID   int    `json:"testId"`
+	TestName string `json:"testName"`
+}
+
+func subscriberRawSchemaApplication(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+	return func(ctx flow.Context, s common.Service) error {
+		return multierr.Combine(
+			s.AddTopicEventHandler(&common.Subscription{
+				PubsubName: pubsubName,
+				Topic:      topicName,
+				Route:      "/orders",
+				Metadata:   map[string]string{"rawPayload": "true"},
+			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				// With rawPayload, e.Data arrives as []uint8.
+				// Unmarshal into the typed struct to normalize JSON field order
+				// so that it matches the published strings.
+				dataStr := fmt.Sprintf("%s", e.Data)
+				var obj avroSchemaTest
+				if err := json.Unmarshal([]byte(dataStr), &obj); err != nil {
+					ctx.Logf("failed to unmarshal raw schema payload in subscriber (appID=%s, topic=%s, id=%s): %v", appID, e.Topic, e.ID, err)
+					// Non-retryable error so the test fails clearly on bad payloads.
+					return false, fmt.Errorf("subscriberRawSchemaApplication: unmarshal payload: %w", err)
+				}
+				normalized, err := json.Marshal(obj)
+				if err != nil {
+					ctx.Logf("failed to marshal normalized raw schema payload in subscriber (appID=%s, topic=%s, id=%s): %v", appID, e.Topic, e.ID, err)
+					// Non-retryable error so the test fails clearly on bad normalization.
+					return false, fmt.Errorf("subscriberRawSchemaApplication: marshal normalized payload: %w", err)
+				}
+				messagesWatcher.Observe(string(normalized))
+				ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+				return false, nil
+			}),
+		)
+	}
+}
+
+func publishSchemaMessages(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	return func(ctx flow.Context) error {
+		// prepare the messages
+		messages := make([]string, numMessages)
+		for i := range messages {
+			test := &schemaTest{
+				ID:   i,
+				Name: uuid.New().String(),
+			}
+
+			b, err := json.Marshal(test)
+			require.NoError(ctx, err, "error marshaling schemaTest")
+			messages[i] = string(b)
+		}
+
+		for _, messageWatcher := range messageWatchers {
+			messageWatcher.ExpectStrings(messages...)
+		}
+
+		// get the sidecar (dapr) client
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		// publish messages
+		ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+		for _, message := range messages {
+			ctx.Logf("Publishing: %q", message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message)
+			require.NoError(ctx, err, "error publishing message")
+		}
+		return nil
+	}
+}
+
+// publishSchemaMessagesCE publishes schema-validated messages without rawPayload,
+// allowing Dapr to wrap them in a CloudEvents envelope. Works for both Avro and
+// JSON schema topics since the payload shape (avroSchemaTest) is the same.
+func publishSchemaMessagesCE(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	return func(ctx flow.Context) error {
+		messages := make([]string, numMessages)
+		for i := range messages {
+			test := &avroSchemaTest{
+				TestID:   i,
+				TestName: uuid.New().String(),
+			}
+
+			b, err := json.Marshal(test)
+			require.NoError(ctx, err, "error marshaling avroSchemaTest")
+			messages[i] = string(b)
+		}
+
+		for _, messageWatcher := range messageWatchers {
+			messageWatcher.ExpectStrings(messages...)
+		}
+
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		ctx.Logf("Publishing messages (CE wrapped). sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+		for _, message := range messages {
+			ctx.Logf("Publishing: %q", message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message)
+			require.NoError(ctx, err, "error publishing message")
+		}
+		return nil
+	}
+}
+
+// publishSchemaMessagesRaw publishes schema-validated messages with rawPayload=true,
+// bypassing CloudEvents wrapping. Used with rawSchema=true topics for both Avro
+// and JSON schema types.
+func publishSchemaMessagesRaw(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	return func(ctx flow.Context) error {
+		messages := make([]string, numMessages)
+		for i := range messages {
+			test := &avroSchemaTest{
+				TestID:   i,
+				TestName: uuid.New().String(),
+			}
+
+			b, err := json.Marshal(test)
+			require.NoError(ctx, err, "error marshaling avroSchemaTest")
+			messages[i] = string(b)
+		}
+
+		for _, messageWatcher := range messageWatchers {
+			messageWatcher.ExpectStrings(messages...)
+		}
+
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+		for _, message := range messages {
+			ctx.Logf("Publishing: %q", message)
+
+			err := client.PublishEvent(ctx, pubsubName, topicName, message, dapr.PublishEventWithRawPayload())
+			require.NoError(ctx, err, "error publishing message")
+		}
+		return nil
+	}
+}
+
 func (p *pulsarSuite) TestPulsarSchema() {
 	t := p.T()
 	consumerGroup1 := watcher.NewUnordered()
-
-	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// prepare the messages
-			messages := make([]string, numMessages)
-			for i := range messages {
-				test := &schemaTest{
-					ID:   i,
-					Name: uuid.New().String(),
-				}
-
-				b, _ := json.Marshal(test)
-				messages[i] = string(b)
-			}
-
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
-			}
-
-			// get the sidecar (dapr) client
-			client := sidecar.GetClient(ctx, sidecarName)
-
-			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
-
-				err := client.PublishEvent(ctx, pubsubName, topicName, message)
-				require.NoError(ctx, err, "error publishing message")
-			}
-			return nil
-		}
-	}
 
 	flow.New(t, "pulsar certification schema test").
 
@@ -955,7 +1067,240 @@ func (p *pulsarSuite) TestPulsarSchema() {
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			)...,
 		)).
-		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishSchemaMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestPulsarAvroSchema tests Avro schema with CloudEvents envelope wrapping.
+// The sidecar registers the CE-wrapped schema on subscribe; no pre-registration needed.
+func (p *pulsarSuite) TestPulsarAvroSchema() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	flow.New(t, "pulsar certification avro schema test").
+
+		// subscriberSchemaApplication subscribes without rawPayload, so Dapr
+		// unwraps the CloudEvents envelope and delivers the inner data field.
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberSchemaApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_nine")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishSchemaMessagesCE(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestPulsarAvroSchemaRaw tests Avro schema with rawSchema=true, bypassing
+// CloudEvents envelope wrapping. The raw user schema is pre-registered on the
+// topic and the component uses it directly without CE wrapping.
+func (p *pulsarSuite) TestPulsarAvroSchemaRaw() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	avroSchema := `{"type":"record","name":"Example","namespace":"test","fields":[{"name":"testId","type":"int"},{"name":"testName","type":"string"}]}`
+
+	flow.New(t, "pulsar certification avro schema raw test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberRawSchemaApplication(appID1, topicAvroRawName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		// Pre-register the raw Avro schema on the topic. Because consumer_ten
+		// uses rawschema=true, the sidecar subscribes with the same raw schema
+		// (no CloudEvents wrapping), so Pulsar accepts the consumer.
+		Step("register avro schema on topic", func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+			defer client.Close()
+
+			producer, err := client.CreateProducer(pulsar.ProducerOptions{
+				Topic:  "persistent://public/default/" + topicAvroRawName,
+				Schema: pulsar.NewAvroSchema(avroSchema, nil),
+			})
+			if err != nil {
+				return fmt.Errorf("could not create producer to register avro schema: %v", err)
+			}
+			producer.Close()
+
+			return nil
+		}).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_ten")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishSchemaMessagesRaw(sidecarName1, topicAvroRawName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestPulsarJSONSchema tests JSON schema with CloudEvents envelope wrapping.
+// The sidecar registers the CE-wrapped schema on subscribe; no pre-registration needed.
+func (p *pulsarSuite) TestPulsarJSONSchema() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	flow.New(t, "pulsar certification json schema CE test").
+
+		// subscriberSchemaApplication subscribes without rawPayload, so Dapr
+		// unwraps the CloudEvents envelope and delivers the inner data field.
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberSchemaApplication(appID1, topicJSONCEName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_eleven")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishSchemaMessagesCE(sidecarName1, topicJSONCEName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// TestPulsarJSONSchemaRaw tests JSON schema with rawSchema=true, bypassing
+// CloudEvents envelope wrapping. The raw user schema is pre-registered on the
+// topic and the component uses it directly without CE wrapping.
+func (p *pulsarSuite) TestPulsarJSONSchemaRaw() {
+	t := p.T()
+	consumerGroup1 := watcher.NewUnordered()
+
+	// Pulsar JSON schema uses Avro-compatible record definitions, not JSON Schema Draft.
+	jsonSchema := `{"type":"record","name":"Example","namespace":"test","fields":[{"name":"testId","type":"int"},{"name":"testName","type":"string"}]}`
+
+	flow.New(t, "pulsar certification json schema raw test").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberRawSchemaApplication(appID1, topicJSONRawName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		// Pre-register the raw JSON schema on the topic. Because consumer_twelve
+		// uses rawschema=true, the sidecar subscribes with the same raw schema
+		// (no CloudEvents wrapping), so Pulsar accepts the consumer.
+		Step("register json schema on topic", func(ctx flow.Context) error {
+			client, err := p.client(t)
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+			defer client.Close()
+
+			producer, err := client.CreateProducer(pulsar.ProducerOptions{
+				Topic:  "persistent://public/default/" + topicJSONRawName,
+				Schema: pulsar.NewJSONSchema(jsonSchema, nil),
+			})
+			if err != nil {
+				return fmt.Errorf("could not create producer to register json schema: %v", err)
+			}
+			producer.Close()
+
+			return nil
+		}).
+		Step(sidecar.Run(sidecarName1,
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_twelve")),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
+		)).
+		Step("publish messages to topic1", publishSchemaMessagesRaw(sidecarName1, topicJSONRawName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }

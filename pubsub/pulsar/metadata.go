@@ -38,6 +38,7 @@ type pulsarMetadata struct {
 	PrivateKey                       string                    `mapstructure:"privateKey"`
 	Keys                             string                    `mapstructure:"keys"`
 	MaxConcurrentHandlers            uint                      `mapstructure:"maxConcurrentHandlers"`
+	ProcessMode                      string                    `mapstructure:"processMode"`
 	ReceiverQueueSize                int                       `mapstructure:"receiverQueueSize"`
 	SubscriptionType                 string                    `mapstructure:"subscribeType"`
 	SubscriptionInitialPosition      string                    `mapstructure:"subscribeInitialPosition"`
@@ -52,8 +53,8 @@ type pulsarMetadata struct {
 type schemaMetadata struct {
 	protocol  string
 	value     string        // inner schema JSON (user-provided)
-	codec     *goavro.Codec // cached Avro codec for inner schema, compiled once at init
+	codec     *goavro.Codec // cached goavro codec for inner schema, compiled once at init
 	ceValue   string        // CloudEvents envelope schema JSON (generated)
-	ceCodec   *goavro.Codec // cached Avro codec for CE envelope schema
+	ceCodec   *goavro.Codec // cached goavro codec for CE envelope schema
 	rawSchema bool          // true when topic is configured with .rawschema=true
 }

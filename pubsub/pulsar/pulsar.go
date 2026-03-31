@@ -70,7 +70,10 @@ const (
 	topicJSONSchemaIdentifier  = ".jsonschema"
 	topicAvroSchemaIdentifier  = ".avroschema"
 	topicProtoSchemaIdentifier = ".protoschema"
-	topicRawSchemaIdentifier   = ".rawschema"
+	// topicRawSchemaIdentifier opts a topic out of CloudEvents envelope wrapping.
+	// Applies to both Avro and JSON schema topics. When rawschema=true, publishers
+	// must set per-message rawPayload=true and send the inner domain event directly.
+	topicRawSchemaIdentifier = ".rawschema"
 
 	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
 	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
@@ -143,6 +146,37 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 	}
 }
 
+// buildSchemaMetadata compiles a goavro codec for the given schema and, when
+// rawSchema is false, wraps it in a CloudEvents envelope schema. Used for both
+// JSON and Avro schema topics — the only difference is the protocol identifier.
+func buildSchemaMetadata(topic, schemaJSON, protocol string, rawSchema bool) (schemaMetadata, error) {
+	codec, codecErr := goavro.NewCodecForStandardJSONFull(schemaJSON)
+	if codecErr != nil {
+		return schemaMetadata{}, fmt.Errorf("failed to parse %s schema for topic %q: %w", protocol, topic, codecErr)
+	}
+	sm := schemaMetadata{
+		protocol:  protocol,
+		value:     schemaJSON,
+		codec:     codec,
+		rawSchema: rawSchema,
+	}
+	// Only wrap in CloudEvents envelope when the topic is not
+	// configured with rawSchema=true.
+	if !sm.rawSchema {
+		ceSchemaJSON, ceErr := wrapInCloudEventsSchema(schemaJSON)
+		if ceErr != nil {
+			return schemaMetadata{}, fmt.Errorf("failed to generate CloudEvents envelope schema for topic %q: %w", topic, ceErr)
+		}
+		ceCodec, ceCodecErr := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
+		if ceCodecErr != nil {
+			return schemaMetadata{}, fmt.Errorf("failed to parse CloudEvents envelope schema for topic %q: %w", topic, ceCodecErr)
+		}
+		sm.ceValue = ceSchemaJSON
+		sm.ceCodec = ceCodec
+	}
+	return sm, nil
+}
+
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{
 		Persistent:              true,
@@ -192,6 +226,21 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		return nil, errors.New("invalid compression level. Accepted values are `default`, `faster` and `better`")
 	}
 
+	// Normalize and validate processMode.
+	m.ProcessMode = strings.ToLower(m.ProcessMode)
+	switch m.ProcessMode {
+	case processModeSync, processModeAsync, "":
+		// valid
+	default:
+		return nil, fmt.Errorf("invalid processMode %q: accepted values are %q and %q", m.ProcessMode, processModeAsync, processModeSync)
+	}
+
+	// Guard against zero MaxConcurrentHandlers: a zero-size work channel with no
+	// workers would block the dispatch loop immediately.
+	if m.MaxConcurrentHandlers == 0 {
+		m.MaxConcurrentHandlers = defaultConcurrency
+	}
+
 	// First pass: collect per-topic rawSchema flags.
 	rawSchemaTopics := make(map[string]bool)
 	for k, v := range meta.Properties {
@@ -209,35 +258,16 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		switch {
 		case strings.HasSuffix(k, topicJSONSchemaIdentifier):
 			topic := k[:len(k)-len(topicJSONSchemaIdentifier)]
-			m.internalTopicSchemas[topic] = schemaMetadata{
-				protocol: jsonProtocol,
-				value:    v,
+			sm, smErr := buildSchemaMetadata(topic, v, jsonProtocol, rawSchemaTopics[topic])
+			if smErr != nil {
+				return nil, smErr
 			}
+			m.internalTopicSchemas[topic] = sm
 		case strings.HasSuffix(k, topicAvroSchemaIdentifier):
 			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
-			codec, codecErr := goavro.NewCodecForStandardJSONFull(v)
-			if codecErr != nil {
-				return nil, fmt.Errorf("failed to parse avro schema for topic %q: %w", topic, codecErr)
-			}
-			sm := schemaMetadata{
-				protocol:  avroProtocol,
-				value:     v,
-				codec:     codec,
-				rawSchema: rawSchemaTopics[topic],
-			}
-			// Only wrap in CloudEvents envelope when the topic is not
-			// configured with rawSchema=true.
-			if !sm.rawSchema {
-				ceSchemaJSON, ceErr := wrapInCloudEventsAvroSchema(v)
-				if ceErr != nil {
-					return nil, fmt.Errorf("failed to generate CloudEvents envelope schema for topic %q: %w", topic, ceErr)
-				}
-				ceCodec, ceCodecErr := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
-				if ceCodecErr != nil {
-					return nil, fmt.Errorf("failed to parse CloudEvents envelope schema for topic %q: %w", topic, ceCodecErr)
-				}
-				sm.ceValue = ceSchemaJSON
-				sm.ceCodec = ceCodec
+			sm, smErr := buildSchemaMetadata(topic, v, avroProtocol, rawSchemaTopics[topic])
+			if smErr != nil {
+				return nil, smErr
 			}
 			m.internalTopicSchemas[topic] = sm
 		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
@@ -399,11 +429,16 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 }
 
 // getRegistrationSchema returns the Pulsar schema to register with the broker.
-// For Avro topics with a CE envelope, it returns the CE envelope schema;
-// otherwise it falls back to the inner schema.
+// For Avro or JSON schema topics with a CE envelope, it returns the CE envelope
+// schema (Avro or JSON respectively); otherwise it falls back to the inner schema.
 func getRegistrationSchema(sm schemaMetadata) pulsar.Schema {
 	if sm.ceValue != "" {
-		return pulsar.NewAvroSchema(sm.ceValue, nil)
+		switch sm.protocol {
+		case jsonProtocol:
+			return pulsar.NewJSONSchema(sm.ceValue, nil)
+		default:
+			return pulsar.NewAvroSchema(sm.ceValue, nil)
+		}
 	}
 	return getPulsarSchema(sm)
 }
@@ -421,7 +456,11 @@ func getPulsarSchema(metadata schemaMetadata) pulsar.Schema {
 	}
 }
 
-// parsePublishMetadata parse publish metadata.
+// parsePublishMetadata constructs a ProducerMessage from the publish request.
+// For JSON and Avro schema topics it validates the payload against the registered
+// schema (including CE envelope normalization when applicable), enforces the
+// rawPayload/rawSchema contract, and maps partition keys, delivery timing, and
+// custom properties onto the message.
 func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	msg *pulsar.ProducerMessage, err error,
 ) {
@@ -431,12 +470,47 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	case "":
 		msg.Payload = req.Data
 	case jsonProtocol:
-		var obj interface{}
-		err = json.Unmarshal(req.Data, &obj)
-		if err != nil {
-			return nil, err
+		isRaw, rawErr := metadata.IsRawPayload(req.Metadata)
+		if rawErr != nil {
+			return nil, fmt.Errorf("invalid rawPayload metadata: %w", rawErr)
+		}
+		if isRaw && !schema.rawSchema {
+			return nil, errors.New("rawPayload=true is not compatible with JSON schema topics using CloudEvents envelope; use a topic configured with rawschema=true")
+		}
+		if !isRaw && schema.rawSchema {
+			return nil, errors.New("rawschema=true topics require per-message rawPayload=true; otherwise Dapr wraps in a CloudEvents envelope that won't match the registered schema")
+		}
+		codec := schema.ceCodec
+		data := req.Data
+		if schema.ceCodec == nil {
+			codec = schema.codec
+		}
+		if codec == nil {
+			return nil, errors.New("no JSON schema codec available: schema metadata is missing a compiled codec for this topic")
+		}
+		if schema.ceCodec != nil {
+			// Dapr's CE envelope can encode the "data" field as a JSON string;
+			// the JSON schema CloudEvents codec expects a nested object. Normalize
+			// before validation, reusing the Avro normalization helper.
+			normalized, normErr := normalizeCloudEventData(data)
+			if normErr != nil {
+				return nil, fmt.Errorf("failed to normalize CloudEvents data for JSON schema: %w", normErr)
+			}
+			data = normalized
+		}
+		// Validate the payload against the schema using goavro, but do NOT use
+		// the goavro "native" value as msg.Value. goavro wraps union types as
+		// map[string]any{"string": "..."} which changes the JSON wire format.
+		// Instead, use a standard json.Unmarshal result for the Pulsar JSON encoder.
+		_, _, nativeErr := codec.NativeFromTextual(data)
+		if nativeErr != nil {
+			return nil, fmt.Errorf("json schema validation failed: %w", nativeErr)
 		}
 
+		var obj interface{}
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, fmt.Errorf("json schema unmarshal after validation: %w", err)
+		}
 		msg.Value = obj
 	case avroProtocol:
 		// Select the appropriate codec based on whether the payload is raw or
@@ -456,10 +530,14 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		data := req.Data
 		if schema.ceCodec == nil {
 			codec = schema.codec
-		} else {
+		}
+		if codec == nil {
+			return nil, errors.New("no Avro schema codec available: schema metadata is missing a compiled codec for this topic")
+		}
+		if schema.ceCodec != nil {
 			// Dapr's CE envelope encodes the "data" field as a JSON string;
 			// the Avro codec expects a nested record. Normalize before encoding.
-			normalized, normErr := normalizeCloudEventForAvro(req.Data)
+			normalized, normErr := normalizeCloudEventData(req.Data)
 			if normErr != nil {
 				return nil, fmt.Errorf("failed to normalize CloudEvents data for Avro: %w", normErr)
 			}
@@ -471,6 +549,8 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		}
 
 		msg.Value = native
+	default:
+		return nil, fmt.Errorf("publish-time validation is not supported for schema protocol %q; only json and avro schemas are validated", schema.protocol)
 	}
 
 	for name, value := range req.Metadata {
@@ -703,33 +783,93 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
+	// Resolve effective process mode: component metadata is already normalized
+	// to lowercase in parsePulsarMetadata; subscription metadata may override.
+	mode := p.metadata.ProcessMode
+	if mode == "" {
+		mode = processModeAsync
+	}
+	if v, ok := req.Metadata[processModeKey]; ok {
+		override := strings.ToLower(v)
+		switch override {
+		case processModeAsync, processModeSync:
+			mode = override
+		default:
+			p.logger.Warnf(
+				"Invalid process mode %q in subscription metadata for topic %s; using component default %q",
+				v, req.Topic, mode,
+			)
+		}
+	}
+
 	originTopic := req.Topic
-	var err error
+
+	if mode == processModeSync {
+		p.listenMessageSync(ctx, originTopic, consumer, handler)
+	} else {
+		p.listenMessageAsync(ctx, originTopic, consumer, handler)
+	}
+}
+
+// listenMessageSync processes messages sequentially on the calling goroutine.
+func (p *Pulsar) listenMessageSync(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
 	for {
 		select {
-		case msg := <-consumer.Chan():
-			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync { //nolint:gocritic
-				err = p.handleMessage(ctx, originTopic, msg, handler)
-				if err != nil && !errors.Is(err, context.Canceled) {
-					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
-				}
-			} else { // async process mode by default
-				// Go routine to handle multiple messages at once.
-				p.wg.Add(1)
-				go func(msg pulsar.ConsumerMessage) {
-					defer p.wg.Done()
-					err = p.handleMessage(ctx, originTopic, msg, handler)
-					if err != nil && !errors.Is(err, context.Canceled) {
-						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
-					}
-				}(msg)
+		case msg, ok := <-consumer.Chan():
+			if !ok {
+				return
 			}
-
+			if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+				p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+			}
 		case <-ctx.Done():
-			p.logger.Errorf("Subscription context done. Closing consumer. Err: %s", ctx.Err())
+			p.logger.Debugf("Subscription context done. Closing consumer. Err: %s", ctx.Err())
 			return
 		}
 	}
+}
+
+// listenMessageAsync pre-spawns MaxConcurrentHandlers worker goroutines that
+// read directly from the consumer channel. Backpressure is achieved naturally:
+// when all workers are busy processing messages, the consumer channel fills up
+// and the SDK stops requesting more messages from the broker. There is no
+// intermediate work channel, so MaxConcurrentHandlers bounds both the number
+// of concurrent handlers and the consumer channel buffer (set in Subscribe).
+func (p *Pulsar) listenMessageAsync(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+	// Use a local WaitGroup for workers so that we can wait for in-flight
+	// handlers to finish their Ack/Nack calls before returning. The caller
+	// defers consumer.Close(), so returning early would close the consumer
+	// while workers are still processing messages.
+	var workerWg sync.WaitGroup
+
+	// Pre-spawn a fixed pool of worker goroutines reading from consumer.Chan().
+	for range p.metadata.MaxConcurrentHandlers {
+		workerWg.Add(1)
+		go func() {
+			defer workerWg.Done()
+			for {
+				select {
+				case msg, ok := <-consumer.Chan():
+					if !ok {
+						return
+					}
+					if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	// Block until context is cancelled, then wait for workers to finish
+	// processing in-flight messages before returning. This ensures
+	// consumer.Close() (deferred by the caller) does not race with
+	// Ack/Nack calls from active workers.
+	<-ctx.Done()
+	p.logger.Debugf("Subscription context done. Closing consumer. Err: %s", ctx.Err())
+	workerWg.Wait()
 }
 
 func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {

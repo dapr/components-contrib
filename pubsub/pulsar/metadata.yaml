@@ -196,11 +196,11 @@ metadata:
   - name: "<topic-name>.rawschema"
     type: bool
     description: |
-      When set to "true", registers the user-provided Avro schema as-is with the Pulsar Schema Registry
-      instead of wrapping it in a CloudEvents envelope schema. This setting only controls which schema is
-      registered; it does not change the wire format. Callers must also publish messages with
-      rawPayload=true to send events without a CloudEvents envelope. Use this for topics that are
-      intended to exclusively receive raw domain payloads.
+      When set to "true", registers the user-provided schema as-is with the Pulsar Schema Registry
+      instead of wrapping it in a CloudEvents envelope schema. Applies to both Avro (.avroschema) and
+      JSON (.jsonschema) schema topics. Callers must also publish messages with rawPayload=true to
+      send events without a CloudEvents envelope. Use this for topics that are intended to exclusively
+      receive raw domain payloads.
     default: 'false'
     example: '"true", "false"'
   - name: "<topic-name>.jsonschema"
@@ -217,6 +217,18 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: processMode
+    type: string
+    description: |
+      Controls whether messages are processed synchronously or asynchronously.
+      In sync mode, messages are handled one at a time in order.
+      In async mode, up to maxConcurrentHandlers messages are processed concurrently.
+      Can be overridden per subscription via subscription metadata.
+    default: '"async"'
+    example: '"sync"'
+    allowedValues:
+      - sync
+      - async
   - name: maxConcurrentHandlers
     type: number
     description: |

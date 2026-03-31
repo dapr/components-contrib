@@ -18,64 +18,69 @@ import (
 	"fmt"
 )
 
-// Avro schema structs with deterministic JSON field ordering.
-// Using structs instead of maps guarantees consistent json.Marshal output
-// across process restarts, preventing spurious schema version bumps in the
-// Pulsar Schema Registry (which hashes raw schema bytes for versioning).
+// CloudEvents envelope schema structs with deterministic JSON field ordering.
+// Used for both Avro and JSON schema topics. Using structs instead of maps
+// guarantees consistent json.Marshal output across process restarts, preventing
+// spurious schema version bumps in the Pulsar Schema Registry (which hashes
+// raw schema bytes for versioning).
 
-type avroRecordSchema struct {
+type ceRecordSchema struct {
 	Type      string        `json:"type"`
 	Name      string        `json:"name"`
 	Namespace string        `json:"namespace"`
 	Fields    []interface{} `json:"fields"`
 }
 
-type avroRequiredField struct {
+type ceRequiredField struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
 
-type avroNullableField struct {
+type ceNullableField struct {
 	Name    string `json:"name"`
 	Type    [2]any `json:"type"`
 	Default any    `json:"default"` // nil any marshals to JSON null
 }
 
-// wrapInCloudEventsAvroSchema takes a user-provided inner Avro schema JSON string
-// and returns a CloudEvents envelope Avro schema with the inner schema embedded
-// as the "data" field type. This ensures the Pulsar Schema Registry entry matches
-// the actual wire format when Dapr wraps payloads in CloudEvents envelopes.
+// wrapInCloudEventsSchema takes a user-provided inner schema JSON string and
+// returns a CloudEvents envelope schema with the inner schema embedded as the
+// "data" field type. This ensures the Pulsar Schema Registry entry matches the
+// actual wire format when Dapr wraps payloads in CloudEvents envelopes.
+//
+// Used for both Avro and JSON schema topics — the envelope structure is the same
+// regardless of the schema type because both use the Avro-compatible JSON
+// representation internally (goavro codec).
 //
 // The generated schema follows the CloudEvents Avro format specification:
 // https://github.com/cloudevents/spec/blob/main/cloudevents/bindings/avro-format.md
-func wrapInCloudEventsAvroSchema(innerSchemaJSON string) (string, error) {
+func wrapInCloudEventsSchema(innerSchemaJSON string) (string, error) {
 	var innerSchema interface{}
 	if err := json.Unmarshal([]byte(innerSchemaJSON), &innerSchema); err != nil {
-		return "", fmt.Errorf("failed to parse inner Avro schema: %w", err)
+		return "", fmt.Errorf("failed to parse inner schema: %w", err)
 	}
 
 	nullStr := [2]any{"null", "string"}
 
-	envelope := avroRecordSchema{
+	envelope := ceRecordSchema{
 		Type:      "record",
 		Name:      "CloudEvent",
 		Namespace: "io.cloudevents",
 		Fields: []interface{}{
-			avroRequiredField{Name: "id", Type: "string"},
-			avroRequiredField{Name: "source", Type: "string"},
-			avroRequiredField{Name: "specversion", Type: "string"},
-			avroRequiredField{Name: "type", Type: "string"},
-			avroNullableField{Name: "datacontenttype", Type: nullStr},
-			avroNullableField{Name: "subject", Type: nullStr},
-			avroNullableField{Name: "time", Type: nullStr},
-			avroNullableField{Name: "topic", Type: nullStr},
-			avroNullableField{Name: "pubsubname", Type: nullStr},
-			avroNullableField{Name: "traceid", Type: nullStr},
-			avroNullableField{Name: "traceparent", Type: nullStr},
-			avroNullableField{Name: "tracestate", Type: nullStr},
-			avroNullableField{Name: "expiration", Type: nullStr},
-			avroNullableField{Name: "data", Type: [2]any{"null", innerSchema}},
-			avroNullableField{Name: "data_base64", Type: nullStr},
+			ceRequiredField{Name: "id", Type: "string"},
+			ceRequiredField{Name: "source", Type: "string"},
+			ceRequiredField{Name: "specversion", Type: "string"},
+			ceRequiredField{Name: "type", Type: "string"},
+			ceNullableField{Name: "datacontenttype", Type: nullStr},
+			ceNullableField{Name: "subject", Type: nullStr},
+			ceNullableField{Name: "time", Type: nullStr},
+			ceNullableField{Name: "topic", Type: nullStr},
+			ceNullableField{Name: "pubsubname", Type: nullStr},
+			ceNullableField{Name: "traceid", Type: nullStr},
+			ceNullableField{Name: "traceparent", Type: nullStr},
+			ceNullableField{Name: "tracestate", Type: nullStr},
+			ceNullableField{Name: "expiration", Type: nullStr},
+			ceNullableField{Name: "data", Type: [2]any{"null", innerSchema}},
+			ceNullableField{Name: "data_base64", Type: nullStr},
 		},
 	}
 
@@ -87,15 +92,19 @@ func wrapInCloudEventsAvroSchema(innerSchemaJSON string) (string, error) {
 	return string(result), nil
 }
 
-// normalizeCloudEventForAvro takes a Dapr-produced CE envelope JSON and parses
+// normalizeCloudEventData takes a Dapr-produced CE envelope JSON and parses
 // the stringified "data" field into a proper JSON object so goavro can encode it
-// against the inner Avro record type.
+// against the inner record type.
+//
+// Used for both Avro and JSON schema topics — Dapr may stringify the data field
+// in either case, and the goavro codec expects a nested object.
 //
 // Dapr produces: {"data": "{\"testId\":0}", ...}
 // goavro expects: {"data": {"testId":0}, ...}
 //
-// Uses json.RawMessage to avoid parsing/re-serialising the other ~15 CE fields.
-func normalizeCloudEventForAvro(ceJSON []byte) ([]byte, error) {
+// Uses json.RawMessage to avoid fully parsing the other ~15 CE fields, though
+// the envelope is re-marshaled (which may reorder top-level keys).
+func normalizeCloudEventData(ceJSON []byte) ([]byte, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(ceJSON, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse CloudEvents envelope: %w", err)

@@ -14,6 +14,7 @@ limitations under the License.
 package zeebe
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -31,6 +32,12 @@ func TestParseMetadata(t *testing.T) {
 		"gatewayKeepAlive":       "5s",
 		"caCertificatePath":      "/cert/path",
 		"usePlaintextConnection": "true",
+		"clientId":               "zeebe-client",
+		"clientSecret":           "zeebe-secret",
+		"authorizationServerUrl": "https://issuer.example.com/oauth/token",
+		"tokenAudience":          "zeebe-api",
+		"tokenScope":             "read write",
+		"clientConfigPath":       "/tmp/zeebe-cache.yaml",
 	}}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
@@ -39,6 +46,12 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.GatewayKeepAlive)
 	assert.Equal(t, "/cert/path", meta.CaCertificatePath)
 	assert.True(t, meta.UsePlaintextConnection)
+	assert.Equal(t, "zeebe-client", meta.ClientID)
+	assert.Equal(t, "zeebe-secret", meta.ClientSecret)
+	assert.Equal(t, "https://issuer.example.com/oauth/token", meta.AuthorizationServerURL)
+	assert.Equal(t, "zeebe-api", meta.TokenAudience)
+	assert.Equal(t, "read write", meta.TokenScope)
+	assert.Equal(t, "/tmp/zeebe-cache.yaml", meta.ClientConfigPath)
 }
 
 func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
@@ -58,4 +71,49 @@ func TestParseMetadataDefaultValues(t *testing.T) {
 	assert.Equal(t, time.Duration(0), meta.GatewayKeepAlive)
 	assert.Equal(t, "", meta.CaCertificatePath)
 	assert.False(t, meta.UsePlaintextConnection)
+	assert.Equal(t, "", meta.ClientID)
+	assert.Equal(t, "", meta.ClientSecret)
+	assert.Equal(t, "", meta.AuthorizationServerURL)
+	assert.Equal(t, "", meta.TokenAudience)
+	assert.Equal(t, "", meta.TokenScope)
+	assert.Equal(t, "", meta.ClientConfigPath)
+}
+
+func TestNewCredentialsProviderSkipsWhenOAuthNotConfigured(t *testing.T) {
+	meta := &ClientMetadata{}
+
+	provider, err := meta.newCredentialsProvider()
+
+	require.NoError(t, err)
+	assert.Nil(t, provider)
+}
+
+func TestNewCredentialsProviderReturnsErrorOnInvalidOAuthMetadata(t *testing.T) {
+	meta := &ClientMetadata{
+		AuthorizationServerURL: "https://issuer.example.com/oauth/token",
+		TokenAudience:          "zeebe-api",
+		ClientID:               "zeebe-client",
+	}
+
+	provider, err := meta.newCredentialsProvider()
+
+	assert.Nil(t, provider)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-empty client secret")
+}
+
+func TestNewCredentialsProviderCreatesOAuthProviderWithCustomCachePath(t *testing.T) {
+	meta := &ClientMetadata{
+		ClientID:               "zeebe-client",
+		ClientSecret:           "zeebe-secret",
+		AuthorizationServerURL: "https://issuer.example.com/oauth/token",
+		TokenAudience:          "zeebe-api",
+		TokenScope:             "scopeA",
+		ClientConfigPath:       filepath.Join(t.TempDir(), "zeebe-credentials.yaml"),
+	}
+
+	provider, err := meta.newCredentialsProvider()
+
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
 }

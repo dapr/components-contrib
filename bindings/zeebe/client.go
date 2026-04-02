@@ -41,6 +41,12 @@ type ClientMetadata struct {
 	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
 	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
+	ClientID               string        `json:"clientId" mapstructure:"clientId"`
+	ClientSecret           string        `json:"clientSecret" mapstructure:"clientSecret"`
+	AuthorizationServerURL string        `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
+	TokenAudience          string        `json:"tokenAudience" mapstructure:"tokenAudience"`
+	TokenScope             string        `json:"tokenScope" mapstructure:"tokenScope"`
+	ClientConfigPath       string        `json:"clientConfigPath" mapstructure:"clientConfigPath"`
 }
 
 // NewClientFactoryImpl returns a new ClientFactory instance.
@@ -54,11 +60,17 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 		return nil, err
 	}
 
+	credentialsProvider, err := meta.newCredentialsProvider()
+	if err != nil {
+		return nil, err
+	}
+
 	client, err := zbc.NewClient(&zbc.ClientConfig{
 		GatewayAddress:         meta.GatewayAddr,
 		UsePlaintextConnection: meta.UsePlaintextConnection,
 		CaCertificatePath:      meta.CaCertificatePath,
 		KeepAlive:              meta.GatewayKeepAlive,
+		CredentialsProvider:    credentialsProvider,
 	})
 	if err != nil {
 		return nil, err
@@ -79,4 +91,38 @@ func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetada
 	}
 
 	return &m, nil
+}
+
+func (m *ClientMetadata) oauthConfigured() bool {
+	return m.ClientID != "" ||
+		m.ClientSecret != "" ||
+		m.AuthorizationServerURL != "" ||
+		m.TokenAudience != "" ||
+		m.TokenScope != "" ||
+		m.ClientConfigPath != ""
+}
+
+func (m *ClientMetadata) newCredentialsProvider() (zbc.CredentialsProvider, error) {
+	if !m.oauthConfigured() {
+		return nil, nil
+	}
+
+	providerConfig := &zbc.OAuthProviderConfig{
+		ClientID:               m.ClientID,
+		ClientSecret:           m.ClientSecret,
+		Audience:               m.TokenAudience,
+		Scope:                  m.TokenScope,
+		AuthorizationServerURL: m.AuthorizationServerURL,
+	}
+
+	if m.ClientConfigPath != "" {
+		cache, err := zbc.NewOAuthYamlCredentialsCache(m.ClientConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		providerConfig.Cache = cache
+	}
+
+	return zbc.NewOAuthCredentialsProvider(providerConfig)
 }

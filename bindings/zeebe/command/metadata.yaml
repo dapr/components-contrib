@@ -60,3 +60,33 @@ metadata:
     description: The path to the CA cert
     example: "/path/to/ca-cert"
     type: string
+  - name: clientId
+    required: false
+    description: The OAuth client ID used to request an access token.
+    example: "zeebe-client"
+    type: string
+  - name: clientSecret
+    required: false
+    description: The OAuth client secret used to request an access token.
+    example: "zeebe-secret"
+    type: string
+  - name: authorizationServerUrl
+    required: false
+    description: The OAuth authorization server URL used to obtain access tokens.
+    example: "https://issuer.example.com/oauth/token"
+    type: string
+  - name: tokenAudience
+    required: false
+    description: The token audience for Zeebe API access.
+    example: "zeebe-api"
+    type: string
+  - name: tokenScope
+    required: false
+    description: Optional OAuth scope to request in the access token.
+    example: "read write"
+    type: string
+  - name: clientConfigPath
+    required: false
+    description: Optional path to the OAuth credentials cache file.
+    example: "/tmp/zeebe-credentials.yaml"
+    type: string

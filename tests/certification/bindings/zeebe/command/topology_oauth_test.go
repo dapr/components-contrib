@@ -44,7 +44,7 @@ func TestTopologyOperationWithOAuthMetadata(t *testing.T) {
 	httpPort := ports[1]
 
 	var oauthRequests int64
-	oauthSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	oauthSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt64(&oauthRequests, 1)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"access_token":"cert-test-token","token_type":"Bearer","expires_in":3600}`))

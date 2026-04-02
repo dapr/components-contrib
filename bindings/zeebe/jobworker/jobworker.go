@@ -63,9 +63,12 @@ type jobWorkerMetadata struct {
 	RetryBackOff   kitmd.Duration `mapstructure:"retryBackOff"`
 }
 
+// JobWorkerMetadata is an exported alias used by metadata reflection.
+type JobWorkerMetadata jobWorkerMetadata
+
 type componentMetadata struct {
-	zeebe.ClientMetadata
-	jobWorkerMetadata
+	zeebe.ClientMetadata `mapstructure:",squash"`
+	JobWorkerMetadata    `mapstructure:",squash"`
 }
 
 type jobHandler struct {

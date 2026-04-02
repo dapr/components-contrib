@@ -63,7 +63,7 @@ type jobWorkerMetadata struct {
 	RetryBackOff   kitmd.Duration `mapstructure:"retryBackOff"`
 }
 
-// JobWorkerMetadata is an exported alias used by metadata reflection.
+// JobWorkerMetadata is an exported mirror type used by metadata reflection.
 type JobWorkerMetadata jobWorkerMetadata
 
 type componentMetadata struct {

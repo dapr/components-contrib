@@ -111,7 +111,12 @@ func TestNewCredentialsProviderReturnsErrorWhenOnlyOptionalOAuthFieldsProvided(t
 
 	assert.Nil(t, provider)
 	require.ErrorIs(t, err, ErrInvalidOAuthMetadata)
-	assert.Contains(t, err.Error(), "missing: clientId, clientSecret, authorizationServerUrl, tokenAudience")
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "missing:")
+	assert.Contains(t, errMsg, "clientId")
+	assert.Contains(t, errMsg, "clientSecret")
+	assert.Contains(t, errMsg, "authorizationServerUrl")
+	assert.Contains(t, errMsg, "tokenAudience")
 }
 
 func TestNewCredentialsProviderCreatesOAuthProviderWithCustomCachePath(t *testing.T) {

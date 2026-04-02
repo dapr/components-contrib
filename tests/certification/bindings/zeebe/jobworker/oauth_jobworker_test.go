@@ -120,7 +120,7 @@ func createOAuthJobworkerTestResources(t *testing.T, oauthServerURL string) stri
 	err := os.MkdirAll(resourcesPath, 0o755)
 	require.NoError(t, err)
 
-	cachePath := filepath.Join(resourcesPath, "zeebe-credentials.yaml")
+	cachePath := filepath.Join(t.TempDir(), "zeebe-credentials.yaml")
 
 	commandComponentPath := filepath.Join(resourcesPath, "zeebe-command.yaml")
 	commandComponentYAML := fmt.Sprintf(`apiVersion: dapr.io/v1alpha1

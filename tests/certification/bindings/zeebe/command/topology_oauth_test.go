@@ -112,6 +112,8 @@ func createOAuthTestResources(t *testing.T, oauthServerURL string) string {
 	err := os.MkdirAll(resourcesPath, 0o755)
 	require.NoError(t, err)
 
+	cachePath := filepath.Join(t.TempDir(), "zeebe-credentials.yaml")
+
 	componentPath := filepath.Join(resourcesPath, "zeebe-command.yaml")
 	componentYAML := fmt.Sprintf(`apiVersion: dapr.io/v1alpha1
 kind: Component
@@ -139,7 +141,7 @@ spec:
       value: test.scope
     - name: clientConfigPath
       value: "%s"
-`, oauthServerURL, filepath.Join(resourcesPath, "zeebe-credentials.yaml"))
+`, oauthServerURL, cachePath)
 
 	err = os.WriteFile(componentPath, []byte(componentYAML), 0o600)
 	require.NoError(t, err)

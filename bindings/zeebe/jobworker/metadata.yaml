@@ -41,6 +41,7 @@ metadata:
     type: string
   - name: clientSecret
     required: false
+    sensitive: true
     description: The OAuth client secret used to request an access token.
     example: "zeebe-secret"
     type: string

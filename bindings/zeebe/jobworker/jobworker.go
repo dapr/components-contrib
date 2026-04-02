@@ -63,6 +63,11 @@ type jobWorkerMetadata struct {
 	RetryBackOff   kitmd.Duration `mapstructure:"retryBackOff"`
 }
 
+type componentMetadata struct {
+	zeebe.ClientMetadata
+	jobWorkerMetadata
+}
+
 type jobHandler struct {
 	callback     bindings.Handler
 	logger       logger.Logger
@@ -273,7 +278,7 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 
 // GetComponentMetadata returns the metadata of the component.
 func (z *ZeebeJobWorker) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := jobWorkerMetadata{}
+	metadataStruct := componentMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

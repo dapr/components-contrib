@@ -15,6 +15,8 @@ package zeebe
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
@@ -25,6 +27,8 @@ import (
 )
 
 var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
+
+var ErrInvalidOAuthMetadata = errors.New("invalid OAuth metadata")
 
 // ClientFactory enables injection for testing.
 type ClientFactory interface {
@@ -102,7 +106,37 @@ func (m *ClientMetadata) oauthConfigured() bool {
 		m.ClientConfigPath != ""
 }
 
+func (m *ClientMetadata) validateOAuthMetadata() error {
+	if !m.oauthConfigured() {
+		return nil
+	}
+
+	missing := make([]string, 0, 4)
+	if m.ClientID == "" {
+		missing = append(missing, "clientId")
+	}
+	if m.ClientSecret == "" {
+		missing = append(missing, "clientSecret")
+	}
+	if m.AuthorizationServerURL == "" {
+		missing = append(missing, "authorizationServerUrl")
+	}
+	if m.TokenAudience == "" {
+		missing = append(missing, "tokenAudience")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: when OAuth is configured, clientId, clientSecret, authorizationServerUrl, and tokenAudience must all be provided; missing: %s", ErrInvalidOAuthMetadata, strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
 func (m *ClientMetadata) newCredentialsProvider() (zbc.CredentialsProvider, error) {
+	if err := m.validateOAuthMetadata(); err != nil {
+		return nil, err
+	}
+
 	if !m.oauthConfigured() {
 		return nil, nil
 	}

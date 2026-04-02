@@ -98,8 +98,20 @@ func TestNewCredentialsProviderReturnsErrorOnInvalidOAuthMetadata(t *testing.T) 
 	provider, err := meta.newCredentialsProvider()
 
 	assert.Nil(t, provider)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "non-empty client secret")
+	require.ErrorIs(t, err, ErrInvalidOAuthMetadata)
+	assert.Contains(t, err.Error(), "missing: clientSecret")
+}
+
+func TestNewCredentialsProviderReturnsErrorWhenOnlyOptionalOAuthFieldsProvided(t *testing.T) {
+	meta := &ClientMetadata{
+		TokenScope: "scopeA",
+	}
+
+	provider, err := meta.newCredentialsProvider()
+
+	assert.Nil(t, provider)
+	require.ErrorIs(t, err, ErrInvalidOAuthMetadata)
+	assert.Contains(t, err.Error(), "missing: clientId, clientSecret, authorizationServerUrl, tokenAudience")
 }
 
 func TestNewCredentialsProviderCreatesOAuthProviderWithCustomCachePath(t *testing.T) {

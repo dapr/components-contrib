@@ -47,7 +47,6 @@ func newLLMWithStub(fn func(ctx context.Context, messages []llms.MessageContent,
 	}
 }
 
-
 func TestConverseResponseModel(t *testing.T) {
 	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
 

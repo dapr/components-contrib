@@ -29,8 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      release_tag: v${{ inputs.rel_version }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -56,11 +54,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # Normalize: strip any leading v, then re-add it
+      RELEASE_TAG: v${{ inputs.rel_version }}
     steps:
+      - name: Normalize release tag
+        id: tag
+        run: |
+          TAG=$(echo "$RELEASE_TAG" | sed -r 's/^v?[vV]?([0-9])/v\1/')
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
       - name: Check out code at release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: ${{ needs.create-release.outputs.release_tag }}
+          ref: ${{ steps.tag.outputs.name }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -72,6 +78,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.DAPR_BOT_TOKEN }}
-          tag_name: ${{ needs.create-release.outputs.release_tag }}
+          tag_name: ${{ steps.tag.outputs.name }}
           generate_release_notes: true
           files: component-metadata-bundle.json

@@ -18,7 +18,7 @@ on:
     inputs:
       rel_version:
         description: 'Release version (examples: 1.16.0-rc.1, 1.16.0)'
-        required: true 
+        required: true
         type: string
 
 permissions: {}
@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      release_tag: v${{ inputs.rel_version }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -47,3 +49,29 @@ jobs:
           # Update origin with token
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           ./.github/scripts/create-release.sh ${{ inputs.rel_version }}
+
+  create-github-release:
+    name: Create GitHub release with metadata bundle
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out code at release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.release_tag }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: 'false'
+      - name: Build component-metadata-bundle.json
+        run: make bundle-component-metadata
+      - name: Create GitHub release with release notes and metadata bundle
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.DAPR_BOT_TOKEN }}
+          tag_name: ${{ needs.create-release.outputs.release_tag }}
+          generate_release_notes: true
+          files: component-metadata-bundle.json

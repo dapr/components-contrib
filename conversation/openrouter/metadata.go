@@ -23,7 +23,7 @@ type OpenRouterMetadata struct {
 
 	// SiteURL is forwarded as HTTP-Referer for OpenRouter attribution and ranking.
 	// Optional but recommended so OpenRouter can identify your application.
-	SiteURL string `json:"siteURL" mapstructure:"siteURL"`
+	SiteURL *string `json:"siteURL" mapstructure:"siteURL"`
 
 	// SiteTitle is forwarded as X-Title for OpenRouter attribution.
 	// Optional but recommended so OpenRouter can identify your application.

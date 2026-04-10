@@ -72,13 +72,13 @@ func (o *OpenRouter) Init(ctx context.Context, meta conversation.Metadata) error
 	// Build HTTP client — inject optional attribution headers when configured,
 	// otherwise fall back to the standard client with no extra transport wrapping.
 	var httpClient *http.Client
-	if m.SiteURL != "" || m.SiteTitle != "" {
-		extraHeaders := map[string]string{}
-		if m.SiteURL != "" {
-			extraHeaders[headerReferer] = m.SiteURL
+	if m.SiteURL != nil || m.SiteTitle != nil {
+		extraHeaders := http.Header{}
+		if m.SiteURL != nil {
+			extraHeaders.Set(headerReferer, *m.SiteURL)
 		}
-		if m.SiteTitle != "" {
-			extraHeaders[headerTitle] = m.SiteTitle
+		if m.SiteTitle != nil {
+			extraHeaders.Set(headerTitle, *m.SiteTitle)
 		}
 		httpClient = conversation.BuildHTTPClientWithHeaders(extraHeaders)
 	} else {
@@ -118,5 +118,4 @@ func (o *OpenRouter) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 	return
 }
 
-// Close is a no-op; the underlying HTTP client does not hold open connections.
 func (o *OpenRouter) Close() error { return nil }

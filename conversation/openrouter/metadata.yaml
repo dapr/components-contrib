@@ -5,9 +5,6 @@ name: openrouter
 version: v1
 status: alpha
 title: "OpenRouter"
-urls:
-  - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-conversation/openrouter/
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using an OpenRouter API key"

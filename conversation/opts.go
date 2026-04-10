@@ -62,25 +62,28 @@ func CacheResponses(ctx context.Context, ttl *time.Duration, model llms.Model) (
 // BuildHTTPClientWithHeaders creates an HTTP client that injects extra headers on every request
 // without overwriting headers the caller has already set. Used for optional attribution headers
 // required by some providers (e.g. OpenRouter's HTTP-Referer / X-Title).
-func BuildHTTPClientWithHeaders(extraHeaders map[string]string) *http.Client {
+func BuildHTTPClientWithHeaders(extraHeaders http.Header) *http.Client {
 	base := &httputil.Transport{Transport: http.DefaultTransport}
 	return &http.Client{
-		Transport: &headerInjectingTransport{wrapped: base, headers: extraHeaders},
-		Timeout:   0,
+		Transport: &headerInjectingTransport{
+			wrapped: base,
+			headers: extraHeaders.Clone(), // snapshot so caller mutations don't race
+		},
+		Timeout: 0,
 	}
 }
 
 type headerInjectingTransport struct {
 	wrapped http.RoundTripper
-	headers map[string]string
+	headers http.Header
 }
 
 func (t *headerInjectingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Clone before mutating — RoundTripper must not modify the original request.
 	req = req.Clone(req.Context())
 	for k, v := range t.headers {
-		if req.Header.Get(k) == "" {
-			req.Header.Set(k, v)
+		if req.Header[k] == nil {
+			req.Header[k] = v
 		}
 	}
 	return t.wrapped.RoundTrip(req)

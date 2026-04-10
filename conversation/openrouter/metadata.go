@@ -27,5 +27,5 @@ type OpenRouterMetadata struct {
 
 	// SiteTitle is forwarded as X-Title for OpenRouter attribution.
 	// Optional but recommended so OpenRouter can identify your application.
-	SiteTitle string `json:"siteTitle" mapstructure:"siteTitle"`
+	SiteTitle *string `json:"siteTitle" mapstructure:"siteTitle"`
 }

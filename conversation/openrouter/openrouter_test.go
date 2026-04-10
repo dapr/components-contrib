@@ -16,7 +16,6 @@ limitations under the License.
 package openrouter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,7 +102,7 @@ func TestInit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			o := NewOpenRouter(testLogger).(*OpenRouter)
-			err := o.Init(context.Background(), conversation.Metadata{
+			err := o.Init(t.Context(), conversation.Metadata{
 				Base: metadata.Base{Properties: tt.props},
 			})
 			tt.testFn(t, o, err)

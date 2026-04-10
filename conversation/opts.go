@@ -69,6 +69,8 @@ func BuildHTTPClientWithHeaders(extraHeaders http.Header) *http.Client {
 			wrapped: base,
 			headers: extraHeaders.Clone(), // snapshot so caller mutations don't race
 		},
+		// Timeout is set to 0 to rely on context deadlines set by any configured resiliency policies.
+		// The context deadline will be respected via http.NewRequestWithContext in Langchain.
 		Timeout: 0,
 	}
 }

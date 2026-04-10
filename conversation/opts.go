@@ -59,6 +59,33 @@ func CacheResponses(ctx context.Context, ttl *time.Duration, model llms.Model) (
 	return cache.New(model, mem), nil
 }
 
+// BuildHTTPClientWithHeaders creates an HTTP client that injects extra headers on every request
+// without overwriting headers the caller has already set. Used for optional attribution headers
+// required by some providers (e.g. OpenRouter's HTTP-Referer / X-Title).
+func BuildHTTPClientWithHeaders(extraHeaders map[string]string) *http.Client {
+	base := &httputil.Transport{Transport: http.DefaultTransport}
+	return &http.Client{
+		Transport: &headerInjectingTransport{wrapped: base, headers: extraHeaders},
+		Timeout:   0,
+	}
+}
+
+type headerInjectingTransport struct {
+	wrapped http.RoundTripper
+	headers map[string]string
+}
+
+func (t *headerInjectingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone before mutating — RoundTripper must not modify the original request.
+	req = req.Clone(req.Context())
+	for k, v := range t.headers {
+		if req.Header.Get(k) == "" {
+			req.Header.Set(k, v)
+		}
+	}
+	return t.wrapped.RoundTrip(req)
+}
+
 // BuildHTTPClient creates an HTTP client with timeout set to 0 to rely on context deadlines.
 // The context deadline will be respected via http.NewRequestWithContext within Langchain.
 // This allows resiliency policy timeouts from runtime to propagate through to the HTTP client for the LLM provider.

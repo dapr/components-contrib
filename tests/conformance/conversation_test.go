@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/conversation/ollama"
 	"github.com/dapr/components-contrib/conversation/openai"
+	"github.com/dapr/components-contrib/conversation/openrouter"
 	conf_conversation "github.com/dapr/components-contrib/tests/conformance/conversation"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -114,6 +115,11 @@ func shouldSkipComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping AWS Bedrock conformance test: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables not set")
 			return true
 		}
+	case "openrouter":
+		if os.Getenv("OPENROUTER_API_KEY") == "" {
+			t.Skipf("Skipping OpenRouter conformance test: OPENROUTER_API_KEY environment variable not set")
+			return true
+		}
 	}
 	return false
 }
@@ -136,6 +142,8 @@ func loadConversationComponent(name string) conversation.Conversation {
 		return ollama.NewOllama(testLogger)
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
+	case "openrouter":
+		return openrouter.NewOpenRouter(testLogger)
 	case "deepseek":
 		testLogger.Infof("TODO add deepseek conformance tests")
 		return nil

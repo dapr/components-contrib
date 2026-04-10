@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: openrouter
+version: v1
+status: alpha
+title: "OpenRouter"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/openrouter/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an OpenRouter API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key for OpenRouter. Obtain one at https://openrouter.ai/keys.
+        example: "sk-or-v1-**********"
+        default: ""
+metadata:
+  - name: model
+    required: false
+    type: string
+    description: |
+      Model identifier in provider/model-name format. All providers supported by
+      OpenRouter are valid (e.g. openai/gpt-4o, anthropic/claude-3-5-sonnet,
+      meta-llama/llama-3.3-70b-instruct). Configurable via OPENROUTER_MODEL
+      environment variable.
+    example: "anthropic/claude-3-5-sonnet"
+    default: "openai/gpt-4o-mini"
+  - name: endpoint
+    required: false
+    type: string
+    description: |
+      Override the OpenRouter API base URL. Useful when routing through a proxy.
+      Defaults to https://openrouter.ai/api/v1.
+    example: "https://openrouter.ai/api/v1"
+  - name: cacheTTL
+    required: false
+    type: string
+    description: |
+      Time-to-live for the in-process response cache. Identical prompts within
+      the TTL window are served from cache without an API call. Uses Go duration
+      format.
+    example: "10m"
+  - name: siteURL
+    required: false
+    type: string
+    description: |
+      Your application URL, forwarded as HTTP-Referer on every request. Optional
+      but recommended so OpenRouter can attribute usage and include your app in
+      public rankings.
+    example: "https://myapp.example.com"
+  - name: siteTitle
+    required: false
+    type: string
+    description: |
+      Your application name, forwarded as X-Title on every request. Optional but
+      recommended for OpenRouter attribution.
+    example: "My Dapr App"

@@ -19,6 +19,12 @@ binding:
       description: "Delete blob"
     - name: list
       description: "List blob"
+    - name: bulkGet
+      description: "Download multiple blobs in parallel"
+    - name: bulkCreate
+      description: "Upload multiple blobs in parallel"
+    - name: bulkDelete
+      description: "Delete multiple blobs in batch"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "aws"

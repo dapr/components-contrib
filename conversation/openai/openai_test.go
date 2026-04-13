@@ -26,9 +26,10 @@ import (
 
 func TestInit(t *testing.T) {
 	testCases := []struct {
-		name     string
-		metadata map[string]string
-		testFn   func(*testing.T, *OpenAI, error)
+		name          string
+		metadata      map[string]string
+		expectedModel string
+		testFn        func(*testing.T, *OpenAI, error)
 	}{
 		{
 			name: "with default endpoint",
@@ -36,6 +37,7 @@ func TestInit(t *testing.T) {
 				"key":   "test-key",
 				"model": conversation.DefaultOpenAIModel,
 			},
+			expectedModel: conversation.DefaultOpenAIModel,
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
 				assert.NotNil(t, o.LLM)
@@ -48,11 +50,23 @@ func TestInit(t *testing.T) {
 				"model":    conversation.DefaultOpenAIModel,
 				"endpoint": "https://api.openai.com/v1",
 			},
+			expectedModel: conversation.DefaultOpenAIModel,
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
 				assert.NotNil(t, o.LLM)
 				// Since we can't directly access the client's baseURL,
 				// we're mainly testing that initialization succeeds
+			},
+		},
+		{
+			name: "with custom model name",
+			metadata: map[string]string{
+				"key":   "test-key",
+				"model": "gpt-4o",
+			},
+			expectedModel: "gpt-4o",
+			testFn: func(t *testing.T, o *OpenAI, err error) {
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -72,11 +86,11 @@ func TestInit(t *testing.T) {
 			name: "with apiType azure and custom apiVersion",
 			metadata: map[string]string{
 				"key":        "test-key",
-				"model":      conversation.DefaultOpenAIModel,
 				"apiType":    "azure",
 				"endpoint":   "https://custom-endpoint.openai.azure.com/",
 				"apiVersion": "2025-01-01-preview",
 			},
+			expectedModel: conversation.DefaultAzureOpenAIModel,
 			testFn: func(t *testing.T, o *OpenAI, err error) {
 				require.NoError(t, err)
 				assert.NotNil(t, o.LLM)
@@ -104,7 +118,11 @@ func TestInit(t *testing.T) {
 					Properties: tc.metadata,
 				},
 			})
-			tc.testFn(t, o.(*OpenAI), err)
+			inner := o.(*OpenAI)
+			tc.testFn(t, inner, err)
+			if tc.expectedModel != "" {
+				assert.Equal(t, tc.expectedModel, inner.LLM.GetModel(), "LLM model name must be set on the response after Init")
+			}
 		})
 	}
 }

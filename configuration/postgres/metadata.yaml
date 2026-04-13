@@ -86,6 +86,15 @@ metadata:
     description: The table name for configuration information.
     example:  "configTable"
     type: string
+  - name: notifyChannel
+    required: false
+    description: |
+      The PostgreSQL NOTIFY channel name for configuration change notifications.
+      Must match the channel used in the database trigger function.
+      This component-level value takes precedence over per-request metadata.
+      If not set here, clients may pass "pgNotifyChannel" in request metadata for backwards compatibility.
+    example: "config"
+    type: string
   - name: connectionMaxIdleTime
     required: false
     description: |

@@ -64,13 +64,15 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 		md.Endpoint = defaultEndpoint
 	}
 
-	options := conversation.BuildOpenAIClientOptions(conversation.GetOllamaModel(md.Model), md.Key, md.Endpoint)
+	model := conversation.GetOllamaModel(md.Model)
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
 	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}
 
 	o.LLM.Model = llm
+	o.LLM.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)

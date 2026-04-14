@@ -153,13 +153,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				return &configuration.GetResponse{}, err
 			}
 
-			item := &configuration.Item{
-				Metadata: map[string]string{},
-			}
-			item.Value = *resp.Value
-			if resp.Label != nil {
-				item.Metadata["label"] = *resp.Label
-			}
+			item := settingToConfigurationItem(resp.Setting)
 
 			items[key] = item
 		}
@@ -190,13 +184,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		defer cancel()
 		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
 			for _, setting := range revResp.Settings {
-				item := &configuration.Item{
-					Metadata: map[string]string{},
-				}
-				item.Value = *setting.Value
-				if setting.Label != nil {
-					item.Metadata["label"] = *setting.Label
-				}
+				item := settingToConfigurationItem(setting)
 
 				items[*setting.Key] = item
 			}
@@ -205,6 +193,21 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		}
 	}
 	return items, nil
+}
+
+func settingToConfigurationItem(setting azappconfig.Setting) *configuration.Item {
+	item := &configuration.Item{
+		Metadata: map[string]string{},
+	}
+	item.Value = *setting.Value
+	if setting.Label != nil {
+		item.Metadata["label"] = *setting.Label
+	}
+	if setting.ContentType != nil {
+		item.Metadata["contentType"] = *setting.ContentType
+	}
+
+	return item
 }
 
 func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *string {

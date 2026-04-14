@@ -38,6 +38,7 @@ type pulsarMetadata struct {
 	PrivateKey                       string                    `mapstructure:"privateKey"`
 	Keys                             string                    `mapstructure:"keys"`
 	MaxConcurrentHandlers            uint                      `mapstructure:"maxConcurrentHandlers"`
+	ProcessMode                      string                    `mapstructure:"processMode"`
 	ReceiverQueueSize                int                       `mapstructure:"receiverQueueSize"`
 	SubscriptionType                 string                    `mapstructure:"subscribeType"`
 	SubscriptionInitialPosition      string                    `mapstructure:"subscribeInitialPosition"`

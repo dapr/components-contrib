@@ -191,6 +191,18 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: processMode
+    type: string
+    description: |
+      Controls whether messages are processed synchronously or asynchronously.
+      In sync mode, messages are handled one at a time in order.
+      In async mode, up to maxConcurrentHandlers messages are processed concurrently.
+      Can be overridden per subscription via subscription metadata.
+    default: '"async"'
+    example: '"sync"'
+    allowedValues:
+      - sync
+      - async
   - name: maxConcurrentHandlers
     type: number
     description: |

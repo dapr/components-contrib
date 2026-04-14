@@ -181,8 +181,9 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 
 	for allSettingsPgr.More() {
 		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.RequestTimeout)
-		defer cancel()
-		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
+		revResp, err := allSettingsPgr.NextPage(timeoutContext)
+		cancel()
+		if err == nil {
 			for _, setting := range revResp.Settings {
 				item := settingToConfigurationItem(setting)
 
@@ -199,7 +200,9 @@ func settingToConfigurationItem(setting azappconfig.Setting) *configuration.Item
 	item := &configuration.Item{
 		Metadata: map[string]string{},
 	}
-	item.Value = *setting.Value
+	if setting.Value != nil {
+		item.Value = *setting.Value
+	}
 	if setting.Label != nil {
 		item.Metadata["label"] = *setting.Label
 	}

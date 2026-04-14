@@ -41,7 +41,7 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
-		settings.Key = ptr.Of("testKey")
+		settings.Key = ptr.Of(key)
 		settings.Value = ptr.Of("testValue")
 		settings.Label = ptr.Of("testLabel")
 		settings.ContentType = ptr.Of("application/json")

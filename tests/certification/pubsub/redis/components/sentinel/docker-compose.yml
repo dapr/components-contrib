@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  redis-cluster:
+    image: 'bitnami/redis:latest'
+    ports:
+      - "6379:6379"
+      - "6380:6380"
+      - "26379:26379"
+    command: >
+      bash -c "
+      echo 'port 6379' > /tmp/master.conf &&
+      echo 'replica-announce-ip 127.0.0.1' >> /tmp/master.conf &&
+      echo 'replica-announce-port 6379' >> /tmp/master.conf &&
+      echo 'requirepass password123' >> /tmp/master.conf &&
+      echo 'masterauth password123' >> /tmp/master.conf &&
+      redis-server /tmp/master.conf &
+      
+      echo 'port 6380' > /tmp/replica.conf &&
+      echo 'replicaof 127.0.0.1 6379' >> /tmp/replica.conf &&
+      echo 'replica-announce-ip 127.0.0.1' >> /tmp/replica.conf &&
+      echo 'replica-announce-port 6380' >> /tmp/replica.conf &&
+      echo 'requirepass password123' >> /tmp/replica.conf &&
+      echo 'masterauth password123' >> /tmp/replica.conf &&
+      redis-server /tmp/replica.conf &
+      
+      echo 'port 26379' > /tmp/sentinel.conf &&
+      echo 'sentinel monitor mymaster 127.0.0.1 6379 1' >> /tmp/sentinel.conf &&
+      echo 'sentinel down-after-milliseconds mymaster 3000' >> /tmp/sentinel.conf &&
+      echo 'sentinel failover-timeout mymaster 3000' >> /tmp/sentinel.conf &&
+      echo 'sentinel auth-pass mymaster password123' >> /tmp/sentinel.conf &&
+      echo 'sentinel announce-ip 127.0.0.1' >> /tmp/sentinel.conf &&
+      echo 'sentinel announce-port 26379' >> /tmp/sentinel.conf &&
+      redis-sentinel /tmp/sentinel.conf
+      "

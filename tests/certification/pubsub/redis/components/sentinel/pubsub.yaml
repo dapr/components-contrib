@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-redis-sentinel
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "127.0.0.1:26379"
+    - name: redisPassword
+      value: "password123"
+    - name: failover
+      value: "true"
+    - name: sentinelMasterName
+      value: "mymaster"
+    - name: redisMaxRetries
+      value: "0" # Disable retries to surface raw EOF error during tests

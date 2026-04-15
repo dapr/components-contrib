@@ -145,6 +145,17 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
+	// For Sentinel failover deployments, explicitly set more resilient pool defaults if not provided.
+	// This helps mitigate stale connections resulting in EOF errors when the master node is swapped.
+	if settings.Failover {
+		if properties["idleTimeout"] == "" {
+			settings.IdleTimeout = Duration(10 * time.Second)
+		}
+		if properties["maxConnAge"] == "" {
+			settings.MaxConnAge = Duration(10 * time.Second)
+		}
+	}
+
 	switch componentType {
 	case metadata.PubSubType:
 		if val, ok := properties[processingTimeoutKey]; ok && val != "" {

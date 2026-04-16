@@ -1,0 +1,22 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-redis-sentinel
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "127.0.0.1:26379"
+    - name: redisPassword
+      value: "password123"
+    - name: failover
+      value: "true"
+    - name: sentinelMasterName
+      value: "mymaster"
+    - name: redisMaxRetries
+      value: "-1" # MUST be -1 to disable retries in go-redis, 0 means default (3)
+    - name: idleTimeout
+      value: "10s" 
+    - name: maxConnAge
+      value: "10s"

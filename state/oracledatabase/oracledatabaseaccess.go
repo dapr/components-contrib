@@ -41,7 +41,7 @@ const (
 	defaultTableName           = "state"
 	// defaultBulkGetChunkSize is the default per-chunk size for BulkGet
 	// requests. Matches Oracle's documented IN-list expression limit so that
-	// requests with fewer keys than this default execute as a single query,
+	// requests with this many keys or fewer execute as a single query,
 	// preserving pre-chunking behavior.
 	// Invariant: defaultBulkGetChunkSize <= maxBulkGetChunkSize.
 	defaultBulkGetChunkSize = 1000

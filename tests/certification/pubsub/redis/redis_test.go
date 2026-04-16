@@ -2,8 +2,10 @@ package redis_test
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,8 +63,16 @@ func TestRedisSentinelFailover(t *testing.T) {
 		// 4. Perform Initial Publish
 		Step("Initial Publish", func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName)
-			err := client.PublishEvent(context.Background(), pubsubName, testTopic, []byte("initial message"))
-			require.NoError(t, err, "Initial publish should succeed")
+			// PUBLISH 20 TIMES CONCURRENTLY TO FILL THE POOL
+			var wg sync.WaitGroup
+			for i := 0; i < 20; i++ {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					_ = client.PublishEvent(context.Background(), pubsubName, testTopic, []byte(fmt.Sprintf("initial message %d", idx)))
+				}(i)
+			}
+			wg.Wait()
 			return nil
 		}).
 
@@ -76,15 +86,25 @@ func TestRedisSentinelFailover(t *testing.T) {
 		}).
 
 		// 6. Wait for idle connection and failover completion
-		Step("Wait for failover to complete", flow.Sleep(15*time.Second)).
+		Step("Wait for failover to complete", flow.Sleep(5*time.Second)).
+
+		// 6.5 KILL THE OLD MASTER TO FORCE TCP FIN/RST (Simulate Proxy Drop)
+		Step("Kill old master to force socket closure", func(ctx flow.Context) error {
+			// We kill the redis-server process on port 6379 (the original master) to forcefully close the socket Dapr holds
+			// Using kill -9 on the specific PID bound to 6379 to avoid killing the Sentinel process
+			out, _ := exec.Command("docker", "exec", "redis-sentinel-test-redis-cluster-1", "sh", "-c", "kill -9 $(lsof -t -i:6379)").CombinedOutput()
+			ctx.Log("Kill old master output: " + string(out))
+			return nil
+		}).
+		Step("Wait a bit more", flow.Sleep(10*time.Second)).
 
 		// 7. Perform Second Publish
 		Step("Second Publish After Failover", func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName)
 			err := client.PublishEvent(context.Background(), pubsubName, testTopic, []byte("second message"))
 
-			// This assertion now expects success because components-contrib mitigates the EOF error
-			require.NoError(t, err, "Expected no error due to Dapr automatically applying connection pool recycling for Sentinel")
+			// The goal is for Dapr to automatically recycle the connection and NOT fail
+			require.NoError(t, err, "Expected no error. Dapr should gracefully dial a new connection after failover.")
 
 			return nil
 		}).

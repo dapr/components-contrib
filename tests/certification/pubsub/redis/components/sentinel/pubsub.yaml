@@ -15,4 +15,8 @@ spec:
     - name: sentinelMasterName
       value: "mymaster"
     - name: redisMaxRetries
-      value: "0" # Disable retries to surface raw EOF error during tests
+      value: "-1" # MUST be -1 to disable retries in go-redis, 0 means default (3)
+#    - name: idleTimeout
+#      value: "10s" 
+#    - name: maxConnAge
+#      value: "10s"

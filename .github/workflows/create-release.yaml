@@ -51,33 +51,8 @@ jobs:
   create-github-release:
     name: Create GitHub release with metadata bundle
     needs: create-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      # Normalize: strip any leading v, then re-add it
-      RELEASE_TAG: v${{ inputs.rel_version }}
-    steps:
-      - name: Normalize release tag
-        id: tag
-        run: |
-          TAG=$(echo "$RELEASE_TAG" | sed -r 's/^v?[vV]?([0-9])/v\1/')
-          echo "name=$TAG" >> "$GITHUB_OUTPUT"
-      - name: Check out code at release tag
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ steps.tag.outputs.name }}
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-          cache: 'false'
-      - name: Build component-metadata-bundle.json
-        run: make bundle-component-metadata
-      - name: Create GitHub release with release notes and metadata bundle
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.DAPR_BOT_TOKEN }}
-          tag_name: ${{ steps.tag.outputs.name }}
-          generate_release_notes: true
-          files: component-metadata-bundle.json
+    uses: ./.github/workflows/generate-component-metadata-for-tag.yml
+    with:
+      tag: v${{ inputs.rel_version }}
+    secrets:
+      DAPR_BOT_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}

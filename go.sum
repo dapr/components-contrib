@@ -1034,8 +1034,8 @@ github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a/go.m
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/http-wasm/http-wasm-host-go v0.7.0 h1:+1KrRyOO6tWiDB24QrtSYyDmzFLBBs3jioKaUT0mq1c=
 github.com/http-wasm/http-wasm-host-go v0.7.0/go.mod h1:adXKcLmL7yuavH/e0kBAp7b3TgAHTo/enCduyN5bXGM=
-github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible h1:XRAk4HBDLCYEdPLWtKf5iZhOi7lfx17aY0oSO9+mcg8=
-github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible/go.mod h1:l7VUhRbTKCzdOacdT4oWCwATKyvZqUOlOqr0Ous3k4s=
+github.com/huaweicloud/huaweicloud-sdk-go-obs v3.25.9+incompatible h1:T9+wBrjfJUrWKppRwXhDNjf6vAJy7DfZYWgkjNbxkIU=
+github.com/huaweicloud/huaweicloud-sdk-go-obs v3.25.9+incompatible/go.mod h1:l7VUhRbTKCzdOacdT4oWCwATKyvZqUOlOqr0Ous3k4s=
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56 h1:ULzGSSe95hkOdh17NsiPV3lw58D0SC6M/6askOwF12Q=
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56/go.mod h1:bsqx6o47Kl4YsniIjPwuoeqiIB5Fc3JbSpB2b3o3WFQ=
 github.com/hudl/fargo v1.3.0/go.mod h1:y3CKSmjA+wD2gak7sUSXTAoopbhU08POFhmITJgmKTg=

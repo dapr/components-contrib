@@ -598,12 +598,12 @@ func TestNormalizeBulkGetChunkSize(t *testing.T) {
 		},
 		{
 			name:       "exact max boundary",
-			configured: 1000,
-			expected:   1000,
+			configured: maxBulkGetChunkSize,
+			expected:   maxBulkGetChunkSize,
 		},
 		{
 			name:       "above max clamped to max",
-			configured: 2000,
+			configured: maxBulkGetChunkSize + 1,
 			expected:   maxBulkGetChunkSize,
 		},
 		{

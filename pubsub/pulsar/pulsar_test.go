@@ -15,6 +15,8 @@ package pulsar
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -32,8 +34,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// newAvroSchemaMetadata creates a schemaMetadata with a pre-compiled goavro codec,
-// matching the production path where codecs are compiled once at init.
+// newAvroSchemaMetadata creates a schemaMetadata with only the inner goavro codec
+// (no CE envelope, rawSchema=false). This does NOT match any production state
+// exactly — it bypasses both CE envelope validation and rawSchema enforcement.
+// Used by legacy Avro type-validation tests that predate CE support and test
+// schema validation logic in isolation with inner-schema payloads.
 func newAvroSchemaMetadata(t *testing.T, avroSchemaJSON string) schemaMetadata {
 	t.Helper()
 	codec, err := goavro.NewCodecForStandardJSONFull(avroSchemaJSON)
@@ -42,6 +47,28 @@ func newAvroSchemaMetadata(t *testing.T, avroSchemaJSON string) schemaMetadata {
 		protocol: avroProtocol,
 		value:    avroSchemaJSON,
 		codec:    codec,
+	}
+}
+
+// newAvroSchemaMetadataWithCE creates a schemaMetadata with pre-compiled goavro codecs
+// for both the inner schema and the CloudEvents envelope schema, matching the
+// default production path where codecs are compiled once at init.
+func newAvroSchemaMetadataWithCE(t *testing.T, avroSchemaJSON string) schemaMetadata {
+	t.Helper()
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchemaJSON)
+	require.NoError(t, err, "failed to compile test avro schema")
+
+	ceSchemaJSON, err := wrapInCloudEventsSchema(avroSchemaJSON)
+	require.NoError(t, err, "failed to generate CE envelope schema")
+	ceCodec, err := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
+	require.NoError(t, err, "failed to compile CE envelope schema")
+
+	return schemaMetadata{
+		protocol: avroProtocol,
+		value:    avroSchemaJSON,
+		codec:    codec,
+		ceValue:  ceSchemaJSON,
+		ceCodec:  ceCodec,
 	}
 }
 
@@ -352,6 +379,9 @@ const (
 	testAvroSchema1 = `{"type":"record","name":"S1","fields":[{"name":"id","type":"int"}]}`
 	testAvroSchema2 = `{"type":"record","name":"S2","fields":[{"name":"id","type":"int"}]}`
 	testAvroSchema3 = `{"type":"record","name":"S3","fields":[{"name":"id","type":"int"}]}`
+
+	testJSONSchema1 = `{"type":"record","name":"J1","fields":[{"name":"name","type":"string"}]}`
+	testJSONSchema2 = `{"type":"record","name":"J2","fields":[{"name":"age","type":"int"}]}`
 )
 
 func TestParsePulsarSchemaMetadata(t *testing.T) {
@@ -359,16 +389,20 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
 			"host":                         "a",
-			"obiwan.jsonschema":            "1",
-			"kenobi.jsonschema.jsonschema": "2",
+			"obiwan.jsonschema":            testJSONSchema1,
+			"kenobi.jsonschema.jsonschema": testJSONSchema2,
 		}
 		meta, err := parsePulsarMetadata(m)
 
 		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
-		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.jsonschema"].value)
+		assert.JSONEq(t, testJSONSchema1, meta.internalTopicSchemas["obiwan"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["obiwan"].codec)
+		assert.NotEmpty(t, meta.internalTopicSchemas["obiwan"].ceValue)
+		assert.NotNil(t, meta.internalTopicSchemas["obiwan"].ceCodec)
+		assert.JSONEq(t, testJSONSchema2, meta.internalTopicSchemas["kenobi.jsonschema"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["kenobi.jsonschema"].codec)
 	})
 
 	t.Run("test avro", func(t *testing.T) {
@@ -410,7 +444,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m.Properties = map[string]string{
 			"host":              "a",
 			"obiwan.avroschema": testAvroSchema1,
-			"kenobi.jsonschema": "2",
+			"kenobi.jsonschema": testJSONSchema1,
 		}
 		meta, err := parsePulsarMetadata(m)
 
@@ -418,7 +452,8 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
+		assert.JSONEq(t, testJSONSchema1, meta.internalTopicSchemas["kenobi"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["kenobi"].codec)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
 	})
@@ -428,7 +463,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		m.Properties = map[string]string{
 			"host":              "a",
 			"obiwan.avroschema": testAvroSchema1,
-			"kenobi.jsonschema": "2",
+			"kenobi.jsonschema": testJSONSchema1,
 			"darth.protoschema": "3",
 		}
 		meta, err := parsePulsarMetadata(m)
@@ -437,11 +472,23 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 3)
 		assert.JSONEq(t, testAvroSchema1, meta.internalTopicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
+		assert.JSONEq(t, testJSONSchema1, meta.internalTopicSchemas["kenobi"].value)
+		assert.NotNil(t, meta.internalTopicSchemas["kenobi"].codec)
 		assert.Equal(t, "3", meta.internalTopicSchemas["darth"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol) //nolint:testifylint
 		assert.Equal(t, protoProtocol, meta.internalTopicSchemas["darth"].protocol)
+	})
+
+	t.Run("test json invalid schema rejected at init", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":              "a",
+			"obiwan.jsonschema": `{"type":"bogus"}`,
+		}
+		_, err := parsePulsarMetadata(m)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse json schema")
 	})
 
 	t.Run("test funky edge case", func(t *testing.T) {
@@ -1129,6 +1176,517 @@ func TestParsePublishMetadataAvroSchemaInvalidSchemaDefinition(t *testing.T) {
 	_, err := parsePulsarMetadata(m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse avro schema")
+}
+
+func TestBuildSchemaMetadata(t *testing.T) {
+	validSchema := `{"type":"record","name":"E","namespace":"test","fields":[{"name":"id","type":"int"}]}`
+
+	tests := []struct {
+		name      string
+		schema    string
+		protocol  string
+		rawSchema bool
+		wantCE    bool
+		wantErr   bool
+	}{
+		{name: "json with CE wrapping", schema: validSchema, protocol: jsonProtocol, rawSchema: false, wantCE: true},
+		{name: "json raw skips CE", schema: validSchema, protocol: jsonProtocol, rawSchema: true, wantCE: false},
+		{name: "avro with CE wrapping", schema: validSchema, protocol: avroProtocol, rawSchema: false, wantCE: true},
+		{name: "avro raw skips CE", schema: validSchema, protocol: avroProtocol, rawSchema: true, wantCE: false},
+		{name: "invalid schema", schema: `{bad}`, protocol: jsonProtocol, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sm, err := buildSchemaMetadata("test-topic", tt.schema, tt.protocol, tt.rawSchema)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.protocol, sm.protocol)
+			assert.Equal(t, tt.schema, sm.value)
+			assert.Equal(t, tt.rawSchema, sm.rawSchema)
+			assert.NotNil(t, sm.codec)
+			if tt.wantCE {
+				assert.NotNil(t, sm.ceCodec)
+				assert.NotEmpty(t, sm.ceValue)
+			} else {
+				assert.Nil(t, sm.ceCodec)
+				assert.Empty(t, sm.ceValue)
+			}
+		})
+	}
+}
+
+func TestParsePublishMetadataJSONSchemaValidation(t *testing.T) {
+	jsonSchemaJSON := `{
+		"type": "record",
+		"name": "User",
+		"namespace": "com.example",
+		"fields": [
+			{"name": "name", "type": "string"},
+			{"name": "age", "type": "int"}
+		]
+	}`
+	codec, err := goavro.NewCodecForStandardJSONFull(jsonSchemaJSON)
+	require.NoError(t, err)
+
+	// rawSchema=true with only the inner codec matches the production state
+	// produced by parsePulsarMetadata when a topic has both .jsonschema and
+	// .rawschema=true configured. All subtests use rawPayload=true accordingly.
+	sm := schemaMetadata{
+		protocol:  jsonProtocol,
+		value:     jsonSchemaJSON,
+		codec:     codec,
+		rawSchema: true,
+	}
+
+	t.Run("valid payload passes validation", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"name":"Alice","age":30}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("invalid payload rejected", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"name":"Alice","age":"not_a_number"}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "json schema validation failed")
+	})
+
+	t.Run("missing required field rejected", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"name":"Alice"}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "json schema validation failed")
+	})
+
+	t.Run("not valid json rejected", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{broken json`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "json schema validation failed")
+	})
+
+	t.Run("non-raw rejected on rawSchema topic", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"name":"Alice","age":30}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rawschema=true topics require per-message rawPayload=true")
+	})
+}
+
+func TestParsePublishMetadataJSONSchemaCloudEventsEnvelope(t *testing.T) {
+	jsonSchemaJSON := `{
+		"type": "record",
+		"name": "OrderEvent",
+		"namespace": "com.example",
+		"fields": [
+			{"name": "orderId", "type": "string"},
+			{"name": "amount", "type": "double"}
+		]
+	}`
+
+	codec, err := goavro.NewCodecForStandardJSONFull(jsonSchemaJSON)
+	require.NoError(t, err)
+	ceSchemaJSON, err := wrapInCloudEventsSchema(jsonSchemaJSON)
+	require.NoError(t, err)
+	ceCodec, err := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
+	require.NoError(t, err)
+
+	sm := schemaMetadata{
+		protocol: jsonProtocol,
+		value:    jsonSchemaJSON,
+		codec:    codec,
+		ceValue:  ceSchemaJSON,
+		ceCodec:  ceCodec,
+	}
+
+	t.Run("valid CE envelope passes", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{
+				"id": "evt-1",
+				"source": "/test",
+				"specversion": "1.0",
+				"type": "com.example.order",
+				"datacontenttype": "application/json",
+				"subject": null,
+				"time": null,
+				"topic": null,
+				"pubsubname": null,
+				"traceid": null,
+				"traceparent": null,
+				"tracestate": null,
+				"expiration": null,
+				"data": {"orderId": "123", "amount": 9.99},
+				"data_base64": null
+			}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("rawPayload rejected with CE envelope", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"orderId": "123", "amount": 9.99}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rawPayload=true is not compatible with JSON schema topics")
+	})
+
+	t.Run("CE envelope with stringified data is normalized", func(t *testing.T) {
+		// Dapr can produce CE envelopes where "data" is a JSON string rather
+		// than a nested object. The JSON schema path must normalize it.
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{
+				"id": "evt-2",
+				"source": "/test",
+				"specversion": "1.0",
+				"type": "com.example.order",
+				"datacontenttype": "application/json",
+				"subject": null,
+				"time": null,
+				"topic": null,
+				"pubsubname": null,
+				"traceid": null,
+				"traceparent": null,
+				"tracestate": null,
+				"expiration": null,
+				"data": "{\"orderId\": \"456\", \"amount\": 19.99}",
+				"data_base64": null
+			}`),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg.Value)
+	})
+}
+
+func TestParsePulsarMetadataJSONRawSchemaSkipsCE(t *testing.T) {
+	jsonSchemaJSON := `{
+		"type": "record",
+		"name": "TestEvent",
+		"fields": [
+			{"name": "id", "type": "int"}
+		]
+	}`
+
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"host":                                "a",
+		"mytopic" + topicJSONSchemaIdentifier: jsonSchemaJSON,
+		"mytopic" + topicRawSchemaIdentifier:  "true",
+	}
+
+	meta, err := parsePulsarMetadata(m)
+	require.NoError(t, err)
+
+	sm, ok := meta.internalTopicSchemas["mytopic"]
+	require.True(t, ok)
+	assert.NotNil(t, sm.codec, "inner codec should be compiled")
+	assert.Nil(t, sm.ceCodec, "CE envelope codec should NOT be set for rawSchema topics")
+	assert.Empty(t, sm.ceValue, "CE envelope schema JSON should NOT be set for rawSchema topics")
+	assert.True(t, sm.rawSchema, "rawSchema flag should be set")
+}
+
+func TestParsePublishMetadataJSONRawSchemaTopic(t *testing.T) {
+	jsonSchemaJSON := `{
+		"type": "record",
+		"name": "OrderEvent",
+		"namespace": "com.example",
+		"fields": [
+			{"name": "orderId", "type": "string"},
+			{"name": "amount", "type": "double"}
+		]
+	}`
+
+	// Build schema metadata without CE wrapping (simulates rawSchema=true topic).
+	codec, err := goavro.NewCodecForStandardJSONFull(jsonSchemaJSON)
+	require.NoError(t, err)
+	sm := schemaMetadata{
+		protocol:  jsonProtocol,
+		value:     jsonSchemaJSON,
+		codec:     codec,
+		rawSchema: true,
+	}
+
+	t.Run("rawPayload succeeds with inner schema", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"orderId": "order-1", "amount": 99.99}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("non-raw rejected on rawschema topic", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"orderId": "order-1", "amount": 99.99}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rawschema=true topics require per-message rawPayload=true")
+	})
+}
+
+func TestParsePublishMetadataAvroCloudEventsEnvelope(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "OrderEvent",
+		"namespace": "com.example",
+		"fields": [
+			{"name": "orderId", "type": "string"},
+			{"name": "amount", "type": "double"}
+		]
+	}`
+
+	sm := newAvroSchemaMetadataWithCE(t, avroSchemaJSON)
+
+	t.Run("valid CloudEvents envelope", func(t *testing.T) {
+		cePayload := `{
+			"id": "abc-123",
+			"source": "Dapr",
+			"specversion": "1.0",
+			"type": "com.dapr.event.sent",
+			"datacontenttype": "application/json",
+			"subject": null,
+			"time": "2026-03-20T10:00:00Z",
+			"topic": "orders",
+			"pubsubname": "mypubsub",
+			"traceid": null,
+			"traceparent": null,
+			"tracestate": null,
+			"expiration": null,
+			"data": {"orderId": "order-1", "amount": 99.99},
+			"data_base64": null
+		}`
+		req := &pubsub.PublishRequest{
+			Data: []byte(cePayload),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("CE envelope with stringified data", func(t *testing.T) {
+		// Dapr's runtime serialises the data field as a JSON string, e.g.
+		// "data": "{\"orderId\":\"order-1\",\"amount\":99.99}"
+		// normalizeCloudEventData must parse it before Avro encoding.
+		cePayload := `{
+			"id": "abc-123",
+			"source": "Dapr",
+			"specversion": "1.0",
+			"type": "com.dapr.event.sent",
+			"datacontenttype": "application/json",
+			"subject": null,
+			"time": "2026-03-20T10:00:00Z",
+			"topic": "orders",
+			"pubsubname": "mypubsub",
+			"traceid": null,
+			"traceparent": null,
+			"tracestate": null,
+			"expiration": null,
+			"data": "{\"orderId\":\"order-1\",\"amount\":99.99}",
+			"data_base64": null
+		}`
+		req := &pubsub.PublishRequest{
+			Data: []byte(cePayload),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("CE envelope with null data", func(t *testing.T) {
+		cePayload := `{
+			"id": "abc-123",
+			"source": "Dapr",
+			"specversion": "1.0",
+			"type": "com.dapr.event.sent",
+			"datacontenttype": null,
+			"subject": null,
+			"time": null,
+			"topic": null,
+			"pubsubname": null,
+			"traceid": null,
+			"traceparent": null,
+			"tracestate": null,
+			"expiration": null,
+			"data": null,
+			"data_base64": null
+		}`
+		req := &pubsub.PublishRequest{
+			Data: []byte(cePayload),
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+
+	t.Run("CE envelope missing required CE field fails", func(t *testing.T) {
+		// Missing "source" field
+		cePayload := `{
+			"id": "abc-123",
+			"specversion": "1.0",
+			"type": "com.dapr.event.sent",
+			"datacontenttype": null,
+			"subject": null,
+			"time": null,
+			"topic": null,
+			"pubsubname": null,
+			"traceid": null,
+			"traceparent": null,
+			"tracestate": null,
+			"expiration": null,
+			"data": null,
+			"data_base64": null
+		}`
+		req := &pubsub.PublishRequest{
+			Data: []byte(cePayload),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "avro schema validation failed")
+	})
+
+	t.Run("rawPayload rejected on CE schema topic", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"orderId": "order-1", "amount": 99.99}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rawPayload=true is not compatible")
+	})
+}
+
+func TestParsePulsarMetadataCECodecCompiled(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "TestEvent",
+		"fields": [
+			{"name": "id", "type": "int"}
+		]
+	}`
+
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"host":                                "a",
+		"mytopic" + topicAvroSchemaIdentifier: avroSchemaJSON,
+	}
+
+	meta, err := parsePulsarMetadata(m)
+	require.NoError(t, err)
+
+	sm, ok := meta.internalTopicSchemas["mytopic"]
+	require.True(t, ok)
+	assert.NotNil(t, sm.codec, "inner codec should be compiled")
+	assert.NotNil(t, sm.ceCodec, "CE envelope codec should be compiled")
+	assert.NotEmpty(t, sm.ceValue, "CE envelope schema JSON should be set")
+}
+
+func TestParsePulsarMetadataRawSchemaSkipsCE(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "TestEvent",
+		"fields": [
+			{"name": "id", "type": "int"}
+		]
+	}`
+
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"host":                                "a",
+		"mytopic" + topicAvroSchemaIdentifier: avroSchemaJSON,
+		"mytopic" + topicRawSchemaIdentifier:  "true",
+	}
+
+	meta, err := parsePulsarMetadata(m)
+	require.NoError(t, err)
+
+	sm, ok := meta.internalTopicSchemas["mytopic"]
+	require.True(t, ok)
+	assert.NotNil(t, sm.codec, "inner codec should be compiled")
+	assert.Nil(t, sm.ceCodec, "CE envelope codec should NOT be set for rawSchema topics")
+	assert.Empty(t, sm.ceValue, "CE envelope schema JSON should NOT be set for rawSchema topics")
+	assert.True(t, sm.rawSchema, "rawSchema flag should be set")
+}
+
+func TestParsePulsarMetadataRawSchemaInvalidBool(t *testing.T) {
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"host":                                "a",
+		"mytopic" + topicAvroSchemaIdentifier: `{"type":"record","name":"T","fields":[{"name":"id","type":"int"}]}`,
+		"mytopic" + topicRawSchemaIdentifier:  "yes",
+	}
+
+	_, err := parsePulsarMetadata(m)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid value for")
+}
+
+func TestParsePublishMetadataAvroRawSchemaTopic(t *testing.T) {
+	avroSchemaJSON := `{
+		"type": "record",
+		"name": "OrderEvent",
+		"namespace": "com.example",
+		"fields": [
+			{"name": "orderId", "type": "string"},
+			{"name": "amount", "type": "double"}
+		]
+	}`
+
+	// Build schema metadata without CE wrapping (simulates rawSchema=true topic).
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchemaJSON)
+	require.NoError(t, err)
+	sm := schemaMetadata{
+		protocol:  avroProtocol,
+		value:     avroSchemaJSON,
+		codec:     codec,
+		rawSchema: true,
+	}
+
+	t.Run("rawPayload succeeds with inner schema", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data:     []byte(`{"orderId": "order-1", "amount": 99.99}`),
+			Metadata: map[string]string{"rawPayload": "true"},
+		}
+		msg, err := parsePublishMetadata(req, sm)
+		require.NoError(t, err)
+		assert.NotNil(t, msg)
+		assert.NotNil(t, msg.Value)
+	})
+
+	t.Run("non-raw rejected on rawschema topic", func(t *testing.T) {
+		req := &pubsub.PublishRequest{
+			Data: []byte(`{"orderId": "order-1", "amount": 99.99}`),
+		}
+		_, err := parsePublishMetadata(req, sm)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rawschema=true topics require per-message rawPayload=true")
+	})
 }
 
 func TestMissingHost(t *testing.T) {
@@ -1872,3 +2430,313 @@ func (m *MockPulsarConsumer) Chan() <-chan pulsar.ConsumerMessage {
 }
 
 func (m *MockPulsarConsumer) Close() {}
+
+// --- handleMessage Avro decode tests ---
+
+// mockPulsarMessage is a minimal pulsar.Message stub for unit tests.
+type mockPulsarMessage struct {
+	pulsar.Message
+	payload    []byte
+	properties map[string]string
+	topic      string
+	id         pulsar.MessageID
+}
+
+func (m *mockPulsarMessage) Payload() []byte               { return m.payload }
+func (m *mockPulsarMessage) Properties() map[string]string { return m.properties }
+func (m *mockPulsarMessage) Topic() string                 { return m.topic }
+func (m *mockPulsarMessage) ID() pulsar.MessageID          { return m.id }
+
+// mockAckConsumer is a pulsar.Consumer stub that tracks Ack/Nack calls.
+type mockAckConsumer struct {
+	pulsar.Consumer
+	acked  bool
+	nacked bool
+}
+
+func (m *mockAckConsumer) Ack(msg pulsar.Message) error {
+	m.acked = true
+	return nil
+}
+
+func (m *mockAckConsumer) Nack(msg pulsar.Message) {
+	m.nacked = true
+}
+
+// makeConsumerMessage wraps a stub message+consumer into a pulsar.ConsumerMessage.
+func makeConsumerMessage(msg pulsar.Message, consumer pulsar.Consumer) pulsar.ConsumerMessage {
+	return pulsar.ConsumerMessage{Consumer: consumer, Message: msg}
+}
+
+func TestHandleMessageAvroDecodeRoundTrip(t *testing.T) {
+	const avroSchema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"int"},{"name":"name","type":"string"}]}`
+	const topic = "my-topic"
+
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchema)
+	require.NoError(t, err)
+
+	// Encode a test record as Avro binary (simulating what the Pulsar producer sends).
+	native, _, err := codec.NativeFromTextual([]byte(`{"id":42,"name":"hello"}`))
+	require.NoError(t, err)
+	avroBinary, err := codec.BinaryFromNative(nil, native)
+	require.NoError(t, err)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: avroProtocol, value: avroSchema, codec: codec},
+			},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: avroBinary, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedData []byte
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedData = m.Data
+		return nil
+	}
+
+	err = p.handleMessage(t.Context(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.True(t, consumer.acked, "message should be acked on success")
+	assert.False(t, consumer.nacked, "message should not be nacked on success")
+
+	// The handler must have received valid JSON, not Avro binary.
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(receivedData, &decoded), "handleMessage must deliver JSON, not Avro binary")
+	assert.EqualValues(t, 42, decoded["id"])
+	assert.Equal(t, "hello", decoded["name"])
+}
+
+func TestHandleMessageAvroCEEnvelopeDecodeRoundTrip(t *testing.T) {
+	const innerSchema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"int"},{"name":"name","type":"string"}]}`
+	const topic = "ce-topic"
+
+	innerCodec, err := goavro.NewCodecForStandardJSONFull(innerSchema)
+	require.NoError(t, err)
+
+	ceSchemaJSON, err := wrapInCloudEventsSchema(innerSchema)
+	require.NoError(t, err)
+	ceCodec, err := goavro.NewCodecForStandardJSONFull(ceSchemaJSON)
+	require.NoError(t, err)
+
+	// Encode a CE envelope as Avro binary (simulating what the Pulsar producer sends).
+	ceJSON := `{
+		"id": "evt-1",
+		"source": "Dapr",
+		"specversion": "1.0",
+		"type": "com.dapr.event.sent",
+		"datacontenttype": "application/json",
+		"subject": null,
+		"time": null,
+		"topic": "ce-topic",
+		"pubsubname": null,
+		"traceid": null,
+		"traceparent": null,
+		"tracestate": null,
+		"expiration": null,
+		"data": {"id": 42, "name": "hello"},
+		"data_base64": null
+	}`
+	native, _, err := ceCodec.NativeFromTextual([]byte(ceJSON))
+	require.NoError(t, err)
+	avroBinary, err := ceCodec.BinaryFromNative(nil, native)
+	require.NoError(t, err)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: avroProtocol, value: innerSchema, codec: innerCodec, ceValue: ceSchemaJSON, ceCodec: ceCodec},
+			},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: avroBinary, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedData []byte
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedData = m.Data
+		return nil
+	}
+
+	err = p.handleMessage(t.Context(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.True(t, consumer.acked)
+
+	// The handler must receive valid JSON with the full CE envelope.
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(receivedData, &decoded), "handleMessage must deliver JSON")
+	assert.Equal(t, "evt-1", decoded["id"])
+	assert.Equal(t, "1.0", decoded["specversion"])
+	data := decoded["data"].(map[string]any)
+	assert.EqualValues(t, 42, data["id"])
+	assert.Equal(t, "hello", data["name"])
+}
+
+func TestHandleMessageAvroDecodeError(t *testing.T) {
+	const avroSchema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"int"}]}`
+	const topic = "my-topic"
+
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchema)
+	require.NoError(t, err)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: avroProtocol, value: avroSchema, codec: codec},
+			},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	// Pass a truncated Avro payload (empty → varint EOF) that cannot be decoded.
+	msg := &mockPulsarMessage{payload: []byte{}, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	called := false
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		called = true
+		return nil
+	}
+
+	err = p.handleMessage(t.Context(), topic, cm, handler)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "avro decode failed")
+	assert.True(t, consumer.nacked, "message should be nacked on decode error")
+	assert.False(t, called, "handler should not be called when decode fails")
+}
+
+func TestHandleMessageNoAvroSchema(t *testing.T) {
+	// Without a schema, msg.Payload() is passed through as-is (existing behaviour).
+	const topic = "plain-topic"
+	rawJSON := []byte(`{"specversion":"1.0","type":"test"}`)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: rawJSON, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedData []byte
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedData = m.Data
+		return nil
+	}
+
+	err := p.handleMessage(t.Context(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(rawJSON), string(receivedData))
+	assert.True(t, consumer.acked)
+}
+
+func TestHandleMessageHandlerErrorNacks(t *testing.T) {
+	// When the handler returns an error, the message must be Nacked (not Acked).
+	const topic = "plain-topic"
+	rawJSON := []byte(`{"event":"test"}`)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: rawJSON, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	handlerErr := errors.New("downstream processing failed")
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		return handlerErr
+	}
+
+	err := p.handleMessage(t.Context(), topic, cm, handler)
+	require.Error(t, err)
+	assert.Equal(t, handlerErr, err)
+	assert.True(t, consumer.nacked, "message must be nacked when handler returns error")
+	assert.False(t, consumer.acked, "message must not be acked when handler returns error")
+}
+
+func TestHandleMessageAvroPropertiesPreserved(t *testing.T) {
+	// Properties from the Pulsar message must be passed through to the handler
+	// even when the Avro decode path is taken.
+	const avroSchema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"int"},{"name":"name","type":"string"}]}`
+	const topic = "my-topic"
+
+	codec, err := goavro.NewCodecForStandardJSONFull(avroSchema)
+	require.NoError(t, err)
+
+	native, _, err := codec.NativeFromTextual([]byte(`{"id":1,"name":"test"}`))
+	require.NoError(t, err)
+	avroBinary, err := codec.BinaryFromNative(nil, native)
+	require.NoError(t, err)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: avroProtocol, value: avroSchema, codec: codec},
+			},
+		},
+	}
+
+	props := map[string]string{"trace-id": "abc123", "source": "unit-test"}
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: avroBinary, properties: props, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedMetadata map[string]string
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedMetadata = m.Metadata
+		return nil
+	}
+
+	err = p.handleMessage(t.Context(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.Equal(t, props, receivedMetadata, "properties must be preserved through the Avro decode path")
+}
+
+func TestHandleMessageNonAvroSchemaPassthrough(t *testing.T) {
+	// A topic with a JSON schema (not Avro) must pass raw bytes through
+	// without attempting Avro decode.
+	const topic = "json-schema-topic"
+	rawJSON := []byte(`{"key":"value"}`)
+
+	p := &Pulsar{
+		logger: logger.NewLogger("test"),
+		metadata: pulsarMetadata{
+			internalTopicSchemas: map[string]schemaMetadata{
+				topic: {protocol: jsonProtocol, value: `{"type":"object"}`},
+			},
+		},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{payload: rawJSON, properties: map[string]string{}, topic: topic}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedData []byte
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedData = m.Data
+		return nil
+	}
+
+	err := p.handleMessage(t.Context(), topic, cm, handler)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(rawJSON), string(receivedData), "non-Avro schema topics must pass raw bytes through")
+	assert.True(t, consumer.acked)
+	assert.False(t, consumer.nacked)
+}

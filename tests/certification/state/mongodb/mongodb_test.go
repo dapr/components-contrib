@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/go-sdk/client"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	stateMongoDB "github.com/dapr/components-contrib/state/mongodb"
@@ -21,9 +23,9 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
+	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -148,6 +150,85 @@ func TestMongoDB(t *testing.T) {
 		}
 	}
 
+	keysLikeTest := func(sidecarName string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			cl, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/?directConnection=true"))
+			require.NoError(t, err)
+			defer cl.Disconnect(ctx)
+
+			coll := cl.Database("admin").Collection("daprCollection")
+
+			// Clean up any existing test keys first.
+			_, err = coll.DeleteMany(ctx, bson.M{
+				"_id": bson.M{"$regex": "^" + sidecarName + `\|\|keyslike-`},
+			})
+			require.NoError(t, err)
+
+			// Insert test documents using the same key format Dapr uses.
+			testKeys := []string{
+				sidecarName + "||keyslike-workflow||instance1||metadata",
+				sidecarName + "||keyslike-workflow||instance2||metadata",
+				sidecarName + "||keyslike-workflow||instance3||metadata",
+				sidecarName + "||keyslike-other||instance4||metadata",
+			}
+			for _, key := range testKeys {
+				_, err = coll.InsertOne(ctx, bson.M{
+					"_id":   key,
+					"value": "test",
+				})
+				require.NoError(t, err)
+			}
+
+			// Use the state store's KeysLike method directly.
+			store, ok := state.Store(stateStore).(state.KeysLiker)
+			require.True(t, ok, "MongoDB must implement KeysLiker interface")
+
+			// Query for workflow keys only.
+			resp, err := store.KeysLike(ctx, &state.KeysLikeRequest{
+				Pattern: sidecarName + "||keyslike-workflow||%||metadata",
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Keys, 3)
+			assert.ElementsMatch(t, []string{
+				sidecarName + "||keyslike-workflow||instance1||metadata",
+				sidecarName + "||keyslike-workflow||instance2||metadata",
+				sidecarName + "||keyslike-workflow||instance3||metadata",
+			}, resp.Keys)
+
+			// Test pagination.
+			resp, err = store.KeysLike(ctx, &state.KeysLikeRequest{
+				Pattern:  sidecarName + "||keyslike-workflow||%||metadata",
+				PageSize: ptr.Of(uint32(2)),
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Keys, 2)
+			require.NotNil(t, resp.ContinuationToken)
+
+			resp2, err := store.KeysLike(ctx, &state.KeysLikeRequest{
+				Pattern:           sidecarName + "||keyslike-workflow||%||metadata",
+				ContinuationToken: resp.ContinuationToken,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp2.Keys, 1)
+			assert.Nil(t, resp2.ContinuationToken)
+
+			allKeys := append(resp.Keys, resp2.Keys...)
+			assert.ElementsMatch(t, []string{
+				sidecarName + "||keyslike-workflow||instance1||metadata",
+				sidecarName + "||keyslike-workflow||instance2||metadata",
+				sidecarName + "||keyslike-workflow||instance3||metadata",
+			}, allKeys)
+
+			// Clean up.
+			_, err = coll.DeleteMany(ctx, bson.M{
+				"_id": bson.M{"$regex": "^" + sidecarName + `\|\|keyslike-`},
+			})
+			require.NoError(t, err)
+
+			return nil
+		}
+	}
+
 	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set here").
 		Step(dockercompose.Run("mongodb", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
@@ -160,6 +241,7 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterDefault")).
+		Step("Run KeysLike test", keysLikeTest(sidecarNamePrefix+"dockerClusterDefault")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.

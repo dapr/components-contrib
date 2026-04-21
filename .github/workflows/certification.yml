@@ -234,7 +234,7 @@ jobs:
         cache: 'false'
 
     - name: Start KinD
-      uses: helm/kind-action@v1.13.0
+      uses: helm/kind-action@v1.14.0
       if: matrix.require-kind == 'true'
 
     - name: Download Go dependencies

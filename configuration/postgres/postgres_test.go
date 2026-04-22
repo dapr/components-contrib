@@ -14,6 +14,7 @@ limitations under the License.
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"regexp"
@@ -124,6 +125,146 @@ func TestValidateInput(t *testing.T) {
 
 	keys3 := []string{"Name 1=1"}
 	require.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
+}
+
+func TestMetadataNotifyChannel(t *testing.T) {
+	t.Run("custom notifyChannel is parsed correctly", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "myconfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Equal(t, "myconfig", m.NotifyChannel)
+	})
+
+	t.Run("legacy pgNotifyChannel alias is parsed correctly", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  "myconfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Equal(t, "myconfig", m.NotifyChannel)
+	})
+
+	t.Run("missing notifyChannel is allowed at init", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Empty(t, m.NotifyChannel)
+	})
+
+	t.Run("invalid NotifyChannel with uppercase fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "MyConfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
+	})
+
+	t.Run("invalid notifyChannel with special chars fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "config; DROP TABLE--",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
+	})
+
+	t.Run("notifyChannel exceeding max length fails", func(t *testing.T) {
+		m := metadata{}
+		longName := ""
+		for range maxIdentifierLength + 1 {
+			longName += "a"
+		}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    longName,
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "notifyChannel name is too long")
+	})
+}
+
+func TestSubscribeNotifyChannelPrecedence(t *testing.T) {
+	// newStore creates a minimal ConfigurationStore with metadata set but no
+	// DB connection. This is sufficient to exercise the channel resolution and
+	// validation logic in Subscribe, which runs before any DB call.
+	newStore := func(componentChannel string) *ConfigurationStore {
+		return &ConfigurationStore{
+			metadata: metadata{
+				ConfigTable:   "cfgtbl",
+				NotifyChannel: componentChannel,
+			},
+			ActiveSubscriptions: make(map[string]*subscription),
+		}
+	}
+
+	t.Run("component metadata takes precedence over request pgNotifyChannel", func(t *testing.T) {
+		store := newStore("COMPONENT_UPPER")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys: []string{"key1"},
+				Metadata: map[string]string{
+					"pgNotifyChannel": "validlegacy",
+				},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "COMPONENT_UPPER", "expected component metadata to take precedence")
+	})
+
+	t.Run("legacy pgNotifyChannel in request is used when component metadata is empty", func(t *testing.T) {
+		store := newStore("")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys: []string{"key1"},
+				Metadata: map[string]string{
+					"pgNotifyChannel": "LEGACY_UPPER",
+				},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "LEGACY_UPPER", "expected the legacy key value to be used")
+	})
+
+	t.Run("component metadata is used when no request metadata keys set", func(t *testing.T) {
+		store := newStore("COMPONENT_UPPER")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys:     []string{"key1"},
+				Metadata: map[string]string{},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "COMPONENT_UPPER", "expected the component metadata value to be used")
+	})
+
+	t.Run("error when no channel set anywhere", func(t *testing.T) {
+		store := newStore("")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys:     []string{"key1"},
+				Metadata: map[string]string{},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "notifyChannel must be set")
+	})
 }
 
 func TestPostgresConfigurationWithIAM(t *testing.T) {

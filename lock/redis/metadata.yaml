@@ -173,6 +173,12 @@ metadata:
     description: "Whether to enable TLS encryption"
     example: "false"
     default: "false"
+  - name: insecureSkipTLSVerify
+    required: false
+    type: bool
+    description: "Skip TLS certificate verification (insecure). Only use for testing."
+    example: "false"
+    default: "false"
   - name: useEntraID
     required: false
     type: bool

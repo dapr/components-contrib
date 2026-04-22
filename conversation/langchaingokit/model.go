@@ -38,6 +38,15 @@ func New(logger logger.Logger) LLM {
 	}
 }
 
+// SetModel sets the resolved model name that will be returned in conversation responses.
+func (a *LLM) SetModel(model string) {
+	a.model = model
+}
+
+func (a *LLM) GetModel() string {
+	return a.model
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	opts := getOptionsFromRequest(r, a.logger)
 
@@ -54,6 +63,27 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
 	if err != nil {
 		return nil, err
+	}
+
+	// If tools were provided but the LLM returned neither content nor tool calls
+	// across any choice, treat it as a retriable error rather than silently succeeding.
+	if r.ToolChoice != nil && *r.ToolChoice == "required" && r.Tools != nil && len(*r.Tools) > 0 {
+		hasUsefulResponse := false
+		for _, output := range outputs {
+			for _, choice := range output.Choices {
+				if choice.Message.Content != "" ||
+					(choice.Message.ToolCallRequest != nil && len(*choice.Message.ToolCallRequest) > 0) {
+					hasUsefulResponse = true
+					break
+				}
+			}
+			if hasUsefulResponse {
+				break
+			}
+		}
+		if !hasUsefulResponse {
+			return nil, fmt.Errorf("LLM returned empty response with no tool calls despite %d tools being available", len(*r.Tools))
+		}
 	}
 
 	return &conversation.Response{
@@ -79,7 +109,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 
 	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
 	var usage *conversation.Usage
-	if len(choices) > 0 && choices[0].GenerationInfo != nil {
+	if choices[0].GenerationInfo != nil {
 		var err error
 		usage, err = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
 		if err != nil {
@@ -89,8 +119,9 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 
 	outputs := make([]conversation.Result, 0, len(choices))
 	for i := range choices {
+		finishReason := normalizeFinishReason(choices[i].StopReason)
 		choice := conversation.Choice{
-			FinishReason: normalizeFinishReason(choices[i].StopReason),
+			FinishReason: finishReason,
 			Index:        int64(i),
 		}
 
@@ -103,7 +134,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		}
 
 		output := conversation.Result{
-			StopReason: normalizeFinishReason(choices[i].StopReason),
+			StopReason: finishReason,
 			Choices:    []conversation.Choice{choice},
 		}
 

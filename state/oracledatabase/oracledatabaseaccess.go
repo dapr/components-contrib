@@ -39,6 +39,17 @@ const (
 	oracleWalletLocationKey    = "oracleWalletLocation"
 	errMissingConnectionString = "missing connection string"
 	defaultTableName           = "state"
+	// defaultBulkGetChunkSize is the default per-chunk size for BulkGet
+	// requests. Matches Oracle's documented IN-list expression limit so that
+	// requests with this many keys or fewer execute as a single query,
+	// preserving pre-chunking behavior.
+	// Invariant: defaultBulkGetChunkSize <= maxBulkGetChunkSize.
+	defaultBulkGetChunkSize = 1000
+	// maxBulkGetChunkSize is Oracle's hard limit on the number of
+	// expressions in a SQL IN list, per the Oracle SQL Language Reference.
+	// Values above this limit are rejected by Oracle with ORA-01795
+	// ("maximum number of expressions in a list is 1000").
+	maxBulkGetChunkSize = 1000
 )
 
 // oracleDatabaseAccess implements dbaccess.
@@ -53,6 +64,13 @@ type oracleDatabaseMetadata struct {
 	ConnectionString     string `json:"connectionString"`
 	OracleWalletLocation string `json:"oracleWalletLocation"`
 	TableName            string `json:"tableName"`
+	// BulkGetChunkSize controls the maximum number of keys included in each
+	// internal SQL query issued by BulkGet. When the number of requested
+	// keys exceeds this value, BulkGet issues multiple chunked queries
+	// sequentially (not in parallel) and merges the results. Values less
+	// than or equal to 0 default to 1000; values above 1000 are clamped.
+	// See normalizeBulkGetChunkSize.
+	BulkGetChunkSize int `json:"bulkGetChunkSize"`
 }
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.
@@ -74,6 +92,21 @@ func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 	return m, err
 }
 
+// normalizeBulkGetChunkSize applies defaults and clamping to the configured
+// chunk size. Values <= 0 default to defaultBulkGetChunkSize; values above
+// Oracle's IN-list limit are clamped to maxBulkGetChunkSize with a warning.
+func normalizeBulkGetChunkSize(log logger.Logger, configured int) int {
+	if configured <= 0 {
+		return defaultBulkGetChunkSize
+	}
+	if configured > maxBulkGetChunkSize {
+		log.Warnf("bulkGetChunkSize %d exceeds Oracle's IN-list limit of %d; clamping to %d",
+			configured, maxBulkGetChunkSize, maxBulkGetChunkSize)
+		return maxBulkGetChunkSize
+	}
+	return configured
+}
+
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := parseMetadata(metadata.Properties)
@@ -81,6 +114,7 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		return err
 	}
 
+	meta.BulkGetChunkSize = normalizeBulkGetChunkSize(o.logger, meta.BulkGetChunkSize)
 	o.metadata = meta
 
 	if o.metadata.ConnectionString == "" {
@@ -312,20 +346,74 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 	}, nil
 }
 
+// BulkGet retrieves multiple keys. When the number of requested keys exceeds
+// the configured BulkGetChunkSize, BulkGet issues multiple chunked queries
+// sequentially (not in parallel) and merges the results. This avoids Oracle's
+// hard 1000-expression limit on IN lists and reduces index pressure for large
+// key sets.
+//
+// The default chunk size equals Oracle's IN-list limit (1000), so callers
+// with <= 1000 keys see identical behavior to the pre-chunking implementation.
 func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
 		return []state.BulkGetResponse{}, nil
 	}
 
+	// Validate all keys upfront — an empty key is a programmer bug, not a
+	// per-key data issue, so we fail fast before issuing any query.
+	for _, r := range req {
+		if r.Key == "" {
+			return nil, errors.New("missing key in bulk get operation")
+		}
+	}
+
+	chunkSize := o.metadata.BulkGetChunkSize
+
+	// Fast path: input fits in one chunk — no allocation overhead.
+	if len(req) <= chunkSize {
+		return o.bulkGetChunk(ctx, req)
+	}
+
+	// Chunked path: sequential chunks, results concatenated.
+	res := make([]state.BulkGetResponse, 0, len(req))
+	for start := 0; start < len(req); start += chunkSize {
+		// Check context between chunks so a cancelled context stops promptly
+		// instead of issuing wasted round-trips.
+		if err := ctx.Err(); err != nil {
+			for _, r := range req[start:] {
+				res = append(res, state.BulkGetResponse{
+					Key:   r.Key,
+					Error: err.Error(),
+				})
+			}
+			return res, nil
+		}
+
+		end := start + chunkSize
+		if end > len(req) {
+			end = len(req)
+		}
+
+		chunkRes, err := o.bulkGetChunk(ctx, req[start:end])
+		if err != nil {
+			// bulkGetChunk only returns a hard error for programming bugs
+			// (e.g. more rows than expected). Propagate it.
+			return nil, err
+		}
+		res = append(res, chunkRes...)
+	}
+	return res, nil
+}
+
+// bulkGetChunk executes a single IN-clause query for the given requests.
+// Pre-condition: req is non-empty and all keys are non-empty.
+func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	// Oracle supports the IN operator for bulk operations
 	// Build the IN clause with bind variables
 	// Oracle uses :1, :2, etc. for bind variables in the IN clause
 	params := make([]any, len(req))
 	bindVars := make([]string, len(req))
 	for i, r := range req {
-		if r.Key == "" {
-			return nil, errors.New("missing key in bulk get operation")
-		}
 		params[i] = r.Key
 		bindVars[i] = ":" + strconv.Itoa(i+1)
 	}

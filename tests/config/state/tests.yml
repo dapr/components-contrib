@@ -37,7 +37,7 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: sqlserver.v2
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "delete-with-prefix" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
@@ -47,7 +47,7 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: sqlserver.v2.docker
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "delete-with-prefix" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
@@ -62,21 +62,21 @@ components:
       # This component requires etags to be numeric
       badEtag: "1"
   - component: postgresql.v2.docker
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: postgresql.v2.azure
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
     config:
       # This component requires etags to be UUIDs
       badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"
   - component: sqlite
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
   - component: mysql.mysql
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
   - component: mysql.mariadb
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
   - component: azure.tablestorage.storage
     operations: [ "etag", "first-write"]
     config:
@@ -114,9 +114,9 @@ components:
   - component: aws.dynamodb.terraform
     operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: etcd.v1
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
   - component: etcd.v2
-    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike", "delete-with-prefix" ]
   - component: gcp.firestore.docker
     operations: []
   - component: gcp.firestore.cloud

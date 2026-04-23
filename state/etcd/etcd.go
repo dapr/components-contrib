@@ -78,6 +78,7 @@ func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 			state.FeatureTransactional,
 			state.FeatureTTL,
 			state.FeatureKeysLike,
+			state.FeatureDeleteWithPrefix,
 		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
@@ -174,6 +175,116 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 		ETag:     ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
 		Metadata: metadata,
 	}, nil
+}
+
+// BulkGet retrieves multiple keys in a single etcd RPC by batching N OpGet
+// operations into one Txn. Respects the configured maxTxnOps by chunking the
+// request list; chunks are issued serially (etcd guarantees no cross- chunk
+// atomicity is needed here. Reads are not mutations).
+func (e *Etcd) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	defer cancel()
+
+	res := make([]state.BulkGetResponse, len(req))
+	chunkSize := e.maxTxnOps
+	if chunkSize <= 0 {
+		chunkSize = len(req)
+	}
+
+	for start := 0; start < len(req); start += chunkSize {
+		end := start + chunkSize
+		if end > len(req) {
+			end = len(req)
+		}
+		ops := make([]clientv3.Op, end-start)
+		for i := start; i < end; i++ {
+			ops[i-start] = clientv3.OpGet(e.keyPrefixPath + "/" + req[i].Key)
+		}
+		resp, err := e.client.Txn(ctx).Then(ops...).Commit()
+		if err != nil {
+			return nil, fmt.Errorf("etcd bulk get: %w", err)
+		}
+		for i, r := range resp.Responses {
+			idx := start + i
+			res[idx].Key = req[idx].Key
+			getResp := r.GetResponseRange()
+			if getResp == nil || len(getResp.Kvs) == 0 {
+				continue
+			}
+			kv := getResp.Kvs[0]
+			data, meta, derr := e.schema.decode(kv.Value)
+			if derr != nil {
+				res[idx].Error = derr.Error()
+				continue
+			}
+			res[idx].Data = data
+			res[idx].ETag = ptr.Of(strconv.FormatInt(kv.ModRevision, 10))
+			res[idx].Metadata = meta
+		}
+	}
+	return res, nil
+}
+
+// DeleteWithPrefix removes all keys that are direct children of the given
+// prefix (i.e. whose name starts with prefix and does not itself contain
+// another DaprSeparator). Matches the in-memory store semantics. Etcd's
+// server-side WithPrefix() delete would over-delete nested keys, so we first
+// range-get matching keys and then batch-delete the filtered set. For actor
+// state (no nested separators) this is two RPCs regardless of key count.
+func (e *Etcd) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	defer cancel()
+
+	storePrefix := e.keyPrefixPath + "/" + req.Prefix
+	getResp, err := e.client.Get(ctx, storePrefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: get: %w", err)
+	}
+
+	var toDelete []string
+	for _, kv := range getResp.Kvs {
+		suffix := strings.TrimPrefix(string(kv.Key), storePrefix)
+		if strings.Contains(suffix, "||") {
+			continue
+		}
+		toDelete = append(toDelete, string(kv.Key))
+	}
+	if len(toDelete) == 0 {
+		return state.DeleteWithPrefixResponse{Count: 0}, nil
+	}
+
+	chunkSize := e.maxTxnOps
+	if chunkSize <= 0 {
+		chunkSize = len(toDelete)
+	}
+	var total int64
+	for start := 0; start < len(toDelete); start += chunkSize {
+		end := start + chunkSize
+		if end > len(toDelete) {
+			end = len(toDelete)
+		}
+		ops := make([]clientv3.Op, end-start)
+		for i := start; i < end; i++ {
+			ops[i-start] = clientv3.OpDelete(toDelete[i])
+		}
+		resp, err := e.client.Txn(ctx).Then(ops...).Commit()
+		if err != nil {
+			return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: delete: %w", err)
+		}
+		for _, r := range resp.Responses {
+			if dr := r.GetResponseDeleteRange(); dr != nil {
+				total += dr.Deleted
+			}
+		}
+	}
+	return state.DeleteWithPrefixResponse{Count: total}, nil
 }
 
 // Set saves a Etcd KV item.

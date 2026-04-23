@@ -50,6 +50,7 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 			state.FeatureTransactional,
 			state.FeatureTTL,
 			state.FeatureKeysLike,
+			state.FeatureDeleteWithPrefix,
 		},
 		dbaccess: dba,
 	}
@@ -78,6 +79,12 @@ func (s *SQLiteStore) Ping(ctx context.Context) error {
 // Delete removes an entity from the store.
 func (s *SQLiteStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return s.dbaccess.Delete(ctx, req)
+}
+
+// DeleteWithPrefix removes all keys matching the given prefix. Implements
+// the actor-state purge fast path.
+func (s *SQLiteStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	return s.dbaccess.DeleteWithPrefix(ctx, req)
 }
 
 // Get returns an entity from store.

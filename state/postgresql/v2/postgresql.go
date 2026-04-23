@@ -334,6 +334,7 @@ func (p *PostgreSQL) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureTTL,
 		state.FeatureKeysLike,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 
@@ -574,6 +575,127 @@ WHERE
 	}
 
 	return res[:n], nil
+}
+
+// BulkSet performs a bulk upsert in a single Postgres round trip using
+// UNNEST-over-array parameters. Falls back to the default per-item goroutine
+// loop when any request uses ETag or first-write concurrency (neither can be
+// expressed as a multi-row upsert without per-row CAS shrapnel, so splitting
+// them out keeps the common workflow/actor path fast without losing
+// correctness on the rare concurrent writer).
+func (p *PostgreSQL) BulkSet(parentCtx context.Context, req []state.SetRequest, opts state.BulkStoreOpts) error {
+	if len(req) == 0 {
+		return nil
+	}
+	for _, r := range req {
+		if r.HasETag() || r.Options.Concurrency == state.FirstWrite {
+			return state.DoBulkSetDelete(parentCtx, req, p.Set, opts)
+		}
+	}
+
+	keys := make([]string, len(req))
+	values := make([][]byte, len(req))
+	// TTLs are passed as integer seconds and converted to an absolute
+	// expires_at using database-side now(), matching doSet's semantics
+	// (avoids drift between client and database clocks).
+	ttlSeconds := make([]int32, len(req))
+	for i, r := range req {
+		if r.Key == "" {
+			return errors.New("missing key in set operation")
+		}
+		keys[i] = r.Key
+
+		switch x := r.Value.(type) {
+		case []byte:
+			values[i] = x
+		default:
+			v, err := json.Marshal(x)
+			if err != nil {
+				return fmt.Errorf("failed to marshal to JSON: %w", err)
+			}
+			values[i] = v
+		}
+
+		ttl, err := stateutils.ParseTTL(r.Metadata)
+		if err != nil {
+			return fmt.Errorf("error parsing TTL: %w", err)
+		}
+		if ttl != nil && *ttl > 0 {
+			//nolint:gosec
+			ttlSeconds[i] = int32(*ttl)
+		}
+	}
+
+	query := `
+INSERT INTO ` + p.metadata.TableName(pgTableState) + ` (key, value, etag, expires_at)
+SELECT k, v, gen_random_uuid(),
+       CASE WHEN s > 0 THEN now() + make_interval(secs => s) ELSE NULL END
+FROM UNNEST($1::text[], $2::bytea[], $3::integer[]) AS t(k, v, s)
+ON CONFLICT (key)
+DO UPDATE SET
+  value = EXCLUDED.value,
+  updated_at = now(),
+  etag = gen_random_uuid(),
+  expires_at = EXCLUDED.expires_at`
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	_, err := p.db.Exec(ctx, query, keys, values, ttlSeconds)
+	if err != nil {
+		return fmt.Errorf("postgres bulk set: %w", err)
+	}
+	return nil
+}
+
+// BulkDelete performs a bulk delete in a single Postgres round trip using
+// `key = ANY($1)`. Falls back to the default path when any request supplies
+// an ETag so that per-row CAS failures still produce NewETagError.
+func (p *PostgreSQL) BulkDelete(parentCtx context.Context, req []state.DeleteRequest, opts state.BulkStoreOpts) error {
+	if len(req) == 0 {
+		return nil
+	}
+	for _, r := range req {
+		if r.HasETag() {
+			return state.DoBulkSetDelete(parentCtx, req, p.Delete, opts)
+		}
+	}
+
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	_, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = ANY($1)", keys)
+	if err != nil {
+		return fmt.Errorf("postgres bulk delete: %w", err)
+	}
+	return nil
+}
+
+// DeleteWithPrefix removes all keys whose composite name begins with the given
+// prefix (and which do not contain another DaprSeparator after it). Used to
+// purge an actor's entire state in a single round trip. Matches the semantics
+// of the in-memory store: direct-children only.
+func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	// `key NOT LIKE $1 || '%||%'` excludes nested keys so we match the in-memory
+	// semantics. Postgres's % wildcard is per-character. Same pattern compiled
+	// into LIKE is O(keys scanned) on the index, which is still one query.
+	res, err := p.db.Exec(ctx,
+		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1 || '%' AND key NOT LIKE $1 || '%||%'",
+		req.Prefix,
+	)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("postgres delete with prefix: %w", err)
+	}
+	return state.DeleteWithPrefixResponse{Count: res.RowsAffected()}, nil
 }
 
 // Delete removes an item from the state store.

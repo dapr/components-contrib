@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -70,6 +71,7 @@ func New(logger logger.Logger) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureDeleteWithPrefix,
 		},
 		logger:          logger,
 		migratorFactory: newMigration,
@@ -305,6 +307,110 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		ETag:     ptr.Of(etag),
 		Metadata: metadata,
 	}, nil
+}
+
+// sqlServerMaxParams caps IN-clause parameter counts. SQL Server allows up to
+// 2100 parameters per query; leave headroom for other bound params the driver
+// might add.
+const sqlServerMaxParams = 2000
+
+// BulkGet retrieves multiple keys in one SQL Server round trip per chunk by
+// building a dynamic IN clause. Chunks are issued serially to respect the
+// parameter-count cap; within a chunk a single SELECT returns all matched
+// rows.
+func (s *SQLServer) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	res := make([]state.BulkGetResponse, len(req))
+	keyToIdx := make(map[string]int, len(req))
+	for i, r := range req {
+		res[i].Key = r.Key
+		keyToIdx[r.Key] = i
+	}
+
+	for start := 0; start < len(req); start += sqlServerMaxParams {
+		end := start + sqlServerMaxParams
+		if end > len(req) {
+			end = len(req)
+		}
+		placeholders := make([]string, 0, end-start)
+		args := make([]any, 0, end-start)
+		for i := start; i < end; i++ {
+			name := fmt.Sprintf("k%d", i)
+			placeholders = append(placeholders, "@"+name)
+			args = append(args, sql.Named(name, req[i].Key))
+		}
+		// Key included in the projection so we can map rows back to the
+		// request's positional index without relying on driver ordering.
+		query := fmt.Sprintf(
+			"SELECT [Key], [Data], [BinaryData], [isBinary], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] IN (%s) AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())",
+			s.metadata.SchemaName, s.metadata.TableName, strings.Join(placeholders, ","),
+		)
+		rows, err := s.db.QueryContext(parentCtx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("sqlserver bulk get: %w", err)
+		}
+		for rows.Next() {
+			var (
+				key        string
+				data       sql.NullString
+				binaryData []byte
+				isBinary   bool
+				rowVersion []byte
+				expireDate sql.NullTime
+			)
+			if err := rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			idx, ok := keyToIdx[key]
+			if !ok {
+				continue
+			}
+			var value []byte
+			if isBinary {
+				value = binaryData
+			} else if data.Valid {
+				value = []byte(data.String)
+			}
+			res[idx].Data = value
+			res[idx].ETag = ptr.Of(hex.EncodeToString(rowVersion))
+			if expireDate.Valid {
+				res[idx].Metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
+				}
+			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+	return res, nil
+}
+
+// DeleteWithPrefix removes direct-children keys of the given prefix in one
+// server-side query. Matches in-memory "no-nested-||" semantics.
+func (s *SQLServer) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	query := fmt.Sprintf(
+		"DELETE FROM [%s].[%s] WHERE [Key] LIKE @Prefix + N'%%' AND [Key] NOT LIKE @Prefix + N'%%||%%'",
+		s.metadata.SchemaName, s.metadata.TableName,
+	)
+	res, err := s.db.ExecContext(parentCtx, query, sql.Named("Prefix", req.Prefix))
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlserver delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 // Set adds/updates an entity on store.

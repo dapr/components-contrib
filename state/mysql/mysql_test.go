@@ -280,6 +280,53 @@ func TestSetHandlesErr(t *testing.T) {
 }
 
 // Verifies that MySQL passes through to myDBAccess.
+func TestDeleteWithPrefix(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	// The query must scope to the prefix and exclude nested (contains ||)
+	// keys to match in-memory semantics.
+	m.mock1.ExpectExec(
+		"DELETE FROM `state` WHERE `id` LIKE CONCAT\\(\\?, '%'\\) AND `id` NOT LIKE CONCAT\\(\\?, '%\\|\\|%'\\)",
+	).WithArgs("app||type||id||", "app||type||id||").
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	res, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
+		Prefix: "app||type||id||",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), res.Count)
+	require.NoError(t, m.mock1.ExpectationsWereMet())
+}
+
+func TestDeleteWithPrefixAppendsSeparator(t *testing.T) {
+	// Prefix without trailing || should be normalised by Validate().
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	m.mock1.ExpectExec("DELETE FROM `state`").
+		WithArgs("foo||", "foo||").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "foo"})
+	require.NoError(t, err)
+}
+
+func TestDeleteWithPrefixRejectsEmpty(t *testing.T) {
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: ""})
+	require.Error(t, err)
+}
+
+func TestFeaturesIncludeDeleteWithPrefix(t *testing.T) {
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+	assert.True(t, state.FeatureDeleteWithPrefix.IsPresent(m.mySQL.Features()))
+}
+
 func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)

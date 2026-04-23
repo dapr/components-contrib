@@ -232,7 +232,31 @@ func (m *MySQL) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureTTL,
 		state.FeatureKeysLike,
+		state.FeatureDeleteWithPrefix,
 	}
+}
+
+// DeleteWithPrefix removes all keys whose composite name begins with the
+// given prefix. Matches in-memory semantics (direct children only).
+func (m *MySQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	defer cancel()
+	res, err := m.db.ExecContext(ctx,
+		//nolint:gosec
+		"DELETE FROM `"+m.tableName+"` WHERE `id` LIKE CONCAT(?, '%') AND `id` NOT LIKE CONCAT(?, '%||%')",
+		req.Prefix, req.Prefix,
+	)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("mysql delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 // Ping the database.

@@ -45,6 +45,7 @@ type DBAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
+	DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error)
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
 	KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error)
@@ -419,6 +420,30 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 
 func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return a.doDelete(ctx, a.db, req)
+}
+
+// DeleteWithPrefix removes all keys whose composite name begins with the
+// given prefix (direct children only — matches in-memory semantics).
+func (a *sqliteDBAccess) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
+	defer cancel()
+	// Two wildcards in `NOT LIKE` exclude nested keys (those with an extra
+	// `||` after the prefix). SQLite uses standard SQL LIKE.
+	res, err := a.db.ExecContext(ctx,
+		"DELETE FROM "+a.metadata.TableName+" WHERE key LIKE ? || '%' AND key NOT LIKE ? || '%||%'",
+		req.Prefix, req.Prefix,
+	)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlite delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {

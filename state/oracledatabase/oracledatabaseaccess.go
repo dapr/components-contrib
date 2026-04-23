@@ -408,22 +408,34 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 // bulkGetChunk executes a single IN-clause query for the given requests.
 // Pre-condition: req is non-empty and all keys are non-empty.
 func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
-	// Oracle supports the IN operator for bulk operations
-	// Build the IN clause with bind variables
-	// Oracle uses :1, :2, etc. for bind variables in the IN clause
-	params := make([]any, len(req))
-	bindVars := make([]string, len(req))
+	// Extract keys into a string slice for the bind array.
+	keys := make([]string, len(req))
 	for i, r := range req {
-		params[i] = r.Key
-		bindVars[i] = ":" + strconv.Itoa(i+1)
+		keys[i] = r.Key
 	}
 
-	inClause := strings.Join(bindVars, ",")
-	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	// Use Oracle's TABLE(:bind_array) syntax via go_ora's Vector type.
+	// This is more efficient for large key sets as it avoids the per-expression
+	// bind variable overhead of IN (:1, :2, ...) and stays well within
+	// Oracle's IN-list limit (ORA-01795).
 	//nolint:gosec
-	query := "SELECT key, value, binary_yn, etag, expiration_time FROM " + o.metadata.TableName + " WHERE key IN (" + inClause + ") AND (expiration_time IS NULL OR expiration_time > systimestamp)"
+	query := "SELECT key, value, binary_yn, etag, expiration_time FROM " + o.metadata.TableName + " WHERE key IN (SELECT COLUMN_VALUE FROM TABLE(:1)) AND (expiration_time IS NULL OR expiration_time > systimestamp)"
 
-	rows, err := o.db.QueryContext(ctx, query, params...)
+	// Create a go_ora Vector to wrap the keys slice as an Oracle bind array.
+	bindArray, err := goora.NewVector(keys)
+	if err != nil {
+		// Fall back to returning per-key errors (consistent with other stores).
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: "failed to create bind array: " + err.Error(),
+			}
+		}
+		return res, nil
+	}
+
+	rows, err := o.db.QueryContext(ctx, query, bindArray)
 	if err != nil {
 		// If the query fails, return per-key error entries instead of
 		// propagating the error, for consistency with other state stores

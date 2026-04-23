@@ -317,30 +317,44 @@ const sqlServerMaxParams = 2000
 // BulkGet retrieves multiple keys in one SQL Server round trip per chunk by
 // building a dynamic IN clause. Chunks are issued serially to respect the
 // parameter-count cap; within a chunk a single SELECT returns all matched
-// rows.
+// rows. Duplicate keys in the input are supported — every occurrence
+// receives the same data, mirroring the default BulkStore fan-out.
 func (s *SQLServer) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
 		return []state.BulkGetResponse{}, nil
 	}
 
-	res := make([]state.BulkGetResponse, len(req))
-	keyToIdx := make(map[string]int, len(req))
-	for i, r := range req {
-		res[i].Key = r.Key
-		keyToIdx[r.Key] = i
+	// rowByKey caches the row we fetched per distinct key so that multiple
+	// request entries for the same key each get populated. We only read
+	// distinct keys over the wire.
+	type row struct {
+		data       []byte
+		etag       string
+		expireTime time.Time
+		hasExpire  bool
+		found      bool
+	}
+	rowByKey := make(map[string]row, len(req))
+	distinctKeys := make([]string, 0, len(req))
+	for _, r := range req {
+		if _, seen := rowByKey[r.Key]; seen {
+			continue
+		}
+		rowByKey[r.Key] = row{}
+		distinctKeys = append(distinctKeys, r.Key)
 	}
 
-	for start := 0; start < len(req); start += sqlServerMaxParams {
+	for start := 0; start < len(distinctKeys); start += sqlServerMaxParams {
 		end := start + sqlServerMaxParams
-		if end > len(req) {
-			end = len(req)
+		if end > len(distinctKeys) {
+			end = len(distinctKeys)
 		}
 		placeholders := make([]string, 0, end-start)
 		args := make([]any, 0, end-start)
 		for i := start; i < end; i++ {
 			name := fmt.Sprintf("k%d", i)
 			placeholders = append(placeholders, "@"+name)
-			args = append(args, sql.Named(name, req[i].Key))
+			args = append(args, sql.Named(name, distinctKeys[i]))
 		}
 		// Key included in the projection so we can map rows back to the
 		// request's positional index without relying on driver ordering.
@@ -365,22 +379,18 @@ func (s *SQLServer) BulkGet(parentCtx context.Context, req []state.GetRequest, _
 				rows.Close()
 				return nil, err
 			}
-			idx, ok := keyToIdx[key]
-			if !ok {
-				continue
-			}
 			var value []byte
 			if isBinary {
 				value = binaryData
 			} else if data.Valid {
 				value = []byte(data.String)
 			}
-			res[idx].Data = value
-			res[idx].ETag = ptr.Of(hex.EncodeToString(rowVersion))
-			if expireDate.Valid {
-				res[idx].Metadata = map[string]string{
-					state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
-				}
+			rowByKey[key] = row{
+				data:       value,
+				etag:       hex.EncodeToString(rowVersion),
+				expireTime: expireDate.Time,
+				hasExpire:  expireDate.Valid,
+				found:      true,
 			}
 		}
 		if err := rows.Err(); err != nil {
@@ -388,6 +398,24 @@ func (s *SQLServer) BulkGet(parentCtx context.Context, req []state.GetRequest, _
 			return nil, err
 		}
 		rows.Close()
+	}
+
+	// Build the response in the original request order so duplicate keys
+	// each get their own populated entry.
+	res := make([]state.BulkGetResponse, len(req))
+	for i, r := range req {
+		res[i].Key = r.Key
+		rec := rowByKey[r.Key]
+		if !rec.found {
+			continue
+		}
+		res[i].Data = rec.data
+		res[i].ETag = ptr.Of(rec.etag)
+		if rec.hasExpire {
+			res[i].Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: rec.expireTime.UTC().Format(time.RFC3339),
+			}
+		}
 	}
 	return res, nil
 }

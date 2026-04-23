@@ -603,6 +603,12 @@ func (p *PostgreSQL) BulkSet(parentCtx context.Context, req []state.SetRequest, 
 		if r.Key == "" {
 			return errors.New("missing key in set operation")
 		}
+		// Mirror doSet's option validation so invalid consistency /
+		// concurrency values are rejected here too, rather than being
+		// silently accepted by the native multi-row path.
+		if err := state.CheckRequestOptions(r.Options); err != nil {
+			return err
+		}
 		keys[i] = r.Key
 
 		switch x := r.Value.(type) {
@@ -662,6 +668,11 @@ func (p *PostgreSQL) BulkDelete(parentCtx context.Context, req []state.DeleteReq
 
 	keys := make([]string, len(req))
 	for i, r := range req {
+		if r.Key == "" {
+			// Match doDelete's single-item behaviour so the bulk path
+			// doesn't silently accept empty keys.
+			return errors.New("missing key in delete operation")
+		}
 		keys[i] = r.Key
 	}
 

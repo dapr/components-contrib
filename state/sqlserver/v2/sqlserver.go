@@ -439,32 +439,23 @@ func escapeSQLServerLikePattern(s string) string {
 	return s
 }
 
-// DeleteWithPrefix removes direct-children keys of the given prefix in one
-// server-side query. Matches in-memory "no-nested-||" semantics.
-//
-// The prefix is treated literally: LIKE metacharacters (%, _, [, ]) in the
-// caller-supplied prefix are escaped so a prefix containing those
-// characters cannot widen the delete set.
+// DeleteWithPrefix removes every row whose [Key] begins with the given
+// prefix in a single server-side DELETE. The prefix is treated literally:
+// LIKE metacharacters (%, _, [, ]) are escaped so a prefix containing
+// those characters cannot widen the delete set.
 func (s *SQLServer) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
-	escaped := escapeSQLServerLikePattern(req.Prefix)
-	prefixLike := escaped + "%"
-	nestedLike := escaped + "%||%"
+	prefixLike := escapeSQLServerLikePattern(req.Prefix) + "%"
 	// Schema/table names cannot be passed as parameters; they come from
 	// the migration layer, not user input.
 	//nolint:gosec
 	query := fmt.Sprintf(
-		`DELETE FROM [%s].[%s] WHERE [Key] LIKE @PrefixLike ESCAPE '\' AND [Key] NOT LIKE @NestedPrefixLike ESCAPE '\'`,
+		`DELETE FROM [%s].[%s] WHERE [Key] LIKE @PrefixLike ESCAPE '\'`,
 		s.metadata.SchemaName, s.metadata.TableName,
 	)
-	res, err := s.db.ExecContext(
-		parentCtx,
-		query,
-		sql.Named("PrefixLike", prefixLike),
-		sql.Named("NestedPrefixLike", nestedLike),
-	)
+	res, err := s.db.ExecContext(parentCtx, query, sql.Named("PrefixLike", prefixLike))
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlserver delete with prefix: %w", err)
 	}

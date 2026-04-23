@@ -124,28 +124,18 @@ func (store *InMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest
 }
 
 func (store *InMemoryStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	// step1: validate parameters
-	err := req.Validate()
-	if err != nil {
+	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
 
-	// step2 should be protected by write-lock
 	store.lock.Lock()
 	defer store.lock.Unlock()
 
-	// step2: do really delete
-	// this operation won't fail
 	var count int64
-
 	for key := range store.items {
 		if strings.HasPrefix(key, req.Prefix) {
-			// The string contains the prefix, now we check to make sure there aren't more || after
-			longerPrefix := strings.Contains(key[len(req.Prefix):], "||")
-			if !longerPrefix {
-				delete(store.items, key)
-				count++
-			}
+			delete(store.items, key)
+			count++
 		}
 	}
 	return state.DeleteWithPrefixResponse{Count: count}, nil

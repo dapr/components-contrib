@@ -697,14 +697,10 @@ func escapeSQLStdLikePattern(s string) string {
 	return s
 }
 
-// DeleteWithPrefix removes all keys whose composite name begins with the given
-// prefix (and which do not contain another DaprSeparator after it). Used to
-// purge an actor's entire state in a single round trip. Matches the semantics
-// of the in-memory store: direct-children only.
-//
-// The prefix is treated as a literal string: LIKE metacharacters in the
-// caller-supplied prefix are escaped so a prefix containing `%` or `_`
-// cannot widen the delete set.
+// DeleteWithPrefix removes every row whose key begins with the given prefix
+// in a single server-side DELETE. The prefix is treated as a literal
+// string: LIKE metacharacters (%, _) in the caller-supplied prefix are
+// escaped so a prefix containing them cannot widen the delete set.
 func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
@@ -712,12 +708,10 @@ func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.Delet
 
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
-	escaped := escapeSQLStdLikePattern(req.Prefix)
-	prefixLike := escaped + "%"
-	nestedLike := escaped + "%||%"
+	prefixLike := escapeSQLStdLikePattern(req.Prefix) + "%"
 	res, err := p.db.Exec(ctx,
-		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1 AND key NOT LIKE $2",
-		prefixLike, nestedLike,
+		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1",
+		prefixLike,
 	)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("postgres delete with prefix: %w", err)

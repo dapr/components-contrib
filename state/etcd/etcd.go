@@ -230,66 +230,19 @@ func (e *Etcd) BulkGet(parentCtx context.Context, req []state.GetRequest, _ stat
 	return res, nil
 }
 
-// DeleteWithPrefix removes all keys that are direct children of the given
-// prefix (i.e. whose name starts with prefix and does not itself contain
-// another DaprSeparator). Matches the in-memory store semantics. Etcd's
-// server-side WithPrefix() delete would over-delete nested keys, so we first
-// range-get matching keys and then batch-delete the filtered set. For actor
-// state (no nested separators) this is two RPCs regardless of key count.
+// DeleteWithPrefix removes every key beginning with the given prefix in a
+// single server-side range-delete RPC.
 func (e *Etcd) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
-
-	storePrefix := e.keyPrefixPath + "/" + req.Prefix
-	getCtx, getCancel := context.WithTimeout(parentCtx, 5*time.Second)
-	getResp, err := e.client.Get(getCtx, storePrefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
-	getCancel()
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	defer cancel()
+	resp, err := e.client.Delete(ctx, e.keyPrefixPath+"/"+req.Prefix, clientv3.WithPrefix())
 	if err != nil {
-		return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: get: %w", err)
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: %w", err)
 	}
-
-	toDelete := make([]string, 0, len(getResp.Kvs))
-	for _, kv := range getResp.Kvs {
-		suffix := strings.TrimPrefix(string(kv.Key), storePrefix)
-		if strings.Contains(suffix, "||") {
-			continue
-		}
-		toDelete = append(toDelete, string(kv.Key))
-	}
-	if len(toDelete) == 0 {
-		return state.DeleteWithPrefixResponse{Count: 0}, nil
-	}
-
-	chunkSize := e.maxTxnOps
-	if chunkSize <= 0 {
-		chunkSize = len(toDelete)
-	}
-	var total int64
-	for start := 0; start < len(toDelete); start += chunkSize {
-		end := start + chunkSize
-		if end > len(toDelete) {
-			end = len(toDelete)
-		}
-		ops := make([]clientv3.Op, end-start)
-		for i := start; i < end; i++ {
-			ops[i-start] = clientv3.OpDelete(toDelete[i])
-		}
-		// Fresh per-batch timeout so many delete chunks don't share a
-		// single 5s budget.
-		batchCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-		resp, err := e.client.Txn(batchCtx).Then(ops...).Commit()
-		cancel()
-		if err != nil {
-			return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: delete: %w", err)
-		}
-		for _, r := range resp.Responses {
-			if dr := r.GetResponseDeleteRange(); dr != nil {
-				total += dr.Deleted
-			}
-		}
-	}
-	return state.DeleteWithPrefixResponse{Count: total}, nil
+	return state.DeleteWithPrefixResponse{Count: resp.Deleted}, nil
 }
 
 // Set saves a Etcd KV item.

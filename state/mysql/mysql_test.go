@@ -285,12 +285,12 @@ func TestDeleteWithPrefix(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	// The query scopes to the escaped prefix and excludes nested
-	// (contains ||) keys to match in-memory semantics. LIKE's default
-	// escape character `\` lets us treat the prefix literally.
+	// One server-side DELETE with a single LIKE parameter. LIKE's default
+	// escape character `\` lets us treat the caller-supplied prefix
+	// literally.
 	m.mock1.ExpectExec(
-		"DELETE FROM `state` WHERE `id` LIKE \\? AND `id` NOT LIKE \\?",
-	).WithArgs("app||type||id||%", "app||type||id||%||%").
+		"DELETE FROM `state` WHERE `id` LIKE \\?",
+	).WithArgs("app||type||id||%").
 		WillReturnResult(sqlmock.NewResult(0, 3))
 
 	res, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
@@ -307,7 +307,7 @@ func TestDeleteWithPrefixAppendsSeparator(t *testing.T) {
 	defer m.mySQL.Close()
 
 	m.mock1.ExpectExec("DELETE FROM `state`").
-		WithArgs("foo||%", "foo||%||%").
+		WithArgs("foo||%").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "foo"})
@@ -321,7 +321,7 @@ func TestDeleteWithPrefixEscapesLikeMetacharacters(t *testing.T) {
 	defer m.mySQL.Close()
 
 	m.mock1.ExpectExec("DELETE FROM `state`").
-		WithArgs(`a\%b\_c||%`, `a\%b\_c||%||%`).
+		WithArgs(`a\%b\_c||%`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "a%b_c||"})

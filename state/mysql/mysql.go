@@ -249,25 +249,21 @@ func escapeSQLStdLikePattern(s string) string {
 	return s
 }
 
-// DeleteWithPrefix removes all keys whose composite name begins with the
-// given prefix. Matches in-memory semantics (direct children only).
-//
-// The prefix is treated literally: LIKE metacharacters (% and _) in the
-// caller-supplied prefix are escaped so a prefix containing those
-// characters cannot widen the delete set.
+// DeleteWithPrefix removes every row whose id begins with the given prefix
+// in a single server-side DELETE. The prefix is treated literally: LIKE
+// metacharacters (%, _) are escaped so a prefix containing them cannot
+// widen the delete set.
 func (m *MySQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
-	escaped := escapeSQLStdLikePattern(req.Prefix)
-	prefixLike := escaped + "%"
-	nestedLike := escaped + "%||%"
+	prefixLike := escapeSQLStdLikePattern(req.Prefix) + "%"
 	res, err := m.db.ExecContext(ctx,
 		//nolint:gosec
-		"DELETE FROM `"+m.tableName+"` WHERE `id` LIKE ? AND `id` NOT LIKE ?",
-		prefixLike, nestedLike,
+		"DELETE FROM `"+m.tableName+"` WHERE `id` LIKE ?",
+		prefixLike,
 	)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("mysql delete with prefix: %w", err)

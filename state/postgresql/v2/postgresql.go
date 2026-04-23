@@ -685,10 +685,26 @@ func (p *PostgreSQL) BulkDelete(parentCtx context.Context, req []state.DeleteReq
 	return nil
 }
 
+// escapeSQLStdLikePattern escapes the SQL-standard LIKE metacharacters (%
+// and _) and the escape character itself so a prefix can be used literally
+// in a LIKE expression. PostgreSQL defaults to '\' as the LIKE escape
+// character, so parameter binding delivers the pattern verbatim and LIKE
+// interprets `\%` / `\_` / `\\` as literals.
+func escapeSQLStdLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 // DeleteWithPrefix removes all keys whose composite name begins with the given
 // prefix (and which do not contain another DaprSeparator after it). Used to
 // purge an actor's entire state in a single round trip. Matches the semantics
 // of the in-memory store: direct-children only.
+//
+// The prefix is treated as a literal string: LIKE metacharacters in the
+// caller-supplied prefix are escaped so a prefix containing `%` or `_`
+// cannot widen the delete set.
 func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
@@ -696,12 +712,12 @@ func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.Delet
 
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
-	// `key NOT LIKE $1 || '%||%'` excludes nested keys so we match the in-memory
-	// semantics. Postgres's % wildcard is per-character. Same pattern compiled
-	// into LIKE is O(keys scanned) on the index, which is still one query.
+	escaped := escapeSQLStdLikePattern(req.Prefix)
+	prefixLike := escaped + "%"
+	nestedLike := escaped + "%||%"
 	res, err := p.db.Exec(ctx,
-		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1 || '%' AND key NOT LIKE $1 || '%||%'",
-		req.Prefix,
+		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1 AND key NOT LIKE $2",
+		prefixLike, nestedLike,
 	)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("postgres delete with prefix: %w", err)

@@ -422,20 +422,39 @@ func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return a.doDelete(ctx, a.db, req)
 }
 
+// escapeSQLiteLikePattern escapes LIKE metacharacters (% and _) and the
+// chosen escape character itself so a prefix can be used literally in a
+// LIKE ... ESCAPE '\' expression. SQLite has no default LIKE escape
+// character, so the ESCAPE clause is required; parameter binding delivers
+// the pattern verbatim and LIKE then interprets `\%` / `\_` / `\\` as
+// literals.
+func escapeSQLiteLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 // DeleteWithPrefix removes all keys whose composite name begins with the
 // given prefix (direct children only — matches in-memory semantics).
+//
+// The prefix is treated literally: LIKE metacharacters in the caller-
+// supplied prefix are escaped so a prefix containing `%` or `_` cannot
+// widen the delete set.
 func (a *sqliteDBAccess) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
-	// Two wildcards in `NOT LIKE` exclude nested keys (those with an extra
-	// `||` after the prefix). SQLite uses standard SQL LIKE.
-	res, err := a.db.ExecContext(ctx,
-		"DELETE FROM "+a.metadata.TableName+" WHERE key LIKE ? || '%' AND key NOT LIKE ? || '%||%'",
-		req.Prefix, req.Prefix,
-	)
+	escaped := escapeSQLiteLikePattern(req.Prefix)
+	prefixLike := escaped + "%"
+	nestedLike := escaped + "%||%"
+	// Concatenation is required for table name because sql.DB does not
+	// substitute parameters for table names.
+	//nolint:gosec
+	stmt := `DELETE FROM ` + a.metadata.TableName + ` WHERE key LIKE ? ESCAPE '\' AND key NOT LIKE ? ESCAPE '\'`
+	res, err := a.db.ExecContext(ctx, stmt, prefixLike, nestedLike)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlite delete with prefix: %w", err)
 	}

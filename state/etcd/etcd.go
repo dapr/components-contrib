@@ -186,9 +186,6 @@ func (e *Etcd) BulkGet(parentCtx context.Context, req []state.GetRequest, _ stat
 		return []state.BulkGetResponse{}, nil
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
-
 	res := make([]state.BulkGetResponse, len(req))
 	chunkSize := e.maxTxnOps
 	if chunkSize <= 0 {
@@ -204,7 +201,11 @@ func (e *Etcd) BulkGet(parentCtx context.Context, req []state.GetRequest, _ stat
 		for i := start; i < end; i++ {
 			ops[i-start] = clientv3.OpGet(e.keyPrefixPath + "/" + req[i].Key)
 		}
-		resp, err := e.client.Txn(ctx).Then(ops...).Commit()
+		// Fresh per-chunk timeout so a large request doesn't exhaust a
+		// shared 5s budget across many chunks mid-loop.
+		chunkCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+		resp, err := e.client.Txn(chunkCtx).Then(ops...).Commit()
+		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("etcd bulk get: %w", err)
 		}
@@ -239,16 +240,16 @@ func (e *Etcd) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithP
 	if err := req.Validate(); err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
 
 	storePrefix := e.keyPrefixPath + "/" + req.Prefix
-	getResp, err := e.client.Get(ctx, storePrefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+	getCtx, getCancel := context.WithTimeout(parentCtx, 5*time.Second)
+	getResp, err := e.client.Get(getCtx, storePrefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+	getCancel()
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: get: %w", err)
 	}
 
-	var toDelete []string
+	toDelete := make([]string, 0, len(getResp.Kvs))
 	for _, kv := range getResp.Kvs {
 		suffix := strings.TrimPrefix(string(kv.Key), storePrefix)
 		if strings.Contains(suffix, "||") {
@@ -274,7 +275,11 @@ func (e *Etcd) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithP
 		for i := start; i < end; i++ {
 			ops[i-start] = clientv3.OpDelete(toDelete[i])
 		}
-		resp, err := e.client.Txn(ctx).Then(ops...).Commit()
+		// Fresh per-batch timeout so many delete chunks don't share a
+		// single 5s budget.
+		batchCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+		resp, err := e.client.Txn(batchCtx).Then(ops...).Commit()
+		cancel()
 		if err != nil {
 			return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: delete: %w", err)
 		}

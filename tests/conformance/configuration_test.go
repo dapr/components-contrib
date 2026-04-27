@@ -23,10 +23,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/configuration"
+	c_kubernetes "github.com/dapr/components-contrib/configuration/kubernetes"
 	c_postgres "github.com/dapr/components-contrib/configuration/postgres"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
 	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	cu_kubernetes "github.com/dapr/components-contrib/tests/utils/configupdater/kubernetes"
 	cu_postgres "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 )
@@ -63,6 +65,9 @@ func loadConfigurationStore(name string) (configuration.Store, configupdater.Upd
 	case "postgresql.docker", "postgresql.azure":
 		return c_postgres.NewPostgresConfigurationStore(testLogger),
 			cu_postgres.NewPostgresConfigUpdater(testLogger)
+	case "kubernetes.kind":
+		return c_kubernetes.NewKubernetesConfigMapStore(testLogger),
+			cu_kubernetes.NewKubernetesConfigUpdater(testLogger)
 	default:
 		return nil, nil
 	}

@@ -1,6 +1,16 @@
 name: Generate and Upload Component Metadata Bundle on Push to Tag
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+        description: 'Git tag to build metadata for (e.g., v1.16.0)'
+    secrets:
+      DAPR_BOT_TOKEN:
+        required: true
+  workflow_dispatch:
   push:
     tags:
       - '*'
@@ -9,13 +19,15 @@ permissions: {}
 
 jobs:
   upload-bundle:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || '' }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -27,5 +39,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.DAPR_BOT_TOKEN }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           files: component-metadata-bundle.json

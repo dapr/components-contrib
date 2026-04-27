@@ -323,6 +323,22 @@ func (c v8Client) AuthACL(ctx context.Context, username, password string) error 
 	return statusCmd.Err()
 }
 
+// entraIDOnConnectV8 returns an OnConnect callback for go-redis v8 client options.
+// On every newly-dialed pool connection, the callback fetches a fresh Entra access
+// token from the cached credential and runs AUTH ACL on that connection. This is the
+// fix for dapr/components-contrib#3554 — without it, go-redis's initial AUTH on a new
+// connection would replay the snapshot Password set at component init, which has
+// expired by the time the connection is opened.
+func entraIDOnConnectV8(s *Settings) func(ctx context.Context, cn *v8.Conn) error {
+	return func(ctx context.Context, cn *v8.Conn) error {
+		user, pass, err := s.EntraIDFetchAuthArgs(ctx)
+		if err != nil {
+			return err
+		}
+		return cn.AuthACL(ctx, user, pass).Err()
+	}
+}
+
 func newV8FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil
@@ -347,6 +363,9 @@ func newV8FailoverClient(s *Settings) (RedisClient, error) {
 		PoolTimeout:        time.Duration(s.PoolTimeout),
 		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
 		IdleTimeout:        time.Duration(s.IdleTimeout),
+	}
+	if s.UseEntraID {
+		opts.OnConnect = entraIDOnConnectV8(s)
 	}
 
 	if s.EnableTLS {
@@ -405,6 +424,9 @@ func newV8Client(s *Settings) (RedisClient, error) {
 			IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
 			IdleTimeout:        time.Duration(s.IdleTimeout),
 		}
+		if s.UseEntraID {
+			options.OnConnect = entraIDOnConnectV8(s)
+		}
 		/* #nosec */
 		if s.EnableTLS {
 			options.TLSConfig = &tls.Config{
@@ -443,6 +465,9 @@ func newV8Client(s *Settings) (RedisClient, error) {
 		PoolTimeout:        time.Duration(s.PoolTimeout),
 		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
 		IdleTimeout:        time.Duration(s.IdleTimeout),
+	}
+	if s.UseEntraID {
+		options.OnConnect = entraIDOnConnectV8(s)
 	}
 
 	/* #nosec */

@@ -323,6 +323,22 @@ func (c v9Client) AuthACL(ctx context.Context, username, password string) error 
 	return statusCmd.Err()
 }
 
+// entraIDOnConnectV9 returns an OnConnect callback for go-redis v9 client options.
+// On every newly-dialed pool connection, the callback fetches a fresh Entra access
+// token from the cached credential and runs AUTH ACL on that connection. This is the
+// fix for dapr/components-contrib#3554 — without it, go-redis's initial AUTH on a new
+// connection would replay the snapshot Password set at component init, which has
+// expired by the time the connection is opened.
+func entraIDOnConnectV9(s *Settings) func(ctx context.Context, cn *v9.Conn) error {
+	return func(ctx context.Context, cn *v9.Conn) error {
+		user, pass, err := s.EntraIDFetchAuthArgs(ctx)
+		if err != nil {
+			return err
+		}
+		return cn.AuthACL(ctx, user, pass).Err()
+	}
+}
+
 func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil
@@ -347,6 +363,9 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		PoolTimeout:           time.Duration(s.PoolTimeout),
 		ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 		ContextTimeoutEnabled: true,
+	}
+	if s.UseEntraID {
+		opts.OnConnect = entraIDOnConnectV9(s)
 	}
 
 	/* #nosec */
@@ -407,6 +426,9 @@ func newV9Client(s *Settings) (RedisClient, error) {
 			ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 			ContextTimeoutEnabled: true,
 		}
+		if s.UseEntraID {
+			options.OnConnect = entraIDOnConnectV9(s)
+		}
 		/* #nosec */
 		if s.EnableTLS {
 			/* #nosec */
@@ -446,6 +468,9 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		PoolTimeout:           time.Duration(s.PoolTimeout),
 		ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 		ContextTimeoutEnabled: true,
+	}
+	if s.UseEntraID {
+		options.OnConnect = entraIDOnConnectV9(s)
 	}
 
 	if s.EnableTLS {

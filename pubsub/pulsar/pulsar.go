@@ -936,7 +936,30 @@ func (p *Pulsar) Close() error {
 }
 
 func (p *Pulsar) Features() []pubsub.Feature {
-	return nil
+	// FeatureBulkSubscribeImmediate is declared because Pulsar's
+	// delivery model does not fit the default bulk subscriber's
+	// count+timer batching window:
+	//
+	//   - processMode=sync: the consumer loop calls the message
+	//     handler serially and blocks on ack, so at most one
+	//     message is ever in flight per consumer. A batching
+	//     window can never accumulate, and waiting for one would
+	//     pile up unacked messages on the broker side
+	//     (dapr/dapr#9727).
+	//
+	//   - processMode=async (default): the consumer loop spawns a
+	//     goroutine per delivery, so multiple messages can arrive
+	//     in the bulk subscriber's channel concurrently. Bursts
+	//     are still coalesced opportunistically by the bulk
+	//     subscriber's drain step (so real multi-entry batches
+	//     still happen under load); the difference is that we no
+	//     longer wait for MaxAwaitDurationMs before flushing,
+	//     keeping acks flowing back to the broker without delay.
+	//
+	// Declaring the feature unconditionally avoids per-subscription
+	// dispatch divergence and matches what each mode can actually
+	// satisfy.
+	return []pubsub.Feature{pubsub.FeatureBulkSubscribeImmediate}
 }
 
 // formatTopic formats the topic into pulsar's structure with tenant and namespace.

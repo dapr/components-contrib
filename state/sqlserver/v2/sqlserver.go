@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -113,6 +115,8 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	s.metadata.BulkGetChunkSize = normalizeBulkGetChunkSize(s.logger, s.metadata.BulkGetChunkSize)
 
 	migration := s.migratorFactory(&s.metadata)
 	mr, err := migration.executeMigrations(ctx)
@@ -305,6 +309,206 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		ETag:     ptr.Of(etag),
 		Metadata: metadata,
 	}, nil
+}
+
+// BulkGet retrieves multiple entities in a single round-trip per chunk using a
+// `WHERE [Key] IN (...)` query. When the number of requested keys exceeds the
+// configured BulkGetChunkSize, BulkGet issues multiple chunked queries
+// sequentially (not in parallel) and merges the results. This avoids SQL
+// Server's hard 2100-parameter limit and reduces connection-pool pressure
+// versus the default per-key fan-out.
+//
+// The default chunk size is 1000, so callers with <= 1000 keys see a single
+// query.
+func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Validate all keys upfront — an empty key is a programmer bug, not a
+	// per-key data issue, so we fail fast before issuing any query.
+	for _, r := range req {
+		if r.Key == "" {
+			return nil, errors.New("missing key in bulk get operation")
+		}
+	}
+
+	chunkSize := s.metadata.BulkGetChunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultBulkGetChunkSize
+	}
+
+	// Fast path: input fits in one chunk.
+	if len(req) <= chunkSize {
+		return s.bulkGetChunk(ctx, req), nil
+	}
+
+	// Chunked path: sequential chunks, results concatenated.
+	res := make([]state.BulkGetResponse, 0, len(req))
+	for start := 0; start < len(req); start += chunkSize {
+		// Check context between chunks so a cancelled context stops promptly
+		// instead of issuing wasted round-trips.
+		if err := ctx.Err(); err != nil {
+			for _, r := range req[start:] {
+				res = append(res, state.BulkGetResponse{
+					Key:   r.Key,
+					Error: err.Error(),
+				})
+			}
+			return res, nil
+		}
+
+		end := start + chunkSize
+		if end > len(req) {
+			end = len(req)
+		}
+
+		res = append(res, s.bulkGetChunk(ctx, req[start:end])...)
+	}
+	return res, nil
+}
+
+// bulkGetChunk executes a single IN-clause query for the given requests.
+// Pre-condition: req is non-empty and all keys are non-empty.
+//
+// Errors surface as per-key Error entries in the response (consistent with
+// other state stores like Redis and Oracle), so this helper never returns a
+// hard error.
+func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []state.BulkGetResponse {
+	params := make([]any, len(req))
+	bindVars := make([]string, len(req))
+	for i, r := range req {
+		name := "p" + strconv.Itoa(i)
+		params[i] = sql.Named(name, r.Key)
+		bindVars[i] = "@" + name
+	}
+
+	// Schema and table names are validated at Init via IsValidSQLName, so
+	// concatenation here is safe.
+	//nolint:gosec
+	query := fmt.Sprintf(
+		"SELECT [Key], [Data], [BinaryData], [isBinary], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] IN (%s) AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())",
+		s.metadata.SchemaName, s.metadata.TableName, strings.Join(bindVars, ","),
+	)
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		// If the query fails, return per-key error entries instead of
+		// propagating the error, matching Oracle/Redis convention.
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: "bulk get query failed: " + err.Error(),
+			}
+		}
+		return res
+	}
+	defer rows.Close()
+
+	var n int
+	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
+
+	for rows.Next() {
+		if n >= len(req) {
+			// Defensive: more rows than slots. Not expected (PK-on-key,
+			// distinct binds), but drop extras instead of panicking.
+			s.logger.Warnf("SQL Server BulkGet: query returned more records than expected (%d), discarding extras", len(req))
+			break
+		}
+
+		var (
+			key        string
+			data       sql.NullString
+			binaryData []byte
+			isBinary   bool
+			rowVersion []byte
+			expireDate sql.NullTime
+		)
+
+		err = rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate)
+		if err != nil {
+			res[n] = state.BulkGetResponse{
+				Key:   key,
+				Error: err.Error(),
+			}
+			foundKeys[key] = struct{}{}
+			n++
+			continue
+		}
+
+		etag := hex.EncodeToString(rowVersion)
+		response := state.BulkGetResponse{
+			Key:  key,
+			ETag: ptr.Of(etag),
+		}
+
+		if expireDate.Valid {
+			response.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
+			}
+		}
+
+		if isBinary {
+			response.Data = binaryData
+		} else {
+			if !data.Valid {
+				res[n] = state.BulkGetResponse{
+					Key:   key,
+					Error: "unexpected error: no item was found",
+				}
+				foundKeys[key] = struct{}{}
+				n++
+				continue
+			}
+			response.Data = []byte(data.String)
+		}
+
+		res[n] = response
+		foundKeys[key] = struct{}{}
+		n++
+	}
+
+	// rows.Err() reports errors from iteration; surface as per-key errors for
+	// any keys not yet found, matching Oracle's behavior.
+	if err = rows.Err(); err != nil {
+		errMsg := err.Error()
+		anyUnfound := false
+		for _, r := range req {
+			if _, ok := foundKeys[r.Key]; !ok {
+				anyUnfound = true
+				if n >= len(req) {
+					break
+				}
+				res[n] = state.BulkGetResponse{
+					Key:   r.Key,
+					Error: "rows iteration failed: " + errMsg,
+				}
+				foundKeys[r.Key] = struct{}{}
+				n++
+			}
+		}
+		if !anyUnfound {
+			s.logger.Warnf("SQL Server BulkGet: rows iteration error after all rows processed: %v", err)
+		}
+		return res[:n]
+	}
+
+	// Populate missing keys with empty responses to match the per-key Get
+	// semantics (a missing key returns &state.GetResponse{}).
+	if len(foundKeys) < len(req) {
+		for _, r := range req {
+			if _, ok := foundKeys[r.Key]; !ok {
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
+	}
+
+	return res[:n]
 }
 
 // Set adds/updates an entity on store.

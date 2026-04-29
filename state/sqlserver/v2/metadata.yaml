@@ -103,3 +103,15 @@ metadata:
       "3600"
     example: |
       "1800", "-1"
+  - name: bulkGetChunkSize
+    type: number
+    description: |
+      Maximum number of keys included in each internal SQL query issued by BulkGet.
+      When the number of requested keys exceeds this value, BulkGet issues multiple
+      chunked queries sequentially (not in parallel) and merges the results. This
+      avoids SQL Server's 2100-parameter limit and reduces connection-pool pressure.
+      Values <=0 default to 1000; values above 2000 are clamped to 2000.
+    default: |
+      "1000"
+    example: |
+      "500", "2000"

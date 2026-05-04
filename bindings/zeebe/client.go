@@ -45,12 +45,12 @@ type ClientMetadata struct {
 	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
 	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
-	ClientID               string        `json:"clientId" mapstructure:"clientId"`
-	ClientSecret           string        `json:"clientSecret" mapstructure:"clientSecret"`
-	AuthorizationServerURL string        `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
-	TokenAudience          string        `json:"tokenAudience" mapstructure:"tokenAudience"`
-	TokenScope             string        `json:"tokenScope" mapstructure:"tokenScope"`
-	ClientConfigPath       string        `json:"clientConfigPath" mapstructure:"clientConfigPath"`
+	ClientID               *string       `json:"clientId" mapstructure:"clientId"`
+	ClientSecret           *string       `json:"clientSecret" mapstructure:"clientSecret"`
+	AuthorizationServerURL *string       `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
+	TokenAudience          *string       `json:"tokenAudience" mapstructure:"tokenAudience"`
+	TokenScope             *string       `json:"tokenScope" mapstructure:"tokenScope"`
+	ClientConfigPath       *string       `json:"clientConfigPath" mapstructure:"clientConfigPath"`
 }
 
 // NewClientFactoryImpl returns a new ClientFactory instance.
@@ -98,12 +98,12 @@ func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetada
 }
 
 func (m *ClientMetadata) oauthConfigured() bool {
-	return m.ClientID != "" ||
-		m.ClientSecret != "" ||
-		m.AuthorizationServerURL != "" ||
-		m.TokenAudience != "" ||
-		m.TokenScope != "" ||
-		m.ClientConfigPath != ""
+	return m.ClientID != nil ||
+		m.ClientSecret != nil ||
+		m.AuthorizationServerURL != nil ||
+		m.TokenAudience != nil ||
+		m.TokenScope != nil ||
+		m.ClientConfigPath != nil
 }
 
 func (m *ClientMetadata) validateOAuthMetadata() error {
@@ -112,16 +112,16 @@ func (m *ClientMetadata) validateOAuthMetadata() error {
 	}
 
 	missing := make([]string, 0, 4)
-	if m.ClientID == "" {
+	if m.ClientID == nil || *m.ClientID == "" {
 		missing = append(missing, "clientId")
 	}
-	if m.ClientSecret == "" {
+	if m.ClientSecret == nil || *m.ClientSecret == "" {
 		missing = append(missing, "clientSecret")
 	}
-	if m.AuthorizationServerURL == "" {
+	if m.AuthorizationServerURL == nil || *m.AuthorizationServerURL == "" {
 		missing = append(missing, "authorizationServerUrl")
 	}
-	if m.TokenAudience == "" {
+	if m.TokenAudience == nil || *m.TokenAudience == "" {
 		missing = append(missing, "tokenAudience")
 	}
 
@@ -142,15 +142,17 @@ func (m *ClientMetadata) newCredentialsProvider() (zbc.CredentialsProvider, erro
 	}
 
 	providerConfig := &zbc.OAuthProviderConfig{
-		ClientID:               m.ClientID,
-		ClientSecret:           m.ClientSecret,
-		Audience:               m.TokenAudience,
-		Scope:                  m.TokenScope,
-		AuthorizationServerURL: m.AuthorizationServerURL,
+		ClientID:               *m.ClientID,
+		ClientSecret:           *m.ClientSecret,
+		Audience:               *m.TokenAudience,
+		AuthorizationServerURL: *m.AuthorizationServerURL,
+	}
+	if m.TokenScope != nil {
+		providerConfig.Scope = *m.TokenScope
 	}
 
-	if m.ClientConfigPath != "" {
-		cache, err := zbc.NewOAuthYamlCredentialsCache(m.ClientConfigPath)
+	if m.ClientConfigPath != nil && *m.ClientConfigPath != "" {
+		cache, err := zbc.NewOAuthYamlCredentialsCache(*m.ClientConfigPath)
 		if err != nil {
 			return nil, err
 		}

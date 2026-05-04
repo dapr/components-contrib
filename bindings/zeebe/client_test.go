@@ -26,6 +26,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+func strPtr(v string) *string {
+	return &v
+}
+
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"gatewayAddr":            "172.0.0.1:1234",
@@ -46,12 +50,12 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.GatewayKeepAlive)
 	assert.Equal(t, "/cert/path", meta.CaCertificatePath)
 	assert.True(t, meta.UsePlaintextConnection)
-	assert.Equal(t, "zeebe-client", meta.ClientID)
-	assert.Equal(t, "zeebe-secret", meta.ClientSecret)
-	assert.Equal(t, "https://issuer.example.com/oauth/token", meta.AuthorizationServerURL)
-	assert.Equal(t, "zeebe-api", meta.TokenAudience)
-	assert.Equal(t, "read write", meta.TokenScope)
-	assert.Equal(t, "/tmp/zeebe-cache.yaml", meta.ClientConfigPath)
+	assert.Equal(t, strPtr("zeebe-client"), meta.ClientID)
+	assert.Equal(t, strPtr("zeebe-secret"), meta.ClientSecret)
+	assert.Equal(t, strPtr("https://issuer.example.com/oauth/token"), meta.AuthorizationServerURL)
+	assert.Equal(t, strPtr("zeebe-api"), meta.TokenAudience)
+	assert.Equal(t, strPtr("read write"), meta.TokenScope)
+	assert.Equal(t, strPtr("/tmp/zeebe-cache.yaml"), meta.ClientConfigPath)
 }
 
 func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
@@ -71,12 +75,12 @@ func TestParseMetadataDefaultValues(t *testing.T) {
 	assert.Equal(t, time.Duration(0), meta.GatewayKeepAlive)
 	assert.Equal(t, "", meta.CaCertificatePath)
 	assert.False(t, meta.UsePlaintextConnection)
-	assert.Equal(t, "", meta.ClientID)
-	assert.Equal(t, "", meta.ClientSecret)
-	assert.Equal(t, "", meta.AuthorizationServerURL)
-	assert.Equal(t, "", meta.TokenAudience)
-	assert.Equal(t, "", meta.TokenScope)
-	assert.Equal(t, "", meta.ClientConfigPath)
+	assert.Nil(t, meta.ClientID)
+	assert.Nil(t, meta.ClientSecret)
+	assert.Nil(t, meta.AuthorizationServerURL)
+	assert.Nil(t, meta.TokenAudience)
+	assert.Nil(t, meta.TokenScope)
+	assert.Nil(t, meta.ClientConfigPath)
 }
 
 func TestNewCredentialsProviderSkipsWhenOAuthNotConfigured(t *testing.T) {
@@ -90,9 +94,9 @@ func TestNewCredentialsProviderSkipsWhenOAuthNotConfigured(t *testing.T) {
 
 func TestNewCredentialsProviderReturnsErrorOnInvalidOAuthMetadata(t *testing.T) {
 	meta := &ClientMetadata{
-		AuthorizationServerURL: "https://issuer.example.com/oauth/token",
-		TokenAudience:          "zeebe-api",
-		ClientID:               "zeebe-client",
+		AuthorizationServerURL: strPtr("https://issuer.example.com/oauth/token"),
+		TokenAudience:          strPtr("zeebe-api"),
+		ClientID:               strPtr("zeebe-client"),
 	}
 
 	provider, err := meta.newCredentialsProvider()
@@ -104,7 +108,7 @@ func TestNewCredentialsProviderReturnsErrorOnInvalidOAuthMetadata(t *testing.T) 
 
 func TestNewCredentialsProviderReturnsErrorWhenOnlyOptionalOAuthFieldsProvided(t *testing.T) {
 	meta := &ClientMetadata{
-		TokenScope: "scopeA",
+		TokenScope: strPtr("scopeA"),
 	}
 
 	provider, err := meta.newCredentialsProvider()
@@ -121,12 +125,12 @@ func TestNewCredentialsProviderReturnsErrorWhenOnlyOptionalOAuthFieldsProvided(t
 
 func TestNewCredentialsProviderCreatesOAuthProviderWithCustomCachePath(t *testing.T) {
 	meta := &ClientMetadata{
-		ClientID:               "zeebe-client",
-		ClientSecret:           "zeebe-secret",
-		AuthorizationServerURL: "https://issuer.example.com/oauth/token",
-		TokenAudience:          "zeebe-api",
-		TokenScope:             "scopeA",
-		ClientConfigPath:       filepath.Join(t.TempDir(), "zeebe-credentials.yaml"),
+		ClientID:               strPtr("zeebe-client"),
+		ClientSecret:           strPtr("zeebe-secret"),
+		AuthorizationServerURL: strPtr("https://issuer.example.com/oauth/token"),
+		TokenAudience:          strPtr("zeebe-api"),
+		TokenScope:             strPtr("scopeA"),
+		ClientConfigPath:       strPtr(filepath.Join(t.TempDir(), "zeebe-credentials.yaml")),
 	}
 
 	provider, err := meta.newCredentialsProvider()

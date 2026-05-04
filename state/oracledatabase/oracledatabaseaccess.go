@@ -371,7 +371,7 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 
 	// Fast path: input fits in one chunk — no allocation overhead.
 	if len(req) <= chunkSize {
-		return o.bulkGetChunk(ctx, req)
+		return o.bulkGetChunk(ctx, req), nil
 	}
 
 	// Chunked path: sequential chunks, results concatenated.
@@ -394,20 +394,18 @@ func (o *oracleDatabaseAccess) BulkGet(ctx context.Context, req []state.GetReque
 			end = len(req)
 		}
 
-		chunkRes, err := o.bulkGetChunk(ctx, req[start:end])
-		if err != nil {
-			// bulkGetChunk only returns a hard error for programming bugs
-			// (e.g. more rows than expected). Propagate it.
-			return nil, err
-		}
-		res = append(res, chunkRes...)
+		res = append(res, o.bulkGetChunk(ctx, req[start:end])...)
 	}
 	return res, nil
 }
 
 // bulkGetChunk executes a single IN-clause query for the given requests.
 // Pre-condition: req is non-empty and all keys are non-empty.
-func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+//
+// Errors surface as per-key Error entries in the response (consistent with
+// other state stores like Redis and SQL Server), so this helper never returns
+// a hard error.
+func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.GetRequest) []state.BulkGetResponse {
 	// Oracle supports the IN operator for bulk operations
 	// Build the IN clause with bind variables
 	// Oracle uses :1, :2, etc. for bind variables in the IN clause
@@ -435,7 +433,7 @@ func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.Get
 				Error: "bulk get query failed: " + err.Error(),
 			}
 		}
-		return res, nil
+		return res
 	}
 	defer rows.Close()
 
@@ -445,8 +443,11 @@ func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.Get
 
 	for rows.Next() {
 		if n >= len(req) {
-			// Sanity check to prevent panics, which should never happen
-			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+			// Defensive: Oracle returned more rows than we have slots for.
+			// Not expected (PK-on-key, bind params are distinct), but drop
+			// the extras rather than panic so the collected results survive.
+			o.logger.Warnf("Oracle BulkGet: query returned more records than expected (%d), discarding extras", len(req))
+			break
 		}
 
 		var (
@@ -532,20 +533,14 @@ func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.Get
 		if !anyUnfound {
 			o.logger.Warnf("Oracle BulkGet: rows iteration error after all rows processed: %v", err)
 		}
-		return res[:n], nil
+		return res[:n]
 	}
 
 	// Populate missing keys with empty values
 	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
 	if len(foundKeys) < len(req) {
-		var ok bool
 		for _, r := range req {
-			_, ok = foundKeys[r.Key]
-			if !ok {
-				if n >= len(req) {
-					// Sanity check to prevent panics, which should never happen
-					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
-				}
+			if _, ok := foundKeys[r.Key]; !ok {
 				res[n] = state.BulkGetResponse{
 					Key: r.Key,
 				}
@@ -554,7 +549,7 @@ func (o *oracleDatabaseAccess) bulkGetChunk(ctx context.Context, req []state.Get
 		}
 	}
 
-	return res[:n], nil
+	return res[:n]
 }
 
 // Delete removes an item from the state store.

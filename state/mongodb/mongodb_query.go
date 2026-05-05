@@ -100,24 +100,22 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
 	}
-	str := fmt.Sprintf(`{ "value.%s": { "$in": [ `, f.Key)
-
-	var strSb105 strings.Builder
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `{ "value.%s": { "$in": [ `, f.Key)
 	for i := range len(f.Vals) {
 		if i > 0 {
-			strSb105.WriteString(", ")
+			sb.WriteString(", ")
 		}
 		switch v := f.Vals[i].(type) {
 		case string:
-			str += fmt.Sprintf("%q", v)
+			fmt.Fprintf(&sb, "%q", v)
 		default:
-			str += fmt.Sprintf("%v", v)
+			fmt.Fprintf(&sb, "%v", v)
 		}
 	}
-	str += strSb105.String()
-	str += " ] } }"
+	sb.WriteString(" ] } }")
 
-	return str, nil
+	return sb.String(), nil
 }
 
 func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) {

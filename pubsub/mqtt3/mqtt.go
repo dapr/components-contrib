@@ -459,9 +459,9 @@ func buildRegexForTopic(topicName string) string {
 		okPos    bool
 	)
 	if strings.ContainsAny(topicName, "#+") {
-		regexStr = "^"
 		// It's ok to iterate over bytes here (rather than codepoints) because all characters we're looking for are always single-byte
-		var regexStrSb464 strings.Builder
+		var sb strings.Builder
+		sb.WriteString("^")
 		for i := range len(topicName) {
 			// Wildcard chars must either be at the beginning of the string or must follow a /
 			okPos = (i == 0 || topicName[i-1] == '/')
@@ -469,24 +469,24 @@ func buildRegexForTopic(topicName string) string {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
 					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					regexStrSb464.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)")
+					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)")
 				} else {
-					regexStrSb464.WriteString(regexp.QuoteMeta(topicName[start:i]) + "(.*)")
+					sb.WriteString(regexp.QuoteMeta(topicName[start:i]) + "(.*)")
 				}
 				start = i + 1
 			} else if topicName[i] == '+' && okPos {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
 					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					regexStr += regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/|)[^\/]*)`
+					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/|)[^\/]*)`)
 				} else {
-					regexStr += regexp.QuoteMeta(topicName[start:i]) + `([^\/]*)`
+					sb.WriteString(regexp.QuoteMeta(topicName[start:i]) + `([^\/]*)`)
 				}
 				start = i + 1
 			}
 		}
-		regexStr += regexStrSb464.String()
-		regexStr += regexp.QuoteMeta(topicName[(lastPos+1):]) + "$"
+		sb.WriteString(regexp.QuoteMeta(topicName[(lastPos+1):]) + "$")
+		regexStr = sb.String()
 	}
 
 	if lastPos == -1 {

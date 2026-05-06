@@ -138,6 +138,24 @@ func (p *PubSub) Close() (err error) {
 	return p.kafka.Close()
 }
 
+// Pause implements pubsub.PausableSubscriber. It stops fetching new messages
+// from the broker for all active subscriptions; messages already buffered
+// can still be processed.
+func (p *PubSub) Pause(ctx context.Context) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+	return p.kafka.Pause(ctx)
+}
+
+// Resume implements pubsub.PausableSubscriber.
+func (p *PubSub) Resume(ctx context.Context) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+	return p.kafka.Resume(ctx)
+}
+
 func (p *PubSub) Features() []pubsub.Feature {
 	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }

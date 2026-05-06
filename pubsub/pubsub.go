@@ -52,6 +52,27 @@ type BulkSubscriber interface {
 	BulkSubscribe(ctx context.Context, req SubscribeRequest, bulkHandler BulkHandler) error
 }
 
+// PausableSubscriber is an optional capability that lets the runtime pause
+// fetching new messages from the broker without tearing down active
+// subscriptions.
+//
+// While paused, the broker stops delivering new messages but the session,
+// connection, and partition assignments are preserved. Messages already
+// buffered locally can continue to be processed by handlers — this enables a
+// clean drain-during-shutdown pattern: pause, let the in-flight pipeline
+// drain, then close.
+//
+// Implementations must be safe to call concurrently with Subscribe and must
+// be idempotent.
+type PausableSubscriber interface {
+	// Pause stops fetching new messages from the broker for all active
+	// subscriptions on this component. Already-buffered messages can still
+	// be processed.
+	Pause(ctx context.Context) error
+	// Resume resumes fetching new messages from the broker.
+	Resume(ctx context.Context) error
+}
+
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
 

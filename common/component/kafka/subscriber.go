@@ -37,30 +37,30 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 	k.wg.Add(1)
 	go func() {
 		defer k.wg.Done()
-		postAction := func() {}
+		isGraceful := false
 
 		select {
 		case <-ctx.Done():
-			err := context.Cause(ctx)
-			if errors.Is(err, pubsub.ErrGracefulShutdown) {
+			if errors.Is(context.Cause(ctx), pubsub.ErrGracefulShutdown) {
+				isGraceful = true
 				k.logger.Debugf("Kafka component is closing. Context is done due to shutdown process.")
-				postAction = func() {
-					if k.clients != nil && k.clients.consumerGroup != nil {
-						k.logger.Debugf("Kafka component is closing. Closing consumer group.")
-						err := k.clients.consumerGroup.Close()
-						if err != nil {
-							k.logger.Errorf("failed to close consumer group: %w", err)
-						}
-					}
-				}
 			}
-
 		case <-k.closeCh:
 			k.logger.Debugf("Kafka component is closing. Channel is closed.")
 		}
 
 		k.subscribeLock.Lock()
 		defer k.subscribeLock.Unlock()
+
+		// On graceful shutdown, pause fetching from the broker before tearing
+		// down the consumer group. Pausing here stops Sarama from issuing
+		// further FetchRequests while the consume goroutine winds down,
+		// keeping the close path quieter and bounding any last-second
+		// claim-buffer growth between session cancel and LeaveGroup.
+		if isGraceful && k.clients != nil && k.clients.consumerGroup != nil {
+			k.logger.Debugf("Pausing all partitions before closing consumer group.")
+			k.clients.consumerGroup.PauseAll()
+		}
 
 		k.logger.Debugf("Unsubscribing to topic: %v", topics)
 
@@ -69,7 +69,19 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		}
 
 		k.reloadConsumerGroup()
-		postAction()
+
+		// Only the last subscription to exit closes the consumer group.
+		// Closing while sibling Subscribe goroutines still hold subscriptions
+		// on the same component would race with the new consume goroutine
+		// reloadConsumerGroup just started for the remaining topics, leaving
+		// it to error out with "tried to use a consumer group that was
+		// closed".
+		if isGraceful && len(k.subscribeTopics) == 0 && k.clients != nil && k.clients.consumerGroup != nil {
+			k.logger.Debugf("Last subscription closing; closing consumer group.")
+			if err := k.clients.consumerGroup.Close(); err != nil {
+				k.logger.Errorf("failed to close consumer group: %w", err)
+			}
+		}
 	}()
 }
 

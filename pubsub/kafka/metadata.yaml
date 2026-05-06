@@ -187,6 +187,58 @@ authenticationProfiles:
         description: |
           The JWT key ID (kid) to use for the client assertion.
         example: '"1234567890"'
+  - title: "OIDC Workload Identity Authentication"
+    description: |
+      Authenticate using a projected Kubernetes service account token (e.g., Azure Workload Identity).
+      The component reads a short-lived token from the pod filesystem and exchanges it with the
+      identity provider for an access token using the client_assertion grant.
+      When running on AKS with the Azure Workload Identity webhook, clientID, tokenEndpoint,
+      and tokenFilePath are automatically resolved from injected environment variables.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "oidc_workload_identity" for this authentication profile.
+        example: '"oidc_workload_identity"'
+        allowedValues:
+          - "oidc_workload_identity"
+      - name: oidcTokenEndpoint
+        type: string
+        required: false
+        description: |
+          URL of the OAuth2 identity provider access token endpoint.
+          If not set, automatically derived from AZURE_AUTHORITY_HOST and AZURE_TENANT_ID environment variables.
+        example: '"https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token"'
+      - name: oidcClientID
+        description: |
+          The OAuth2 client ID (application ID) registered in the identity provider.
+          If not set, automatically read from the AZURE_CLIENT_ID environment variable.
+        example: '"my-client-id"'
+        type: string
+        required: false
+      - name: oidcTokenFilePath
+        type: string
+        required: false
+        description: |
+          Path to the projected service account token file.
+          If not set, read from AZURE_FEDERATED_TOKEN_FILE environment variable,
+          or defaults to /var/run/secrets/azure/tokens/azure-identity-token.
+        example: '"/var/run/secrets/azure/tokens/azure-identity-token"'
+      - name: oidcScopes
+        type: string
+        required: false
+        description: |
+          Comma-delimited list of OAuth2/OIDC scopes to request with the access token.
+          If not set, defaults to "api://<clientID>/.default".
+        example: '"api://my-client-id/.default"'
+      - name: oidcExtensions
+        description: |
+          String containing a JSON-encoded dictionary of OAuth2/OIDC extensions to request with the access token.
+        example: |
+          {"cluster":"kafka","poolid":"kafkapool"}
+        type: string
   - title: "SASL Authentication"
     description: |
       Authenticate using SASL.

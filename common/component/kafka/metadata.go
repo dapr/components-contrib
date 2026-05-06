@@ -44,6 +44,7 @@ const (
 	passwordAuthType                         = "password"
 	oidcAuthType                             = "oidc"
 	oidcPrivateKeyJWTAuthType                = "oidc_private_key_jwt"
+	oidcWorkloadIdentityAuthType             = "oidc_workload_identity"
 	mtlsAuthType                             = "mtls"
 	awsIAMAuthType                           = "awsiam"
 	noAuthType                               = "none"
@@ -88,6 +89,7 @@ type KafkaMetadata struct {
 	OidcResource            string              `mapstructure:"oidcResource"`
 	OidcAudience            string              `mapstructure:"oidcAudience"`
 	OidcKid                 string              `mapstructure:"oidcKid"`
+	OidcTokenFilePath       string              `mapstructure:"oidcTokenFilePath"`
 	internalOidcScopes      []string            `mapstructure:"-"`
 	TLSDisable              bool                `mapstructure:"disableTls"`
 	TLSSkipVerify           bool                `mapstructure:"skipVerify"`
@@ -284,6 +286,17 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC with private_key_jwt.")
+	case oidcWorkloadIdentityAuthType:
+		if m.OidcScopes != "" {
+			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
+		}
+		if m.OidcExtensions != "" {
+			err = json.Unmarshal([]byte(m.OidcExtensions), &m.internalOidcExtensions)
+			if err != nil || len(m.internalOidcExtensions) < 1 {
+				return nil, errors.New("kafka error: improper OIDC Extensions format for authType 'oidc_workload_identity'")
+			}
+		}
+		k.logger.Debug("Configuring SASL token authentication via OIDC with workload identity.")
 	case mtlsAuthType:
 		if m.TLSClientCert != "" {
 			if !isValidPEM(m.TLSClientCert) {

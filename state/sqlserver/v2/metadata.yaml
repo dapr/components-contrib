@@ -112,6 +112,6 @@ metadata:
       avoids SQL Server's 2100-parameter limit and reduces connection-pool pressure.
       Values <=0 default to 1000; values above 2000 are clamped to 2000.
     default: |
-      "1000"
+      1000
     example: |
-      "500", "2000"
+      500

@@ -366,23 +366,17 @@ func TestBulkGetChunking_ExactMultiple(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBulkGetChunking_ContextCanceledBetweenChunks(t *testing.T) {
+func TestBulkGetChunking_ContextAlreadyCanceled(t *testing.T) {
 	t.Parallel()
 
+	// Use chunkSize=2 so the request would split across multiple chunks.
+	// With ctx cancelled before BulkGet runs, the first iteration's
+	// ctx.Err() check fires and no SQL query is issued at all — every
+	// requested key is reported with the cancellation error.
 	s, mock, cleanup := newTestSQLServer(t, 2)
 	defer cleanup()
 
 	ctx, cancel := context.WithCancel(t.Context())
-
-	// First chunk succeeds; we then cancel before the second chunk runs.
-	chunk1 := sqlmock.NewRows(bulkCols).
-		AddRow("k1", `"v1"`, nil, false, []byte{0x01}, nil).
-		AddRow("k2", `"v2"`, nil, false, []byte{0x02}, nil)
-	mock.ExpectQuery("SELECT").WillReturnRows(chunk1)
-
-	// Cancel before invoking; the per-chunk ctx.Err() check converts the
-	// remaining keys (k3, k4) to per-key cancel errors instead of issuing
-	// a second SELECT.
 	cancel()
 
 	req := []state.GetRequest{{Key: "k1"}, {Key: "k2"}, {Key: "k3"}, {Key: "k4"}}
@@ -392,16 +386,18 @@ func TestBulkGetChunking_ContextCanceledBetweenChunks(t *testing.T) {
 	require.Len(t, res, 4)
 
 	byKey := indexByKey(res)
-	// k3, k4 should carry context-cancel errors.
-	for _, k := range []string{"k3", "k4"} {
-		assert.NotEmpty(t, byKey[k].Error, "key %s should be marked cancelled", k)
+	for _, k := range []string{"k1", "k2", "k3", "k4"} {
+		r := byKey[k]
+		assert.Equal(t, k, r.Key)
+		assert.Contains(t, r.Error, context.Canceled.Error(), "key %s should carry the cancellation error", k)
+		assert.Nil(t, r.Data)
+		assert.Nil(t, r.ETag)
 	}
 
-	// We do NOT call ExpectationsWereMet — the first chunk's QueryContext
-	// returns ctx.Err() once the context has already been cancelled before
-	// the call, so sqlmock may or may not record a Query depending on
-	// driver internals. The behavioral assertion (k3, k4 errored) is the
-	// invariant we care about.
+	// No ExpectQuery was registered, so a passing ExpectationsWereMet here
+	// proves no SQL was issued — the cancellation short-circuit fired
+	// before the first chunk.
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNormalizeBulkGetChunkSize(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
@@ -360,5 +361,121 @@ func Test_ConsumeClaim(t *testing.T) {
 				mockSession.AssertNotCalled(t, "MarkMessage", msg, "")
 			})
 		})
+	})
+
+	t.Run("bulk subscribe resets ticker after count-based flush", func(t *testing.T) {
+		// Regression test: the await ticker must be reset after a count-based
+		// flush so the next partial batch waits a fresh MaxAwaitDuration window.
+		// Without the reset, the ticker keeps firing on its original schedule
+		// and a partial batch can flush long before its own MaxAwaitDuration
+		// window has elapsed.
+		topic := "test-topic-bulk-ticker-reset"
+		const (
+			maxCount = 3
+			awaitMs  = 200
+		)
+
+		k := &Kafka{
+			logger:              logger.NewLogger("test"),
+			consumeRetryEnabled: false,
+			subscribeTopics:     make(map[string]SubscriptionHandlerConfig),
+		}
+		c := &consumer{
+			k:     k,
+			mutex: sync.Mutex{},
+		}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		mockSession := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		mockSession.On("MarkMessage", mock.Anything, "").Return()
+
+		mockClaim := &mockConsumerGroupClaim{
+			messages: make(chan *sarama.ConsumerMessage, maxCount+1),
+			topic:    topic,
+		}
+
+		var (
+			flushMu    sync.Mutex
+			flushTimes []time.Time
+			flushSizes []int
+		)
+
+		k.subscribeTopics[topic] = SubscriptionHandlerConfig{
+			IsBulkSubscribe: true,
+			SubscribeConfig: pubsub.BulkSubscribeConfig{
+				MaxMessagesCount:   maxCount,
+				MaxAwaitDurationMs: awaitMs,
+			},
+			BulkHandler: func(_ context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+				flushMu.Lock()
+				flushTimes = append(flushTimes, time.Now())
+				flushSizes = append(flushSizes, len(msg.Entries))
+				flushMu.Unlock()
+				return nil, nil
+			},
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_ = c.ConsumeClaim(mockSession, mockClaim)
+		}()
+
+		// Wait half of MaxAwaitDuration so the count-flush happens around the
+		// midpoint of the original ticker's period. The un-reset ticker would
+		// then fire ~awaitMs/2 after the count-flush; the reset ticker fires
+		// ~awaitMs after.
+		time.Sleep(time.Duration(awaitMs/2) * time.Millisecond)
+
+		for range maxCount {
+			mockClaim.messages <- &sarama.ConsumerMessage{
+				Topic: topic,
+				Value: []byte("count-msg"),
+			}
+		}
+
+		require.Eventually(t, func() bool {
+			flushMu.Lock()
+			defer flushMu.Unlock()
+			return len(flushTimes) >= 1
+		}, time.Second, 5*time.Millisecond, "count-based flush did not happen")
+
+		flushMu.Lock()
+		countFlushAt := flushTimes[0]
+		countFlushSize := flushSizes[0]
+		flushMu.Unlock()
+		require.Equal(t, maxCount, countFlushSize, "first flush should be the full count batch")
+
+		// Partial message arrives just after the count-flush. Its flush must
+		// wait a full MaxAwaitDuration window from the count-flush.
+		mockClaim.messages <- &sarama.ConsumerMessage{
+			Topic: topic,
+			Value: []byte("partial-msg"),
+		}
+
+		require.Eventually(t, func() bool {
+			flushMu.Lock()
+			defer flushMu.Unlock()
+			return len(flushTimes) >= 2
+		}, 2*time.Second, 5*time.Millisecond, "partial batch flush did not happen")
+
+		flushMu.Lock()
+		partialFlushAt := flushTimes[1]
+		partialFlushSize := flushSizes[1]
+		flushMu.Unlock()
+		require.Equal(t, 1, partialFlushSize, "second flush should be the partial batch")
+
+		gap := partialFlushAt.Sub(countFlushAt)
+		// With the fix, gap ≈ awaitMs. Without the fix, gap ≈ awaitMs/2 because
+		// the ticker continues on its original schedule. Use 0.8*awaitMs as the
+		// threshold to absorb scheduler jitter.
+		minGap := time.Duration(awaitMs*8/10) * time.Millisecond
+		require.GreaterOrEqual(t, gap, minGap,
+			"partial batch flushed %s after count-flush (want >= %s); ticker was not reset",
+			gap, minGap)
+
+		cancel()
+		<-done
 	})
 }

@@ -56,6 +56,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxMessagesCount {
 						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
 						messages = messages[:0]
+						ticker.Reset(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 					}
 				}
 				consumer.mutex.Unlock()

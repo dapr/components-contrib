@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,7 +95,20 @@ func seedUpstream(t *testing.T) string {
 	// falling into the no-refs path.
 	mustRun("", "git", "--git-dir", bare, "symbolic-ref", "HEAD", "refs/heads/main")
 
-	return "file://" + bare
+	return fileURL(bare)
+}
+
+// fileURL produces a portable file:// URL for an absolute local path.
+// On Unix the path already starts with `/`, so `file://` + path yields the
+// canonical three-slash form. On Windows the path starts with a drive
+// letter (e.g. `C:\foo`), so we normalise separators and prepend `/`
+// to produce the standard `file:///C:/foo` form.
+func fileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return "file://" + p
 }
 
 // writeComponentSpec writes the Dapr component spec for the configuration

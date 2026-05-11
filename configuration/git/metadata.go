@@ -311,12 +311,21 @@ func (m *metadata) validateAuthFields(mode string) error {
 
 // validateURL rejects insecure schemes (http://) for authenticated modes and
 // rejects URLs that embed credentials inline so operators are forced to use
-// the secret-reference mechanism. SCP-style SSH URLs (git@host:path) are
-// recognised explicitly because they don't parse cleanly via url.Parse.
+// the secret-reference mechanism. SCP-style SSH URLs (git@host:path) and
+// local file:// URLs are recognised explicitly: the former doesn't parse
+// cleanly via url.Parse, and the latter may legitimately contain Windows
+// drive letters (e.g. file:///C:/Users/...) that net/url interprets as
+// host:port and rejects.
 func (m *metadata) validateURL(resolvedAuth string) error {
 	if strings.HasPrefix(m.URL, "git@") {
-		// SCP-style: no scheme to validate, no userinfo to extract beyond the
-		// "git@" sentinel.
+		// SCP-style: no scheme to validate, no userinfo to extract beyond
+		// the "git@" sentinel.
+		return nil
+	}
+	if strings.HasPrefix(m.URL, "file://") {
+		// file:// URIs have no credential or scheme-downgrade concerns and
+		// may legitimately contain backslashes / drive letters on Windows
+		// that net/url cannot parse. Skip the URL-parser-based checks.
 		return nil
 	}
 	parsed, err := url.Parse(m.URL)

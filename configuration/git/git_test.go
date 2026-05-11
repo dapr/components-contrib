@@ -17,6 +17,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -85,7 +86,7 @@ func newUpstream(t *testing.T) *upstream {
 		dir:      root,
 		bareDir:  bareDir,
 		workDir:  workDir,
-		url:      "file://" + bareDir,
+		url:      fileURL(bareDir),
 		branch:   "main",
 		repo:     repo,
 		worktree: wt,
@@ -97,6 +98,19 @@ func newUpstream(t *testing.T) *upstream {
 	}
 	u.commit(map[string]string{}, "initial")
 	return u
+}
+
+// fileURL produces a portable file:// URL for an absolute local path.
+// On Unix the path already starts with `/`, so `file://` + path yields the
+// canonical three-slash form. On Windows the path starts with a drive
+// letter (e.g. `C:\foo`), so we normalise separators and prepend `/`
+// to produce the standard `file:///C:/foo` form.
+func fileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return "file://" + p
 }
 
 // commit writes the given files (relative paths under the workdir, value is

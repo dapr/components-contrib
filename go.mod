@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.26.1
+go 1.26.3
 
 require (
 	cloud.google.com/go/datastore v1.20.0

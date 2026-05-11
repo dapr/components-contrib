@@ -511,6 +511,10 @@ func (r *rabbitMQInMemoryBroker) Consume(queue string, consumer string, autoAck 
 	return r.buffer, nil
 }
 
+func (r *rabbitMQInMemoryBroker) Cancel(consumer string, noWait bool) error {
+	return nil
+}
+
 func (r *rabbitMQInMemoryBroker) Nack(tag uint64, multiple bool, requeue bool) error {
 	return nil
 }

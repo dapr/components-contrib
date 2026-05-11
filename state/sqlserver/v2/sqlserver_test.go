@@ -554,3 +554,16 @@ func TestSupportedFeatures(t *testing.T) {
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])
 }
+
+func TestFactoryAdvertisesDeleteWithPrefix(t *testing.T) {
+	s := New(logger.NewLogger("test")).(*SQLServer)
+	assert.True(t, state.FeatureDeleteWithPrefix.IsPresent(s.Features()))
+}
+
+func TestBulkGetEmpty(t *testing.T) {
+	// Empty input must short-circuit without building a SQL query.
+	s := &SQLServer{}
+	res, err := s.BulkGet(t.Context(), nil, state.BulkGetOpts{})
+	require.NoError(t, err)
+	assert.Empty(t, res)
+}

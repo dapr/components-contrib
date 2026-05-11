@@ -334,6 +334,7 @@ func (p *PostgreSQL) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureTTL,
 		state.FeatureKeysLike,
+		state.FeatureDeleteWithPrefix,
 	}
 }
 
@@ -574,6 +575,148 @@ WHERE
 	}
 
 	return res[:n], nil
+}
+
+// BulkSet performs a bulk upsert in a single Postgres round trip using
+// UNNEST-over-array parameters. Falls back to the default per-item goroutine
+// loop when any request uses ETag or first-write concurrency (neither can be
+// expressed as a multi-row upsert without per-row CAS shrapnel, so splitting
+// them out keeps the common workflow/actor path fast without losing
+// correctness on the rare concurrent writer).
+func (p *PostgreSQL) BulkSet(parentCtx context.Context, req []state.SetRequest, opts state.BulkStoreOpts) error {
+	if len(req) == 0 {
+		return nil
+	}
+	for _, r := range req {
+		if r.HasETag() || r.Options.Concurrency == state.FirstWrite {
+			return state.DoBulkSetDelete(parentCtx, req, p.Set, opts)
+		}
+	}
+
+	keys := make([]string, len(req))
+	values := make([][]byte, len(req))
+	// TTLs are passed as integer seconds and converted to an absolute
+	// expires_at using database-side now(), matching doSet's semantics
+	// (avoids drift between client and database clocks).
+	ttlSeconds := make([]int32, len(req))
+	for i, r := range req {
+		if r.Key == "" {
+			return errors.New("missing key in set operation")
+		}
+		// Mirror doSet's option validation so invalid consistency /
+		// concurrency values are rejected here too, rather than being
+		// silently accepted by the native multi-row path.
+		if err := state.CheckRequestOptions(r.Options); err != nil {
+			return err
+		}
+		keys[i] = r.Key
+
+		switch x := r.Value.(type) {
+		case []byte:
+			values[i] = x
+		default:
+			v, err := json.Marshal(x)
+			if err != nil {
+				return fmt.Errorf("failed to marshal to JSON: %w", err)
+			}
+			values[i] = v
+		}
+
+		ttl, err := stateutils.ParseTTL(r.Metadata)
+		if err != nil {
+			return fmt.Errorf("error parsing TTL: %w", err)
+		}
+		if ttl != nil && *ttl > 0 {
+			//nolint:gosec
+			ttlSeconds[i] = int32(*ttl)
+		}
+	}
+
+	query := `
+INSERT INTO ` + p.metadata.TableName(pgTableState) + ` (key, value, etag, expires_at)
+SELECT k, v, gen_random_uuid(),
+       CASE WHEN s > 0 THEN now() + make_interval(secs => s) ELSE NULL END
+FROM UNNEST($1::text[], $2::bytea[], $3::integer[]) AS t(k, v, s)
+ON CONFLICT (key)
+DO UPDATE SET
+  value = EXCLUDED.value,
+  updated_at = now(),
+  etag = gen_random_uuid(),
+  expires_at = EXCLUDED.expires_at`
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	_, err := p.db.Exec(ctx, query, keys, values, ttlSeconds)
+	if err != nil {
+		return fmt.Errorf("postgres bulk set: %w", err)
+	}
+	return nil
+}
+
+// BulkDelete performs a bulk delete in a single Postgres round trip using
+// `key = ANY($1)`. Falls back to the default path when any request supplies
+// an ETag so that per-row CAS failures still produce NewETagError.
+func (p *PostgreSQL) BulkDelete(parentCtx context.Context, req []state.DeleteRequest, opts state.BulkStoreOpts) error {
+	if len(req) == 0 {
+		return nil
+	}
+	for _, r := range req {
+		if r.HasETag() {
+			return state.DoBulkSetDelete(parentCtx, req, p.Delete, opts)
+		}
+	}
+
+	keys := make([]string, len(req))
+	for i, r := range req {
+		if r.Key == "" {
+			// Match doDelete's single-item behaviour so the bulk path
+			// doesn't silently accept empty keys.
+			return errors.New("missing key in delete operation")
+		}
+		keys[i] = r.Key
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	_, err := p.db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = ANY($1)", keys)
+	if err != nil {
+		return fmt.Errorf("postgres bulk delete: %w", err)
+	}
+	return nil
+}
+
+// escapeSQLStdLikePattern escapes the SQL-standard LIKE metacharacters (%
+// and _) and the escape character itself so a prefix can be used literally
+// in a LIKE expression. PostgreSQL defaults to '\' as the LIKE escape
+// character, so parameter binding delivers the pattern verbatim and LIKE
+// interprets `\%` / `\_` / `\\` as literals.
+func escapeSQLStdLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+// DeleteWithPrefix removes every row whose key begins with the given prefix
+// in a single server-side DELETE. The prefix is treated as a literal
+// string: LIKE metacharacters (%, _) in the caller-supplied prefix are
+// escaped so a prefix containing them cannot widen the delete set.
+func (p *PostgreSQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	prefixLike := escapeSQLStdLikePattern(req.Prefix) + "%"
+	res, err := p.db.Exec(ctx,
+		"DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key LIKE $1",
+		prefixLike,
+	)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("postgres delete with prefix: %w", err)
+	}
+	return state.DeleteWithPrefixResponse{Count: res.RowsAffected()}, nil
 }
 
 // Delete removes an item from the state store.

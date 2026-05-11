@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -70,6 +71,7 @@ func New(logger logger.Logger) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureDeleteWithPrefix,
 		},
 		logger:          logger,
 		migratorFactory: newMigration,
@@ -305,6 +307,163 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		ETag:     ptr.Of(etag),
 		Metadata: metadata,
 	}, nil
+}
+
+// sqlServerMaxParams caps IN-clause parameter counts. SQL Server allows up to
+// 2100 parameters per query; leave headroom for other bound params the driver
+// might add.
+const sqlServerMaxParams = 2000
+
+// BulkGet retrieves multiple keys in one SQL Server round trip per chunk by
+// building a dynamic IN clause. Chunks are issued serially to respect the
+// parameter-count cap; within a chunk a single SELECT returns all matched
+// rows. Duplicate keys in the input are supported — every occurrence
+// receives the same data, mirroring the default BulkStore fan-out.
+func (s *SQLServer) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// rowByKey caches the row we fetched per distinct key so that multiple
+	// request entries for the same key each get populated. We only read
+	// distinct keys over the wire.
+	type row struct {
+		data       []byte
+		etag       string
+		expireTime time.Time
+		hasExpire  bool
+		found      bool
+	}
+	rowByKey := make(map[string]row, len(req))
+	distinctKeys := make([]string, 0, len(req))
+	for _, r := range req {
+		if _, seen := rowByKey[r.Key]; seen {
+			continue
+		}
+		rowByKey[r.Key] = row{}
+		distinctKeys = append(distinctKeys, r.Key)
+	}
+
+	for start := 0; start < len(distinctKeys); start += sqlServerMaxParams {
+		end := start + sqlServerMaxParams
+		if end > len(distinctKeys) {
+			end = len(distinctKeys)
+		}
+		placeholders := make([]string, 0, end-start)
+		args := make([]any, 0, end-start)
+		for i := start; i < end; i++ {
+			name := fmt.Sprintf("k%d", i)
+			placeholders = append(placeholders, "@"+name)
+			args = append(args, sql.Named(name, distinctKeys[i]))
+		}
+		// Key included in the projection so we can map rows back to the
+		// request's positional index without relying on driver ordering.
+		// Schema/table names cannot be passed as parameters; they come
+		// from the migration layer, not user input.
+		//nolint:gosec
+		query := fmt.Sprintf(
+			"SELECT [Key], [Data], [BinaryData], [isBinary], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] IN (%s) AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())",
+			s.metadata.SchemaName, s.metadata.TableName, strings.Join(placeholders, ","),
+		)
+		rows, err := s.db.QueryContext(parentCtx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("sqlserver bulk get: %w", err)
+		}
+		for rows.Next() {
+			var (
+				key        string
+				data       sql.NullString
+				binaryData []byte
+				isBinary   bool
+				rowVersion []byte
+				expireDate sql.NullTime
+			)
+			if err := rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			var value []byte
+			if isBinary {
+				value = binaryData
+			} else if data.Valid {
+				value = []byte(data.String)
+			}
+			rowByKey[key] = row{
+				data:       value,
+				etag:       hex.EncodeToString(rowVersion),
+				expireTime: expireDate.Time,
+				hasExpire:  expireDate.Valid,
+				found:      true,
+			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+
+	// Build the response in the original request order so duplicate keys
+	// each get their own populated entry.
+	res := make([]state.BulkGetResponse, len(req))
+	for i, r := range req {
+		res[i].Key = r.Key
+		rec := rowByKey[r.Key]
+		if !rec.found {
+			continue
+		}
+		res[i].Data = rec.data
+		res[i].ETag = ptr.Of(rec.etag)
+		if rec.hasExpire {
+			res[i].Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: rec.expireTime.UTC().Format(time.RFC3339),
+			}
+		}
+	}
+	return res, nil
+}
+
+// DeleteWithPrefix removes direct-children keys of the given prefix in one
+// server-side query. Matches in-memory "no-nested-||" semantics.
+// escapeSQLServerLikePattern escapes the LIKE metacharacters SQL Server
+// recognises (%, _, [, ]) plus the chosen escape character itself, so a
+// prefix can be used literally in a LIKE ... ESCAPE '\' expression. The
+// escape-char replacement must come first so it does not re-process the
+// backslashes we introduce for the other characters.
+func escapeSQLServerLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	s = strings.ReplaceAll(s, `[`, `\[`)
+	s = strings.ReplaceAll(s, `]`, `\]`)
+	return s
+}
+
+// DeleteWithPrefix removes every row whose [Key] begins with the given
+// prefix in a single server-side DELETE. The prefix is treated literally:
+// LIKE metacharacters (%, _, [, ]) are escaped so a prefix containing
+// those characters cannot widen the delete set.
+func (s *SQLServer) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	prefixLike := escapeSQLServerLikePattern(req.Prefix) + "%"
+	// Schema/table names cannot be passed as parameters; they come from
+	// the migration layer, not user input.
+	//nolint:gosec
+	query := fmt.Sprintf(
+		`DELETE FROM [%s].[%s] WHERE [Key] LIKE @PrefixLike ESCAPE '\'`,
+		s.metadata.SchemaName, s.metadata.TableName,
+	)
+	res, err := s.db.ExecContext(parentCtx, query, sql.Named("PrefixLike", prefixLike))
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlserver delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 // Set adds/updates an entity on store.

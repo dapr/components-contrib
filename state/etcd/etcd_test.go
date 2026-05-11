@@ -54,3 +54,18 @@ func TestGetEtcdMetadata(t *testing.T) {
 		assert.Equal(t, properties["tlsEnable"], metadata.TLSEnable)
 	})
 }
+
+func TestBulkGetEmpty(t *testing.T) {
+	// Empty input must short-circuit without touching the etcd client.
+	e := &Etcd{}
+	res, err := e.BulkGet(t.Context(), nil, state.BulkGetOpts{})
+	require.NoError(t, err)
+	assert.Empty(t, res)
+}
+
+func TestFeatures(t *testing.T) {
+	s := newETCD(nil, schemaV2{}).(*Etcd)
+	assert.True(t, state.FeatureDeleteWithPrefix.IsPresent(s.Features()),
+		"etcd must advertise FeatureDeleteWithPrefix for workflow purge fast path")
+	assert.True(t, state.FeatureTransactional.IsPresent(s.Features()))
+}

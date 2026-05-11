@@ -78,6 +78,7 @@ func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 			state.FeatureTransactional,
 			state.FeatureTTL,
 			state.FeatureKeysLike,
+			state.FeatureDeleteWithPrefix,
 		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
@@ -174,6 +175,74 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 		ETag:     ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
 		Metadata: metadata,
 	}, nil
+}
+
+// BulkGet retrieves multiple keys in a single etcd RPC by batching N OpGet
+// operations into one Txn. Respects the configured maxTxnOps by chunking the
+// request list; chunks are issued serially (etcd guarantees no cross- chunk
+// atomicity is needed here. Reads are not mutations).
+func (e *Etcd) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	res := make([]state.BulkGetResponse, len(req))
+	chunkSize := e.maxTxnOps
+	if chunkSize <= 0 {
+		chunkSize = len(req)
+	}
+
+	for start := 0; start < len(req); start += chunkSize {
+		end := start + chunkSize
+		if end > len(req) {
+			end = len(req)
+		}
+		ops := make([]clientv3.Op, end-start)
+		for i := start; i < end; i++ {
+			ops[i-start] = clientv3.OpGet(e.keyPrefixPath + "/" + req[i].Key)
+		}
+		// Fresh per-chunk timeout so a large request doesn't exhaust a
+		// shared 5s budget across many chunks mid-loop.
+		chunkCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+		resp, err := e.client.Txn(chunkCtx).Then(ops...).Commit()
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("etcd bulk get: %w", err)
+		}
+		for i, r := range resp.Responses {
+			idx := start + i
+			res[idx].Key = req[idx].Key
+			getResp := r.GetResponseRange()
+			if getResp == nil || len(getResp.Kvs) == 0 {
+				continue
+			}
+			kv := getResp.Kvs[0]
+			data, meta, derr := e.schema.decode(kv.Value)
+			if derr != nil {
+				res[idx].Error = derr.Error()
+				continue
+			}
+			res[idx].Data = data
+			res[idx].ETag = ptr.Of(strconv.FormatInt(kv.ModRevision, 10))
+			res[idx].Metadata = meta
+		}
+	}
+	return res, nil
+}
+
+// DeleteWithPrefix removes every key beginning with the given prefix in a
+// single server-side range-delete RPC.
+func (e *Etcd) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	defer cancel()
+	resp, err := e.client.Delete(ctx, e.keyPrefixPath+"/"+req.Prefix, clientv3.WithPrefix())
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("etcd delete with prefix: %w", err)
+	}
+	return state.DeleteWithPrefixResponse{Count: resp.Deleted}, nil
 }
 
 // Set saves a Etcd KV item.

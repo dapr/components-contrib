@@ -45,6 +45,7 @@ type DBAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
+	DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error)
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
 	KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error)
@@ -419,6 +420,45 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 
 func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return a.doDelete(ctx, a.db, req)
+}
+
+// escapeSQLiteLikePattern escapes LIKE metacharacters (% and _) and the
+// chosen escape character itself so a prefix can be used literally in a
+// LIKE ... ESCAPE '\' expression. SQLite has no default LIKE escape
+// character, so the ESCAPE clause is required; parameter binding delivers
+// the pattern verbatim and LIKE then interprets `\%` / `\_` / `\\` as
+// literals.
+func escapeSQLiteLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+// DeleteWithPrefix removes every row whose key begins with the given
+// prefix in a single server-side DELETE. The prefix is treated literally:
+// LIKE metacharacters in the caller-supplied prefix are escaped so a
+// prefix containing `%` or `_` cannot widen the delete set.
+func (a *sqliteDBAccess) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
+	defer cancel()
+	prefixLike := escapeSQLiteLikePattern(req.Prefix) + "%"
+	// Concatenation is required for table name because sql.DB does not
+	// substitute parameters for table names.
+	//nolint:gosec
+	stmt := `DELETE FROM ` + a.metadata.TableName + ` WHERE key LIKE ? ESCAPE '\'`
+	res, err := a.db.ExecContext(ctx, stmt, prefixLike)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("sqlite delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {

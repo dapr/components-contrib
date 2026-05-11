@@ -310,13 +310,31 @@ func TestPingRunsDBAccessPing(t *testing.T) {
 	assert.True(t, fake.pingExecuted)
 }
 
+func TestDeleteWithPrefixRoutesToDBAccess(t *testing.T) {
+	t.Parallel()
+	odb, fake := createSqliteWithFake(t)
+	res, err := odb.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "app||type||id||"})
+	require.NoError(t, err)
+	assert.True(t, fake.deleteWithPrefixExecuted)
+	assert.Equal(t, "app||type||id||", fake.deleteWithPrefixLastPrefix)
+	assert.Equal(t, int64(7), res.Count)
+}
+
+func TestFeaturesAdvertiseDeleteWithPrefix(t *testing.T) {
+	t.Parallel()
+	odb := createSqlite(t)
+	assert.True(t, state.FeatureDeleteWithPrefix.IsPresent(odb.Features()))
+}
+
 // Fake implementation of interface dbaccess.
 type fakeDBaccess struct {
-	logger       logger.Logger
-	pingExecuted bool
-	initExecuted bool
-	setExecuted  bool
-	getExecuted  bool
+	logger                     logger.Logger
+	pingExecuted               bool
+	initExecuted               bool
+	setExecuted                bool
+	getExecuted                bool
+	deleteWithPrefixExecuted   bool
+	deleteWithPrefixLastPrefix string
 }
 
 func (m *fakeDBaccess) Ping(ctx context.Context) error {
@@ -348,6 +366,12 @@ func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest
 
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
+}
+
+func (m *fakeDBaccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	m.deleteWithPrefixExecuted = true
+	m.deleteWithPrefixLastPrefix = req.Prefix
+	return state.DeleteWithPrefixResponse{Count: 7}, nil
 }
 
 func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error {

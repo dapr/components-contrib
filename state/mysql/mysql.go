@@ -232,7 +232,47 @@ func (m *MySQL) Features() []state.Feature {
 		state.FeatureTransactional,
 		state.FeatureTTL,
 		state.FeatureKeysLike,
+		state.FeatureDeleteWithPrefix,
 	}
+}
+
+// escapeSQLStdLikePattern escapes the SQL-standard LIKE metacharacters (%
+// and _) and the escape character itself so a prefix can be used literally
+// in a LIKE expression. MySQL, PostgreSQL, and SQLite all default to '\'
+// as the LIKE escape character, so an explicit ESCAPE clause is not
+// needed — parameter binding delivers the pattern verbatim, LIKE then
+// interprets `\%` and `\_` as literals.
+func escapeSQLStdLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+// DeleteWithPrefix removes every row whose id begins with the given prefix
+// in a single server-side DELETE. The prefix is treated literally: LIKE
+// metacharacters (%, _) are escaped so a prefix containing them cannot
+// widen the delete set.
+func (m *MySQL) DeleteWithPrefix(parentCtx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	if err := req.Validate(); err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	defer cancel()
+	prefixLike := escapeSQLStdLikePattern(req.Prefix) + "%"
+	res, err := m.db.ExecContext(ctx,
+		//nolint:gosec
+		"DELETE FROM `"+m.tableName+"` WHERE `id` LIKE ?",
+		prefixLike,
+	)
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, fmt.Errorf("mysql delete with prefix: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+	return state.DeleteWithPrefixResponse{Count: n}, nil
 }
 
 // Ping the database.

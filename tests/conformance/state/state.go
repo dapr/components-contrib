@@ -1570,15 +1570,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		require.False(t, t.Failed(), "Cannot continue if previous test failed")
 
 		t.Run("delete with prefix", func(t *testing.T) {
+			// Server-side prefix delete: every key starting with the
+			// supplied prefix is removed, including nested-looking keys
+			// like "prefix||prefix2||key3". Siblings whose keys merely
+			// contain the prefix as a substring (e.g. "other-prefix||…")
+			// are not affected.
 			res, err := statestoreDeleteWithPrefix.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
-				// Does not delete "prefix||prefix2||key3"
 				Prefix: "prefix||",
 			})
 			require.NoError(t, err)
-			assert.Equal(t, int64(2), res.Count)
+			assert.Equal(t, int64(3), res.Count)
 
 			keys["prefix||key1"] = false
 			keys["prefix||key2"] = false
+			keys["prefix||prefix2||key3"] = false
 
 			t.Run("validate keys present", validateFn())
 		})

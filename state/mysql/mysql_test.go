@@ -280,6 +280,69 @@ func TestSetHandlesErr(t *testing.T) {
 }
 
 // Verifies that MySQL passes through to myDBAccess.
+func TestDeleteWithPrefix(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	// One server-side DELETE with a single LIKE parameter. LIKE's default
+	// escape character `\` lets us treat the caller-supplied prefix
+	// literally.
+	m.mock1.ExpectExec(
+		"DELETE FROM `state` WHERE `id` LIKE \\?",
+	).WithArgs("app||type||id||%").
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	res, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{
+		Prefix: "app||type||id||",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), res.Count)
+	require.NoError(t, m.mock1.ExpectationsWereMet())
+}
+
+func TestDeleteWithPrefixAppendsSeparator(t *testing.T) {
+	// Prefix without trailing || should be normalised by Validate().
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	m.mock1.ExpectExec("DELETE FROM `state`").
+		WithArgs("foo||%").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "foo"})
+	require.NoError(t, err)
+}
+
+func TestDeleteWithPrefixEscapesLikeMetacharacters(t *testing.T) {
+	// A prefix containing LIKE metacharacters must be escaped so it can
+	// only match literal occurrences, not wildcard-expand.
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	m.mock1.ExpectExec("DELETE FROM `state`").
+		WithArgs(`a\%b\_c||%`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: "a%b_c||"})
+	require.NoError(t, err)
+	require.NoError(t, m.mock1.ExpectationsWereMet())
+}
+
+func TestDeleteWithPrefixRejectsEmpty(t *testing.T) {
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	_, err := m.mySQL.DeleteWithPrefix(t.Context(), state.DeleteWithPrefixRequest{Prefix: ""})
+	require.Error(t, err)
+}
+
+func TestFeaturesIncludeDeleteWithPrefix(t *testing.T) {
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+	assert.True(t, state.FeatureDeleteWithPrefix.IsPresent(m.mySQL.Features()))
+}
+
 func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)

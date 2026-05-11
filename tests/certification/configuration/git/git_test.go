@@ -89,6 +89,10 @@ func seedUpstream(t *testing.T) string {
 	mustRun(seed, "git", "commit", "--allow-empty", "-m", "initial")
 	mustRun(seed, "git", "branch", "-M", "main")
 	mustRun(seed, "git", "push", "origin", "main")
+	// Point the bare repo's HEAD at refs/heads/main so go-git's PlainClone
+	// in the updater can resolve a meaningful default branch instead of
+	// falling into the no-refs path.
+	mustRun("", "git", "--git-dir", bare, "symbolic-ref", "HEAD", "refs/heads/main")
 
 	return "file://" + bare
 }

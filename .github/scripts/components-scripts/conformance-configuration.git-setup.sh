@@ -20,4 +20,11 @@ git -C "$SEED" commit --allow-empty -m "initial"
 git -C "$SEED" branch -M main
 git -C "$SEED" push origin main
 
+# Point the bare repo's HEAD at refs/heads/main. Without this, HEAD remains
+# the default `refs/heads/master` (which doesn't exist), and go-git's
+# PlainClone treats the upstream as effectively empty — the consumer then
+# falls into a fresh-init path, producing a non-shared-history clone that
+# can't fast-forward push back.
+git --git-dir "$ROOT/upstream.git" symbolic-ref HEAD refs/heads/main
+
 echo "GIT_UPSTREAM_URL=file://$ROOT/upstream.git" >> "$GITHUB_ENV"

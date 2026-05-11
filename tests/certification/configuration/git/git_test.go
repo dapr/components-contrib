@@ -334,7 +334,7 @@ func TestGit(t *testing.T) {
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
-			embedded.WithComponentsPath(componentsPath),
+			embedded.WithResourcesPath(componentsPath),
 			embedded.WithConfigurations(configurationRegistry),
 		)).
 		Step("test get", testGet).

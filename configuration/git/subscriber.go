@@ -35,12 +35,6 @@ type subscription struct {
 	cancel        context.CancelFunc
 }
 
-// emptyMetadata is a shared read-only sentinel used internally by
-// cloneMetadata's nil/empty branch. It is never returned to callers; values
-// surfaced via Get or Subscribe always get freshly allocated metadata maps
-// so callers can mutate the returned items without corrupting the snapshot.
-var emptyMetadata = map[string]string{}
-
 // cloneItem returns a deep copy of in — fresh Value, Version, and Metadata
 // map. The Metadata is allocated even when the source is empty so callers
 // can mutate it safely.

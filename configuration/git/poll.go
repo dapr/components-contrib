@@ -179,13 +179,11 @@ func diffSnapshots(prev, next map[string]*configuration.Item, keys []string, ver
 	return out
 }
 
-// cloneMetadata returns a defensive copy of the input. For empty input it
-// returns the shared `emptyMetadata` sentinel — callers must not mutate the
-// returned map.
+// cloneMetadata returns a freshly-allocated copy of the input metadata.
+// Every emitted Item gets its own metadata map so handlers can safely
+// mutate the map they receive without corrupting other events or the
+// store's internal state.
 func cloneMetadata(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return emptyMetadata
-	}
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[k] = v

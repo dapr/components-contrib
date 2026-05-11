@@ -43,6 +43,23 @@ func TestConfigurationConformance(t *testing.T) {
 
 	tc.TestFn = func(comp *TestComponent) func(t *testing.T) {
 		return func(t *testing.T) {
+			// NOTE: tc.Run(t) was lost in commit 1208b3e3 ("Conformance
+			// test: move loader to each component type's folder"), so the
+			// configuration conformance suite has been a silent no-op
+			// since then — no component has actually exercised these
+			// tests in CI. Restoring tc.Run(t) (below) surfaces years of
+			// latent failures in redis/postgres/kubernetes that are out
+			// of scope for the configuration.git PR.
+			//
+			// To keep the matrix listing accurate while not blocking on
+			// pre-existing breakage, skip non-git components explicitly so
+			// CI output reflects what is and isn't being exercised. A
+			// dedicated framework-repair pass should remove these skips.
+			if comp.Component != "git.local" {
+				t.Skipf("configuration conformance for %s is not currently exercised: this suite has been a no-op since commit 1208b3e3; the tc.Run(t) restoration in this PR is scoped to git.local only", comp.Component)
+				return
+			}
+
 			ParseConfigurationMap(t, comp.Config)
 
 			componentConfigPath := convertComponentNameToPath(comp.Component, comp.Profile)
@@ -58,24 +75,7 @@ func TestConfigurationConformance(t *testing.T) {
 		}
 	}
 
-	// NOTE: tc.Run(t) was removed in commit 1208b3e3 ("Conformance test: move
-	// loader to each component type's folder"), which means the configuration
-	// conformance suite has been a silent no-op since 2023 — no component has
-	// actually exercised these tests in CI. Restoring tc.Run(t) here surfaces
-	// years of latent breakage in redis/postgres/kubernetes that is out of
-	// scope for the git configuration store PR.
-	//
-	// Instead, dispatch ONLY the git.local component so the new code is
-	// exercised end-to-end without unblocking unrelated test failures. The
-	// existing component cases stay in their long-standing not-running state
-	// until someone takes on a dedicated framework-repair pass.
-	for i := range tc.Components {
-		comp := &tc.Components[i]
-		if comp.Component != "git.local" {
-			continue
-		}
-		t.Run(comp.Component, tc.TestFn(comp))
-	}
+	tc.Run(t)
 }
 
 func loadConfigurationStore(name string) (configuration.Store, configupdater.Updater) {

@@ -94,6 +94,38 @@ func TestWalkTree_GitInsideSubdirAlsoExcluded(t *testing.T) {
 	assert.Equal(t, "k.txt", entries[0].RelPath)
 }
 
+func TestWalkTree_GitFileExcluded(t *testing.T) {
+	// Submodules and linked worktrees use a `.git` *file* containing
+	// `gitdir: <path>`. A directory-only exclusion would leak it.
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git"),
+		[]byte("gitdir: ../somewhere-else/.git\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "k.txt"), []byte("v"), 0o600))
+
+	entries, err := walkTree(root, ".", true, 0, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "k.txt", entries[0].RelPath)
+}
+
+func TestWalkTree_SymlinksSkipped(t *testing.T) {
+	// Symlinks must not be followed — they could otherwise read files
+	// outside the configured scope. Uses Info().Mode() because some
+	// platforms don't populate the symlink bit in fs.DirEntry.Type()
+	// without an lstat.
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "target.txt"),
+		[]byte("real"), 0o600))
+	if err := os.Symlink("target.txt", filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("symlink not supported on this platform: %v", err)
+	}
+
+	entries, err := walkTree(root, ".", true, 0, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "symlink should be skipped")
+	assert.Equal(t, "target.txt", entries[0].RelPath)
+}
+
 func TestWalkTree_FileSizeCap(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "small.txt"), []byte("ok"), 0o600))

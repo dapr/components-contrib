@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	common "github.com/dapr/components-contrib/common/component/rabbitmq"
@@ -91,6 +93,7 @@ type rabbitMQChannelBroker interface {
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
 	Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
+	Cancel(consumer string, noWait bool) error
 	Nack(tag uint64, multiple bool, requeue bool) error
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
@@ -528,9 +531,19 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				break
 			}
 
+			// Generate a unique consumer tag to avoid "attempt to reuse consumer tag"
+			// errors when re-subscribing, which would cause a connection-level exception
+			// and disrupt all other subscriptions sharing this channel.
+			// AMQP 0-9-1 limits consumer tags to 255 bytes. Truncate from the
+			// left so the UUID suffix (which guarantees uniqueness) is preserved.
+			consumerTag := queueName + "-" + uuid.NewString()
+			const maxConsumerTagLen = 255
+			if len(consumerTag) > maxConsumerTagLen {
+				consumerTag = consumerTag[len(consumerTag)-maxConsumerTagLen:]
+			}
 			msgs, err = channel.Consume(
 				q.Name,
-				queueName,          // consumerID
+				consumerTag,        // unique consumerID per subscription attempt
 				r.metadata.AutoAck, // autoAck
 				false,              // exclusive
 				false,              // noLocal
@@ -542,6 +555,8 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				break
 			}
 
+			r.logger.Debugf("%s registered consumer %s for queue %s", logMessagePrefix, consumerTag, q.Name)
+
 			// one-time notification on successful subscribe
 			if ackCh != nil {
 				ackCh <- false
@@ -549,18 +564,26 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			}
 
 			err = r.listenMessages(ctx, channel, msgs, req.Topic, handler)
+			// Always cancel the consumer server-side so RabbitMQ can
+			// release the registration. noWait=true avoids blocking if
+			// the channel is already closing.
+			if cancelErr := channel.Cancel(consumerTag, true); cancelErr != nil {
+				r.logger.Debugf("%s failed to cancel consumer %s: %v", logMessagePrefix, consumerTag, cancelErr)
+			}
 			if err != nil {
 				errFuncName = "listenMessages"
 				break
 			}
 		}
 
-		if strings.Contains(err.Error(), errorInvalidQueueType) {
-			ackCh <- true
+		if err != nil && strings.Contains(err.Error(), errorInvalidQueueType) {
+			if ackCh != nil {
+				ackCh <- true
+			}
 			return
 		}
 
-		if err == context.Canceled || err == context.DeadlineExceeded {
+		if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			// Subscription context was canceled
 			r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
 			return

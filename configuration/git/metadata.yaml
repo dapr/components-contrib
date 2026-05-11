@@ -1,0 +1,264 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: git
+version: v1
+status: alpha
+title: "Git"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/git-configuration-store/
+capabilities: []
+authenticationProfiles:
+  - title: "None"
+    description: "Public HTTPS or local file:// repository, no auth."
+    metadata: []
+  - title: "Personal Access Token"
+    description: "HTTPS basic auth using a username and a token (PAT)."
+    metadata:
+      - name: token
+        required: true
+        sensitive: true
+        description: |
+          The personal access token used to authenticate. For GitHub, use a
+          fine-grained PAT with repository read access. The token is sent as
+          the password in HTTP basic auth.
+        example: "ghp_xxxxxxxxxxxxxxxxxxxx"
+        type: string
+      - name: username
+        required: false
+        description: |
+          The username sent with the PAT. Defaults to "x-access-token", which
+          is recommended by GitHub when using a PAT. Other providers may
+          require a real username.
+        example: "x-access-token"
+        default: "x-access-token"
+        type: string
+  - title: "SSH"
+    description: "Authenticate over SSH with a private key."
+    metadata:
+      - name: sshUser
+        required: false
+        description: |
+          SSH user used when connecting. Defaults to "git", which matches the
+          common GitHub/GitLab convention.
+        example: "git"
+        default: "git"
+        type: string
+      - name: sshPrivateKey
+        required: false
+        sensitive: true
+        description: |
+          PEM-encoded SSH private key. Either sshPrivateKey or
+          sshPrivateKeyPath must be set.
+        example: "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+        type: string
+      - name: sshPrivateKeyPath
+        required: false
+        description: |
+          Path to a PEM-encoded SSH private key on disk. Either sshPrivateKey
+          or sshPrivateKeyPath must be set.
+        example: "/var/run/secrets/git-ssh-key"
+        type: string
+      - name: sshPassphrase
+        required: false
+        sensitive: true
+        description: "Passphrase for the SSH private key, if encrypted."
+        example: ""
+        type: string
+      - name: sshKnownHosts
+        required: false
+        description: |
+          Inline OpenSSH known_hosts entries used to verify the remote host
+          key. Either sshKnownHosts or sshKnownHostsPath must be set unless
+          sshInsecureIgnoreHostKey is true.
+        example: "github.com ssh-rsa AAAA..."
+        type: string
+      - name: sshKnownHostsPath
+        required: false
+        description: "Path to an OpenSSH known_hosts file on disk."
+        example: "/etc/ssh/ssh_known_hosts"
+        type: string
+      - name: sshInsecureIgnoreHostKey
+        required: false
+        description: |
+          Disable SSH host key verification. DANGEROUS — only use for local
+          development or testing. When enabled, the component logs a warning
+          at startup. Never enable in production; a MITM attacker can
+          intercept configuration values.
+        example: "false"
+        default: "false"
+        type: bool
+  - title: "GitHub App"
+    description: "Authenticate via a GitHub App installation. The component mints a JWT, exchanges it for an installation token, and refreshes the token before expiry."
+    metadata:
+      - name: githubAppId
+        required: true
+        description: "Numeric GitHub App ID."
+        example: "123456"
+        type: number
+      - name: githubAppInstallationId
+        required: true
+        description: "Numeric GitHub App installation ID for the target organisation/repository."
+        example: "78901234"
+        type: number
+      - name: githubAppPrivateKey
+        required: false
+        sensitive: true
+        description: |
+          PEM-encoded RSA private key for the GitHub App. Either
+          githubAppPrivateKey or githubAppPrivateKeyPath must be set.
+        example: "-----BEGIN RSA PRIVATE KEY-----\n..."
+        type: string
+      - name: githubAppPrivateKeyPath
+        required: false
+        description: "Path to a PEM-encoded RSA private key on disk."
+        example: "/var/run/secrets/github-app-key.pem"
+        type: string
+      - name: githubAppApiBase
+        required: false
+        description: |
+          Base URL of the GitHub API. Override for GitHub Enterprise Server.
+        example: "https://api.github.com"
+        default: "https://api.github.com"
+        type: string
+      - name: githubAppRefreshSkew
+        required: false
+        description: |
+          Refresh the installation token when it has less than this much time
+          left before expiry.
+        example: "5m"
+        default: "5m"
+        type: duration
+metadata:
+  - name: url
+    required: true
+    description: |
+      Git URL of the upstream repository. Supports https://, ssh://, git@,
+      and file:// schemes. URLs with the git@ or ssh:// prefix auto-select
+      the SSH auth profile when authMode is empty. http:// is rejected when
+      any authenticated mode is in use to prevent cleartext credential
+      transmission. Embedding credentials in the URL (e.g. https://user:token@host)
+      is rejected; use the appropriate auth profile with a Dapr secret reference.
+    example: "https://github.com/example/agent-config.git"
+    type: string
+  - name: branch
+    required: false
+    description: "Branch to track."
+    example: "main"
+    default: "main"
+    type: string
+  - name: path
+    required: false
+    description: |
+      Subdirectory inside the repository to scope. Must be repo-relative
+      (no leading "/" and no ".." components).
+    example: "agents/weather"
+    default: "."
+    type: string
+  - name: depth
+    required: false
+    description: |
+      Clone depth. 0 (default) performs a full clone. Note that go-git's
+      shallow incremental fetch has known limitations; use full clones for
+      anything but trivial config repos.
+    example: "0"
+    default: "0"
+    type: number
+  - name: pollInterval
+    required: false
+    description: |
+      How often to poll the upstream for changes. Hard floor is 1s for
+      remote URLs; file:// URLs may go down to 100ms. Intervals below 5s
+      log a warning that polling may overwhelm the git remote. Default 30s
+      gives a comfortable balance against provider rate limits — at 30s a
+      single instance issues 120 requests/h, well below GitHub's 5000/h
+      PAT and 15000/h GitHub App limits. Multi-replica deployments
+      multiply that rate (effective_rate = 3600/pollInterval × replicas).
+    example: "30s"
+    default: "30s"
+    type: duration
+  - name: fetchTimeout
+    required: false
+    description: "Per-fetch timeout applied to ls-remote and fetch operations."
+    example: "30s"
+    default: "30s"
+    type: duration
+  - name: includeHidden
+    required: false
+    description: |
+      When false (default), files whose name begins with "." are skipped
+      during the worktree walk. The ".git" directory is always excluded
+      regardless of this flag (it would otherwise expose remote URLs and
+      possibly embedded credentials as configuration items).
+    example: "false"
+    default: "false"
+    type: bool
+  - name: maxFileSize
+    required: false
+    description: |
+      Maximum per-file size in bytes that the walker will read into memory.
+      Files larger than this are skipped with a warning. Protects the
+      sidecar from OOM if a large blob is accidentally committed to the
+      configuration repo. Default is 1 MiB (1048576 bytes).
+    example: "1048576"
+    default: "1048576"
+    type: number
+  - name: snapshotCacheSize
+    required: false
+    description: |
+      Number of past snapshots to retain in the LRU cache used as diff
+      bases when computing per-subscriber update events. Higher values
+      reduce over-emit churn when many subscribers are at slightly
+      different deliveredHEAD values. Default 4.
+    example: "4"
+    default: "4"
+    type: number
+  - name: emitInitialState
+    required: false
+    description: |
+      When true (default), Subscribe synchronously delivers the current
+      snapshot to the handler before returning so callers don't need a
+      separate Get + Subscribe pair. Set to false in tests or when the
+      caller already has fresh state.
+    example: "true"
+    default: "true"
+    type: bool
+  - name: mappingMode
+    required: false
+    description: |
+      Strategy for mapping files in the repository to configuration items.
+      Matching is case-insensitive.
+
+      - file (default): each file is one config item. Key = relative POSIX
+        path, value = file contents as string.
+      - agentYaml: each *.yaml/*.yml/*.json file is parsed as a flat
+        top-level map. Each top-level field becomes a key prefixed by the
+        filename stem with directory separators replaced by `_`, e.g.
+        "agents/weather.yaml" field "agent_role" → "agents_weather/agent_role".
+        Non-YAML/JSON files are silently skipped.
+      - prompty: each *.prompty file's YAML frontmatter and body are split.
+        Frontmatter fields produce "<stem>/<field>" keys (same stem rules as
+        agentYaml); the body is emitted as "<stem>/agent_system_prompt".
+        Non-.prompty files are silently skipped.
+    example: "file"
+    default: "file"
+    type: string
+    allowedValues:
+      - "file"
+      - "agentYaml"
+      - "prompty"
+  - name: authMode
+    required: false
+    description: |
+      Auth profile to use. Matching is case-insensitive. When empty, the
+      component auto-detects: SSH-scheme URLs (git@ or ssh://) → ssh;
+      githubAppId set → githubApp; token set → pat; otherwise none.
+    example: "pat"
+    type: string
+    allowedValues:
+      - ""
+      - "none"
+      - "pat"
+      - "ssh"
+      - "githubApp"

@@ -65,6 +65,35 @@ func TestWalkTree_GitDirAlwaysExcluded(t *testing.T) {
 	assert.Equal(t, "k.txt", entries[0].RelPath)
 }
 
+func TestWalkTree_GitAsScopeReturnsEmpty(t *testing.T) {
+	// Defence-in-depth backstop: even if a malformed config bypassed
+	// metadata validation and pointed `path` at `.git`, the walker must
+	// refuse to enter it and produce no entries.
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "config"),
+		[]byte("[remote \"origin\"]\n  url = https://user:tok@example.com/repo\n"), 0o600))
+
+	entries, err := walkTree(root, ".git", true, 0, nil)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "walker must not surface contents of a .git scope")
+}
+
+func TestWalkTree_GitInsideSubdirAlsoExcluded(t *testing.T) {
+	// A nested .git directory must also be skipped — defends against
+	// submodule-like layouts or stray .git checkins inside a config repo.
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", ".git"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", ".git", "config"),
+		[]byte("secret"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "k.txt"), []byte("v"), 0o600))
+
+	entries, err := walkTree(root, "agents", true, 0, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "k.txt", entries[0].RelPath)
+}
+
 func TestWalkTree_FileSizeCap(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "small.txt"), []byte("ok"), 0o600))

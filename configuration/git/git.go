@@ -185,8 +185,8 @@ func (s *ConfigurationStore) bootstrapSnapshot() error {
 // It does not contact the upstream repository; the returned state may be up
 // to pollInterval old. Use Subscribe to receive change notifications.
 //
-// The returned items reference the live snapshot and must be treated as
-// immutable; mutating their fields will corrupt the next diff comparison.
+// Returned items are deep copies — callers own them and may mutate the
+// values or metadata freely without affecting the store.
 func (s *ConfigurationStore) Get(_ context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
 	if s.closed.Load() {
 		return nil, errors.New("configuration store is closed")

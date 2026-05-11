@@ -363,6 +363,65 @@ func TestGitStore_GetComponentMetadata(t *testing.T) {
 	assert.NotEmpty(t, info)
 }
 
+// TestGitStore_GetReturnsClonedItems asserts that Get returns deep-copied
+// items: a caller mutating returned values or metadata must not corrupt the
+// store's internal snapshot. Regression test for PR #4380 review feedback.
+func TestGitStore_GetReturnsClonedItems(t *testing.T) {
+	u := newUpstream(t)
+	u.commit(map[string]string{"k.txt": "original"}, "seed")
+	s := newTestStore(t, u, nil)
+
+	first, err := s.Get(t.Context(), &configuration.GetRequest{})
+	require.NoError(t, err)
+	require.Contains(t, first.Items, "k.txt")
+
+	// Mutate both the returned item and its metadata map.
+	first.Items["k.txt"].Value = "MUTATED"
+	first.Items["k.txt"].Metadata["injected"] = "bad"
+
+	// A subsequent Get must reflect the original snapshot — no carryover.
+	second, err := s.Get(t.Context(), &configuration.GetRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, "original", second.Items["k.txt"].Value, "store snapshot must be immune to caller mutation")
+	assert.NotContains(t, second.Items["k.txt"].Metadata, "injected", "store metadata must be immune to caller mutation")
+}
+
+// TestGitStore_SubscribeInitialStateIsCloned asserts that the synchronous
+// initial-state event delivered by Subscribe is composed of fresh items —
+// mutating an item in the handler must not corrupt the diff base used for
+// subsequent ticks. Regression test for PR #4380 review feedback.
+func TestGitStore_SubscribeInitialStateIsCloned(t *testing.T) {
+	u := newUpstream(t)
+	u.commit(map[string]string{"k.txt": "v1"}, "seed")
+	s := newTestStore(t, u, nil)
+
+	events := make(chan *configuration.UpdateEvent, 4)
+	mutating := func(_ context.Context, e *configuration.UpdateEvent) error {
+		// Mutate the delivered item — must not affect the store's snapshot
+		// or the next diff base.
+		if v := e.Items["k.txt"]; v != nil {
+			v.Value = "MUTATED"
+			if v.Metadata == nil {
+				v.Metadata = map[string]string{}
+			}
+			v.Metadata["injected"] = "bad"
+		}
+		events <- e
+		return nil
+	}
+	_, err := s.Subscribe(t.Context(), &configuration.SubscribeRequest{}, mutating)
+	require.NoError(t, err)
+
+	// Initial state arrives.
+	drainOne(t, events)
+
+	// Get must reflect the original value, not the mutation done by the handler.
+	resp, err := s.Get(t.Context(), &configuration.GetRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, "v1", resp.Items["k.txt"].Value, "Subscribe must clone before delivering initial state")
+	assert.NotContains(t, resp.Items["k.txt"].Metadata, "injected")
+}
+
 func TestGitStore_NoEmitInitialState(t *testing.T) {
 	u := newUpstream(t)
 	u.commit(map[string]string{"k.txt": "v"}, "seed")

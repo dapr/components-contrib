@@ -54,7 +54,10 @@ func walkTree(root, sub string, includeHidden bool, maxFileSize int64, log logge
 		}
 		// `.git` is always excluded so credentials stored in .git/config
 		// can never leak into the snapshot, regardless of includeHidden.
-		if d.IsDir() && d.Name() == ".git" && p != scope {
+		// This applies even when the configured scope itself is `.git`
+		// (metadata validation rejects this case, but the walker enforces
+		// the rule independently as defense in depth).
+		if d.IsDir() && d.Name() == ".git" {
 			return fs.SkipDir
 		}
 		// Skip hidden files/dirs unless includeHidden is set.

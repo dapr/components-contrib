@@ -226,6 +226,38 @@ func TestMetadata_Parse(t *testing.T) {
 			},
 			wantErr: "must not escape",
 		},
+		{
+			name: "path equal to .git rejected",
+			props: map[string]string{
+				"url":  "https://example.com/repo.git",
+				"path": ".git",
+			},
+			wantErr: "must not reference the .git directory",
+		},
+		{
+			name: "path with .git subdirectory segment rejected",
+			props: map[string]string{
+				"url":  "https://example.com/repo.git",
+				"path": "agents/.git",
+			},
+			wantErr: "must not reference the .git directory",
+		},
+		{
+			name: "path reaching into .git rejected",
+			props: map[string]string{
+				"url":  "https://example.com/repo.git",
+				"path": ".git/config",
+			},
+			wantErr: "must not reference the .git directory",
+		},
+		{
+			name: "path with .git in middle rejected",
+			props: map[string]string{
+				"url":  "https://example.com/repo.git",
+				"path": "a/.git/b",
+			},
+			wantErr: "must not reference the .git directory",
+		},
 	}
 
 	for _, tt := range tests {

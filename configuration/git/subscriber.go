@@ -35,28 +35,51 @@ type subscription struct {
 	cancel        context.CancelFunc
 }
 
-// emptyMetadata is a shared read-only sentinel returned by cloneMetadata
-// when no metadata is present. Callers must treat the returned map as
-// immutable.
+// emptyMetadata is a shared read-only sentinel used internally by
+// cloneMetadata's nil/empty branch. It is never returned to callers; values
+// surfaced via Get or Subscribe always get freshly allocated metadata maps
+// so callers can mutate the returned items without corrupting the snapshot.
 var emptyMetadata = map[string]string{}
 
-// filterByKeys returns a shallow copy of items containing only the requested
-// keys. Items themselves are not deep-copied — callers must treat the
-// returned `*configuration.Item` and its `Metadata` map as immutable.
+// cloneItem returns a deep copy of in — fresh Value, Version, and Metadata
+// map. The Metadata is allocated even when the source is empty so callers
+// can mutate it safely.
+func cloneItem(in *configuration.Item) *configuration.Item {
+	if in == nil {
+		return nil
+	}
+	out := &configuration.Item{
+		Value:   in.Value,
+		Version: in.Version,
+	}
+	if len(in.Metadata) == 0 {
+		out.Metadata = map[string]string{}
+		return out
+	}
+	out.Metadata = make(map[string]string, len(in.Metadata))
+	for k, v := range in.Metadata {
+		out.Metadata[k] = v
+	}
+	return out
+}
+
+// filterByKeys returns deep-cloned items containing only the requested keys.
+// Callers own the returned items and may freely mutate them — the store's
+// internal snapshot is never aliased.
 //
 // An empty keys slice means "all keys".
 func filterByKeys(items map[string]*configuration.Item, keys []string) map[string]*configuration.Item {
 	if len(keys) == 0 {
 		out := make(map[string]*configuration.Item, len(items))
 		for k, v := range items {
-			out[k] = v
+			out[k] = cloneItem(v)
 		}
 		return out
 	}
 	out := make(map[string]*configuration.Item, len(keys))
 	for _, k := range keys {
 		if v, ok := items[k]; ok {
-			out[k] = v
+			out[k] = cloneItem(v)
 		}
 	}
 	return out

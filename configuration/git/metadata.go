@@ -140,6 +140,16 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 		if clean == ".." || strings.HasPrefix(clean, "../") {
 			return fmt.Errorf("path %q must not escape the repository root", *m.Path)
 		}
+		// Reject any path segment equal to ".git" so the walker never sees
+		// a scope that descends into the git metadata directory. The walker
+		// also refuses to enter `.git` as a backstop (see walk.go), but
+		// catching it at validation gives a clear error message instead of
+		// a silently empty snapshot.
+		for _, seg := range strings.Split(clean, "/") {
+			if seg == ".git" {
+				return fmt.Errorf("path %q must not reference the .git directory", *m.Path)
+			}
+		}
 	}
 
 	return nil

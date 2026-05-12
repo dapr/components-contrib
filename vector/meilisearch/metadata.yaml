@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: vector
+name: meilisearch
+version: v1
+status: alpha
+title: "Meilisearch"
+urls:
+  - title: Reference
+    url: https://www.meilisearch.com/docs/learn/ai_powered_search/getting_started_with_ai_search
+capabilities:
+  - vectorSearch
+  - filtering
+  - durableWrites
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using a Meilisearch API key"
+    metadata:
+      - name: apiKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          API key for Meilisearch.
+        example: "**********"
+        default: ""
+metadata:
+  - name: host
+    required: true
+    description: |
+      Meilisearch host URL.
+    type: string
+    example: "http://localhost:7700"
+  - name: apiKey
+    required: false
+    sensitive: true
+    description: |
+      API key for Meilisearch.
+    type: string
+    example: "masterKey"
+    default: ""
+  - name: timeout
+    required: false
+    description: |
+      HTTP client timeout as a Go duration.
+    type: string
+    example: "10s"

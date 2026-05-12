@@ -26,13 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-<<<<<<< HEAD
-||||||| ca1b6209
-        uses: actions/checkout@v4
-=======
         with:
           ref: ${{ inputs.tag || '' }}
->>>>>>> main
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -44,11 +39,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.DAPR_BOT_TOKEN }}
-<<<<<<< HEAD
-||||||| ca1b6209
-          files: component-metadata-bundle.json
-=======
           tag_name: ${{ inputs.tag || github.ref_name }}
->>>>>>> main
           generate_release_notes: true
           files: component-metadata-bundle.json

@@ -267,6 +267,12 @@ func TestBulkGetRowsScanFailure(t *testing.T) {
 	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
 	require.NoError(t, err)
 	require.Len(t, res, 1)
+	// `key` is the first scan destination. database/sql's Rows.Scan
+	// converts column values into destination pointers in column order
+	// and stops at the first conversion error, so `key` is populated
+	// before isBinary's bad value trips Scan. Pin the expected value
+	// so a future change leaving Key empty on partial scan would fail.
+	assert.Equal(t, "k1", res[0].Key)
 	assert.NotEmpty(t, res[0].Error)
 
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -363,16 +369,22 @@ func TestBulkGetChunking_ExactMultiple(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res, 4)
 
+	byKey := indexByKey(res)
+	for i, k := range []string{"k1", "k2", "k3", "k4"} {
+		assert.Equal(t, []byte(`"v`+string(rune('0'+i+1))+`"`), byKey[k].Data, "key %s", k)
+		assert.Empty(t, byKey[k].Error, "key %s", k)
+	}
+
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBulkGetChunking_ContextAlreadyCanceled(t *testing.T) {
+func TestBulkGetChunking_ContextAlreadyCanceled_ChunkedPath(t *testing.T) {
 	t.Parallel()
 
-	// Use chunkSize=2 so the request would split across multiple chunks.
-	// With ctx cancelled before BulkGet runs, the first iteration's
-	// ctx.Err() check fires and no SQL query is issued at all — every
-	// requested key is reported with the cancellation error.
+	// Chunked path (len(req)=4 > chunkSize=2): the eager ctx.Err() check
+	// at the top of the chunk loop fires before any query is issued, so
+	// every requested key is reported with ctx.Err() as its error and no
+	// SQL runs.
 	s, mock, cleanup := newTestSQLServer(t, 2)
 	defer cleanup()
 
@@ -397,6 +409,48 @@ func TestBulkGetChunking_ContextAlreadyCanceled(t *testing.T) {
 	// No ExpectQuery was registered, so a passing ExpectationsWereMet here
 	// proves no SQL was issued — the cancellation short-circuit fired
 	// before the first chunk.
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetChunking_ContextAlreadyCanceled_FastPath(t *testing.T) {
+	t.Parallel()
+
+	// Fast path (len(req) <= chunkSize): there's no eager ctx.Err() check
+	// — BulkGet calls bulkGetChunk directly, which calls QueryContext on a
+	// cancelled context. Empirically in current Go (1.8+), database/sql
+	// checks ctx.Err() before dispatching to the driver, so the driver
+	// never sees the query; that behavior is stable but not part of
+	// database/sql's documented contract. bulkGetChunk receives the
+	// context error and wraps it as "bulk get query failed: context
+	// canceled" — different prefix from the chunked path's plain
+	// ctx.Err() format. The primary evidence that we hit the
+	// query-failure path (not the eager-check path) is the "bulk get
+	// query failed:" prefix in the per-key error string.
+	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	req := []state.GetRequest{{Key: "k1"}, {Key: "k2"}}
+
+	res, err := s.BulkGet(ctx, req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+
+	byKey := indexByKey(res)
+	for _, k := range []string{"k1", "k2"} {
+		r := byKey[k]
+		assert.Equal(t, k, r.Key)
+		assert.Contains(t, r.Error, "bulk get query failed:")
+		assert.Contains(t, r.Error, context.Canceled.Error())
+		assert.Nil(t, r.Data)
+		assert.Nil(t, r.ETag)
+	}
+
+	// No expectations were registered; this only confirms no *unexpected*
+	// query slipped through. The real proof that we hit the query-failure
+	// path is the "bulk get query failed:" assertion above.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

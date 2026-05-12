@@ -368,18 +368,51 @@ func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest, _ state
 	return res, nil
 }
 
-// bulkGetChunk executes a single IN-clause query for the given requests.
+// bulkGetChunk executes a single IN-clause query for the distinct keys of
+// the given requests, then builds the response by iterating the original
+// request slice so duplicate request entries each get their own populated
+// response (matching the default fan-out BulkStore semantics). Only
+// distinct keys hit the wire.
+//
 // Pre-condition: req is non-empty and all keys are non-empty.
 //
 // Errors surface as per-key Error entries in the response (consistent with
-// other state stores like Redis and Oracle), so this helper never returns a
-// hard error.
+// other state stores like Redis and Oracle); this helper never returns a
+// hard error. Exception: rows.Scan failures lose the row's key and so
+// cannot be attributed to a specific request entry. The affected key
+// surfaces as a missing-key response (empty Data/ETag/Error) and the
+// failure is logged at warn level.
 func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []state.BulkGetResponse {
-	params := make([]any, len(req))
-	bindVars := make([]string, len(req))
-	for i, r := range req {
+	type rowData struct {
+		data       []byte
+		etag       string
+		expireTime time.Time
+		hasExpire  bool
+		found      bool
+		// scanErr is set if reading this row failed in a recoverable way
+		// (e.g. NULL data on a non-binary row); surfaced as a per-key
+		// error in the response loop.
+		scanErr string
+	}
+
+	// Build the distinct key list, preserving first-seen order. The map is
+	// pre-populated with zero-value entries so we can detect duplicates via
+	// the `seen` check without a separate set.
+	rowByKey := make(map[string]rowData, len(req))
+	distinctKeys := make([]string, 0, len(req))
+	for _, r := range req {
+		if _, seen := rowByKey[r.Key]; seen {
+			continue
+		}
+		rowByKey[r.Key] = rowData{}
+		distinctKeys = append(distinctKeys, r.Key)
+	}
+
+	params := make([]any, len(distinctKeys))
+	bindVars := make([]string, len(distinctKeys))
+	for i, k := range distinctKeys {
 		name := "p" + strconv.Itoa(i)
-		params[i] = sql.Named(name, r.Key)
+		params[i] = sql.Named(name, k)
 		bindVars[i] = "@" + name
 	}
 
@@ -396,28 +429,18 @@ func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []
 		// If the query fails, return per-key error entries instead of
 		// propagating the error, matching Oracle/Redis convention.
 		res := make([]state.BulkGetResponse, len(req))
+		errMsg := "bulk get query failed: " + err.Error()
 		for i, r := range req {
 			res[i] = state.BulkGetResponse{
 				Key:   r.Key,
-				Error: "bulk get query failed: " + err.Error(),
+				Error: errMsg,
 			}
 		}
 		return res
 	}
 	defer rows.Close()
 
-	var n int
-	res := make([]state.BulkGetResponse, len(req))
-	foundKeys := make(map[string]struct{}, len(req))
-
 	for rows.Next() {
-		if n >= len(req) {
-			// Defensive: more rows than slots. Not expected (PK-on-key,
-			// distinct binds), but drop extras instead of panicking.
-			s.logger.Warnf("SQL Server BulkGet: query returned more records than expected (%d), discarding extras", len(req))
-			break
-		}
-
 		var (
 			key        string
 			data       sql.NullString
@@ -426,89 +449,82 @@ func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []
 			rowVersion []byte
 			expireDate sql.NullTime
 		)
-
-		err = rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate)
-		if err != nil {
-			res[n] = state.BulkGetResponse{
-				Key:   key,
-				Error: err.Error(),
-			}
-			foundKeys[key] = struct{}{}
-			n++
+		if err := rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate); err != nil {
+			// We can't trust `key` after a failed scan, so we can't slot
+			// the error here. Log it; the response loop below will treat
+			// the corresponding request keys as not-found.
+			s.logger.Warnf("SQL Server BulkGet: row scan failed: %v", err)
 			continue
 		}
 
-		etag := hex.EncodeToString(rowVersion)
-		response := state.BulkGetResponse{
-			Key:  key,
-			ETag: ptr.Of(etag),
+		// Defensive: the SQL `IN` clause can only match values we bound,
+		// so any returned key must be one we requested (and therefore
+		// pre-populated in rowByKey). An unrecognized key would indicate
+		// a misbehaving driver or a future schema change leaking through;
+		// log and drop rather than insert an orphan entry into the map.
+		if _, requested := rowByKey[key]; !requested {
+			s.logger.Warnf("SQL Server BulkGet: query returned unrequested key %q, discarding", key)
+			continue
 		}
 
+		rd := rowData{found: true, etag: hex.EncodeToString(rowVersion)}
 		if expireDate.Valid {
-			response.Metadata = map[string]string{
-				state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
-			}
+			rd.expireTime = expireDate.Time
+			rd.hasExpire = true
 		}
-
 		if isBinary {
-			response.Data = binaryData
+			rd.data = binaryData
+		} else if !data.Valid {
+			rd.scanErr = "unexpected error: no item was found"
 		} else {
-			if !data.Valid {
-				res[n] = state.BulkGetResponse{
-					Key:   key,
-					Error: "unexpected error: no item was found",
-				}
-				foundKeys[key] = struct{}{}
-				n++
-				continue
-			}
-			response.Data = []byte(data.String)
+			rd.data = []byte(data.String)
 		}
-
-		res[n] = response
-		foundKeys[key] = struct{}{}
-		n++
+		rowByKey[key] = rd
 	}
 
-	// rows.Err() reports errors from iteration; surface as per-key errors for
-	// any keys not yet found, matching Oracle's behavior.
-	if err = rows.Err(); err != nil {
-		errMsg := err.Error()
-		anyUnfound := false
-		for _, r := range req {
-			if _, ok := foundKeys[r.Key]; !ok {
-				anyUnfound = true
-				if n >= len(req) {
-					break
-				}
-				res[n] = state.BulkGetResponse{
-					Key:   r.Key,
-					Error: "rows iteration failed: " + errMsg,
-				}
-				foundKeys[r.Key] = struct{}{}
-				n++
-			}
-		}
-		if !anyUnfound {
-			s.logger.Warnf("SQL Server BulkGet: rows iteration error after all rows processed: %v", err)
-		}
-		return res[:n]
-	}
+	// rows.Err() reports errors from iteration; we surface it per-key for
+	// any request keys that didn't get a row.
+	iterErr := rows.Err()
 
-	// Populate missing keys with empty responses to match the per-key Get
-	// semantics (a missing key returns &state.GetResponse{}).
-	if len(foundKeys) < len(req) {
-		for _, r := range req {
-			if _, ok := foundKeys[r.Key]; !ok {
-				res[n] = state.BulkGetResponse{
-					Key: r.Key,
-				}
-				n++
+	// Build the response by iterating the original request slice so that
+	// duplicate request entries each get their own populated response with
+	// the same data, and response order matches request order.
+	res := make([]state.BulkGetResponse, len(req))
+	anyUnfound := false
+	for i, r := range req {
+		res[i].Key = r.Key
+		rd := rowByKey[r.Key]
+		if !rd.found {
+			anyUnfound = true
+			if iterErr != nil {
+				res[i].Error = "rows iteration failed: " + iterErr.Error()
+			}
+			// else: missing key, empty response — matches per-key Get
+			// semantics (`&state.GetResponse{}`).
+			continue
+		}
+		if rd.scanErr != "" {
+			res[i].Error = rd.scanErr
+			continue
+		}
+		res[i].Data = rd.data
+		res[i].ETag = ptr.Of(rd.etag)
+		if rd.hasExpire {
+			res[i].Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: rd.expireTime.UTC().Format(time.RFC3339),
 			}
 		}
 	}
 
-	return res[:n]
+	// rows.Err() that fires after every requested key was already found
+	// has no per-key slot to land in (every response carries data).
+	// Without a log, the error would vanish entirely — e.g. a network
+	// reset after the last row arrived would be invisible. Warn-log it
+	// so transient driver/network failures stay diagnosable.
+	if iterErr != nil && !anyUnfound {
+		s.logger.Warnf("SQL Server BulkGet: rows iteration error after all requested keys were found: %v", iterErr)
+	}
+	return res
 }
 
 // Set adds/updates an entity on store.

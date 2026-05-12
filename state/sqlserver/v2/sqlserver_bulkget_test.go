@@ -258,6 +258,11 @@ func TestBulkGetRowsScanFailure(t *testing.T) {
 	defer cleanup()
 
 	// Wrong column type for isBinary forces Scan to fail for that row.
+	// The dedup-and-map-back pattern can't attribute a scan error to a
+	// specific request key (the row's key is lost on Scan failure), so
+	// the affected key surfaces as a missing-key response (no Data, no
+	// ETag, no Error). The warn log is the operational signal —
+	// documented trade-off in the PR description.
 	rows := sqlmock.NewRows(bulkCols).
 		AddRow("k1", `"v1"`, nil, "not-a-bool", []byte{0x01}, nil)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
@@ -267,13 +272,60 @@ func TestBulkGetRowsScanFailure(t *testing.T) {
 	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
 	require.NoError(t, err)
 	require.Len(t, res, 1)
-	// `key` is the first scan destination. database/sql's Rows.Scan
-	// converts column values into destination pointers in column order
-	// and stops at the first conversion error, so `key` is populated
-	// before isBinary's bad value trips Scan. Pin the expected value
-	// so a future change leaving Key empty on partial scan would fail.
 	assert.Equal(t, "k1", res[0].Key)
-	assert.NotEmpty(t, res[0].Error)
+	assert.Empty(t, res[0].Error, "scan failure surfaces as a missing-key response, not a per-key error")
+	assert.Nil(t, res[0].Data)
+	assert.Nil(t, res[0].ETag)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetDuplicateKeys(t *testing.T) {
+	t.Parallel()
+
+	// Duplicate request keys must yield duplicate response entries with
+	// the same data, matching the default fan-out BulkStore semantics
+	// (response length == request length, request order preserved). The
+	// dedup-and-map-back pattern issues only distinct keys over the wire
+	// and rebuilds the response by iterating the original request slice.
+	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
+	defer cleanup()
+
+	rowVer1 := []byte{0x01}
+	rowVer2 := []byte{0x02}
+	rows := sqlmock.NewRows(bulkCols).
+		AddRow("k1", `"v1"`, nil, false, rowVer1, nil).
+		AddRow("k2", `"v2"`, nil, false, rowVer2, nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "k1"},
+		{Key: "k1"},
+		{Key: "k2"},
+		{Key: "k1"},
+	}
+
+	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, 4, "response length must match request length even with duplicates")
+
+	expected := []struct {
+		key    string
+		data   []byte
+		rowVer []byte
+	}{
+		{"k1", []byte(`"v1"`), rowVer1},
+		{"k1", []byte(`"v1"`), rowVer1},
+		{"k2", []byte(`"v2"`), rowVer2},
+		{"k1", []byte(`"v1"`), rowVer1},
+	}
+	for i, e := range expected {
+		assert.Equal(t, e.key, res[i].Key, "position %d", i)
+		assert.Equal(t, e.data, res[i].Data, "position %d", i)
+		require.NotNil(t, res[i].ETag, "position %d", i)
+		assert.Equal(t, hex.EncodeToString(e.rowVer), *res[i].ETag, "position %d", i)
+		assert.Empty(t, res[i].Error, "position %d", i)
+	}
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -305,6 +357,130 @@ func TestBulkGetRowsErrFailure(t *testing.T) {
 		assert.Contains(t, r.Error, "rows iteration failed:")
 		assert.Contains(t, r.Error, "network timeout")
 	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetRowsErrFailure_WithDuplicates(t *testing.T) {
+	t.Parallel()
+
+	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
+	defer cleanup()
+
+	// key1 appears twice in the request. The mock scans key1 successfully
+	// then rows.Err() fires before key2 / key3 are produced. Every
+	// duplicate entry for a found key must keep the same populated data;
+	// every entry for an unfound key (key2, key3) must surface the iter
+	// error. This pins the duplicate-plus-iteration-error interaction
+	// introduced by the dedup-and-map-back refactor.
+	rows := sqlmock.NewRows(bulkCols).
+		AddRow("key1", `"value1"`, nil, false, []byte{0x01}, nil).
+		AddRow("key2", `"value2"`, nil, false, []byte{0x02}, nil).
+		RowError(1, errors.New("network timeout"))
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{
+		{Key: "key1"},
+		{Key: "key1"},
+		{Key: "key2"},
+		{Key: "key3"},
+	}
+
+	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, 4)
+
+	// Both occurrences of key1 carry the same data; rd.found=true is
+	// definitive even though iteration later failed.
+	for _, i := range []int{0, 1} {
+		assert.Equal(t, "key1", res[i].Key, "position %d", i)
+		assert.Equal(t, []byte(`"value1"`), res[i].Data, "position %d", i)
+		require.NotNil(t, res[i].ETag, "position %d", i)
+		assert.Empty(t, res[i].Error, "position %d", i)
+	}
+	// key2 and key3 never reached found=true; the iter error fills them.
+	for _, i := range []int{2, 3} {
+		assert.Contains(t, res[i].Error, "rows iteration failed:", "position %d", i)
+		assert.Contains(t, res[i].Error, "network timeout", "position %d", i)
+		assert.Nil(t, res[i].Data, "position %d", i)
+		assert.Nil(t, res[i].ETag, "position %d", i)
+	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetRowsErrAfterAllFound(t *testing.T) {
+	t.Parallel()
+
+	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
+	defer cleanup()
+
+	// Mock returns rows for k1 then triggers rows.Err() at the boundary
+	// past the last row — every requested key has rd.found=true by the
+	// time iteration ends, but rows.Err() is non-nil. The production
+	// code must not silently drop this error: the per-key responses
+	// still carry their data (correct, the rows were definitively
+	// scanned), and the function warn-logs the iteration error so
+	// transient driver/network failures stay diagnosable.
+	rows := sqlmock.NewRows(bulkCols).
+		AddRow("k1", `"v1"`, nil, false, []byte{0x01}, nil).
+		RowError(1, errors.New("network reset after last row"))
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{{Key: "k1"}}
+
+	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	// Data is preserved because k1's row was scanned successfully
+	// before the iteration error fired.
+	assert.Equal(t, "k1", res[0].Key)
+	assert.Equal(t, []byte(`"v1"`), res[0].Data)
+	require.NotNil(t, res[0].ETag)
+	assert.Empty(t, res[0].Error)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetCaseDifferingKeys_RequestCasingPreserved(t *testing.T) {
+	t.Parallel()
+
+	// Two request entries that differ only by case. The dedup-and-map-back
+	// pattern sets res[i].Key = r.Key in the response loop, so each
+	// response carries the original request casing regardless of what
+	// the DB stored or returned.
+	//
+	// On a real SQL Server with the default case-insensitive collation,
+	// both binds would match the same stored row and the DB would return
+	// it once. The PR description documents that the in-tree code does
+	// not attempt to detect or correct this — Dapr internals are
+	// case-consistent. This test only pins the structural Go-side
+	// guarantee: response Key always matches request Key.
+	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
+	defer cleanup()
+
+	// Mock returns a row matching the lowercase request; sqlmock echoes
+	// whatever we configure — it doesn't simulate CI collation.
+	rows := sqlmock.NewRows(bulkCols).
+		AddRow("key1", `"v1"`, nil, false, []byte{0x01}, nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	req := []state.GetRequest{{Key: "KEY1"}, {Key: "key1"}}
+
+	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+	assert.Equal(t, "KEY1", res[0].Key, "response Key must preserve request casing (uppercase entry)")
+	assert.Equal(t, "key1", res[1].Key, "response Key must preserve request casing (lowercase entry)")
+	// The lowercase request matched the returned row; uppercase did not
+	// (rowByKey["KEY1"] stays at zero-value). On a real CI-collation DB
+	// both would match; the in-tree behavior is documented in the PR
+	// description.
+	assert.Equal(t, []byte(`"v1"`), res[1].Data)
+	require.NotNil(t, res[1].ETag)
+	assert.Nil(t, res[0].Data)
+	assert.Nil(t, res[0].ETag)
+	assert.Empty(t, res[0].Error)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

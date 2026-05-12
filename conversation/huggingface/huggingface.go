@@ -37,6 +37,7 @@ type Huggingface struct {
 func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	h := &Huggingface{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return h
@@ -69,6 +70,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 	}
 
 	h.LLM.Model = llm
+	h.LLM.SetModel(model)
 
 	if m.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.LLM.Model)

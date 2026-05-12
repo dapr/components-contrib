@@ -85,6 +85,10 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
+
+	if r.clientSettings.MaxLenApprox > 0 && r.clientSettings.StreamTTL > 0 {
+		r.logger.Warn("redis streams: maxLenApprox and streamTTL cannot be used together; only one stream trimming strategy can be active at a time.")
+	}
 	r.queue = make(chan redisMessageWrapper, int(r.clientSettings.QueueDepth)) //nolint:gosec
 
 	for range r.clientSettings.Concurrency {

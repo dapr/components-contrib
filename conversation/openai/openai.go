@@ -39,12 +39,13 @@ type OpenAI struct {
 func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	o := &OpenAI{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o
 }
 
-func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option, error) {
+func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) (string, []openai.Option, error) {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	var model string
 	// we support lowercase and uppercase here
@@ -59,7 +60,7 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option
 	// TODO: in future, there is also an openai.APITypeAzureAD that we can add.
 	if strings.EqualFold(md.APIType, "azure") {
 		if md.Endpoint == "" || md.APIVersion == "" {
-			return nil, errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
+			return "", nil, errors.New("endpoint and apiVersion must be provided when apiType is set to 'azure'")
 		}
 		options = append(options,
 			openai.WithAPIType(openai.APITypeAzure),
@@ -75,7 +76,7 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) ([]openai.Option
 		// openai.WithEmbeddingDimentions(),
 	}
 
-	return options, nil
+	return model, options, nil
 }
 
 func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
@@ -86,7 +87,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 	o.md = md
 
-	options, err := o.buildClientOptions(md)
+	model, options, err := o.buildClientOptions(md)
 	if err != nil {
 		return err
 	}
@@ -97,6 +98,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	o.LLM.Model = llm
+	o.LLM.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.LLM.Model)

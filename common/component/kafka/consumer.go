@@ -56,6 +56,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxMessagesCount {
 						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
 						messages = messages[:0]
+						ticker.Reset(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 					}
 				}
 				consumer.mutex.Unlock()
@@ -91,14 +92,18 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 					}, func() {
 						consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 					}); err != nil {
-						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-						if errors.Is(session.Context().Err(), context.Canceled) {
-							// If the context is canceled, we should not attempt to consume any more messages. Exiting the loop.
-							// Otherwise, there is a race condition when this loop keeps processing messages from the claim.Messages() channel
-							// before the session.Context().Done() is closed. If there are other messages that can successfully be processed,
-							// they will be marked as processed and this failing message will be lost.
+						// When the session context is canceled (graceful
+						// shutdown / rebalance), the retry exits with the last
+						// observed error rather than a real "exhausted"
+						// outcome. The message is left unmarked and will be
+						// redelivered to whichever consumer takes over the
+						// partition, so this is not a processing failure —
+						// just shutdown noise. Demote the log accordingly.
+						if errors.Is(session.Context().Err(), context.Canceled) || errors.Is(err, context.Canceled) {
+							consumer.k.logger.Debugf("Kafka message processing aborted due to shutdown; will be redelivered: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 							return nil
 						}
+						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
 				} else {
 					err := consumer.doCallback(session, message)
@@ -124,7 +129,13 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 			}, func() {
 				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s", claim.Topic())
 			}); err != nil {
-				consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s. Error: %v.", claim.Topic(), err)
+				// Same shutdown-vs-exhausted distinction as the singular
+				// path: demote when session ctx is canceled.
+				if errors.Is(session.Context().Err(), context.Canceled) || errors.Is(err, context.Canceled) {
+					consumer.k.logger.Debugf("Kafka bulk message processing aborted due to shutdown; will be redelivered: %s", claim.Topic())
+				} else {
+					consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s. Error: %v.", claim.Topic(), err)
+				}
 			}
 		} else {
 			err := consumer.doBulkCallback(session, messages, handler, claim.Topic())

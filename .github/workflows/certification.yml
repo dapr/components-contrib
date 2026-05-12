@@ -34,6 +34,10 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-22.04
     steps:
+    - name: Set default checkout ref
+      run: |
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
       working-directory: ${{ github.workspace }}
@@ -109,7 +113,7 @@ jobs:
     - name: Set default payload repo and ref
       run: |
         echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
-        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
 
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
@@ -228,6 +232,10 @@ jobs:
       with:
         go-version-file: 'go.mod'
         cache: 'false'
+
+    - name: Start KinD
+      uses: helm/kind-action@v1.13.0
+      if: matrix.require-kind == 'true'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -353,7 +361,10 @@ jobs:
         continue-on-error: true
         id: testresults
         with:
-          # name: not being specified which will result in all artifacts being downloaded
+          # Download all per-component result file artifacts and flatten them
+          # into a single directory
+          pattern: '*_result_files'
+          merge-multiple: true
           path: tmp/result_files
 
       - name: Build message

@@ -43,6 +43,7 @@ const (
 func NewDeepseek(logger logger.Logger) conversation.Conversation {
 	o := &Deepseek{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o
@@ -70,6 +71,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	d.LLM.Model = llm
+	d.LLM.SetModel(model)
 	d.md = md
 	return nil
 }

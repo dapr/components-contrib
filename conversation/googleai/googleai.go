@@ -36,6 +36,7 @@ type GoogleAI struct {
 func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	g := &GoogleAI{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return g
@@ -62,6 +63,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	g.LLM.Model = llm
+	g.LLM.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.LLM.Model)

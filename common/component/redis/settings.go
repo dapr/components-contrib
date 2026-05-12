@@ -86,8 +86,13 @@ type Settings struct {
 	// Use Redis Sentinel for automatic failover.
 	Failover bool `mapstructure:"failover"`
 
-	// A flag to enables TLS by setting InsecureSkipVerify to true
+	// A flag to enable TLS for the Redis connection
 	EnableTLS bool `mapstructure:"enableTLS"`
+
+	// A flag to skip TLS certificate verification (insecure, use only for testing).
+	// Defaults to false. When EnableTLS is true and this is false, proper certificate
+	// verification is performed.
+	InsecureSkipTLSVerify bool `mapstructure:"insecureSkipTLSVerify"`
 
 	// Client certificate and key
 	ClientCert string `mapstructure:"clientCert"`

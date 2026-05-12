@@ -16,9 +16,11 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -170,7 +172,7 @@ func TestBulkGetQueryFailure(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("connection refused"))
@@ -207,7 +209,7 @@ func TestBulkGetBinaryDecodeFailure(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// First row: valid non-binary data
@@ -260,7 +262,7 @@ func TestBulkGetBinaryBase64DecodeFailure(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// Value is valid JSON string but not valid base64
@@ -295,7 +297,7 @@ func TestBulkGetRowsErrFailure(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// sqlmock's RowError(N, err) causes rows.Next() to return false (with the
@@ -356,7 +358,7 @@ func TestBulkGetRowsErrAfterAllRowsProcessed(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// Return the one requested row successfully, then trigger rows.Err().
@@ -403,7 +405,7 @@ func TestBulkGetWithExpiration(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	expTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
@@ -432,7 +434,7 @@ func TestBulkGetEmpty(t *testing.T) {
 
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	res, err := o.BulkGet(t.Context(), []state.GetRequest{})
@@ -450,7 +452,7 @@ func TestBulkGetMissingKeys(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// DB only returns key2; key1 and key3 are not in the database.
@@ -504,7 +506,7 @@ func TestBulkGetRowsScanFailure(t *testing.T) {
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
 		db:       db,
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	// To trigger a Scan error, pass a string for the expiration_time column.
@@ -549,7 +551,7 @@ func TestBulkGetEmptyKeyValidation(t *testing.T) {
 
 	o := &oracleDatabaseAccess{
 		logger:   logger.NewLogger("test"),
-		metadata: oracleDatabaseMetadata{TableName: "state"},
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: defaultBulkGetChunkSize},
 	}
 
 	req := []state.GetRequest{
@@ -562,4 +564,343 @@ func TestBulkGetEmptyKeyValidation(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, res)
 	assert.Equal(t, "missing key in bulk get operation", err.Error())
+}
+
+func TestNormalizeBulkGetChunkSize(t *testing.T) {
+	t.Parallel()
+
+	log := logger.NewLogger("test")
+
+	tests := []struct {
+		name       string
+		configured int
+		expected   int
+	}{
+		{
+			name:       "zero defaults to default",
+			configured: 0,
+			expected:   defaultBulkGetChunkSize,
+		},
+		{
+			name:       "negative defaults to default",
+			configured: -1,
+			expected:   defaultBulkGetChunkSize,
+		},
+		{
+			name:       "valid value 100",
+			configured: 100,
+			expected:   100,
+		},
+		{
+			name:       "valid value 500",
+			configured: 500,
+			expected:   500,
+		},
+		{
+			name:       "exact max boundary",
+			configured: maxBulkGetChunkSize,
+			expected:   maxBulkGetChunkSize,
+		},
+		{
+			name:       "above max clamped to max",
+			configured: maxBulkGetChunkSize + 1,
+			expected:   maxBulkGetChunkSize,
+		},
+		{
+			name:       "one is valid minimum",
+			configured: 1,
+			expected:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeBulkGetChunkSize(log, tt.configured)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParseMetadata_BulkGetChunkSize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected int
+	}{
+		{
+			name:     "not set defaults to zero",
+			input:    map[string]string{"connectionString": "x"},
+			expected: 0,
+		},
+		{
+			name:     "explicit value decoded",
+			input:    map[string]string{"connectionString": "x", "bulkGetChunkSize": "200"},
+			expected: 200,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := parseMetadata(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, m.BulkGetChunkSize)
+		})
+	}
+}
+
+func TestBulkGetChunking_MultipleChunks(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	chunkSize := 3
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: chunkSize},
+	}
+
+	// 7 keys → 3 chunks: [key1,key2,key3], [key4,key5,key6], [key7]
+	req := make([]state.GetRequest, 7)
+	for i := range req {
+		req[i] = state.GetRequest{Key: fmt.Sprintf("key%d", i+1)}
+	}
+
+	// Chunk 1: returns key1, key2, key3
+	rows1 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key1", `"v1"`, "N", "e1", nil).
+		AddRow("key2", `"v2"`, "N", "e2", nil).
+		AddRow("key3", `"v3"`, "N", "e3", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows1)
+
+	// Chunk 2: returns key4, key6 — key5 is missing
+	rows2 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key4", `"v4"`, "N", "e4", nil).
+		AddRow("key6", `"v6"`, "N", "e6", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
+
+	// Chunk 3: returns key7
+	rows3 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("key7", `"v7"`, "N", "e7", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows3)
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 7)
+
+	// Build map for flexible assertion
+	byKey := make(map[string]state.BulkGetResponse, len(res))
+	for _, r := range res {
+		byKey[r.Key] = r
+	}
+
+	// All 7 keys present
+	for i := 1; i <= 7; i++ {
+		k := fmt.Sprintf("key%d", i)
+		_, ok := byKey[k]
+		assert.True(t, ok, "key %s should be in results", k)
+	}
+
+	// Found keys have data
+	for _, k := range []string{"key1", "key2", "key3", "key4", "key6", "key7"} {
+		r := byKey[k]
+		assert.Empty(t, r.Error, "key %s should not have error", k)
+		assert.NotNil(t, r.Data, "key %s should have data", k)
+		assert.NotNil(t, r.ETag, "key %s should have etag", k)
+	}
+
+	// Missing key5 has empty response
+	r5 := byKey["key5"]
+	assert.Empty(t, r5.Error)
+	assert.Nil(t, r5.Data)
+	assert.Nil(t, r5.ETag)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetChunking_ExactMultiple(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	chunkSize := 2
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: chunkSize},
+	}
+
+	// 4 keys → 2 chunks of exactly 2
+	req := []state.GetRequest{
+		{Key: "k1"}, {Key: "k2"}, {Key: "k3"}, {Key: "k4"},
+	}
+
+	rows1 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("k1", `"v1"`, "N", "e1", nil).
+		AddRow("k2", `"v2"`, "N", "e2", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows1)
+
+	rows2 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("k3", `"v3"`, "N", "e3", nil).
+		AddRow("k4", `"v4"`, "N", "e4", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 4)
+
+	for _, r := range res {
+		assert.Empty(t, r.Error)
+		assert.NotNil(t, r.Data)
+		assert.NotNil(t, r.ETag)
+	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetChunking_MiddleChunkFails(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	chunkSize := 2
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: chunkSize},
+	}
+
+	// 6 keys → 3 chunks: [k1,k2], [k3,k4], [k5,k6]
+	req := []state.GetRequest{
+		{Key: "k1"},
+		{Key: "k2"},
+		{Key: "k3"},
+		{Key: "k4"},
+		{Key: "k5"},
+		{Key: "k6"},
+	}
+
+	// Chunk 1 succeeds
+	rows1 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("k1", `"v1"`, "N", "e1", nil).
+		AddRow("k2", `"v2"`, "N", "e2", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows1)
+
+	// Chunk 2 fails
+	mock.ExpectQuery("SELECT").WillReturnError(errors.New("connection reset"))
+
+	// Chunk 3 succeeds
+	rows3 := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("k5", `"v5"`, "N", "e5", nil).
+		AddRow("k6", `"v6"`, "N", "e6", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows3)
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 6)
+
+	byKey := make(map[string]state.BulkGetResponse, len(res))
+	for _, r := range res {
+		byKey[r.Key] = r
+	}
+
+	// Chunks 1 and 3 succeeded
+	for _, k := range []string{"k1", "k2", "k5", "k6"} {
+		r := byKey[k]
+		assert.Empty(t, r.Error, "key %s should not have error", k)
+		assert.NotNil(t, r.Data, "key %s should have data", k)
+	}
+
+	// Chunk 2 keys have per-key errors
+	for _, k := range []string{"k3", "k4"} {
+		r := byKey[k]
+		assert.NotEmpty(t, r.Error, "key %s should have error", k)
+		assert.Contains(t, r.Error, "bulk get query failed:")
+		assert.Contains(t, r.Error, "connection reset")
+	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetChunking_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	chunkSize := 2
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: chunkSize},
+	}
+
+	// 4 keys → chunked path (4 > chunkSize 2)
+	req := []state.GetRequest{
+		{Key: "k1"}, {Key: "k2"}, {Key: "k3"}, {Key: "k4"},
+	}
+
+	// Pre-cancel the context — the ctx.Err() check at the top of the chunk
+	// loop fires before any query is issued.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	res, err := o.BulkGet(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, res, 4)
+
+	for _, r := range res {
+		assert.NotEmpty(t, r.Error, "key %s should have ctx error", r.Key)
+		assert.Contains(t, r.Error, "context canceled")
+	}
+
+	// No queries should have been issued
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBulkGetChunking_SingleChunkFastPath(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	chunkSize := 10
+	o := &oracleDatabaseAccess{
+		logger:   logger.NewLogger("test"),
+		db:       db,
+		metadata: oracleDatabaseMetadata{TableName: "state", BulkGetChunkSize: chunkSize},
+	}
+
+	// 3 keys < chunkSize 10 → fast path, single query
+	req := []state.GetRequest{
+		{Key: "k1"}, {Key: "k2"}, {Key: "k3"},
+	}
+
+	rows := sqlmock.NewRows([]string{"key", "value", "binary_yn", "etag", "expiration_time"}).
+		AddRow("k1", `"v1"`, "N", "e1", nil).
+		AddRow("k2", `"v2"`, "N", "e2", nil).
+		AddRow("k3", `"v3"`, "N", "e3", nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	res, err := o.BulkGet(t.Context(), req)
+	require.NoError(t, err)
+	require.Len(t, res, 3)
+
+	for _, r := range res {
+		assert.Empty(t, r.Error)
+		assert.NotNil(t, r.Data)
+	}
+
+	// Only one query issued
+	require.NoError(t, mock.ExpectationsWereMet())
 }

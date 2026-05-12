@@ -29,6 +29,7 @@ import (
 const (
 	key                                      = "partitionKey"
 	keyMetadataKey                           = "__key"
+	partitionNumberKey                       = "partitionNumber"
 	timestampMetadataKey                     = "__timestamp"
 	offsetMetadataKey                        = "__offset"
 	partitionMetadataKey                     = "__partition"

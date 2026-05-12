@@ -83,7 +83,6 @@ max_iterations: 5
 	entries := []fileEntry{
 		{RelPath: "weather.yaml", Bytes: yamlInput},
 		{RelPath: "travel.json", Bytes: jsonInput},
-		{RelPath: "README.md", Bytes: []byte("ignored")},
 	}
 	out, err := mapper.Map(entries, testVersion, logger.NewLogger("test"))
 	require.NoError(t, err)
@@ -100,9 +99,19 @@ max_iterations: 5
 
 	assert.Equal(t, "Travel agent", out["travel/agent_role"].Value)
 	assert.Equal(t, "auto", out["travel/tool_choice"].Value)
+}
 
-	_, hasReadme := out["readme/"]
-	assert.False(t, hasReadme)
+func TestAgentYAMLMapper_NonYAMLFileRejected(t *testing.T) {
+	// mappingMode=agentYaml must hard-error on non-yaml/json files so the
+	// operator knows their `path` scope and mappingMode are mismatched.
+	mapper := agentYAMLMapper{}
+	entries := []fileEntry{
+		{RelPath: "weather.yaml", Bytes: []byte("agent_role: ok\n")},
+		{RelPath: "README.md", Bytes: []byte("not yaml")},
+	}
+	_, err := mapper.Map(entries, testVersion, logger.NewLogger("test"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mappingMode=agentYaml does not accept \"README.md\"")
 }
 
 func TestAgentYAMLMapper_SubdirectoryStemUniqueness(t *testing.T) {
@@ -120,16 +129,17 @@ func TestAgentYAMLMapper_SubdirectoryStemUniqueness(t *testing.T) {
 	assert.Equal(t, "Weather B", out["team-b_weather/agent_role"].Value)
 }
 
-func TestAgentYAMLMapper_BadFile(t *testing.T) {
+func TestAgentYAMLMapper_BadFileRejected(t *testing.T) {
+	// A YAML file that doesn't decode into a top-level map is a structural
+	// mismatch: the operator told the component to expect agent-shaped YAML.
+	// Hard-error so they notice rather than silently dropping their config.
 	mapper := agentYAMLMapper{}
 	entries := []fileEntry{
 		{RelPath: "bad.yaml", Bytes: []byte("- not a map\n- but a sequence\n")},
-		{RelPath: "good.yaml", Bytes: []byte("agent_role: ok\n")},
 	}
-	out, err := mapper.Map(entries, testVersion, logger.NewLogger("test"))
-	require.NoError(t, err)
-	assert.Len(t, out, 1)
-	assert.Equal(t, "ok", out["good/agent_role"].Value)
+	_, err := mapper.Map(entries, testVersion, logger.NewLogger("test"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse \"bad.yaml\"")
 }
 
 func TestPromptyMapper(t *testing.T) {
@@ -153,7 +163,6 @@ agent_role: Travel agent
 		{RelPath: "weather.prompty", Bytes: full},
 		{RelPath: "raw.prompty", Bytes: bodyOnly},
 		{RelPath: "travel.prompty", Bytes: frontmatterOnly},
-		{RelPath: "ignored.txt", Bytes: []byte("nope")},
 	}
 	out, err := promptyMapper{}.Map(entries, testVersion, logger.NewLogger("test"))
 	require.NoError(t, err)
@@ -171,9 +180,17 @@ agent_role: Travel agent
 	assert.Equal(t, "Travel agent", out["travel/agent_role"].Value)
 	_, hasTravelBody := out["travel/agent_system_prompt"]
 	assert.False(t, hasTravelBody)
+}
 
-	_, hasIgnored := out["ignored/agent_system_prompt"]
-	assert.False(t, hasIgnored)
+func TestPromptyMapper_NonPromptyFileRejected(t *testing.T) {
+	// mappingMode=prompty must hard-error on non-.prompty files.
+	entries := []fileEntry{
+		{RelPath: "weather.prompty", Bytes: []byte("---\nagent_role: ok\n---\n")},
+		{RelPath: "ignored.txt", Bytes: []byte("nope")},
+	}
+	_, err := promptyMapper{}.Map(entries, testVersion, logger.NewLogger("test"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mappingMode=prompty does not accept \"ignored.txt\"")
 }
 
 func TestPromptyMapper_NoClosingDelim(t *testing.T) {

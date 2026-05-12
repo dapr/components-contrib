@@ -20,8 +20,11 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -43,7 +46,7 @@ func base64Encode(b []byte) string { return base64.StdEncoding.EncodeToString(b)
 
 func TestSelectAuth(t *testing.T) {
 	t.Run("none", func(t *testing.T) {
-		m := &metadata{URL: "https://example.com/repo.git"}
+		m := &metadata{RemoteURL: "https://example.com/repo.git"}
 		s, err := selectAuth(m, logger.NewLogger("test"))
 		require.NoError(t, err)
 		_, ok := s.(*noneAuth)
@@ -53,8 +56,8 @@ func TestSelectAuth(t *testing.T) {
 		assert.Nil(t, am)
 	})
 
-	t.Run("pat with default username", func(t *testing.T) {
-		m := &metadata{URL: "https://example.com/repo.git", Token: "ghp_abc"}
+	t.Run("pat classic token", func(t *testing.T) {
+		m := &metadata{RemoteURL: "https://example.com/repo.git", Token: "ghp_classic1234567890abcdef"}
 		s, err := selectAuth(m, logger.NewLogger("test"))
 		require.NoError(t, err)
 		am, err := s.AuthMethod(t.Context())
@@ -62,12 +65,30 @@ func TestSelectAuth(t *testing.T) {
 		ba, ok := am.(*githttp.BasicAuth)
 		require.True(t, ok)
 		assert.Equal(t, "x-access-token", ba.Username)
-		assert.Equal(t, "ghp_abc", ba.Password)
+		assert.Equal(t, "ghp_classic1234567890abcdef", ba.Password)
+	})
+
+	t.Run("pat fine-grained token", func(t *testing.T) {
+		// Fine-grained PATs use the `github_pat_` prefix. They go through
+		// the same HTTP Basic Auth path and must produce an identically
+		// shaped AuthMethod.
+		m := &metadata{
+			RemoteURL: "https://example.com/repo.git",
+			Token:     "github_pat_finegrained_abcdef1234567890",
+		}
+		s, err := selectAuth(m, logger.NewLogger("test"))
+		require.NoError(t, err)
+		am, err := s.AuthMethod(t.Context())
+		require.NoError(t, err)
+		ba, ok := am.(*githttp.BasicAuth)
+		require.True(t, ok)
+		assert.Equal(t, "x-access-token", ba.Username)
+		assert.Equal(t, "github_pat_finegrained_abcdef1234567890", ba.Password)
 	})
 
 	t.Run("pat with explicit username", func(t *testing.T) {
 		user := "alice"
-		m := &metadata{URL: "https://example.com/repo.git", Username: &user, Token: "ghp_abc"}
+		m := &metadata{RemoteURL: "https://example.com/repo.git", Username: &user, Token: "ghp_abc"}
 		s, err := selectAuth(m, logger.NewLogger("test"))
 		require.NoError(t, err)
 		am, err := s.AuthMethod(t.Context())
@@ -79,7 +100,7 @@ func TestSelectAuth(t *testing.T) {
 	t.Run("auto-detect ssh from url", func(t *testing.T) {
 		key := generateTestSSHPrivateKey(t)
 		insecure := true
-		m := &metadata{URL: "git@example.com:org/repo.git", SSHPrivateKey: key, SSHInsecureIgnoreHostKey: &insecure}
+		m := &metadata{RemoteURL: "git@example.com:org/repo.git", PrivateKey: key, InsecureIgnoreHostKey: &insecure}
 		s, err := selectAuth(m, logger.NewLogger("test"))
 		require.NoError(t, err)
 		_, ok := s.(*sshAuth)
@@ -88,10 +109,10 @@ func TestSelectAuth(t *testing.T) {
 
 	t.Run("ssh missing known_hosts when not insecure", func(t *testing.T) {
 		key := generateTestSSHPrivateKey(t)
-		m := &metadata{URL: "git@example.com:org/repo.git", SSHPrivateKey: key}
+		m := &metadata{RemoteURL: "git@example.com:org/repo.git", PrivateKey: key}
 		_, err := selectAuth(m, logger.NewLogger("test"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sshKnownHosts")
+		assert.Contains(t, err.Error(), "knownHosts")
 	})
 }
 
@@ -102,11 +123,11 @@ func TestGitHubAppAuth_RefreshCadence(t *testing.T) {
 	skew := 5 * time.Minute
 
 	m := &metadata{
-		URL:                     "https://github.com/org/repo.git",
-		GithubAppID:             &appID,
-		GithubAppInstallationID: &installID,
-		GithubAppPrivateKey:     keyPEM,
-		GithubAppRefreshSkew:    &skew,
+		RemoteURL:      "https://github.com/org/repo.git",
+		AppID:          &appID,
+		InstallationID: &installID,
+		PrivateKey:     keyPEM,
+		RefreshSkew:    &skew,
 	}
 
 	var calls atomic.Int32
@@ -164,9 +185,9 @@ func TestSSHAuth_LoadKeyFromPath(t *testing.T) {
 
 	insecure := true
 	m := &metadata{
-		URL:                      "git@example.com:org/repo.git",
-		SSHPrivateKeyPath:        &keyPath,
-		SSHInsecureIgnoreHostKey: &insecure,
+		RemoteURL:             "git@example.com:org/repo.git",
+		PrivateKeyPath:        &keyPath,
+		InsecureIgnoreHostKey: &insecure,
 	}
 	s, err := selectAuth(m, logger.NewLogger("test"))
 	require.NoError(t, err)
@@ -184,9 +205,9 @@ func TestSSHAuth_KnownHostsFromInlineString(t *testing.T) {
 
 	keyPEM := generateTestRSAPEM(t)
 	m := &metadata{
-		URL:           "git@github.com:org/repo.git",
-		SSHPrivateKey: keyPEM,
-		SSHKnownHosts: &known,
+		RemoteURL:  "git@github.com:org/repo.git",
+		PrivateKey: keyPEM,
+		KnownHosts: &known,
 	}
 	s, err := selectAuth(m, logger.NewLogger("test"))
 	require.NoError(t, err)
@@ -201,10 +222,10 @@ func TestGitHubAppAuth_LoadKeyFromPath(t *testing.T) {
 	appID := int64(1)
 	installID := int64(2)
 	m := &metadata{
-		URL:                     "https://github.com/org/repo.git",
-		GithubAppID:             &appID,
-		GithubAppInstallationID: &installID,
-		GithubAppPrivateKeyPath: &keyPath,
+		RemoteURL:      "https://github.com/org/repo.git",
+		AppID:          &appID,
+		InstallationID: &installID,
+		PrivateKeyPath: &keyPath,
 	}
 	a, err := newGitHubAppAuth(m, logger.NewLogger("test"), func(_ context.Context, _ *http.Client, _ string, _ int64, _ string) (*installationToken, error) {
 		return &installationToken{Token: "tok", ExpiresAt: time.Now().Add(time.Hour)}, nil
@@ -213,3 +234,122 @@ func TestGitHubAppAuth_LoadKeyFromPath(t *testing.T) {
 	_, err = a.AuthMethod(t.Context())
 	require.NoError(t, err)
 }
+
+// TestInstallationTokenFetcher_RateLimitRetry exercises the 429 / Retry-After
+// path: the first response 429s with a short Retry-After; the second
+// succeeds. The fetcher must wait, retry, and return the success token.
+func TestInstallationTokenFetcher_RateLimitRetry(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := hits.Add(1)
+		if n == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"token":"ghs_recovered","expires_at":"2030-01-01T00:00:00Z"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	tok, err := defaultInstallationTokenFetcher(t.Context(), srv.Client(), srv.URL, 42, "jwt-stub")
+	require.NoError(t, err)
+	require.NotNil(t, tok)
+	assert.Equal(t, "ghs_recovered", tok.Token)
+	assert.Equal(t, int32(2), hits.Load(), "fetcher must retry exactly once after 429")
+}
+
+// TestInstallationTokenFetcher_RateLimitTwice asserts that two consecutive
+// 429s surface as a rateLimitError to the caller (used by the poll loop to
+// trigger back-off).
+func TestInstallationTokenFetcher_RateLimitTwice(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := defaultInstallationTokenFetcher(t.Context(), srv.Client(), srv.URL, 42, "jwt-stub")
+	require.Error(t, err)
+	var rl *rateLimitError
+	assert.ErrorAs(t, err, &rl, "second 429 must produce a rateLimitError")
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		assert.Equal(t, time.Duration(0), parseRetryAfter("", time.Now()))
+	})
+	t.Run("zero", func(t *testing.T) {
+		assert.Equal(t, time.Duration(0), parseRetryAfter("0", time.Now()))
+	})
+	t.Run("seconds", func(t *testing.T) {
+		assert.Equal(t, 30*time.Second, parseRetryAfter("30", time.Now()))
+	})
+	t.Run("http date in future", func(t *testing.T) {
+		future := time.Now().Add(2 * time.Minute).UTC()
+		got := parseRetryAfter(future.Format(http.TimeFormat), time.Now())
+		// HTTP-date is second-resolution; allow ±2s for the round-trip through
+		// http.ParseTime + the wall-clock advance between formatting and parsing.
+		diff := got - 2*time.Minute
+		if diff < 0 {
+			diff = -diff
+		}
+		assert.LessOrEqual(t, diff, 2*time.Second)
+	})
+	t.Run("http date in past", func(t *testing.T) {
+		past := time.Now().Add(-2 * time.Minute).UTC()
+		assert.Equal(t, time.Duration(0), parseRetryAfter(past.Format(http.TimeFormat), time.Now()))
+	})
+	t.Run("unparseable", func(t *testing.T) {
+		assert.Equal(t, time.Duration(0), parseRetryAfter("soon", time.Now()))
+	})
+}
+
+// TestIsRateLimited covers the 403-with-rate-limit-headers case used for
+// GitHub secondary rate limits.
+func TestIsRateLimited(t *testing.T) {
+	cases := []struct {
+		name string
+		code int
+		hdr  http.Header
+		want bool
+	}{
+		{"429", http.StatusTooManyRequests, http.Header{}, true},
+		{"403 with remaining 0", http.StatusForbidden, http.Header{"X-Ratelimit-Remaining": {"0"}}, true},
+		{"403 with retry-after", http.StatusForbidden, http.Header{"Retry-After": {"60"}}, true},
+		{"403 without rate-limit headers", http.StatusForbidden, http.Header{}, false},
+		{"200", http.StatusOK, http.Header{}, false},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &http.Response{StatusCode: tt.code, Header: tt.hdr}
+			assert.Equal(t, tt.want, isRateLimited(r))
+		})
+	}
+}
+
+// TestIsTransportRateLimit covers the go-git transport-error pattern check.
+func TestIsTransportRateLimit(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"unrelated", errors.New("connection reset"), false},
+		{"429 in message", errors.New("unexpected status 429"), true},
+		{"rate limit text", errors.New("API rate limit exceeded"), true},
+		{"secondary rate limit", errors.New("you have exceeded a secondary rate limit"), true},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isTransportRateLimit(tt.err))
+		})
+	}
+}
+
+// ensure strconv is referenced (imports list normalised by goimports later).
+var _ = strconv.Itoa

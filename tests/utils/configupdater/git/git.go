@@ -56,16 +56,16 @@ type ConfigUpdater struct {
 	seq atomic.Int64
 }
 
-// NewGitConfigUpdater constructs a fresh updater. props["url"] is the
+// NewGitConfigUpdater constructs a fresh updater. props["remoteUrl"] is the
 // upstream URL (typically file://). props["branch"] defaults to "main".
 func NewGitConfigUpdater(log logger.Logger) configupdater.Updater {
 	return &ConfigUpdater{logger: log}
 }
 
 func (u *ConfigUpdater) Init(props map[string]string) error {
-	u.upstreamURL = props["url"]
+	u.upstreamURL = props["remoteUrl"]
 	if u.upstreamURL == "" {
-		return errors.New("url is required")
+		return errors.New("remoteUrl is required")
 	}
 	u.branch = props["branch"]
 	if u.branch == "" {

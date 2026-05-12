@@ -130,7 +130,7 @@ spec:
   type: configuration.git
   version: v1
   metadata:
-    - name: url
+    - name: remoteUrl
       value: %q
     - name: branch
       value: "main"
@@ -142,8 +142,6 @@ spec:
       value: %q
     - name: emitInitialState
       value: "false"
-    - name: authMode
-      value: "none"
 `, upstreamURL, pollInterval)
 	path := filepath.Join(dir, "configstore.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(spec), 0o644))
@@ -172,7 +170,7 @@ func TestGit(t *testing.T) {
 
 	initUpdater := func(_ flow.Context) error {
 		return updater.Init(map[string]string{
-			"url":          upstreamURL,
+			"remoteUrl":    upstreamURL,
 			"branch":       "main",
 			"pollInterval": pollInterval,
 		})

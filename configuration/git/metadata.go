@@ -30,22 +30,27 @@ const (
 	mappingModeAgentYAML = "agentyaml"
 	mappingModePrompty   = "prompty"
 
+	// authMode* constants are internal sentinels used by the auto-detector
+	// and downstream auth strategy selection. They are not user-facing —
+	// operators do not select a mode explicitly; it is derived from which
+	// metadata fields are populated (see resolveAuthMode).
 	authModeNone      = "none"
 	authModePAT       = "pat"
 	authModeSSH       = "ssh"
 	authModeGithubApp = "githubapp"
 
-	defaultBranch               = "main"
-	defaultPath                 = "."
-	defaultDepth                = 0
-	defaultPollInterval         = 30 * time.Second
-	defaultFetchTimeout         = 30 * time.Second
-	defaultMaxFileSizeBytes     = int64(1 * 1024 * 1024) // 1 MiB per file
-	defaultSnapshotCacheSize    = 4
-	defaultMappingMode          = mappingModeFile
-	defaultSSHUser              = "git"
-	defaultGithubAppAPIBase     = "https://api.github.com"
-	defaultGithubAppRefreshSkew = 5 * time.Minute
+	defaultBranch              = "main"
+	defaultPath                = "."
+	defaultDepth               = 0
+	defaultPollInterval        = 5 * time.Minute
+	defaultFetchTimeout        = 30 * time.Second
+	defaultMaxFileSizeBytes    = int64(1 * 1024 * 1024) // 1 MiB per file
+	defaultSnapshotCacheSize   = 4
+	defaultMappingMode         = mappingModeFile
+	defaultUser                = "git"
+	defaultAPIBase             = "https://api.github.com"
+	defaultRefreshSkew         = 5 * time.Minute
+	defaultRateLimitRetryAfter = 5 * time.Minute
 	// minPollInterval is the absolute floor for remote (https/ssh) URLs to
 	// guard the operator's git provider rate-limit budget. file:// URLs
 	// bypass this floor since they have no rate-limit concern.
@@ -53,42 +58,47 @@ const (
 	minLocalPollInterval = 100 * time.Millisecond
 )
 
+// metadata is the decoded form of the Dapr component spec for
+// configuration.git. Field names use the mapstructure tag to match the
+// user-facing YAML keys. There is no `authMode` selector — the active auth
+// profile is inferred from which fields are set (see resolveAuthMode).
 type metadata struct {
-	URL string `mapstructure:"url"` // required
+	RemoteURL string `mapstructure:"remoteUrl"` // required
 
-	Branch            *string        `mapstructure:"branch"`
-	Path              *string        `mapstructure:"path"`
-	Depth             *int           `mapstructure:"depth"`
-	PollInterval      *time.Duration `mapstructure:"pollInterval"`
-	FetchTimeout      *time.Duration `mapstructure:"fetchTimeout"`
-	IncludeHidden     *bool          `mapstructure:"includeHidden"`
-	EmitInitialState  *bool          `mapstructure:"emitInitialState"`
-	MaxFileSize       *int64         `mapstructure:"maxFileSize"`
-	SnapshotCacheSize *int           `mapstructure:"snapshotCacheSize"`
+	Branch              *string        `mapstructure:"branch"`
+	Path                *string        `mapstructure:"path"`
+	Depth               *int           `mapstructure:"depth"`
+	PollInterval        *time.Duration `mapstructure:"pollInterval"`
+	FetchTimeout        *time.Duration `mapstructure:"fetchTimeout"`
+	IncludeHidden       *bool          `mapstructure:"includeHidden"`
+	EmitInitialState    *bool          `mapstructure:"emitInitialState"`
+	MaxFileSize         *int64         `mapstructure:"maxFileSize"`
+	SnapshotCacheSize   *int           `mapstructure:"snapshotCacheSize"`
+	RateLimitRetryAfter *time.Duration `mapstructure:"rateLimitRetryAfter"`
 
 	MappingMode *string `mapstructure:"mappingMode"`
-	AuthMode    *string `mapstructure:"authMode"`
 
-	// PAT
+	// Personal Access Token profile
 	Username *string `mapstructure:"username"`
 	Token    string  `mapstructure:"token"`
 
-	// SSH
-	SSHUser                  *string `mapstructure:"sshUser"`
-	SSHPrivateKey            string  `mapstructure:"sshPrivateKey"`
-	SSHPrivateKeyPath        *string `mapstructure:"sshPrivateKeyPath"`
-	SSHPassphrase            string  `mapstructure:"sshPassphrase"`
-	SSHKnownHosts            *string `mapstructure:"sshKnownHosts"`
-	SSHKnownHostsPath        *string `mapstructure:"sshKnownHostsPath"`
-	SSHInsecureIgnoreHostKey *bool   `mapstructure:"sshInsecureIgnoreHostKey"`
+	// SSH profile. PrivateKey/PrivateKeyPath are also reused by the GitHub
+	// App profile — auto-detection picks one based on AppID presence.
+	User                  *string `mapstructure:"user"`
+	Passphrase            string  `mapstructure:"passphrase"`
+	KnownHosts            *string `mapstructure:"knownHosts"`
+	KnownHostsPath        *string `mapstructure:"knownHostsPath"`
+	InsecureIgnoreHostKey *bool   `mapstructure:"insecureIgnoreHostKey"`
 
-	// GitHub App
-	GithubAppID             *int64         `mapstructure:"githubAppId"`
-	GithubAppInstallationID *int64         `mapstructure:"githubAppInstallationId"`
-	GithubAppPrivateKey     string         `mapstructure:"githubAppPrivateKey"`
-	GithubAppPrivateKeyPath *string        `mapstructure:"githubAppPrivateKeyPath"`
-	GithubAppAPIBase        *string        `mapstructure:"githubAppApiBase"`
-	GithubAppRefreshSkew    *time.Duration `mapstructure:"githubAppRefreshSkew"`
+	// GitHub App profile
+	AppID          *int64         `mapstructure:"appId"`
+	InstallationID *int64         `mapstructure:"installationId"`
+	APIBase        *string        `mapstructure:"apiBase"`
+	RefreshSkew    *time.Duration `mapstructure:"refreshSkew"`
+
+	// Shared between SSH and GitHub App profiles.
+	PrivateKey     string  `mapstructure:"privateKey"`
+	PrivateKeyPath *string `mapstructure:"privateKeyPath"`
 }
 
 func (m *metadata) parse(meta configuration.Metadata) error {
@@ -96,8 +106,8 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 		return fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
-	if strings.TrimSpace(m.URL) == "" {
-		return errors.New("url is required")
+	if strings.TrimSpace(m.RemoteURL) == "" {
+		return errors.New("remoteUrl is required")
 	}
 
 	mode := normalizeMode(m.MappingMode)
@@ -105,13 +115,6 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 	case "", mappingModeFile, mappingModeAgentYAML, mappingModePrompty:
 	default:
 		return fmt.Errorf("unsupported mappingMode %q (supported: file, agentYaml, prompty)", *m.MappingMode)
-	}
-
-	auth := normalizeMode(m.AuthMode)
-	switch auth {
-	case "", authModeNone, authModePAT, authModeSSH, authModeGithubApp:
-	default:
-		return fmt.Errorf("unsupported authMode %q (supported: none, pat, ssh, githubApp)", *m.AuthMode)
 	}
 
 	resolved := m.resolveAuthMode()
@@ -124,7 +127,7 @@ func (m *metadata) parse(meta configuration.Metadata) error {
 
 	if m.PollInterval != nil {
 		floor := minPollInterval
-		if strings.HasPrefix(m.URL, "file://") {
+		if strings.HasPrefix(m.RemoteURL, "file://") {
 			floor = minLocalPollInterval
 		}
 		if *m.PollInterval < floor {
@@ -218,6 +221,13 @@ func (m *metadata) snapshotCacheSize() int {
 	return defaultSnapshotCacheSize
 }
 
+func (m *metadata) rateLimitRetryAfter() time.Duration {
+	if m.RateLimitRetryAfter != nil && *m.RateLimitRetryAfter > 0 {
+		return *m.RateLimitRetryAfter
+	}
+	return defaultRateLimitRetryAfter
+}
+
 func (m *metadata) mappingMode() string {
 	if mode := normalizeMode(m.MappingMode); mode != "" {
 		return mode
@@ -225,45 +235,48 @@ func (m *metadata) mappingMode() string {
 	return defaultMappingMode
 }
 
-func (m *metadata) sshUser() string {
-	if m.SSHUser != nil && *m.SSHUser != "" {
-		return *m.SSHUser
+func (m *metadata) user() string {
+	if m.User != nil && *m.User != "" {
+		return *m.User
 	}
-	return defaultSSHUser
+	return defaultUser
 }
 
-func (m *metadata) sshInsecureIgnoreHostKey() bool {
-	if m.SSHInsecureIgnoreHostKey != nil {
-		return *m.SSHInsecureIgnoreHostKey
+func (m *metadata) insecureIgnoreHostKey() bool {
+	if m.InsecureIgnoreHostKey != nil {
+		return *m.InsecureIgnoreHostKey
 	}
 	return false
 }
 
-func (m *metadata) githubAppAPIBase() string {
-	if m.GithubAppAPIBase != nil && *m.GithubAppAPIBase != "" {
-		return *m.GithubAppAPIBase
+func (m *metadata) apiBase() string {
+	if m.APIBase != nil && *m.APIBase != "" {
+		return *m.APIBase
 	}
-	return defaultGithubAppAPIBase
+	return defaultAPIBase
 }
 
-func (m *metadata) githubAppRefreshSkew() time.Duration {
-	if m.GithubAppRefreshSkew != nil {
-		return *m.GithubAppRefreshSkew
+func (m *metadata) refreshSkew() time.Duration {
+	if m.RefreshSkew != nil {
+		return *m.RefreshSkew
 	}
-	return defaultGithubAppRefreshSkew
+	return defaultRefreshSkew
 }
 
-// resolveAuthMode returns the auth mode to use, applying auto-detection when
-// authMode is empty.
+// resolveAuthMode derives which auth profile is active from the metadata
+// the operator provided. There is no explicit selector — presence of
+// fields determines the profile. Priority:
+//
+//  1. appId set → GitHub App
+//  2. URL is SSH-scheme (git@ or ssh://) → SSH
+//  3. token set → PAT
+//  4. otherwise → no auth (public HTTPS or file://)
 func (m *metadata) resolveAuthMode() string {
-	if mode := normalizeMode(m.AuthMode); mode != "" {
-		return mode
-	}
-	if strings.HasPrefix(m.URL, "git@") || strings.HasPrefix(m.URL, "ssh://") {
-		return authModeSSH
-	}
-	if m.GithubAppID != nil && *m.GithubAppID != 0 {
+	if m.AppID != nil && *m.AppID != 0 {
 		return authModeGithubApp
+	}
+	if strings.HasPrefix(m.RemoteURL, "git@") || strings.HasPrefix(m.RemoteURL, "ssh://") {
+		return authModeSSH
 	}
 	if m.Token != "" {
 		return authModePAT
@@ -277,68 +290,62 @@ func (m *metadata) validateAuthFields(mode string) error {
 		return nil
 	case authModePAT:
 		if m.Token == "" {
-			return errors.New("authMode=pat requires token")
+			return errors.New("PAT auth requires token")
 		}
 		return nil
 	case authModeSSH:
-		if m.SSHPrivateKey == "" && (m.SSHPrivateKeyPath == nil || *m.SSHPrivateKeyPath == "") {
-			return errors.New("authMode=ssh requires sshPrivateKey or sshPrivateKeyPath")
+		if m.PrivateKey == "" && (m.PrivateKeyPath == nil || *m.PrivateKeyPath == "") {
+			return errors.New("SSH auth requires privateKey or privateKeyPath")
 		}
 		return nil
 	case authModeGithubApp:
-		if m.GithubAppID == nil || *m.GithubAppID == 0 {
-			return errors.New("authMode=githubApp requires githubAppId")
+		if m.AppID == nil || *m.AppID == 0 {
+			return errors.New("GitHub App auth requires appId")
 		}
-		if m.GithubAppInstallationID == nil || *m.GithubAppInstallationID == 0 {
-			return errors.New("authMode=githubApp requires githubAppInstallationId")
+		if m.InstallationID == nil || *m.InstallationID == 0 {
+			return errors.New("GitHub App auth requires installationId")
 		}
-		if m.GithubAppPrivateKey == "" && (m.GithubAppPrivateKeyPath == nil || *m.GithubAppPrivateKeyPath == "") {
-			return errors.New("authMode=githubApp requires githubAppPrivateKey or githubAppPrivateKeyPath")
+		if m.PrivateKey == "" && (m.PrivateKeyPath == nil || *m.PrivateKeyPath == "") {
+			return errors.New("GitHub App auth requires privateKey or privateKeyPath")
 		}
-		if m.GithubAppAPIBase != nil && *m.GithubAppAPIBase != "" {
-			u, err := url.Parse(*m.GithubAppAPIBase)
+		if m.APIBase != nil && *m.APIBase != "" {
+			u, err := url.Parse(*m.APIBase)
 			if err != nil {
-				return fmt.Errorf("githubAppApiBase: %w", err)
+				return fmt.Errorf("apiBase: %w", err)
 			}
 			if u.Scheme != "https" {
-				return errors.New("githubAppApiBase must use https://")
+				return errors.New("apiBase must use https://")
 			}
 		}
 		return nil
 	}
-	return fmt.Errorf("unsupported authMode %q", mode)
+	return fmt.Errorf("unsupported auth mode %q", mode)
 }
 
-// validateURL rejects insecure schemes (http://) for authenticated modes and
-// rejects URLs that embed credentials inline so operators are forced to use
-// the secret-reference mechanism. SCP-style SSH URLs (git@host:path) and
-// local file:// URLs are recognised explicitly: the former doesn't parse
-// cleanly via url.Parse, and the latter may legitimately contain Windows
-// drive letters (e.g. file:///C:/Users/...) that net/url interprets as
-// host:port and rejects.
+// validateURL rejects insecure schemes (http://) for authenticated profiles
+// and rejects URLs that embed credentials inline so operators are forced to
+// store them in a secret store. SCP-style SSH URLs (git@host:path) and local
+// file:// URLs are recognised explicitly: the former doesn't parse cleanly
+// via url.Parse, and the latter may legitimately contain Windows drive
+// letters (e.g. file:///C:/Users/...) that net/url interprets as host:port.
 func (m *metadata) validateURL(resolvedAuth string) error {
-	if strings.HasPrefix(m.URL, "git@") {
-		// SCP-style: no scheme to validate, no userinfo to extract beyond
-		// the "git@" sentinel.
+	if strings.HasPrefix(m.RemoteURL, "git@") {
 		return nil
 	}
-	if strings.HasPrefix(m.URL, "file://") {
-		// file:// URIs have no credential or scheme-downgrade concerns and
-		// may legitimately contain backslashes / drive letters on Windows
-		// that net/url cannot parse. Skip the URL-parser-based checks.
+	if strings.HasPrefix(m.RemoteURL, "file://") {
 		return nil
 	}
-	parsed, err := url.Parse(m.URL)
+	parsed, err := url.Parse(m.RemoteURL)
 	if err != nil {
-		return fmt.Errorf("url: %w", err)
+		return fmt.Errorf("remoteUrl: %w", err)
 	}
 	if parsed.User != nil && parsed.User.Username() != "" {
 		if _, hasPass := parsed.User.Password(); hasPass {
-			return errors.New("url: credentials must not be embedded in the URL; use authMode with the appropriate metadata field and a Dapr secret reference")
+			return errors.New("remoteUrl: credentials must not be embedded in the URL; supply them via the appropriate auth profile field (typically backed by a configured secret store)")
 		}
 	}
 	if resolvedAuth != authModeNone && parsed.Scheme == "http" {
-		return errors.New("url: http:// is not allowed with authenticated auth modes; use https://, ssh://, or file://")
+		return errors.New("remoteUrl: http:// is not allowed with an authenticated profile; use https://, ssh://, or file://")
 	}
 	return nil
 }

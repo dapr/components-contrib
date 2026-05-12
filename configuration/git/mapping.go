@@ -77,7 +77,11 @@ func (fileMapper) Map(entries []fileEntry, version string, _ logger.Logger) (map
 
 // agentYAMLMapper parses each *.yaml/*.yml/*.json file as a flat top-level
 // map and emits one key per top-level field, prefixed by the filename stem.
-// Per-file parse errors are logged and skipped.
+//
+// Non-matching files in the configured scope are a hard error: if the
+// operator selected mappingMode=agentYaml and the path contains a README,
+// LICENSE, or any other non-YAML file, that's a configuration mistake the
+// operator should be told about — not silently dropped.
 type agentYAMLMapper struct{}
 
 func (agentYAMLMapper) Name() string { return mappingModeAgentYAML }
@@ -89,15 +93,12 @@ func (agentYAMLMapper) Map(entries []fileEntry, version string, log logger.Logge
 		switch extKey(e.RelPath) {
 		case ".yaml", ".yml", ".json":
 		default:
-			continue
+			return nil, fmt.Errorf("mappingMode=agentYaml does not accept %q: only .yaml/.yml/.json files are permitted; either move the file out of the configured path or switch to mappingMode=file", e.RelPath)
 		}
 		stem := stemOf(e.RelPath)
 		fields, err := parseFlatMap(e.Bytes)
 		if err != nil {
-			if log != nil {
-				log.Warnf("git mapping: skipping %q: %v", e.RelPath, err)
-			}
-			continue
+			return nil, fmt.Errorf("mappingMode=agentYaml: parse %q: %w", e.RelPath, err)
 		}
 		for k, v := range fields {
 			key := stem + "/" + k
@@ -117,6 +118,10 @@ func (agentYAMLMapper) Map(entries []fileEntry, version string, log logger.Logge
 
 // promptyMapper splits the YAML frontmatter from the body and emits keys for
 // each frontmatter field plus an `agent_system_prompt` carrying the body.
+//
+// Non-.prompty files in the configured scope are a hard error: mixed-content
+// directories must use mappingMode=file. The Prompty spec is at
+// https://github.com/microsoft/prompty.
 type promptyMapper struct{}
 
 func (promptyMapper) Name() string { return mappingModePrompty }
@@ -126,34 +131,28 @@ func (promptyMapper) Map(entries []fileEntry, version string, log logger.Logger)
 	owners := make(map[string]string)
 	for _, e := range entries {
 		if extKey(e.RelPath) != ".prompty" {
-			continue
+			return nil, fmt.Errorf("mappingMode=prompty does not accept %q: only .prompty files are permitted; either move the file out of the configured path or switch to mappingMode=file", e.RelPath)
 		}
 		stem := stemOf(e.RelPath)
 		frontmatter, body, err := splitPromptyFrontmatter(e.Bytes)
 		if err != nil {
-			if log != nil {
-				log.Warnf("git mapping: skipping %q: %v", e.RelPath, err)
-			}
-			continue
+			return nil, fmt.Errorf("mappingMode=prompty: %q: %w", e.RelPath, err)
 		}
 		if len(frontmatter) > 0 {
 			fields, err := parseFlatMap(frontmatter)
 			if err != nil {
-				if log != nil {
-					log.Warnf("git mapping: skipping %q frontmatter: %v", e.RelPath, err)
+				return nil, fmt.Errorf("mappingMode=prompty: parse frontmatter of %q: %w", e.RelPath, err)
+			}
+			for k, v := range fields {
+				key := stem + "/" + k
+				if owner, exists := owners[key]; exists && log != nil {
+					log.Warnf("git mapping: key %q from %q overwritten by %q", key, owner, e.RelPath)
 				}
-			} else {
-				for k, v := range fields {
-					key := stem + "/" + k
-					if owner, exists := owners[key]; exists && log != nil {
-						log.Warnf("git mapping: key %q from %q overwritten by %q", key, owner, e.RelPath)
-					}
-					owners[key] = e.RelPath
-					out[key] = &configuration.Item{
-						Value:    v,
-						Version:  version,
-						Metadata: map[string]string{},
-					}
+				owners[key] = e.RelPath
+				out[key] = &configuration.Item{
+					Value:    v,
+					Version:  version,
+					Metadata: map[string]string{},
 				}
 			}
 		}

@@ -6,8 +6,8 @@ spec:
   type: configuration.git
   version: v1
   metadata:
-    - name: url
-      value: "${{GIT_UPSTREAM_URL}}"
+    - name: remoteUrl
+      value: "${{GIT_REMOTE_URL}}"
     - name: branch
       value: "main"
     - name: path
@@ -18,5 +18,3 @@ spec:
       value: "250ms"  # Allowed because the conformance harness uses file:// URLs
     - name: emitInitialState
       value: "false"
-    - name: authMode
-      value: "none"

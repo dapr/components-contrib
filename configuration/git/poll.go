@@ -24,6 +24,13 @@ import (
 )
 
 // pollLoop ticks every metadata.PollInterval until ctx is cancelled.
+//
+// When tick reports a rate-limit error (from go-git's HTTP transport or
+// from the GitHub App installation-token fetcher), the loop pauses for
+// `rateLimitRetryAfter` (or the server-suggested Retry-After when known)
+// before its next attempt — protecting the provider's rate-limit budget
+// for the rest of the deployment and avoiding hammering the API while it
+// is asking us to back off.
 func (s *ConfigurationStore) pollLoop(ctx context.Context) {
 	defer s.pollerWg.Done()
 	ticker := time.NewTicker(s.metadata.pollInterval())
@@ -35,11 +42,39 @@ func (s *ConfigurationStore) pollLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 		if err := s.tick(ctx); err != nil {
-			if !errors.Is(err, context.Canceled) {
-				s.logger.Warnf("git config: poll tick failed (will retry): %v", err)
+			if errors.Is(err, context.Canceled) {
+				return
 			}
+			backoff := s.rateLimitBackoff(err)
+			if backoff > 0 {
+				s.logger.Warnf("git config: rate-limited by upstream; backing off for %s before next tick: %v", backoff, err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(backoff):
+				}
+				continue
+			}
+			s.logger.Warnf("git config: poll tick failed (will retry): %v", err)
 		}
 	}
+}
+
+// rateLimitBackoff returns the duration to wait before the next tick when
+// err is a rate-limit response. Returns zero if err is not a rate-limit
+// signal — the loop then proceeds on its normal cadence.
+func (s *ConfigurationStore) rateLimitBackoff(err error) time.Duration {
+	var rl *rateLimitError
+	if errors.As(err, &rl) {
+		if rl.RetryAfter > 0 {
+			return rl.RetryAfter
+		}
+		return s.metadata.rateLimitRetryAfter()
+	}
+	if isTransportRateLimit(err) {
+		return s.metadata.rateLimitRetryAfter()
+	}
+	return 0
 }
 
 // tick fetches the upstream branch and, if HEAD has moved, walks the tree,

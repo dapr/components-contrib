@@ -15,7 +15,7 @@ The component is intended for **operator-driven configuration repos**
 
 - The data is small (≤ 1 MiB per file by default).
 - Changes are infrequent (commits, not high-frequency writes).
-- A polling delay of 5–60 seconds is acceptable.
+- A polling delay of a few minutes is acceptable.
 
 It is **not** suitable for source-code monorepos or hot-path data planes.
 
@@ -30,18 +30,23 @@ spec:
   type: configuration.git
   version: v1
   metadata:
-    - name: url
+    - name: remoteUrl
       value: "https://github.com/example/agent-config.git"
     - name: branch
       value: "main"
+    - name: mappingMode
+      value: "file"
     - name: pollInterval
-      value: "30s"
+      value: "5m"
 ```
 
 ## Mapping modes
 
 The `mappingMode` metadata field selects how files in the repository become
-configuration items. Matching is case-insensitive.
+configuration items. Matching is case-insensitive. **Non-matching files in
+the configured scope are a hard error** — if the directory contains a mix of
+file types, either narrow `path` to the homogeneous subset or use
+`mappingMode: file`.
 
 ### `file` (default)
 
@@ -54,14 +59,14 @@ repo/
   agents/weather/agent_goal.txt   → key "agents/weather/agent_goal.txt"
 ```
 
-This is the recommended mode when the consumer (e.g. dapr-agents) already
-expects scalar config keys.
+Recommended when the consumer (e.g. dapr-agents) expects scalar config keys.
 
 ### `agentYaml`
 
 Each `*.yaml`, `*.yml`, or `*.json` file is parsed as a flat top-level map.
 Each top-level field becomes a key prefixed by the filename stem with
-directory separators replaced by `_`. Non-YAML/JSON files are silently skipped.
+directory separators replaced by `_`. **Non-YAML/JSON files in scope cause
+Init to fail.**
 
 ```yaml
 # repo/agents/weather.yaml
@@ -84,7 +89,8 @@ agents_weather/agent_instructions    = (YAML-serialised list — round-trip via 
 
 Each `*.prompty` file's YAML frontmatter and body are split.
 Frontmatter fields produce `<stem>/<field>` keys; the body is emitted as
-`<stem>/agent_system_prompt`. Non-`.prompty` files are skipped.
+`<stem>/agent_system_prompt`. See the [Prompty spec](https://github.com/microsoft/prompty)
+for the file format. **Non-`.prompty` files in scope cause Init to fail.**
 
 ```
 ---
@@ -106,63 +112,119 @@ weather/agent_system_prompt   = "You are a friendly weather assistant."
 
 ## Authentication
 
-The `authMode` metadata field selects an auth profile. When empty, the
-component auto-detects: SSH-scheme URLs (`git@` or `ssh://`) → `ssh`,
-`githubAppId` set → `githubApp`, `token` set → `pat`, otherwise `none`.
+There is **no explicit `authMode` selector** — the active profile is inferred
+from which fields are set:
 
-| Mode | Required fields |
-|------|-----------------|
-| `none` | (public HTTPS or `file://`) |
-| `pat` | `token` (sensitive); optional `username` (defaults to `x-access-token`) |
-| `ssh` | `sshPrivateKey` or `sshPrivateKeyPath` (sensitive); plus `sshKnownHosts`/`sshKnownHostsPath` unless `sshInsecureIgnoreHostKey: true` |
-| `githubApp` | `githubAppId`, `githubAppInstallationId`, `githubAppPrivateKey` or `githubAppPrivateKeyPath` (sensitive) |
+1. `appId` set → **GitHub App** profile.
+2. URL begins with `git@` or `ssh://` → **SSH** profile.
+3. `token` set → **PAT** profile.
+4. Otherwise → no auth (public HTTPS or local `file://`).
 
-`http://` URLs are rejected for any authenticated mode to prevent cleartext
-credential transmission. Embedding credentials directly in the URL
-(e.g. `https://user:tok@host/`) is also rejected — use the appropriate
-profile with a Dapr secret reference.
+Sensitive fields should be sourced from a configured secret store via
+`secretKeyRef`.
+
+### PAT (HTTPS basic auth)
+
+Works with both GitHub classic PATs (`ghp_…`) and fine-grained PATs
+(`github_pat_…`).
+
+```yaml
+spec:
+  type: configuration.git
+  version: v1
+  metadata:
+    - name: remoteUrl
+      value: "https://github.com/example/private-config.git"
+    - name: token
+      secretKeyRef:
+        name: github-pat
+        key: token
+auth:
+  secretStore: <SECRET_STORE_NAME>
+```
+
+### SSH
+
+```yaml
+spec:
+  type: configuration.git
+  version: v1
+  metadata:
+    - name: remoteUrl
+      value: "git@github.com:example/private-config.git"
+    - name: privateKey
+      secretKeyRef:
+        name: git-ssh-deploy-key
+        key: privateKey
+    - name: knownHosts
+      secretKeyRef:
+        name: git-ssh-known-hosts
+        key: knownHosts
+auth:
+  secretStore: <SECRET_STORE_NAME>
+```
+
+`insecureIgnoreHostKey: true` disables host-key verification — only use for
+local development. A loud warning is logged at startup when this is enabled.
+
+### GitHub App
+
+```yaml
+spec:
+  type: configuration.git
+  version: v1
+  metadata:
+    - name: remoteUrl
+      value: "https://github.com/example/private-config.git"
+    - name: appId
+      value: "123456"
+    - name: installationId
+      value: "78901234"
+    - name: privateKey
+      secretKeyRef:
+        name: github-app-key
+        key: privateKey
+auth:
+  secretStore: <SECRET_STORE_NAME>
+```
+
+Accepts both PKCS#1 and PKCS#8 PEM-encoded RSA keys. The component mints an
+RS256 JWT, exchanges it for a 1-hour installation token, and refreshes the
+token `refreshSkew` (default 5m) before expiry.
 
 ## Behavioural notes
 
-- **`Get` is cache-only.** It returns the most-recently polled snapshot
-  and may be up to `pollInterval` old. It does not contact the remote.
+- **`Get` is cache-only.** Returns the most-recently polled snapshot and may
+  be up to `pollInterval` old. Does not contact the remote.
 - **`Subscribe` replays current state by default.** When `emitInitialState`
   is true (the default), the handler receives the current snapshot
-  synchronously before `Subscribe` returns. Set `emitInitialState: false`
-  if the caller has just performed a `Get` and would receive a duplicate.
-- **Deletions are signalled** via `Item{Value: "", Metadata: {"deleted": "true"}}` —
-  the same shape as the kubernetes ConfigMap configuration store.
-- **Commits are never written.** The component is read-only; nothing it
-  does mutates the upstream repository.
-- **Rate-limit budget.** With `pollInterval: 30s` and 1 replica, the
-  component issues ~120 ref-fetches per hour — well under GitHub's 5 000/h
-  PAT limit. Multi-replica deployments multiply that rate
-  (`effective_rate = 3600/pollInterval × replicas`); if you push down to
-  `pollInterval: 1s` (the hard floor for remote URLs), 10 replicas burn
-  36 000 req/h, exhausting a PAT. Use a GitHub App (15 000/h) and tune
-  carefully.
+  synchronously before `Subscribe` returns.
+- **Returned items are deep copies** — callers own them and may mutate
+  freely without affecting the store.
+- **Deletions are signalled** via `Item{Value: "", Metadata: {"deleted": "true"}}`,
+  same shape as the kubernetes ConfigMap configuration store.
+- **Read-only**: the component never writes to the upstream. Configuration
+  changes must be made by committing through your normal git workflow (PR
+  review, branch protection, etc.).
+- **Rate-limit handling**: on HTTP 429 from the GitHub API (used by the
+  GitHub App installation-token exchange), or a transport-level rate-limit
+  error from go-git, the poll loop pauses for `rateLimitRetryAfter`
+  (default 5m) — or the server-supplied `Retry-After` when present —
+  before the next tick.
 - **`.git/` is always excluded** from the worktree walk regardless of
-  `includeHidden`, so credentials in `.git/config` cannot leak into the
-  configuration items.
+  `includeHidden`, so credentials in `.git/config` cannot leak. A `path`
+  containing the `.git` segment is rejected at Init.
 - **Per-file size cap.** Files larger than `maxFileSize` (default 1 MiB)
-  are skipped with a warning. Protects the sidecar from OOM.
-- **LRU snapshot cache.** Diff bases for per-subscriber updates live in a
-  small LRU keyed by HEAD SHA (default size 4). On a miss the diff over-
-  emits a single batch (every key as added/changed) — idempotent on the
-  receiver. Tune via `snapshotCacheSize` for very high subscriber counts.
+  are skipped with a warning.
+- **LRU snapshot cache.** Per-subscriber diffs reuse cached snapshots keyed
+  by commit SHA (default size 4). On a miss the diff over-emits a single
+  batch — idempotent on the receiver.
 
 ## Limitations
 
-- **Shallow clone instability.** `go-git`'s shallow incremental fetch has
-  open issues; the default `depth: 0` (full clone) is the safe choice.
-  For repos with very deep history, set `depth: 1` and accept that
-  `git log` from inside the worktree won't show ancestors.
-- **No webhook support.** Polling only. A webhook listener would need an
-  inbound network endpoint, secret verification, and retry logic — out of
-  scope for v1.
-- **Single-installation GitHub App.** One installation per component
-  instance. Multi-tenant routing (different repos via different
-  installations) is not supported.
+- **Single GitHub App installation per component.** Multi-tenant routing
+  (different repos via different installations on the same component) is
+  not supported.
 
 ## Daprd registration
 

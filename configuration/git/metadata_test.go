@@ -32,33 +32,34 @@ func TestMetadata_Parse(t *testing.T) {
 		check   func(t *testing.T, m *metadata)
 	}{
 		{
-			name:    "missing url",
+			name:    "missing remoteUrl",
 			props:   map[string]string{},
-			wantErr: "url is required",
+			wantErr: "remoteUrl is required",
 		},
 		{
 			name: "defaults applied",
 			props: map[string]string{
-				"url": "https://example.com/repo.git",
+				"remoteUrl": "https://example.com/repo.git",
 			},
 			check: func(t *testing.T, m *metadata) {
 				assert.Equal(t, "main", m.branch())
 				assert.Equal(t, ".", m.path())
 				assert.Equal(t, 0, m.depth())
-				assert.Equal(t, 30*time.Second, m.pollInterval())
+				assert.Equal(t, 5*time.Minute, m.pollInterval())
 				assert.Equal(t, 30*time.Second, m.fetchTimeout())
 				assert.False(t, m.includeHidden())
 				assert.Equal(t, mappingModeFile, m.mappingMode())
 				assert.Equal(t, authModeNone, m.resolveAuthMode())
-				assert.Equal(t, "git", m.sshUser())
-				assert.Equal(t, "https://api.github.com", m.githubAppAPIBase())
-				assert.Equal(t, 5*time.Minute, m.githubAppRefreshSkew())
+				assert.Equal(t, "git", m.user())
+				assert.Equal(t, "https://api.github.com", m.apiBase())
+				assert.Equal(t, 5*time.Minute, m.refreshSkew())
+				assert.Equal(t, 5*time.Minute, m.rateLimitRetryAfter())
 			},
 		},
 		{
 			name: "explicit overrides",
 			props: map[string]string{
-				"url":           "https://example.com/repo.git",
+				"remoteUrl":     "https://example.com/repo.git",
 				"branch":        "release",
 				"path":          "agents",
 				"depth":         "5",
@@ -81,24 +82,16 @@ func TestMetadata_Parse(t *testing.T) {
 		{
 			name: "unsupported mappingMode",
 			props: map[string]string{
-				"url":         "https://example.com/repo.git",
+				"remoteUrl":   "https://example.com/repo.git",
 				"mappingMode": "bogus",
 			},
 			wantErr: `unsupported mappingMode "bogus"`,
 		},
 		{
-			name: "unsupported authMode",
-			props: map[string]string{
-				"url":      "https://example.com/repo.git",
-				"authMode": "kerberos",
-			},
-			wantErr: `unsupported authMode "kerberos"`,
-		},
-		{
 			name: "auto-detect ssh from URL",
 			props: map[string]string{
-				"url":               "git@github.com:org/repo.git",
-				"sshPrivateKeyPath": "/etc/ssh/key",
+				"remoteUrl":      "git@github.com:org/repo.git",
+				"privateKeyPath": "/etc/ssh/key",
 			},
 			check: func(t *testing.T, m *metadata) {
 				assert.Equal(t, authModeSSH, m.resolveAuthMode())
@@ -107,59 +100,49 @@ func TestMetadata_Parse(t *testing.T) {
 		{
 			name: "auto-detect ssh missing key",
 			props: map[string]string{
-				"url": "git@github.com:org/repo.git",
+				"remoteUrl": "git@github.com:org/repo.git",
 			},
-			wantErr: "authMode=ssh requires sshPrivateKey or sshPrivateKeyPath",
-		},
-		{
-			name: "pat requires token",
-			props: map[string]string{
-				"url":      "https://example.com/repo.git",
-				"authMode": "pat",
-			},
-			wantErr: "authMode=pat requires token",
+			wantErr: "SSH auth requires privateKey or privateKeyPath",
 		},
 		{
 			name: "auto-detect pat from token",
 			props: map[string]string{
-				"url":   "https://example.com/repo.git",
-				"token": "ghp_xxx",
+				"remoteUrl": "https://example.com/repo.git",
+				"token":     "ghp_xxx",
 			},
 			check: func(t *testing.T, m *metadata) {
 				assert.Equal(t, authModePAT, m.resolveAuthMode())
 			},
 		},
 		{
-			name: "githubApp missing installation id",
+			name: "githubApp missing installationId",
 			props: map[string]string{
-				"url":                 "https://example.com/repo.git",
-				"authMode":            "githubApp",
-				"githubAppId":         "1",
-				"githubAppPrivateKey": "PEM",
+				"remoteUrl":  "https://example.com/repo.git",
+				"appId":      "1",
+				"privateKey": "PEM",
 			},
-			wantErr: "githubAppInstallationId",
+			wantErr: "installationId",
 		},
 		{
 			name: "githubApp full config",
 			props: map[string]string{
-				"url":                     "https://example.com/repo.git",
-				"authMode":                "githubApp",
-				"githubAppId":             "100",
-				"githubAppInstallationId": "200",
-				"githubAppPrivateKey":     "PEM",
+				"remoteUrl":      "https://example.com/repo.git",
+				"appId":          "100",
+				"installationId": "200",
+				"privateKey":     "PEM",
 			},
 			check: func(t *testing.T, m *metadata) {
 				assert.Equal(t, authModeGithubApp, m.resolveAuthMode())
-				require.NotNil(t, m.GithubAppID)
-				assert.Equal(t, int64(100), *m.GithubAppID)
-				require.NotNil(t, m.GithubAppInstallationID)
-				assert.Equal(t, int64(200), *m.GithubAppInstallationID)
+				require.NotNil(t, m.AppID)
+				assert.Equal(t, int64(100), *m.AppID)
+				require.NotNil(t, m.InstallationID)
+				assert.Equal(t, int64(200), *m.InstallationID)
 			},
 		},
 		{
 			name: "pollInterval below remote minimum",
 			props: map[string]string{
-				"url":          "https://example.com/repo.git",
+				"remoteUrl":    "https://example.com/repo.git",
 				"pollInterval": "500ms",
 			},
 			wantErr: "below minimum",
@@ -167,7 +150,7 @@ func TestMetadata_Parse(t *testing.T) {
 		{
 			name: "pollInterval allowed for file:// below remote minimum",
 			props: map[string]string{
-				"url":          "file:///tmp/repo.git",
+				"remoteUrl":    "file:///tmp/repo.git",
 				"pollInterval": "500ms",
 			},
 			check: func(t *testing.T, m *metadata) {
@@ -177,7 +160,7 @@ func TestMetadata_Parse(t *testing.T) {
 		{
 			name: "pollInterval below file minimum",
 			props: map[string]string{
-				"url":          "file:///tmp/repo.git",
+				"remoteUrl":    "file:///tmp/repo.git",
 				"pollInterval": "10ms",
 			},
 			wantErr: "below minimum",
@@ -185,78 +168,86 @@ func TestMetadata_Parse(t *testing.T) {
 		{
 			name: "url with embedded credentials rejected",
 			props: map[string]string{
-				"url": "https://user:tok@example.com/repo.git",
+				"remoteUrl": "https://user:tok@example.com/repo.git",
 			},
 			wantErr: "credentials must not be embedded",
 		},
 		{
-			name: "http url rejected with authenticated mode",
+			name: "http url rejected with authenticated profile",
 			props: map[string]string{
-				"url":      "http://example.com/repo.git",
-				"authMode": "pat",
-				"token":    "abc",
+				"remoteUrl": "http://example.com/repo.git",
+				"token":     "abc",
 			},
 			wantErr: "http:// is not allowed",
 		},
 		{
-			name: "githubAppApiBase requires https",
+			name: "apiBase requires https",
 			props: map[string]string{
-				"url":                     "https://example.com/repo.git",
-				"authMode":                "githubApp",
-				"githubAppId":             "1",
-				"githubAppInstallationId": "2",
-				"githubAppPrivateKey":     "PEM",
-				"githubAppApiBase":        "http://api.example/",
+				"remoteUrl":      "https://example.com/repo.git",
+				"appId":          "1",
+				"installationId": "2",
+				"privateKey":     "PEM",
+				"apiBase":        "http://api.example/",
 			},
-			wantErr: "githubAppApiBase must use https",
+			wantErr: "apiBase must use https",
 		},
 		{
 			name: "path with leading slash",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": "/etc",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      "/etc",
 			},
 			wantErr: "must be repo-relative",
 		},
 		{
 			name: "path escaping repo root",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": "../outside",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      "../outside",
 			},
 			wantErr: "must not escape",
 		},
 		{
 			name: "path equal to .git rejected",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": ".git",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      ".git",
 			},
 			wantErr: "must not reference the .git directory",
 		},
 		{
 			name: "path with .git subdirectory segment rejected",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": "agents/.git",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      "agents/.git",
 			},
 			wantErr: "must not reference the .git directory",
 		},
 		{
 			name: "path reaching into .git rejected",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": ".git/config",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      ".git/config",
 			},
 			wantErr: "must not reference the .git directory",
 		},
 		{
 			name: "path with .git in middle rejected",
 			props: map[string]string{
-				"url":  "https://example.com/repo.git",
-				"path": "a/.git/b",
+				"remoteUrl": "https://example.com/repo.git",
+				"path":      "a/.git/b",
 			},
 			wantErr: "must not reference the .git directory",
+		},
+		{
+			name: "rateLimitRetryAfter custom",
+			props: map[string]string{
+				"remoteUrl":           "https://example.com/repo.git",
+				"rateLimitRetryAfter": "15m",
+			},
+			check: func(t *testing.T, m *metadata) {
+				assert.Equal(t, 15*time.Minute, m.rateLimitRetryAfter())
+			},
 		},
 	}
 

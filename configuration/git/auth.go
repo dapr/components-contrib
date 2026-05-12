@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,7 +47,9 @@ type authStrategy interface {
 	Close() error
 }
 
-// selectAuth resolves the configured auth strategy. log may be nil in tests.
+// selectAuth resolves the active auth strategy from metadata. log is
+// guaranteed non-nil by callers (it threads through from the Store's
+// constructor, which always supplies a logger).
 func selectAuth(m *metadata, log logger.Logger) (authStrategy, error) {
 	switch m.resolveAuthMode() {
 	case authModeNone:
@@ -58,7 +61,7 @@ func selectAuth(m *metadata, log logger.Logger) (authStrategy, error) {
 	case authModeGithubApp:
 		return newGitHubAppAuth(m, log, defaultInstallationTokenFetcher)
 	}
-	return nil, fmt.Errorf("unsupported authMode %q", m.resolveAuthMode())
+	return nil, fmt.Errorf("unsupported auth mode %q", m.resolveAuthMode())
 }
 
 // --------------- none ---------------
@@ -103,19 +106,17 @@ func newSSHAuth(m *metadata, log logger.Logger) (*sshAuth, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ssh: %w", err)
 	}
-	pk, err := gitssh.NewPublicKeys(m.sshUser(), keyBytes, m.SSHPassphrase)
+	pk, err := gitssh.NewPublicKeys(m.user(), keyBytes, m.Passphrase)
 	if err != nil {
 		return nil, fmt.Errorf("ssh: parse private key: %w", err)
 	}
-	a := &sshAuth{user: m.sshUser(), keys: pk}
+	a := &sshAuth{user: m.user(), keys: pk}
 
-	if m.sshInsecureIgnoreHostKey() {
-		if log != nil {
-			log.Warnf("git ssh: sshInsecureIgnoreHostKey=true — host key verification is DISABLED. Do not use in production.")
-		}
+	if m.insecureIgnoreHostKey() {
+		log.Warnf("git ssh: insecureIgnoreHostKey=true — host key verification is DISABLED. Do not use in production.")
 		a.insecure = true
 		// Explicitly opting in to disabled host-key verification because the
-		// operator set sshInsecureIgnoreHostKey=true. Loud-logged above.
+		// operator set insecureIgnoreHostKey=true. Loud-logged above.
 		pk.HostKeyCallback = ssh.InsecureIgnoreHostKey() //nolint:gosec // G106: documented opt-in via metadata
 		return a, nil
 	}
@@ -136,14 +137,14 @@ func (a *sshAuth) AuthMethod(context.Context) (transport.AuthMethod, error) {
 func (a *sshAuth) Close() error { return nil }
 
 func loadSSHKey(m *metadata) ([]byte, error) {
-	return loadKeyMaterial("ssh", m.SSHPrivateKey, m.SSHPrivateKeyPath)
+	return loadKeyMaterial("ssh", m.PrivateKey, m.PrivateKeyPath)
 }
 
 func buildKnownHostsCallback(m *metadata) (ssh.HostKeyCallback, error) {
-	if m.SSHKnownHostsPath != nil && *m.SSHKnownHostsPath != "" {
-		return knownhosts.New(*m.SSHKnownHostsPath)
+	if m.KnownHostsPath != nil && *m.KnownHostsPath != "" {
+		return knownhosts.New(*m.KnownHostsPath)
 	}
-	if m.SSHKnownHosts != nil && *m.SSHKnownHosts != "" {
+	if m.KnownHosts != nil && *m.KnownHosts != "" {
 		// `knownhosts.New` requires a file path. Persist the inline data to a
 		// temp file just long enough to hand it off; the file is removed
 		// before we return regardless of outcome.
@@ -156,7 +157,7 @@ func buildKnownHostsCallback(m *metadata) (ssh.HostKeyCallback, error) {
 			_ = f.Close()
 			_ = os.Remove(path)
 		}()
-		if _, err := f.WriteString(*m.SSHKnownHosts); err != nil {
+		if _, err := f.WriteString(*m.KnownHosts); err != nil {
 			return nil, fmt.Errorf("write knownHosts: %w", err)
 		}
 		if err := f.Close(); err != nil {
@@ -164,7 +165,7 @@ func buildKnownHostsCallback(m *metadata) (ssh.HostKeyCallback, error) {
 		}
 		return knownhosts.New(path)
 	}
-	return nil, errors.New("no sshKnownHosts/sshKnownHostsPath configured and sshInsecureIgnoreHostKey is false")
+	return nil, errors.New("no knownHosts/knownHostsPath configured and insecureIgnoreHostKey is false")
 }
 
 // --------------- githubApp ---------------
@@ -204,11 +205,11 @@ func newGitHubAppAuth(m *metadata, log logger.Logger, fetcher installationTokenF
 		return nil, fmt.Errorf("githubApp: parse private key: %w", err)
 	}
 	return &githubAppAuth{
-		appID:          *m.GithubAppID,
-		installationID: *m.GithubAppInstallationID,
-		apiBase:        m.githubAppAPIBase(),
+		appID:          *m.AppID,
+		installationID: *m.InstallationID,
+		apiBase:        m.apiBase(),
 		privateKey:     priv,
-		skew:           m.githubAppRefreshSkew(),
+		skew:           m.refreshSkew(),
 		fetcher:        fetcher,
 		httpClient:     &http.Client{Timeout: 10 * time.Second},
 		log:            log,
@@ -280,7 +281,7 @@ func basicAuthFromInstallation(token string) *githttp.BasicAuth {
 }
 
 func loadGithubAppKey(m *metadata) ([]byte, error) {
-	return loadKeyMaterial("githubApp", m.GithubAppPrivateKey, m.GithubAppPrivateKeyPath)
+	return loadKeyMaterial("githubApp", m.PrivateKey, m.PrivateKeyPath)
 }
 
 // loadKeyMaterial returns inline PEM bytes if non-empty, else reads them
@@ -295,14 +296,54 @@ func loadKeyMaterial(kind, inline string, path *string) ([]byte, error) {
 	return nil, fmt.Errorf("%s: inline key or path is required", kind)
 }
 
+// rateLimitError indicates the GitHub API rejected the request with a
+// 429-style rate-limit status. RetryAfter conveys the duration the server
+// asked us to wait (zero if no Retry-After header was present, in which
+// case the caller should fall back to its configured retry-after default).
+type rateLimitError struct {
+	RetryAfter time.Duration
+	Err        error
+}
+
+func (e *rateLimitError) Error() string {
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("github api rate-limited (retry-after %s): %v", e.RetryAfter, e.Err)
+	}
+	return fmt.Sprintf("github api rate-limited: %v", e.Err)
+}
+
+func (e *rateLimitError) Unwrap() error { return e.Err }
+
 // defaultInstallationTokenFetcher exchanges a JWT for an installation token
 // against the real GitHub API. Used unless replaced for testing.
 //
-// Error messages deliberately exclude the response body — a misconfigured or
-// compromised `githubAppApiBase` could echo sensitive content back, and the
-// fetcher's errors propagate through to operator-visible logs. The 64 KiB
-// LimitReader protects against an oversized body exhausting sidecar memory.
+// On a 429 response (or 403 with rate-limit headers — GitHub uses 403 for
+// secondary rate limits), Retry-After is parsed and the call is retried
+// once. If the second attempt also fails with a rate-limit response, a
+// `*rateLimitError` is returned so the poll loop can back off.
+//
+// Error messages exclude the response body — a misconfigured or compromised
+// apiBase could echo sensitive content back. The 64 KiB LimitReader caps
+// memory in case the body is unexpectedly large.
 func defaultInstallationTokenFetcher(ctx context.Context, client *http.Client, apiBase string, installationID int64, jwtToken string) (*installationToken, error) {
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	tok, err := doInstallationTokenRequest(ctx, client, apiBase, installationID, jwtToken)
+	var rateErr *rateLimitError
+	if errors.As(err, &rateErr) && rateErr.RetryAfter > 0 {
+		// Wait for the server-suggested duration, then retry once.
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(rateErr.RetryAfter):
+		}
+		tok, err = doInstallationTokenRequest(ctx, client, apiBase, installationID, jwtToken)
+	}
+	return tok, err
+}
+
+func doInstallationTokenRequest(ctx context.Context, client *http.Client, apiBase string, installationID int64, jwtToken string) (*installationToken, error) {
 	url := fmt.Sprintf("%s/app/installations/%d/access_tokens", apiBase, installationID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
@@ -312,9 +353,6 @@ func defaultInstallationTokenFetcher(ctx context.Context, client *http.Client, a
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
-	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -325,9 +363,17 @@ func defaultInstallationTokenFetcher(ctx context.Context, client *http.Client, a
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
+
+	if isRateLimited(resp) {
+		return nil, &rateLimitError{
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
+			Err:        fmt.Errorf("github api: status %d (installation %d)", resp.StatusCode, installationID),
+		}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("github api: status %d (installation %d)", resp.StatusCode, installationID)
 	}
+
 	var payload struct {
 		Token     string    `json:"token"`
 		ExpiresAt time.Time `json:"expires_at"`
@@ -339,4 +385,53 @@ func defaultInstallationTokenFetcher(ctx context.Context, client *http.Client, a
 		return nil, errors.New("github api returned empty token")
 	}
 	return &installationToken{Token: payload.Token, ExpiresAt: payload.ExpiresAt}, nil
+}
+
+// isRateLimited returns true if the response indicates the request was
+// rate-limited by GitHub. GitHub uses both 429 and 403 (with the
+// X-RateLimit-Remaining: 0 header) for primary and secondary rate limits.
+func isRateLimited(resp *http.Response) bool {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if resp.StatusCode == http.StatusForbidden &&
+		(resp.Header.Get("X-RateLimit-Remaining") == "0" ||
+			resp.Header.Get("Retry-After") != "") {
+		return true
+	}
+	return false
+}
+
+// parseRetryAfter interprets an HTTP Retry-After header value, which may be
+// either an integer number of seconds or an HTTP-date. Returns 0 when the
+// header is empty or unparseable.
+func parseRetryAfter(v string, now time.Time) time.Duration {
+	if v == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if when, err := http.ParseTime(v); err == nil {
+		if d := time.Until(when); d > 0 {
+			return d
+		}
+		// HTTP-date already in the past — fall through to "no wait".
+		_ = now
+	}
+	return 0
+}
+
+// isTransportRateLimit returns true if err appears to be a rate-limit
+// response from a go-git HTTP/HTTPS transport. go-git doesn't expose
+// structured response status, so this is a string-pattern check —
+// best-effort but it covers GitHub's typical error shapes.
+func isTransportRateLimit(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "429") ||
+		strings.Contains(msg, "rate limit") ||
+		strings.Contains(msg, "secondary rate limit")
 }

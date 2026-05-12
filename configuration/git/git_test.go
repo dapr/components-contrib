@@ -177,7 +177,7 @@ func newTestStore(t *testing.T, u *upstream, props map[string]string) *Configura
 	if props == nil {
 		props = map[string]string{}
 	}
-	props["url"] = u.url
+	props["remoteUrl"] = u.url
 	if _, ok := props["pollInterval"]; !ok {
 		props["pollInterval"] = "1s"
 	}

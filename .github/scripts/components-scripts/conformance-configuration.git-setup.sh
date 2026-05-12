@@ -1,6 +1,6 @@
 #!/bin/sh
 # Set up a local bare git upstream used by the configuration.git conformance
-# and certification tests. Exports GIT_UPSTREAM_URL pointing at a file:// URL
+# and certification tests. Exports GIT_REMOTE_URL pointing at a file:// URL
 # so the tests don't need any network access.
 
 set -e
@@ -27,4 +27,4 @@ git -C "$SEED" push origin main
 # can't fast-forward push back.
 git --git-dir "$ROOT/upstream.git" symbolic-ref HEAD refs/heads/main
 
-echo "GIT_UPSTREAM_URL=file://$ROOT/upstream.git" >> "$GITHUB_ENV"
+echo "GIT_REMOTE_URL=file://$ROOT/upstream.git" >> "$GITHUB_ENV"

@@ -126,7 +126,7 @@ func (s *ConfigurationStore) Init(ctx context.Context, meta configuration.Metada
 	}()
 
 	cloneCtx, cancel := context.WithTimeout(ctx, s.metadata.fetchTimeout())
-	repo, err := cloneFresh(cloneCtx, dir, s.metadata.URL, s.metadata.branch(), s.metadata.depth(), s.auth)
+	repo, err := cloneFresh(cloneCtx, dir, s.metadata.RemoteURL, s.metadata.branch(), s.metadata.depth(), s.auth)
 	cancel()
 	if err != nil {
 		return err

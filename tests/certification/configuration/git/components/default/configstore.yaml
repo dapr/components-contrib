@@ -11,7 +11,5 @@ spec:
   type: configuration.git
   version: v1
   metadata:
-    - name: url
+    - name: remoteUrl
       value: "file:///__cert_test_placeholder_replaced_at_runtime__"
-    - name: authMode
-      value: "none"

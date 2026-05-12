@@ -855,6 +855,20 @@ const components = {
         conformanceSetup: 'docker-compose.sh ravendb',
         requireRavenDBCredentials: true,
     },
+    'search.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['search/meilisearch', 'search'],
+    },
+    'vector.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['vector/meilisearch', 'vector'],
+    },
 }
 
 /**

@@ -151,6 +151,8 @@ const (
 	NameResolutionType     ComponentType = "nameresolution"
 	WorkflowType           ComponentType = "workflows"
 	ConversationType       ComponentType = "conversation"
+	SearchType             ComponentType = "search"
+	VectorType             ComponentType = "vector"
 )
 
 // IsValid returns true if the component type is valid.
@@ -161,7 +163,7 @@ func (t ComponentType) IsValid() bool {
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
 		NameResolutionType, WorkflowType,
-		ConversationType:
+		ConversationType, SearchType, VectorType:
 		return true
 	default:
 		return false

@@ -338,6 +338,24 @@ func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest, _ state
 		chunkSize = defaultBulkGetChunkSize
 	}
 
+	// Eager ctx.Err() check applies to both fast and chunked paths so
+	// cancellation produces a consistent per-key error format regardless
+	// of how many request entries the caller passed. Without this, the
+	// fast path would let database/sql wrap the context error as "bulk
+	// get query failed: ..." while the chunked path would surface
+	// ctx.Err() directly, which would silently change format when a
+	// caller tunes bulkGetChunkSize.
+	if err := ctx.Err(); err != nil {
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: err.Error(),
+			}
+		}
+		return res, nil
+	}
+
 	// Fast path: input fits in one chunk.
 	if len(req) <= chunkSize {
 		return s.bulkGetChunk(ctx, req), nil
@@ -346,8 +364,8 @@ func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest, _ state
 	// Chunked path: sequential chunks, results concatenated.
 	res := make([]state.BulkGetResponse, 0, len(req))
 	for start := 0; start < len(req); start += chunkSize {
-		// Check context between chunks so a cancelled context stops promptly
-		// instead of issuing wasted round-trips.
+		// Re-check context between chunks so a cancellation that fires
+		// mid-request stops promptly instead of issuing further round-trips.
 		if err := ctx.Err(); err != nil {
 			for _, r := range req[start:] {
 				res = append(res, state.BulkGetResponse{
@@ -475,7 +493,12 @@ func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []
 		if isBinary {
 			rd.data = binaryData
 		} else if !data.Valid {
-			rd.scanErr = "unexpected error: no item was found"
+			// Row was found and scanned successfully, but a non-binary
+			// row has a NULL Data column — shouldn't happen in production
+			// (the schema/upsert path always writes Data for isBinary=0).
+			// Surface as a per-key error so operators can spot corrupted
+			// rows in logs without losing the response slot.
+			rd.scanErr = "row has NULL Data column on a non-binary entry (possible data corruption)"
 		} else {
 			rd.data = []byte(data.String)
 		}

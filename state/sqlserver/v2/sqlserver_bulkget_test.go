@@ -218,7 +218,7 @@ func TestBulkGetNonBinaryWithNullDataIsError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	assert.Equal(t, "k1", res[0].Key)
-	assert.NotEmpty(t, res[0].Error)
+	assert.Contains(t, res[0].Error, "NULL Data column", "error message must describe what actually happened")
 	assert.Nil(t, res[0].Data)
 	assert.Nil(t, res[0].ETag)
 
@@ -577,7 +577,7 @@ func TestBulkGetChunking_ContextAlreadyCanceled_ChunkedPath(t *testing.T) {
 	for _, k := range []string{"k1", "k2", "k3", "k4"} {
 		r := byKey[k]
 		assert.Equal(t, k, r.Key)
-		assert.Contains(t, r.Error, context.Canceled.Error(), "key %s should carry the cancellation error", k)
+		assert.Equal(t, context.Canceled.Error(), r.Error, "fast and chunked paths must produce the same per-key error string for cancellation")
 		assert.Nil(t, r.Data)
 		assert.Nil(t, r.ETag)
 	}
@@ -591,17 +591,11 @@ func TestBulkGetChunking_ContextAlreadyCanceled_ChunkedPath(t *testing.T) {
 func TestBulkGetChunking_ContextAlreadyCanceled_FastPath(t *testing.T) {
 	t.Parallel()
 
-	// Fast path (len(req) <= chunkSize): there's no eager ctx.Err() check
-	// — BulkGet calls bulkGetChunk directly, which calls QueryContext on a
-	// cancelled context. Empirically in current Go (1.8+), database/sql
-	// checks ctx.Err() before dispatching to the driver, so the driver
-	// never sees the query; that behavior is stable but not part of
-	// database/sql's documented contract. bulkGetChunk receives the
-	// context error and wraps it as "bulk get query failed: context
-	// canceled" — different prefix from the chunked path's plain
-	// ctx.Err() format. The primary evidence that we hit the
-	// query-failure path (not the eager-check path) is the "bulk get
-	// query failed:" prefix in the per-key error string.
+	// Fast path (len(req) <= chunkSize): BulkGet's eager ctx.Err() check
+	// fires before bulkGetChunk is invoked, so the per-key error format
+	// matches the chunked path (plain ctx.Err() string, no driver wrap).
+	// This unification means callers tuning bulkGetChunkSize see the same
+	// cancellation behavior regardless of which path their request takes.
 	s, mock, cleanup := newTestSQLServer(t, defaultBulkGetChunkSize)
 	defer cleanup()
 
@@ -618,15 +612,13 @@ func TestBulkGetChunking_ContextAlreadyCanceled_FastPath(t *testing.T) {
 	for _, k := range []string{"k1", "k2"} {
 		r := byKey[k]
 		assert.Equal(t, k, r.Key)
-		assert.Contains(t, r.Error, "bulk get query failed:")
-		assert.Contains(t, r.Error, context.Canceled.Error())
+		assert.Equal(t, context.Canceled.Error(), r.Error, "fast and chunked paths must produce the same per-key error string for cancellation")
 		assert.Nil(t, r.Data)
 		assert.Nil(t, r.ETag)
 	}
 
-	// No expectations were registered; this only confirms no *unexpected*
-	// query slipped through. The real proof that we hit the query-failure
-	// path is the "bulk get query failed:" assertion above.
+	// No expectations registered, and ExpectationsWereMet passing here
+	// proves the eager check short-circuited before any query was issued.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

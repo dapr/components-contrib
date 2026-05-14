@@ -300,6 +300,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
 		TLSAllowInsecureConnection: !m.EnableTLS,
+		ListenerName:               m.ListenerName,
 	}
 
 	switch {

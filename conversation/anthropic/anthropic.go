@@ -16,7 +16,9 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
@@ -26,6 +28,8 @@ import (
 
 	"github.com/tmc/langchaingo/llms/anthropic"
 )
+
+const apiTypeFoundry = "foundry"
 
 type Anthropic struct {
 	langchaingokit.LLM
@@ -42,23 +46,40 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	return a
 }
 
-func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
-	m := conversation.LangchainMetadata{}
-	err := kmeta.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		return err
-	}
-
-	// Resolve model via central helper (uses metadata, then env var, then default)
-	model := conversation.GetAnthropicModel(m.Model)
+func (a *Anthropic) buildClientOptions(md AnthropicLangchainMetadata) (string, []anthropic.Option, error) {
+	model := conversation.GetAnthropicModel(md.Model)
 
 	options := []anthropic.Option{
 		anthropic.WithModel(model),
-		anthropic.WithToken(m.Key),
+		anthropic.WithToken(md.Key),
+	}
+
+	if strings.EqualFold(md.APIType, apiTypeFoundry) {
+		if md.Endpoint == "" {
+			return "", nil, errors.New("endpoint must be provided when apiType is set to 'foundry'")
+		}
+		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
+	} else if md.Endpoint != "" {
+		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
 	}
 
 	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
 		options = append(options, anthropic.WithHTTPClient(httpClient))
+	}
+
+	return model, options, nil
+}
+
+func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
+	md := AnthropicLangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &md)
+	if err != nil {
+		return err
+	}
+
+	model, options, err := a.buildClientOptions(md)
+	if err != nil {
+		return err
 	}
 
 	llm, err := anthropic.New(options...)
@@ -69,8 +90,8 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	a.LLM.Model = llm
 	a.LLM.SetModel(model)
 
-	if m.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, a.LLM.Model)
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, a.LLM.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
@@ -82,7 +103,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 }
 
 func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
+	metadataStruct := AnthropicLangchainMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }

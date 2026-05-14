@@ -2740,3 +2740,17 @@ func TestHandleMessageNonAvroSchemaPassthrough(t *testing.T) {
 	assert.True(t, consumer.acked)
 	assert.False(t, consumer.nacked)
 }
+
+// TestFeaturesDeclaresBulkSubscribeImmediate locks in that Pulsar
+// declares pubsub.FeatureBulkSubscribeImmediate, which routes Pulsar
+// subscriptions through Dapr's flush-on-arrival path in the default
+// bulk subscriber. Removing this declaration would re-introduce the
+// unacked-message buildup reported in dapr/dapr#9727 for sync
+// processMode subscriptions.
+func TestFeaturesDeclaresBulkSubscribeImmediate(t *testing.T) {
+	p := &Pulsar{}
+	require.True(t,
+		pubsub.FeatureBulkSubscribeImmediate.IsPresent(p.Features()),
+		"Pulsar must declare FeatureBulkSubscribeImmediate so the default bulk subscriber flushes per-message instead of buffering until MaxMessagesCount/MaxAwaitDurationMs",
+	)
+}

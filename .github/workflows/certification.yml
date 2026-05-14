@@ -361,7 +361,10 @@ jobs:
         continue-on-error: true
         id: testresults
         with:
-          # name: not being specified which will result in all artifacts being downloaded
+          # Download all per-component result file artifacts and flatten them
+          # into a single directory
+          pattern: '*_result_files'
+          merge-multiple: true
           path: tmp/result_files
 
       - name: Build message

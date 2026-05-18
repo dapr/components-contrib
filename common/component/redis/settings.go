@@ -14,12 +14,17 @@ limitations under the License.
 package redis
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/dapr/kit/config"
 )
@@ -123,6 +128,38 @@ type Settings struct {
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
+
+	// == Entra ID runtime state (populated by InitEntraIDCredential when UseEntraID is true; not configurable via metadata) ==
+
+	// entraIDUsername is the OID parsed from the initial Entra access token's "oid" claim.
+	// Used as the Redis ACL username by both the per-new-connection AUTH (OnConnect) and the
+	// periodic AUTH ACL refresh goroutine.
+	entraIDUsername string
+
+	// entraIDTokenCredential is the Azure SDK credential used to acquire fresh Entra access
+	// tokens on demand. The credential implementation caches tokens until close to expiry,
+	// so calling GetToken on every new pool connection is inexpensive in steady state.
+	entraIDTokenCredential *azcore.TokenCredential
+}
+
+// EntraIDFetchAuthArgs returns the Redis ACL username and a freshly-acquired Entra access
+// token suitable for use as the AUTH password. It must only be called when UseEntraID is
+// true and after InitEntraIDCredential has succeeded; otherwise it returns an error.
+//
+// This is invoked from the OnConnect callback installed on the underlying go-redis client
+// so that every new pool connection authenticates with a current token, rather than the
+// stale snapshot Password that would otherwise be sent during initial AUTH.
+func (s *Settings) EntraIDFetchAuthArgs(ctx context.Context) (username, password string, err error) {
+	if s.entraIDTokenCredential == nil {
+		return "", "", errors.New("redis client: EntraID credential not initialized")
+	}
+	tok, err := (*s.entraIDTokenCredential).GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://redis.azure.com/.default"},
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to acquire EntraID token for redis AUTH: %w", err)
+	}
+	return s.entraIDUsername, tok.Token, nil
 }
 
 func (s *Settings) Decode(in interface{}) error {

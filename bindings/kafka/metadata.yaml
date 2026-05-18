@@ -336,6 +336,56 @@ metadata:
       - "oldest"
     binding:
       input: true
+  - name: seekOnStart
+    type: string
+    description: |
+      Controlled startup seek behavior. When set, this applies startup seeking for assigned partitions in the consumer group session.
+      `earliest` is equivalent to Kafka `oldest`, and `latest` is equivalent to Kafka `newest`.
+    example: '"earliest"'
+    default: '"never"'
+    allowedValues:
+      - "never"
+      - "earliest"
+      - "latest"
+      - "offset"
+      - "timestamp"
+    binding:
+      input: true
+  - name: seekValue
+    type: string
+    description: |
+      Required when `seekOnStart` is `offset` or `timestamp`. For `offset`, this is the target offset. For `timestamp`, this is Unix milliseconds.
+    example: '"1735689600000"'
+    binding:
+      input: true
+  - name: seekApplyWhen
+    type: string
+    description: |
+      Controls when startup seek is applied. `ifNoCheckpoint` applies only when no committed offset exists for the partition.
+    example: '"ifNoCheckpoint"'
+    default: '"ifNoCheckpoint"'
+    allowedValues:
+      - "always"
+      - "ifNoCheckpoint"
+    binding:
+      input: true
+  - name: seekOnce
+    type: bool
+    description: |
+      Controls whether the startup seek configured by `seekOnStart` is applied at most once per component instance for each group/topic/partition assignment when `seekApplyWhen` is `"always"`.
+      Has no effect when `seekApplyWhen` is `"ifNoCheckpoint"`.
+    example: '"true"'
+    default: '"true"'
+    binding:
+      input: true
+  - name: seekPartition
+    type: number
+    required: false
+    description: |
+      Optional specific partition to apply startup seek to. If the partition is not assigned in the current session, the component logs a warning and skips.
+    example: '0'
+    binding:
+      input: true
   - name: maxMessageBytes
     type: number
     description: |

@@ -23,6 +23,7 @@ import (
 
 type pulsarMetadata struct {
 	Host                             string                    `mapstructure:"host"`
+	ListenerName                     string                    `mapstructure:"listenerName"`
 	ConsumerID                       string                    `mapstructure:"consumerID"`
 	EnableTLS                        bool                      `mapstructure:"enableTLS"`
 	DisableBatching                  bool                      `mapstructure:"disableBatching"`

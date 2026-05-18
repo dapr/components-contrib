@@ -289,7 +289,7 @@ func Test_KeysLike(t *testing.T) {
 
 	ods := createSqlite(t)
 
-	var _ state.KeysLiker = state.KeysLiker(ods)
+	var _ = state.KeysLiker(ods)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {

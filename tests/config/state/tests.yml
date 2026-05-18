@@ -123,3 +123,7 @@ components:
     operations: []
   - component: ravendb
     operations: [ "first-write", "etag", "ttl", "transaction" ]
+  - component: clickhouse
+    operations: [ "etag", "first-write", "ttl" ]
+    config:
+      badEtag: "e9b9e142-74b1-4a2e-8e90-3f4ffeea2e70"

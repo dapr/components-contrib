@@ -83,6 +83,7 @@ require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/alphadose/haxmap v1.4.0 // indirect
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/anshal21/go-worker v1.1.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
@@ -120,8 +121,8 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic v1.14.2 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
+	github.com/bytedance/sonic v1.15.1 // indirect
+	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chebyrash/promise v0.0.0-20230709133807-42ec49ba1459 // indirect
@@ -182,7 +183,7 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gocql/gocql v1.5.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -248,6 +249,7 @@ require (
 	github.com/matoous/go-nanoid/v2 v2.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/meilisearch/meilisearch-go v0.36.2 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0 // indirect
 	github.com/miekg/dns v1.1.57 // indirect
 	github.com/mikeee/aws_credential_helper v0.0.1-alpha.2 // indirect

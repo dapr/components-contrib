@@ -100,6 +100,7 @@ require (
 	github.com/linkedin/goavro/v2 v2.14.1
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
+	github.com/meilisearch/meilisearch-go v0.36.2
 	github.com/microsoft/go-mssqldb v1.6.0
 	github.com/mikeee/aws_credential_helper v0.0.1-alpha.2
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -194,7 +195,7 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
-	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/apache/thrift v0.13.0 // indirect
@@ -222,8 +223,8 @@ require (
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic v1.14.2 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
+	github.com/bytedance/sonic v1.15.1 // indirect
+	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
@@ -297,7 +298,7 @@ require (
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect

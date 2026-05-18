@@ -36,7 +36,7 @@ jobs:
       - name: Build component-metadata-bundle.json
         run: make bundle-component-metadata
       - name: Upload component-metadata-bundle.json
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.DAPR_BOT_TOKEN }}
           tag_name: ${{ inputs.tag || github.ref_name }}

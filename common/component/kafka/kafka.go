@@ -191,6 +191,12 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		if err != nil {
 			return err
 		}
+	case oidcWorkloadIdentityAuthType:
+		k.logger.Info("Configuring SASL OAuth2/OIDC authentication with workload identity")
+		err = updateOidcWorkloadIdentityAuthInfo(config, meta)
+		if err != nil {
+			return err
+		}
 	case passwordAuthType:
 		k.logger.Info("Configuring SASL Password authentication")
 		k.saslUsername = meta.SaslUsername

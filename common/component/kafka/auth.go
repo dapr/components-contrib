@@ -105,3 +105,20 @@ func updateOidcPrivateKeyJWTAuthInfo(config *sarama.Config, metadata *KafkaMetad
 
 	return nil
 }
+
+func updateOidcWorkloadIdentityAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
+	tokenProvider := metadata.getOAuthTokenSourceWorkloadIdentity()
+
+	if metadata.TLSCaCert != "" {
+		err := tokenProvider.addCa(metadata.TLSCaCert)
+		if err != nil {
+			return fmt.Errorf("kafka: error setting oauth client trusted CA: %w", err)
+		}
+	}
+
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	config.Net.SASL.TokenProvider = tokenProvider
+
+	return nil
+}

@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.firehose
+version: v1
+status: alpha
+title: "AWS Kinesis Data Firehose"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/firehose/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Send a single record to a Firehose delivery stream via PutRecord"
+    - name: batch
+      description: "Send multiple records to a Firehose delivery stream via PutRecordBatch with automatic batching and retry"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: deliveryStreamName
+    required: true
+    description: |
+      The Firehose delivery stream name. Can be overridden per-request via invoke metadata.
+    example: '"my-delivery-stream"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to Firehose-compatible
+      services or emulators. Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: maxBatchSize
+    required: false
+    description: |
+      Maximum number of records per PutRecordBatch call. AWS hard limit is 500.
+    example: '"500"'
+    default: '"500"'
+    type: number
+  - name: serviceUnavailableRetries
+    required: false
+    description: |
+      Number of retry attempts when the Firehose service returns a transient error.
+    example: '"10"'
+    default: '"10"'
+    type: number
+  - name: serviceUnavailableTimeout
+    required: false
+    description: |
+      Wait duration between service-level retries.
+    example: '"60s"'
+    default: '"60s"'
+    type: string
+  - name: recordRetryLimit
+    required: false
+    description: |
+      Maximum number of rounds that failed records from PutRecordBatch are re-batched and retried.
+    example: '"100"'
+    default: '"100"'
+    type: number

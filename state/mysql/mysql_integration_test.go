@@ -197,7 +197,7 @@ func TestMySQLIntegration(t *testing.T) {
 		key := randomKey()
 		response, outputObject := getItem(t, mys, key)
 		assert.Nil(t, response.Data)
-		assert.Equal(t, "", outputObject.Color)
+		assert.Empty(t, outputObject.Color)
 	})
 
 	t.Run("Get item with no key fails", func(t *testing.T) {

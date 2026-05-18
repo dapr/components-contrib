@@ -124,7 +124,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		_, _ = io.ReadAll(resp.Body)
 		resp.Body.Close()
 	}()
-	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("error from Twilio (%d): %s", resp.StatusCode, resp.Status)
 	}
 

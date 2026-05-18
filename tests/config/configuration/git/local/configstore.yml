@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: configstore
+spec:
+  type: configuration.git
+  version: v1
+  metadata:
+    - name: remoteUrl
+      value: "${{GIT_REMOTE_URL}}"
+    - name: branch
+      value: "main"
+    - name: path
+      value: "."
+    - name: mappingMode
+      value: "file"
+    - name: pollInterval
+      value: "250ms"  # Allowed because the conformance harness uses file:// URLs
+    - name: emitInitialState
+      value: "false"

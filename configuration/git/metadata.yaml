@@ -1,0 +1,287 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: git
+version: v1
+status: alpha
+title: "Git"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/git-configuration-store/
+capabilities: []
+authenticationProfiles:
+  - title: "Personal Access Token"
+    description: |
+      HTTPS basic auth using a token. Works with both GitHub classic PATs
+      (`ghp_…`) and fine-grained PATs (`github_pat_…`).
+    metadata:
+      - name: token
+        required: true
+        sensitive: true
+        description: |
+          The personal access token used to authenticate. The token is sent
+          as the password in HTTP basic auth. Source from a configured
+          secret store.
+        example: "ghp_xxxxxxxxxxxxxxxxxxxx"
+        type: string
+      - name: username
+        required: false
+        description: |
+          The username sent with the token. Defaults to "x-access-token",
+          which is recommended by GitHub when using a PAT. Other providers
+          may require a real username.
+        example: "x-access-token"
+        default: "x-access-token"
+        type: string
+  - title: "SSH"
+    description: "Authenticate over SSH with a private key."
+    metadata:
+      - name: user
+        required: false
+        description: |
+          SSH user used when connecting. Defaults to "git", which matches
+          the convention used by GitHub, GitLab, Bitbucket, and most
+          self-hosted git providers.
+        example: "git"
+        default: "git"
+        type: string
+      - name: privateKey
+        required: false
+        sensitive: true
+        description: |
+          PEM-encoded SSH private key. Either privateKey or privateKeyPath
+          must be set.
+        example: "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+        type: string
+      - name: privateKeyPath
+        required: false
+        description: |
+          Path to a PEM-encoded SSH private key on disk. Either privateKey
+          or privateKeyPath must be set.
+        example: "/var/run/secrets/git-ssh-key"
+        type: string
+      - name: passphrase
+        required: false
+        sensitive: true
+        description: "Passphrase for the SSH private key, if encrypted."
+        example: ""
+        type: string
+      - name: knownHosts
+        required: false
+        description: |
+          Inline OpenSSH known_hosts entries used to verify the remote host
+          key. Either knownHosts or knownHostsPath must be set unless
+          insecureIgnoreHostKey is true.
+        example: "github.com ssh-rsa AAAA..."
+        type: string
+      - name: knownHostsPath
+        required: false
+        description: "Path to an OpenSSH known_hosts file on disk."
+        example: "/etc/ssh/ssh_known_hosts"
+        type: string
+      - name: insecureIgnoreHostKey
+        required: false
+        description: |
+          Disable SSH host key verification. DANGEROUS — only use for local
+          development or testing. When enabled, the component logs a
+          warning at startup. Never enable in production; a MITM attacker
+          can intercept configuration values.
+        example: "false"
+        default: "false"
+        type: bool
+  - title: "GitHub App"
+    description: |
+      Authenticate via a GitHub App installation. The component mints a
+      JWT, exchanges it for a 1-hour installation token, and refreshes the
+      token before expiry. On HTTP 429 (or 403 with rate-limit headers)
+      the component honours Retry-After and retries once; persistent
+      rate-limit responses are surfaced to the poll loop which backs off
+      for `rateLimitRetryAfter` before its next tick.
+    metadata:
+      - name: appId
+        required: true
+        description: "Numeric GitHub App ID."
+        example: "123456"
+        type: number
+      - name: installationId
+        required: true
+        description: |
+          Numeric GitHub App installation ID for the target organisation
+          or repository.
+        example: "78901234"
+        type: number
+      - name: privateKey
+        required: false
+        sensitive: true
+        description: |
+          PEM-encoded RSA private key for the GitHub App. Accepts both
+          PKCS#1 ("RSA PRIVATE KEY") and PKCS#8 ("PRIVATE KEY") encodings.
+          Either privateKey or privateKeyPath must be set.
+        example: "-----BEGIN RSA PRIVATE KEY-----\n..."
+        type: string
+      - name: privateKeyPath
+        required: false
+        description: "Path to a PEM-encoded RSA private key on disk."
+        example: "/var/run/secrets/github-app-key.pem"
+        type: string
+      - name: apiBase
+        required: false
+        description: |
+          Base URL of the GitHub API. Override for GitHub Enterprise
+          Server. Must use https://.
+        example: "https://api.github.com"
+        default: "https://api.github.com"
+        type: string
+      - name: refreshSkew
+        required: false
+        description: |
+          Refresh the installation token when it has less than this much
+          time left before expiry.
+        example: "5m"
+        default: "5m"
+        type: duration
+metadata:
+  - name: remoteUrl
+    required: true
+    description: |
+      Git URL of the upstream remote (the same value `git remote get-url
+      origin` would return for a clone). Supports https://, ssh://, git@,
+      and file:// schemes. URLs with the git@ or ssh:// prefix auto-select
+      the SSH auth profile. http:// is rejected when any authenticated
+      profile is in use to prevent cleartext credential transmission.
+      Embedding credentials in the URL (e.g. https://user:token@host) is
+      rejected; supply them via the appropriate auth profile field backed
+      by a configured secret store.
+    example: "https://github.com/example/agent-config.git"
+    type: string
+  - name: branch
+    required: false
+    description: "Branch to track."
+    example: "main"
+    default: "main"
+    type: string
+  - name: path
+    required: false
+    description: |
+      Subdirectory inside the repository to treat as the configuration
+      root. Files outside this directory are not surfaced as configuration
+      items. Must be repo-relative (no leading "/", no ".." components,
+      and no segment may be ".git"). Default "." means "use the
+      repository root".
+    example: "agents/weather"
+    default: "."
+    type: string
+  - name: depth
+    required: false
+    description: |
+      Clone depth. 0 (default) performs a full clone, matching git's
+      default behaviour when no `--depth` is passed. go-git's shallow
+      incremental fetch has known limitations; full clones are the safe
+      choice for anything but trivial config repos.
+    example: "0"
+    default: "0"
+    type: number
+  - name: pollInterval
+    required: false
+    description: |
+      How often to poll the upstream for changes. Hard floor is 1s for
+      remote URLs; file:// URLs may go down to 100ms. Intervals below 5s
+      log a warning at startup. Default 5m gives plenty of head-room
+      against provider rate limits even on multi-replica deployments —
+      at 5m × 10 replicas you issue 120 requests/h, well below GitHub's
+      5000/h PAT and 15000/h GitHub App limits. If the upstream responds
+      with HTTP 429 or a transport-level rate-limit error, the poll loop
+      pauses for rateLimitRetryAfter (or the server-supplied Retry-After
+      when available) before its next tick.
+    example: "5m"
+    default: "5m"
+    type: duration
+  - name: rateLimitRetryAfter
+    required: false
+    description: |
+      How long the poll loop waits before its next tick when the upstream
+      responds with a rate-limit error and no Retry-After header was
+      supplied. Tune this if you are hitting secondary rate limits on a
+      busy multi-replica deployment.
+    example: "5m"
+    default: "5m"
+    type: duration
+  - name: fetchTimeout
+    required: false
+    description: "Per-fetch timeout applied to fetch operations."
+    example: "30s"
+    default: "30s"
+    type: duration
+  - name: includeHidden
+    required: false
+    description: |
+      When false (default), files whose name begins with "." are skipped
+      during the worktree walk. The ".git" directory is always excluded
+      regardless of this flag — it would otherwise expose remote URLs and
+      possibly embedded credentials as configuration items.
+    example: "false"
+    default: "false"
+    type: bool
+  - name: maxFileSize
+    required: false
+    description: |
+      Maximum per-file size in bytes that the walker will read into
+      memory. Files larger than this are skipped with a warning. Protects
+      the sidecar from OOM if a large blob is accidentally committed to
+      the configuration repo. Default is 1 MiB (1048576 bytes).
+    example: "1048576"
+    default: "1048576"
+    type: number
+  - name: snapshotCacheSize
+    required: false
+    description: |
+      Number of past snapshots to retain in the LRU cache used as diff
+      bases when computing per-subscriber update events. Higher values
+      reduce over-emit churn when many subscribers are at slightly
+      different delivered HEAD values. With the default pollInterval of
+      5m, the default of 4 covers ~20 minutes of commit history for the
+      most-stale subscriber — sufficient for typical agent deployments.
+      Raise it if you run a large pool of subscribers against a busy
+      configuration repo.
+    example: "4"
+    default: "4"
+    type: number
+  - name: emitInitialState
+    required: false
+    description: |
+      When true (default), Subscribe synchronously delivers the current
+      snapshot to the handler before returning so callers don't need a
+      separate Get + Subscribe pair. Set to false in tests or when the
+      caller already has fresh state.
+    example: "true"
+    default: "true"
+    type: bool
+  - name: mappingMode
+    required: false
+    description: |
+      Strategy for mapping files in the repository to configuration
+      items. Matching is case-insensitive. Non-matching files are a
+      hard error — if your scope contains a mix of file types, either
+      narrow `path` to the homogeneous subset or use mappingMode=file.
+
+      - file (default): each file is one config item. Key = relative
+        POSIX path, value = file contents as string.
+      - agentYaml: each *.yaml/*.yml/*.json file is parsed as a flat
+        top-level map. Each top-level field becomes a key prefixed by
+        the filename stem with directory separators replaced by `_`,
+        e.g. "agents/weather.yaml" field "agent_role" →
+        "agents_weather/agent_role". Non-YAML/JSON files in scope cause
+        Init to fail.
+      - prompty: each *.prompty file's YAML frontmatter and body are
+        split. Frontmatter fields produce "<stem>/<field>" keys (same
+        stem rules as agentYaml); the body is emitted as
+        "<stem>/agent_system_prompt". See the Prompty spec at
+        https://github.com/microsoft/prompty for the file format.
+        Non-.prompty files in scope cause Init to fail.
+    example: "file"
+    default: "file"
+    type: string
+    allowedValues:
+      - "file"
+      - "agentYaml"
+      - "prompty"

@@ -279,6 +279,16 @@ const components = {
         conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
         sourcePkg: ['configuration/kubernetes'],
     },
+    'configuration.git': {
+        certification: true,
+        certificationSetup: 'conformance-configuration.git-setup.sh',
+        sourcePkg: ['configuration/git'],
+    },
+    'configuration.git.local': {
+        conformance: true,
+        conformanceSetup: 'conformance-configuration.git-setup.sh',
+        sourcePkg: ['configuration/git'],
+    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [

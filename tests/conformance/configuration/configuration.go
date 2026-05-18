@@ -39,16 +39,38 @@ const (
 	defaultWaitDuration    = 5 * time.Second
 	postgresComponent      = "postgresql"
 	kubernetesComponent    = "kubernetes"
+	gitComponent           = "git"
 	pgNotifyChannelKey     = "pgNotifyChannel"
 	pgNotifyChannel        = "config"
+)
+
+// DeletedItemShape describes how a configuration store represents a deletion
+// in an UpdateEvent.
+type DeletedItemShape int
+
+const (
+	// DeletedShapeEmptyItem: the receiver expects `Item{Value: "", Metadata: nil-or-empty}`.
+	// This is the default — used by Redis-style stores that just clear the value.
+	DeletedShapeEmptyItem DeletedItemShape = iota
+	// DeletedShapeMetadataFlag: the receiver expects `Item{Value: "", Metadata: {"deleted": "true"}}`.
+	// Used by stores like Kubernetes ConfigMap and Git that emit a sentinel
+	// in the metadata so subscribers can distinguish "removed" from "set to empty".
+	DeletedShapeMetadataFlag
+	// DeletedShapeUnchanged: the deletion preserves the input items as-is.
+	// Used by Postgres which surfaces deletions through a different mechanism.
+	DeletedShapeUnchanged
 )
 
 type TestConfig struct {
 	utils.CommonConfig
 	// IgnoreVersion indicates the component uses system-assigned versions
-	// (e.g. Kubernetes ConfigMap resourceVersion) rather than user-defined versions.
-	// When true, conformance tests compare items by value and metadata only.
+	// (e.g. Kubernetes ConfigMap resourceVersion, Git commit SHA) rather than
+	// user-defined versions. When true, conformance tests compare items by
+	// value and metadata only.
 	IgnoreVersion bool
+	// DeletedShape selects how the component signals deletions in an
+	// UpdateEvent so the harness can build the right expected items.
+	DeletedShape DeletedItemShape
 }
 
 func NewTestConfig(componentName string, operations []string, configMap map[string]interface{}) TestConfig {
@@ -58,10 +80,30 @@ func NewTestConfig(componentName string, operations []string, configMap map[stri
 			ComponentName: componentName,
 			Operations:    utils.NewStringSet(operations...),
 		},
-		IgnoreVersion: strings.HasPrefix(componentName, kubernetesComponent),
+		IgnoreVersion: usesSystemAssignedVersion(componentName),
+		DeletedShape:  deletedShapeFor(componentName),
 	}
 
 	return tc
+}
+
+func usesSystemAssignedVersion(componentName string) bool {
+	return strings.HasPrefix(componentName, kubernetesComponent) ||
+		componentName == gitComponent ||
+		strings.HasPrefix(componentName, gitComponent+".")
+}
+
+func deletedShapeFor(componentName string) DeletedItemShape {
+	switch {
+	case strings.HasPrefix(componentName, kubernetesComponent),
+		componentName == gitComponent,
+		strings.HasPrefix(componentName, gitComponent+"."):
+		return DeletedShapeMetadataFlag
+	case strings.HasPrefix(componentName, postgresComponent):
+		return DeletedShapeUnchanged
+	default:
+		return DeletedShapeEmptyItem
+	}
 }
 
 func getKeys(mymap map[string]*configuration.Item) []string {
@@ -373,14 +415,18 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			require.NoError(t, errDelete, "expected no error on updating keys")
-			if strings.HasPrefix(component, kubernetesComponent) {
-				// Kubernetes ConfigMap delete notifications include {"deleted": "true"} metadata
+			switch config.DeletedShape {
+			case DeletedShapeMetadataFlag:
+				// e.g. Kubernetes ConfigMap, Git — emit a sentinel in metadata
+				// so subscribers can distinguish removal from empty-string set.
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{
 						Metadata: map[string]string{"deleted": "true"},
 					}
 				}
-			} else if !strings.HasPrefix(component, postgresComponent) {
+			case DeletedShapeUnchanged:
+				// Postgres — leave initValues2 as-is.
+			default: // DeletedShapeEmptyItem
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{}
 				}

@@ -18,4 +18,6 @@ components:
     operations: []
   - component: bedrock
     operations: []
+  - component: openrouter
+    operations: []
 # TODO: We are missing tests for deepseek.

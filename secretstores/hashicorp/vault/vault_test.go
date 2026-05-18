@@ -184,7 +184,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Equal(t, "", target.vaultKVPrefix)
+		assert.Empty(t, target.vaultKVPrefix)
 	})
 
 	t.Run("if vaultKVUsePrefix is not castable to bool we treat it as False", func(t *testing.T) {
@@ -223,8 +223,8 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 
 		err := target.Init(t.Context(), m)
 
-		assert.Equal(t, "", target.vaultToken)
-		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.Empty(t, target.vaultToken)
+		assert.Empty(t, target.vaultTokenMountPath)
 		require.Error(t, err)
 		assert.Equal(t, "token mount path and token not set", err.Error())
 	})
@@ -269,7 +269,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.Empty(t, target.vaultTokenMountPath)
 		assert.Equal(t, expectedTok, target.vaultToken)
 	})
 

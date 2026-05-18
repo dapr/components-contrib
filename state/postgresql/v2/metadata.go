@@ -48,7 +48,7 @@ type pgMetadata struct {
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.TablePrefix = ""
 	m.MetadataTableName = "dapr_metadata"
 	m.CleanupInterval = ptr.Of(defaultCleanupInternal)

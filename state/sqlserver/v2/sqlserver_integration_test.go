@@ -620,7 +620,7 @@ func testNonBase64ByteData(t *testing.T) {
 		err = proto.Unmarshal(resp.Data, response)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+		assert.Equal(t, request.GetEventId(), response.GetEventId())
 	})
 
 	t.Run("Set And Get Json", func(t *testing.T) {
@@ -638,7 +638,7 @@ func testNonBase64ByteData(t *testing.T) {
 		err = json.Unmarshal(resp.Data, response)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+		assert.Equal(t, request.GetEventId(), response.GetEventId())
 	})
 
 	t.Run("Set And Get Indexed Json", func(t *testing.T) {
@@ -656,6 +656,6 @@ func testNonBase64ByteData(t *testing.T) {
 		err = json.Unmarshal(resp.Data, response)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, request.GetEventId(), response.GetEventId())
+		assert.Equal(t, request.GetEventId(), response.GetEventId())
 	})
 }

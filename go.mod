@@ -125,8 +125,8 @@ require (
 	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
 	github.com/stretchr/testify v1.11.1
 	github.com/supplyon/gremcos v0.1.40
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.71
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.3.71
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/tetratelabs/wazero v1.8.0
 	github.com/tmc/langchaingo v0.1.15-0.20251029190607-e35755df7084

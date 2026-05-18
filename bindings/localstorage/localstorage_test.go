@@ -37,8 +37,21 @@ func TestParseMetadata(t *testing.T) {
 	meta, err := localStorage.parseMetadata(m)
 	require.NoError(t, err)
 	assert.Equal(t, path, meta.RootPath)
-}
 
+	m.Properties = map[string]string{
+		"rootPath": "myapp_data",
+		"fromTemp": "true",
+	}
+	metaTemp, err := localStorage.parseMetadata(m)
+	require.NoError(t, err)
+
+	realTempDir, err := filepath.EvalSymlinks(os.TempDir())
+	require.NoError(t, err)
+	expectedTempPath := filepath.Join(realTempDir, "myapp_data")
+
+	assert.Equal(t, expectedTempPath, metaTemp.RootPath)
+	assert.True(t, metaTemp.FromTemp)
+}
 func TestValidateRootPath(t *testing.T) {
 	// Get the current working directory
 	cwd, err := os.Getwd()

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	sqlserverAuth "github.com/dapr/components-contrib/common/authentication/sqlserver"
+	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
@@ -32,6 +33,16 @@ const (
 	defaultTable           = "state"
 	defaultMetaTable       = "dapr_metadata"
 	defaultCleanupInterval = time.Hour
+
+	// defaultBulkGetChunkSize is the default per-chunk size for BulkGet
+	// requests. Requests with this many keys or fewer execute as a single
+	// query.
+	defaultBulkGetChunkSize = 1000
+	// maxBulkGetChunkSize is the safe upper bound for keys-per-chunk on SQL
+	// Server. SQL Server allows up to 2100 parameters in a single
+	// parameterized query (sp_executesql limit); we leave headroom for any
+	// auxiliary parameters and clamp callers above this value.
+	maxBulkGetChunkSize = 2000
 )
 
 type sqlServerMetadata struct {
@@ -43,6 +54,13 @@ type sqlServerMetadata struct {
 	KeyLength         int
 	IndexedProperties string
 	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
+	// BulkGetChunkSize controls the maximum number of keys included in each
+	// internal SQL query issued by BulkGet. When the number of requested
+	// keys exceeds this value, BulkGet issues multiple chunked queries
+	// sequentially (not in parallel) and merges the results. Values <= 0
+	// default to defaultBulkGetChunkSize; values above maxBulkGetChunkSize
+	// are clamped. See normalizeBulkGetChunkSize.
+	BulkGetChunkSize int `mapstructure:"bulkGetChunkSize"`
 
 	// Internal properties
 	keyTypeParsed           KeyType
@@ -57,6 +75,24 @@ func newMetadata() sqlServerMetadata {
 		MetadataTableName: defaultMetaTable,
 		CleanupInterval:   ptr.Of(defaultCleanupInterval),
 	}
+}
+
+// normalizeBulkGetChunkSize applies defaults and clamping to the configured
+// chunk size. Values <= 0 default to defaultBulkGetChunkSize; values above
+// SQL Server's safe parameter cap are clamped to maxBulkGetChunkSize with a
+// warning.
+func normalizeBulkGetChunkSize(log logger.Logger, configured int) int {
+	if configured <= 0 {
+		return defaultBulkGetChunkSize
+	}
+	if configured > maxBulkGetChunkSize {
+		if log != nil {
+			log.Warnf("bulkGetChunkSize %d exceeds SQL Server safe parameter cap of %d; clamping to %d",
+				configured, maxBulkGetChunkSize, maxBulkGetChunkSize)
+		}
+		return maxBulkGetChunkSize
+	}
+	return configured
 }
 
 func (m *sqlServerMetadata) Parse(meta map[string]string) error {

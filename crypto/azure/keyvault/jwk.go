@@ -32,7 +32,7 @@ import (
 func KeyBundleToKey(bundle *azkeys.KeyBundle) (*contribCrypto.Key, error) {
 	if bundle == nil ||
 		bundle.Key == nil || bundle.Key.KID == nil ||
-		bundle.Attributes == nil || bundle.Attributes.Enabled == nil || *bundle.Attributes.Enabled == false {
+		bundle.Attributes == nil || bundle.Attributes.Enabled == nil || !*bundle.Attributes.Enabled {
 		return nil, errKeyNotFound
 	}
 

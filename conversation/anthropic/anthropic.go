@@ -96,7 +96,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 			return cacheErr
 		}
 
-		a.LLM.Model = cachedModel
+		a.Model = cachedModel
 	}
 
 	return nil

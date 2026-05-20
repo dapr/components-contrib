@@ -67,6 +67,6 @@ func TestPartitionAndRowKey(t *testing.T) {
 	t.Run("No delimiter present", func(t *testing.T) {
 		pk, rk := getPartitionAndRowKey("pk_rk", false)
 		assert.Equal(t, "pk_rk", pk)
-		assert.Equal(t, "", rk)
+		assert.Empty(t, rk)
 	})
 }

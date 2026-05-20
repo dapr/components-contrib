@@ -280,7 +280,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	// Resolve credentials from file if ClientSecretPath is set
-	if err := m.ClientCredentialsMetadata.ResolveCredentials(); err != nil {
+	if err := m.ResolveCredentials(); err != nil {
 		return nil, err
 	}
 
@@ -300,13 +300,14 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
 		TLSAllowInsecureConnection: !m.EnableTLS,
+		ListenerName:               m.ListenerName,
 	}
 
 	switch {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
-	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
-		credsOpts := m.ClientCredentialsMetadata.ToOptions(p.logger)
+	case len(m.TokenURL) > 0:
+		credsOpts := m.ToOptions(p.logger)
 		var cliCreds *oauth2.ClientCredentials
 		cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)
 		if err != nil {
@@ -936,7 +937,30 @@ func (p *Pulsar) Close() error {
 }
 
 func (p *Pulsar) Features() []pubsub.Feature {
-	return nil
+	// FeatureBulkSubscribeImmediate is declared because Pulsar's
+	// delivery model does not fit the default bulk subscriber's
+	// count+timer batching window:
+	//
+	//   - processMode=sync: the consumer loop calls the message
+	//     handler serially and blocks on ack, so at most one
+	//     message is ever in flight per consumer. A batching
+	//     window can never accumulate, and waiting for one would
+	//     pile up unacked messages on the broker side
+	//     (dapr/dapr#9727).
+	//
+	//   - processMode=async (default): the consumer loop spawns a
+	//     goroutine per delivery, so multiple messages can arrive
+	//     in the bulk subscriber's channel concurrently. Bursts
+	//     are still coalesced opportunistically by the bulk
+	//     subscriber's drain step (so real multi-entry batches
+	//     still happen under load); the difference is that we no
+	//     longer wait for MaxAwaitDurationMs before flushing,
+	//     keeping acks flowing back to the broker without delay.
+	//
+	// Declaring the feature unconditionally avoids per-subscription
+	// dispatch divergence and matches what each mode can actually
+	// satisfy.
+	return []pubsub.Feature{pubsub.FeatureBulkSubscribeImmediate}
 }
 
 // formatTopic formats the topic into pulsar's structure with tenant and namespace.

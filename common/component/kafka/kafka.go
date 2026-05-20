@@ -319,6 +319,38 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 	}, nil
 }
 
+// Pause stops fetching new messages from the broker for all active
+// subscriptions on this component. The Sarama session and partition
+// assignments are preserved so messages already buffered in claim queues can
+// still be processed by handlers. Idempotent.
+func (k *Kafka) Pause(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
+	if k.clients != nil && k.clients.consumerGroup != nil {
+		k.logger.Debugf("Pausing all subscriptions")
+		k.clients.consumerGroup.PauseAll()
+	}
+	return nil
+}
+
+// Resume resumes fetching new messages from the broker for all active
+// subscriptions on this component. Idempotent.
+func (k *Kafka) Resume(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
+	if k.clients != nil && k.clients.consumerGroup != nil {
+		k.logger.Debugf("Resuming all subscriptions")
+		k.clients.consumerGroup.ResumeAll()
+	}
+	return nil
+}
+
 func (k *Kafka) Close() error {
 	defer k.wg.Wait()
 	defer k.consumerWG.Wait()

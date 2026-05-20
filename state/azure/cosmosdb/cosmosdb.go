@@ -217,9 +217,10 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 
 	options := azcosmos.ItemOptions{}
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
@@ -417,9 +418,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		options.IfMatchEtag = ptr.Of(azcore.ETag(u.String()))
 	}
 	// Consistency levels can only be relaxed so the session level is used here
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
@@ -468,9 +470,10 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		options.IfMatchEtag = ptr.Of(azcore.ETag(u.String()))
 	}
 
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 

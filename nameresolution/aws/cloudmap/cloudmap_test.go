@@ -362,7 +362,7 @@ func TestConvertConfigurationToStringMap(t *testing.T) {
 			"foo":    "bar",
 		}
 		got := convertConfigurationToStringMap(in)
-		assert.Equal(t, len(in), len(got))
+		assert.Len(t, got, len(in))
 		for k, v := range in {
 			assert.Equal(t, v, got[k])
 		}
@@ -375,7 +375,7 @@ func TestConvertConfigurationToStringMap(t *testing.T) {
 			"bool":   true,
 		}
 		got := convertConfigurationToStringMap(in)
-		assert.Equal(t, len(in), len(got))
+		assert.Len(t, got, len(in))
 		assert.Equal(t, "value", got["string"])
 		assert.Equal(t, "42", got["int"])
 		assert.Equal(t, "true", got["bool"])

@@ -85,7 +85,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
+		block, _ := pem.Decode([]byte(m.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse ca certificate from metadata. %v", err)
@@ -111,7 +111,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
+		block, _ := pem.Decode([]byte(m.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse client certificate from metadata. %v", err)
@@ -137,6 +137,6 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
+		assert.NotNil(t, m.ClientKey, "failed to parse valid client certificate key")
 	})
 }

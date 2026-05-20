@@ -54,17 +54,22 @@ const (
 func TestCassandra(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
-	ports, err := dapr_testing.GetFreePorts(2)
+
+	ports, err := dapr_testing.GetFreePorts(6)
 	require.NoError(t, err)
+
+	currentGrpcPort := ports[0]
+	currentHTTPPort := ports[1]
+	grpcPort2 := ports[2]
+	httpPort2 := ports[3]
+	grpcPort3 := ports[4]
+	httpPort3 := ports[5]
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	stateRegistry.RegisterComponent(func(l logger.Logger) state.Store {
 		return stateStore
 	}, "cassandra")
-
-	currentGrpcPort := ports[0]
-	currentHTTPPort := ports[1]
 
 	basicTest := func(ctx flow.Context) error {
 		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -159,7 +164,7 @@ func TestCassandra(t *testing.T) {
 	}
 
 	failTest := func(ctx flow.Context) error {
-		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 2))
+		client, err := goclient.NewClientWithPort(fmt.Sprint(grpcPort2))
 		if err != nil {
 			panic(err)
 		}
@@ -173,7 +178,7 @@ func TestCassandra(t *testing.T) {
 	}
 
 	failVerTest := func(ctx flow.Context) error {
-		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 4))
+		client, err := goclient.NewClientWithPort(fmt.Sprint(grpcPort3))
 		if err != nil {
 			panic(err)
 		}
@@ -210,8 +215,8 @@ func TestCassandra(t *testing.T) {
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
 			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
-			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
-			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(httpPort2)),
 			embedded.WithComponentsPath("components/docker/defaultfactorfail"),
 			embedded.WithStates(stateRegistry),
 		)).
@@ -220,8 +225,8 @@ func TestCassandra(t *testing.T) {
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault3",
 			embedded.WithoutApp(),
 			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
-			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+4)),
-			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+4)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort3)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(httpPort3)),
 			embedded.WithComponentsPath("components/docker/defaultverisonfail"),
 			embedded.WithStates(stateRegistry),
 		)).
@@ -233,11 +238,14 @@ func TestCassandra(t *testing.T) {
 func TestCluster(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
-	ports, err := dapr_testing.GetFreePorts(2)
+
+	ports, err := dapr_testing.GetFreePorts(4)
 	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
+	grpcPort2 := ports[2]
+	httpPort2 := ports[3]
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -274,7 +282,8 @@ func TestCluster(t *testing.T) {
 	}
 
 	failTest := func(ctx flow.Context) error {
-		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 2))
+
+		client, err := goclient.NewClientWithPort(fmt.Sprint(grpcPort2))
 		if err != nil {
 			panic(err)
 		}
@@ -304,8 +313,9 @@ func TestCluster(t *testing.T) {
 		Step("Run basic test", basicTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
-			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
+
+			embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(httpPort2)),
 			embedded.WithComponentsPath("components/docker/cluster-fail"),
 			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
 			embedded.WithStates(stateRegistry),

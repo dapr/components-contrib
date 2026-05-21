@@ -15,6 +15,8 @@ package zeebe
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
@@ -25,6 +27,8 @@ import (
 )
 
 var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
+
+var ErrInvalidOAuthMetadata = errors.New("invalid OAuth metadata")
 
 // ClientFactory enables injection for testing.
 type ClientFactory interface {
@@ -41,6 +45,13 @@ type ClientMetadata struct {
 	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
 	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
+	ClientID               *string       `json:"clientId" mapstructure:"clientId"`
+	//nolint:gosec // ClientSecret is a configuration field name, not a hardcoded secret value.
+	ClientSecret           *string `json:"clientSecret" mapstructure:"clientSecret"`
+	AuthorizationServerURL *string `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
+	TokenAudience          *string `json:"tokenAudience" mapstructure:"tokenAudience"`
+	TokenScope             *string `json:"tokenScope" mapstructure:"tokenScope"`
+	ClientConfigPath       *string `json:"clientConfigPath" mapstructure:"clientConfigPath"`
 }
 
 // NewClientFactoryImpl returns a new ClientFactory instance.
@@ -54,11 +65,17 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 		return nil, err
 	}
 
+	credentialsProvider, err := meta.newCredentialsProvider()
+	if err != nil {
+		return nil, err
+	}
+
 	client, err := zbc.NewClient(&zbc.ClientConfig{
 		GatewayAddress:         meta.GatewayAddr,
 		UsePlaintextConnection: meta.UsePlaintextConnection,
 		CaCertificatePath:      meta.CaCertificatePath,
 		KeepAlive:              meta.GatewayKeepAlive,
+		CredentialsProvider:    credentialsProvider,
 	})
 	if err != nil {
 		return nil, err
@@ -79,4 +96,70 @@ func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetada
 	}
 
 	return &m, nil
+}
+
+func (m *ClientMetadata) oauthConfigured() bool {
+	return m.ClientID != nil ||
+		m.ClientSecret != nil ||
+		m.AuthorizationServerURL != nil ||
+		m.TokenAudience != nil ||
+		m.TokenScope != nil ||
+		m.ClientConfigPath != nil
+}
+
+func (m *ClientMetadata) validateOAuthMetadata() error {
+	if !m.oauthConfigured() {
+		return nil
+	}
+
+	missing := make([]string, 0, 4)
+	if m.ClientID == nil || *m.ClientID == "" {
+		missing = append(missing, "clientId")
+	}
+	if m.ClientSecret == nil || *m.ClientSecret == "" {
+		missing = append(missing, "clientSecret")
+	}
+	if m.AuthorizationServerURL == nil || *m.AuthorizationServerURL == "" {
+		missing = append(missing, "authorizationServerUrl")
+	}
+	if m.TokenAudience == nil || *m.TokenAudience == "" {
+		missing = append(missing, "tokenAudience")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: when OAuth is configured, clientId, clientSecret, authorizationServerUrl, and tokenAudience must all be provided; missing: %s", ErrInvalidOAuthMetadata, strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
+func (m *ClientMetadata) newCredentialsProvider() (zbc.CredentialsProvider, error) {
+	if err := m.validateOAuthMetadata(); err != nil {
+		return nil, err
+	}
+
+	if !m.oauthConfigured() {
+		return nil, nil
+	}
+
+	providerConfig := &zbc.OAuthProviderConfig{
+		ClientID:               *m.ClientID,
+		ClientSecret:           *m.ClientSecret,
+		Audience:               *m.TokenAudience,
+		AuthorizationServerURL: *m.AuthorizationServerURL,
+	}
+	if m.TokenScope != nil {
+		providerConfig.Scope = *m.TokenScope
+	}
+
+	if m.ClientConfigPath != nil && *m.ClientConfigPath != "" {
+		cache, err := zbc.NewOAuthYamlCredentialsCache(*m.ClientConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		providerConfig.Cache = cache
+	}
+
+	return zbc.NewOAuthCredentialsProvider(providerConfig)
 }

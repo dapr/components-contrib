@@ -46,11 +46,12 @@ type ClientMetadata struct {
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
 	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
 	ClientID               *string       `json:"clientId" mapstructure:"clientId"`
-	ClientSecret           *string       `json:"clientSecret" mapstructure:"clientSecret"`
-	AuthorizationServerURL *string       `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
-	TokenAudience          *string       `json:"tokenAudience" mapstructure:"tokenAudience"`
-	TokenScope             *string       `json:"tokenScope" mapstructure:"tokenScope"`
-	ClientConfigPath       *string       `json:"clientConfigPath" mapstructure:"clientConfigPath"`
+	//nolint:gosec // ClientSecret is a configuration field name, not a hardcoded secret value.
+	ClientSecret           *string `json:"clientSecret" mapstructure:"clientSecret"`
+	AuthorizationServerURL *string `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
+	TokenAudience          *string `json:"tokenAudience" mapstructure:"tokenAudience"`
+	TokenScope             *string `json:"tokenScope" mapstructure:"tokenScope"`
+	ClientConfigPath       *string `json:"clientConfigPath" mapstructure:"clientConfigPath"`
 }
 
 // NewClientFactoryImpl returns a new ClientFactory instance.

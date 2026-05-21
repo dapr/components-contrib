@@ -50,12 +50,18 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.GatewayKeepAlive)
 	assert.Equal(t, "/cert/path", meta.CaCertificatePath)
 	assert.True(t, meta.UsePlaintextConnection)
-	assert.Equal(t, strPtr("zeebe-client"), meta.ClientID)
-	assert.Equal(t, strPtr("zeebe-secret"), meta.ClientSecret)
-	assert.Equal(t, strPtr("https://issuer.example.com/oauth/token"), meta.AuthorizationServerURL)
-	assert.Equal(t, strPtr("zeebe-api"), meta.TokenAudience)
-	assert.Equal(t, strPtr("read write"), meta.TokenScope)
-	assert.Equal(t, strPtr("/tmp/zeebe-cache.yaml"), meta.ClientConfigPath)
+	require.NotNil(t, meta.ClientID)
+	require.NotNil(t, meta.ClientSecret)
+	require.NotNil(t, meta.AuthorizationServerURL)
+	require.NotNil(t, meta.TokenAudience)
+	require.NotNil(t, meta.TokenScope)
+	require.NotNil(t, meta.ClientConfigPath)
+	assert.Equal(t, "zeebe-client", *meta.ClientID)
+	assert.Equal(t, "zeebe-secret", *meta.ClientSecret)
+	assert.Equal(t, "https://issuer.example.com/oauth/token", *meta.AuthorizationServerURL)
+	assert.Equal(t, "zeebe-api", *meta.TokenAudience)
+	assert.Equal(t, "read write", *meta.TokenScope)
+	assert.Equal(t, "/tmp/zeebe-cache.yaml", *meta.ClientConfigPath)
 }
 
 func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
@@ -137,4 +143,33 @@ func TestNewCredentialsProviderCreatesOAuthProviderWithCustomCachePath(t *testin
 
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
+}
+
+func TestNewClientFactoryImpl(t *testing.T) {
+	factory := NewClientFactoryImpl(logger.NewLogger("test"))
+	require.NotNil(t, factory)
+}
+
+func TestGetReturnsMissingGatewayAddr(t *testing.T) {
+	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
+
+	zbcClient, err := client.Get(bindings.Metadata{})
+
+	assert.Nil(t, zbcClient)
+	require.ErrorIs(t, err, ErrMissingGatewayAddr)
+}
+
+func TestGetReturnsInvalidOAuthMetadata(t *testing.T) {
+	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
+	meta := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{
+		"gatewayAddr":            "172.0.0.1:1234",
+		"authorizationServerUrl": "https://issuer.example.com/oauth/token",
+		"tokenAudience":          "zeebe-api",
+		"clientId":               "zeebe-client",
+	}}}
+
+	zbcClient, err := client.Get(meta)
+
+	assert.Nil(t, zbcClient)
+	require.ErrorIs(t, err, ErrInvalidOAuthMetadata)
 }

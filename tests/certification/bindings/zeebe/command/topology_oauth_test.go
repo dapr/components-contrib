@@ -105,6 +105,54 @@ func TestTopologyOperationWithOAuthMetadata(t *testing.T) {
 		Run()
 }
 
+func TestTopologyOperationWithOAuthMetadataTokenEndpointFailure(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(2)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+
+	var oauthRequests int64
+	oauthSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&oauthRequests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+	}))
+	defer oauthSrv.Close()
+
+	resourcesPath := createOAuthTestResources(t, oauthSrv.URL)
+
+	testInvokeTopologyFailure := func(ctx flow.Context) error {
+		client := zeebe_test.GetDaprClient(grpcPort)
+		defer client.Close()
+
+		_, err := zeebe_test.ExecCommandOperation(
+			ctx,
+			client,
+			bindings_zeebe_command.TopologyOperation,
+			nil,
+			map[string]string{},
+		)
+		require.Error(t, err)
+		assert.GreaterOrEqual(t, atomic.LoadInt64(&oauthRequests), int64(1))
+		return nil
+	}
+
+	flow.New(t, "Test topology operation with OAuth token endpoint failure").
+		Step(dockercompose.Run("zeebe", zeebe_test.DockerComposeYaml)).
+		Step("Waiting for Zeebe Readiness...", retry.Do(time.Second*3, 10, zeebe_test.CheckZeebeConnection)).
+		Step(sidecar.Run(zeebe_test.SidecarName,
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithResourcesPath(resourcesPath),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
+		)).
+		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
+		Step("Invoke topology operation and assert OAuth failure", testInvokeTopologyFailure).
+		Run()
+}
+
 func createOAuthTestResources(t *testing.T, oauthServerURL string) string {
 	t.Helper()
 

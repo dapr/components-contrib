@@ -663,9 +663,12 @@ func indexByKey(res []state.BulkGetResponse) map[string]state.BulkGetResponse {
 
 // Compile-time assertion: BulkGet on *SQLServer satisfies the BulkStore
 // signature. If this fails, the embedded BulkStore would be used instead.
+//
+//nolint:staticcheck // S1021: explicit type kept to guard the method shape
 var _ = func() bool {
 	var s *SQLServer
-	var fn = s.BulkGet
+	var fn func(ctx context.Context, req []state.GetRequest, opts state.BulkGetOpts) ([]state.BulkGetResponse, error)
+	fn = s.BulkGet
 	_ = fn
 	return true
 }()

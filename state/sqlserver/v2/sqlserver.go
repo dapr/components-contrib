@@ -631,14 +631,14 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 
 func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	settingsStruct := sqlServerMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
 // Close implements io.Closer.
 func (s *SQLServer) Close() error {
 	if s.db != nil {
-		s.db.Close()
+		_ = s.db.Close()
 		s.db = nil
 	}
 

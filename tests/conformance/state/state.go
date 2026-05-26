@@ -1140,7 +1140,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}, state.BulkGetOpts{})
 			require.NoError(t, err)
 			require.Len(t, bulkRes, 2)
-			foundKeys := []string{}
+			foundKeys := make([]string, 0, 2)
 			for i := range 2 {
 				require.Empty(t, bulkRes[i].Data)
 				require.Empty(t, bulkRes[i].ETag)

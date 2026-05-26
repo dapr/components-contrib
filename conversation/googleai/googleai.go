@@ -62,8 +62,8 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	g.LLM.Model = llm
-	g.LLM.SetModel(model)
+	g.Model = llm
+	g.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.Model)
@@ -78,7 +78,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 func (g *GoogleAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

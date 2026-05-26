@@ -54,7 +54,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				if message != nil {
 					messages = append(messages, message)
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxMessagesCount {
-						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+						_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
 						messages = messages[:0]
 						ticker.Reset(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 					}
@@ -62,7 +62,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				consumer.mutex.Unlock()
 			case <-ticker.C:
 				consumer.mutex.Lock()
-				consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+				_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
 				messages = messages[:0]
 				consumer.mutex.Unlock()
 			}

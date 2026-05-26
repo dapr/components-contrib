@@ -820,7 +820,7 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	if len(s.metadata.SqsDeadLettersQueueName) > 0 {
 		deadLettersQueueInfo, derr = s.getOrCreateQueue(ctx, s.metadata.SqsDeadLettersQueueName)
 		if derr != nil {
-			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
+			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", derr)
 			s.logger.Error(wrappedErr)
 
 			return wrappedErr
@@ -905,6 +905,6 @@ func (s *snsSqs) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (s *snsSqs) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsSqsMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

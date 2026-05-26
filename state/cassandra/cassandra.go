@@ -195,7 +195,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		return nil, err
 	}
 
-	if m.Hosts == nil || len(m.Hosts) == 0 {
+	if len(m.Hosts) == 0 {
 		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
@@ -333,7 +333,7 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 
 func (c *Cassandra) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := cassandraMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

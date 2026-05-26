@@ -46,8 +46,7 @@ type ClientMetadata struct {
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
 	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
 	ClientID               *string       `json:"clientId" mapstructure:"clientId"`
-	//nolint:gosec // ClientSecret is a configuration field name, not a hardcoded secret value.
-	ClientSecret           *string `json:"clientSecret" mapstructure:"clientSecret"`
+	ClientSecret           *string       `json:"clientSecret" mapstructure:"clientSecret"`
 	AuthorizationServerURL *string `json:"authorizationServerUrl" mapstructure:"authorizationServerUrl"`
 	TokenAudience          *string `json:"tokenAudience" mapstructure:"tokenAudience"`
 	TokenScope             *string `json:"tokenScope" mapstructure:"tokenScope"`

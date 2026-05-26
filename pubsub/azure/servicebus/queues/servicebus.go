@@ -229,7 +229,7 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (a *azureServiceBus) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	delete(metadataInfo, "consumerID") // only applies to topics, not queues
 	return
 }

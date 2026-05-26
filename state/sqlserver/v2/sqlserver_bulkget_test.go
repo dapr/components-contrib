@@ -665,8 +665,7 @@ func indexByKey(res []state.BulkGetResponse) map[string]state.BulkGetResponse {
 // signature. If this fails, the embedded BulkStore would be used instead.
 var _ = func() bool {
 	var s *SQLServer
-	var fn func(ctx context.Context, req []state.GetRequest, opts state.BulkGetOpts) ([]state.BulkGetResponse, error)
-	fn = s.BulkGet
+	var fn = s.BulkGet
 	_ = fn
 	return true
 }()

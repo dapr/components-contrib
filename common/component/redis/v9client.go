@@ -84,7 +84,7 @@ func (c v9Client) Del(ctx context.Context, keys ...string) error {
 func (c v9Client) ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs) {
 	// enable notify-keyspace-events by redis Set command
 	// only subscribe to generic and string keyspace events
-	c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe")
+	_ = c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe") //nolint:errcheck // legacy behavior preserved
 
 	var p *v9.PubSub
 	if args.IsAllKeysChannel {

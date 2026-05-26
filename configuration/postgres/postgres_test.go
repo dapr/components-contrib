@@ -19,6 +19,7 @@ import (
 	"net"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -189,10 +190,7 @@ func TestMetadataNotifyChannel(t *testing.T) {
 
 	t.Run("notifyChannel exceeding max length fails", func(t *testing.T) {
 		m := metadata{}
-		longName := ""
-		for range maxIdentifierLength + 1 {
-			longName += "a"
-		}
+		longName := strings.Repeat("a", maxIdentifierLength+1)
 		props := map[string]string{
 			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
 			"table":            "configtable",

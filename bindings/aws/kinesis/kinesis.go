@@ -209,7 +209,7 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 		case SharedThroughput:
 			a.worker.Shutdown()
 		case ExtendedFanout:
-			a.deregisterConsumer(ctx, stream, a.consumerARN)
+			_ = a.deregisterConsumer(ctx, stream, a.consumerARN) //nolint:errcheck // legacy behavior preserved
 		}
 	}()
 
@@ -271,7 +271,7 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc types.StreamDescr
 					case *types.SubscribeToShardEventStreamMemberSubscribeToShardEvent:
 						if len(v.Value.Records) > 0 {
 							for _, rec := range v.Value.Records {
-								handler(ctx, &bindings.ReadResponse{Data: rec.Data})
+								_, _ = handler(ctx, &bindings.ReadResponse{Data: rec.Data}) //nolint:errcheck // legacy behavior preserved
 							}
 						}
 					}
@@ -416,25 +416,25 @@ func (p *recordProcessor) ProcessRecords(input *interfaces.ProcessRecordsInput) 
 	}
 
 	for _, v := range input.Records {
-		p.handler(p.ctx, &bindings.ReadResponse{
+		_, _ = p.handler(p.ctx, &bindings.ReadResponse{
 			Data: v.Data,
 		})
 	}
 
 	// checkpoint it after processing this batch
 	lastRecordSequenceNumber := input.Records[len(input.Records)-1].SequenceNumber
-	input.Checkpointer.Checkpoint(lastRecordSequenceNumber)
+	_ = input.Checkpointer.Checkpoint(lastRecordSequenceNumber)
 }
 
 func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 	if input.ShutdownReason == interfaces.TERMINATE {
-		input.Checkpointer.Checkpoint(nil)
+		_ = input.Checkpointer.Checkpoint(nil)
 	}
 }
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AWSKinesis) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := &kinesisMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

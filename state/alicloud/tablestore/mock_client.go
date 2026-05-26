@@ -86,7 +86,7 @@ func (m *mockClient) UpdateRow(req *tablestore.UpdateRowRequest) (*tablestore.Up
 	for _, col := range change.Columns {
 		if col.ColumnName == stateValue {
 			buf := &bytes.Buffer{}
-			binary.Write(buf, binary.BigEndian, col.Value)
+			_ = binary.Write(buf, binary.BigEndian, col.Value)
 			val = buf.Bytes()
 
 			break
@@ -169,7 +169,7 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 				for _, col := range inst.Columns {
 					if col.ColumnName == stateValue {
 						buf := &bytes.Buffer{}
-						binary.Write(buf, binary.BigEndian, col.Value)
+						_ = binary.Write(buf, binary.BigEndian, col.Value)
 						m.data[pk] = buf.Bytes()
 					}
 				}

@@ -70,8 +70,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	m.LLM.Model = llm
-	m.LLM.SetModel(model)
+	m.Model = llm
+	m.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, m.Model)
@@ -86,7 +86,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 
 func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType) //nolint:errcheck // legacy behavior preserved
 	return
 }
 

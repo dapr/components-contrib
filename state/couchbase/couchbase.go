@@ -134,7 +134,7 @@ func (cbs *Couchbase) Init(_ context.Context, metadata state.Metadata) error {
 		return fmt.Errorf("unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
 	}
 	// does not actually trigger the authentication
-	c.Authenticate(gocb.PasswordAuthenticator{
+	_ = c.Authenticate(gocb.PasswordAuthenticator{ //nolint:errcheck // legacy behavior preserved
 		Username: meta.Username,
 		Password: meta.Password,
 	})
@@ -272,7 +272,7 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 
 func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := couchbaseMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

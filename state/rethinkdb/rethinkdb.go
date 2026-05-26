@@ -113,7 +113,7 @@ func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 
 	// in case someone runs Init multiple times
 	if s.session != nil && s.session.IsConnected() {
-		s.session.Close()
+		_ = s.session.Close()
 	}
 
 	// Convert wrapper to r.ConnectOpts
@@ -307,7 +307,7 @@ func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest, _ state
 	}
 
 	if s.config.Archive && len(resp.Changes) > 0 {
-		s.archive(ctx, resp.Changes)
+		_ = s.archive(ctx, resp.Changes) //nolint:errcheck // legacy behavior preserved
 	}
 
 	return nil
@@ -394,7 +394,7 @@ func createTLSConfig(clientCert, clientKey string) (*tls.Config, error) {
 
 func (s *RethinkDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := stateConfig{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

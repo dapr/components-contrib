@@ -386,6 +386,6 @@ func (m *MQTT) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (m *MQTT) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mqtt3Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

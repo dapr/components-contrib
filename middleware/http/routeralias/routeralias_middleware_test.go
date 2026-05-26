@@ -32,7 +32,7 @@ import (
 func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	uri := httputils.RequestURI(r)
-	_, _ = w.Write([]byte(uri)) //nolint:gosec // test fixture echo
+	_, _ = w.Write([]byte(uri))
 }
 
 func TestRouterAlias(t *testing.T) {

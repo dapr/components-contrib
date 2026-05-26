@@ -123,6 +123,46 @@ type Settings struct {
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
+
+	// OIDC authentication: when true, the component fetches an access token
+	// from an OAuth2 IDP using the private_key_jwt client authentication
+	// method (RFC 7523), uses that token as the Redis AUTH password, and
+	// refreshes it before expiry. Mirrors the useEntraID flow but works
+	// against any OAuth2 token endpoint (ADFS, Keycloak, Okta, etc.).
+	UseOIDC bool `mapstructure:"useOIDC"`
+
+	// OIDC token endpoint (POST target for the client_credentials request).
+	OidcTokenEndpoint string `mapstructure:"oidcTokenEndpoint"`
+
+	// OIDC client ID (used as the iss and sub claims of the signed assertion,
+	// and as the client_id form parameter on the token request).
+	OidcClientID string `mapstructure:"oidcClientID"`
+
+	// OIDC client assertion certificate (PEM-encoded X.509 certificate).
+	OidcClientAssertionCert string `mapstructure:"oidcClientAssertionCert"`
+
+	// OIDC client assertion private key (PEM-encoded RSA private key
+	// corresponding to OidcClientAssertionCert).
+	OidcClientAssertionKey string `mapstructure:"oidcClientAssertionKey"`
+
+	// OIDC resource form parameter (required by some IDPs, e.g. ADFS).
+	OidcResource string `mapstructure:"oidcResource"`
+
+	// OIDC audience claim on the signed assertion. If empty, the token
+	// endpoint URL is used.
+	OidcAudience string `mapstructure:"oidcAudience"`
+
+	// OIDC kid (key ID) header value on the signed assertion. Required by
+	// some IDPs (e.g. JPMC ADFS expects the SHA-1 thumbprint of the X.509
+	// certificate, hex-encoded with colons removed).
+	OidcKid string `mapstructure:"oidcKid"`
+
+	// OIDC scopes — comma-separated list. Defaults to "openid" when empty.
+	OidcScopes string `mapstructure:"oidcScopes"`
+
+	// OIDC CA certificate (PEM-encoded) used to verify the token endpoint's
+	// TLS certificate. Optional; system roots are used when empty.
+	OidcCACert string `mapstructure:"oidcCACert"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

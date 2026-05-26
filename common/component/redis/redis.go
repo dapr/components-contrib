@@ -174,6 +174,21 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		}
 	}
 
+	// OIDC private_key_jwt: fetch initial access token from the configured
+	// IDP and use it as the Redis AUTH password. Mirrors the EntraID flow,
+	// but with a generic OAuth2 token source instead of azcore.
+	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT
+	var oidcTokenExpires *time.Time
+	if settings.UseOIDC {
+		if settings.UseEntraID {
+			return nil, nil, errors.New("redis client configuration error: useOIDC and useEntraID are mutually exclusive")
+		}
+		oidcTokenExpires, oidcTokenSource, err = settings.GetOIDCTokenAndSetAsPassword(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	var c RedisClient
 	newClientFunc := newV8Client
 	if settings.Failover {
@@ -215,6 +230,9 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 
 	if settings.UseEntraID {
 		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
+	}
+	if settings.UseOIDC {
+		StartOIDCTokenRefreshBackgroundRoutine(c, settings.Username, *oidcTokenExpires, oidcTokenSource, logger)
 	}
 	return c, &settings, nil
 }
@@ -333,6 +351,122 @@ func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.
 		return nil, nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
 	}
 	return &token.ExpiresOn, &cred, nil
+}
+
+// GetOIDCTokenAndSetAsPassword obtains an initial access token from the
+// configured OIDC IDP using the private_key_jwt client authentication method,
+// and stores it on the Settings struct so the go-redis client uses it as the
+// AUTH password on its initial connect.
+//
+// Mirrors GetEntraIDCredentialAndSetInitialTokenAsPassword above, but uses a
+// generic OAuth2 token source instead of azcore.
+func (s *Settings) GetOIDCTokenAndSetAsPassword(ctx context.Context) (*time.Time, *OAuthTokenSourcePrivateKeyJWT, error) {
+	if len(s.Password) > 0 {
+		return nil, nil, errors.New(
+			"redis client configuration error: redisPassword must not be specified when using OIDC authentication")
+	}
+	if s.OidcTokenEndpoint == "" {
+		return nil, nil, errors.New("redis client configuration error: oidcTokenEndpoint is required for OIDC authentication")
+	}
+	if s.OidcClientID == "" {
+		return nil, nil, errors.New("redis client configuration error: oidcClientID is required for OIDC authentication")
+	}
+	if s.OidcClientAssertionCert == "" || s.OidcClientAssertionKey == "" {
+		return nil, nil, errors.New("redis client configuration error: oidcClientAssertionCert and oidcClientAssertionKey are required for OIDC authentication")
+	}
+
+	tokenSource, err := s.getOIDCTokenSource()
+	if err != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+
+	accessToken, expiry, err := tokenSource.Token(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("redis client configuration error: initial OIDC token fetch failed: %w", err)
+	}
+
+	s.Password = accessToken
+	// Username is configurable via redisUsername; OIDC does not derive it
+	// from the token (unlike EntraID which extracts the Azure object ID).
+	return &expiry, tokenSource, nil
+}
+
+// StartOIDCTokenRefreshBackgroundRoutine refreshes the OIDC access token in
+// the background and re-AUTHs the live Redis pool via AuthACL before the
+// token expires. Mirrors StartEntraIDTokenRefreshBackgroundRoutine.
+func StartOIDCTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, tokenSource *OAuthTokenSourcePrivateKeyJWT, logger *kitlogger.Logger) {
+	go func(tokenSource *OAuthTokenSourcePrivateKeyJWT, username string, logger *kitlogger.Logger) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		backoffConfig := kitretry.DefaultConfig()
+		backoffConfig.MaxRetries = 3
+		backoffConfig.Policy = kitretry.PolicyExponential
+
+		var backoffManager backoff.BackOff
+		const refreshGracePeriod = 5 * time.Minute
+		tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
+
+		(*logger).Debugf("redis client: starting OIDC token refresh loop")
+
+		for {
+			(*logger).Debugf("redis client: next OIDC token refresh: %v", tokenRefreshDuration)
+			select {
+			case <-ctx.Done():
+				(*logger).Infof("redis client: OIDC token refresh stopped due to context cancellation")
+				return
+			case <-time.After(tokenRefreshDuration):
+				(*logger).Debug("redis client: refreshing OIDC token")
+
+				// Invalidate the cached token so Token() fetches a fresh one.
+				tokenSource.CachedToken.AccessToken = ""
+
+				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+				var accessToken string
+				var expiry time.Time
+				tokenErr := kitretry.NotifyRecover(
+					func() error {
+						var innerTokenErr error
+						accessToken, expiry, innerTokenErr = tokenSource.Token(ctx)
+						return innerTokenErr
+					},
+					backoffManager,
+					func(err error, _ time.Duration) {
+						(*logger).Debugf("redis client: OIDC token acquisition failed with error: %v. Retrying...", err)
+					},
+					func() {
+						(*logger).Debug("redis client: OIDC token acquisition succeeded after error")
+					},
+				)
+				if tokenErr != nil {
+					_ = client.Close()
+					(*logger).Fatalf("redis client: OIDC token acquisition failed: %v", tokenErr)
+					return
+				}
+
+				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+				authErr := kitretry.NotifyRecover(
+					func() error {
+						return client.AuthACL(ctx, username, accessToken)
+					},
+					backoffManager,
+					func(err error, _ time.Duration) {
+						(*logger).Debugf("redis client: OIDC auth failed with error: %v. Retrying...", err)
+					},
+					func() {
+						(*logger).Debug("redis client: OIDC auth succeeded after error")
+					},
+				)
+				if authErr != nil {
+					_ = client.Close()
+					(*logger).Fatalf("redis client: OIDC auth failed: %v", authErr)
+					return
+				}
+
+				(*logger).Debugf("redis client: OIDC token successfully refreshed with the server")
+				tokenRefreshDuration = time.Until(expiry.Add(-refreshGracePeriod))
+			}
+		}
+	}(tokenSource, username, logger)
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

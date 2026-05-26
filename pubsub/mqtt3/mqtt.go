@@ -499,6 +499,6 @@ func buildRegexForTopic(topicName string) string {
 // GetComponentMetadata returns the metadata of the component.
 func (m *mqttPubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mqttMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

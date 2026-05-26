@@ -207,7 +207,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		// see: https://cloud.google.com/pubsub/docs/emulator#env
 		if metadata.ConnectionEndpoint != "" {
 			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
-			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
+			_ = os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint) //nolint:errcheck // legacy behavior preserved
 		}
 		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {
@@ -307,7 +307,7 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	}()
 	go func() {
 		defer g.wg.Done()
-		g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler)
+		_ = g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler) //nolint:errcheck // legacy behavior preserved
 	}()
 
 	return nil
@@ -405,7 +405,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 		select {
 		case <-time.After(time.Second * time.Duration(g.metadata.ConnectionRecoveryInSec)):
 		case <-parentCtx.Done():
-			break
+			break //nolint:staticcheck // SA4011: preserved for backwards compat (breaks select; outer loop sees ctx via Receive return)
 		}
 
 		<-reconnAttempts
@@ -516,6 +516,6 @@ func (g *GCPPubSub) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (g *GCPPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

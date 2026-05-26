@@ -439,7 +439,7 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 		return nil, nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
 	}
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(response.Content)
+	_, _ = buf.ReadFrom(response.Content) //nolint:errcheck // legacy behavior preserved
 	return buf.Bytes(), response.ETag, response.OpcMeta, nil
 }
 
@@ -527,6 +527,6 @@ func (c *ociObjectStorageClient) pingBucket(ctx context.Context) error {
 
 func (r *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := objectStoreMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }

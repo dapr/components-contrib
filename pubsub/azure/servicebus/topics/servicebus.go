@@ -320,6 +320,6 @@ func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req
 // GetComponentMetadata returns the metadata of the component.
 func (a *azureServiceBus) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

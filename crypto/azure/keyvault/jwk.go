@@ -118,14 +118,18 @@ func (key JSONWebKey) publicEC() (*ecdsa.PublicKey, error) {
 	if len(key.X) == 0 {
 		return nil, errors.New("property X is empty")
 	}
+	//nolint:staticcheck // SA1019: preserved for backwards compat; ParseUncompressedPublicKey would tighten validation
 	res.X = &big.Int{}
+	//nolint:staticcheck // SA1019: preserved for backwards compat
 	res.X.SetBytes(key.X)
 
 	// Y coordinate
 	if len(key.Y) == 0 {
 		return nil, errors.New("property Y is empty")
 	}
+	//nolint:staticcheck // SA1019: preserved for backwards compat
 	res.Y = &big.Int{}
+	//nolint:staticcheck // SA1019: preserved for backwards compat
 	res.Y.SetBytes(key.Y)
 
 	return res, nil

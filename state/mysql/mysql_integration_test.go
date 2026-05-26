@@ -451,8 +451,8 @@ func TestMySQLIntegration(t *testing.T) {
 	t.Run("Multi with delete and set", func(t *testing.T) {
 		t.Parallel()
 
-		var operations []state.TransactionalStateOperation
-		var deleteRequests []state.DeleteRequest
+		operations := make([]state.TransactionalStateOperation, 0, 6)
+		deleteRequests := make([]state.DeleteRequest, 0, 3)
 		for range 3 {
 			req := state.DeleteRequest{Key: randomKey()}
 
@@ -467,7 +467,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		// Create the set requests
-		var setRequests []state.SetRequest
+		setRequests := make([]state.SetRequest, 0, 3)
 		for range 3 {
 			req := state.SetRequest{
 				Key:   randomKey(),
@@ -495,8 +495,8 @@ func TestMySQLIntegration(t *testing.T) {
 	t.Run("Multi with delete only", func(t *testing.T) {
 		t.Parallel()
 
-		var operations []state.TransactionalStateOperation
-		var deleteRequests []state.DeleteRequest
+		operations := make([]state.TransactionalStateOperation, 0, 3)
+		deleteRequests := make([]state.DeleteRequest, 0, 3)
 		for range 3 {
 			req := state.DeleteRequest{Key: randomKey()}
 
@@ -523,8 +523,8 @@ func TestMySQLIntegration(t *testing.T) {
 	t.Run("Multi with set only", func(t *testing.T) {
 		t.Parallel()
 
-		var operations []state.TransactionalStateOperation
-		var setRequests []state.SetRequest
+		operations := make([]state.TransactionalStateOperation, 0, 3)
+		setRequests := make([]state.SetRequest, 0, 3)
 		for range 3 {
 			req := state.SetRequest{
 				Key:   randomKey(),

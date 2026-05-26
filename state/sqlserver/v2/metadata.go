@@ -97,7 +97,7 @@ func normalizeBulkGetChunkSize(log logger.Logger, configured int) int {
 
 func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 	// Reset first
-	m.SQLServerAuthMetadata.Reset()
+	m.Reset()
 
 	// Decode the metadata
 	err := metadata.DecodeMetadata(meta, &m)
@@ -106,7 +106,7 @@ func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 	}
 
 	// Validate and parse the auth metadata
-	err = m.SQLServerAuthMetadata.Validate(meta)
+	err = m.Validate(meta)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (m *sqlServerMetadata) validateIndexedProperties(indexedProperties []Indexe
 
 func isValidIndexedPropertyName(s string) bool {
 	for _, c := range s {
-		if !(sqlserverAuth.IsLetterOrNumber(c) || (c == '_') || (c == '.') || (c == '[') || (c == ']')) {
+		if !sqlserverAuth.IsLetterOrNumber(c) && c != '_' && c != '.' && c != '[' && c != ']' {
 			return false
 		}
 	}
@@ -237,7 +237,7 @@ func isValidIndexedPropertyName(s string) bool {
 
 func isValidIndexedPropertyType(s string) bool {
 	for _, c := range s {
-		if !(sqlserverAuth.IsLetterOrNumber(c) || (c == '(') || (c == ')')) {
+		if !sqlserverAuth.IsLetterOrNumber(c) && c != '(' && c != ')' {
 			return false
 		}
 	}

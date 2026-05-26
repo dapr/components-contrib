@@ -914,7 +914,7 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 		return err
 	}
 
-	msg.Ack(msg.Message)
+	_ = msg.Ack(msg.Message) //nolint:errcheck // legacy behavior preserved
 	return nil
 }
 
@@ -975,7 +975,7 @@ func (p *Pulsar) formatTopic(topic string) string {
 // GetComponentMetadata returns the metadata of the component.
 func (p *Pulsar) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := pulsarMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }
 

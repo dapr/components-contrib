@@ -143,7 +143,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 		unReq := &configuration.UnsubscribeRequest{
 			ID: subID,
 		}
-		s.Unsubscribe(t.Context(), unReq)
+		_ = s.Unsubscribe(t.Context(), unReq)
 	})
 
 	t.Run("call subscribe w/o sentinel key", func(t *testing.T) {

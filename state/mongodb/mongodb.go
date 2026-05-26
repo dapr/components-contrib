@@ -524,7 +524,7 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	txnOpts := options.Transaction().
 		SetReadConcern(readconcern.Snapshot()).
 		SetWriteConcern(writeconcern.Majority())
-	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+	_, _ = sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) { //nolint:errcheck // legacy behavior preserved
 		err = m.doTransaction(sessCtx, request.Operations)
 		return nil, err
 	}, txnOpts)
@@ -554,7 +554,7 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 		}
 
 		if err != nil {
-			sessCtx.AbortTransaction(sessCtx)
+			_ = sessCtx.AbortTransaction(sessCtx) //nolint:errcheck // legacy behavior preserved
 			return fmt.Errorf("error during transaction, aborting the transaction: %w", err)
 		}
 	}
@@ -708,7 +708,7 @@ func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
 
 func (m *MongoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mongoDBMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

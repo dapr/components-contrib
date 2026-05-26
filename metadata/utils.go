@@ -262,7 +262,7 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		numTags := len(mapStructureTags)
 		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
 			// traverse embedded struct
-			GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType)
+			_ = GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType) //nolint:errcheck // legacy behavior preserved
 			continue
 		}
 		var fieldName string

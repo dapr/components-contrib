@@ -254,7 +254,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Extract the underlying error message(s) returned from SendGrid REST API
 		sendGridError := sendGridRestError{}
-		json.NewDecoder(strings.NewReader(resp.Body)).Decode(&sendGridError)
+		_ = json.NewDecoder(strings.NewReader(resp.Body)).Decode(&sendGridError)
 		// Pass it back to the caller, so they have some idea what went wrong
 		return nil, fmt.Errorf("error from SendGrid: sending email failed: %d %+v", resp.StatusCode, sendGridError)
 	}
@@ -267,7 +267,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 // GetComponentMetadata returns the metadata of the component.
 func (sg *SendGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sendGridMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

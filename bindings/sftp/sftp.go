@@ -313,6 +313,6 @@ func (metadata sftpMetadata) mergeWithRequestMetadata(req *bindings.InvokeReques
 // GetComponentMetadata returns the metadata of the component.
 func (sftp *Sftp) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sftpMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

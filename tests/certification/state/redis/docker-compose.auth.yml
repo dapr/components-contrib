@@ -1,5 +1,3 @@
-version: "3.7"
-
 # Brings up the auth-flow dependencies for the state/redis useOIDC
 # certification test:
 #
@@ -52,6 +50,11 @@ services:
       - "valkey-server"
       - "--user"
       - "default on nopass ~* &* +@all"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   proxy:
     build: ./jwtproxy

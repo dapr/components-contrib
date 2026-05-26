@@ -66,7 +66,7 @@ type OAuthTokenSourcePrivateKeyJWT struct {
 }
 
 type tokenResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token"` //nolint:gosec // OAuth2 access_token field, not a hardcoded credential
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
@@ -236,7 +236,7 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) Token(ctx context.Context) (string, tim
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := ts.httpClient.Do(req)
+	resp, err := ts.httpClient.Do(req) //nolint:gosec // URL is operator-configured component metadata, not user input
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("OIDC token request failed: %w", err)
 	}

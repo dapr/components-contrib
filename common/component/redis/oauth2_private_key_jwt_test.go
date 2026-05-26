@@ -74,7 +74,7 @@ func TestOIDCTokenSource_HappyPath(t *testing.T) {
 		mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:gosec // test fixture
 			"access_token": "the-bearer-jwt",
 			"expires_in":   3600,
 		})
@@ -182,7 +182,7 @@ func TestOIDCTokenSource_TokenEndpointError(t *testing.T) {
 
 func TestOIDCTokenSource_MissingConfiguration(t *testing.T) {
 	ts := &OAuthTokenSourcePrivateKeyJWT{
-		TokenEndpoint: oauth2.Endpoint{TokenURL: "https://idp.example/token"},
+		TokenEndpoint: oauth2.Endpoint{TokenURL: "https://idp.example/token"}, //nolint:gosec // test fixture
 		// ClientID intentionally empty
 	}
 	_, _, err := ts.Token(context.Background())
@@ -203,7 +203,7 @@ func TestSettings_GetOIDCTokenAndSetAsPassword_RequiresFields(t *testing.T) {
 		},
 		{
 			name:    "missing client id",
-			s:       Settings{OidcTokenEndpoint: "https://idp/token", OidcClientAssertionCert: "x", OidcClientAssertionKey: "y"},
+			s:       Settings{OidcTokenEndpoint: "https://idp/token", OidcClientAssertionCert: "x", OidcClientAssertionKey: "y"}, //nolint:gosec // test fixture
 			wantErr: "oidcClientID",
 		},
 		{

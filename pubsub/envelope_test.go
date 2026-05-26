@@ -203,7 +203,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": "10000",
 		})
-		assert.NotEqual(t, "", envelope[ExpirationField])
+		assert.NotEmpty(t, envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
 	})
 
@@ -223,7 +223,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": strconv.Itoa(math.MaxInt64),
 		})
-		assert.NotEqual(t, "", envelope[ExpirationField])
+		assert.NotEmpty(t, envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
 	})
 

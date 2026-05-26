@@ -24,6 +24,7 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // stubModel implements llms.Model for testing purposes, returning a controlled ContentResponse.
@@ -46,7 +47,38 @@ func newLLMWithStub(fn func(ctx context.Context, messages []llms.MessageContent,
 	}
 }
 
-func strPtr(s string) *string { return &s }
+func TestConverseResponseModel(t *testing.T) {
+	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
+
+	t.Run("model set via SetModel is returned in response", func(t *testing.T) {
+		llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, _ ...llms.CallOption) (*llms.ContentResponse, error) {
+			return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+		})
+		llm.SetModel("my-model-name")
+
+		resp, err := llm.Converse(t.Context(), &conversation.Request{
+			Message: &[]llms.MessageContent{
+				{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "my-model-name", resp.Model)
+	})
+
+	t.Run("model is empty when SetModel is never called", func(t *testing.T) {
+		llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, _ ...llms.CallOption) (*llms.ContentResponse, error) {
+			return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+		})
+
+		resp, err := llm.Converse(t.Context(), &conversation.Request{
+			Message: &[]llms.MessageContent{
+				{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+			},
+		})
+		require.NoError(t, err)
+		assert.Empty(t, resp.Model, "Response.Model should be empty when SetModel was not called")
+	})
+}
 
 // TestConverseEmptyResponseWithTools verifies that when tool_choice=required is set and the LLM
 // returns an empty response (no content, no tool calls), Converse returns an error. This ensures
@@ -76,7 +108,7 @@ func TestConverseEmptyResponseWithTools(t *testing.T) {
 				{Content: "", StopReason: "stop"},
 			},
 			tools:      &tools,
-			toolChoice: strPtr("required"),
+			toolChoice: ptr.Of("required"),
 			wantErr:    true,
 			errSubstr:  "LLM returned empty response with no tool calls",
 		},
@@ -87,7 +119,7 @@ func TestConverseEmptyResponseWithTools(t *testing.T) {
 				{Content: "", StopReason: "stop"},
 			},
 			tools:      &tools,
-			toolChoice: strPtr("required"),
+			toolChoice: ptr.Of("required"),
 			wantErr:    true,
 			errSubstr:  "LLM returned empty response with no tool calls",
 		},
@@ -153,14 +185,14 @@ func TestConverseEmptyResponseWithTools(t *testing.T) {
 				},
 			},
 			tools:      &tools,
-			toolChoice: strPtr("required"),
+			toolChoice: ptr.Of("required"),
 			wantErr:    true,
 		},
 		{
 			name:       "empty choices slice with tool_choice=required - returns error (model returned nothing)",
 			choices:    []*llms.ContentChoice{},
 			tools:      &tools,
-			toolChoice: strPtr("required"),
+			toolChoice: ptr.Of("required"),
 			wantErr:    true,
 			errSubstr:  "LLM returned empty response with no tool calls",
 		},

@@ -38,6 +38,15 @@ func New(logger logger.Logger) LLM {
 	}
 }
 
+// SetModel sets the resolved model name that will be returned in conversation responses.
+func (a *LLM) SetModel(model string) {
+	a.model = model
+}
+
+func (a *LLM) GetModel() string {
+	return a.model
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	opts := getOptionsFromRequest(r, a.logger)
 
@@ -100,7 +109,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 
 	// Extract usage from the first choice's GenerationInfo (all choices share the same usage)
 	var usage *conversation.Usage
-	if len(choices) > 0 && choices[0].GenerationInfo != nil {
+	if choices[0].GenerationInfo != nil {
 		var err error
 		usage, err = extractUsageFromLangchainGenerationInfo(choices[0].GenerationInfo)
 		if err != nil {
@@ -110,8 +119,9 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 
 	outputs := make([]conversation.Result, 0, len(choices))
 	for i := range choices {
+		finishReason := normalizeFinishReason(choices[i].StopReason)
 		choice := conversation.Choice{
-			FinishReason: normalizeFinishReason(choices[i].StopReason),
+			FinishReason: finishReason,
 			Index:        int64(i),
 		}
 
@@ -124,7 +134,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		}
 
 		output := conversation.Result{
-			StopReason: normalizeFinishReason(choices[i].StopReason),
+			StopReason: finishReason,
 			Choices:    []conversation.Choice{choice},
 		}
 

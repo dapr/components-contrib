@@ -31,14 +31,16 @@ type metadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
 	Timeout                     time.Duration `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
 	ConfigTable                 string        `mapstructure:"table"`
+	NotifyChannel               string        `mapstructure:"notifyChannel" mapstructurealiases:"pgNotifyChannel"`
 	MaxIdleTimeoutOld           time.Duration `mapstructure:"connMaxIdleTime"` // Deprecated alias for "connectionMaxIdleTime"
 	aws.DeprecatedPostgresIAM   `mapstructure:",squash"`
 }
 
 func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.ConfigTable = ""
+	m.NotifyChannel = ""
 	m.MaxIdleTimeoutOld = 0
 	m.Timeout = defaultTimeout
 
@@ -61,6 +63,15 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	}
 	if !allowedTableNameChars.MatchString(m.ConfigTable) {
 		return fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
+	}
+
+	if m.NotifyChannel != "" {
+		if len(m.NotifyChannel) > maxIdentifierLength {
+			return fmt.Errorf("notifyChannel name is too long - %q. max allowed length is %d", m.NotifyChannel, maxIdentifierLength)
+		}
+		if !allowedTableNameChars.MatchString(m.NotifyChannel) {
+			return fmt.Errorf("invalid notifyChannel name %q. non-alphanumerics or upper cased names are not supported", m.NotifyChannel)
+		}
 	}
 
 	// Timeout

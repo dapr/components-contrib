@@ -135,7 +135,7 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 // GetComponentMetadata returns the metadata of the component.
 func (z *ZeebeCommand) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := zeebe.ClientMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

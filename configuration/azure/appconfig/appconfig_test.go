@@ -41,8 +41,10 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
-		settings.Key = ptr.Of("testKey")
+		settings.Key = ptr.Of(key)
 		settings.Value = ptr.Of("testValue")
+		settings.Label = ptr.Of("testLabel")
+		settings.ContentType = ptr.Of("application/json")
 
 		resp := azappconfig.GetSettingResponse{}
 		resp.Setting = settings
@@ -58,10 +60,14 @@ func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.Setti
 	setting1 := azappconfig.Setting{}
 	setting1.Key = ptr.Of("testKey-1")
 	setting1.Value = ptr.Of("testValue-1")
+	setting1.Label = ptr.Of("testLabel-1")
+	setting1.ContentType = ptr.Of("application/json")
 
 	setting2 := azappconfig.Setting{}
 	setting2.Key = ptr.Of("testKey-2")
 	setting2.Value = ptr.Of("testValue-2")
+	setting2.Label = ptr.Of("testLabel-2")
+	setting2.ContentType = ptr.Of("text/plain")
 	settings[0] = setting1
 	settings[1] = setting2
 
@@ -113,6 +119,8 @@ func Test_getConfigurationWithProvidedKeys(t *testing.T) {
 		res, err := s.Get(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Len(t, res.Items, 1)
+		assert.Equal(t, "application/json", res.Items["testKey"].Metadata["contentType"])
+		assert.Equal(t, "testLabel", res.Items["testKey"].Metadata["label"])
 	})
 }
 
@@ -189,6 +197,10 @@ func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
 		res, err := s.Get(t.Context(), &req)
 		require.NoError(t, err)
 		assert.Len(t, res.Items, 2)
+		assert.Equal(t, "application/json", res.Items["testKey-1"].Metadata["contentType"])
+		assert.Equal(t, "testLabel-1", res.Items["testKey-1"].Metadata["label"])
+		assert.Equal(t, "text/plain", res.Items["testKey-2"].Metadata["contentType"])
+		assert.Equal(t, "testLabel-2", res.Items["testKey-2"].Metadata["label"])
 	})
 }
 

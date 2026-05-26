@@ -723,10 +723,11 @@ func (r *rabbitMQ) reset() (err error) {
 	}
 	if r.connection != nil {
 		if err2 := r.connection.Close(); err2 != nil {
-			r.logger.Errorf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
-			if err == nil {
-				err = err2
-			}
+			// AMQP servers can respond to connection-close with a
+			// transient CHANNEL_ERROR (504) when the channel was already
+			// closed above. The underlying resources are released either
+			// way, so log it but do not propagate it as a Close failure.
+			r.logger.Warnf("%s reset: connection.Close() returned: %v", logMessagePrefix, err2)
 		}
 		r.connection = nil
 	}

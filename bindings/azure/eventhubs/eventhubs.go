@@ -70,7 +70,7 @@ func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	}
 
 	// Publish the message
-	err := a.AzureEventHubs.Publish(ctx, a.AzureEventHubs.EventHubName(), messages, batchOpts)
+	err := a.Publish(ctx, a.EventHubName(), messages, batchOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -81,11 +81,11 @@ func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest
 func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) error {
 	// Start the subscription
 	// This is non-blocking
-	topic := a.AzureEventHubs.EventHubName()
-	bindingsHandler := a.AzureEventHubs.GetBindingsHandlerFunc(topic, false, handler)
+	topic := a.EventHubName()
+	bindingsHandler := a.GetBindingsHandlerFunc(topic, false, handler)
 	// Setting `maxBulkSubCount` to 1 as bindings are not supported for bulk subscriptions
 	// Setting `CheckPointFrequencyPerPartition` to default value of 1
-	return a.AzureEventHubs.Subscribe(ctx, impl.SubscribeConfig{
+	return a.Subscribe(ctx, impl.SubscribeConfig{
 		Topic:                           topic,
 		MaxBulkSubCount:                 1,
 		MaxBulkSubAwaitDurationMs:       impl.DefaultMaxBulkSubAwaitDurationMs,

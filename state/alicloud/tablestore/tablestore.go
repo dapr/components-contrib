@@ -100,9 +100,10 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 	getResp := &state.GetResponse{}
 
 	for _, column := range columns {
-		if column.ColumnName == stateValue {
+		switch column.ColumnName {
+		case stateValue:
 			getResp.Data = unmarshal(column.Value)
-		} else if column.ColumnName == sateEtag {
+		case sateEtag:
 			getResp.ETag = ptr.Of(column.Value.(string))
 		}
 	}

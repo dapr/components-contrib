@@ -66,12 +66,12 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	g.LLM.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		g.LLM.Model = cachedModel
+		g.Model = cachedModel
 	}
 	return nil
 }

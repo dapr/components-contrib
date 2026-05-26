@@ -371,18 +371,22 @@ func TestServiceBusQueueMetadata(t *testing.T) {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
 		require.NoError(t, err, "Could not initialize dapr client.")
 
-		// Send events that the application above will observe.
-		ctx.Log("Invoking binding!")
+		// Register the expected message before publishing: the input binding
+		// can deliver the message back to the handler before ExpectStrings
+		// runs, which would cause Observe to drop the message (remaining map
+		// still empty) and the test to time out.
 		req := &daprClient.InvokeBindingRequest{
 			Name:      "sb-binding-1",
 			Operation: "create",
 			Data:      []byte(testprefix + ": test msg"),
 			Metadata:  map[string]string{"Testmetadata": "Some Metadata"},
 		}
+		messages.ExpectStrings(string(req.Data))
+
+		// Send events that the application above will observe.
+		ctx.Log("Invoking binding!")
 		err = client.InvokeOutputBinding(ctx, req)
 		require.NoError(ctx, err, "error publishing message")
-
-		messages.ExpectStrings(string(req.Data))
 
 		// Do the messages we observed match what we expect?
 		messages.Assert(ctx, time.Minute)

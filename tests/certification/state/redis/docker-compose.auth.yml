@@ -44,12 +44,9 @@ services:
   valkey:
     image: valkey/valkey:7.2-alpine
     container_name: redis_oidc_valkey
-    # Default user nopass so the JWT-proxy can dial through without any
+    # Run with default config — the default user is nopass and has full
+    # access, which is what the JWT-proxy needs to dial through without
     # backend credentials. AUTH enforcement is performed by the proxy.
-    command:
-      - "valkey-server"
-      - "--user"
-      - "default on nopass ~* &* +@all"
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 2s

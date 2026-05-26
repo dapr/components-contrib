@@ -208,12 +208,12 @@ func TestSettings_GetOIDCTokenAndSetAsPassword_RequiresFields(t *testing.T) {
 		},
 		{
 			name:    "missing cert/key",
-			s:       Settings{OidcTokenEndpoint: "https://idp/token", OidcClientID: "c"},
+			s:       Settings{OidcTokenEndpoint: "https://idp/token", OidcClientID: "c"}, //nolint:gosec // test fixture
 			wantErr: "oidcClientAssertionCert",
 		},
 		{
 			name:    "static password set alongside OIDC",
-			s:       Settings{Password: "static", OidcTokenEndpoint: "https://idp/token", OidcClientID: "c", OidcClientAssertionCert: "x", OidcClientAssertionKey: "y"},
+			s:       Settings{Password: "static", OidcTokenEndpoint: "https://idp/token", OidcClientID: "c", OidcClientAssertionCert: "x", OidcClientAssertionKey: "y"}, //nolint:gosec // test fixture
 			wantErr: "redisPassword",
 		},
 	}

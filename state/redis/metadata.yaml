@@ -60,6 +60,88 @@ authenticationProfiles:
         url:
           title: "Redis Sentinel authentication documentation"
           url: "https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/#configuring-sentinel-instances-with-authentication"
+  - title: "OIDC Private Key JWT Authentication"
+    description: |
+      Authenticate to the Redis server using an OAuth2 access token obtained
+      via the OIDC private_key_jwt client authentication method (RFC 7523).
+      The component signs a JWT assertion with the configured X.509 client
+      certificate, exchanges it at the IDP's token endpoint for an access
+      token, and uses that token as the Redis AUTH password. The token is
+      refreshed before expiry via `AuthACL` on the live connection pool.
+      Mutually exclusive with `useEntraID` and with a static `redisPassword`.
+    metadata:
+    - name: useOIDC
+      required: true
+      default: "false"
+      example: "true"
+      type: bool
+      description: |
+        If set, enables OAuth2 authentication using the private_key_jwt client authentication method (RFC 7523).
+        The component obtains an access token from the configured IDP and uses it as the Redis AUTH password,
+        refreshing it before expiry. Mutually exclusive with useEntraID and with a static redisPassword.
+    - name: oidcTokenEndpoint
+      required: true
+      example: "https://idp.example.com/oauth2/token"
+      type: string
+      description: |
+        OAuth2 token endpoint of the IDP that issues access tokens.
+    - name: oidcClientID
+      required: true
+      example: "dapr-redis-client"
+      type: string
+      description: |
+        Client identifier registered with the IDP. Used as the iss and sub claims of the signed client
+        assertion and as the client_id form parameter on the token request.
+    - name: oidcClientAssertionCert
+      required: true
+      sensitive: true
+      example: "-----BEGIN CERTIFICATE-----\n..."
+      type: string
+      description: |
+        PEM-encoded X.509 client certificate whose public key is registered with the IDP. Used by the IDP to
+        verify the signature of the client assertion JWT.
+    - name: oidcClientAssertionKey
+      required: true
+      sensitive: true
+      example: "-----BEGIN RSA PRIVATE KEY-----\n..."
+      type: string
+      description: |
+        PEM-encoded RSA private key corresponding to oidcClientAssertionCert. Used to sign the client
+        assertion JWT.
+    - name: oidcResource
+      required: false
+      example: "JPMC:URI:RS-103863-10002-API2APISandBox-DEV"
+      type: string
+      description: |
+        Resource URI form parameter sent on the token request. Required by ADFS / IdAnywhere style endpoints.
+    - name: oidcAudience
+      required: false
+      example: "https://idp.example.com/oauth2/token"
+      type: string
+      description: |
+        Override for the aud claim on the signed client assertion. When empty, defaults to the token endpoint URL.
+    - name: oidcKid
+      required: false
+      example: "deadbeefcafebabe"
+      type: string
+      description: |
+        Optional kid (key ID) value placed in the JWT header of the signed client assertion. Required by ADFS /
+        IdAnywhere (SHA-1 thumbprint of the X.509 certificate, hex-encoded with colons removed).
+    - name: oidcScopes
+      required: false
+      default: "openid"
+      example: "openid,profile"
+      type: string
+      description: |
+        Comma-separated list of OAuth2 scopes to request.
+    - name: oidcCACert
+      required: false
+      sensitive: true
+      example: "-----BEGIN CERTIFICATE-----\n..."
+      type: string
+      description: |
+        Optional PEM-encoded CA bundle used to verify the TLS certificate of the OIDC token endpoint.
+        Defaults to the system trust store when empty.
 metadata:
   - name: redisHost
     required: true
@@ -234,77 +316,3 @@ builtinAuthenticationProfiles:
       required: true
       description: Must be set to true if using EntraID
       example: "true"
-  - name: "oidc"
-    metadata:
-    - name: useOIDC
-      required: true
-      default: "false"
-      example: "true"
-      type: bool
-      description: |
-        If set, enables OAuth2 authentication using the private_key_jwt client authentication method (RFC 7523).
-        The component obtains an access token from the configured IDP and uses it as the Redis AUTH password,
-        refreshing it before expiry. Mutually exclusive with useEntraID and with a static redisPassword.
-    - name: oidcTokenEndpoint
-      required: true
-      example: "https://idp.example.com/oauth2/token"
-      type: string
-      description: |
-        OAuth2 token endpoint of the IDP that issues access tokens.
-    - name: oidcClientID
-      required: true
-      example: "dapr-redis-client"
-      type: string
-      description: |
-        Client identifier registered with the IDP. Used as the iss and sub claims of the signed client
-        assertion and as the client_id form parameter on the token request.
-    - name: oidcClientAssertionCert
-      required: true
-      sensitive: true
-      example: "-----BEGIN CERTIFICATE-----\n..."
-      type: string
-      description: |
-        PEM-encoded X.509 client certificate whose public key is registered with the IDP. Used by the IDP to
-        verify the signature of the client assertion JWT.
-    - name: oidcClientAssertionKey
-      required: true
-      sensitive: true
-      example: "-----BEGIN RSA PRIVATE KEY-----\n..."
-      type: string
-      description: |
-        PEM-encoded RSA private key corresponding to oidcClientAssertionCert. Used to sign the client
-        assertion JWT.
-    - name: oidcResource
-      required: false
-      example: "JPMC:URI:RS-103863-10002-API2APISandBox-DEV"
-      type: string
-      description: |
-        Resource URI form parameter sent on the token request. Required by ADFS / IdAnywhere style endpoints.
-    - name: oidcAudience
-      required: false
-      example: "https://idp.example.com/oauth2/token"
-      type: string
-      description: |
-        Override for the aud claim on the signed client assertion. When empty, defaults to the token endpoint URL.
-    - name: oidcKid
-      required: false
-      example: "deadbeefcafebabe"
-      type: string
-      description: |
-        Optional kid (key ID) value placed in the JWT header of the signed client assertion. Required by ADFS /
-        IdAnywhere (SHA-1 thumbprint of the X.509 certificate, hex-encoded with colons removed).
-    - name: oidcScopes
-      required: false
-      default: "openid"
-      example: "openid,profile"
-      type: string
-      description: |
-        Comma-separated list of OAuth2 scopes to request.
-    - name: oidcCACert
-      required: false
-      sensitive: true
-      example: "-----BEGIN CERTIFICATE-----\n..."
-      type: string
-      description: |
-        Optional PEM-encoded CA bundle used to verify the TLS certificate of the OIDC token endpoint.
-        Defaults to the system trust store when empty.

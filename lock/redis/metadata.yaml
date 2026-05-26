@@ -185,6 +185,58 @@ metadata:
     description: "Whether to use Entra ID for authentication"
     example: "false"
     default: "false"
+  - name: useOIDC
+    required: false
+    type: bool
+    description: "If set, enables OAuth2 private_key_jwt authentication (RFC 7523). Mutually exclusive with useEntraID and static redisPassword."
+    example: "false"
+    default: "false"
+  - name: oidcTokenEndpoint
+    required: false
+    type: string
+    description: "OAuth2 token endpoint of the IDP. Required when useOIDC is true."
+    example: "https://idp.example.com/oauth2/token"
+  - name: oidcClientID
+    required: false
+    type: string
+    description: "Client identifier registered with the IDP. Used as the iss and sub claims of the signed client assertion. Required when useOIDC is true."
+    example: "dapr-redis-client"
+  - name: oidcClientAssertionCert
+    required: false
+    type: string
+    description: "PEM-encoded X.509 client certificate whose public key is registered with the IDP. Required when useOIDC is true."
+    example: "-----BEGIN CERTIFICATE-----\n..."
+  - name: oidcClientAssertionKey
+    required: false
+    type: string
+    description: "PEM-encoded RSA private key corresponding to oidcClientAssertionCert. Required when useOIDC is true."
+    example: "-----BEGIN RSA PRIVATE KEY-----\n..."
+  - name: oidcResource
+    required: false
+    type: string
+    description: "Resource URI form parameter sent on the token request. Required by ADFS / IdAnywhere style endpoints."
+    example: "JPMC:URI:RS-103863-10002-API2APISandBox-DEV"
+  - name: oidcAudience
+    required: false
+    type: string
+    description: "Override for the aud claim on the signed client assertion. When empty, defaults to the token endpoint URL."
+    example: "https://idp.example.com/oauth2/token"
+  - name: oidcKid
+    required: false
+    type: string
+    description: "Optional kid header on the signed client assertion. Required by ADFS / IdAnywhere (SHA-1 thumbprint of the X.509 certificate, hex-encoded with colons removed)."
+    example: "deadbeefcafebabe"
+  - name: oidcScopes
+    required: false
+    type: string
+    description: "Comma-separated list of OAuth2 scopes to request."
+    default: "openid"
+    example: "openid,profile"
+  - name: oidcCACert
+    required: false
+    type: string
+    description: "Optional PEM-encoded CA bundle used to verify the TLS certificate of the OIDC token endpoint."
+    example: "-----BEGIN CERTIFICATE-----\n..."
   - name: failover
     required: false
     type: bool

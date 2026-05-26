@@ -1,0 +1,68 @@
+version: "3.7"
+
+# Brings up the auth-flow dependencies for the state/redis useOIDC
+# certification test:
+#
+#   keycloak  - OIDC IDP, configured via realm-export.json with a client
+#               that authenticates via private_key_jwt against jwks.
+#   jwks      - nginx serving a single JWK (the public key Dapr uses to
+#               sign its client assertion). Pre-populated from env vars
+#               written by the Go test setup.
+#   valkey    - the actual data store (Valkey 7.x).
+#   proxy     - JWT-validating RESP shim in front of Valkey. Accepts AUTH
+#               with a JWT password, verifies it against Keycloak's JWKS,
+#               and forwards all subsequent bytes to Valkey.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.5
+    container_name: redis_oidc_keycloak
+    command: ["start-dev", "--http-enabled=true", "--health-enabled=true", "--import-realm"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
+      start_period: 20s
+      interval: 2s
+      timeout: 2s
+      retries: 5
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HOSTNAME_URL=http://keycloak:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/realm-export.json:/opt/keycloak/data/import/local-realm.json
+
+  jwks:
+    image: nginx:1.27-alpine
+    container_name: redis_oidc_jwks
+    environment:
+      - OIDC_CLIENT_KID
+      - OIDC_CLIENT_JWK_N
+      - OIDC_CLIENT_JWK_E
+    command: >
+      /bin/sh -c 'printf "{\n  \"keys\": [\n    {\n      \"kty\": \"RSA\",\n      \"use\": \"sig\",\n      \"alg\": \"RS256\",\n      \"kid\": \"%s\",\n      \"n\": \"%s\",\n      \"e\": \"%s\"\n    }\n  ]\n}\n" "$$OIDC_CLIENT_KID" "$$OIDC_CLIENT_JWK_N" "$$OIDC_CLIENT_JWK_E" > /usr/share/nginx/html/jwks.json && exec nginx -g "daemon off;"'
+
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    container_name: redis_oidc_valkey
+    # Default user nopass so the JWT-proxy can dial through without any
+    # backend credentials. AUTH enforcement is performed by the proxy.
+    command:
+      - "valkey-server"
+      - "--user"
+      - "default on nopass ~* &* +@all"
+
+  proxy:
+    build: ./jwtproxy
+    container_name: redis_oidc_proxy
+    environment:
+      - LISTEN_ADDR=:6390
+      - VALKEY_ADDR=valkey:6379
+      - JWKS_URL=http://keycloak:8080/realms/local/protocol/openid-connect/certs
+      - EXPECTED_AUDIENCE=redis-clients
+    ports:
+      - "6390:6390"
+    depends_on:
+      keycloak:
+        condition: service_healthy

@@ -1,0 +1,35 @@
+{
+  "realm": "local",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "dapr-redis-client-jwt",
+      "clientAuthenticatorType": "client-jwt",
+      "attributes": {
+        "use.jwks.url": "true",
+        "jwks.url": "http://jwks:80/jwks.json"
+      },
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "audience-redis-clients",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "redis-clients",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

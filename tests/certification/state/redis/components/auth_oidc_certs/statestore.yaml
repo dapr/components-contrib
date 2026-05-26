@@ -22,8 +22,12 @@ spec:
       secretKeyRef:
         name: OIDC_CLIENT_ASSERTION_KEY
         key: OIDC_CLIENT_ASSERTION_KEY
+    # NB: oidcAudience differs from oidcTokenEndpoint. Dapr POSTs to the
+    # token endpoint via the host port mapping (localhost:8080), but
+    # Keycloak validates the JWT's `aud` claim against its own view of
+    # its URL (set via KC_HOSTNAME_URL=http://keycloak:8080 in compose).
     - name: oidcAudience
-      value: "http://localhost:8080/realms/local/protocol/openid-connect/token"
+      value: "http://keycloak:8080/realms/local/protocol/openid-connect/token"
     - name: oidcScopes
       value: "openid"
     - name: oidcKid

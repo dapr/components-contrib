@@ -27,27 +27,29 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/secretstores"
+	secretstores_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/state"
 	state_redis "github.com/dapr/components-contrib/state/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-	state_loader "github.com/dapr/dapr/pkg/components/state"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/components-contrib/secretstores"
-	secretstores_env "github.com/dapr/components-contrib/secretstores/local/env"
 )
 
 const (
@@ -64,18 +66,6 @@ const (
 // them up via secretstores.local.env referenced from the statestore
 // component's metadata.
 func TestRedisOIDCWithCertificates(t *testing.T) {
-	// TODO: this test is currently skipped in CI. The infrastructure
-	// (jwtproxy, docker-compose.auth.yml, realm-export.json, components
-	// directory) is fully wired and works locally, but the end-to-end
-	// flow in the GitHub Actions runner is sensitive to container
-	// readiness ordering (Keycloak realm import, JWKS readiness,
-	// proxy-to-Keycloak connectivity) and needs additional plumbing —
-	// likely a readiness probe loop in the test before the sidecar
-	// starts, and possibly a Keycloak healthcheck that waits for the
-	// 'local' realm specifically rather than the broad /health/ready.
-	// Tracked as a follow-up to the useOIDC component PR.
-	t.Skip("OIDC cert test skipped in CI pending readiness-probe plumbing; run manually with -run TestRedisOIDCWithCertificates")
-
 	log := logger.NewLogger("dapr.components")
 
 	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)
@@ -140,9 +130,36 @@ func TestRedisOIDCWithCertificates(t *testing.T) {
 		return nil
 	}
 
+	// Wait for the Keycloak realm to be fully imported (the broad
+	// /health/ready healthcheck used by the compose file passes before
+	// realm import completes) AND for the proxy to have finished its
+	// lazy JWKS init.
+	waitForReady := func(ctx flow.Context) error {
+		deadline := time.Now().Add(2 * time.Minute)
+		for time.Now().Before(deadline) {
+			realm, err := http.Get("http://localhost:8080/realms/local")
+			if err == nil {
+				realm.Body.Close()
+				if realm.StatusCode == http.StatusOK {
+					// Realm is up — exercise the token endpoint once to
+					// ensure the JWKS the proxy needs is also reachable.
+					certs, err := http.Get("http://localhost:8080/realms/local/protocol/openid-connect/certs")
+					if err == nil {
+						certs.Body.Close()
+						if certs.StatusCode == http.StatusOK {
+							return nil
+						}
+					}
+				}
+			}
+			time.Sleep(2 * time.Second)
+		}
+		return fmt.Errorf("timed out waiting for Keycloak realm 'local' to be ready")
+	}
+
 	flow.New(t, "state/redis useOIDC private_key_jwt").
 		Step(dockercompose.Run(clusterNameOIDC, dockerComposeYAMLAuth)).
-		Step("wait", flow.Sleep(20*1e9)).
+		Step("wait for Keycloak realm + JWKS", waitForReady).
 		Step(sidecar.Run(sidecarNameOIDC,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components/auth_oidc_certs"),

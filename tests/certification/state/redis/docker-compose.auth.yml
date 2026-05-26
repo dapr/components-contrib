@@ -66,6 +66,13 @@ services:
       - EXPECTED_AUDIENCE=redis-clients
     ports:
       - "6390:6390"
+    # Confirms the proxy is accepting connections. Readiness of JWKS
+    # validation is handled inside the proxy (lazy init).
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "6390"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
     depends_on:
       keycloak:
         condition: service_healthy

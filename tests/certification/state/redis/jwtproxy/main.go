@@ -22,11 +22,34 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// proxyState is set once JWKS is reachable and the keyfunc is constructed.
+// Until then, AUTH requests are rejected with a NOTREADY error rather than
+// blocking startup. This lets the container be marked "running" by docker
+// compose immediately, so `docker compose up --wait` doesn't time out
+// waiting for Keycloak's realm import.
+type proxyState struct {
+	mu sync.RWMutex
+	kf keyfunc.Keyfunc
+}
+
+func (s *proxyState) get() keyfunc.Keyfunc {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.kf
+}
+
+func (s *proxyState) set(kf keyfunc.Keyfunc) {
+	s.mu.Lock()
+	s.kf = kf
+	s.mu.Unlock()
+}
 
 func main() {
 	listenAddr := mustenv("LISTEN_ADDR")
@@ -34,24 +57,10 @@ func main() {
 	jwksURL := mustenv("JWKS_URL")
 	expectedAud := os.Getenv("EXPECTED_AUDIENCE")
 
-	// Wait for the JWKS endpoint to come up; the IDP usually takes longer
-	// than the proxy to be ready.
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-	for {
-		if _, err := http.Get(jwksURL); err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			log.Fatalf("JWKS endpoint never became reachable: %s", jwksURL)
-		}
-		time.Sleep(2 * time.Second)
-	}
+	state := &proxyState{}
 
-	kf, err := keyfunc.NewDefaultCtx(context.Background(), []string{jwksURL})
-	if err != nil {
-		log.Fatalf("could not initialize JWKS keyfunc: %v", err)
-	}
+	// Init JWKS in the background so the listener can come up first.
+	go initJWKS(state, jwksURL)
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -65,11 +74,32 @@ func main() {
 			log.Printf("accept error: %v", err)
 			continue
 		}
-		go handle(conn, valkeyAddr, kf, expectedAud)
+		go handle(conn, valkeyAddr, state, expectedAud)
 	}
 }
 
-func handle(client net.Conn, valkeyAddr string, kf keyfunc.Keyfunc, expectedAud string) {
+func initJWKS(state *proxyState, jwksURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	for {
+		if _, err := http.Get(jwksURL); err == nil {
+			kf, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
+			if err == nil {
+				state.set(kf)
+				log.Printf("JWKS keyfunc ready (%s)", jwksURL)
+				return
+			}
+			log.Printf("keyfunc init failed (will retry): %v", err)
+		}
+		if ctx.Err() != nil {
+			log.Printf("gave up waiting for JWKS at %s", jwksURL)
+			return
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func handle(client net.Conn, valkeyAddr string, state *proxyState, expectedAud string) {
 	defer client.Close()
 	_ = client.SetReadDeadline(time.Now().Add(10 * time.Second))
 
@@ -88,6 +118,11 @@ func handle(client net.Conn, valkeyAddr string, kf keyfunc.Keyfunc, expectedAud 
 	// Accept both AUTH <pass> and AUTH <user> <pass> forms.
 	password := cmd[len(cmd)-1]
 
+	kf := state.get()
+	if kf == nil {
+		_ = writeError(client, "NOTREADY proxy is still initialising JWKS")
+		return
+	}
 	if err := validate(password, kf, expectedAud); err != nil {
 		log.Printf("authn rejected: %v", err)
 		_ = writeError(client, "WRONGPASS invalid token: "+err.Error())

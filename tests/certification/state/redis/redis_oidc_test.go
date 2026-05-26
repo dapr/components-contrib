@@ -66,6 +66,13 @@ const (
 // them up via secretstores.local.env referenced from the statestore
 // component's metadata.
 func TestRedisOIDCWithCertificates(t *testing.T) {
+	// The Dapr go-SDK client's connect timeout. Default is 5s; the OIDC
+	// state.redis init flow (token POST to Keycloak + JWKS round-trip
+	// + RESP AUTH) plus initial sidecar boot can exceed that on a cold
+	// Docker stack. The existing TestRedis() in this package uses the
+	// same workaround.
+	t.Setenv("DAPR_CLIENT_TIMEOUT_SECONDS", "30")
+
 	log := logger.NewLogger("dapr.components")
 
 	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)

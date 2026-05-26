@@ -5,6 +5,10 @@ metadata:
 spec:
   type: state.redis
   version: v1
+  # 5s (Dapr's default) is not enough headroom on a cold start: it must
+  # cover an OAuth2 token POST to Keycloak + the proxy's first JWKS
+  # round-trip to validate the assertion + go-redis's TCP dial + AUTH.
+  initTimeout: 30s
   metadata:
     - name: redisHost
       value: "localhost:6390"

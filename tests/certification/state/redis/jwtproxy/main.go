@@ -1,17 +1,17 @@
 // Test-only JWT-validating RESP proxy used by the state/redis useOIDC
 // certification test. Listens on $LISTEN_ADDR (RESP), expects the first
-// command from the client to be AUTH with a JWT as the password, validates
-// the JWT against $JWKS_URL, and on success transparently forwards bytes
-// to $VALKEY_ADDR.
+// command from the client to be AUTH (or HELLO with inline AUTH), validates
+// the JWT against $JWKS_URL, rewrites the AUTH password to the configured
+// $BACKEND_PASSWORD, and then transparently bridges bytes to $VALKEY_ADDR.
 //
-// This stands in for JPMC's auth-proxy in front of Valkey. The
-// implementation deliberately does the minimum needed to exercise the
-// useOIDC flow end-to-end: no command parsing beyond AUTH, no per-command
-// re-validation, no connection pooling on the backend side.
+// Stands in for JPMC's auth-proxy in front of Valkey. By having Valkey handle
+// the AUTH (with the rewritten password) the proxy doesn't need to synthesise
+// responses, so pipelined commands stay in sync.
 package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -29,11 +29,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// proxyState is set once JWKS is reachable and the keyfunc is constructed.
-// Until then, AUTH requests are rejected with a NOTREADY error rather than
-// blocking startup. This lets the container be marked "running" by docker
-// compose immediately, so `docker compose up --wait` doesn't time out
-// waiting for Keycloak's realm import.
+// proxyState holds the JWKS keyfunc once it's been fetched. Until then,
+// AUTH requests are rejected with a NOTREADY error rather than blocking,
+// so the container can be marked "running" by docker compose immediately.
 type proxyState struct {
 	mu sync.RWMutex
 	kf keyfunc.Keyfunc
@@ -55,11 +53,10 @@ func main() {
 	listenAddr := mustenv("LISTEN_ADDR")
 	valkeyAddr := mustenv("VALKEY_ADDR")
 	jwksURL := mustenv("JWKS_URL")
+	backendPass := mustenv("BACKEND_PASSWORD")
 	expectedAud := os.Getenv("EXPECTED_AUDIENCE")
 
 	state := &proxyState{}
-
-	// Init JWKS in the background so the listener can come up first.
 	go initJWKS(state, jwksURL)
 
 	ln, err := net.Listen("tcp", listenAddr)
@@ -74,7 +71,7 @@ func main() {
 			log.Printf("accept error: %v", err)
 			continue
 		}
-		go handle(conn, valkeyAddr, state, expectedAud)
+		go handle(conn, valkeyAddr, backendPass, state, expectedAud)
 	}
 }
 
@@ -99,38 +96,75 @@ func initJWKS(state *proxyState, jwksURL string) {
 	}
 }
 
-func handle(client net.Conn, valkeyAddr string, state *proxyState, expectedAud string) {
+// handle services a single client connection. It expects the first RESP
+// command to be either AUTH (legacy) or HELLO with inline AUTH (go-redis
+// v9 default). After validating the JWT-as-password, it rewrites the AUTH
+// password to the configured backend password and forwards the full
+// command to Valkey. Subsequent traffic is bridged byte-for-byte so that
+// pipelined commands and their responses remain in lock-step.
+func handle(client net.Conn, valkeyAddr, backendPass string, state *proxyState, expectedAud string) {
 	defer client.Close()
-	_ = client.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	br := bufio.NewReader(client)
+	_ = client.SetReadDeadline(time.Now().Add(10 * time.Second))
 	cmd, err := readRESPArray(br)
+	_ = client.SetReadDeadline(time.Time{})
 	if err != nil {
 		log.Printf("read failed: %v", err)
 		return
 	}
-	_ = client.SetReadDeadline(time.Time{})
+	if len(cmd) == 0 {
+		_ = writeError(client, "ERR empty command")
+		return
+	}
 
-	if len(cmd) < 2 || !strings.EqualFold(cmd[0], "AUTH") {
+	head := strings.ToUpper(cmd[0])
+	var rewritten []string
+
+	switch head {
+	case "AUTH":
+		// AUTH password  OR  AUTH username password
+		if len(cmd) < 2 {
+			_ = writeError(client, "ERR wrong number of arguments for 'AUTH'")
+			return
+		}
+		password := cmd[len(cmd)-1]
+		if err := validateJWT(password, state, expectedAud); err != nil {
+			_ = writeError(client, err.Error())
+			return
+		}
+		log.Print("authn (AUTH): token valid")
+		// Replace just the password component; preserve any username arg.
+		rewritten = append([]string(nil), cmd...)
+		rewritten[len(rewritten)-1] = backendPass
+
+	case "HELLO":
+		// HELLO [protover [AUTH user pass] [SETNAME name]]
+		authIdx := -1
+		for i := 1; i < len(cmd); i++ {
+			if strings.EqualFold(cmd[i], "AUTH") {
+				authIdx = i
+				break
+			}
+		}
+		if authIdx < 0 || authIdx+2 >= len(cmd) {
+			// HELLO without inline AUTH — tell client we don't support
+			// it so go-redis falls back to plain AUTH on the same conn.
+			_ = writeError(client, "ERR HELLO without inline AUTH is not supported by this proxy")
+			// Drop the connection; go-redis will reconnect and send AUTH directly.
+			return
+		}
+		password := cmd[authIdx+2]
+		if err := validateJWT(password, state, expectedAud); err != nil {
+			_ = writeError(client, err.Error())
+			return
+		}
+		log.Print("authn (HELLO): token valid")
+		rewritten = append([]string(nil), cmd...)
+		rewritten[authIdx+2] = backendPass
+
+	default:
 		_ = writeError(client, "NOAUTH Authentication required.")
-		return
-	}
-	// Accept both AUTH <pass> and AUTH <user> <pass> forms.
-	password := cmd[len(cmd)-1]
-
-	kf := state.get()
-	if kf == nil {
-		_ = writeError(client, "NOTREADY proxy is still initialising JWKS")
-		return
-	}
-	if err := validate(password, kf, expectedAud); err != nil {
-		log.Printf("authn rejected: %v", err)
-		_ = writeError(client, "WRONGPASS invalid token: "+err.Error())
-		return
-	}
-	log.Print("authn: token valid")
-
-	if _, err := io.WriteString(client, "+OK\r\n"); err != nil {
 		return
 	}
 
@@ -141,17 +175,25 @@ func handle(client net.Conn, valkeyAddr string, state *proxyState, expectedAud s
 	}
 	defer backend.Close()
 
-	// If anything was buffered in the bufio.Reader after the AUTH command
-	// (e.g. a pipelined SELECT/INFO), flush it to the backend before
-	// starting the bidirectional copy.
+	if _, err := backend.Write(encodeRESPArray(rewritten)); err != nil {
+		log.Printf("backend write (rewritten cmd) failed: %v", err)
+		return
+	}
+
+	// Drain anything bufio buffered alongside the first command (pipelined
+	// commands sent in the same TCP segment).
 	if n := br.Buffered(); n > 0 {
-		buf, _ := br.Peek(n)
-		if _, err := backend.Write(buf); err != nil {
+		peek, _ := br.Peek(n)
+		if _, err := backend.Write(peek); err != nil {
+			log.Printf("backend write (drain) failed: %v", err)
 			return
 		}
 		_, _ = br.Discard(n)
 	}
 
+	// Transparent bidirectional bridge. Valkey produces the response to
+	// AUTH/HELLO (with the rewritten password) and to every subsequent
+	// command, so the pipeline stays in lock-step.
 	done := make(chan struct{}, 2)
 	go func() {
 		_, _ = io.Copy(backend, br)
@@ -164,22 +206,26 @@ func handle(client net.Conn, valkeyAddr string, state *proxyState, expectedAud s
 	<-done
 }
 
-func validate(raw string, kf keyfunc.Keyfunc, expectedAud string) error {
+func validateJWT(raw string, state *proxyState, expectedAud string) error {
+	kf := state.get()
+	if kf == nil {
+		return errors.New("NOTREADY proxy is still initialising JWKS")
+	}
 	opts := []jwt.ParserOption{jwt.WithValidMethods([]string{"RS256", "RS384", "RS512"})}
 	if expectedAud != "" {
 		opts = append(opts, jwt.WithAudience(expectedAud))
 	}
 	tok, err := jwt.Parse(raw, kf.Keyfunc, opts...)
 	if err != nil {
-		return err
+		return fmt.Errorf("WRONGPASS invalid token: %w", err)
 	}
 	if !tok.Valid {
-		return errors.New("token not valid")
+		return errors.New("WRONGPASS token not valid")
 	}
 	return nil
 }
 
-// readRESPArray parses a single RESP array command (e.g. AUTH password).
+// readRESPArray parses a single RESP array command (e.g. AUTH <pass>).
 func readRESPArray(br *bufio.Reader) ([]string, error) {
 	line, err := br.ReadString('\n')
 	if err != nil {
@@ -214,6 +260,16 @@ func readRESPArray(br *bufio.Reader) ([]string, error) {
 		args[i] = string(buf[:ln])
 	}
 	return args, nil
+}
+
+// encodeRESPArray serialises a string slice as a RESP array of bulk strings.
+func encodeRESPArray(args []string) []byte {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "*%d\r\n", len(args))
+	for _, a := range args {
+		fmt.Fprintf(&buf, "$%d\r\n%s\r\n", len(a), a)
+	}
+	return buf.Bytes()
 }
 
 func writeError(w io.Writer, msg string) error {

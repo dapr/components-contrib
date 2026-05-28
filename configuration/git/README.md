@@ -48,6 +48,12 @@ the configured scope are a hard error** — if the directory contains a mix of
 file types, either narrow `path` to the homogeneous subset or use
 `mappingMode: file`.
 
+The `agentYaml` and `prompty` modes target dapr-agents-style configuration
+repos. `prompty` follows the [Prompty spec](https://github.com/microsoft/prompty)
+for `.prompty` files; `agentYaml` is a convenience mode for repos that store
+agent definitions as YAML/JSON (the name describes the intended layout, not
+an external spec).
+
 ### `file` (default)
 
 Each file becomes one config item. The relative POSIX path is the key,
@@ -63,6 +69,7 @@ Recommended when the consumer (e.g. dapr-agents) expects scalar config keys.
 
 ### `agentYaml`
 
+A convenience mode for repos that store agent definitions as YAML/JSON.
 Each `*.yaml`, `*.yml`, or `*.json` file is parsed as a flat top-level map.
 Each top-level field becomes a key prefixed by the filename stem with
 directory separators replaced by `_`. **Non-YAML/JSON files in scope cause
@@ -112,12 +119,11 @@ weather/agent_system_prompt   = "You are a friendly weather assistant."
 
 ## Authentication
 
-There is **no explicit `authMode` selector** — the active profile is inferred
-from which fields are set:
+The active auth profile is inferred from which metadata fields you set:
 
-1. `appId` set → **GitHub App** profile.
-2. URL begins with `git@` or `ssh://` → **SSH** profile.
-3. `token` set → **PAT** profile.
+1. `appId` → **GitHub App** profile.
+2. `remoteUrl` begins with `git@` or `ssh://` → **SSH** profile.
+3. `token` → **PAT** profile.
 4. Otherwise → no auth (public HTTPS or local `file://`).
 
 Sensitive fields should be sourced from a configured secret store via

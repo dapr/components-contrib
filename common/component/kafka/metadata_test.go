@@ -27,7 +27,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-//nolint:gosec
 var (
 	clientCertPemMock = `-----BEGIN CERTIFICATE-----
 Y2xpZW50Q2VydA==

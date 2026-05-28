@@ -280,7 +280,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	// Resolve credentials from file if ClientSecretPath is set
-	if err := m.ClientCredentialsMetadata.ResolveCredentials(); err != nil {
+	if err := m.ResolveCredentials(); err != nil {
 		return nil, err
 	}
 
@@ -300,13 +300,14 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
 		TLSAllowInsecureConnection: !m.EnableTLS,
+		ListenerName:               m.ListenerName,
 	}
 
 	switch {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
-	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
-		credsOpts := m.ClientCredentialsMetadata.ToOptions(p.logger)
+	case len(m.TokenURL) > 0:
+		credsOpts := m.ToOptions(p.logger)
 		var cliCreds *oauth2.ClientCredentials
 		cliCreds, err = oauth2.NewClientCredentials(ctx, credsOpts)
 		if err != nil {
@@ -913,7 +914,7 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 		return err
 	}
 
-	msg.Ack(msg.Message)
+	_ = msg.Ack(msg.Message) //nolint:errcheck // legacy behavior preserved
 	return nil
 }
 
@@ -974,7 +975,7 @@ func (p *Pulsar) formatTopic(topic string) string {
 // GetComponentMetadata returns the metadata of the component.
 func (p *Pulsar) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := pulsarMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }
 

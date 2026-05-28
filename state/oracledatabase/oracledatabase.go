@@ -108,6 +108,6 @@ func (o *OracleDatabase) getDB() *sql.DB {
 
 func (o *OracleDatabase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := oracleDatabaseMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }

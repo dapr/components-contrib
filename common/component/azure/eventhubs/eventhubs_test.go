@@ -133,6 +133,6 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		c, err := aeh.constructConnectionStringFromTopic(topic)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "does not match the Event Hub name in the connection string")
-		assert.Equal(t, "", c)
+		assert.Empty(t, c)
 	})
 }

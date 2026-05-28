@@ -168,7 +168,7 @@ func (r *ConfigUpdater) UpdateKey(items map[string]*configuration.Item) error {
 		return errors.New("empty list of items")
 	}
 	for key, item := range items {
-		var params []interface{}
+		params := make([]interface{}, 0, 4)
 		query := "UPDATE " + r.configTable + " SET VALUE = $1, VERSION = $2, METADATA = $3 WHERE KEY = $4"
 		params = append(params, item.Value, item.Version, item.Metadata, key)
 		_, err := r.client.Exec(context.Background(), query, params...)
@@ -184,7 +184,7 @@ func (r *ConfigUpdater) DeleteKey(keys []string) error {
 		return errors.New("empty list of items")
 	}
 	for _, key := range keys {
-		var params []interface{}
+		params := make([]interface{}, 0, 1)
 		query := "DELETE FROM " + r.configTable + " WHERE KEY = $1"
 		params = append(params, key)
 		_, err := r.client.Exec(context.Background(), query, params...)

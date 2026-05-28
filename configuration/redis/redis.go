@@ -262,7 +262,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 // GetComponentMetadata returns the metadata of the component.
 func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }
 

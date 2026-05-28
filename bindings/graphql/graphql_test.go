@@ -78,7 +78,7 @@ func TestGraphQlRequestHeadersAndVariables(t *testing.T) {
 		require.Equal(t, "test-header-value", testHeader)
 
 		var rBody *TestGraphQLRequest
-		json.NewDecoder(r.Body).Decode(&rBody)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&rBody))
 
 		require.Contains(t, rBody.Variables, "episode")
 		require.Equal(t, "JEDI", rBody.Variables["episode"])
@@ -86,7 +86,7 @@ func TestGraphQlRequestHeadersAndVariables(t *testing.T) {
 		m := make(map[string]interface{})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(m)
+		require.NoError(t, json.NewEncoder(w).Encode(m))
 	}))
 	defer s.Close()
 

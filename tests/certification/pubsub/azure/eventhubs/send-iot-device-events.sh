@@ -32,10 +32,11 @@ az config set extension.use_dynamic_install=yes_without_prompt
 # login to azure
 az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 
-# Create test device ID if not already present
+# Create test device ID if not already present.
+# Use `if !` so the non-zero exit from `show` (when the device hasn't been
+# created yet) doesn't trip `set -e`.
 IOT_HUB_TEST_DEVICE_NAME="certification-test-device"
-az iot hub device-identity show -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME} >/dev/null 2>&1
-if [[ $? -ne 0 ]]; then
+if ! az iot hub device-identity show -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME} >/dev/null 2>&1; then
     az iot hub device-identity create -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME}
     sleep 10
 fi

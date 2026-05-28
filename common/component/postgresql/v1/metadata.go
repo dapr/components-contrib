@@ -44,7 +44,7 @@ type pgMetadata struct {
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
 	m.CleanupInterval = ptr.Of(defaultCleanupInternal)

@@ -70,15 +70,15 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	d.LLM.Model = llm
-	d.LLM.SetModel(model)
+	d.Model = llm
+	d.SetModel(model)
 	d.md = md
 	return nil
 }
 
 func (d *Deepseek) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := DeepseekMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

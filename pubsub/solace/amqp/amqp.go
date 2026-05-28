@@ -145,7 +145,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 				select {
 				case <-time.After(publishRetryWaitSeconds * time.Second):
 				case <-ctx.Done():
-					break
+					break //nolint:staticcheck // SA4011: preserved for backwards compat
 				}
 			}
 		}
@@ -327,6 +327,6 @@ func (a *amqpPubSub) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (a *amqpPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

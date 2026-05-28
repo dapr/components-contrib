@@ -173,7 +173,7 @@ func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 
 func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 	return func(ctx context.Context, event *kafka.KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
-		messages := make([]pubsub.BulkMessageEntry, 0)
+		messages := make([]pubsub.BulkMessageEntry, 0, len(event.Entries))
 		for _, leafEvent := range event.Entries {
 			message := pubsub.BulkMessageEntry{
 				EntryId:     leafEvent.EntryId,
@@ -195,6 +195,6 @@ func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 // GetComponentMetadata returns the metadata of the component.
 func (p *PubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := kafka.KafkaMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

@@ -58,7 +58,7 @@ func TestMigration(t *testing.T) {
 	db, err := sql.Open("sqlserver", connectionString)
 	require.NoError(t, err, "Failed to connect to database")
 	t.Cleanup(func() {
-		db.Close()
+		_ = db.Close()
 	})
 
 	// Create a new schema for testing

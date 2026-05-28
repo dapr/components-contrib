@@ -97,8 +97,8 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	o.LLM.Model = llm
-	o.LLM.SetModel(model)
+	o.Model = llm
+	o.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.Model)
@@ -114,7 +114,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 func (o *OpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := OpenAILangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

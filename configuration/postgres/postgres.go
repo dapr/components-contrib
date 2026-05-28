@@ -396,7 +396,7 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	} else {
 		var queryBuilder strings.Builder
 		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN (")
-		var paramWildcard []string
+		paramWildcard := make([]string, 0, len(req.Keys))
 		paramPosition := 1
 		for _, v := range req.Keys {
 			paramWildcard = append(paramWildcard, "$"+strconv.Itoa(paramPosition))
@@ -480,7 +480,7 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, notifyChann
 // GetComponentMetadata returns the metadata of the component.
 func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }
 

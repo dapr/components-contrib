@@ -68,7 +68,7 @@ func TestSqliteNameResolver(t *testing.T) {
 	})
 
 	if t.Failed() {
-		nr.Close()
+		_ = nr.Close()
 		require.Fail(t, "Cannot continue if populate test data step failed")
 	}
 

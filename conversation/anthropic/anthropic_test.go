@@ -119,7 +119,7 @@ func TestInit(t *testing.T) {
 			inner := a.(*Anthropic)
 			tc.testFn(t, inner, err)
 			if tc.expectedModel != "" {
-				assert.Equal(t, tc.expectedModel, inner.LLM.GetModel(), "LLM model name must be set on the response after Init")
+				assert.Equal(t, tc.expectedModel, inner.GetModel(), "LLM model name must be set on the response after Init")
 			}
 		})
 	}

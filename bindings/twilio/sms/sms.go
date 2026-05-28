@@ -122,7 +122,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	defer func() {
 		// Drain the body before closing
 		_, _ = io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("error from Twilio (%d): %s", resp.StatusCode, resp.Status)
@@ -134,7 +134,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 // GetComponentMetadata returns the metadata of the component.
 func (t *SMS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := twilioMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

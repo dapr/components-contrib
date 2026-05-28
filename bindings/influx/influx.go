@@ -170,6 +170,6 @@ func (i *Influx) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (i *Influx) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := influxMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

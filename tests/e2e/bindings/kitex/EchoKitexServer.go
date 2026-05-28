@@ -39,7 +39,7 @@ func GenerateEchoReq(message string) (reqData []byte, err error) {
 func EchoKitexServer() error {
 	svr := echo.NewServer(new(EchoImpl))
 	time.AfterFunc(10*time.Second, func() {
-		svr.Stop()
+		_ = svr.Stop() //nolint:errcheck // legacy behavior preserved
 		klog.Info("server stopped")
 	})
 

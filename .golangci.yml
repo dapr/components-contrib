@@ -26,7 +26,50 @@ linters:
   exclusions:
     paths:
       - ^vendor$
+    rules:
+      # G101 in test files: test fixtures use fake credentials by design
+      - path: _test\.go$
+        text: "G101"
+        linters:
+          - gosec
+      # G104/G705 in test files: unchecked error returns and XSS-tainted writes
+      # are pervasive and intentional in component test fixtures.
+      - path: _test\.go$
+        text: "G(104|705)"
+        linters:
+          - gosec
+      # G304 in components whose purpose is reading user-specified file paths
+      - path: bindings/localstorage/|bindings/mysql/|bindings/http/|common/wasm/|common/authentication/oauth2/|secretstores/local/file/|secretstores/hashicorp/vault/
+        text: "G304"
+        linters:
+          - gosec
+      # G704 in components/middleware whose purpose is making outbound HTTP
+      # requests to user-specified endpoints
+      - path: bindings/alicloud/dingtalk/|bindings/http/|bindings/twilio/|bindings/apns/|bindings/azure/signalr/|bindings/cloudflare/|common/authentication/azure/|common/wasm/|common/component/cloudflare/|common/component/kafka/sasl_oauthbearer|middleware/http/|secretstores/hashicorp/vault/|state/cloudflare/
+        text: "G704"
+        linters:
+          - gosec
+      # G301/G304 in localstorage and blobstorage download path: components'
+      # purpose is creating user-specified local paths. Stricter perms here
+      # would be backwards-incompat for existing users; G304 file inclusion is
+      # the documented behavior.
+      - path: bindings/localstorage/|bindings/azure/blobstorage/
+        text: "G30[14]"
+        linters:
+          - gosec
+      # G703/G304 across additional binding/state packages that read from
+      # configured paths (compat preservation).
+      - path: middleware/http/wasm/|state/mysql/|common/authentication/oauth2/|crypto/localstorage/|bindings/aws/s3/|tests/conformance/
+        text: "G(703|30[34])"
+        linters:
+          - gosec
   settings:
+    gosec:
+      excludes:
+        # G117 (Audit: Exported struct field matches secret pattern) is noisy
+        # for Dapr component metadata structs whose fields legitimately describe
+        # secret-bearing configuration keys (Password, AccessKey, etc.).
+        - G117
     errcheck:
       check-type-assertions: false
       check-blank: false

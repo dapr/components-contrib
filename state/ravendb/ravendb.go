@@ -310,7 +310,7 @@ func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 
 func (r *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := RavenDBMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

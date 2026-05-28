@@ -42,9 +42,9 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.Get(ctx, &GetRequest{})
-		s.Set(ctx, &SetRequest{})
-		s.Delete(ctx, &DeleteRequest{})
+		_, _ = s.Get(ctx, &GetRequest{})
+		_ = s.Set(ctx, &SetRequest{})
+		_ = s.Delete(ctx, &DeleteRequest{})
 		expectCount += 3
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
@@ -105,9 +105,9 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.Get(ctx, &GetRequest{})
-		s.Set(ctx, &SetRequest{})
-		s.Delete(ctx, &DeleteRequest{})
+		_, _ = s.Get(ctx, &GetRequest{})
+		_ = s.Set(ctx, &SetRequest{})
+		_ = s.Delete(ctx, &DeleteRequest{})
 		expectCount += 3
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())

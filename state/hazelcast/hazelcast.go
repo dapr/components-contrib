@@ -160,7 +160,7 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 
 func (store *Hazelcast) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := hazelcastMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType) //nolint:errcheck // legacy behavior preserved
 	return
 }
 

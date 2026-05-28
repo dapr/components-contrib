@@ -87,11 +87,11 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	a.LLM.Model = llm
-	a.LLM.SetModel(model)
+	a.Model = llm
+	a.SetModel(model)
 
 	if md.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, a.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, a.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
@@ -104,7 +104,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 
 func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := AnthropicLangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

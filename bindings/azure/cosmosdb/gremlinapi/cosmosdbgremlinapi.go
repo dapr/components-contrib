@@ -133,7 +133,7 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 // GetComponentMetadata returns the metadata of the component.
 func (c *CosmosDBGremlinAPI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := cosmosDBGremlinAPICredentials{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

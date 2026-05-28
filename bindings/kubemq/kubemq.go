@@ -174,6 +174,6 @@ func (k *kubeMQ) processQueueMessage(ctx context.Context, handler bindings.Handl
 // GetComponentMetadata returns the metadata of the component.
 func (k *kubeMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := options{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

@@ -21,6 +21,8 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+
+	"github.com/dapr/components-contrib/configuration/git/auth"
 )
 
 const remoteName = "origin"
@@ -28,8 +30,8 @@ const remoteName = "origin"
 // cloneFresh clones the repo at url into dir. The clone is bound to the given
 // branch and tracks `origin`. Auth is fetched per-call so GitHub App tokens
 // rotate naturally.
-func cloneFresh(ctx context.Context, dir, url, branch string, depth int, auth authStrategy) (*gogit.Repository, error) {
-	method, err := auth.AuthMethod(ctx)
+func cloneFresh(ctx context.Context, dir, url, branch string, depth int, strategy auth.Strategy) (*gogit.Repository, error) {
+	method, err := strategy.AuthMethod(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("auth: %w", err)
 	}
@@ -52,8 +54,8 @@ func cloneFresh(ctx context.Context, dir, url, branch string, depth int, auth au
 // where `changed` is false when the remote ref is unchanged. Uses go-git's
 // own NoErrAlreadyUpToDate signal rather than a separate ls-remote probe;
 // this avoids downloading the full ref advertisement on every poll tick.
-func fetchIfChanged(ctx context.Context, repo *gogit.Repository, branch string, auth authStrategy) (plumbing.Hash, bool, error) {
-	method, err := auth.AuthMethod(ctx)
+func fetchIfChanged(ctx context.Context, repo *gogit.Repository, branch string, strategy auth.Strategy) (plumbing.Hash, bool, error) {
+	method, err := strategy.AuthMethod(ctx)
 	if err != nil {
 		return plumbing.ZeroHash, false, fmt.Errorf("auth: %w", err)
 	}

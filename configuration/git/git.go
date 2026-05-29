@@ -39,6 +39,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/components-contrib/configuration/git/auth"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -55,7 +56,7 @@ type ConfigurationStore struct {
 	logger logger.Logger
 
 	metadata metadata
-	auth     authStrategy
+	auth     auth.Strategy
 	mapper   mappingStrategy
 
 	repo    *git.Repository
@@ -65,8 +66,13 @@ type ConfigurationStore struct {
 	snapshot      map[string]*configuration.Item
 	snapshotHead  plumbing.Hash
 	subscriptions map[string]*subscription
-	lru           *lru.Cache[plumbing.Hash, map[string]*configuration.Item]
-	closed        atomic.Bool
+	// lru caches past snapshots keyed by commit SHA, used as diff bases when
+	// computing per-subscriber update events in refreshAndFanOut. Size is
+	// bounded by metadata.snapshotCacheSize (default 4). On a miss the diff
+	// falls back to a full re-emit of the intersection (idempotent on the
+	// receiver).
+	lru    *lru.Cache[plumbing.Hash, map[string]*configuration.Item]
+	closed atomic.Bool
 
 	pollerCancel context.CancelFunc
 	pollerWg     sync.WaitGroup
@@ -95,11 +101,11 @@ func (s *ConfigurationStore) Init(ctx context.Context, meta configuration.Metada
 		return err
 	}
 
-	auth, err := selectAuth(&s.metadata, s.logger)
+	strategy, err := selectAuth(&s.metadata, s.logger)
 	if err != nil {
 		return err
 	}
-	s.auth = auth
+	s.auth = strategy
 
 	mapper, err := selectMapper(s.metadata.mappingMode())
 	if err != nil {
@@ -118,10 +124,14 @@ func (s *ConfigurationStore) Init(ctx context.Context, meta configuration.Metada
 		if !cleanupOnErr {
 			return
 		}
-		_ = os.RemoveAll(dir)
+		if err := os.RemoveAll(dir); err != nil {
+			s.logger.Warnf("git config: failed to remove workdir %s during Init cleanup: %v", dir, err)
+		}
 		s.workdir = ""
 		if s.auth != nil {
-			_ = s.auth.Close()
+			if err := s.auth.Close(); err != nil {
+				s.logger.Warnf("git config: failed to close auth strategy during Init cleanup: %v", err)
+			}
 		}
 	}()
 
@@ -274,10 +284,14 @@ func (s *ConfigurationStore) Close() error {
 		s.pollerWg.Wait()
 	}
 	if s.auth != nil {
-		_ = s.auth.Close()
+		if err := s.auth.Close(); err != nil {
+			s.logger.Warnf("git config: auth close: %v", err)
+		}
 	}
 	if s.workdir != "" {
-		_ = os.RemoveAll(s.workdir)
+		if err := os.RemoveAll(s.workdir); err != nil {
+			s.logger.Warnf("git config: workdir cleanup: %v", err)
+		}
 	}
 	return nil
 }

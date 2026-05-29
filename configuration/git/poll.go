@@ -21,6 +21,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 
 	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/components-contrib/configuration/git/auth"
 )
 
 // pollLoop ticks every metadata.PollInterval until ctx is cancelled.
@@ -64,14 +65,14 @@ func (s *ConfigurationStore) pollLoop(ctx context.Context) {
 // err is a rate-limit response. Returns zero if err is not a rate-limit
 // signal — the loop then proceeds on its normal cadence.
 func (s *ConfigurationStore) rateLimitBackoff(err error) time.Duration {
-	var rl *rateLimitError
+	var rl *auth.RateLimitError
 	if errors.As(err, &rl) {
 		if rl.RetryAfter > 0 {
 			return rl.RetryAfter
 		}
 		return s.metadata.rateLimitRetryAfter()
 	}
-	if isTransportRateLimit(err) {
+	if auth.IsTransportRateLimit(err) {
 		return s.metadata.rateLimitRetryAfter()
 	}
 	return 0

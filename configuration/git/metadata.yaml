@@ -41,8 +41,9 @@ authenticationProfiles:
         description: |
           SSH user used when connecting. Defaults to "git", which matches
           the convention used by GitHub, GitLab, Bitbucket, and most
-          self-hosted git providers.
-        example: "git"
+          self-hosted git providers. Override for self-hosted providers
+          that gate SSH login on a non-"git" username.
+        example: "deploy-user"
         default: "git"
         type: string
       - name: privateKey

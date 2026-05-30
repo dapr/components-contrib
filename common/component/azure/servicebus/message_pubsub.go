@@ -16,6 +16,7 @@ package servicebus
 import (
 	"encoding/base64"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/spf13/cast"
@@ -60,8 +61,16 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 		metadata = map[string]string{}
 	}
 
+	// URL-escape the key so reserved characters (e.g. ':', '/' in URN-style claim keys
+	// emitted by Dataverse / Azure Digital Twins) don't produce invalid HTTP header
+	// field names when Dapr forwards the message over HTTP. Values are left as-is;
+	// Go's http.Header permits the characters that appear in typical ASB application
+	// property values, so URL-escaping them would regress consumers that depend on
+	// raw delivery (e.g. values containing spaces or '+'). The narrower precedent
+	// followed here is dapr/components-contrib#3511 (Kafka): escape only what HTTP
+	// rejects. See microsoft/azure-container-apps#1690.
 	for key, val := range asbMsg.ApplicationProperties {
-		metadata["metadata."+key] = cast.ToString(val)
+		metadata["metadata."+url.QueryEscape(key)] = cast.ToString(val)
 	}
 
 	// We are not concerned about key conflicts here as we do not allow custom properties that match well-known property names

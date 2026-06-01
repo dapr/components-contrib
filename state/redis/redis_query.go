@@ -335,7 +335,7 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 		return nil, false, nil
 	}
 
-	var res []state.QueryItem //nolint:prealloc
+	var res []state.QueryItem
 	arr := aarr["results"].([]any)
 	if len(arr) == 0 {
 		return nil, false, errors.New("invalid output")

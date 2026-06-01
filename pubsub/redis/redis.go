@@ -230,7 +230,7 @@ func (r *redisStreams) worker() {
 			return
 
 		case msg := <-r.queue:
-			r.processMessage(msg)
+			_ = r.processMessage(msg) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 }
@@ -288,7 +288,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 				if strings.Contains(err.Error(), "NOGROUP") {
 					r.logger.Warnf("redis streams: consumer group %s does not exist for stream %s. This could mean the server experienced data loss, or the group/stream was deleted.", r.clientSettings.ConsumerID, stream)
 					r.logger.Warnf("redis streams: recreating group %s for stream %s", r.clientSettings.ConsumerID, stream)
-					r.CreateConsumerGroup(ctx, stream)
+					_ = r.CreateConsumerGroup(ctx, stream) //nolint:errcheck // legacy behavior preserved
 				}
 				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			}
@@ -451,6 +451,6 @@ func (r *redisStreams) Ping(ctx context.Context) error {
 
 func (r *redisStreams) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

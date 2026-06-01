@@ -129,7 +129,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 	rData := make(map[string]string)
-	json.Unmarshal(resp.Data, &rData)
+	_ = json.Unmarshal(resp.Data, &rData)
 	if !reflect.DeepEqual(rData, tData) {
 		t.Fatal("Response data does not match written data\n")
 	}

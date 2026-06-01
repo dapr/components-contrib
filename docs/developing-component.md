@@ -56,8 +56,8 @@ make lint
 >   [!] Your locally installed version of golangci-lint is different from the pipeline
 >   [!] This will likely cause linting issues for you locally
 >   [!] Yours:  v1.64.8
->   [!] Theirs: v1.64.6
->   [!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /bin v1.64.6
+>   [!] Theirs: v2.10.1
+>   [!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /bin v2.10.1
 >   golangci-lint run --timeout=20m --max-same-issues 0 --max-issues-per-linter 0
 >   Error: can't load config: the Go language version (go1.23) used to build golangci-lint is lower than the targeted Go version (1.24.1)
 >   Failed executing command with error: can't load config: the Go language version (go1.23) used to build golangci-lint is lower than the targeted Go version (1.24.1)
@@ -65,7 +65,7 @@ make lint
 >   ```
 > In this case, make sure to install the exact versions of go requested and the version of golangci-lint using the command:
 > ```
-> go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
+> go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.10.1
 > ```
 
 ## Validating with Dapr core

@@ -538,12 +538,9 @@ func TestSet(t *testing.T) {
 
 		err := s.Set(t.Context(), req)
 		require.Error(t, err)
-		switch tagErr := err.(type) {
-		case *state.ETagError:
-			assert.Equal(t, state.ETagMismatch, tagErr.Kind())
-		default:
-			assert.True(t, false)
-		}
+		var tagErr *state.ETagError
+		require.ErrorAs(t, err, &tagErr)
+		assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 	})
 
 	t.Run("Successfully set item with first-write-concurrency", func(t *testing.T) {
@@ -625,11 +622,8 @@ func TestSet(t *testing.T) {
 		}
 		err := s.Set(t.Context(), req)
 		require.Error(t, err)
-		switch err.(type) {
-		case *state.ETagError:
-			assert.True(t, false)
-		default:
-		}
+		var tagErr *state.ETagError
+		assert.NotErrorAs(t, err, &tagErr, "did not expect *state.ETagError")
 	})
 
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
@@ -916,12 +910,9 @@ func TestDelete(t *testing.T) {
 		}
 		err := s.Delete(t.Context(), req)
 		require.Error(t, err)
-		switch tagErr := err.(type) {
-		case *state.ETagError:
-			assert.Equal(t, state.ETagMismatch, tagErr.Kind())
-		default:
-			assert.True(t, false)
-		}
+		var tagErr *state.ETagError
+		require.ErrorAs(t, err, &tagErr)
+		assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 	})
 
 	t.Run("Unsuccessfully delete item", func(t *testing.T) {

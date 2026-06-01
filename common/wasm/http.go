@@ -50,13 +50,13 @@ func (f *httpClient) get(ctx context.Context, u *url.URL) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("received %v status code from %q", resp.StatusCode, u)
 	}
 
 	bytes, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}

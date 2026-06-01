@@ -255,7 +255,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 			aeh.logger.Debugf("Processing EventHubs events for topic %s (attempt: %d)", topic, attempts.Add(1))
 			return config.Handler(ctx, events)
 		}, b, func(err error, _ time.Duration) {
-			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic)
+			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic, err)
 		}, func() {
 			aeh.logger.Warnf("Successfully processed EventHubs events after it previously failed for topic %s", topic)
 		})
@@ -399,9 +399,9 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 		if len(events) != 0 {
 			// Handle received message
 			if aeh.metadata.EnableInOrderMessageDelivery {
-				aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+				_ = aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
 			} else {
-				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler) //nolint:errcheck // legacy behavior preserved
 			}
 
 			// Checkpointing disabled for CheckPointFrequencyPerPartition == 0
@@ -441,7 +441,7 @@ func (aeh *AzureEventHubs) Close() (err error) {
 		go func(producer *azeventhubs.ProducerClient) {
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
 			defer closeCancel()
-			producer.Close(closeCtx)
+			_ = producer.Close(closeCtx)
 			wg.Done()
 		}(producer)
 	}

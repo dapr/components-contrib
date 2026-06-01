@@ -220,9 +220,10 @@ func TestResolverMultipleInstances(t *testing.T) {
 		addr, err := resolver.ResolveID(t.Context(), request)
 		require.NoError(t, err)
 		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
-		if addr == instanceAPQDN {
+		switch addr {
+		case instanceAPQDN:
 			instanceACount.Add(1)
-		} else if addr == instanceBPQDN {
+		case instanceBPQDN:
 			instanceBCount.Add(1)
 		}
 	}
@@ -243,7 +244,7 @@ func TestResolverNotFound(t *testing.T) {
 	// assert
 	expectedError := "couldn't find service: testAppIDNotFound"
 	require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
-	assert.Equal(t, "", pt)
+	assert.Empty(t, pt)
 }
 
 // TestResolverConcurrency is used to run concurrent tests in
@@ -360,11 +361,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 
 			var appID string
 			r := i % 3
-			if r == 0 {
+			switch r {
+			case 0:
 				appID = "testAppA"
-			} else if r == 1 {
+			case 1:
 				appID = "testAppB"
-			} else {
+			default:
 				appID = "testAppC"
 			}
 			request := nr.ResolveRequest{ID: appID}
@@ -374,11 +376,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 			elapsed := time.Since(start)
 			// assert
 			require.NoError(t, err)
-			if r == 0 {
+			switch r {
+			case 0:
 				assert.Equal(t, appABPQDN, pt)
-			} else if r == 1 {
+			case 1:
 				assert.Equal(t, appBBPQDN, pt)
-			} else if r == 2 {
+			case 2:
 				assert.Equal(t, appCBPQDN, pt)
 			}
 
@@ -408,11 +411,12 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 
 			var appID string
 			r := idx % 3
-			if r == 0 {
+			switch r {
+			case 0:
 				appID = "testAppA"
-			} else if r == 1 {
+			case 1:
 				appID = "testAppB"
-			} else {
+			default:
 				appID = "testAppC"
 			}
 			request := nr.ResolveRequest{ID: appID}
@@ -425,7 +429,7 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 			// assert
 			expectedError := "couldn't find service: " + appID
 			require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
-			assert.Equal(t, "", pt)
+			assert.Empty(t, pt)
 			assert.Less(t, elapsed, 2*time.Second) // browse timeout is 1 second, so we expect an error shortly after.
 		}()
 	}

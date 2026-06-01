@@ -56,7 +56,7 @@ func (a *authorizationBuilder) setPK() error {
 	if err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
-	pk.Set("kid", a.keyID)
+	_ = pk.Set("kid", a.keyID) //nolint:errcheck // legacy behavior preserved
 
 	a.pk = pk
 	return nil

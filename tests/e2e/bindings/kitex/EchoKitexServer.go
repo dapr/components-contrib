@@ -1,3 +1,6 @@
+//go:build e2e || certtests
+// +build e2e certtests
+
 /*
 Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +39,7 @@ func GenerateEchoReq(message string) (reqData []byte, err error) {
 func EchoKitexServer() error {
 	svr := echo.NewServer(new(EchoImpl))
 	time.AfterFunc(10*time.Second, func() {
-		svr.Stop()
+		_ = svr.Stop() //nolint:errcheck // legacy behavior preserved
 		klog.Info("server stopped")
 	})
 

@@ -68,7 +68,7 @@ func (x *X509) RefreshX509(ctx context.Context) error {
 		x.wrappedCredentialProvider = credentialProvider
 	} else {
 		// change signer
-		x.wrappedCredentialProvider.ChangeSigner(*signer)
+		x.wrappedCredentialProvider.ChangeSigner(*signer) //nolint:gosec,errcheck // legacy behavior preserved
 	}
 
 	return nil

@@ -218,7 +218,7 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 		Label string `mapstructure:"label"`
 	}
 	var label labelMetadata
-	kitmd.DecodeMetadata(metadata, &label)
+	_ = kitmd.DecodeMetadata(metadata, &label)
 
 	if label.Label != "" {
 		return to.Ptr(label.Label)
@@ -319,7 +319,7 @@ func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]stri
 		SentinelKey string `mapstructure:"sentinelKey"`
 	}
 	var sentinelKey sentinelKeyMetadata
-	kitmd.DecodeMetadata(metadata, &sentinelKey)
+	_ = kitmd.DecodeMetadata(metadata, &sentinelKey)
 
 	if sentinelKey.SentinelKey != "" {
 		return sentinelKey.SentinelKey
@@ -358,6 +358,6 @@ func (r *ConfigurationStore) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }

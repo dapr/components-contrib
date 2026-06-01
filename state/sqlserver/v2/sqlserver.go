@@ -110,7 +110,7 @@ type SQLServer struct {
 // Init initializes the SQL server state store.
 func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.metadata = newMetadata()
-	metadata.Base.GetProperty()
+	metadata.GetProperty()
 	err := s.metadata.Parse(metadata.Properties)
 	if err != nil {
 		return err
@@ -631,14 +631,14 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 
 func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	settingsStruct := sqlServerMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
 // Close implements io.Closer.
 func (s *SQLServer) Close() error {
 	if s.db != nil {
-		s.db.Close()
+		_ = s.db.Close()
 		s.db = nil
 	}
 

@@ -180,7 +180,7 @@ func dial(uri string) (conn *amqp.Connection, ch *amqp.Channel, err error) {
 
 	ch, err = conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, nil, err
 	}
 
@@ -199,7 +199,7 @@ func dialTLS(uri string, tlsConfig *tls.Config, externalAuth bool) (conn *amqp.C
 
 	ch, err = conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, nil, err
 	}
 
@@ -282,10 +282,12 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 			return fmt.Errorf("can't parse maxPriority field: %s", err)
 		}
 
-		maxPriority := uint8(parsedVal)
+		var maxPriority uint8
 		if parsedVal > 255 {
 			// Overflow
 			maxPriority = math.MaxUint8
+		} else {
+			maxPriority = uint8(parsedVal) // bounded by check above
 		}
 
 		m.MaxPriority = &maxPriority
@@ -482,9 +484,9 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 				Metadata: metadata,
 			})
 			if err != nil {
-				ch.Nack(d.DeliveryTag, false, true)
+				_ = ch.Nack(d.DeliveryTag, false, true)
 			} else {
-				ch.Ack(d.DeliveryTag, false)
+				_ = ch.Ack(d.DeliveryTag, false)
 			}
 		}
 	}
@@ -519,7 +521,7 @@ func (r *RabbitMQ) connect() error {
 		return err
 	}
 
-	ch.Qos(r.metadata.PrefetchCount, 0, true)
+	_ = ch.Qos(r.metadata.PrefetchCount, 0, true)
 	q, err := r.declareQueue(ch)
 	if err != nil {
 		return err
@@ -564,6 +566,6 @@ func (r *RabbitMQ) reset() (err error) {
 
 func (r *RabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitMQMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

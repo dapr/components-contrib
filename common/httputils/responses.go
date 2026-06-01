@@ -22,7 +22,7 @@ func RespondWithError(w http.ResponseWriter, statusCode int) {
 func RespondWithErrorAndMessage(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("content-type", "text/plain; charset=utf-8")
 	w.WriteHeader(statusCode)
-	w.Write([]byte(message))
+	_, _ = w.Write([]byte(message))
 }
 
 // RespondWithRedirect responds to a http.ResponseWriter with a redirect.

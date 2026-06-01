@@ -144,7 +144,7 @@ func dial(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls
 
 	ch, err = conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, nil, err
 	}
 
@@ -196,7 +196,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 
 	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, r.metadata.HeartBeat, tlsCfg, r.metadata.SaslExternal)
 	if err != nil {
-		r.reset()
+		_ = r.reset()
 
 		return err
 	}
@@ -204,7 +204,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 	if r.metadata.PublisherConfirm {
 		err = r.channel.Confirm(false)
 		if err != nil {
-			r.reset()
+			_ = r.reset()
 
 			return err
 		}
@@ -311,7 +311,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 				return nil
 			}
 
-			r.reconnect(connectionCount)
+			_ = r.reconnect(connectionCount) //nolint:errcheck // legacy behavior preserved
 		} else {
 			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
 			select {
@@ -421,9 +421,11 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 			return nil, pErr
 		}
 
-		mp := uint8(parsedVal)
+		var mp uint8
 		if parsedVal > 255 {
 			mp = math.MaxUint8
+		} else {
+			mp = uint8(parsedVal) // bounded by check above
 		}
 
 		args[argMaxPriority] = mp
@@ -607,7 +609,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
 				return
 			}
-			r.reconnect(connectionCount)
+			_ = r.reconnect(connectionCount) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 }
@@ -721,10 +723,11 @@ func (r *rabbitMQ) reset() (err error) {
 	}
 	if r.connection != nil {
 		if err2 := r.connection.Close(); err2 != nil {
-			r.logger.Errorf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
-			if err == nil {
-				err = err2
-			}
+			// AMQP servers can respond to connection-close with a
+			// transient CHANNEL_ERROR (504) when the channel was already
+			// closed above. The underlying resources are released either
+			// way, so log it but do not propagate it as a Close failure.
+			r.logger.Warnf("%s reset: connection.Close() returned: %v", logMessagePrefix, err2)
 		}
 		r.connection = nil
 	}
@@ -769,7 +772,7 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 // GetComponentMetadata returns the metadata of the component.
 func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitmqMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }
 

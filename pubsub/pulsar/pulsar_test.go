@@ -82,6 +82,7 @@ func TestParsePulsarMetadata(t *testing.T) {
 		"batchingMaxSize":         "100",
 		"batchingMaxMessages":     "200",
 		"maxConcurrentHandlers":   "333",
+		"listenerName":            "external",
 	}
 	meta, err := parsePulsarMetadata(m)
 
@@ -95,6 +96,7 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, uint(100), meta.BatchingMaxSize)
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
 	assert.Equal(t, uint(333), meta.MaxConcurrentHandlers)
+	assert.Equal(t, "external", meta.ListenerName)
 	assert.Empty(t, meta.internalTopicSchemas)
 	assert.Equal(t, "shared", meta.SubscriptionType)
 }
@@ -2221,7 +2223,6 @@ func TestInitUsesTokenSupplierWithJSONSecretFile(t *testing.T) {
 func TestInitUsesClientIDFromMetadataWhenFileHasOnlySecret(t *testing.T) {
 	server := newOAuthTestServer(t)
 	// Test that oauth2ClientSecretPath works with plain text (client_id comes from metadata)
-	//nolint:gosec
 	plainTextSecret := "plain-text-secret-12345"
 	secretPath := writeTempFile(t, plainTextSecret)
 
@@ -2256,7 +2257,6 @@ func TestInitUsesClientIDFromMetadataWhenFileHasOnlySecret(t *testing.T) {
 
 func TestInitFailsWhenClientCredentialsTypeMissingClientSecret(t *testing.T) {
 	// Test that credentials file requires client_secret
-	//nolint:gosec
 	credentialsJSON := `{
 		"client_id": "test-id",
 		"issuer_url": "https://oauth.example.com/token"
@@ -2753,4 +2753,35 @@ func TestFeaturesDeclaresBulkSubscribeImmediate(t *testing.T) {
 		pubsub.FeatureBulkSubscribeImmediate.IsPresent(p.Features()),
 		"Pulsar must declare FeatureBulkSubscribeImmediate so the default bulk subscriber flushes per-message instead of buffering until MaxMessagesCount/MaxAwaitDurationMs",
 	)
+}
+
+func TestInitPropagatesListenerName(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected string
+	}{
+		{name: "set", value: "external", expected: "external"},
+		{name: "omitted", value: "", expected: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedOpts pulsar.ClientOptions
+			p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+			p.newClientFn = func(opts pulsar.ClientOptions) (pulsar.Client, error) {
+				capturedOpts = opts
+				return nil, nil
+			}
+
+			md := pubsub.Metadata{}
+			md.Properties = map[string]string{"host": "localhost:6650"}
+			if tc.value != "" {
+				md.Properties["listenerName"] = tc.value
+			}
+
+			require.NoError(t, p.Init(t.Context(), md))
+			assert.Equal(t, tc.expected, capturedOpts.ListenerName)
+		})
+	}
 }

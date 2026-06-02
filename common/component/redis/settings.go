@@ -153,6 +153,9 @@ func (s *Settings) EntraIDFetchAuthArgs(ctx context.Context) (username, password
 	if s.entraIDTokenCredential == nil {
 		return "", "", errors.New("redis client: EntraID credential not initialized")
 	}
+	if s.entraIDUsername == "" {
+		return "", "", errors.New("redis client: EntraID username (OID) not initialized; AUTH ACL requires a non-empty username")
+	}
 	tok, err := (*s.entraIDTokenCredential).GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://redis.azure.com/.default"},
 	})

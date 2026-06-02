@@ -166,9 +166,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		}
 	}
 	var tokenExpires *time.Time
-	var tokenCredential *azcore.TokenCredential
 	if settings.UseEntraID {
-		tokenExpires, tokenCredential, err = settings.InitEntraIDCredential(ctx, &properties)
+		tokenExpires, err = settings.InitEntraIDCredential(ctx, &properties)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -216,13 +215,13 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	// brand-new pool connections.
 
 	if settings.UseEntraID {
-		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.entraIDUsername, *tokenExpires, tokenCredential, logger)
+		StartEntraIDTokenRefreshBackgroundRoutine(c, &settings, *tokenExpires, logger)
 	}
 	return c, &settings, nil
 }
 
-func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
-	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
+func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, s *Settings, nextExpiration time.Time, logger *kitlogger.Logger) {
+	go func(s *Settings, logger *kitlogger.Logger) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		backoffConfig := kitretry.DefaultConfig()
@@ -249,9 +248,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				tokenErr := kitretry.NotifyRecover(
 					func() error {
 						var innerTokenErr error
-						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{
-							Scopes: []string{"https://redis.azure.com/.default"},
-						})
+						token, innerTokenErr = s.entraIDToken(ctx)
 						return innerTokenErr
 					},
 					backoffManager,
@@ -272,7 +269,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				authErr := kitretry.NotifyRecover(
 					func() error {
-						var innerAuthErr = client.AuthACL(ctx, username, token.Token)
+						var innerAuthErr = client.AuthACL(ctx, s.entraIDUsername, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,
@@ -295,7 +292,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
 			}
 		}
-	}(cred, username, logger)
+	}(s, logger)
 }
 
 // InitEntraIDCredential validates Entra ID configuration, acquires the Azure SDK token
@@ -316,27 +313,27 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 // since expired — and Redis returns WRONGPASS. The OnConnect hook fixes this by always
 // fetching a fresh token at connect time.
 //
-// Returns the initial token's expiration (used to schedule the first refresh) and the
-// credential pointer (used by the refresh goroutine to acquire later tokens).
-func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
+// Returns the initial token's expiration, used to schedule the first refresh. The credential
+// and OID are stored on the Settings for the refresh goroutine and OnConnect hook to use.
+func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[string]string) (*time.Time, error) {
 	if len(s.Password) > 0 || len(s.Username) > 0 {
-		return nil, nil, errors.New(
+		return nil, errors.New(
 			"redis client configuration error: username or password must not be specified when using Entra ID authentication")
 	}
 	envSettings, err := azure.NewEnvironmentSettings(*properties)
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 	cred, err := envSettings.GetTokenCredential()
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://redis.azure.com/.default"},
+		Scopes: []string{entraIDRedisScope},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
 	// Validate the initial token and extract the OID claim used as the Redis ACL username.
@@ -344,20 +341,20 @@ func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[st
 	// only inspecting it — Redis itself does the authoritative validation.
 	parsedToken, err := jwt.ParseString(token.Token, jwt.WithVerify(false), jwt.WithValidate(false))
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 	objectIDRaw, found := parsedToken.Get("oid")
 	if !found {
-		return nil, nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
+		return nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
 	}
 	objectID, ok := objectIDRaw.(string)
 	if !ok {
-		return nil, nil, errors.New("redis client configuration error: object ID claim is not a string")
+		return nil, errors.New("redis client configuration error: object ID claim is not a string")
 	}
 
 	s.entraIDUsername = objectID
-	s.entraIDTokenCredential = &cred
-	return &token.ExpiresOn, &cred, nil
+	s.entraIDTokenCredential = cred
+	return &token.ExpiresOn, nil
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

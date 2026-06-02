@@ -335,6 +335,12 @@ func (c v8Client) AuthACL(ctx context.Context, username, password string) error 
 // fix for dapr/components-contrib#3554 — without it, go-redis's initial AUTH on a new
 // connection would replay the snapshot Password set at component init, which has
 // expired by the time the connection is opened.
+//
+// ctx is supplied by go-redis and is bounded by the configured DialTimeout. The token
+// fetch is a cheap in-memory lookup in steady state (azcore caches until near expiry).
+// Returning an error here fails the dial: go-redis discards the connection and surfaces
+// the error to the caller of the Redis command that triggered the dial, which is the
+// intended behavior — a connection that cannot authenticate must not be handed out.
 func entraIDOnConnectV8(s *Settings) func(ctx context.Context, cn *v8.Conn) error {
 	return func(ctx context.Context, cn *v8.Conn) error {
 		user, pass, err := s.EntraIDFetchAuthArgs(ctx)

@@ -45,14 +45,13 @@ func (f fakeTokenCredential) GetToken(context.Context, policy.TokenRequestOption
 // entraIDSettings returns Settings wired as InitEntraIDCredential would leave
 // them after a successful init, but with a stubbed credential.
 func entraIDSettings(redisType string, failover bool) *Settings {
-	var cred azcore.TokenCredential = fakeTokenCredential{token: "fresh-token"}
 	return &Settings{
 		Host:                   "localhost:6379",
 		RedisType:              redisType,
 		Failover:               failover,
 		UseEntraID:             true,
 		entraIDUsername:        "00000000-0000-0000-0000-000000000000",
-		entraIDTokenCredential: &cred,
+		entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"},
 	}
 }
 
@@ -165,16 +164,39 @@ func TestEntraIDFetchAuthArgs(t *testing.T) {
 	})
 
 	t.Run("errors when username (OID) not initialized", func(t *testing.T) {
-		var cred azcore.TokenCredential = fakeTokenCredential{token: "fresh-token"}
-		s := &Settings{UseEntraID: true, entraIDTokenCredential: &cred}
+		s := &Settings{UseEntraID: true, entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"}}
 		_, _, err := s.EntraIDFetchAuthArgs(context.Background())
 		require.Error(t, err)
 	})
 
 	t.Run("propagates token acquisition error", func(t *testing.T) {
-		var cred azcore.TokenCredential = fakeTokenCredential{err: errors.New("boom")}
-		s := &Settings{UseEntraID: true, entraIDUsername: "oid", entraIDTokenCredential: &cred}
+		s := &Settings{UseEntraID: true, entraIDUsername: "oid", entraIDTokenCredential: fakeTokenCredential{err: errors.New("boom")}}
 		_, _, err := s.EntraIDFetchAuthArgs(context.Background())
+		require.Error(t, err)
+	})
+}
+
+// TestEntraIDOnConnectCallback invokes the OnConnect callbacks themselves (not just
+// asserting they are wired) to confirm they drive authentication through a fresh-token
+// fetch and surface a credential failure as a dial error. A failing credential makes the
+// callback return before it touches the (nil) connection, so this exercises the
+// connect-time auth path end-to-end without a live Redis server.
+func TestEntraIDOnConnectCallback(t *testing.T) {
+	t.Run("v8 surfaces token-fetch failure as a dial error", func(t *testing.T) {
+		s := &Settings{UseEntraID: true, entraIDUsername: "oid", entraIDTokenCredential: fakeTokenCredential{err: errors.New("boom")}}
+		err := entraIDOnConnectV8(s)(context.Background(), nil)
+		require.Error(t, err)
+	})
+
+	t.Run("v9 surfaces token-fetch failure as a dial error", func(t *testing.T) {
+		s := &Settings{UseEntraID: true, entraIDUsername: "oid", entraIDTokenCredential: fakeTokenCredential{err: errors.New("boom")}}
+		err := entraIDOnConnectV9(s)(context.Background(), nil)
+		require.Error(t, err)
+	})
+
+	t.Run("v8 surfaces missing-OID as a dial error", func(t *testing.T) {
+		s := &Settings{UseEntraID: true, entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"}}
+		err := entraIDOnConnectV8(s)(context.Background(), nil)
 		require.Error(t, err)
 	})
 }

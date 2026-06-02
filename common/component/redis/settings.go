@@ -31,6 +31,11 @@ import (
 
 const defaultRedisPort = "6379"
 
+// entraIDRedisScope is the OAuth scope used to acquire Entra ID access tokens for
+// Azure Cache/Managed Redis. Kept as a single constant so the initial-token fetch,
+// the per-connection OnConnect fetch, and the background refresh loop never drift.
+const entraIDRedisScope = "https://redis.azure.com/.default"
+
 type Settings struct {
 	// The Redis host
 	Host string `mapstructure:"redisHost"`
@@ -139,7 +144,19 @@ type Settings struct {
 	// entraIDTokenCredential is the Azure SDK credential used to acquire fresh Entra access
 	// tokens on demand. The credential implementation caches tokens until close to expiry,
 	// so calling GetToken on every new pool connection is inexpensive in steady state.
-	entraIDTokenCredential *azcore.TokenCredential
+	entraIDTokenCredential azcore.TokenCredential
+}
+
+// entraIDToken acquires a fresh Entra access token for the Redis scope using the cached
+// credential. The credential caches tokens internally until shortly before expiry, so in
+// steady state this is a cheap in-memory lookup rather than a network round-trip.
+func (s *Settings) entraIDToken(ctx context.Context) (azcore.AccessToken, error) {
+	if s.entraIDTokenCredential == nil {
+		return azcore.AccessToken{}, errors.New("redis client: EntraID credential not initialized")
+	}
+	return s.entraIDTokenCredential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{entraIDRedisScope},
+	})
 }
 
 // EntraIDFetchAuthArgs returns the Redis ACL username and a freshly-acquired Entra access
@@ -150,15 +167,10 @@ type Settings struct {
 // so that every new pool connection authenticates with a current token, rather than the
 // stale snapshot Password that would otherwise be sent during initial AUTH.
 func (s *Settings) EntraIDFetchAuthArgs(ctx context.Context) (username, password string, err error) {
-	if s.entraIDTokenCredential == nil {
-		return "", "", errors.New("redis client: EntraID credential not initialized")
-	}
 	if s.entraIDUsername == "" {
 		return "", "", errors.New("redis client: EntraID username (OID) not initialized; AUTH ACL requires a non-empty username")
 	}
-	tok, err := (*s.entraIDTokenCredential).GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://redis.azure.com/.default"},
-	})
+	tok, err := s.entraIDToken(ctx)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to acquire EntraID token for redis AUTH: %w", err)
 	}

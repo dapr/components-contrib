@@ -12,22 +12,20 @@ Pre-releases use tags like `v1.11.0-rc.0`, `-rc.1`, and so on. They are created 
 
 ### Steps
 
-1. Update the Dapr runtime and dashboard versions in workflows or tests if needed. Merge that change to master.
+1. Open GitHub Actions and click the **create-release** workflow.
 
-2. Open GitHub Actions and click the **create-release** workflow.
-
-3. Press the **Run workflow** button.
+2. Press the **Run workflow** button.
    The workflow will:
 
    * create the `release-<major>.<minor>` branch
    * create the pre-release tag
    * build the artifacts
 
-4. Test the produced build.
+3. Test the produced build.
 
-5. If there are issues, fix them in the release branch and trigger the workflow again by creating a new pre-release tag (for example `-rc.1`).
+4. If there are issues, fix them in the release branch and trigger the workflow again by creating a new pre-release tag (for example `-rc.1`).
 
-6. Repeat until the build is good.
+5. Repeat until the build is good.
 
 ## Stable Release
 

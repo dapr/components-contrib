@@ -34,8 +34,13 @@ authenticationProfiles:
       - name: oauth2ClientSecretPath
         type: string
         description: |
-          The path to the OAuth Client Secret.
-        example: "/path/to/oauth2/client_secret.json"
+          The path to a plain text file containing the OAuth Client Secret.
+        example: "/path/to/oauth2/client_secret.txt"
+      - name: oauth2CredentialsFile
+        type: string
+        description: |
+          The path to a JSON file containing both client_id and client_secret.
+        example: "/path/to/oauth2/credentials.json"
       - name: oauth2TokenCAPEM
         type: string
         description: |
@@ -63,6 +68,16 @@ metadata:
     description: "Address of the Pulsar broker."
     example: |
       "localhost:6650", "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"
+  - name: listenerName
+    type: string
+    description: |
+      Configures the listener name the Pulsar client sends to the broker for connection redirects.
+      Brokers with `advertisedListeners` resolve the redirect target using the matching named listener,
+      enabling cross-network topologies (multi-cluster, internal/external endpoints) without a Pulsar proxy.
+    example: '"external"'
+    url:
+      title: "Pulsar Multiple Advertised Listeners"
+      url: "https://pulsar.apache.org/docs/3.0.x/concepts-multiple-advertised-listeners/"
   - name: consumerID
     type: string
     description: "Used to set the subscription name or consumer ID."
@@ -188,6 +203,16 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: "<topic-name>.rawschema"
+    type: bool
+    description: |
+      When set to "true", registers the user-provided schema as-is with the Pulsar Schema Registry
+      instead of wrapping it in a CloudEvents envelope schema. Applies to both Avro (.avroschema) and
+      JSON (.jsonschema) schema topics. Callers must also publish messages with rawPayload=true to
+      send events without a CloudEvents envelope. Use this for topics that are intended to exclusively
+      receive raw domain payloads.
+    default: 'false'
+    example: '"true", "false"'
   - name: "<topic-name>.jsonschema"
     type: string
     description: |
@@ -202,6 +227,18 @@ metadata:
           {"name": "Name","type": "string"}
         ]
       }
+  - name: processMode
+    type: string
+    description: |
+      Controls whether messages are processed synchronously or asynchronously.
+      In sync mode, messages are handled one at a time in order.
+      In async mode, up to maxConcurrentHandlers messages are processed concurrently.
+      Can be overridden per subscription via subscription metadata.
+    default: '"async"'
+    example: '"sync"'
+    allowedValues:
+      - sync
+      - async
   - name: maxConcurrentHandlers
     type: number
     description: |

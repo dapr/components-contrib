@@ -28,3 +28,15 @@ metadata:
     description: The location of the Oracle wallet.
     example: "/path/to/wallet"
     default: ""
+  - name: bulkGetChunkSize
+    type: number
+    required: false
+    description: |
+      Maximum number of keys per internal SQL query when using BulkGet.
+      When the total number of requested keys exceeds this value, multiple
+      chunked queries are executed sequentially. Valid values are between 1
+      and 1000 (Oracle's documented IN-list expression limit). Values less
+      than or equal to 0 use the default value of 1000. Values above 1000
+      are clamped with a warning log.
+    example: "100"
+    default: "1000"

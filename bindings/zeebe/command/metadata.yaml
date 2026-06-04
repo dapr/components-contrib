@@ -60,3 +60,34 @@ metadata:
     description: The path to the CA cert
     example: "/path/to/ca-cert"
     type: string
+  - name: clientId
+    required: false
+    description: The OAuth client ID used to request an access token. Required when OAuth is configured, and must be set together with clientSecret, authorizationServerUrl, and tokenAudience.
+    example: "zeebe-client"
+    type: string
+  - name: clientSecret
+    required: false
+    sensitive: true
+    description: The OAuth client secret used to request an access token. Required when OAuth is configured, and must be set together with clientId, authorizationServerUrl, and tokenAudience.
+    example: "zeebe-secret"
+    type: string
+  - name: authorizationServerUrl
+    required: false
+    description: The OAuth authorization server URL used to obtain access tokens. Required when OAuth is configured, and must be set together with clientId, clientSecret, and tokenAudience.
+    example: "https://issuer.example.com/oauth/token"
+    type: string
+  - name: tokenAudience
+    required: false
+    description: The token audience for Zeebe API access. Required when OAuth is configured, and must be set together with clientId, clientSecret, and authorizationServerUrl.
+    example: "zeebe-api"
+    type: string
+  - name: tokenScope
+    required: false
+    description: Optional OAuth scope to request in the access token when OAuth is configured.
+    example: "read write"
+    type: string
+  - name: clientConfigPath
+    required: false
+    description: Optional path to the OAuth credentials cache file when OAuth is configured.
+    example: "/tmp/zeebe-credentials.yaml"
+    type: string

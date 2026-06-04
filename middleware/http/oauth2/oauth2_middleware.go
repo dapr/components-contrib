@@ -75,10 +75,16 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	}
 
 	forceHTTPS := kitstrings.IsTruthy(meta.ForceHTTPS)
+
+	var scopes []string
+	if meta.Scopes != "" {
+		scopes = strings.Split(meta.Scopes, ",")
+	}
+
 	conf := &oauth2.Config{
 		ClientID:     meta.ClientID,
 		ClientSecret: meta.ClientSecret,
-		Scopes:       strings.Split(meta.Scopes, ","),
+		Scopes:       scopes,
 		RedirectURL:  meta.RedirectURL,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  meta.AuthURL,
@@ -180,6 +186,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 
 func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := oAuth2MiddlewareMetadata{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return
 }

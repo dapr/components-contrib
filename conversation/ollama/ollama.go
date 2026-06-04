@@ -18,13 +18,13 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/tmc/langchaingo/llms/openai"
+
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
-
-	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 type Ollama struct {
@@ -33,9 +33,14 @@ type Ollama struct {
 	logger logger.Logger
 }
 
+const (
+	defaultEndpoint = "http://localhost:11434/v1"
+)
+
 func NewOllama(logger logger.Logger) conversation.Conversation {
 	o := &Ollama{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o
@@ -48,32 +53,41 @@ func (o *Ollama) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	// Resolve model via central helper (uses metadata, then env var, then default)
-	model := conversation.GetOllamaModel(md.Model)
+	// The key is ignored for ollama, but required by openai.
+	// Therefore, we set a default to prevent an err.
+	// ref: https://docs.ollama.com/api/openai-compatibility
+	if md.Key == "" {
+		md.Key = "ollama"
+	}
 
-	llm, err := ollama.New(
-		ollama.WithModel(model),
-	)
+	if md.Endpoint == "" {
+		md.Endpoint = defaultEndpoint
+	}
+
+	model := conversation.GetOllamaModel(md.Model)
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
+	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}
 
-	o.LLM.Model = llm
+	o.Model = llm
+	o.SetModel(model)
 
-	if md.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, md.CacheTTL, o.LLM.Model)
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		o.LLM.Model = cachedModel
+		o.Model = cachedModel
 	}
 	return nil
 }
 
 func (o *Ollama) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

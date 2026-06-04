@@ -14,6 +14,7 @@ limitations under the License.
 package mysql
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,11 +45,15 @@ func TestOperations(t *testing.T) {
 }
 
 // SETUP TESTS
-// 1. `CREATE DATABASE daprtest;`
-// 2. `CREATE USER daprtest;`
-// 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
-// 4. `export MYSQL_TEST_CONN_URL=daprtest@tcp(localhost:3306)/daprtest`
-// 5. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
+// 1. docker run --name mysql -p 3306:3306 -e MYSQL_DATABASE=daprtest -e MYSQL_USER=daprtest -e MYSQL_PASSWORD=daprtest -e MYSQL_ALLOW_EMPTY_PASSWORD=true -d mysql:latest
+// 2. `export MYSQL_TEST_CONN_URL=daprtest:daprtest:@tcp(localhost:3306)/daprtest`
+// 3. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
+
+type TestJSONData struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
 
 func TestMysqlIntegration(t *testing.T) {
 	url := os.Getenv("MYSQL_TEST_CONN_URL")
@@ -70,6 +75,7 @@ func TestMysqlIntegration(t *testing.T) {
 			Metadata: map[string]string{
 				commandSQLKey: `CREATE TABLE IF NOT EXISTS foo (
 					id bigint NOT NULL,
+					j JSON NOT NULL,
 					v1 character varying(50) NOT NULL,
 					b  BOOLEAN,
 					ts TIMESTAMP,
@@ -91,12 +97,18 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke insert", func(t *testing.T) {
 		for i := range 10 {
+			jData := &TestJSONData{ID: i, Name: "test", Color: "red"}
+			jsonBytes, _ := json.Marshal(jData)
+			v := base64.StdEncoding.EncodeToString(jsonBytes)
+			encB, _ := json.Marshal(v)
+			enc := string(encB)
+
 			res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
 					commandSQLKey: fmt.Sprintf(
-						"INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')",
-						i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`),
+						"INSERT INTO foo (id, j, v1, b, ts, data) VALUES (%d, '%s', 'test-%d', %t, '%v', '%s')",
+						i, enc, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`),
 				},
 			})
 			assertResponse(t, res, err)
@@ -153,7 +165,7 @@ func TestMysqlIntegration(t *testing.T) {
 		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
 		require.NoError(t, err)
-		assert.Len(t, len(result), 3)
+		assert.Len(t, result, 3)
 
 		// verify timestamp
 		ts, ok := result[0].(map[string]any)["ts"].(string)
@@ -185,7 +197,47 @@ func TestMysqlIntegration(t *testing.T) {
 		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
 		require.NoError(t, err)
-		assert.Len(t, len(result), 1)
+		assert.Len(t, result, 1)
+	})
+
+	t.Run("Invoke select binary json", func(t *testing.T) {
+		res, err := b.Invoke(t.Context(), &bindings.InvokeRequest{
+			Operation: queryOperation,
+			Metadata: map[string]string{
+				commandSQLKey: "SELECT j FROM foo WHERE id = 1",
+			},
+		})
+		assertResponse(t, res, err)
+		t.Logf("received result: %s", res.Data)
+
+		result := make([]any, 0)
+		err = json.Unmarshal(res.Data, &result)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+
+		jsonBytes := result[0].(map[string]any)["j"].(string)
+		require.NotNil(t, jsonBytes)
+
+		require.NoError(t, err)
+
+		var decodedBytes []byte
+		decodedBytes, err = base64.StdEncoding.DecodeString(jsonBytes)
+		require.NoError(t, err)
+		t.Logf("bytes decoded received: %s", decodedBytes)
+
+		var strBytes string
+		err = json.Unmarshal(decodedBytes, &strBytes)
+		require.NoError(t, err)
+		jBytes, _ := base64.StdEncoding.DecodeString(strBytes)
+		require.NotNil(t, jBytes)
+		t.Logf("Json received: %s", string(jBytes))
+
+		var tData TestJSONData
+		err = json.Unmarshal(jBytes, &tData)
+		require.NoError(t, err)
+		assert.Equal(t, 1, tData.ID)
+		assert.Equal(t, "test", tData.Name)
+		assert.Equal(t, "red", tData.Color)
 	})
 
 	t.Run("Invoke drop", func(t *testing.T) {

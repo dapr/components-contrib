@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: nameresolution
+name: aws.cloudmap
+version: v1
+status: alpha
+title: "AWS CloudMap"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/nr-awscloudmap/
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: namespaceName
+    type: string
+    required: false
+    description: Name of the AWS CloudMap namespace. One of namespaceName or namespaceId is required.
+    example: "my-namespace"
+  - name: namespaceId
+    type: string
+    required: false
+    description: ID of the AWS CloudMap namespace. One of namespaceName or namespaceId is required.
+    example: "ns-xxxxxx"
+  - name: defaultDaprPort
+    type: number
+    required: false
+    description: Default port for the Dapr sidecar when DAPR_PORT is not set on the instance.
+    example: "3500"

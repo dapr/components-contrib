@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/service/sns"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -30,10 +32,9 @@ import (
 
 // AWSSNS is an AWS SNS binding.
 type AWSSNS struct {
-	authProvider awsAuth.Provider
-	topicARN     string
-
-	logger logger.Logger
+	snsClient *sns.Client
+	topicARN  string
+	logger    logger.Logger
 }
 
 type snsMetadata struct {
@@ -65,7 +66,7 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	opts := awsAuth.Options{
+	authOptions := awsAuth.Options{
 		Logger:       a.logger,
 		Properties:   metadata.Properties,
 		Region:       m.Region,
@@ -74,12 +75,13 @@ func (a *AWSSNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+
+	awsConfig, err := awsCommon.NewConfig(ctx, authOptions)
 	if err != nil {
 		return err
 	}
-	a.authProvider = provider
+
+	a.snsClient = sns.NewFromConfig(awsConfig)
 	a.topicARN = m.TopicArn
 
 	return nil
@@ -109,10 +111,10 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	_, err = a.authProvider.Sns().Sns.PublishWithContext(ctx, &sns.PublishInput{
-		Message:  &msg,
-		Subject:  &subject,
-		TopicArn: &a.topicARN,
+	_, err = a.snsClient.Publish(ctx, &sns.PublishInput{
+		Message:  aws.String(msg),
+		Subject:  aws.String(subject),
+		TopicArn: aws.String(a.topicARN),
 	})
 	if err != nil {
 		return nil, err
@@ -124,13 +126,13 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 // GetComponentMetadata returns the metadata of the component.
 func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err != nil {
+		a.logger.Errorf("failed to get component metadata: %v", err)
+	}
 	return
 }
 
 func (a *AWSSNS) Close() error {
-	if a.authProvider != nil {
-		return a.authProvider.Close()
-	}
 	return nil
 }

@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: standard-binding
+spec:
+  type: bindings.mysql
+  version: v1
+  metadata:
+    - name: url
+      value: "mysql:example@tcp(localhost:3306)/dapr_test?allowNativePasswords=true"

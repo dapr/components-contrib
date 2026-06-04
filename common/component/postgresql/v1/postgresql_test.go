@@ -18,6 +18,7 @@ package postgresql
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -216,6 +217,25 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
+}
+
+type fakeGC struct {
+	err error
+}
+
+func (f *fakeGC) CleanupExpired() error { return nil }
+func (f *fakeGC) Close() error          { return f.err }
+
+func TestClose_NoGC(t *testing.T) {
+	p := &PostgreSQL{}
+	require.NoError(t, p.Close())
+}
+
+func TestClose_WithGC(t *testing.T) {
+	expErr := errors.New("gc failure")
+	p := &PostgreSQL{gc: &fakeGC{err: expErr}}
+	err := p.Close()
+	require.Equal(t, expErr, err)
 }
 
 func createSetRequest() state.SetRequest {

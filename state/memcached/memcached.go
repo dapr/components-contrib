@@ -110,7 +110,7 @@ func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
 		return nil, err
 	}
 
-	if m.Hosts == nil || len(m.Hosts) == 0 {
+	if len(m.Hosts) == 0 {
 		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
@@ -140,7 +140,7 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 			return nil, err
 		}
 
-		parsedInt := int32(parsedVal)
+		parsedInt := int32(parsedVal) //nolint:gosec // legacy behavior preserved: silent truncation for out-of-range TTL
 
 		// If ttl is more than 30 days, convert it to unix timestamp.
 		// https://github.com/memcached/memcached/wiki/Commands#standard-protocol
@@ -222,6 +222,6 @@ func (m *Memcached) Close() (err error) {
 
 func (m *Memcached) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := memcachedMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }

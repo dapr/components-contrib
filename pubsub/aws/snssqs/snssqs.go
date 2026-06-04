@@ -212,7 +212,7 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 }
 
 func (s *snsSqs) buildARN(serviceName, entityName string) string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.internalPartition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.Partition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
 }
 
 func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, error) {
@@ -620,11 +620,9 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		sem = make(chan struct{}, s.metadata.ConcurrencyLimit)
 	}
 
-	for {
+	for ctx.Err() == nil {
 		// If the context is canceled, stop requesting messages
-		if ctx.Err() != nil {
-			break
-		}
+
 		// Internally, by default, aws go sdk performs 3 retries with exponential backoff to contact
 		// sqs and try pull messages. Since we are iteratively short polling (based on the defined
 		// s.metadata.messageWaitTimeSeconds) the sdk backoff is not effective as it gets reset per each polling
@@ -825,7 +823,7 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	if len(s.metadata.SqsDeadLettersQueueName) > 0 {
 		deadLettersQueueInfo, derr = s.getOrCreateQueue(ctx, s.metadata.SqsDeadLettersQueueName)
 		if derr != nil {
-			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
+			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", derr)
 			s.logger.Error(wrappedErr)
 
 			return wrappedErr
@@ -910,6 +908,6 @@ func (s *snsSqs) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (s *snsSqs) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsSqsMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

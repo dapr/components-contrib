@@ -64,7 +64,11 @@ const (
 	respRowsAffectedKey = "rows-affected"
 	respEndTimeKey      = "end-time"
 	respDurationKey     = "duration"
+
+	jsonType = "JSON"
 )
+
+var rawByteType = reflect.TypeOf(&sql.RawBytes{})
 
 // Mysql represents MySQL output bindings.
 type Mysql struct {
@@ -234,7 +238,7 @@ func (m *Mysql) Close() error {
 	}
 
 	if m.db != nil {
-		m.db.Close()
+		_ = m.db.Close()
 		m.db = nil
 	}
 
@@ -330,6 +334,10 @@ func (m *Mysql) jsonify(rows *sql.Rows) ([]byte, error) {
 func prepareValues(columnTypes []*sql.ColumnType) []any {
 	types := make([]reflect.Type, len(columnTypes))
 	for i, tp := range columnTypes {
+		if tp.DatabaseTypeName() == jsonType {
+			types[i] = rawByteType
+			continue
+		}
 		types[i] = tp.ScanType()
 	}
 
@@ -373,6 +381,6 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []any) map[string]
 // GetComponentMetadata returns the metadata of the component.
 func (m *Mysql) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mysqlMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

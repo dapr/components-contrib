@@ -37,6 +37,7 @@ type Huggingface struct {
 func NewHuggingface(logger logger.Logger) conversation.Conversation {
 	h := &Huggingface{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return h
@@ -54,7 +55,6 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetHuggingFaceModel(m.Model)
-
 	endpoint := strings.Replace(defaultEndpoint, "{{model}}", model, 1)
 	if m.Endpoint != "" {
 		endpoint = m.Endpoint
@@ -62,26 +62,23 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
-	options := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(m.Key),
-		openai.WithBaseURL(endpoint),
-	}
+	options := conversation.BuildOpenAIClientOptions(model, m.Key, endpoint)
 
 	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}
 
-	h.LLM.Model = llm
+	h.Model = llm
+	h.SetModel(model)
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, h.LLM.Model)
+	if m.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		h.LLM.Model = cachedModel
+		h.Model = cachedModel
 	}
 
 	return nil
@@ -89,7 +86,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 func (h *Huggingface) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

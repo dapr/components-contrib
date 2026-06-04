@@ -16,11 +16,14 @@ package pulsar
 import (
 	"time"
 
+	goavro "github.com/linkedin/goavro/v2"
+
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 )
 
 type pulsarMetadata struct {
 	Host                             string                    `mapstructure:"host"`
+	ListenerName                     string                    `mapstructure:"listenerName"`
 	ConsumerID                       string                    `mapstructure:"consumerID"`
 	EnableTLS                        bool                      `mapstructure:"enableTLS"`
 	DisableBatching                  bool                      `mapstructure:"disableBatching"`
@@ -36,6 +39,7 @@ type pulsarMetadata struct {
 	PrivateKey                       string                    `mapstructure:"privateKey"`
 	Keys                             string                    `mapstructure:"keys"`
 	MaxConcurrentHandlers            uint                      `mapstructure:"maxConcurrentHandlers"`
+	ProcessMode                      string                    `mapstructure:"processMode"`
 	ReceiverQueueSize                int                       `mapstructure:"receiverQueueSize"`
 	SubscriptionType                 string                    `mapstructure:"subscribeType"`
 	SubscriptionInitialPosition      string                    `mapstructure:"subscribeInitialPosition"`
@@ -48,6 +52,10 @@ type pulsarMetadata struct {
 }
 
 type schemaMetadata struct {
-	protocol string
-	value    string
+	protocol  string
+	value     string        // inner schema JSON (user-provided)
+	codec     *goavro.Codec // cached goavro codec for inner schema, compiled once at init
+	ceValue   string        // CloudEvents envelope schema JSON (generated)
+	ceCodec   *goavro.Codec // cached goavro codec for CE envelope schema
+	rawSchema bool          // true when topic is configured with .rawschema=true
 }

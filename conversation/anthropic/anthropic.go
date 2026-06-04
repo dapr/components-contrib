@@ -16,7 +16,9 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
@@ -27,6 +29,8 @@ import (
 	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
+const apiTypeFoundry = "foundry"
+
 type Anthropic struct {
 	langchaingokit.LLM
 
@@ -36,46 +40,71 @@ type Anthropic struct {
 func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	a := &Anthropic{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return a
 }
 
-func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
-	m := conversation.LangchainMetadata{}
-	err := kmeta.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		return err
-	}
+func (a *Anthropic) buildClientOptions(md AnthropicLangchainMetadata) (string, []anthropic.Option, error) {
+	model := conversation.GetAnthropicModel(md.Model)
 
-	// Resolve model via central helper (uses metadata, then env var, then default)
-	model := conversation.GetAnthropicModel(m.Model)
-
-	llm, err := anthropic.New(
+	options := []anthropic.Option{
 		anthropic.WithModel(model),
-		anthropic.WithToken(m.Key),
-	)
+		anthropic.WithToken(md.Key),
+	}
+
+	if strings.EqualFold(md.APIType, apiTypeFoundry) {
+		if md.Endpoint == "" {
+			return "", nil, errors.New("endpoint must be provided when apiType is set to 'foundry'")
+		}
+		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
+	} else if md.Endpoint != "" {
+		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
+	}
+
+	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
+		options = append(options, anthropic.WithHTTPClient(httpClient))
+	}
+
+	return model, options, nil
+}
+
+func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
+	md := AnthropicLangchainMetadata{}
+	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
 	}
 
-	a.LLM.Model = llm
+	model, options, err := a.buildClientOptions(md)
+	if err != nil {
+		return err
+	}
 
-	if m.CacheTTL != "" {
-		cachedModel, cacheErr := conversation.CacheModel(ctx, m.CacheTTL, a.LLM.Model)
+	llm, err := anthropic.New(options...)
+	if err != nil {
+		return err
+	}
+
+	a.Model = llm
+	a.SetModel(model)
+
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, a.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		a.LLM.Model = cachedModel
+		a.Model = cachedModel
 	}
 
 	return nil
 }
 
 func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	metadataStruct := AnthropicLangchainMetadata{}
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

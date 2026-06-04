@@ -15,7 +15,7 @@ components:
       # This component requires etags to be numeric
       badEtag: "9999999"
   - component: mongodb
-    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl", "actorStateStore", "keyslike" ]
   - component: memcached
     operations: [ "ttl" ]
   - component: azure.cosmosdb
@@ -121,3 +121,5 @@ components:
     operations: []
   - component: gcp.firestore.cloud
     operations: []
+  - component: ravendb
+    operations: [ "first-write", "etag", "ttl", "transaction" ]

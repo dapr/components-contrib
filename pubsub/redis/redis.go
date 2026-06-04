@@ -85,6 +85,10 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
+
+	if r.clientSettings.MaxLenApprox > 0 && r.clientSettings.StreamTTL > 0 {
+		r.logger.Warn("redis streams: maxLenApprox and streamTTL cannot be used together; only one stream trimming strategy can be active at a time.")
+	}
 	r.queue = make(chan redisMessageWrapper, int(r.clientSettings.QueueDepth)) //nolint:gosec
 
 	for range r.clientSettings.Concurrency {
@@ -226,7 +230,7 @@ func (r *redisStreams) worker() {
 			return
 
 		case msg := <-r.queue:
-			r.processMessage(msg)
+			_ = r.processMessage(msg) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 }
@@ -245,8 +249,16 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	}
 	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
+		if ctx.Err() != nil {
+			// If the subscription context is cancelled (shutdown/timeout), skip ACK so Redis can redeliver after restart.
+			return err
+		}
+		if err := r.client.XAck(ctx, msg.message.Topic, r.clientSettings.ConsumerID, msg.messageID); err != nil {
+			r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
 
-		return err
+			return err
+		}
+		return nil
 	}
 
 	// Use the background context in case subscriptionCtx is already closed.
@@ -272,11 +284,11 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 		//nolint:gosec
 		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), time.Duration(r.clientSettings.ReadTimeout))
 		if err != nil {
-			if !errors.Is(err, r.client.GetNilValueError()) && err != context.Canceled {
+			if !r.client.IsNilValueError(err) && err != context.Canceled {
 				if strings.Contains(err.Error(), "NOGROUP") {
 					r.logger.Warnf("redis streams: consumer group %s does not exist for stream %s. This could mean the server experienced data loss, or the group/stream was deleted.", r.clientSettings.ConsumerID, stream)
 					r.logger.Warnf("redis streams: recreating group %s for stream %s", r.clientSettings.ConsumerID, stream)
-					r.CreateConsumerGroup(ctx, stream)
+					_ = r.CreateConsumerGroup(ctx, stream) //nolint:errcheck // legacy behavior preserved
 				}
 				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			}
@@ -327,7 +339,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			"+",
 			int64(r.clientSettings.QueueDepth), //nolint:gosec
 		)
-		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
+		if err != nil && !r.client.IsNilValueError(err) {
 			r.logger.Errorf("error retrieving pending Redis messages: %v", err)
 
 			break
@@ -354,7 +366,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			r.clientSettings.ProcessingTimeout,
 			msgIDs,
 		)
-		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
+		if err != nil && !r.client.IsNilValueError(err) {
 			r.logger.Errorf("error claiming pending Redis messages: %v", err)
 
 			break
@@ -366,7 +378,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 		// If the Redis nil error is returned, it means somes message in the pending
 		// state no longer exist. We need to acknowledge these messages to
 		// remove them from the pending list.
-		if errors.Is(err, r.client.GetNilValueError()) {
+		if r.client.IsNilValueError(err) {
 			// Build a set of message IDs that were not returned
 			// that potentially no longer exist.
 			expectedMsgIDs := make(map[string]struct{}, len(msgIDs))
@@ -394,14 +406,14 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 			0,
 			[]string{pendingID},
 		)
-		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
+		if err != nil && !r.client.IsNilValueError(err) {
 			r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
 
 			continue
 		}
 
 		// Ack the message to remove it from the pending list.
-		if errors.Is(err, r.client.GetNilValueError()) {
+		if r.client.IsNilValueError(err) {
 			// Use the background context in case subscriptionCtx is already closed.
 			if err = r.client.XAck(context.Background(), stream, r.clientSettings.ConsumerID, pendingID); err != nil {
 				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
@@ -439,6 +451,6 @@ func (r *redisStreams) Ping(ctx context.Context) error {
 
 func (r *redisStreams) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

@@ -411,7 +411,7 @@ func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]
 // GetComponentMetadata returns the metadata of the component.
 func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := gcpMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

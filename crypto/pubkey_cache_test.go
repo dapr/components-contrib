@@ -211,14 +211,6 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 					return cache.pubKeys["key"].ctx.Size() == 2
 				}, time.Second*5, time.Millisecond)
 
-				t.Cleanup(func() {
-					select {
-					case <-getKeyReturned:
-					case <-time.After(1 * time.Second):
-						assert.Fail(t, "expected GetKey to return from cancelled context in time")
-					}
-				})
-
 				assert.Equal(t, "key", i)
 				cancel1(assert.AnError)
 				select {
@@ -240,6 +232,16 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		result, err := cache.GetKey(ctx1, "key")
 		assert.Equal(t, context.Canceled, err)
 		assert.Nil(t, result)
+
+		// Wait for the background goroutine to finish before the test
+		// returns, otherwise t.Context() (used by ctx2) gets cancelled
+		// when the test function exits, causing a race where ctx2's
+		// GetKey sees a cancelled context instead of the resolved value.
+		select {
+		case <-getKeyReturned:
+		case <-time.After(5 * time.Second):
+			assert.Fail(t, "expected GetKey to return from cancelled context in time")
+		}
 	})
 
 	t.Run("if all callers give cancelled contexts, the underlying context should also be cancelled", func(t *testing.T) {

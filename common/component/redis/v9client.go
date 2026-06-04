@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"time"
 
@@ -83,7 +84,7 @@ func (c v9Client) Del(ctx context.Context, keys ...string) error {
 func (c v9Client) ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs) {
 	// enable notify-keyspace-events by redis Set command
 	// only subscribe to generic and string keyspace events
-	c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe")
+	_ = c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe") //nolint:errcheck // legacy behavior preserved
 
 	var p *v9.PubSub
 	if args.IsAllKeysChannel {
@@ -106,8 +107,8 @@ func (c v9Client) Get(ctx context.Context, key string) (string, error) {
 	return c.client.Get(ctx, key).Result()
 }
 
-func (c v9Client) GetNilValueError() RedisError {
-	return RedisError(v9.Nil.Error())
+func (c v9Client) IsNilValueError(err error) bool {
+	return errors.Is(err, v9.Nil)
 }
 
 func (c v9Client) Context() context.Context {
@@ -351,7 +352,7 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	/* #nosec */
 	if s.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.InsecureSkipTLSVerify,
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -410,7 +411,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		if s.EnableTLS {
 			/* #nosec */
 			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
+				InsecureSkipVerify: s.InsecureSkipTLSVerify,
 			}
 			err := s.SetCertificate(func(cert *tls.Certificate) {
 				options.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -450,7 +451,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 	if s.EnableTLS {
 		/* #nosec */
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.InsecureSkipTLSVerify,
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}

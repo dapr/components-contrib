@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"time"
 
@@ -75,7 +76,7 @@ func (c v8Client) DoRead(ctx context.Context, args ...interface{}) (interface{},
 func (c v8Client) ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs) {
 	// enable notify-keyspace-events by redis Set command
 	// only subscribe to generic and string keyspace events
-	c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe")
+	_ = c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe") //nolint:errcheck // legacy behavior preserved
 
 	var p *v8.PubSub
 	if args.IsAllKeysChannel {
@@ -106,8 +107,8 @@ func (c v8Client) Get(ctx context.Context, key string) (string, error) {
 	return c.client.Get(ctx, key).Result()
 }
 
-func (c v8Client) GetNilValueError() RedisError {
-	return RedisError(v8.Nil.Error())
+func (c v8Client) IsNilValueError(err error) bool {
+	return errors.Is(err, v8.Nil)
 }
 
 func (c v8Client) Context() context.Context {
@@ -350,7 +351,7 @@ func newV8FailoverClient(s *Settings) (RedisClient, error) {
 
 	if s.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS, //nolint:gosec
+			InsecureSkipVerify: s.InsecureSkipTLSVerify, //nolint:gosec
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			opts.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -407,7 +408,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 		/* #nosec */
 		if s.EnableTLS {
 			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
+				InsecureSkipVerify: s.InsecureSkipTLSVerify,
 			}
 			err := s.SetCertificate(func(cert *tls.Certificate) {
 				options.TLSConfig.Certificates = []tls.Certificate{*cert}
@@ -447,7 +448,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 	/* #nosec */
 	if s.EnableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+			InsecureSkipVerify: s.InsecureSkipTLSVerify,
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}

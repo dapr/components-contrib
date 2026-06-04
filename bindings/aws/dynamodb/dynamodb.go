@@ -18,12 +18,12 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -31,9 +31,9 @@ import (
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
 type DynamoDB struct {
-	authProvider awsAuth.Provider
-	table        string
-	logger       logger.Logger
+	dynamodbClient awsCommon.DynamoDBClient
+	table          string
+	logger         logger.Logger
 }
 
 // TODO: the metadata fields need updating to use the builtin aws auth provider fully and reflect in metadata.yaml
@@ -58,7 +58,7 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	opts := awsAuth.Options{
+	opts := awsCommonAuth.Options{
 		Logger:       d.logger,
 		Properties:   metadata.Properties,
 		Region:       meta.Region,
@@ -68,11 +68,12 @@ func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SessionToken: meta.SessionToken,
 	}
 
-	provider, err := awsAuth.NewProvider(ctx, opts, awsAuth.GetConfig(opts))
+	awsConfig, err := awsCommon.NewConfig(ctx, opts)
 	if err != nil {
 		return err
 	}
-	d.authProvider = provider
+
+	d.dynamodbClient = dynamodb.NewFromConfig(awsConfig)
 	d.table = meta.Table
 
 	return nil
@@ -89,14 +90,14 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	item, err := dynamodbattribute.MarshalMap(obj)
+	item, err := attributevalue.MarshalMap(obj)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = d.authProvider.DynamoDB().DynamoDB.PutItemWithContext(ctx, &dynamodb.PutItemInput{
+	_, err = d.dynamodbClient.PutItem(ctx, &dynamodb.PutItemInput{
 		Item:      item,
-		TableName: aws.String(d.table),
+		TableName: &d.table,
 	})
 	if err != nil {
 		return nil, err
@@ -118,13 +119,14 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 // GetComponentMetadata returns the metadata of the component.
 func (d *DynamoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := dynamoDBMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	if err := metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType); err != nil {
+		if d != nil && d.logger != nil {
+			d.logger.Errorf("error getting component metadata: %v", err)
+		}
+	}
 	return
 }
 
 func (d *DynamoDB) Close() error {
-	if d.authProvider != nil {
-		return d.authProvider.Close()
-	}
 	return nil
 }

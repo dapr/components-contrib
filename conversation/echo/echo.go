@@ -17,7 +17,6 @@ package echo
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,12 +26,10 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	kmeta "github.com/dapr/kit/metadata"
 )
 
 // Echo implement is only for test.
 type Echo struct {
-	model  string
 	logger logger.Logger
 }
 
@@ -45,29 +42,36 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 }
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
-	r := &conversation.Request{}
-	err := kmeta.DecodeMetadata(meta.Properties, r)
-	if err != nil {
-		return err
-	}
-
-	e.model = r.Model
-
+	// Echo component has no metadata
 	return nil
 }
 
 func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.Request{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	// Echo component has no metadata
 	return
+}
+
+// approximateTokensFromWords estimates the number of tokens based on word count.
+// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
+func approximateTokensFromWords(text string) uint64 {
+	if text == "" {
+		return 0
+	}
+
+	// split on whitespace to count words
+	return uint64(len(strings.Fields(text)))
 }
 
 // Converse returns one output per input message.
 func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	if r == nil || r.Message == nil {
+		var conversationContext string
+		if r != nil {
+			conversationContext = r.ConversationContext
+		}
 		return &conversation.Response{
-			ConversationContext: r.ConversationContext,
 			Outputs:             []conversation.Result{},
+			ConversationContext: conversationContext,
 		}, nil
 	}
 
@@ -139,6 +143,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		}
 	}
 
+	responseContent := strings.Join(contentFromMessaged, "\n")
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
 		stopReason = "tool_calls"
@@ -148,7 +153,7 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
-			Content: strings.Join(contentFromMessaged, "\n"),
+			Content: responseContent,
 		},
 	}
 
@@ -161,9 +166,17 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
+	tokenCount := approximateTokensFromWords(responseContent)
+	usage := &conversation.Usage{
+		CompletionTokens: tokenCount,
+		PromptTokens:     tokenCount,
+		TotalTokens:      tokenCount + tokenCount,
+	}
+
 	res = &conversation.Response{
 		ConversationContext: r.ConversationContext,
 		Outputs:             []conversation.Result{output},
+		Usage:               usage,
 	}
 
 	return res, nil

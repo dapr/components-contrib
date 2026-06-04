@@ -70,7 +70,7 @@ type RedisPipeliner interface {
 
 //nolint:interfacebloat
 type RedisClient interface {
-	GetNilValueError() RedisError
+	IsNilValueError(error) bool
 	Context() context.Context
 	DoRead(ctx context.Context, args ...interface{}) (interface{}, error)
 	DoWrite(ctx context.Context, args ...interface{}) error
@@ -270,8 +270,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				authErr := kitretry.NotifyRecover(
 					func() error {
-						var innerAuthErr error
-						innerAuthErr = client.AuthACL(ctx, username, token.Token)
+						var innerAuthErr = client.AuthACL(ctx, username, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,

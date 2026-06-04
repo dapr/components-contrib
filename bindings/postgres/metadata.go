@@ -17,8 +17,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	"github.com/dapr/components-contrib/common/aws"
 	kitmd "github.com/dapr/kit/metadata"
 )
 
@@ -34,7 +34,7 @@ type psqlMetadata struct {
 
 func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.Timeout = defaultTimeout
 
 	err := kitmd.DecodeMetadata(meta, &m)

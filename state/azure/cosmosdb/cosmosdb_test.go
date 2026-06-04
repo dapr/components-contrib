@@ -241,7 +241,7 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		assert.Truef(t, ok, "value should be a string")
 		assert.NotContains(t, j, "ttl")
-		assert.Equal(t, "", m)
+		assert.Empty(t, m)
 	})
 
 	t.Run("create item with empty string data and string content type", func(t *testing.T) {
@@ -273,7 +273,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		assert.Truef(t, ok, "value should be a string")
 		assert.NotContains(t, j, "ttl")
 
-		assert.Equal(t, "", m)
+		assert.Empty(t, m)
 	})
 }
 

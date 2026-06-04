@@ -17,8 +17,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	"github.com/dapr/components-contrib/common/aws"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
@@ -48,7 +48,7 @@ type pgMetadata struct {
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, opts pgauth.InitWithMetadataOpts) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.TablePrefix = ""
 	m.MetadataTableName = "dapr_metadata"
 	m.CleanupInterval = ptr.Of(defaultCleanupInternal)

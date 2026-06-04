@@ -43,6 +43,7 @@ const (
 func NewDeepseek(logger logger.Logger) conversation.Conversation {
 	o := &Deepseek{
 		logger: logger,
+		LLM:    langchaingokit.New(logger),
 	}
 
 	return o
@@ -63,25 +64,21 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 		md.Endpoint = defaultEndpoint
 	}
 
-	options := []openai.Option{
-		openai.WithModel(model),
-		openai.WithToken(md.Key),
-		openai.WithBaseURL(md.Endpoint),
-	}
-
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
 	llm, err := openai.New(options...)
 	if err != nil {
 		return err
 	}
 
-	d.LLM.Model = llm
+	d.Model = llm
+	d.SetModel(model)
 	d.md = md
 	return nil
 }
 
 func (d *Deepseek) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := DeepseekMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

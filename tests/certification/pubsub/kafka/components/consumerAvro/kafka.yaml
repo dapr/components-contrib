@@ -17,5 +17,7 @@ spec:
     value: oldest
   - name: backOffDuration
     value: 50ms
+  - name: clientConnectionTopicMetadataRefreshInterval
+    value: 15s
   - name: schemaRegistryURL
     value: http://localhost:8081

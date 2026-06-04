@@ -299,7 +299,7 @@ func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
 		bo := m.backOff
 		if m.metadata.BackOffMaxRetries >= 0 {
-			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries)) //nolint:gosec
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries))
 		}
 
 		err := retry.NotifyRecover(
@@ -386,6 +386,6 @@ func (m *MQTT) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (m *MQTT) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mqtt3Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

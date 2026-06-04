@@ -72,6 +72,9 @@ type Kafka struct {
 	latestSchemaCacheWriteLock sync.RWMutex
 	latestSchemaCacheReadLock  sync.Mutex
 
+	// Whether to encode/decode Avro into Avro JSON or standard JSON
+	useAvroJSON bool
+
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
 	internalContextCancel func()
@@ -161,6 +164,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.ChannelBufferSize = meta.channelBufferSize
 
 	config.Producer.Compression = meta.internalCompression
+	config.Producer.Partitioner = newDaprPartitioner
 
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval
@@ -234,6 +238,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
 		k.srClient.CodecCreationEnabled(true)
 		k.srClient.CodecJsonEnabled(!meta.UseAvroJSON)
+		k.useAvroJSON = meta.UseAvroJSON
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {
 			k.srClient.SetCredentials(meta.SchemaRegistryAPIKey, meta.SchemaRegistryAPISecret)
@@ -312,6 +317,38 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 		TrustProfileArn:       metadata["trustProfileArn"],
 		Properties:            metadata,
 	}, nil
+}
+
+// Pause stops fetching new messages from the broker for all active
+// subscriptions on this component. The Sarama session and partition
+// assignments are preserved so messages already buffered in claim queues can
+// still be processed by handlers. Idempotent.
+func (k *Kafka) Pause(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
+	if k.clients != nil && k.clients.consumerGroup != nil {
+		k.logger.Debugf("Pausing all subscriptions")
+		k.clients.consumerGroup.PauseAll()
+	}
+	return nil
+}
+
+// Resume resumes fetching new messages from the broker for all active
+// subscriptions on this component. Idempotent.
+func (k *Kafka) Resume(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
+	if k.clients != nil && k.clients.consumerGroup != nil {
+		k.logger.Debugf("Resuming all subscriptions")
+		k.clients.consumerGroup.ResumeAll()
+	}
+	return nil
 }
 
 func (k *Kafka) Close() error {
@@ -411,18 +448,27 @@ func (k *Kafka) getLatestSchema(topic string) (*srclient.Schema, *goavro.Codec, 
 		if errSchema != nil {
 			return nil, nil, errSchema
 		}
-		codec := schema.Codec()
 
+		codec, errCodec := k.getCodec(schema)
+		if errCodec != nil {
+			return nil, nil, errCodec
+		}
+		defer k.latestSchemaCacheWriteLock.Unlock()
 		k.latestSchemaCacheWriteLock.Lock()
 		k.latestSchemaCache[subject] = SchemaCacheEntry{schema: schema, codec: codec, expirationTime: time.Now().Add(k.latestSchemaCacheTTL)}
-		k.latestSchemaCacheWriteLock.Unlock()
+
 		return schema, codec, nil
 	}
 	schema, err := srClient.GetLatestSchema(getSchemaSubject(topic))
 	if err != nil {
 		return nil, nil, err
 	}
-	return schema, schema.Codec(), nil
+	codec, errCodec := k.getCodec(schema)
+	if errCodec != nil {
+		return nil, nil, errCodec
+	}
+
+	return schema, codec, nil
 }
 
 func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error) {
@@ -431,6 +477,17 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 	}
 
 	return k.srClient, nil
+}
+
+func (k *Kafka) getCodec(schema *srclient.Schema) (*goavro.Codec, error) {
+	// The data coming through is either Avro JSON or standard JSON.
+	// Force creation of a new codec instance for serialization and deserialization to avoid state mutation issues.
+	// https://github.com/linkedin/goavro/issues/299
+	// Once the bug is fixed, we can remove this and use the codec directly from schema.Codec()
+	if k.useAvroJSON {
+		return goavro.NewCodec(schema.Schema())
+	}
+	return goavro.NewCodecForStandardJSONFull(schema.Schema())
 }
 
 func (k *Kafka) SerializeValue(topic string, data []byte, metadata map[string]string) ([]byte, error) {

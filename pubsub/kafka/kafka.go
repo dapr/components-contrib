@@ -138,6 +138,24 @@ func (p *PubSub) Close() (err error) {
 	return p.kafka.Close()
 }
 
+// Pause implements pubsub.PausableSubscriber. It stops fetching new messages
+// from the broker for all active subscriptions; messages already buffered
+// can still be processed.
+func (p *PubSub) Pause(ctx context.Context) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+	return p.kafka.Pause(ctx)
+}
+
+// Resume implements pubsub.PausableSubscriber.
+func (p *PubSub) Resume(ctx context.Context) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+	return p.kafka.Resume(ctx)
+}
+
 func (p *PubSub) Features() []pubsub.Feature {
 	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
@@ -155,7 +173,7 @@ func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 
 func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 	return func(ctx context.Context, event *kafka.KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
-		messages := make([]pubsub.BulkMessageEntry, 0)
+		messages := make([]pubsub.BulkMessageEntry, 0, len(event.Entries))
 		for _, leafEvent := range event.Entries {
 			message := pubsub.BulkMessageEntry{
 				EntryId:     leafEvent.EntryId,
@@ -177,6 +195,6 @@ func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 // GetComponentMetadata returns the metadata of the component.
 func (p *PubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := kafka.KafkaMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
 }

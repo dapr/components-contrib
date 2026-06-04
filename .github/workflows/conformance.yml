@@ -22,7 +22,6 @@ on:
   push:
     branches:
       - 'release-*'
-      - 'gh-readonly-queue/main/*'
   pull_request:
     branches:
       - 'main'
@@ -37,6 +36,10 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-22.04
     steps:
+    - name: Set default checkout ref
+      run: |
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
       working-directory: ${{ github.workspace }}
@@ -113,7 +116,7 @@ jobs:
       working-directory: ${{ github.workspace }}
       run: |
         echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
-        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.sha }}" >> $GITHUB_ENV
 
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
@@ -225,12 +228,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
-
-    - name: Set RavenDB env vars
-      if: matrix.require-ravendb-credentials == 'true'
-      run: |
-        echo "::add-mask::${{ secrets.RAVENDBLICENSE }}"
-        echo "RAVENDBLICENSE=${{ secrets.RAVENDBLICENSE }}" >> $GITHUB_ENV
 
     - name: Start MongoDB
       if: matrix.mongodb-version != ''
@@ -395,13 +392,16 @@ jobs:
         continue-on-error: true
         id: testresults
         with:
-          # name: not being specified which will result in all artifacts being downloaded
+          # Download all per-component result file artifacts and flatten them
+          # into a single directory.
+          pattern: '*_result_files'
+          merge-multiple: true
           path: tmp/result_files
 
       - name: Build message
         if: always() && env.PR_NUMBER != ''
         # Abusing of the github-script action to be able to write this in JS
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')

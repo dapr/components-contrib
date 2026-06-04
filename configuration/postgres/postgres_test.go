@@ -14,15 +14,27 @@ limitations under the License.
 package postgres
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"regexp"
+	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/configuration"
+	metadatapkg "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func TestSelectAllQuery(t *testing.T) {
@@ -114,4 +126,263 @@ func TestValidateInput(t *testing.T) {
 
 	keys3 := []string{"Name 1=1"}
 	require.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
+}
+
+func TestMetadataNotifyChannel(t *testing.T) {
+	t.Run("custom notifyChannel is parsed correctly", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "myconfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Equal(t, "myconfig", m.NotifyChannel)
+	})
+
+	t.Run("legacy pgNotifyChannel alias is parsed correctly", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"pgNotifyChannel":  "myconfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Equal(t, "myconfig", m.NotifyChannel)
+	})
+
+	t.Run("missing notifyChannel is allowed at init", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+		}
+		err := m.InitWithMetadata(props)
+		require.NoError(t, err)
+		assert.Empty(t, m.NotifyChannel)
+	})
+
+	t.Run("invalid NotifyChannel with uppercase fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "MyConfig",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
+	})
+
+	t.Run("invalid notifyChannel with special chars fails", func(t *testing.T) {
+		m := metadata{}
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    "config; DROP TABLE--",
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid notifyChannel name")
+	})
+
+	t.Run("notifyChannel exceeding max length fails", func(t *testing.T) {
+		m := metadata{}
+		longName := strings.Repeat("a", maxIdentifierLength+1)
+		props := map[string]string{
+			"connectionString": "host=localhost user=postgres password=example port=5432 database=testdb",
+			"table":            "configtable",
+			"notifyChannel":    longName,
+		}
+		err := m.InitWithMetadata(props)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "notifyChannel name is too long")
+	})
+}
+
+func TestSubscribeNotifyChannelPrecedence(t *testing.T) {
+	// newStore creates a minimal ConfigurationStore with metadata set but no
+	// DB connection. This is sufficient to exercise the channel resolution and
+	// validation logic in Subscribe, which runs before any DB call.
+	newStore := func(componentChannel string) *ConfigurationStore {
+		return &ConfigurationStore{
+			metadata: metadata{
+				ConfigTable:   "cfgtbl",
+				NotifyChannel: componentChannel,
+			},
+			ActiveSubscriptions: make(map[string]*subscription),
+		}
+	}
+
+	t.Run("component metadata takes precedence over request pgNotifyChannel", func(t *testing.T) {
+		store := newStore("COMPONENT_UPPER")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys: []string{"key1"},
+				Metadata: map[string]string{
+					"pgNotifyChannel": "validlegacy",
+				},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "COMPONENT_UPPER", "expected component metadata to take precedence")
+	})
+
+	t.Run("legacy pgNotifyChannel in request is used when component metadata is empty", func(t *testing.T) {
+		store := newStore("")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys: []string{"key1"},
+				Metadata: map[string]string{
+					"pgNotifyChannel": "LEGACY_UPPER",
+				},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "LEGACY_UPPER", "expected the legacy key value to be used")
+	})
+
+	t.Run("component metadata is used when no request metadata keys set", func(t *testing.T) {
+		store := newStore("COMPONENT_UPPER")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys:     []string{"key1"},
+				Metadata: map[string]string{},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "COMPONENT_UPPER", "expected the component metadata value to be used")
+	})
+
+	t.Run("error when no channel set anywhere", func(t *testing.T) {
+		store := newStore("")
+		_, err := store.Subscribe(t.Context(),
+			&configuration.SubscribeRequest{
+				Keys:     []string{"key1"},
+				Metadata: map[string]string{},
+			}, func(ctx context.Context, e *configuration.UpdateEvent) error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "notifyChannel must be set")
+	})
+}
+
+func TestPostgresConfigurationWithIAM(t *testing.T) {
+	// testcontainers spins up Linux containers (moto, postgres) that rely on the
+	// bridge network driver. On Windows, Docker runs in Windows-container mode and
+	// does not ship the bridge plugin, so container creation fails even when the
+	// Docker daemon is reachable. Skip explicitly rather than letting the test hang
+	// or produce a confusing "plugin not found" error.
+	if runtime.GOOS != "linux" {
+		t.Skip("testcontainers bridge network unavailable on non-Linux platforms")
+	}
+
+	ctx := t.Context()
+
+	// Testing use of moto to mock AWS services for IAM authentication
+	motoContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "motoserver/moto:5.1.19",
+			ExposedPorts: []string{"5000/tcp"},
+			WaitingFor:   wait.ForLog("Running on http://127.0.0.1:5000"),
+		},
+		Started: true,
+	})
+	require.NoError(t, err)
+	defer func() { _ = motoContainer.Terminate(ctx) }()
+
+	motoHost, err := motoContainer.Host(ctx)
+	require.NoError(t, err)
+	motoPort, err := motoContainer.MappedPort(ctx, "5000")
+	require.NoError(t, err)
+	motoURL := "http://" + net.JoinHostPort(motoHost, motoPort.Port())
+
+	t.Setenv("AWS_ENDPOINT_URL", motoURL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "testing")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "testing")
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	pgContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "postgres:18",
+			ExposedPorts: []string{"5432/tcp"},
+			Env: map[string]string{
+				"POSTGRES_PASSWORD": "password",
+				"POSTGRES_DB":       "testdb",
+			},
+			WaitingFor: wait.ForAll(
+				wait.ForListeningPort("5432/tcp"),
+				wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			),
+		},
+		Started: true,
+	})
+	require.NoError(t, err)
+	defer func() { _ = pgContainer.Terminate(ctx) }()
+
+	pgHost, err := pgContainer.Host(ctx)
+	require.NoError(t, err)
+	pgPort, err := pgContainer.MappedPort(ctx, "5432")
+	require.NoError(t, err)
+
+	pgConnString := "postgres://postgres:password@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable"
+
+	pgConn, err := pgx.Connect(ctx, pgConnString)
+	require.NoError(t, err)
+	defer func() { _ = pgConn.Close(ctx) }()
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	require.NoError(t, err)
+
+	token, err := auth.BuildAuthToken(ctx, net.JoinHostPort(pgHost, pgPort.Port()), "us-east-1", "testuser", cfg.Credentials)
+	require.NoError(t, err)
+
+	_, err = pgConn.Exec(ctx, fmt.Sprintf("CREATE USER testuser WITH PASSWORD '%s'", token))
+	require.NoError(t, err)
+
+	_, err = pgConn.Exec(ctx, "CREATE TABLE config_table (key TEXT PRIMARY KEY, value TEXT, version TEXT, metadata JSONB)")
+	require.NoError(t, err)
+
+	_, err = pgConn.Exec(ctx, "GRANT ALL ON config_table TO testuser")
+	require.NoError(t, err)
+
+	t.Run("Valid IAM Authentication", func(t *testing.T) {
+		metadata := map[string]string{
+			"connectionString": "postgres://testuser@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable",
+			"table":            "config_table",
+			"useAWSIAM":        "true",
+			"awsRegion":        "us-east-1",
+			"awsAccessKey":     "testing",
+			"awsSecretKey":     "testing",
+		}
+
+		store := NewPostgresConfigurationStore(logger.NewLogger("test"))
+		err := store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
+		require.NoError(t, err)
+
+		t.Run("Get Request", func(t *testing.T) {
+			resp, err2 := store.Get(ctx, &configuration.GetRequest{})
+			require.NoError(t, err2)
+			assert.Empty(t, resp.Items)
+		})
+
+		err = store.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("Invalid IAM Authentication", func(t *testing.T) {
+		metadata := map[string]string{
+			"connectionString": "postgres://testuser@" + net.JoinHostPort(pgHost, pgPort.Port()) + "/testdb?sslmode=disable",
+			"table":            "config_table",
+			"useAWSIAM":        "true",
+			"awsRegion":        "us-east-1",
+			"awsAccessKey":     "testingincorrect",
+			"awsSecretKey":     "testingincorrect",
+		}
+
+		store := NewPostgresConfigurationStore(logger.NewLogger("test"))
+		err := store.Init(ctx, configuration.Metadata{Base: metadatapkg.Base{Properties: metadata}})
+		require.Error(t, err)
+
+		err = store.Close()
+		require.NoError(t, err)
+	})
 }

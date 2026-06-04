@@ -245,7 +245,7 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 
 	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
-		io.Copy(&b, httpresp.Body)
+		_, _ = io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 		if httpresp.StatusCode == http.StatusNotFound {
 			// handle not found error
@@ -363,7 +363,7 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 
 	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
-		io.Copy(&b, httpresp.Body)
+		_, _ = io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
 		return nil, fmt.Errorf("list keys couldn't get successful response, status code: %d, status: %s, response %s",
@@ -538,7 +538,7 @@ func (v *vaultSecretStore) Features() []secretstores.Feature {
 
 func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := VaultMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
 

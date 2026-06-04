@@ -77,10 +77,7 @@ func IsCloudEventProtobuf(contentType string, data []byte) bool {
 	if isContentType(contentType, ProtobufContentType) {
 		var e event.Event
 		err := ceproto.Protobuf.Unmarshal(data, &e)
-		if err != nil {
-			return false
-		}
-		return true
+		return err == nil
 	}
 	return false
 }

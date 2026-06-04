@@ -14,6 +14,7 @@ limitations under the License.
 package s3
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	b64 "encoding/base64"
@@ -25,16 +26,21 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	awsCommon "github.com/dapr/components-contrib/common/aws"
+	awsCommonAuth "github.com/dapr/components-contrib/common/aws/auth"
 	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -54,15 +60,22 @@ const (
 	metatadataContentType = "Content-Type"
 	metadataKey           = "key"
 
-	defaultMaxResults = 1000
-	presignOperation  = "presign"
+	defaultMaxResults      = 1000
+	presignOperation       = "presign"
+	bulkGetOperation       = "bulkGet"
+	bulkCreateOperation    = "bulkCreate"
+	bulkDeleteOperation    = "bulkDelete"
+	defaultBulkConcurrency = 10
+	maxDeleteBatchSize     = 1000
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
 type AWSS3 struct {
-	metadata     *s3Metadata
-	authProvider awsAuth.Provider
-	logger       logger.Logger
+	metadata  *s3Metadata
+	s3Client  *s3.Client
+	tmClient  *transfermanager.Client
+	presigner *s3.PresignClient
+	logger    logger.Logger
 }
 
 type s3Metadata struct {
@@ -101,29 +114,42 @@ type listPayload struct {
 	Delimiter  string `json:"delimiter"`
 }
 
+type bulkGetItem struct {
+	Key      string  `json:"key"`
+	FilePath *string `json:"filePath,omitempty"`
+}
+
+type bulkGetPayload struct {
+	Items       []bulkGetItem `json:"items"`
+	Concurrency *int          `json:"concurrency,omitempty"`
+}
+
+type bulkCreateItem struct {
+	Key         string  `json:"key"`
+	Data        *string `json:"data,omitempty"`
+	ContentType *string `json:"contentType,omitempty"`
+	FilePath    *string `json:"filePath,omitempty"`
+}
+
+type bulkCreatePayload struct {
+	Items       []bulkCreateItem `json:"items"`
+	Concurrency *int             `json:"concurrency,omitempty"`
+}
+
+type bulkDeletePayload struct {
+	Keys []string `json:"keys"`
+}
+
+type bulkItemResult struct {
+	Key      string `json:"key"`
+	Data     string `json:"data,omitempty"`
+	Location string `json:"location,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
 // NewAWSS3 returns a new AWSS3 instance.
 func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
-}
-
-func (s *AWSS3) getAWSConfig(opts awsAuth.Options) *aws.Config {
-	cfg := awsAuth.GetConfig(opts).WithS3ForcePathStyle(s.metadata.ForcePathStyle).WithDisableSSL(s.metadata.DisableSSL)
-
-	// Use a custom HTTP client to allow self-signed certs
-	if s.metadata.InsecureSSL {
-		customTransport := http.DefaultTransport.(*http.Transport).Clone()
-		customTransport.TLSClientConfig = &tls.Config{
-			//nolint:gosec
-			InsecureSkipVerify: true,
-		}
-		client := &http.Client{
-			Transport: customTransport,
-		}
-		cfg = cfg.WithHTTPClient(client)
-
-		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
-	}
-	return cfg
 }
 
 // Init does metadata parsing and connection creation.
@@ -134,7 +160,11 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 	s.metadata = m
 
-	opts := awsAuth.Options{
+	if s.metadata.DisableSSL && s.metadata.Endpoint != "" && !strings.HasPrefix(s.metadata.Endpoint, "http://") && !strings.HasPrefix(s.metadata.Endpoint, "https://") {
+		s.metadata.Endpoint = "http://" + s.metadata.Endpoint
+	}
+
+	configOpts := awsCommonAuth.Options{
 		Logger:       s.logger,
 		Properties:   metadata.Properties,
 		Region:       m.Region,
@@ -143,20 +173,38 @@ func (s *AWSS3) Init(ctx context.Context, metadata bindings.Metadata) error {
 		SecretKey:    m.SecretKey,
 		SessionToken: m.SessionToken,
 	}
-	// extra configs needed per component type
-	provider, err := awsAuth.NewProvider(ctx, opts, s.getAWSConfig(opts))
+
+	var awsCfg aws.Config
+	if s.metadata.InsecureSSL {
+		customTransport := http.DefaultTransport.(*http.Transport).Clone()
+		customTransport.TLSClientConfig = &tls.Config{
+			//nolint:gosec
+			InsecureSkipVerify: true,
+		}
+		client := &http.Client{Transport: customTransport}
+		awsCfg, err = awsCommon.NewConfig(ctx, configOpts, awsCommon.WithHTTPClient(client))
+		if err == nil {
+			s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
+		}
+	} else {
+		awsCfg, err = awsCommon.NewConfig(ctx, configOpts)
+	}
 	if err != nil {
 		return err
 	}
-	s.authProvider = provider
+
+	s.s3Client = s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.UsePathStyle = s.metadata.ForcePathStyle
+	})
+	// transfermanager for multipart/managed uploads
+	s.tmClient = transfermanager.New(s.s3Client)
+	s.presigner = s3.NewPresignClient(s.s3Client)
 
 	return nil
 }
 
 func (s *AWSS3) Close() error {
-	if s.authProvider != nil {
-		return s.authProvider.Close()
-	}
+	// nothing to cleanup
 	return nil
 }
 
@@ -167,6 +215,9 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 		bindings.DeleteOperation,
 		bindings.ListOperation,
 		presignOperation,
+		bulkGetOperation,
+		bulkCreateOperation,
+		bulkDeleteOperation,
 	}
 }
 
@@ -220,18 +271,35 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		storageClass = aws.String(metadata.StorageClass)
 	}
 
-	resultUpload, err := s.authProvider.S3().Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:       ptr.Of(metadata.Bucket),
-		Key:          ptr.Of(key),
-		Body:         r,
-		ContentType:  contentType,
-		StorageClass: storageClass,
-		Tagging:      tagging,
-	})
+	uploadIn := &transfermanager.UploadObjectInput{
+		Bucket: ptr.Of(metadata.Bucket),
+		Key:    ptr.Of(key),
+		Body:   r,
+	}
+	if contentType != nil {
+		uploadIn.ContentType = contentType
+	}
+	if storageClass != nil {
+		uploadIn.StorageClass = tmtypes.StorageClass(*storageClass)
+	}
+	if tagging != nil {
+		uploadIn.Tagging = tagging
+	}
+
+	uploadOut, err := s.tmClient.UploadObject(ctx, uploadIn)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
 	}
 
+	var uploadLocation *string
+	if uploadOut != nil {
+		uploadLocation = uploadOut.Location
+	}
+	resultLocation := s.buildLocation(uploadLocation, metadata.Bucket, key)
+	var versionID *string
+	if uploadOut != nil {
+		versionID = uploadOut.VersionID
+	}
 	var presignURL string
 	if metadata.PresignTTL != "" {
 		url, presignErr := s.presignObject(ctx, metadata.Bucket, key, metadata.PresignTTL)
@@ -243,8 +311,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	jsonResponse, err := json.Marshal(createResponse{
-		Location:   resultUpload.Location,
-		VersionID:  resultUpload.VersionID,
+		Location:   resultLocation,
+		VersionID:  versionID,
 		PresignURL: presignURL,
 	})
 	if err != nil {
@@ -296,16 +364,14 @@ func (s *AWSS3) presignObject(ctx context.Context, bucket, key, ttl string) (str
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
-	objReq, _ := s.authProvider.S3().S3.GetObjectRequest(&s3.GetObjectInput{
+	presignResult, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: ptr.Of(bucket),
 		Key:    ptr.Of(key),
-	})
-	url, err := objReq.Presign(d)
+	}, func(po *s3.PresignOptions) { po.Expires = d })
 	if err != nil {
 		return "", fmt.Errorf("s3 binding error: failed to presign URL: %w", err)
 	}
-
-	return url, nil
+	return presignResult.URL, nil
 }
 
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -319,28 +385,30 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
-	buff := &aws.WriteAtBuffer{}
-	_, err = s.authProvider.S3().Downloader.DownloadWithContext(ctx,
-		buff,
-		&s3.GetObjectInput{
-			Bucket: ptr.Of(s.metadata.Bucket),
-			Key:    ptr.Of(key),
-		},
-	)
+	resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: ptr.Of(s.metadata.Bucket),
+		Key:    ptr.Of(key),
+	})
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
+	defer resp.Body.Close()
+
+	dataBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error reading S3 object body: %w", err)
+	}
 
 	var data []byte
 	if metadata.EncodeBase64 {
-		encoded := b64.StdEncoding.EncodeToString(buff.Bytes())
+		encoded := b64.StdEncoding.EncodeToString(dataBytes)
 		data = []byte(encoded)
 	} else {
-		data = buff.Bytes()
+		data = dataBytes
 	}
 
 	return &bindings.InvokeResponse{
@@ -354,16 +422,13 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
-	_, err := s.authProvider.S3().S3.DeleteObjectWithContext(
-		ctx,
-		&s3.DeleteObjectInput{
-			Bucket: ptr.Of(s.metadata.Bucket),
-			Key:    ptr.Of(key),
-		},
-	)
+	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: ptr.Of(s.metadata.Bucket),
+		Key:    ptr.Of(key),
+	})
 	if err != nil {
-		var awsErr awserr.Error
-		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
 			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
@@ -383,9 +448,9 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if payload.MaxResults < 1 {
 		payload.MaxResults = defaultMaxResults
 	}
-	result, err := s.authProvider.S3().S3.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+	result, err := s.s3Client.ListObjects(ctx, &s3.ListObjectsInput{
 		Bucket:    ptr.Of(s.metadata.Bucket),
-		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
+		MaxKeys:   ptr.Of(payload.MaxResults),
 		Marker:    ptr.Of(payload.Marker),
 		Prefix:    ptr.Of(payload.Prefix),
 		Delimiter: ptr.Of(payload.Delimiter),
@@ -404,6 +469,328 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	}, nil
 }
 
+// resolveConcurrency validates and resolves the concurrency pointer.
+// Returns defaultBulkConcurrency if nil, or an error if the value is <= 0.
+func resolveConcurrency(c *int) (int, error) {
+	if c == nil {
+		return defaultBulkConcurrency, nil
+	}
+	if *c <= 0 {
+		return 0, fmt.Errorf("s3 binding error: concurrency must be greater than 0, got %d", *c)
+	}
+	return *c, nil
+}
+
+// buildLocation constructs the object URL from the upload output or falls back to endpoint/bucket/key conventions.
+func (s *AWSS3) buildLocation(uploadLocation *string, bucket, key string) string {
+	if uploadLocation != nil && *uploadLocation != "" {
+		return *uploadLocation
+	}
+	if s.metadata.Endpoint != "" {
+		ep := strings.TrimRight(s.metadata.Endpoint, "/")
+		return fmt.Sprintf("%s/%s/%s", ep, bucket, key)
+	}
+	if s.metadata.ForcePathStyle {
+		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", bucket, key)
+	}
+	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucket, key)
+}
+
+func (s *AWSS3) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+
+	var payload bulkGetPayload
+	if err = json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("s3 binding error: invalid bulkGet payload: %w", err)
+	}
+	if len(payload.Items) == 0 {
+		return nil, errors.New("s3 binding error: bulkGet requires at least one item")
+	}
+
+	concurrency, err := resolveConcurrency(payload.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]bulkItemResult, len(payload.Items))
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
+	for i, item := range payload.Items {
+		if item.Key == "" {
+			results[i] = bulkItemResult{Key: "", Error: "key is required"}
+			continue
+		}
+
+		wg.Add(1)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			results[i] = bulkItemResult{Key: item.Key, Error: ctx.Err().Error()}
+			wg.Done()
+			continue
+		}
+		go func(idx int, it bulkGetItem) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			resp, gerr := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: ptr.Of(metadata.Bucket),
+				Key:    ptr.Of(it.Key),
+			})
+			if gerr != nil {
+				var apiErr smithy.APIError
+				if errors.As(gerr, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
+					results[idx] = bulkItemResult{Key: it.Key, Error: "object not found"}
+				} else {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+				}
+				return
+			}
+			defer resp.Body.Close()
+
+			// If filePath is specified, stream directly to file
+			if it.FilePath != nil {
+				f, ferr := os.Create(*it.FilePath)
+				if ferr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: ferr.Error()}
+					return
+				}
+				defer f.Close()
+
+				var w io.Writer = f
+				if metadata.EncodeBase64 {
+					encoder := b64.NewEncoder(b64.StdEncoding, f)
+					w = encoder
+					defer func() {
+						if cerr := encoder.Close(); cerr != nil && results[idx].Error == "" {
+							results[idx].Error = cerr.Error()
+						}
+					}()
+				}
+
+				if _, gerr = io.Copy(w, resp.Body); gerr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+					return
+				}
+				results[idx] = bulkItemResult{Key: it.Key}
+				return
+			}
+
+			// No filePath: stream into buffer with optional base64 encoding
+			var buf bytes.Buffer
+			if metadata.EncodeBase64 {
+				encoder := b64.NewEncoder(b64.StdEncoding, &buf)
+				if _, gerr = io.Copy(encoder, resp.Body); gerr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+					return
+				}
+				if gerr = encoder.Close(); gerr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+					return
+				}
+			} else {
+				if _, gerr = io.Copy(&buf, resp.Body); gerr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: gerr.Error()}
+					return
+				}
+			}
+
+			results[idx] = bulkItemResult{Key: it.Key, Data: buf.String()}
+		}(i, item)
+	}
+	wg.Wait()
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error marshalling bulkGet response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{Data: jsonResponse}, nil
+}
+
+func (s *AWSS3) bulkCreate(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+
+	var payload bulkCreatePayload
+	if err = json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("s3 binding error: invalid bulkCreate payload: %w", err)
+	}
+	if len(payload.Items) == 0 {
+		return nil, errors.New("s3 binding error: bulkCreate requires at least one item")
+	}
+
+	concurrency, err := resolveConcurrency(payload.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]bulkItemResult, len(payload.Items))
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
+	for i, item := range payload.Items {
+		if item.Key == "" {
+			results[i] = bulkItemResult{Key: "", Error: "key is required"}
+			continue
+		}
+
+		wg.Add(1)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			results[i] = bulkItemResult{Key: item.Key, Error: ctx.Err().Error()}
+			wg.Done()
+			continue
+		}
+		go func(idx int, it bulkCreateItem) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			var r io.Reader
+			if it.FilePath != nil {
+				f, ferr := os.Open(*it.FilePath)
+				if ferr != nil {
+					results[idx] = bulkItemResult{Key: it.Key, Error: ferr.Error()}
+					return
+				}
+				defer f.Close()
+				r = f
+			} else if it.Data != nil {
+				r = strings.NewReader(*it.Data)
+			} else {
+				results[idx] = bulkItemResult{Key: it.Key, Error: "either data or filePath is required"}
+				return
+			}
+
+			if metadata.DecodeBase64 {
+				r = b64.NewDecoder(b64.StdEncoding, r)
+			}
+
+			uploadIn := &transfermanager.UploadObjectInput{
+				Bucket: ptr.Of(metadata.Bucket),
+				Key:    ptr.Of(it.Key),
+				Body:   r,
+			}
+			if it.ContentType != nil {
+				uploadIn.ContentType = it.ContentType
+			}
+
+			uploadOut, uerr := s.tmClient.UploadObject(ctx, uploadIn)
+			if uerr != nil {
+				results[idx] = bulkItemResult{Key: it.Key, Error: uerr.Error()}
+				return
+			}
+
+			var uploadLocation *string
+			if uploadOut != nil {
+				uploadLocation = uploadOut.Location
+			}
+			results[idx] = bulkItemResult{Key: it.Key, Location: s.buildLocation(uploadLocation, metadata.Bucket, it.Key)}
+		}(i, item)
+	}
+	wg.Wait()
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error marshalling bulkCreate response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{Data: jsonResponse}, nil
+}
+
+func (s *AWSS3) bulkDelete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+
+	var payload bulkDeletePayload
+	if err = json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("s3 binding error: invalid bulkDelete payload: %w", err)
+	}
+	if len(payload.Keys) == 0 {
+		return nil, errors.New("s3 binding error: bulkDelete requires at least one key")
+	}
+
+	results := make([]bulkItemResult, len(payload.Keys))
+	// Initialize results and validate keys; track valid keys for batching Build
+	// a key->indices map to handle duplicates correctly
+	keyIndices := make(map[string][]int, len(payload.Keys))
+	validKeys := make([]string, 0, len(payload.Keys))
+	for i, key := range payload.Keys {
+		results[i] = bulkItemResult{Key: key}
+		if strings.TrimSpace(key) == "" {
+			results[i].Error = "key is required"
+			continue
+		}
+		if _, exists := keyIndices[key]; !exists {
+			validKeys = append(validKeys, key)
+		}
+		keyIndices[key] = append(keyIndices[key], i)
+	}
+
+	// Process valid keys in batches of 1000 (S3 DeleteObjects limit)
+	for batchStart := 0; batchStart < len(validKeys); batchStart += maxDeleteBatchSize {
+		batchEnd := batchStart + maxDeleteBatchSize
+		if batchEnd > len(validKeys) {
+			batchEnd = len(validKeys)
+		}
+		batch := validKeys[batchStart:batchEnd]
+
+		objects := make([]s3types.ObjectIdentifier, len(batch))
+		for i, key := range batch {
+			objects[i] = s3types.ObjectIdentifier{Key: ptr.Of(key)}
+		}
+
+		var output *s3.DeleteObjectsOutput
+		output, err = s.s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: ptr.Of(metadata.Bucket),
+			Delete: &s3types.Delete{
+				Objects: objects,
+				Quiet:   ptr.Of(false),
+			},
+		})
+		if err != nil {
+			// If the entire batch call failed, mark all keys in this batch as failed
+			for _, key := range batch {
+				for _, idx := range keyIndices[key] {
+					results[idx].Error = err.Error()
+				}
+			}
+			continue
+		}
+
+		// Map individual errors from S3 response to all matching indices
+		if output != nil {
+			for _, s3err := range output.Errors {
+				if s3err.Key != nil {
+					msg := "unknown error"
+					if s3err.Message != nil {
+						msg = *s3err.Message
+					}
+					for _, idx := range keyIndices[*s3err.Key] {
+						results[idx].Error = msg
+					}
+				}
+			}
+		}
+	}
+
+	jsonResponse, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error marshalling bulkDelete response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{Data: jsonResponse}, nil
+}
+
 func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -416,6 +803,12 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return s.list(ctx, req)
 	case presignOperation:
 		return s.presign(ctx, req)
+	case bulkGetOperation:
+		return s.bulkGet(ctx, req)
+	case bulkCreateOperation:
+		return s.bulkCreate(ctx, req)
+	case bulkDeleteOperation:
+		return s.bulkDelete(ctx, req)
 	default:
 		return nil, fmt.Errorf("s3 binding error: unsupported operation %s", req.Operation)
 	}
@@ -447,7 +840,7 @@ func (s *AWSS3) parseS3Tags(raw string) (*string, error) {
 		return nil, nil
 	}
 
-	return aws.String(strings.Join(pairs, "&")), nil
+	return ptr.Of(strings.Join(pairs, "&")), nil
 }
 
 // Helper to merge config and request metadata.
@@ -480,6 +873,6 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 // GetComponentMetadata returns the metadata of the component.
 func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := s3Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

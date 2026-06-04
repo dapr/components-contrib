@@ -25,14 +25,16 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
+	awsAuth "github.com/dapr/components-contrib/common/aws/auth"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -52,7 +54,7 @@ type ConfigurationStore struct {
 
 	enableAzureAD   bool
 	enableAWSIAM    bool
-	awsAuthProvider awsAuth.Provider
+	awsAuthProvider awsAuth.CredentialProvider
 }
 
 type subscription struct {
@@ -120,13 +122,35 @@ func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Me
 			return fmt.Errorf("failed to validate AWS IAM authentication fields: %w", validateErr)
 		}
 
-		var provider awsAuth.Provider
-		provider, err = awsAuth.NewProvider(ctx, *opts, awsAuth.GetConfig(*opts))
-		if err != nil {
-			return err
+		configOpts := awsAuth.Options{
+			Logger:                p.logger,
+			Properties:            metadata.Properties,
+			Region:                opts.Region,
+			AccessKey:             opts.AccessKey,
+			SecretKey:             opts.SecretKey,
+			SessionToken:          opts.SessionToken,
+			AssumeRoleArn:         opts.AssumeRoleArn,
+			AssumeRoleSessionName: opts.AssumeRoleSessionName,
+			Endpoint:              opts.Endpoint,
 		}
+
+		provider, providerErr := awsAuth.NewCredentialProvider(ctx, configOpts, nil)
+		if providerErr != nil {
+			return providerErr
+		}
+
 		p.awsAuthProvider = provider
-		p.awsAuthProvider.UpdatePostgres(ctx, config)
+		region := configOpts.Region
+		config.MaxConnLifetime = time.Minute * 10
+		config.BeforeConnect = func(ctx context.Context, pgConfig *pgx.ConnConfig) error {
+			pwd, tokenErr := auth.BuildAuthToken(ctx, fmt.Sprintf("%s:%d", pgConfig.Host, pgConfig.Port), region, pgConfig.User, p.awsAuthProvider)
+			if tokenErr != nil {
+				return fmt.Errorf("failed to get database token: %w", tokenErr)
+			}
+
+			pgConfig.Password = pwd
+			return nil
+		}
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
@@ -228,17 +252,27 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		return "", errors.New("configuration store is closed")
 	}
 
-	pgNotifyChannel := ""
-	for k, v := range req.Metadata {
-		if strings.ToLower(k) == "pgnotifychannel" { //nolint:gocritic
-			pgNotifyChannel = v
-			break
+	// Component metadata is authoritative. Fall back to request metadata
+	// "pgNotifyChannel" for backwards compatibility only.
+	notifyChannel := p.metadata.NotifyChannel
+	if notifyChannel == "" {
+		for k, v := range req.Metadata {
+			if strings.EqualFold(k, "pgNotifyChannel") {
+				notifyChannel = v
+				break
+			}
 		}
 	}
-	if pgNotifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
+	if notifyChannel == "" {
+		return "", fmt.Errorf("unable to subscribe to %q. notifyChannel must be set in component metadata or request metadata", p.metadata.ConfigTable)
 	}
-	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
+	if len(notifyChannel) > maxIdentifierLength {
+		return "", fmt.Errorf("notifyChannel name is too long - %q. max allowed length is %d", notifyChannel, maxIdentifierLength)
+	}
+	if !allowedTableNameChars.MatchString(notifyChannel) {
+		return "", fmt.Errorf("invalid notifyChannel name %q. non-alphanumerics or upper cased names are not supported", notifyChannel)
+	}
+	return p.subscribeToChannel(ctx, notifyChannel, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
@@ -362,7 +396,7 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	} else {
 		var queryBuilder strings.Builder
 		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN (")
-		var paramWildcard []string
+		paramWildcard := make([]string, 0, len(req.Keys))
 		paramPosition := 1
 		for _, v := range req.Keys {
 			paramWildcard = append(paramWildcard, "$"+strconv.Itoa(paramPosition))
@@ -411,12 +445,12 @@ func validateInput(keys []string) error {
 	return nil
 }
 
-func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, notifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
 
 	var subscribeID string
-	pgNotifyCmd := "listen " + pgNotifyChannel
+	pgNotifyCmd := "listen " + notifyChannel
 	subscribeUID, err := uuid.NewRandom()
 	if err != nil {
 		return "", fmt.Errorf("unable to generate subscription id - %w", err)
@@ -427,13 +461,13 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 	p.cancelMap.Store(subscribeID, cancel)
 
 	p.ActiveSubscriptions[subscribeID] = &subscription{
-		channel: pgNotifyChannel,
+		channel: notifyChannel,
 		keys:    req.Keys,
 	}
 
 	p.wg.Add(1)
 	go func() {
-		p.doSubscribe(childContext, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID)
+		p.doSubscribe(childContext, req, handler, pgNotifyCmd, notifyChannel, subscribeID)
 		p.configLock.Lock()
 		delete(p.ActiveSubscriptions, subscribeID)
 		p.configLock.Unlock()
@@ -446,7 +480,7 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 // GetComponentMetadata returns the metadata of the component.
 func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }
 
@@ -467,9 +501,5 @@ func (p *ConfigurationStore) Close() error {
 		p.client.Close()
 	}
 
-	errs := make([]error, 1)
-	if p.awsAuthProvider != nil {
-		errs[0] = p.awsAuthProvider.Close()
-	}
-	return errors.Join(errs...)
+	return nil
 }

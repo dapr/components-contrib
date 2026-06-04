@@ -494,6 +494,24 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	assert.Empty(t, vals)
 }
 
+// TestGetMissingKeyReturnsEmptyNotError ensures that when a key does not exist
+// we don't propagate 'redis: nil' as an error to users
+func TestGetMissingKeyReturnsEmptyNotError(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	resp, err := ss.Get(t.Context(), &state.GetRequest{Key: "nonexistent-key"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Empty(t, resp.Data, "missing key should return empty data")
+}
+
 func TestGetMetadata(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()

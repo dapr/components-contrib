@@ -124,6 +124,10 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		testBulkGet(t, ods)
 	})
 
+	t.Run("Bulk get chunking exceeds Oracle IN-list limit", func(t *testing.T) {
+		testBulkGetChunkingExceedsLimit(t, ods)
+	})
+
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
 		updateAndDeleteWithEtagSucceeds(t, ods)
 	})
@@ -432,7 +436,7 @@ func getItemThatDoesNotExist(t *testing.T, ods state.Store) {
 	response, outputObject := getItem(t, ods, key)
 	assert.Nil(t, response.Data)
 
-	assert.Equal(t, "", outputObject.Color)
+	assert.Empty(t, outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
@@ -457,14 +461,14 @@ func setUpdatesTheUpdatedateField(t *testing.T, ods state.Store) {
 	// insertdate should have a value and updatedate should be nil.
 	_, insertdate, updatedate := getRowData(t, db, key)
 	assert.NotNil(t, insertdate)
-	assert.Equal(t, "", updatedate.String)
+	assert.Empty(t, updatedate.String)
 
 	// insertdate should not change, updatedate should have a value.
 	value = &fakeItem{Color: "aqua"}
 	setItem(t, ods, key, value, nil)
 	_, newinsertdate, updatedate := getRowData(t, db, key)
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
-	assert.NotEqual(t, "", updatedate.String)
+	assert.NotEmpty(t, updatedate.String)
 
 	deleteItem(t, ods, key, nil)
 }
@@ -730,6 +734,66 @@ func testBulkGet(t *testing.T, ods state.Store) {
 	}
 
 	err = ods.BulkDelete(t.Context(), deleteReq, state.BulkStoreOpts{})
+	require.NoError(t, err)
+}
+
+// testBulkGetChunkingExceedsLimit verifies that BulkGet succeeds when
+// requesting more keys than Oracle's IN-list expression limit (1000).
+// This exercises the sequential chunking path introduced to fix
+// https://github.com/dapr/components-contrib/issues/4041.
+func testBulkGetChunkingExceedsLimit(t *testing.T, ods state.Store) {
+	const totalKeys = 1100
+
+	// Seed keys
+	setReqs := make([]state.SetRequest, totalKeys)
+	for i := range setReqs {
+		setReqs[i] = state.SetRequest{
+			Key:   randomKey(),
+			Value: &fakeItem{Color: fmt.Sprintf("color-%d", i)},
+		}
+	}
+
+	err := ods.BulkSet(t.Context(), setReqs, state.BulkStoreOpts{})
+	require.NoError(t, err)
+
+	// Build BulkGet request plus one key that doesn't exist
+	getReqs := make([]state.GetRequest, totalKeys+1)
+	for i := range totalKeys {
+		getReqs[i] = state.GetRequest{Key: setReqs[i].Key}
+	}
+	getReqs[totalKeys] = state.GetRequest{Key: randomKey()} // non-existent
+
+	responses, err := ods.BulkGet(t.Context(), getReqs, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, responses, totalKeys+1)
+
+	byKey := make(map[string]state.BulkGetResponse, len(responses))
+	for _, r := range responses {
+		byKey[r.Key] = r
+	}
+
+	// All seeded keys should be present with data
+	for i := range totalKeys {
+		expectedKey := setReqs[i].Key
+		r, ok := byKey[expectedKey]
+		require.True(t, ok, "expected bulk get response for key %s", expectedKey)
+		assert.Empty(t, r.Error, "key %s should not have error", expectedKey)
+		assert.NotNil(t, r.Data, "key %s should have data", expectedKey)
+		assert.NotNil(t, r.ETag, "key %s should have etag", expectedKey)
+	}
+
+	// Non-existent key should be present with no data
+	missingResp := byKey[getReqs[totalKeys].Key]
+	assert.Empty(t, missingResp.Error)
+	assert.Nil(t, missingResp.Data)
+	assert.Nil(t, missingResp.ETag)
+
+	// Clean up
+	deleteReqs := make([]state.DeleteRequest, totalKeys)
+	for i := range totalKeys {
+		deleteReqs[i] = state.DeleteRequest{Key: setReqs[i].Key}
+	}
+	err = ods.BulkDelete(t.Context(), deleteReqs, state.BulkStoreOpts{})
 	require.NoError(t, err)
 }
 

@@ -52,5 +52,8 @@ metadata:
     description: |
       The type of API to use for the OpenAI service. This is required when using Azure OpenAI.
     type: string
+    allowedValues:
+      - "open_ai"
+      - "azure"
     example: 'azure'
-    default: 'gpt-4.1-nano'
+    default: 'open_ai'

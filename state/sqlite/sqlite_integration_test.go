@@ -403,7 +403,7 @@ func getItemThatDoesNotExist(t *testing.T, s state.Store) {
 	response, outputObject := getItem(t, s, key)
 	assert.Nil(t, response.Data)
 
-	assert.Equal(t, "", outputObject.Color)
+	assert.Empty(t, outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
@@ -771,7 +771,7 @@ func storeItemExists(t *testing.T, s state.Store, key string) bool {
 	db := dba.db
 	var rowCount int32
 	stmttpl := "SELECT count(key) FROM %s WHERE key = ?"
-	statement := fmt.Sprintf(stmttpl, tableName)
+	statement := fmt.Sprintf(stmttpl, tableName) //nolint:gosec // table name from validated component config
 	err := db.QueryRow(statement, key).Scan(&rowCount)
 	require.NoError(t, err)
 	exists := rowCount > 0

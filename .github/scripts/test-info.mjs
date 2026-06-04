@@ -172,6 +172,16 @@ const components = {
         conformanceSetup: 'docker-compose.sh vernemq',
         sourcePkg: ['bindings/mqtt3'],
     },
+    'bindings.mysql': {
+        certification: true,
+    },
+    'bindings.mysql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh mysql',
+        sourcePkg: [
+            'bindings/mysql',
+        ],
+    },
     'bindings.postgres': {
         certification: true,
     },
@@ -256,6 +266,18 @@ const components = {
     'configuration.redis': {
         certification: true,
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
+    },
+    'configuration.kubernetes': {
+        certification: true,
+        requireKind: true,
+        certificationSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
+    },
+    'configuration.kubernetes.kind': {
+        conformance: true,
+        requireKind: true,
+        conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
     },
     'crypto.azure.keyvault': {
         conformance: true,
@@ -826,6 +848,12 @@ const components = {
         certification: true,
         requireGCPCredentials: true,
         certificationSetup: 'certification-state.gcp.firestore-setup.sh',
+    },
+    'state.ravendb': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh ravendb',
+        requireRavenDBCredentials: true,
     },
 }
 

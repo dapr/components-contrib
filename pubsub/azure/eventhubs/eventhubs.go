@@ -54,7 +54,7 @@ func (aeh *AzureEventHubs) Features() []pubsub.Feature {
 // Publish sends a message to Azure Event Hubs.
 func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if req.Topic == "" {
-		return errors.New("parameter 'topic' is required")
+		return pubsub.NewTerminalError(errors.New("parameter 'topic' is required"))
 	}
 
 	// Get the partition key and create the batch of messages
@@ -70,7 +70,7 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishReque
 	}
 
 	// Publish the message
-	return aeh.AzureEventHubs.Publish(ctx, req.Topic, messages, batchOpts)
+	return pubsub.NewRetriableError(aeh.AzureEventHubs.Publish(ctx, req.Topic, messages, batchOpts))
 }
 
 // BulkPublish sends data to Azure Event Hubs in bulk.
@@ -79,7 +79,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 
 	if req.Topic == "" {
 		err = errors.New("parameter 'topic' is required")
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
+		return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewTerminalError(err)
 	}
 
 	// Batch options
@@ -104,7 +104,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 		if val := entry.Metadata["partitionKey"]; val != "" {
 			if batchOpts.PartitionKey != nil && *batchOpts.PartitionKey != val {
 				err = errors.New("cannot send messages to different partitions")
-				return pubsub.NewBulkPublishResponse(req.Entries, err), err
+				return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewTerminalError(err)
 			}
 			batchOpts.PartitionKey = &val
 		}
@@ -115,7 +115,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if err != nil {
 		// Partial success is not supported by Azure Event Hubs.
 		// If an error occurs, all events are considered failed.
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
+		return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewRetriableError(err)
 	}
 
 	return pubsub.BulkPublishResponse{}, nil

@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	commonredis "github.com/dapr/components-contrib/common/component/redis"
 	mdata "github.com/dapr/components-contrib/metadata"
@@ -30,6 +32,20 @@ import (
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 )
+
+// TestPublishWhenClosedIsTerminal verifies that publishing through a closed
+// component returns a terminal (codes.FailedPrecondition) error so the runtime
+// does not retry it.
+func TestPublishWhenClosedIsTerminal(t *testing.T) {
+	rs := &redisStreams{closeCh: make(chan struct{})}
+	rs.closed.Store(true)
+
+	err := rs.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
+	require.Error(t, err)
+	s, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.FailedPrecondition, s.Code())
+}
 
 func getFakeProperties() map[string]string {
 	return map[string]string{

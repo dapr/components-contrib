@@ -115,19 +115,26 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 // Publish message to Kafka cluster.
 func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
-	return p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata)
+	if err := p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata); err != nil {
+		return pubsub.NewRetriableError(err)
+	}
+	return nil
 }
 
 // BatchPublish messages to Kafka cluster.
 func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if p.closed.Load() {
-		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+		return pubsub.BulkPublishResponse{}, pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
-	return p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)
+	res, err := p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)
+	if err != nil {
+		return res, pubsub.NewRetriableError(err)
+	}
+	return res, nil
 }
 
 func (p *PubSub) Close() (err error) {

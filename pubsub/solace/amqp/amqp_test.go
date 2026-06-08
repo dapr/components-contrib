@@ -19,6 +19,9 @@ import (
 	"errors"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -36,6 +39,33 @@ func getFakeProperties() map[string]string {
 		username:     "default",
 		password:     "default",
 	}
+}
+
+// TestPublishErrorClassification verifies that terminal Publish error paths
+// reachable without a live broker are classified as codes.FailedPrecondition.
+func TestPublishErrorClassification(t *testing.T) {
+	t.Run("closed component is terminal", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		a.closed.Store(true)
+
+		err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: "some-topic"})
+		require.Error(t, err)
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+
+	t.Run("empty topic is terminal", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+
+		err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: ""})
+		require.Error(t, err)
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
 }
 
 func TestParseMetadata(t *testing.T) {

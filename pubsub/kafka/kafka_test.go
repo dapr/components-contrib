@@ -14,9 +14,40 @@ limitations under the License.
 package kafka
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 // Compile-time assertion that PubSub implements the optional
 // PausableSubscriber capability.
 var _ pubsub.PausableSubscriber = (*PubSub)(nil)
+
+// TestPublishWhenClosedIsTerminal verifies that publishing through a closed
+// component returns a terminal (codes.FailedPrecondition) error so the runtime
+// does not retry it.
+func TestPublishWhenClosedIsTerminal(t *testing.T) {
+	p := &PubSub{closeCh: make(chan struct{})}
+	p.closed.Store(true)
+
+	t.Run("Publish", func(t *testing.T) {
+		err := p.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
+		require.Error(t, err)
+		s, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, s.Code())
+	})
+
+	t.Run("BulkPublish", func(t *testing.T) {
+		_, err := p.BulkPublish(t.Context(), &pubsub.BulkPublishRequest{Topic: "topic"})
+		require.Error(t, err)
+		s, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, s.Code())
+	})
+}

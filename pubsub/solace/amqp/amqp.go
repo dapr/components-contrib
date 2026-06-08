@@ -99,13 +99,13 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	defer a.publishLock.Unlock()
 
 	if a.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	a.publishRetryCount = 0
 
 	if req.Topic == "" {
-		return errors.New("topic name is empty")
+		return pubsub.NewTerminalError(errors.New("topic name is empty"))
 	}
 
 	m := amqp.NewMessage(req.Data)
@@ -151,7 +151,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		}
 	}
 
-	return err
+	return pubsub.NewRetriableError(err)
 }
 
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

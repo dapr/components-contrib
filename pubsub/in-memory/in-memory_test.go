@@ -18,10 +18,28 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+// TestPublishAfterCloseIsTerminal verifies that publishing to a closed bus
+// returns a terminal (codes.FailedPrecondition) error.
+func TestPublishAfterCloseIsTerminal(t *testing.T) {
+	bus := New(logger.NewLogger("test"))
+	bus.Init(t.Context(), pubsub.Metadata{})
+	require.NoError(t, bus.Close())
+
+	err := bus.Publish(t.Context(), &pubsub.PublishRequest{Data: []byte("x"), Topic: "demo"})
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.FailedPrecondition, st.Code())
+}
 
 func TestNewInMemoryBus(t *testing.T) {
 	bus := New(logger.NewLogger("test"))

@@ -14,10 +14,13 @@ limitations under the License.
 package snssqs
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -27,6 +30,21 @@ import (
 type testUnitFixture struct {
 	metadata pubsub.Metadata
 	name     string
+}
+
+// Publishing while the component is closed is a lifecycle error and must be
+// classified as terminal (codes.FailedPrecondition) so the runtime stops retrying.
+func Test_Publish_closed_isTerminal(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	s := &snsSqs{logger: logger.NewLogger("test")}
+	s.closed.Store(true)
+
+	err := s.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	r.Error(err)
+	st, ok := status.FromError(err)
+	r.True(ok)
+	r.Equal(codes.FailedPrecondition, st.Code())
 }
 
 func Test_parseTopicArn(t *testing.T) {

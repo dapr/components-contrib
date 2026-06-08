@@ -163,19 +163,20 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 	}
 }
 
-func newInitializedEventsClient(client kubemqEventsClient) *kubeMQEvents {
+func newInitializedEventsClient(t *testing.T, client kubemqEventsClient) *kubeMQEvents {
+	t.Helper()
 	k := newkubeMQEvents(logger.NewLogger("kubemq-test"))
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	k.isInitialized = true
 	k.metadata = &kubemqMetadata{ClientID: "some-client-id"}
 	k.client = client
-	_ = k.setPublishStream()
+	require.NoError(t, k.setPublishStream())
 	return k
 }
 
 func Test_kubeMQEvents_Publish_ErrorClassification(t *testing.T) {
 	t.Run("empty topic is terminal", func(t *testing.T) {
-		k := newInitializedEventsClient(newKubemqEventsMock())
+		k := newInitializedEventsClient(t, newKubemqEventsMock())
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: ""})
@@ -188,7 +189,7 @@ func Test_kubeMQEvents_Publish_ErrorClassification(t *testing.T) {
 
 	t.Run("broker publish failure is retriable", func(t *testing.T) {
 		client := newKubemqEventsMock().setPublishError(errors.New("broker boom"))
-		k := newInitializedEventsClient(client)
+		k := newInitializedEventsClient(t, client)
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: "some-topic"})

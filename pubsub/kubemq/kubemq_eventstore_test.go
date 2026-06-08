@@ -186,7 +186,8 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 	}
 }
 
-func newInitializedEventsStoreClient(client kubemqEventsStoreClient, resultTimeout time.Duration) *kubeMQEventStore {
+func newInitializedEventsStoreClient(t *testing.T, client kubemqEventsStoreClient, resultTimeout time.Duration) *kubeMQEventStore {
+	t.Helper()
 	k := newKubeMQEventsStore(logger.NewLogger("kubemq-test"))
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	k.isInitialized = true
@@ -195,13 +196,13 @@ func newInitializedEventsStoreClient(client kubemqEventsStoreClient, resultTimeo
 		k.waitForResultTimeout = resultTimeout
 	}
 	k.client = client
-	_ = k.setPublishStream()
+	require.NoError(t, k.setPublishStream())
 	return k
 }
 
 func Test_kubeMQEventsStore_Publish_ErrorClassification(t *testing.T) {
 	t.Run("empty topic is terminal", func(t *testing.T) {
-		k := newInitializedEventsStoreClient(newKubemqEventsStoreMock(), 0)
+		k := newInitializedEventsStoreClient(t, newKubemqEventsStoreMock(), 0)
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: ""})
@@ -214,7 +215,7 @@ func Test_kubeMQEventsStore_Publish_ErrorClassification(t *testing.T) {
 
 	t.Run("broker publish failure is retriable", func(t *testing.T) {
 		client := newKubemqEventsStoreMock().setPublishError(errors.New("broker boom"))
-		k := newInitializedEventsStoreClient(client, 0)
+		k := newInitializedEventsStoreClient(t, client, 0)
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: "some-topic"})
@@ -227,7 +228,7 @@ func Test_kubeMQEventsStore_Publish_ErrorClassification(t *testing.T) {
 
 	t.Run("broker result error is retriable", func(t *testing.T) {
 		client := newKubemqEventsStoreMock().setResultError(errors.New("broker rejected"))
-		k := newInitializedEventsStoreClient(client, 0)
+		k := newInitializedEventsStoreClient(t, client, 0)
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: "some-topic"})
@@ -240,7 +241,7 @@ func Test_kubeMQEventsStore_Publish_ErrorClassification(t *testing.T) {
 
 	t.Run("result timeout is retriable", func(t *testing.T) {
 		client := newKubemqEventsStoreMock().setPublishTimeout(3 * time.Second)
-		k := newInitializedEventsStoreClient(client, 1*time.Second)
+		k := newInitializedEventsStoreClient(t, client, 1*time.Second)
 		defer k.Close()
 
 		err := k.Publish(&pubsub.PublishRequest{Data: []byte("data"), Topic: "some-topic"})

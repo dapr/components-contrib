@@ -78,8 +78,8 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	var err error
 
 	if req.Topic == "" {
-		err = errors.New("parameter 'topic' is required")
-		return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewTerminalError(err)
+		err = pubsub.NewTerminalError(errors.New("parameter 'topic' is required"))
+		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
 
 	// Batch options
@@ -103,8 +103,8 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 		}
 		if val := entry.Metadata["partitionKey"]; val != "" {
 			if batchOpts.PartitionKey != nil && *batchOpts.PartitionKey != val {
-				err = errors.New("cannot send messages to different partitions")
-				return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewTerminalError(err)
+				err = pubsub.NewTerminalError(errors.New("cannot send messages to different partitions"))
+				return pubsub.NewBulkPublishResponse(req.Entries, err), err
 			}
 			batchOpts.PartitionKey = &val
 		}
@@ -115,7 +115,8 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if err != nil {
 		// Partial success is not supported by Azure Event Hubs.
 		// If an error occurs, all events are considered failed.
-		return pubsub.NewBulkPublishResponse(req.Entries, err), pubsub.NewRetriableError(err)
+		err = pubsub.NewRetriableError(err)
+		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
 
 	return pubsub.BulkPublishResponse{}, nil

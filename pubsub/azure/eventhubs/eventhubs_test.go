@@ -14,7 +14,6 @@ limitations under the License.
 package eventhubs
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ import (
 func TestPublishMissingTopicIsTerminal(t *testing.T) {
 	aeh := &AzureEventHubs{}
 
-	err := aeh.Publish(context.Background(), &pubsub.PublishRequest{Topic: ""})
+	err := aeh.Publish(t.Context(), &pubsub.PublishRequest{Topic: ""})
 	require.Error(t, err)
 	st, ok := status.FromError(err)
 	require.True(t, ok)
@@ -40,7 +39,7 @@ func TestPublishMissingTopicIsTerminal(t *testing.T) {
 func TestBulkPublishMissingTopicIsTerminal(t *testing.T) {
 	aeh := &AzureEventHubs{}
 
-	_, err := aeh.BulkPublish(context.Background(), &pubsub.BulkPublishRequest{Topic: ""})
+	_, err := aeh.BulkPublish(t.Context(), &pubsub.BulkPublishRequest{Topic: ""})
 	require.Error(t, err)
 	st, ok := status.FromError(err)
 	require.True(t, ok)

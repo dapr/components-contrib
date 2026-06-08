@@ -14,7 +14,6 @@ limitations under the License.
 package kafka
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +36,7 @@ func TestPublishWhenClosedIsTerminal(t *testing.T) {
 	p.closed.Store(true)
 
 	t.Run("Publish", func(t *testing.T) {
-		err := p.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+		err := p.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 		require.Error(t, err)
 		s, ok := status.FromError(err)
 		require.True(t, ok)
@@ -45,7 +44,7 @@ func TestPublishWhenClosedIsTerminal(t *testing.T) {
 	})
 
 	t.Run("BulkPublish", func(t *testing.T) {
-		_, err := p.BulkPublish(context.Background(), &pubsub.BulkPublishRequest{Topic: "topic"})
+		_, err := p.BulkPublish(t.Context(), &pubsub.BulkPublishRequest{Topic: "topic"})
 		require.Error(t, err)
 		s, ok := status.FromError(err)
 		require.True(t, ok)

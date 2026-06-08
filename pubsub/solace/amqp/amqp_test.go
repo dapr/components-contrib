@@ -14,7 +14,6 @@ limitations under the License.
 package amqp
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -49,7 +48,7 @@ func TestPublishErrorClassification(t *testing.T) {
 		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
 		a.closed.Store(true)
 
-		err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: "some-topic"})
+		err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: "some-topic"})
 		require.Error(t, err)
 
 		st, ok := status.FromError(err)
@@ -60,7 +59,7 @@ func TestPublishErrorClassification(t *testing.T) {
 	t.Run("empty topic is terminal", func(t *testing.T) {
 		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
 
-		err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: ""})
+		err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: ""})
 		require.Error(t, err)
 
 		st, ok := status.FromError(err)

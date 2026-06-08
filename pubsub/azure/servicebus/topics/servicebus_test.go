@@ -41,7 +41,7 @@ func TestPublishClosedIsTerminal(t *testing.T) {
 	a := &azureServiceBus{logger: logger.NewLogger("test")}
 	a.closed.Store(true)
 
-	err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	require.Error(t, err)
 	st, ok := status.FromError(err)
 	require.True(t, ok)

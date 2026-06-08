@@ -14,7 +14,6 @@ limitations under the License.
 package queues
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,13 +30,13 @@ func TestPublishClosedIsTerminal(t *testing.T) {
 	a := &azureServiceBus{logger: logger.NewLogger("test")}
 	a.closed.Store(true)
 
-	err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := a.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	require.Error(t, err)
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.FailedPrecondition, st.Code())
 
-	_, berr := a.BulkPublish(context.Background(), &pubsub.BulkPublishRequest{Topic: "topic"})
+	_, berr := a.BulkPublish(t.Context(), &pubsub.BulkPublishRequest{Topic: "topic"})
 	require.Error(t, berr)
 	bst, bok := status.FromError(berr)
 	require.True(t, bok)

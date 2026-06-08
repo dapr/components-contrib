@@ -2751,7 +2751,7 @@ func TestPublishErrorClassification(t *testing.T) {
 		p := &Pulsar{}
 		p.closed.Store(true)
 
-		err := p.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+		err := p.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 
 		require.Error(t, err)
 		st, ok := status.FromError(err)

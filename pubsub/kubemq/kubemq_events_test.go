@@ -166,7 +166,7 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 func newInitializedEventsClient(t *testing.T, client kubemqEventsClient) *kubeMQEvents {
 	t.Helper()
 	k := newkubeMQEvents(logger.NewLogger("kubemq-test"))
-	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
+	k.ctx, k.ctxCancel = context.WithCancel(t.Context())
 	k.isInitialized = true
 	k.metadata = &kubemqMetadata{ClientID: "some-client-id"}
 	k.client = client

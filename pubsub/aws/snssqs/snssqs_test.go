@@ -14,7 +14,6 @@ limitations under the License.
 package snssqs
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -40,7 +39,7 @@ func Test_Publish_closed_isTerminal(t *testing.T) {
 	s := &snsSqs{logger: logger.NewLogger("test")}
 	s.closed.Store(true)
 
-	err := s.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := s.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	r.Error(err)
 	st, ok := status.FromError(err)
 	r.True(ok)

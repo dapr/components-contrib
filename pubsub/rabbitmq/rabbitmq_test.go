@@ -42,7 +42,7 @@ func TestPublishWhenClosedIsTerminal(t *testing.T) {
 	}
 	r.closed.Store(true)
 
-	err := r.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	require.Error(t, err)
 	s, ok := status.FromError(err)
 	require.True(t, ok)

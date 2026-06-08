@@ -189,7 +189,7 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 func newInitializedEventsStoreClient(t *testing.T, client kubemqEventsStoreClient, resultTimeout time.Duration) *kubeMQEventStore {
 	t.Helper()
 	k := newKubeMQEventsStore(logger.NewLogger("kubemq-test"))
-	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
+	k.ctx, k.ctxCancel = context.WithCancel(t.Context())
 	k.isInitialized = true
 	k.metadata = &kubemqMetadata{ClientID: "some-client-id", IsStore: true}
 	if resultTimeout > 0 {

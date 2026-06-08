@@ -106,17 +106,17 @@ func (k *kubeMQEventStore) setPublishStream() error {
 
 func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 	if err := k.init(); err != nil {
-		return err
+		return pubsub.NewRetriableError(err)
 	}
 	if req.Topic == "" {
-		return errors.New("kubemq pub/sub error: topic is required")
+		return pubsub.NewTerminalError(errors.New("kubemq pub/sub error: topic is required"))
 	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	metadata := ""
 	if req.Metadata != nil {
 		data, err := json.Marshal(req.Metadata)
 		if err != nil {
-			return fmt.Errorf("kubemq pub/sub error: failed to marshal metadata: %s", err.Error())
+			return pubsub.NewTerminalError(fmt.Errorf("kubemq pub/sub error: failed to marshal metadata: %s", err.Error()))
 		}
 		metadata = string(data)
 	}
@@ -136,15 +136,15 @@ func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 	}
 	if err := k.publishFunc(event); err != nil {
 		k.logger.Errorf("kubemq pub/sub error: publishing to %s failed with error: %s", req.Topic, err.Error())
-		return err
+		return pubsub.NewRetriableError(err)
 	}
 	select {
 	case res := <-k.resultChan:
 		if res != nil && res.Err != nil {
-			return res.Err
+			return pubsub.NewRetriableError(res.Err)
 		}
 	case <-time.After(k.waitForResultTimeout):
-		return errors.New("kubemq pub/sub error: timeout waiting for response")
+		return pubsub.NewRetriableError(errors.New("kubemq pub/sub error: timeout waiting for response"))
 	}
 	return nil
 }

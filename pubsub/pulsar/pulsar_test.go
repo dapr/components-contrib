@@ -28,6 +28,8 @@ import (
 	goavro "github.com/linkedin/goavro/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -2784,4 +2786,21 @@ func TestInitPropagatesListenerName(t *testing.T) {
 			assert.Equal(t, tc.expected, capturedOpts.ListenerName)
 		})
 	}
+}
+
+// TestPublishErrorClassification verifies that publish errors are wrapped with a gRPC
+// status code so the Dapr runtime's resiliency layer can classify them. The reachable
+// non-broker path here is the closed-component guard, which must be terminal.
+func TestPublishErrorClassification(t *testing.T) {
+	t.Run("publish on a closed component returns a terminal error", func(t *testing.T) {
+		p := &Pulsar{}
+		p.closed.Store(true)
+
+		err := p.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok, "publish error must carry a gRPC status")
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
 }

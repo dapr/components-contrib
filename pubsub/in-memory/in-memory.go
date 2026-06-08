@@ -60,7 +60,7 @@ func (a *bus) Init(_ context.Context, metadata pubsub.Metadata) error {
 
 func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if a.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	a.bus.Publish(req.Topic, req.Data, req.Metadata)

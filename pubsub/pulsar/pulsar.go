@@ -366,7 +366,7 @@ func (p *Pulsar) useConsumerEncryption() bool {
 
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	var (
@@ -410,7 +410,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 		producer, err = p.client.CreateProducer(opts)
 		if err != nil {
-			return err
+			return pubsub.NewRetriableError(err)
 		}
 
 		p.cache.Add(topic, producer)
@@ -418,11 +418,11 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 	msg, err = parsePublishMetadata(req, sm)
 	if err != nil {
-		return err
+		return pubsub.NewTerminalError(err)
 	}
 
 	if _, err = producer.Send(ctx, msg); err != nil {
-		return err
+		return pubsub.NewRetriableError(err)
 	}
 
 	return nil

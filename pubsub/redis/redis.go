@@ -100,7 +100,7 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 
 func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	redisPayload := map[string]interface{}{"data": req.Data}
@@ -108,14 +108,14 @@ func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) 
 	if req.Metadata != nil {
 		serializedMetadata, err := json.Marshal(req.Metadata)
 		if err != nil {
-			return err
+			return pubsub.NewTerminalError(err)
 		}
 		redisPayload["metadata"] = serializedMetadata
 	}
 
 	_, err := r.client.XAdd(ctx, req.Topic, r.clientSettings.MaxLenApprox, r.clientSettings.GetMinID(time.Now()), redisPayload)
 	if err != nil {
-		return fmt.Errorf("redis streams: error from publish: %s", err)
+		return pubsub.NewRetriableError(fmt.Errorf("redis streams: error from publish: %s", err))
 	}
 
 	return nil

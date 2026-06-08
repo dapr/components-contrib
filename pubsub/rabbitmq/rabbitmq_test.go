@@ -24,11 +24,30 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+// TestPublishWhenClosedIsTerminal verifies that publishing through a closed
+// component returns a terminal (codes.FailedPrecondition) error so the runtime
+// does not retry it.
+func TestPublishWhenClosedIsTerminal(t *testing.T) {
+	r := &rabbitMQ{
+		logger:  logger.NewLogger("test"),
+		closeCh: make(chan struct{}),
+	}
+	r.closed.Store(true)
+
+	err := r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
+	require.Error(t, err)
+	s, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.FailedPrecondition, s.Code())
+}
 
 func newBroker() *rabbitMQInMemoryBroker {
 	return &rabbitMQInMemoryBroker{

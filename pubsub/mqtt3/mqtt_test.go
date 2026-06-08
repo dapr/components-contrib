@@ -30,6 +30,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -711,4 +713,36 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test_mqttPubSub_Publish_terminalErrors asserts that cheaply-reachable
+// validation/lifecycle error paths in Publish are classified as terminal
+// (codes.FailedPrecondition) so the runtime can stop retrying them.
+func Test_mqttPubSub_Publish_terminalErrors(t *testing.T) {
+	t.Run("component closed is terminal", func(t *testing.T) {
+		m := &mqttPubSub{
+			logger:   logger.NewLogger("mqtt-test"),
+			metadata: &mqttMetadata{},
+		}
+		m.closed.Store(true)
+
+		err := m.Publish(t.Context(), &pubsub.PublishRequest{Topic: "test"})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+
+	t.Run("empty topic is terminal", func(t *testing.T) {
+		m := &mqttPubSub{
+			logger:   logger.NewLogger("mqtt-test"),
+			metadata: &mqttMetadata{},
+		}
+
+		err := m.Publish(t.Context(), &pubsub.PublishRequest{Topic: ""})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
 }

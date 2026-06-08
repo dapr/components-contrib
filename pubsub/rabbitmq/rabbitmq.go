@@ -287,7 +287,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
@@ -301,7 +301,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 		}
 		if attempt >= publishMaxRetries {
 			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
-			return err
+			return pubsub.NewRetriableError(err)
 		}
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())

@@ -90,11 +90,11 @@ func (m *mqttPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 // Publish the topic to mqtt pub sub.
 func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (err error) {
 	if m.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	if req.Topic == "" {
-		return errors.New("topic name is empty")
+		return pubsub.NewTerminalError(errors.New("topic name is empty"))
 	}
 
 	// Note this can contain PII
@@ -105,7 +105,7 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 	if val, ok := req.Metadata[mqttRetain]; ok && val != "" {
 		retain, err = strconv.ParseBool(val)
 		if err != nil {
-			return fmt.Errorf("mqtt invalid retain %s, %s", val, err)
+			return pubsub.NewTerminalError(fmt.Errorf("mqtt invalid retain %s, %s", val, err))
 		}
 	}
 
@@ -122,7 +122,7 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 		err = ctx.Err()
 	}
 	if err != nil {
-		return fmt.Errorf("failed to publish: %w", err)
+		return pubsub.NewRetriableError(fmt.Errorf("failed to publish: %w", err))
 	}
 
 	return nil

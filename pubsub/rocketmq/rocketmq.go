@@ -344,7 +344,7 @@ func (r *rocketMQ) resetProducer() {
 
 func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
@@ -363,14 +363,14 @@ func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 	}
 	producer, e := r.getProducer()
 	if e != nil {
-		return fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e)
+		return pubsub.NewRetriableError(fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e))
 	}
 	result, e := producer.SendSync(ctx, msg)
 	if e != nil {
 		r.resetProducer()
 		m := fmt.Sprintf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)
 		r.logger.Error(m)
-		return errors.New(m)
+		return pubsub.NewRetriableError(errors.New(m))
 	}
 	r.logger.Debugf("rocketmq message send result: topic[%s], tag[%s], status[%v]", req.Topic, msg.GetTags(), result.Status)
 	return nil

@@ -221,7 +221,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 // Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if g.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 	g.lock.RLock()
 	_, topicExists := g.topicCache[req.Topic]
@@ -232,6 +232,8 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
+			// GCP's client returns gRPC-status errors, so the runtime reads the real
+			// code (e.g. PermissionDenied vs Unavailable) directly - don't override it.
 			return fmt.Errorf("%s could not get valid topic %s: %w", errorMessagePrefix, req.Topic, err)
 		}
 		g.lock.Lock()
@@ -261,6 +263,7 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	}
 	_, err := topic.Publish(ctx, msg).Get(ctx)
 
+	// GCP returns gRPC-status errors - let the runtime read the native code.
 	return err
 }
 

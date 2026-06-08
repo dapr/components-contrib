@@ -114,7 +114,7 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 
 func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if js.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	var opts []nats.PubOpt
@@ -137,8 +137,11 @@ func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishReque
 
 	js.l.Debugf("Publishing to topic %v id: %s", req.Topic, msgID)
 	_, err = js.jsc.Publish(req.Topic, req.Data, opts...)
+	if err != nil {
+		return pubsub.NewRetriableError(err)
+	}
 
-	return err
+	return nil
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

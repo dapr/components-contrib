@@ -859,7 +859,7 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if s.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
@@ -882,7 +882,7 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)
 
-		return wrappedErr
+		return pubsub.NewRetriableError(wrappedErr)
 	}
 
 	return nil

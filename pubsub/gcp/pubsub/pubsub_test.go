@@ -14,11 +14,14 @@ limitations under the License.
 package pubsub
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -26,6 +29,19 @@ import (
 const (
 	invalidNumber = "invalid_number"
 )
+
+// Publishing while the component is closed is a lifecycle error and must be
+// classified as terminal (codes.FailedPrecondition) so the runtime stops retrying.
+func TestPublishClosedIsTerminal(t *testing.T) {
+	g := &GCPPubSub{}
+	g.closed.Store(true)
+
+	err := g.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.FailedPrecondition, st.Code())
+}
 
 func TestInit(t *testing.T) {
 	t.Run("metadata is correct with explicit creds", func(t *testing.T) {

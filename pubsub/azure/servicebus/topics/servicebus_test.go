@@ -47,7 +47,7 @@ func TestPublishClosedIsTerminal(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, codes.FailedPrecondition, st.Code())
 
-	_, berr := a.BulkPublish(context.Background(), &pubsub.BulkPublishRequest{Topic: "topic"})
+	_, berr := a.BulkPublish(t.Context(), &pubsub.BulkPublishRequest{Topic: "topic"})
 	require.Error(t, berr)
 	bst, bok := status.FromError(berr)
 	require.True(t, bok)

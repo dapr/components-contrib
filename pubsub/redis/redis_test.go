@@ -40,7 +40,7 @@ func TestPublishWhenClosedIsTerminal(t *testing.T) {
 	rs := &redisStreams{closeCh: make(chan struct{})}
 	rs.closed.Store(true)
 
-	err := rs.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := rs.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	require.Error(t, err)
 	s, ok := status.FromError(err)
 	require.True(t, ok)

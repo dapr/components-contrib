@@ -14,7 +14,6 @@ limitations under the License.
 package pubsub
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func TestPublishClosedIsTerminal(t *testing.T) {
 	g := &GCPPubSub{}
 	g.closed.Store(true)
 
-	err := g.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	err := g.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
 	require.Error(t, err)
 	st, ok := status.FromError(err)
 	require.True(t, ok)

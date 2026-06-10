@@ -244,7 +244,7 @@ func TestBulkGetSecret(t *testing.T) {
 	}
 	s.client = client
 	s.projectID = "project-id"
-	s.metadata = secretStoreMetadata{Environment: "dev", SecretPath: "/app"}
+	s.metadata = secretStoreMetadata{Environment: "dev", SecretPath: "/app", IncludeImports: true, ExpandSecretReferences: true}
 
 	resp, err := s.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 	require.NoError(t, err)
@@ -256,6 +256,8 @@ func TestBulkGetSecret(t *testing.T) {
 	assert.Equal(t, "dev", client.listSecretsOptions.Environment)
 	assert.Equal(t, "/app", client.listSecretsOptions.SecretPath)
 	assert.True(t, client.listSecretsOptions.Recursive)
+	assert.True(t, client.listSecretsOptions.IncludeImports)
+	assert.True(t, client.listSecretsOptions.ExpandSecretReferences)
 }
 
 func TestBulkGetSecretError(t *testing.T) {

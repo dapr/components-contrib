@@ -276,24 +276,31 @@ func (s *secretStore) resolveMetadata(requestMetadata map[string]string) (resolv
 		expandSecretReferences: s.metadata.ExpandSecretReferences,
 	}
 
+	// Track whether projectId was explicitly set so it takes precedence over workspaceId.
+	projectIDSet := false
 	for key, value := range requestMetadata {
 		switch strings.ToLower(key) {
-		case strings.ToLower(projectIDMetadataKey), strings.ToLower(workspaceIDMetadataKey):
-			resolved.projectID = value
+		case strings.ToLower(projectIDMetadataKey):
+			resolved.projectID = strings.TrimSpace(value)
+			projectIDSet = true
+		case strings.ToLower(workspaceIDMetadataKey):
+			if !projectIDSet {
+				resolved.projectID = strings.TrimSpace(value)
+			}
 		case strings.ToLower(environmentMetadataKey):
-			resolved.environment = value
+			resolved.environment = strings.TrimSpace(value)
 		case strings.ToLower(secretPathMetadataKey):
-			resolved.secretPath = value
+			resolved.secretPath = strings.TrimSpace(value)
 		case strings.ToLower(typeMetadataKey):
-			resolved.secretType = value
+			resolved.secretType = strings.TrimSpace(value)
 		case strings.ToLower(includeImportsMetadataKey):
-			parsed, err := strconv.ParseBool(value)
+			parsed, err := strconv.ParseBool(strings.TrimSpace(value))
 			if err != nil {
 				return resolvedRequestMetadata{}, fmt.Errorf("invalid %s metadata value %q: %w", includeImportsMetadataKey, value, err)
 			}
 			resolved.includeImports = parsed
 		case strings.ToLower(expandSecretReferencesMetadataKey):
-			parsed, err := strconv.ParseBool(value)
+			parsed, err := strconv.ParseBool(strings.TrimSpace(value))
 			if err != nil {
 				return resolvedRequestMetadata{}, fmt.Errorf("invalid %s metadata value %q: %w", expandSecretReferencesMetadataKey, value, err)
 			}

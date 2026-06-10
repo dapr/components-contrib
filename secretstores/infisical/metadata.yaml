@@ -59,6 +59,6 @@ metadata:
     type: bool
   - name: expandSecretReferences
     required: false
-    description: Expand secret references in GetSecret and BulkGetSecret calls.
+    description: Expand secret references in BulkGetSecret calls.
     example: "false"
     type: bool

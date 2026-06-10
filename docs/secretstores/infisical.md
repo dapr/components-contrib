@@ -51,8 +51,10 @@ spec:
 - `environment`
 - `secretPath`
 - `includeImports`
-- `expandSecretReferences`
 - `type` (for `GetSecret`)
+
+`BulkGetSecret` additionally accepts:
+- `expandSecretReferences`
 
 ## Troubleshooting
 

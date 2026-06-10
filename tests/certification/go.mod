@@ -24,7 +24,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.4.2
 	github.com/dapr/components-contrib v1.18.0
 	github.com/dapr/dapr v1.18.0
-	github.com/dapr/go-sdk v1.15.0-rc.1
+	github.com/dapr/go-sdk v1.15.0-rc.2
 	github.com/dapr/kit v0.18.1
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-chi/chi/v5 v5.2.2

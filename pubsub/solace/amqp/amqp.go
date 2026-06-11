@@ -115,7 +115,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	if ttlProp != "" {
 		ttlInSeconds, err := strconv.Atoi(ttlProp)
 		if err != nil {
-			a.logger.Warnf("Invalid ttl received from message %s", ttlInSeconds)
+			a.logger.Warnf("Invalid ttl received from message %d", ttlInSeconds)
 		} else {
 			m.Header.TTL = time.Second * time.Duration(ttlInSeconds)
 		}
@@ -127,7 +127,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	)
 
 	if err != nil {
-		a.logger.Errorf("Unable to create link to %s", req.Topic, err)
+		a.logger.Errorf("Unable to create link to %s: %v", req.Topic, err)
 	} else {
 		err = sender.Send(ctx, m, nil)
 		// If the publish operation has failed, attempt to republish a maximum number of times
@@ -139,7 +139,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 				// Send message
 				err = sender.Send(ctx, m, nil)
 				if err != nil {
-					a.logger.Warnf("Failed to publish a message to the broker", err)
+					a.logger.Warnf("Failed to publish a message to the broker: %v", err)
 				}
 
 				select {
@@ -314,7 +314,7 @@ func (a *amqpPubSub) Close() error {
 	defer cancel()
 	err := a.session.Close(ctx)
 	if err != nil {
-		a.logger.Warnf("failed to close the connection.", err)
+		a.logger.Warnf("failed to close the connection: %v", err)
 	}
 	return err
 }

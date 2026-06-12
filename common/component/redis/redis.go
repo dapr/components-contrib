@@ -26,6 +26,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"golang.org/x/mod/semver"
+	"golang.org/x/oauth2"
 
 	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
@@ -165,6 +166,15 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
 		}
 	}
+	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT
+	var oidcTokenExpiry time.Time
+	if settings.UseOIDC {
+		oidcTokenSource, oidcTokenExpiry, err = settings.GetOIDCTokenSourceAndSetInitialTokenAsPassword(ctx, logger)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	var tokenExpires *time.Time
 	var tokenCredential *azcore.TokenCredential
 	if settings.UseEntraID {
@@ -215,6 +225,9 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 
 	if settings.UseEntraID {
 		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
+	}
+	if settings.UseOIDC {
+		StartOIDCTokenRefreshBackgroundRoutine(c, settings.Username, oidcTokenExpiry, oidcTokenSource, logger)
 	}
 	return c, &settings, nil
 }
@@ -332,6 +345,159 @@ func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.
 		return nil, nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
 	}
 	return &token.ExpiresOn, &cred, nil
+}
+
+// GetOIDCTokenSourceAndSetInitialTokenAsPassword validates the OIDC private_key_jwt
+// settings, builds the token source, fetches the initial access token and sets it as
+// the password for the Redis connection. It returns the token source and the expiry
+// of the initial token so a refresh routine can be scheduled.
+func (s *Settings) GetOIDCTokenSourceAndSetInitialTokenAsPassword(ctx context.Context, logger *kitlogger.Logger) (*OAuthTokenSourcePrivateKeyJWT, time.Time, error) {
+	if s.UseEntraID {
+		return nil, time.Time{}, errors.New("redis client configuration error: useEntraID and useOIDC must not be enabled at the same time")
+	}
+	if len(s.Password) > 0 {
+		return nil, time.Time{}, errors.New("redis client configuration error: password must not be specified when using OIDC authentication")
+	}
+	if s.OidcTokenEndpoint == "" {
+		return nil, time.Time{}, errors.New("redis client configuration error: missing oidcTokenEndpoint for OIDC authentication")
+	}
+	if s.OidcClientID == "" {
+		return nil, time.Time{}, errors.New("redis client configuration error: missing oidcClientID for OIDC authentication")
+	}
+	if s.OidcClientAssertionCert == "" {
+		return nil, time.Time{}, errors.New("redis client configuration error: missing oidcClientAssertionCert for OIDC authentication")
+	}
+	if s.OidcClientAssertionKey == "" {
+		return nil, time.Time{}, errors.New("redis client configuration error: missing oidcClientAssertionKey for OIDC authentication")
+	}
+
+	if s.Username == "" {
+		// With no explicit username we authenticate as the default user,
+		// which is equivalent to the plain AUTH <token> command.
+		s.Username = "default"
+	}
+
+	if s.OidcScopes != "" {
+		s.internalOidcScopes = strings.Split(s.OidcScopes, ",")
+	} else {
+		(*logger).Warn("redis client: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
+		s.internalOidcScopes = []string{"openid"}
+	}
+
+	tokenSource := &OAuthTokenSourcePrivateKeyJWT{
+		TokenEndpoint:       oauth2.Endpoint{TokenURL: s.OidcTokenEndpoint},
+		ClientID:            s.OidcClientID,
+		Scopes:              s.internalOidcScopes,
+		ClientAssertionCert: s.OidcClientAssertionCert,
+		ClientAssertionKey:  s.OidcClientAssertionKey,
+		Resource:            s.OidcResource,
+		Audience:            s.OidcAudience,
+		Kid:                 s.OidcKid,
+		skipCaVerify:        s.InsecureSkipTLSVerify,
+	}
+	if s.OidcCACert != "" {
+		if err := tokenSource.addCa(s.OidcCACert); err != nil {
+			return nil, time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
+		}
+	}
+
+	token, err := tokenSource.Token(ctx)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
+	}
+	s.Password = token.AccessToken
+
+	return tokenSource, token.Expiry, nil
+}
+
+// StartOIDCTokenRefreshBackgroundRoutine refreshes the OIDC access token before it
+// expires and re-authenticates the live Redis connection pool with it.
+func StartOIDCTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, tokenSource *OAuthTokenSourcePrivateKeyJWT, logger *kitlogger.Logger) {
+	go runTokenRefreshLoop(client, username, nextExpiration, logger, "OIDC", func(ctx context.Context) (string, time.Time, error) {
+		token, err := tokenSource.ForceToken(ctx)
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		return token.AccessToken, token.Expiry, nil
+	})
+}
+
+// runTokenRefreshLoop periodically refreshes an authentication token before it
+// expires and re-authenticates the existing Redis connection pool via the AUTH
+// command. fetch must return a fresh token and its expiry. On definitive failure
+// (after retries) the client is closed and the process is terminated, mirroring
+// the behavior of the EntraID token refresh routine.
+func runTokenRefreshLoop(client RedisClient, username string, nextExpiration time.Time, logger *kitlogger.Logger, label string, fetch func(ctx context.Context) (string, time.Time, error)) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backoffConfig := kitretry.DefaultConfig()
+	backoffConfig.MaxRetries = 3
+	backoffConfig.Policy = kitretry.PolicyExponential
+
+	var backoffManager backoff.BackOff
+	const refreshGracePeriod = 5 * time.Minute
+	tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
+
+	(*logger).Debugf("redis client: starting %s token refresh loop", label)
+
+	for {
+		(*logger).Debugf("redis client: next %s token refresh: %v", label, tokenRefreshDuration)
+		select {
+		case <-ctx.Done():
+			(*logger).Infof("redis client: %s token refresh stopped due to context cancellation", label)
+			return
+		case <-time.After(tokenRefreshDuration):
+			(*logger).Debugf("redis client: refreshing %s token", label)
+			// Get a new access token
+			var newToken string
+			var newExpiry time.Time
+			backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+			tokenErr := kitretry.NotifyRecover(
+				func() error {
+					var innerTokenErr error
+					newToken, newExpiry, innerTokenErr = fetch(ctx)
+					return innerTokenErr
+				},
+				backoffManager,
+				func(err error, _ time.Duration) {
+					(*logger).Debugf("redis client: %s token acquisition failed with error: %v. Retrying...", label, err)
+				},
+				func() {
+					(*logger).Debugf("redis client: %s token acquisition succeeded after error", label)
+				},
+			)
+			if tokenErr != nil {
+				_ = client.Close()
+				(*logger).Fatalf("redis client: %s token acquisition failed: %v", label, tokenErr)
+				return
+			}
+
+			// Use the new access token via the Redis AUTH command
+			backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+			authErr := kitretry.NotifyRecover(
+				func() error {
+					return client.AuthACL(ctx, username, newToken)
+				},
+				backoffManager,
+				func(err error, _ time.Duration) {
+					(*logger).Debugf("redis client: %s auth failed with error: %v. Retrying...", label, err)
+				},
+				func() {
+					(*logger).Debugf("redis client: %s auth succeeded after error", label)
+				},
+			)
+			if authErr != nil {
+				_ = client.Close()
+				(*logger).Fatalf("redis client: %s auth failed: %v", label, authErr)
+				return
+			}
+
+			(*logger).Debugf("redis client: %s auth token successfully refreshed with the server", label)
+
+			// Schedule the next refresh based on the new token's expiry
+			tokenRefreshDuration = time.Until(newExpiry.Add(-refreshGracePeriod))
+		}
+	}
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

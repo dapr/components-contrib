@@ -283,7 +283,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				authErr := kitretry.NotifyRecover(
 					func() error {
-						var innerAuthErr = client.AuthACL(ctx, username, token.Token)
+						innerAuthErr := client.AuthACL(ctx, username, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,
@@ -312,7 +312,8 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
 	if len(s.Password) > 0 || len(s.Username) > 0 {
 		return nil, nil, errors.New(
-			"redis client configuration error: username or password must not be specified when using Entra ID authentication")
+			"redis client configuration error: username or password must not be specified when using Entra ID authentication",
+		)
 	}
 	envSettings, err := azure.NewEnvironmentSettings(*properties)
 	if err != nil {
@@ -377,9 +378,14 @@ func (s *Settings) GetOIDCTokenSourceAndSetInitialTokenAsPassword(ctx context.Co
 		s.Username = "default"
 	}
 
-	if s.OidcScopes != "" {
-		s.internalOidcScopes = strings.Split(s.OidcScopes, ",")
-	} else {
+	// Parse the comma-delimited scopes, trimming whitespace and dropping empty entries.
+	s.internalOidcScopes = nil
+	for _, scope := range strings.Split(s.OidcScopes, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			s.internalOidcScopes = append(s.internalOidcScopes, scope)
+		}
+	}
+	if len(s.internalOidcScopes) == 0 {
 		(*logger).Warn("redis client: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
 		s.internalOidcScopes = []string{"openid"}
 	}
@@ -393,7 +399,6 @@ func (s *Settings) GetOIDCTokenSourceAndSetInitialTokenAsPassword(ctx context.Co
 		Resource:            s.OidcResource,
 		Audience:            s.OidcAudience,
 		Kid:                 s.OidcKid,
-		skipCaVerify:        s.InsecureSkipTLSVerify,
 	}
 	if s.OidcCACert != "" {
 		if err := tokenSource.addCa(s.OidcCACert); err != nil {

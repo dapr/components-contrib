@@ -55,11 +55,11 @@ import (
 )
 
 const (
-	oidcClientID          = "dapr-redis-client-jwt"
-	oidcKid               = "redis-cert-test-kid"
-	oidcTokenOne          = "dapr-redis-oidc-token-1"
-	oidcTokenTwo          = "dapr-redis-oidc-token-2"
-	oidcClientAssertation = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+	oidcClientID        = "dapr-redis-client-jwt"
+	oidcKid             = "redis-cert-test-kid"
+	oidcTokenOne        = "dapr-redis-oidc-token-1"
+	oidcTokenTwo        = "dapr-redis-oidc-token-2"
+	oidcClientAssertion = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 )
 
 type tokenRequestRecord struct {
@@ -291,7 +291,7 @@ func TestRedisOIDC(t *testing.T) {
 
 		require.Equal(t, "client_credentials", req.form.Get("grant_type"))
 		require.Equal(t, oidcClientID, req.form.Get("client_id"))
-		require.Equal(t, oidcClientAssertation, req.form.Get("client_assertion_type"))
+		require.Equal(t, oidcClientAssertion, req.form.Get("client_assertion_type"))
 		require.Equal(t, "openid redis-cert", req.form.Get("scope"))
 		require.Equal(t, "URI:RS-redis-cert-test", req.form.Get("resource"))
 
@@ -320,7 +320,8 @@ func TestRedisOIDC(t *testing.T) {
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step("Configure Redis ACL to accept the OIDC tokens as passwords", setupRedisACL).
 		Step("Verify unauthenticated access is rejected", verifyNoAuthFails).
-		Step(sidecar.Run(sidecarNamePrefix+"oidc",
+		Step(sidecar.Run(
+			sidecarNamePrefix+"oidc",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
@@ -354,7 +355,8 @@ func TestRedisOIDC(t *testing.T) {
 	flow.New(t, "redis state store with conflicting useOIDC and redisPassword fails to initialize").
 		Step(dockercompose.Run("redisoidc", dockerComposeYAML)).
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
-		Step(sidecar.Run(sidecarNamePrefix+"oidc-conflict",
+		Step(sidecar.Run(
+			sidecarNamePrefix+"oidc-conflict",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),

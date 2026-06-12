@@ -53,11 +53,10 @@ type OAuthTokenSourcePrivateKeyJWT struct {
 	Audience            string
 	Kid                 string
 
-	lock         sync.Mutex
-	cachedToken  oauth2.Token
-	httpClient   *http.Client
-	trustedCas   []*x509.Certificate
-	skipCaVerify bool
+	lock        sync.Mutex
+	cachedToken oauth2.Token
+	httpClient  *http.Client
+	trustedCas  []*x509.Certificate
 }
 
 type oidcTokenResponse struct {
@@ -90,8 +89,7 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) configureClient() {
 	}
 
 	tlsConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: ts.skipCaVerify, //nolint:gosec
+		MinVersion: tls.VersionTLS12,
 	}
 
 	if ts.trustedCas != nil {
@@ -157,6 +155,25 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) token(ctx context.Context) (*oauth2.Tok
 	rsaKey, ok := pk.(*rsa.PrivateKey)
 	if !ok {
 		return nil, errors.New("private_key_jwt requires RSA private key")
+	}
+
+	// Verify the supplied certificate matches the private key. The certificate
+	// itself is not sent in the assertion (the IdP identifies the key via the
+	// kid header), but validating the pair here surfaces misconfiguration at
+	// init instead of as an opaque token-endpoint rejection.
+	certs, err := pem.DecodePEMCertificates([]byte(ts.ClientAssertionCert))
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse client assertion certificate: %w", err)
+	}
+	if len(certs) == 0 {
+		return nil, errors.New("client assertion certificate is empty")
+	}
+	certPubKey, ok := certs[0].PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("client assertion certificate must use an RSA public key")
+	}
+	if !certPubKey.Equal(&rsaKey.PublicKey) {
+		return nil, errors.New("client assertion certificate public key does not match the private key")
 	}
 
 	now := time.Now()

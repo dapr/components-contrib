@@ -106,6 +106,9 @@ func decodeJWTPart(t *testing.T, jwtPart string) map[string]interface{} {
 
 func TestOAuthTokenSourcePrivateKeyJWT(t *testing.T) {
 	certPEM, keyPEM := createTestCertAndKey(t)
+	// A certificate from an unrelated key pair, used to exercise the cert/key
+	// mismatch validation.
+	otherCertPEM, _ := createTestCertAndKey(t)
 
 	t.Run("happy path sends a signed client assertion and returns the token", func(t *testing.T) {
 		var hits atomic.Int32
@@ -275,6 +278,16 @@ func TestOAuthTokenSourcePrivateKeyJWT(t *testing.T) {
 					ClientAssertionKey:  "not a key",
 				},
 				err: "unable to parse private key",
+			},
+			{
+				name: "certificate does not match private key",
+				ts: &OAuthTokenSourcePrivateKeyJWT{
+					TokenEndpoint:       oauth2.Endpoint{TokenURL: "https://idp.example.com/token"},
+					ClientID:            "test-client",
+					ClientAssertionCert: string(otherCertPEM),
+					ClientAssertionKey:  string(keyPEM),
+				},
+				err: "does not match the private key",
 			},
 		}
 		for _, tt := range tests {

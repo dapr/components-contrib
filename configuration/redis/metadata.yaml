@@ -141,9 +141,11 @@ authenticationProfiles:
         required: false
         description: |
           Username to pass to the Redis AUTH command together with the access token.
-          Defaults to "default" when using OIDC authentication.
-        example: '"default"'
-        default: '"default"'
+          When omitted, the token is sent using the 1-argument AUTH <token> form
+          (authenticating as the default user), accepted by the widest range of
+          RESP-compatible auth layers. Set a username to use the 2-argument
+          AUTH <username> <token> (ACL) form.
+        example: '"my-user"'
 metadata:
   - name: redisHost
     required: true

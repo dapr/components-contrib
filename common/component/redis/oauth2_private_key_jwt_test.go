@@ -440,7 +440,7 @@ func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
 		}
 	})
 
-	t.Run("happy path sets the token as password and defaults the username", func(t *testing.T) {
+	t.Run("happy path sets the token as password and leaves the username empty", func(t *testing.T) {
 		var hits atomic.Int32
 		var form sync.Map
 		server := newTokenEndpointStub(t, &hits, &form)
@@ -452,7 +452,9 @@ func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
 		require.NotNil(t, tokenSource)
 		require.True(t, expiry.After(time.Now()))
 		require.Equal(t, "test-token", s.Password)
-		require.Equal(t, "default", s.Username)
+		// No explicit username: kept empty so the client uses the 1-argument
+		// AUTH <token> form for maximum RESP compatibility.
+		require.Empty(t, s.Username)
 		// no scopes specified: defaults to openid only
 		require.Equal(t, []string{"openid"}, s.internalOidcScopes)
 		require.Equal(t, "openid", formValue(t, &form, "scope"))

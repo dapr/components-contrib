@@ -372,11 +372,10 @@ func (s *Settings) GetOIDCTokenSourceAndSetInitialTokenAsPassword(ctx context.Co
 		return nil, time.Time{}, errors.New("redis client configuration error: missing oidcClientAssertionKey for OIDC authentication")
 	}
 
-	if s.Username == "" {
-		// With no explicit username we authenticate as the default user,
-		// which is equivalent to the plain AUTH <token> command.
-		s.Username = "default"
-	}
+	// Leave Username empty unless the operator set one explicitly. An empty
+	// username makes the client send the 1-argument AUTH <token> form, which the
+	// widest range of RESP-compatible auth layers accept; a configured username
+	// switches to the 2-argument AUTH <username> <token> (ACL) form.
 
 	// Parse the comma-delimited scopes, trimming whitespace and dropping empty entries.
 	s.internalOidcScopes = nil
@@ -441,7 +440,17 @@ func runTokenRefreshLoop(client RedisClient, username string, nextExpiration tim
 
 	var backoffManager backoff.BackOff
 	const refreshGracePeriod = 5 * time.Minute
-	tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
+	// minTokenRefreshInterval floors the wait between refreshes so a short-lived
+	// or near-expiry token (remaining lifetime <= refreshGracePeriod) cannot
+	// drive the loop into a tight refresh+AUTH spin against the IdP and Redis.
+	const minTokenRefreshInterval = 5 * time.Second
+	nextRefresh := func(expiry time.Time) time.Duration {
+		if d := time.Until(expiry.Add(-refreshGracePeriod)); d > minTokenRefreshInterval {
+			return d
+		}
+		return minTokenRefreshInterval
+	}
+	tokenRefreshDuration := nextRefresh(nextExpiration)
 
 	(*logger).Debugf("redis client: starting %s token refresh loop", label)
 
@@ -477,11 +486,17 @@ func runTokenRefreshLoop(client RedisClient, username string, nextExpiration tim
 				return
 			}
 
-			// Use the new access token via the Redis AUTH command
+			// Re-authenticate the connection with the new token via the Redis AUTH
+			// command. DoWrite executes the command immediately (unlike AuthACL,
+			// which enqueues on a pipeline). With no username we send the
+			// 1-argument AUTH <token> form; with one we send AUTH <username> <token>.
 			backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 			authErr := kitretry.NotifyRecover(
 				func() error {
-					return client.AuthACL(ctx, username, newToken)
+					if username == "" {
+						return client.DoWrite(ctx, "AUTH", newToken)
+					}
+					return client.DoWrite(ctx, "AUTH", username, newToken)
 				},
 				backoffManager,
 				func(err error, _ time.Duration) {
@@ -500,7 +515,7 @@ func runTokenRefreshLoop(client RedisClient, username string, nextExpiration tim
 			(*logger).Debugf("redis client: %s auth token successfully refreshed with the server", label)
 
 			// Schedule the next refresh based on the new token's expiry
-			tokenRefreshDuration = time.Until(newExpiry.Add(-refreshGracePeriod))
+			tokenRefreshDuration = nextRefresh(newExpiry)
 		}
 	}
 }

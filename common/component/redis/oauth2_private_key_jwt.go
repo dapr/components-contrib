@@ -104,10 +104,13 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) configureClient() {
 		tlsConfig.RootCAs = caPool
 	}
 
+	// Clone http.DefaultTransport so we keep its defaults (ProxyFromEnvironment,
+	// connection pooling, timeouts) and only override the TLS configuration.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsConfig
+
 	ts.httpClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
+		Transport: transport,
 	}
 }
 

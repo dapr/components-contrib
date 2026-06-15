@@ -26,20 +26,16 @@ import (
 	kitlogger "github.com/dapr/kit/logger"
 )
 
-type authACLCall struct {
-	username string
-	password string
-}
-
-// fakeRedisClient records AuthACL calls. The embedded RedisClient interface
-// satisfies the remaining methods (they panic if called, which no test does).
+// fakeRedisClient records the AUTH command issued via DoWrite. The embedded
+// RedisClient interface satisfies the remaining methods (they panic if called,
+// which no test does).
 type fakeRedisClient struct {
 	RedisClient
-	authCalls chan authACLCall
+	doWriteCalls chan []interface{}
 }
 
-func (f *fakeRedisClient) AuthACL(_ context.Context, username, password string) error {
-	f.authCalls <- authACLCall{username: username, password: password}
+func (f *fakeRedisClient) DoWrite(_ context.Context, args ...interface{}) error {
+	f.doWriteCalls <- args
 	return nil
 }
 
@@ -48,33 +44,55 @@ func (f *fakeRedisClient) Close() error {
 }
 
 func TestRunTokenRefreshLoop(t *testing.T) {
-	logger := kitlogger.NewLogger("test")
-	fake := &fakeRedisClient{authCalls: make(chan authACLCall, 10)}
-
 	// The loop refreshes 5 minutes before expiry; make the first refresh fire
 	// almost immediately, and schedule all subsequent refreshes far in the
 	// future so the goroutine goes dormant after the assertions.
 	const refreshGracePeriod = 5 * time.Minute
-	firstExpiry := time.Now().Add(refreshGracePeriod + 50*time.Millisecond)
 
-	var fetchCount atomic.Int32
-	fetch := func(ctx context.Context) (string, time.Time, error) {
-		n := fetchCount.Add(1)
-		if n == 1 {
-			// Transient failure: exercises the retry path
-			return "", time.Time{}, errors.New("transient token error")
-		}
-		return fmt.Sprintf("token-%d", n), time.Now().Add(refreshGracePeriod + 24*time.Hour), nil
+	tests := []struct {
+		name         string
+		username     string
+		expectedAuth []interface{}
+	}{
+		{
+			// No username: the connection must re-AUTH with the 1-argument form.
+			name:         "default user uses 1-argument AUTH",
+			username:     "",
+			expectedAuth: []interface{}{"AUTH", "token-2"},
+		},
+		{
+			// Explicit username: the connection re-AUTHs with the ACL 2-arg form.
+			name:         "explicit user uses 2-argument AUTH",
+			username:     "alice",
+			expectedAuth: []interface{}{"AUTH", "alice", "token-2"},
+		},
 	}
 
-	go runTokenRefreshLoop(fake, "default", firstExpiry, &logger, "test", fetch)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := kitlogger.NewLogger("test")
+			fake := &fakeRedisClient{doWriteCalls: make(chan []interface{}, 10)}
+			firstExpiry := time.Now().Add(refreshGracePeriod + 50*time.Millisecond)
 
-	select {
-	case call := <-fake.authCalls:
-		require.Equal(t, "default", call.username)
-		require.Equal(t, "token-2", call.password)
-	case <-time.After(10 * time.Second):
-		t.Fatal("timed out waiting for AuthACL after token refresh")
+			var fetchCount atomic.Int32
+			fetch := func(ctx context.Context) (string, time.Time, error) {
+				n := fetchCount.Add(1)
+				if n == 1 {
+					// Transient failure: exercises the retry path
+					return "", time.Time{}, errors.New("transient token error")
+				}
+				return fmt.Sprintf("token-%d", n), time.Now().Add(refreshGracePeriod + 24*time.Hour), nil
+			}
+
+			go runTokenRefreshLoop(fake, tc.username, firstExpiry, &logger, "test", fetch)
+
+			select {
+			case call := <-fake.doWriteCalls:
+				require.Equal(t, tc.expectedAuth, call)
+			case <-time.After(10 * time.Second):
+				t.Fatal("timed out waiting for AUTH after token refresh")
+			}
+			require.Equal(t, int32(2), fetchCount.Load(), "expected one failed and one successful fetch")
+		})
 	}
-	require.Equal(t, int32(2), fetchCount.Load(), "expected one failed and one successful fetch")
 }

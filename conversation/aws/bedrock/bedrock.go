@@ -103,16 +103,16 @@ func (b *AWSBedrock) Init(ctx context.Context, meta conversation.Metadata) error
 		return err
 	}
 
-	b.LLM.Model = llm
-	b.LLM.SetModel(b.model)
+	b.Model = llm
+	b.SetModel(b.model)
 
 	if m.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, b.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, b.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		b.LLM.Model = cachedModel
+		b.Model = cachedModel
 	}
 	return nil
 }

@@ -72,9 +72,9 @@ type BulkMessage struct {
 func (m BulkMessage) String() string {
 	md, _ := json.Marshal(m.Metadata)
 	b := strings.Builder{}
-	b.WriteString(fmt.Sprintf("[BulkMessage] topic='%s' metadata=%s entries=%d", m.Topic, md, len(m.Entries)))
+	fmt.Fprintf(&b, "[BulkMessage] topic='%s' metadata=%s entries=%d", m.Topic, md, len(m.Entries))
 	for i, e := range m.Entries {
-		b.WriteString(fmt.Sprintf("\n%d: ", i))
+		fmt.Fprintf(&b, "\n%d: ", i)
 		b.WriteString(e.String())
 	}
 	return b.String()

@@ -207,7 +207,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		// see: https://cloud.google.com/pubsub/docs/emulator#env
 		if metadata.ConnectionEndpoint != "" {
 			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
-			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
+			_ = os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint) //nolint:errcheck // legacy behavior preserved
 		}
 		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {
@@ -221,7 +221,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 // Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if g.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 	g.lock.RLock()
 	_, topicExists := g.topicCache[req.Topic]
@@ -232,6 +232,8 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
+			// GCP's client returns gRPC-status errors, so the runtime reads the real
+			// code (e.g. PermissionDenied vs Unavailable) directly - don't override it.
 			return fmt.Errorf("%s could not get valid topic %s: %w", errorMessagePrefix, req.Topic, err)
 		}
 		g.lock.Lock()
@@ -261,6 +263,7 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	}
 	_, err := topic.Publish(ctx, msg).Get(ctx)
 
+	// GCP returns gRPC-status errors - let the runtime read the native code.
 	return err
 }
 
@@ -307,7 +310,7 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	}()
 	go func() {
 		defer g.wg.Done()
-		g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler)
+		_ = g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler) //nolint:errcheck // legacy behavior preserved
 	}()
 
 	return nil
@@ -405,7 +408,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 		select {
 		case <-time.After(time.Second * time.Duration(g.metadata.ConnectionRecoveryInSec)):
 		case <-parentCtx.Done():
-			break
+			break //nolint:staticcheck // SA4011: preserved for backwards compat (breaks select; outer loop sees ctx via Receive return)
 		}
 
 		<-reconnAttempts
@@ -516,6 +519,6 @@ func (g *GCPPubSub) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (g *GCPPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

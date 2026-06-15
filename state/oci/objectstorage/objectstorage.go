@@ -135,13 +135,13 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	r.logger.Debugf("Delete entry from OCI Object Storage State Store with key ", req.Key)
+	r.logger.Debugf("Delete entry from OCI Object Storage State Store with key %s", req.Key)
 	err := r.deleteDocument(ctx, req)
 	return err
 }
 
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	r.logger.Debugf("Get from OCI Object Storage State Store with key ", req.Key)
+	r.logger.Debugf("Get from OCI Object Storage State Store with key %s", req.Key)
 	content, etag, err := r.readDocument(ctx, req)
 	if err != nil {
 		r.logger.Debugf("error %s", err)
@@ -292,7 +292,7 @@ func (r *StateStore) convertTTLtoExpiryTime(req *state.SetRequest, metadata map[
 	}
 	if ttl != nil {
 		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+		r.logger.Debugf("Set %s in meta properties for object to %s", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
 	}
 	return nil
 }
@@ -313,7 +313,7 @@ func (r *StateStore) readDocument(ctx context.Context, req *state.GetRequest) ([
 			return nil, nil, fmt.Errorf("failed to get object from OCI because of invalid formatted value %s in meta property %s  : %w", expiryTimeString, expiryTimeMetaLabel, err)
 		}
 		if time.Now().UTC().After(expirationTime) {
-			r.logger.Debug("failed to get object from OCI because it has expired; expiry time set to %s", expiryTimeString)
+			r.logger.Debugf("failed to get object from OCI because it has expired; expiry time set to %s", expiryTimeString)
 			return nil, nil, nil
 		}
 	}
@@ -424,7 +424,7 @@ func createBucket(ctx context.Context, client objectstorage.ObjectStorageClient,
 // *****  the functions that interact with OCI Object Storage AND constitute the objectStoreClient interface.
 
 func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {
-	c.logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.BucketName)
+	c.logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, c.objectStorageMetadata.BucketName)
 	request := objectstorage.GetObjectRequest{
 		NamespaceName: &c.objectStorageMetadata.Namespace,
 		BucketName:    &c.objectStorageMetadata.BucketName,
@@ -439,7 +439,7 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 		return nil, nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
 	}
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(response.Content)
+	_, _ = buf.ReadFrom(response.Content) //nolint:errcheck // legacy behavior preserved
 	return buf.Bytes(), response.ETag, response.OpcMeta, nil
 }
 
@@ -468,7 +468,7 @@ func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname strin
 		IfMatch:       etag,
 	}
 	_, err := c.objectStorageMetadata.OCIObjectStorageClient.PutObject(ctx, request)
-	c.logger.Debugf("Put object ", objectname, " in bucket ", &c.objectStorageMetadata.BucketName)
+	c.logger.Debugf("Put object %s in bucket %s", objectname, c.objectStorageMetadata.BucketName)
 	if err != nil {
 		return fmt.Errorf("failed to put object on OCI : %w", err)
 	}
@@ -527,6 +527,6 @@ func (c *ociObjectStorageClient) pingBucket(ctx context.Context) error {
 
 func (r *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := objectStoreMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }

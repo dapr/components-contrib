@@ -67,18 +67,19 @@ func (a *azureServiceBus) Init(_ context.Context, metadata pubsub.Metadata) (err
 
 func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if a.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
-	return a.client.PublishPubSub(ctx, req, a.client.EnsureQueue, a.logger)
+	return pubsub.NewRetriableError(a.client.PublishPubSub(ctx, req, a.client.EnsureQueue, a.logger))
 }
 
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if a.closed.Load() {
-		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+		return pubsub.BulkPublishResponse{}, pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
-	return a.client.PublishPubSubBulk(ctx, req, a.client.EnsureQueue, a.logger)
+	res, err := a.client.PublishPubSubBulk(ctx, req, a.client.EnsureQueue, a.logger)
+	return res, pubsub.NewRetriableError(err)
 }
 
 func (a *azureServiceBus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -229,7 +230,7 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 // GetComponentMetadata returns the metadata of the component.
 func (a *azureServiceBus) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	delete(metadataInfo, "consumerID") // only applies to topics, not queues
 	return
 }

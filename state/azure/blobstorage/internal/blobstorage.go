@@ -91,7 +91,7 @@ func (r *StateStore) Ping(ctx context.Context) error {
 
 func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := blobstoragecommon.BlobStorageMetadata{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return
 }
 

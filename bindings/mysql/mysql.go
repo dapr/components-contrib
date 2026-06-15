@@ -238,7 +238,7 @@ func (m *Mysql) Close() error {
 	}
 
 	if m.db != nil {
-		m.db.Close()
+		_ = m.db.Close()
 		m.db = nil
 	}
 
@@ -381,6 +381,6 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []any) map[string]
 // GetComponentMetadata returns the metadata of the component.
 func (m *Mysql) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mysqlMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/build-tools
 
-go 1.24.13
+go 1.26.3
 
 require (
 	github.com/dapr/components-contrib v0.0.0
@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/dapr/kit v0.16.2-0.20251124175541-3ac186dff64d // indirect
+	github.com/dapr/kit v0.18.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect

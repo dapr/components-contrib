@@ -310,7 +310,7 @@ func (r *RavenDB) marshalToString(v interface{}) (string, error) {
 
 func (r *RavenDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := RavenDBMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
@@ -465,7 +465,7 @@ func (r *RavenDB) setupDatabase() {
 	operation := ravendb.NewGetDatabaseRecordOperation(r.metadata.DatabaseName)
 	err := r.documentStore.Maintenance().Server().Send(operation)
 	if err == nil {
-		if operation.Command != nil && operation.Command.RavenCommandBase.StatusCode == http.StatusNotFound {
+		if operation.Command != nil && operation.Command.StatusCode == http.StatusNotFound {
 			databaseRecord := ravendb.DatabaseRecord{
 				DatabaseName: r.metadata.DatabaseName,
 				Disabled:     false,

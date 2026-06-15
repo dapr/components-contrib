@@ -350,7 +350,7 @@ func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	key := randomKey()
 	response, outputObject := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
-	assert.Equal(t, "", outputObject.Color)
+	assert.Empty(t, outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.

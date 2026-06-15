@@ -14,10 +14,14 @@ limitations under the License.
 package amqp
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 
@@ -36,6 +40,33 @@ func getFakeProperties() map[string]string {
 		username:     "default",
 		password:     "default",
 	}
+}
+
+// TestPublishErrorClassification verifies that terminal Publish error paths
+// reachable without a live broker are classified as codes.FailedPrecondition.
+func TestPublishErrorClassification(t *testing.T) {
+	t.Run("closed component is terminal", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		a.closed.Store(true)
+
+		err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: "some-topic"})
+		require.Error(t, err)
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+
+	t.Run("empty topic is terminal", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+
+		err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: ""})
+		require.Error(t, err)
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
 }
 
 func TestParseMetadata(t *testing.T) {
@@ -85,7 +116,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
+		block, _ := pem.Decode([]byte(m.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse ca certificate from metadata. %v", err)
@@ -111,7 +142,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
+		block, _ := pem.Decode([]byte(m.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse client certificate from metadata. %v", err)
@@ -137,6 +168,6 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
+		assert.NotNil(t, m.ClientKey, "failed to parse valid client certificate key")
 	})
 }

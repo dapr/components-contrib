@@ -43,7 +43,7 @@ func TestPartitionKeyValue(t *testing.T) {
 	cosmosDB := CosmosDB{logger: logger.NewLogger("test")}
 	var obj interface{}
 	jsonStr := `{"name": "name", "empty" : "", "address": { "planet" : { "name": "earth" }, "zip" : "zipcode" }}`
-	json.Unmarshal([]byte(jsonStr), &obj)
+	require.NoError(t, json.Unmarshal([]byte(jsonStr), &obj))
 
 	// Valid single partition key
 	val, err := cosmosDB.getPartitionKeyValue("name", obj)

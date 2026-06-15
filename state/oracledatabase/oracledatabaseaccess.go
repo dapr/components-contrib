@@ -623,6 +623,7 @@ func (o *oracleDatabaseAccess) ensureStateTable(stateTableName string) error {
 	}
 	if !exists {
 		o.logger.Info("Creating state table")
+		//nolint:gosec // DDL: table name not parameterizable, comes from validated component config
 		createTable := `CREATE TABLE ` + stateTableName + ` (
 						key varchar2(100) NOT NULL PRIMARY KEY,
 						value clob NOT NULL,

@@ -14,10 +14,13 @@ limitations under the License.
 package snssqs
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -27,6 +30,21 @@ import (
 type testUnitFixture struct {
 	metadata pubsub.Metadata
 	name     string
+}
+
+// Publishing while the component is closed is a lifecycle error and must be
+// classified as terminal (codes.FailedPrecondition) so the runtime stops retrying.
+func Test_Publish_closed_isTerminal(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	s := &snsSqs{logger: logger.NewLogger("test")}
+	s.closed.Store(true)
+
+	err := s.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	r.Error(err)
+	st, ok := status.FromError(err)
+	r.True(ok)
+	r.Equal(codes.FailedPrecondition, st.Code())
 }
 
 func Test_parseTopicArn(t *testing.T) {
@@ -101,10 +119,10 @@ func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("c", md.SqsQueueName)
-	r.Equal("", md.Endpoint)
+	r.Empty(md.Endpoint)
 	r.Equal("a", md.AccessKey)
 	r.Equal("s", md.SecretKey)
-	r.Equal("", md.SessionToken)
+	r.Empty(md.SessionToken)
 	r.Equal("r", md.Region)
 	r.Equal(pubsub.Parallel, md.ConcurrencyMode)
 	r.Equal(0, md.ConcurrencyLimit)
@@ -113,7 +131,7 @@ func Test_getSnsSqsMetadata_defaults(t *testing.T) {
 	r.Equal(int32(2), md.MessageWaitTimeSeconds)
 	r.Equal(int32(10), md.MessageMaxNumber)
 	r.False(md.DisableEntityManagement)
-	r.EqualValues(float64(5), md.AssetsManagementTimeoutSeconds)
+	r.Equal(float64(5), md.AssetsManagementTimeoutSeconds)
 	r.False(md.DisableDeleteOnRetryLimit)
 }
 
@@ -136,7 +154,7 @@ func Test_getSnsSqsMetadata_legacyaliases(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("consumer", md.SqsQueueName)
-	r.Equal("", md.Endpoint)
+	r.Empty(md.Endpoint)
 	r.Equal("acctId", md.AccessKey)
 	r.Equal("secret", md.SecretKey)
 	r.Equal("region", md.Region)

@@ -231,7 +231,7 @@ func (a *AzureEventGrid) initJWKSCache(ctx context.Context) error {
 	jwkURL := fmt.Sprintf(jwksURIFormat, a.metadata.azureTenantID)
 
 	c := jwk.NewCache(ctx)
-	c.Register(jwkURL, jwk.WithMinRefreshInterval(15*time.Minute))
+	_ = c.Register(jwkURL, jwk.WithMinRefreshInterval(15*time.Minute)) //nolint:errcheck // legacy behavior preserved; failure surfaces in Refresh below
 
 	// Do a first refresh to validate the JWKS keybag
 	_, err := c.Refresh(ctx, jwkURL)
@@ -624,6 +624,6 @@ func (a *AzureEventGrid) subscriptionNeedsUpdating(res armeventgrid.EventSubscri
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureEventGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := azureEventGridMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

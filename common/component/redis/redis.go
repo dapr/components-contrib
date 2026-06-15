@@ -351,6 +351,11 @@ func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[st
 	if !ok {
 		return nil, errors.New("redis client configuration error: object ID claim is not a string")
 	}
+	// Fail fast on an empty OID: AUTH ACL requires a non-empty username, so an empty
+	// claim would otherwise surface as a confusing connect-time error rather than here.
+	if objectID == "" {
+		return nil, errors.New("redis client configuration error: object ID claim is empty in Auth token")
+	}
 
 	s.entraIDUsername = objectID
 	s.entraIDTokenCredential = cred

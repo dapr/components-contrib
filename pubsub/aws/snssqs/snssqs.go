@@ -380,7 +380,7 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 	} else {
 		queueInfo, err = s.getQueueArn(ctx, sanitizedName)
 		if err != nil {
-			s.logger.Errorf("error fetching info for queue %s: %w", queueName, err)
+			s.logger.Errorf("error fetching info for queue %s: %v", queueName, err)
 
 			return nil, err
 		}
@@ -462,7 +462,7 @@ func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, to
 	} else {
 		subscriptionArn, err = s.getSnsSqsSubscriptionArn(ctx, topicArn)
 		if err != nil {
-			s.logger.Errorf("error fetching info for topic ARN %s: %w", topicArn, err)
+			s.logger.Errorf("error fetching info for topic ARN %s: %v", topicArn, err)
 
 			return "", err
 		}
@@ -627,11 +627,11 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		messageResponse, err := s.sqsClient.ReceiveMessage(ctx, receiveMessageInput)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
-				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
+				s.logger.Warnf("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
 				continue
 			}
 
-			s.logger.Errorf("error consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, err)
+			s.logger.Errorf("error consuming from queue arn: %v with error: %v. retrying...", queueInfo.arn, err)
 
 			time.Sleep(sqsPullExponentialBackoff.NextBackOff())
 

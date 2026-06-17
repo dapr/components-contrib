@@ -13,6 +13,17 @@ binding:
   operations:
     - name: create
       description: "Create an item."
+    - name: copy
+      description: |
+        Copy an object. Supply `destinationKey` in the request data to copy to a different
+        key (including intra-bucket prefix changes). Supply `destinationBucket` to copy to a
+        different bucket. At least one of `destinationBucket` or `destinationKey` must differ
+        from the source; omitting both is an error. Both default to the source values when not
+        provided.
+    - name: move
+      description: |
+        Move (copy then delete) an object. Accepts the same `destinationKey` and
+        `destinationBucket` fields as `copy`. At least one must differ from the source.
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "gcp"

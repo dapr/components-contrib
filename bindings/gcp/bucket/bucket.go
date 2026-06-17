@@ -546,6 +546,31 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 
 type movePayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
+}
+
+// resolveCopyDestination validates that at least one of destBucket or destKey was
+// explicitly provided by the caller, then fills in any missing defaults:
+//   - destBucket defaults to configuredBucket when empty
+//   - destKey defaults to srcKey when empty
+//
+// It returns an error only when both were absent (empty string == not provided).
+func resolveCopyDestination(destBucket, destKey, srcKey, configuredBucket string) (bucket, key string, err error) {
+	destBucketProvided := destBucket != ""
+	destKeyProvided := destKey != ""
+
+	if !destBucketProvided && !destKeyProvided {
+		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey")
+	}
+
+	if !destBucketProvided {
+		destBucket = configuredBucket
+	}
+	if !destKeyProvided {
+		destKey = srcKey
+	}
+
+	return destBucket, destKey, nil
 }
 
 func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -557,17 +582,17 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	var payload movePayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, errors.New("gcp bucket binding error: invalid move payload")
+	if err := json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: invalid move payload: %w", err)
 	}
 
-	if payload.DestinationBucket == "" {
-		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
+	destBucket, destKey, err := resolveCopyDestination(payload.DestinationBucket, payload.DestinationKey, key, g.metadata.Bucket)
+	if err != nil {
+		return nil, err
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(destBucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
@@ -577,7 +602,7 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s moved to %s/%s", key, destBucket, destKey)),
 	}, nil
 }
 
@@ -620,6 +645,7 @@ func (g *GCPStorage) rename(ctx context.Context, req *bindings.InvokeRequest) (*
 
 type copyPayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
 }
 
 func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -631,22 +657,22 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	var payload copyPayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, errors.New("gcp bucket binding error: invalid copy payload")
+	if err := json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: invalid copy payload: %w", err)
 	}
 
-	if payload.DestinationBucket == "" {
-		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
+	destBucket, destKey, err := resolveCopyDestination(payload.DestinationBucket, payload.DestinationKey, key, g.metadata.Bucket)
+	if err != nil {
+		return nil, err
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(destBucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s copied to %s/%s", key, destBucket, destKey)),
 	}, nil
 }

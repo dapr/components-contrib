@@ -273,16 +273,6 @@ const components = {
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
-    'configuration.redis.valkey8': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh valkey8 redis',
-        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
-    },
-    'configuration.redis.valkey9': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh valkey9 redis',
-        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
-    },
     'configuration.redis': {
         certification: true,
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],

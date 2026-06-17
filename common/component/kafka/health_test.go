@@ -64,6 +64,7 @@ func TestPingDeadlineExceededContext(t *testing.T) {
 
 	err := k.Ping(ctx)
 	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 // TestPingUnreachableBroker verifies that Ping fails fast for an unreachable
@@ -87,4 +88,56 @@ func TestPingUnreachableBroker(t *testing.T) {
 	err := k.Ping(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "health check")
+}
+
+// TestPingClosedComponent verifies that Ping returns an error when the
+// component has been closed.
+func TestPingClosedComponent(t *testing.T) {
+	k := &Kafka{
+		logger:  logger.NewLogger("kafka_test"),
+		config:  sarama.NewConfig(),
+		brokers: []string{"localhost:9092"},
+	}
+	k.closed.Store(true)
+
+	err := k.Ping(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "closed")
+}
+
+// TestPingContextCancelledMidFlight verifies that Ping returns promptly when
+// the context is cancelled shortly after the call is made against a
+// non-routable (blackholed) address. The test must complete well before any
+// Net dial timeout would fire — this proves the goroutine/select path works.
+func TestPingContextCancelledMidFlight(t *testing.T) {
+	// Use a config with long dial timeouts to prove ctx cancellation is what
+	// causes the early return, not the Net timeout.
+	cfg := sarama.NewConfig()
+	cfg.Net.DialTimeout = 30 * time.Second
+	cfg.Net.ReadTimeout = 30 * time.Second
+	cfg.Net.WriteTimeout = 30 * time.Second
+	cfg.Metadata.Retry.Max = 0
+
+	k := &Kafka{
+		logger: logger.NewLogger("kafka_test"),
+		config: cfg,
+		// 192.0.2.0/24 is TEST-NET-1 (RFC 5737) — packets are blackholed.
+		brokers: []string{"192.0.2.1:9092"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel after a short delay to simulate the caller giving up.
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	err := k.Ping(ctx)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	// Must complete well within the 30 s Net.DialTimeout.
+	require.Less(t, elapsed, 5*time.Second, "Ping should return shortly after ctx cancel, not wait for the net timeout")
 }

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/dapr/kit/crypto/pem"
@@ -30,6 +31,7 @@ import (
 )
 
 type OAuthTokenSource struct {
+	mu            sync.Mutex
 	CachedToken   oauth2.Token
 	Extensions    map[string]string
 	TokenEndpoint oauth2.Endpoint
@@ -101,6 +103,9 @@ func (ts *OAuthTokenSource) configureClient() {
 }
 
 func (ts *OAuthTokenSource) Token() (*sarama.AccessToken, error) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
 	if ts.CachedToken.Valid() {
 		return ts.asSaramaToken(), nil
 	}

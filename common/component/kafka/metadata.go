@@ -455,6 +455,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		m.internalProducerRequiredAcks = sarama.WaitForLocal
 	case producerRequiredAcksNone:
 		m.internalProducerRequiredAcks = sarama.NoResponse
+		k.logger.Warnf("kafka: producerRequiredAcks is set to 'none' (fire-and-forget) — messages may be silently lost if a broker fails to write them")
 	default:
 		return nil, fmt.Errorf("kafka error: invalid value for 'producerRequiredAcks': %q (must be \"all\", \"local\", or \"none\")", m.ProducerRequiredAcks)
 	}

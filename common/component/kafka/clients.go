@@ -27,11 +27,10 @@ func (k *Kafka) latestClients() (*clients, error) {
 		}
 
 		awsKafkaOpts := KafkaOptions{
-			Config:          k.config,
-			ConsumerGroup:   k.consumerGroup,
-			Brokers:         k.brokers,
-			MaxMessageBytes: k.maxMessageBytes,
-			ProducerConfig:  k.producerConfig,
+			Config:         k.config,
+			ConsumerGroup:  k.consumerGroup,
+			Brokers:        k.brokers,
+			ProducerConfig: k.producerConfig,
 		}
 
 		awsKafkaClients := InitAwsClients(awsKafkaOpts)

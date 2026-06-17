@@ -40,6 +40,45 @@ type activateJobsPayload struct {
 	RequestTimeout    *metadata.Duration `json:"requestTimeout,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to provide field-specific error messages for
+// duration fields. Both timeout and requestTimeout must be Go duration strings (e.g. "30s", "5m", "1h30m").
+func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
+	var shadow struct {
+		JobType           string           `json:"jobType"`
+		MaxJobsToActivate *int32           `json:"maxJobsToActivate"`
+		Timeout           *json.RawMessage `json:"timeout,omitempty"`
+		WorkerName        string           `json:"workerName"`
+		FetchVariables    []string         `json:"fetchVariables"`
+		RequestTimeout    *json.RawMessage `json:"requestTimeout,omitempty"`
+	}
+	if err := json.Unmarshal(data, &shadow); err != nil {
+		return err
+	}
+
+	p.JobType = shadow.JobType
+	p.MaxJobsToActivate = shadow.MaxJobsToActivate
+	p.WorkerName = shadow.WorkerName
+	p.FetchVariables = shadow.FetchVariables
+
+	if shadow.Timeout != nil {
+		var d metadata.Duration
+		if err := d.UnmarshalJSON(*shadow.Timeout); err != nil {
+			return fmt.Errorf("invalid value for field 'timeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+		}
+		p.Timeout = &d
+	}
+
+	if shadow.RequestTimeout != nil {
+		var d metadata.Duration
+		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
+			return fmt.Errorf("invalid value for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+		}
+		p.RequestTimeout = &d
+	}
+
+	return nil
+}
+
 func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload activateJobsPayload
 	err := json.Unmarshal(req.Data, &payload)

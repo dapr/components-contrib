@@ -24,10 +24,10 @@ import (
 )
 
 type AwsClients struct {
-	config          *sarama.Config
-	consumerGroup   *string
-	brokers         *[]string
-	maxMessageBytes *int
+	config         *sarama.Config
+	consumerGroup  *string
+	brokers        *[]string
+	producerConfig ProducerConfig
 
 	ConsumerGroup sarama.ConsumerGroup
 	Producer      sarama.SyncProducer
@@ -37,14 +37,15 @@ type KafkaOptions struct {
 	ConsumerGroup   string
 	Brokers         []string
 	MaxMessageBytes int
+	ProducerConfig  ProducerConfig
 }
 
 func InitAwsClients(opts KafkaOptions) *AwsClients {
 	return &AwsClients{
-		config:          opts.Config,
-		consumerGroup:   &opts.ConsumerGroup,
-		brokers:         &opts.Brokers,
-		maxMessageBytes: &opts.MaxMessageBytes,
+		config:         opts.Config,
+		consumerGroup:  &opts.ConsumerGroup,
+		brokers:        &opts.Brokers,
+		producerConfig: opts.ProducerConfig,
 	}
 }
 
@@ -98,13 +99,13 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 }
 
 func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
-	// Add SyncProducer specific properties to copy of base config
-	c.config.Producer.RequiredAcks = sarama.WaitForAll
-	c.config.Producer.Retry.Max = 5
+	// Apply SyncProducer-specific properties to the config (OSS-1152: now tunable).
+	c.config.Producer.RequiredAcks = c.producerConfig.RequiredAcks
+	c.config.Producer.Retry.Max = c.producerConfig.RetryMax
 	c.config.Producer.Return.Successes = true
 
-	if *c.maxMessageBytes > 0 {
-		c.config.Producer.MaxMessageBytes = *c.maxMessageBytes
+	if c.producerConfig.MaxMessageBytes > 0 {
+		c.config.Producer.MaxMessageBytes = c.producerConfig.MaxMessageBytes
 	}
 
 	saramaClient, err := sarama.NewClient(*c.brokers, c.config)

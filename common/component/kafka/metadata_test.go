@@ -717,3 +717,147 @@ func TestGetEventMetadata(t *testing.T) {
 		require.NotContains(t, act, "rawPayload")
 	})
 }
+
+// OSS-1152: Net timeout tunables
+
+func TestMetadataNetTimeouts(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default net timeouts preserve Sarama built-in values", func(t *testing.T) {
+		m := getBaseMetadata()
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultDialTimeout, meta.DialTimeout)
+		require.Equal(t, defaultReadTimeout, meta.ReadTimeout)
+		require.Equal(t, defaultWriteTimeout, meta.WriteTimeout)
+		require.Equal(t, defaultMetadataTimeout, meta.MetadataTimeout)
+	})
+
+	t.Run("explicit net timeouts are applied", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["dialTimeout"] = "5s"
+		m["readTimeout"] = "10s"
+		m["writeTimeout"] = "15s"
+		m["metadataTimeout"] = "20s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 5*time.Second, meta.DialTimeout)
+		require.Equal(t, 10*time.Second, meta.ReadTimeout)
+		require.Equal(t, 15*time.Second, meta.WriteTimeout)
+		require.Equal(t, 20*time.Second, meta.MetadataTimeout)
+	})
+
+	t.Run("invalid (zero/negative) net timeouts fall back to defaults", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["dialTimeout"] = "-5s"
+		m["readTimeout"] = "0s"
+		m["writeTimeout"] = "-1s"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultDialTimeout, meta.DialTimeout)
+		require.Equal(t, defaultReadTimeout, meta.ReadTimeout)
+		require.Equal(t, defaultWriteTimeout, meta.WriteTimeout)
+	})
+}
+
+// OSS-1152: Producer tunables
+
+func TestMetadataProducerRequiredAcks(t *testing.T) {
+	k := getKafka()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    sarama.RequiredAcks
+		expectError bool
+	}{
+		{
+			name:     "default (empty) maps to WaitForAll",
+			input:    "",
+			expected: sarama.WaitForAll,
+		},
+		{
+			name:     "all maps to WaitForAll",
+			input:    "all",
+			expected: sarama.WaitForAll,
+		},
+		{
+			name:     "ALL (uppercase) maps to WaitForAll",
+			input:    "ALL",
+			expected: sarama.WaitForAll,
+		},
+		{
+			name:     "local maps to WaitForLocal",
+			input:    "local",
+			expected: sarama.WaitForLocal,
+		},
+		{
+			name:     "none maps to NoResponse",
+			input:    "none",
+			expected: sarama.NoResponse,
+		},
+		{
+			name:        "invalid value returns error",
+			input:       "quorum",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := getBaseMetadata()
+			if tc.input != "" {
+				m["producerRequiredAcks"] = tc.input
+			}
+			meta, err := k.getKafkaMetadata(m)
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "producerRequiredAcks")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, meta.internalProducerRequiredAcks)
+		})
+	}
+}
+
+func TestMetadataProducerRetryMax(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default producerRetryMax is 5", func(t *testing.T) {
+		m := getBaseMetadata()
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, defaultProducerRetryMax, meta.ProducerRetryMax)
+	})
+
+	t.Run("explicit producerRetryMax is accepted", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerRetryMax"] = "10"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 10, meta.ProducerRetryMax)
+	})
+
+	t.Run("zero producerRetryMax is valid", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerRetryMax"] = "0"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 0, meta.ProducerRetryMax)
+	})
+
+	t.Run("negative producerRetryMax returns error", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerRetryMax"] = "-1"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Contains(t, err.Error(), "producerRetryMax")
+	})
+}

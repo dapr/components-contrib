@@ -56,6 +56,8 @@ type Kafka struct {
 	config          *sarama.Config
 	escapeHeaders   bool
 
+	producerConfig ProducerConfig
+
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 	consumerCancel  context.CancelFunc
@@ -169,6 +171,13 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval
 
+	// Apply tunable Net timeouts (OSS-1152). These bound the initial dial and
+	// subsequent I/O so Init() cannot block indefinitely on unreachable brokers.
+	config.Net.DialTimeout = meta.DialTimeout
+	config.Net.ReadTimeout = meta.ReadTimeout
+	config.Net.WriteTimeout = meta.WriteTimeout
+	config.Metadata.Timeout = meta.MetadataTimeout
+
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
 	}
@@ -220,6 +229,11 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	}
 
 	k.config = config
+	k.producerConfig = ProducerConfig{
+		RequiredAcks:    meta.internalProducerRequiredAcks,
+		RetryMax:        meta.ProducerRetryMax,
+		MaxMessageBytes: meta.MaxMessageBytes,
+	}
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 	k.maxMessageBytes = meta.MaxMessageBytes
 
@@ -228,7 +242,8 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	if rerr := retry.DecodeConfigWithPrefix(
 		&k.backOffConfig,
 		metadata,
-		"backOff"); rerr != nil {
+		"backOff",
+	); rerr != nil {
 		return rerr
 	}
 	k.consumeRetryEnabled = meta.ConsumeRetryEnabled

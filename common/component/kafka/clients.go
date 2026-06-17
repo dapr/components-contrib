@@ -31,6 +31,7 @@ func (k *Kafka) latestClients() (*clients, error) {
 			ConsumerGroup:   k.consumerGroup,
 			Brokers:         k.brokers,
 			MaxMessageBytes: k.maxMessageBytes,
+			ProducerConfig:  k.producerConfig,
 		}
 
 		awsKafkaClients := InitAwsClients(awsKafkaOpts)
@@ -55,7 +56,7 @@ func (k *Kafka) latestClients() (*clients, error) {
 			return nil, err
 		}
 
-		p, err := GetSyncProducer(*k.config, k.brokers, k.maxMessageBytes)
+		p, err := GetSyncProducer(*k.config, k.brokers, k.producerConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -37,14 +37,27 @@ func parsePartitionNumber(value string) (int32, error) {
 	return int32(pNum), nil
 }
 
-func GetSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
-	// Add SyncProducer specific properties to copy of base config
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Retry.Max = 5
+// ProducerConfig holds the producer-specific tunables derived from component metadata.
+// Separating them avoids threading the entire KafkaMetadata struct through callers
+// that only have access to the sarama.Config copy.
+type ProducerConfig struct {
+	RequiredAcks    sarama.RequiredAcks
+	RetryMax        int
+	MaxMessageBytes int
+}
+
+// GetSyncProducer creates a new Sarama SyncProducer using the provided base
+// config and producer tunables. RequiredAcks and RetryMax are applied from
+// ProducerConfig so callers can override the previously hard-coded defaults
+// (WaitForAll, 5 retries) via component metadata (OSS-1152).
+func GetSyncProducer(config sarama.Config, brokers []string, pc ProducerConfig) (sarama.SyncProducer, error) {
+	// Apply SyncProducer-specific properties to a copy of the base config.
+	config.Producer.RequiredAcks = pc.RequiredAcks
+	config.Producer.Retry.Max = pc.RetryMax
 	config.Producer.Return.Successes = true
 
-	if maxMessageBytes > 0 {
-		config.Producer.MaxMessageBytes = maxMessageBytes
+	if pc.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = pc.MaxMessageBytes
 	}
 
 	saramaClient, err := sarama.NewClient(brokers, &config)

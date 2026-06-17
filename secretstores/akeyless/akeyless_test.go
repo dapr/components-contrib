@@ -126,11 +126,6 @@ var mockGateway *httptest.Server
 
 // mockAuthenticate is a test version of the Authenticate function that uses a mock cloud ID
 func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessSecretStore) error {
-	// Initialize closeCh if not already set
-	if akeylessSecretStore.closeCh == nil {
-		akeylessSecretStore.closeCh = make(chan struct{})
-	}
-
 	authRequest := akeylesssdk.NewAuth()
 	authRequest.SetAccessId(metadata.AccessID)
 
@@ -1237,6 +1232,92 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 	assert.JSONEq(t, expectedMixedRotatedValue, response.Data[mixedRotatedSecret][mixedRotatedSecret])
 
 	gateway.Close()
+}
+
+func TestEnsureValidTokenRefreshesWhenExpiringSoon(t *testing.T) {
+	authCount := 0
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path != "/auth" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+			return
+		}
+
+		authCount++
+		authOutput := akeylesssdk.NewAuthOutput()
+		authOutput.SetToken(fmt.Sprintf("t-token-%d", authCount))
+		expiration := time.Now().Add(30 * time.Second).Format(time.RFC3339)
+		authOutput.SetExpiration(expiration)
+		jsonResponse, _ := json.Marshal(authOutput)
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonResponse)
+	}))
+	defer gateway.Close()
+
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIDKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": gateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(t.Context(), meta)
+	require.NoError(t, err)
+	require.Equal(t, 1, authCount)
+	require.Equal(t, "t-token-1", store.token)
+
+	err = store.ensureValidToken(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 2, authCount)
+	require.Equal(t, "t-token-2", store.token)
+}
+
+func TestEnsureValidTokenReusesValidToken(t *testing.T) {
+	authCount := 0
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path != "/auth" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message": "mock response"}`))
+			return
+		}
+
+		authCount++
+		authOutput := akeylesssdk.NewAuthOutput()
+		authOutput.SetToken("t-token-1")
+		expiration := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+		authOutput.SetExpiration(expiration)
+		jsonResponse, _ := json.Marshal(authOutput)
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonResponse)
+	}))
+	defer gateway.Close()
+
+	store := NewAkeylessSecretStore(logger.NewLogger("test")).(*akeylessSecretStore)
+	meta := secretstores.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"accessId":   testAccessIDKey,
+				"accessKey":  testAccessKey,
+				"gatewayUrl": gateway.URL,
+			},
+		},
+	}
+
+	err := store.Init(t.Context(), meta)
+	require.NoError(t, err)
+	require.Equal(t, 1, authCount)
+
+	err = store.ensureValidToken(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, authCount)
 }
 
 func TestParseSecretTypes(t *testing.T) {

@@ -19,39 +19,59 @@ This component provides a Dapr secret store implementation for [Akeyless](https:
 
 ## Configuration
 
-The Akeyless Dapr Secret Store component only supports the following [Authentication Methods](https://docs.akeyless.io/docs/access-and-authentication-methods):
+The Akeyless Dapr Secret Store component supports the following [Authentication Methods](https://docs.akeyless.io/docs/access-and-authentication-methods):
 
 - [API Key](https://docs.akeyless.io/docs/api-key)
 - [OAuth2.0/JWT](https://docs.akeyless.io/docs/oauth20jwt)
 - [AWS IAM](https://docs.akeyless.io/docs/aws-iam)
 - [Kubernetes](https://docs.akeyless.io/docs/kubernetes-auth)
 
-### Authentication
-
-The Akeyless secret store component supports the following configuration options:
+### Connection settings
 
 | Field | Required | Description | Example |
 |-------|----------|-------------|---------|
 | `gatewayUrl` | No | The Akeyless Gateway API URL. Default is https://api.akeyless.io. | `https://gw.akeyless.svc.cluster.local:8000/api/v2` |
 | `gatewayTlsCa` | No | The `base64`-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway with a self-signed or custom CA certificate. The Akeyless client will be set to a 30 second timeout. | `LS0tLS1CRUdJTi...` |
-| `accessId` | Yes | The Akeyless authentication access ID. | `p-123456780wm` |
-| `jwt` | No | If using an OAuth2.0/JWT access ID, specify the JSON Web Token | `eyJ...` |
-| `accessKey` | No | If using an API Key access ID, specify the API key | `ABCD123...=` |
-| `k8sAuthConfigName` | No | If using the k8s auth method, specify the name of the k8s auth config. | `k8s-auth-config` |
-| `k8sGatewayUrl` | No | The gateway URL that where the k8s auth config is located. | `http://gw.akeyless.svc.cluster.local:8000` |
-| `k8sServiceAccountToken` | No | If using the k8s auth method, specify the service account token. If not specified,
-      we will try to read it from the default service account token file `/var/run/secrets/kubernetes.io/serviceaccount/token`. | `eyJ...` |
 
+### BulkGetSecret metadata
 
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `path` | No | Path prefix for BulkGetSecret. Defaults to `/`. | `/my/org` |
+| `secrets_type` | No | Comma-separated secret types: `static`, `dynamic`, `rotated`, or `all`. Defaults to `all`. | `static,dynamic` |
+
+### API Key authentication
+
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `accessId` | Yes | The Akeyless access ID for API key authentication. | `p-123456780am` |
+| `accessKey` | Yes | The API key paired with the access ID. | `ABCD123...=` |
+
+### JWT authentication
+
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `accessId` | Yes | The Akeyless access ID for JWT authentication. | `p-123456780om` |
+| `jwt` | Yes | The JSON Web Token to authenticate with. | `eyJ...` |
+
+### AWS IAM authentication
+
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `accessId` | Yes | The Akeyless access ID for AWS IAM authentication. | `p-123456780wm` |
+
+### Kubernetes authentication
+
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `accessId` | Yes | The Akeyless access ID for Kubernetes authentication. | `p-123456780km` |
+| `k8sAuthConfigName` | Yes | Name of the Kubernetes Auth Method configured in the Akeyless Gateway (via the Akeyless Console or API). This is the Akeyless-side auth method that maps your Kubernetes cluster to the access ID — not a kubeconfig path or Kubernetes ConfigMap. | `k8s-auth-config` |
+| `k8sGatewayUrl` | No | Gateway URL where the Kubernetes auth method is configured. Defaults to `gatewayUrl`. | `http://gw.akeyless.svc.cluster.local:8000` |
+| `k8sServiceAccountToken` | No | Kubernetes service account token. When not specified, the component reads from `/var/run/secrets/kubernetes.io/serviceaccount/token`. | `eyJ...` |
 
 ## Examples
 
-We currently support the following [Authentication Methods](https://docs.akeyless.io/docs/access-and-authentication-methods):
-
-
-## Examples
-
-## Example Configuration: API Key
+### API Key
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -72,8 +92,7 @@ spec:
     value: "ABCD1233...="
 ```
 
-
-## Example Configuration: JWT
+### JWT
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -92,7 +111,7 @@ spec:
     value: "eyJ....."
 ```
 
-## Example Configuration: AWS IAM
+### AWS IAM
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -109,7 +128,7 @@ spec:
     value: "p-1234Abcdwm"
 ```
 
-## Example Configuration: Kubernetes
+### Kubernetes
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -141,7 +160,7 @@ curl http://localhost:3500/v1.0/secrets/akeyless/my-secret
 # Get all secrets (static, dynamic, rotated) from root (/) path
 curl http://localhost:3500/v1.0/secrets/akeyless/bulk
 
-# Get all secrets static secrets
+# Get all static secrets
 curl http://localhost:3500/v1.0/secrets/akeyless/bulk?metadata.secrets_type=static
 
 # Get all static and dynamic secrets from a specific path (/my/org)

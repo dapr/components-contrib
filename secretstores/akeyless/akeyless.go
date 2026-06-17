@@ -46,8 +46,6 @@ type akeylessSecretStore struct {
 	metadata    *akeylessMetadata
 	mu          sync.RWMutex
 	logger      logger.Logger
-	closeCh     chan struct{}
-	wg          sync.WaitGroup
 }
 
 // NewAkeylessSecretStore returns a new Akeyless secret store.
@@ -57,16 +55,21 @@ func NewAkeylessSecretStore(logger logger.Logger) secretstores.SecretStore {
 	}
 }
 
+// akeylessK8sAuth contains Kubernetes authentication settings.
+type akeylessK8sAuth struct {
+	AuthConfigName      string `json:"authConfigName" mapstructure:"k8sAuthConfigName"`
+	GatewayURL          string `json:"gatewayUrl" mapstructure:"k8sGatewayUrl"`
+	ServiceAccountToken string `json:"serviceAccountToken" mapstructure:"k8sServiceAccountToken"`
+}
+
 // akeylessMetadata contains the metadata for the Akeyless secret store.
 type akeylessMetadata struct {
-	GatewayURL             string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
-	GatewayTLSCa           string `json:"gatewayTlsCa" mapstructure:"gatewayTlsCa"`
-	JWT                    string `json:"jwt" mapstructure:"jwt"`
-	AccessID               string `json:"accessId" mapstructure:"accessId"`
-	AccessKey              string `json:"accessKey" mapstructure:"accessKey"`
-	K8SGatewayURL          string `json:"k8sGatewayUrl" mapstructure:"k8sGatewayUrl"`
-	K8SAuthConfigName      string `json:"k8sAuthConfigName" mapstructure:"k8sAuthConfigName"`
-	K8sServiceAccountToken string `json:"k8sServiceAccountToken" mapstructure:"k8sServiceAccountToken"`
+	GatewayURL   string `json:"gatewayUrl" mapstructure:"gatewayUrl"`
+	GatewayTLSCa string `json:"gatewayTlsCa" mapstructure:"gatewayTlsCa"`
+	AccessID     string `json:"accessId" mapstructure:"accessId"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
+	JWT          string `json:"jwt" mapstructure:"jwt"`
+	K8s          akeylessK8sAuth `json:"k8s" mapstructure:",squash"`
 }
 
 // Init creates a new Akeyless secret store client and sets up the Akeyless API client
@@ -79,16 +82,10 @@ func (a *akeylessSecretStore) Init(ctx context.Context, meta secretstores.Metada
 	}
 
 	a.metadata = m
-	a.closeCh = make(chan struct{})
 
 	err = a.authenticate(ctx, m)
 	if err != nil {
 		return errors.New("failed to authenticate with Akeyless: " + err.Error())
-	}
-
-	// Start background token refresh routine if we have expiration time
-	if !a.tokenExpiry.IsZero() {
-		a.startTokenRefreshRoutine(ctx, m)
 	}
 
 	return nil
@@ -402,10 +399,6 @@ func (a *akeylessSecretStore) Features() []secretstores.Feature {
 
 // Close closes the secret store.
 func (a *akeylessSecretStore) Close() error {
-	if a.closeCh != nil {
-		close(a.closeCh)
-		a.wg.Wait()
-	}
 	return nil
 }
 
@@ -457,14 +450,7 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 
 	describeItem.SetToken(token)
 
-	result, httpResponse, err := a.executeWithRetryOn401(
-		ctx,
-		"DescribeItem",
-		describeItem,
-		func(newToken string) {
-			describeItem.SetToken(newToken)
-		},
-	)
+	describeItemResp, httpResponse, err := a.v2.DescribeItem(ctx).Body(*describeItem).Execute()
 	if httpResponse != nil && httpResponse.Body != nil {
 		defer httpResponse.Body.Close()
 	}
@@ -473,117 +459,11 @@ func (a *akeylessSecretStore) getSecretType(ctx context.Context, secretName stri
 		return "", fmt.Errorf("failed to describe item '%s': %w", secretName, err)
 	}
 
-	describeItemResp, ok := result.(*akeylesssdk.Item)
-	if !ok {
-		return "", fmt.Errorf("unexpected result type from DescribeItem: %T", result)
-	}
-
 	if describeItemResp.ItemType == nil {
 		return "", errors.New("unable to retrieve secret type, missing type in describe item response")
 	}
 
 	return *describeItemResp.ItemType, nil
-}
-
-// executeWithRetryOn401 executes an API call using reflection and retries once if it receives a 401 Unauthorized response.
-// It takes the method name (e.g., "GetSecretValue"), the body object, and a function to update the token in the body.
-// Returns the result, httpResponse, and error using reflection.
-func (a *akeylessSecretStore) executeWithRetryOn401(
-	ctx context.Context,
-	methodName string,
-	body interface{},
-	updateToken func(string),
-) (interface{}, *http.Response, error) {
-	// Helper to get current token (with mutex protection)
-	getToken := func() string {
-		a.mu.RLock()
-		defer a.mu.RUnlock()
-		return a.token
-	}
-
-	// Helper function to execute the API call using reflection
-	executeCall := func() (interface{}, *http.Response, error) {
-		// Use reflection to call the method dynamically
-		v2Value := reflect.ValueOf(a.v2)
-		method := v2Value.MethodByName(methodName)
-		if !method.IsValid() {
-			return nil, nil, errors.New("method " + methodName + " not found on V2ApiService")
-		}
-
-		// Call the method with context: a.v2.MethodName(ctx)
-		ctxValue := reflect.ValueOf(ctx)
-		callResult := method.Call([]reflect.Value{ctxValue})
-		if len(callResult) == 0 {
-			return nil, nil, errors.New("method " + methodName + " returned no values")
-		}
-
-		// Get the Body() method from the result: result.Body()
-		bodyMethod := callResult[0].MethodByName("Body")
-		if !bodyMethod.IsValid() {
-			return nil, nil, errors.New("Body method not found on result of " + methodName)
-		}
-
-		// Call Body(*body): result.Body(*body)
-		// Body() expects a value (not a pointer), so we need to dereference if it's a pointer
-		bodyValue := reflect.ValueOf(body)
-		if bodyValue.Kind() == reflect.Ptr {
-			// Dereference the pointer to get the value
-			bodyValue = bodyValue.Elem()
-		}
-		// Pass the value to Body()
-		bodyCallResult := bodyMethod.Call([]reflect.Value{bodyValue})
-		if len(bodyCallResult) == 0 {
-			return nil, nil, errors.New("body method returned no values")
-		}
-
-		// Get the Execute() method: result.Body(*body).Execute()
-		executeMethod := bodyCallResult[0].MethodByName("Execute")
-		if !executeMethod.IsValid() {
-			return nil, nil, errors.New("execute method not found on Body result")
-		}
-
-		// Execute the API call: result.Body(*body).Execute()
-		executeResult := executeMethod.Call([]reflect.Value{})
-		if len(executeResult) < 3 {
-			return nil, nil, errors.New("execute method did not return 3 values (result, response, error)")
-		}
-
-		// Extract results
-		var result interface{}
-		var httpResponse *http.Response
-		var apiErr error
-
-		if !executeResult[0].IsNil() {
-			result = executeResult[0].Interface()
-		}
-		if !executeResult[1].IsNil() {
-			httpResponse = executeResult[1].Interface().(*http.Response)
-		}
-		if !executeResult[2].IsNil() {
-			apiErr = executeResult[2].Interface().(error)
-		}
-
-		return result, httpResponse, apiErr
-	}
-
-	// Execute the API call
-	result, httpResponse, apiErr := executeCall()
-
-	// Check for 401 Unauthorized using the actual HTTP status code
-	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-		a.logger.Debugf("received 401 unauthorized in %s, re-authenticating...", methodName)
-		if reauthErr := a.ensureValidToken(ctx); reauthErr != nil {
-			return nil, httpResponse, fmt.Errorf("failed to re-authenticate after 401: %w", reauthErr)
-		}
-		// Update token in the request object before retry
-		newToken := getToken()
-		updateToken(newToken)
-
-		// Retry the API call once
-		return executeCall()
-	}
-
-	return result, httpResponse, apiErr
 }
 
 // getSingleSecretValue gets the value of a single secret from Akeyless.
@@ -605,26 +485,13 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 		getSecretValue := akeylesssdk.NewGetSecretValue([]string{secretName})
 		getSecretValue.SetToken(token)
 
-		result, httpResponse, apiErr := a.executeWithRetryOn401(
-			ctx,
-			"GetSecretValue",
-			getSecretValue,
-			func(newToken string) {
-				getSecretValue.SetToken(newToken)
-			},
-		)
+		secretRespMap, httpResponse, apiErr := a.v2.GetSecretValue(ctx).Body(*getSecretValue).Execute()
 		if httpResponse != nil && httpResponse.Body != nil {
 			defer httpResponse.Body.Close()
 		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get secret '%s' value for static secret from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		secretRespMap, ok := result.(map[string]interface{})
-		if !ok {
-			err = fmt.Errorf("unexpected result type from GetSecretValue: %T", result)
 			break
 		}
 
@@ -647,26 +514,13 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 		getDynamicSecretValue := akeylesssdk.NewGetDynamicSecretValue(secretName)
 		getDynamicSecretValue.SetToken(token)
 
-		result, httpResponse, apiErr := a.executeWithRetryOn401(
-			ctx,
-			"GetDynamicSecretValue",
-			getDynamicSecretValue,
-			func(newToken string) {
-				getDynamicSecretValue.SetToken(newToken)
-			},
-		)
+		secretRespMap, httpResponse, apiErr := a.v2.GetDynamicSecretValue(ctx).Body(*getDynamicSecretValue).Execute()
 		if httpResponse != nil && httpResponse.Body != nil {
 			defer httpResponse.Body.Close()
 		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get dynamic secret '%s' value from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		secretRespMap, ok := result.(map[string]interface{})
-		if !ok {
-			err = fmt.Errorf("unexpected result type from GetDynamicSecretValue: %T", result)
 			break
 		}
 
@@ -698,26 +552,13 @@ func (a *akeylessSecretStore) getSingleSecretValue(ctx context.Context, secretNa
 		getRotatedSecretValue := akeylesssdk.NewGetRotatedSecretValue(secretName)
 		getRotatedSecretValue.SetToken(token)
 
-		result, httpResponse, apiErr := a.executeWithRetryOn401(
-			ctx,
-			"GetRotatedSecretValue",
-			getRotatedSecretValue,
-			func(newToken string) {
-				getRotatedSecretValue.SetToken(newToken)
-			},
-		)
+		secretRespMap, httpResponse, apiErr := a.v2.GetRotatedSecretValue(ctx).Body(*getRotatedSecretValue).Execute()
 		if httpResponse != nil && httpResponse.Body != nil {
 			defer httpResponse.Body.Close()
 		}
 
 		if apiErr != nil {
 			err = fmt.Errorf("failed to get rotated secret '%s' value from Akeyless API: %w", secretName, apiErr)
-			break
-		}
-
-		secretRespMap, ok := result.(map[string]interface{})
-		if !ok {
-			err = fmt.Errorf("unexpected result type from GetRotatedSecretValue: %T", result)
 			break
 		}
 
@@ -757,27 +598,6 @@ func (a *akeylessSecretStore) getBulkStaticSecretValues(ctx context.Context, sec
 		defer httpResponse.Body.Close()
 	}
 
-	// Handle 401 Unauthorized by re-authenticating and retrying once
-	if httpResponse != nil && httpResponse.StatusCode == http.StatusUnauthorized {
-		a.logger.Debug("received 401 Unauthorized in bulk get, re-authenticating...")
-		if err := a.ensureValidToken(ctx); err != nil {
-			secretResponse = append(secretResponse, secretResultCollection{
-				name: "", value: "", err: fmt.Errorf("failed to re-authenticate after 401: %w", err),
-			})
-			return secretResponse
-		}
-
-		a.mu.RLock()
-		token = a.token
-		a.mu.RUnlock()
-
-		getSecretsValues.SetToken(token)
-		secretRespMap, httpResponse, apiErr = a.v2.GetSecretValue(ctx).Body(*getSecretsValues).Execute()
-		if httpResponse != nil && httpResponse.Body != nil {
-			defer httpResponse.Body.Close()
-		}
-	}
-
 	if apiErr != nil {
 		secretResponse = append(secretResponse, secretResultCollection{
 			name: "", value: "", err: fmt.Errorf("failed to get static secrets' '%s' value from Akeyless API: %w", secretNames, apiErr),
@@ -801,7 +621,6 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 
 	var allItems []akeylesssdk.Item
 
-	// Create the list items request
 	listItems := akeylesssdk.NewListItems()
 
 	a.mu.RLock()
@@ -813,27 +632,14 @@ func (a *akeylessSecretStore) listItemsRecursively(ctx context.Context, path str
 	listItems.SetAutoPagination("enabled")
 	listItems.SetType(types)
 
-	// Execute the list items request
 	a.logger.Debugf("listing items from path '%s'...", path)
-	result, httpResponse, err := a.executeWithRetryOn401(
-		ctx,
-		"ListItems",
-		listItems,
-		func(newToken string) {
-			listItems.SetToken(newToken)
-		},
-	)
+	itemsList, httpResponse, err := a.v2.ListItems(ctx).Body(*listItems).Execute()
 	if httpResponse != nil && httpResponse.Body != nil {
 		defer httpResponse.Body.Close()
 	}
 
 	if err != nil {
 		return nil, err
-	}
-
-	itemsList, ok := result.(*akeylesssdk.ListItemsInPathOutput)
-	if !ok {
-		return nil, fmt.Errorf("unexpected result type from ListItems: %T", result)
 	}
 
 	// Add items from current path
@@ -896,89 +702,25 @@ func (a *akeylessSecretStore) filterInactiveSecrets(secrets []akeylesssdk.Item) 
 	return filteredSecrets
 }
 
-// ensureValidToken checks if the token is valid and refreshes it if needed (5 minutes before expiration)
-// It returns an error if the token refresh fails.
+// ensureValidToken reuses the cached token while it remains valid. If the token
+// expires within TokenRefreshGracePeriod, it refreshes the token before returning.
 func (a *akeylessSecretStore) ensureValidToken(ctx context.Context) error {
 	a.mu.RLock()
 	expiry := a.tokenExpiry
 	metadata := a.metadata
 	a.mu.RUnlock()
 
-	// If token expiry is zero, we can't validate it, so skip validation
-	// This can happen if expiration parsing failed or wasn't provided
 	if expiry.IsZero() {
 		a.logger.Debug("token expiration not set, skipping validation")
 		return nil
 	}
 
-	tokenValid := time.Now().Before(expiry.Add(-TokenRefreshGracePeriod))
-	if tokenValid {
+	if time.Now().Before(expiry.Add(-TokenRefreshGracePeriod)) {
 		return nil
 	}
 
-	// Token expired or about to expire, need to refresh/reauthenticate
-	a.logger.Debug("token expired or about to expire, reauthenticating...")
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Double-check after acquiring lock (another goroutine might have refreshed)
-	expiry = a.tokenExpiry
-	if expiry.IsZero() || time.Now().Before(expiry.Add(-TokenRefreshGracePeriod)) {
-		return nil
-	}
-
+	a.logger.Debug("token expired or expiring soon, refreshing...")
 	return a.authenticate(ctx, metadata)
-}
-
-// startTokenRefreshRoutine starts a bg goroutine that refreshes the token
-func (a *akeylessSecretStore) startTokenRefreshRoutine(ctx context.Context, metadata *akeylessMetadata) {
-	a.wg.Add(1)
-	go func() {
-		defer a.wg.Done()
-		// Use background context for the refresh routine, not the init context
-		refreshCtx := context.Background()
-
-		for {
-			// Check if we should stop first, before acquiring any locks
-			select {
-			case <-a.closeCh:
-				a.logger.Debug("token refresh routine stopped")
-				return
-			default:
-			}
-
-			a.mu.RLock()
-			expiry := a.tokenExpiry
-			a.mu.RUnlock()
-
-			if expiry.IsZero() {
-				a.logger.Warn("token expiration is zero, stopping refresh routine...")
-				return
-			}
-
-			refreshDuration := time.Until(expiry.Add(-TokenRefreshGracePeriod))
-			if refreshDuration <= 0 {
-				refreshDuration = time.Minute // Refresh immediately if less than 1 minute left
-			}
-
-			a.logger.Debugf("next token refresh scheduled in %v", refreshDuration)
-
-			select {
-			case <-time.After(refreshDuration):
-				a.logger.Debug("refreshing token...")
-				if err := a.authenticate(refreshCtx, metadata); err != nil {
-					a.logger.Errorf("failed to refresh token: %v", err)
-					// Retry after 1 minute on failure
-					time.Sleep(time.Minute)
-					continue
-				}
-				a.logger.Debug("token refreshed successfully")
-			case <-a.closeCh:
-				a.logger.Debug("token refresh routine stopped")
-				return
-			}
-		}
-	}()
 }
 
 func (a *akeylessSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

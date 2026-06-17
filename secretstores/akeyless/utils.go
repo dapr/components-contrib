@@ -52,7 +52,7 @@ const (
 	PathDefault             = "/"
 	MetadataPathKey         = "path"
 	MetadataSecretsTypeKey  = "secrets_type"
-	TokenRefreshGracePeriod = 5 * time.Minute
+	TokenRefreshGracePeriod = 1 * time.Minute
 )
 
 var supportedSecretTypes = []string{StaticSecretType, DynamicSecretType, RotatedSecretType}
@@ -217,32 +217,32 @@ func isSecretActive(secret akeylesssdk.Item, logger logger.Logger) bool {
 }
 
 func setK8SAuthConfiguration(metadata akeylessMetadata, authRequest *akeylesssdk.Auth, a *akeylessSecretStore) error {
-	if metadata.K8SAuthConfigName == "" {
+	if metadata.K8s.AuthConfigName == "" {
 		return errors.New("k8s auth config name is required")
 	}
-	authRequest.SetK8sAuthConfigName(metadata.K8SAuthConfigName)
-	if metadata.K8sServiceAccountToken == "" {
+	authRequest.SetK8sAuthConfigName(metadata.K8s.AuthConfigName)
+	if metadata.K8s.ServiceAccountToken == "" {
 		a.logger.Debug("k8s service account token is missing, attempting to read from default service account token file")
 		token, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 		if err != nil {
 			return fmt.Errorf("failed to read default service account token file: %w", err)
 		}
-		metadata.K8sServiceAccountToken = string(token)
+		metadata.K8s.ServiceAccountToken = string(token)
 	}
 
 	// base64 encode the token if it's not already encoded
-	if _, err := base64.StdEncoding.DecodeString(metadata.K8sServiceAccountToken); err != nil {
-		a.logger.Info("k8sServiceAccountToken is not base64 encoded, encoding it...")
-		metadata.K8sServiceAccountToken = base64.StdEncoding.EncodeToString([]byte(metadata.K8sServiceAccountToken))
+	if _, err := base64.StdEncoding.DecodeString(metadata.K8s.ServiceAccountToken); err != nil {
+		a.logger.Debug("k8sServiceAccountToken is not base64 encoded, encoding it...")
+		metadata.K8s.ServiceAccountToken = base64.StdEncoding.EncodeToString([]byte(metadata.K8s.ServiceAccountToken))
 	}
-	authRequest.SetK8sServiceAccountToken(metadata.K8sServiceAccountToken)
+	authRequest.SetK8sServiceAccountToken(metadata.K8s.ServiceAccountToken)
 
-	if metadata.K8SGatewayURL == "" {
+	if metadata.K8s.GatewayURL == "" {
 		a.logger.Debug("k8s gateway url is missing, using gatewayUrl")
-		metadata.K8SGatewayURL = metadata.GatewayURL
+		metadata.K8s.GatewayURL = metadata.GatewayURL
 	}
-	metadata.K8SGatewayURL = strings.TrimSuffix(metadata.K8SGatewayURL, "/api/v2")
-	authRequest.SetGatewayUrl(metadata.K8SGatewayURL)
+	metadata.K8s.GatewayURL = strings.TrimSuffix(metadata.K8s.GatewayURL, "/api/v2")
+	authRequest.SetGatewayUrl(metadata.K8s.GatewayURL)
 	return nil
 }
 

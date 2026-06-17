@@ -40,3 +40,39 @@ metadata:
       are clamped with a warning log.
     example: "100"
     default: "1000"
+  - name: maxOpenConns
+    type: number
+    required: false
+    description: |
+      Maximum number of open connections to the Oracle database.
+      Maps to db.SetMaxOpenConns in database/sql.
+      A value of 0 or omitting this field leaves the Go default (unlimited).
+    example: "10"
+    default: "0"
+  - name: maxIdleConns
+    type: number
+    required: false
+    description: |
+      Maximum number of idle connections in the connection pool.
+      Maps to db.SetMaxIdleConns in database/sql.
+      A value of 0 or omitting this field leaves the Go default (2).
+    example: "5"
+    default: "0"
+  - name: connMaxLifetime
+    type: duration
+    required: false
+    description: |
+      Maximum amount of time a connection may be reused before it is closed.
+      Maps to db.SetConnMaxLifetime in database/sql.
+      A value of 0 or omitting this field leaves the Go default (unlimited).
+    example: "30m"
+    default: "0s"
+  - name: connMaxIdleTime
+    type: duration
+    required: false
+    description: |
+      Maximum amount of time a connection may be idle before it is closed.
+      Maps to db.SetConnMaxIdleTime in database/sql.
+      A value of 0 or omitting this field leaves the Go default (unlimited).
+    example: "10m"
+    default: "0s"

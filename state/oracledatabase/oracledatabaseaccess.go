@@ -61,16 +61,39 @@ type oracleDatabaseAccess struct {
 }
 
 type oracleDatabaseMetadata struct {
-	ConnectionString     string `json:"connectionString"`
-	OracleWalletLocation string `json:"oracleWalletLocation"`
-	TableName            string `json:"tableName"`
+	ConnectionString     string `json:"connectionString"     mapstructure:"connectionString"`
+	OracleWalletLocation string `json:"oracleWalletLocation" mapstructure:"oracleWalletLocation"`
+	TableName            string `json:"tableName"            mapstructure:"tableName"`
 	// BulkGetChunkSize controls the maximum number of keys included in each
 	// internal SQL query issued by BulkGet. When the number of requested
 	// keys exceeds this value, BulkGet issues multiple chunked queries
 	// sequentially (not in parallel) and merges the results. Values less
 	// than or equal to 0 default to 1000; values above 1000 are clamped.
 	// See normalizeBulkGetChunkSize.
-	BulkGetChunkSize int `json:"bulkGetChunkSize"`
+	BulkGetChunkSize int `json:"bulkGetChunkSize" mapstructure:"bulkGetChunkSize"`
+
+	// Connection pool options — map to database/sql setters.
+	// A zero value means "not provided"; the corresponding setter is skipped
+	// to avoid overriding Go's built-in defaults unintentionally.
+
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// Maps to db.SetMaxOpenConns. A value of 0 leaves the Go default (unlimited).
+	MaxOpenConns int `mapstructure:"maxOpenConns"`
+
+	// MaxIdleConns is the maximum number of connections in the idle connection pool.
+	// Maps to db.SetMaxIdleConns. A value of 0 leaves the Go default (2).
+	// Note: database/sql treats 0 as "use default (2)" — there is no way to
+	// express "set to 0" via this field without a separate "was explicitly set"
+	// sentinel. This is a known limitation of the current metadata schema.
+	MaxIdleConns int `mapstructure:"maxIdleConns"`
+
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	// Maps to db.SetConnMaxLifetime. A value of 0 leaves the Go default (unlimited).
+	ConnMaxLifetime time.Duration `mapstructure:"connMaxLifetime"`
+
+	// ConnMaxIdleTime is the maximum amount of time a connection may be idle.
+	// Maps to db.SetConnMaxIdleTime. A value of 0 leaves the Go default (unlimited).
+	ConnMaxIdleTime time.Duration `mapstructure:"connMaxIdleTime"`
 }
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.
@@ -107,6 +130,24 @@ func normalizeBulkGetChunkSize(log logger.Logger, configured int) int {
 	return configured
 }
 
+// applyConnectionPool applies non-zero connection pool settings to db.
+// Zero values are skipped so Go's built-in defaults are preserved.
+// Called by Init after sql.Open and before PingContext.
+func applyConnectionPool(db *sql.DB, m *oracleDatabaseMetadata) {
+	if m.MaxOpenConns > 0 {
+		db.SetMaxOpenConns(m.MaxOpenConns)
+	}
+	if m.MaxIdleConns > 0 {
+		db.SetMaxIdleConns(m.MaxIdleConns)
+	}
+	if m.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(m.ConnMaxLifetime)
+	}
+	if m.ConnMaxIdleTime > 0 {
+		db.SetConnMaxIdleTime(m.ConnMaxIdleTime)
+	}
+}
+
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := parseMetadata(metadata.Properties)
@@ -134,12 +175,18 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		return err
 	}
 
-	o.db = db
+	// Apply connection pool settings only when the user explicitly provided them,
+	// so we don't override Go's built-in defaults with zero values unintentionally.
+	applyConnectionPool(db, &meta)
 
-	err = db.PingContext(ctx)
-	if err != nil {
+	// Ping before assigning o.db so that a failed ping does not leave an
+	// unreachable *sql.DB handle in the struct (DB handle leak fix).
+	if err = db.PingContext(ctx); err != nil {
+		_ = db.Close()
 		return err
 	}
+
+	o.db = db
 
 	return o.ensureStateTable(o.metadata.TableName)
 }

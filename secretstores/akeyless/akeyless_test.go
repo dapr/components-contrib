@@ -56,7 +56,7 @@ var (
 	mockDynamicSecretItemName            = "/dynamic-secret-test"
 	mockRotatedSecretItemName            = "/rotated-secret-test"
 	mockDescribeStaticSecretName         = "/path/to/akeyless" + mockStaticSecretItem
-	mockDescribeStaticSecretType         = StaticSecretResponse
+	mockDescribeStaticSecretType         = string(SecretResponseStatic)
 	mockDescribeStaticSecretItemResponse = akeylesssdk.Item{
 		ItemName:  &mockDescribeStaticSecretName,
 		ItemType:  &mockDescribeStaticSecretType,
@@ -81,14 +81,14 @@ var (
 		},
 	}
 	mockDescribeDynamicSecretName         = "/path/to/akeyless" + mockDynamicSecretItemName
-	mockDescribeDynamicSecretType         = DynamicSecretResponse
+	mockDescribeDynamicSecretType         = string(SecretResponseDynamic)
 	mockDescribeDynamicSecretItemResponse = akeylesssdk.Item{
 		ItemName:  &mockDescribeDynamicSecretName,
 		ItemType:  &mockDescribeDynamicSecretType,
 		IsEnabled: func(b bool) *bool { return &b }(true),
 		ItemGeneralInfo: &akeylesssdk.ItemGeneralInfo{
 			DynamicSecretProducerDetails: &akeylesssdk.DynamicSecretProducerInfo{
-				ProducerStatus: func(s string) *string { return &s }("ProducerConnected"),
+				ProducerStatus: func(s string) *string { return &s }(ProducerStatusConnected),
 			},
 		},
 	}
@@ -97,14 +97,14 @@ var (
 		"error": "",
 	}
 	mockDescribeRotatedSecretName         = "/path/to/akeyless" + mockRotatedSecretItemName
-	mockDescribeRotatedSecretType         = RotatedSecretResponse
+	mockDescribeRotatedSecretType         = string(SecretResponseRotated)
 	mockDescribeRotatedSecretItemResponse = akeylesssdk.Item{
 		ItemName:  &mockDescribeRotatedSecretName,
 		ItemType:  &mockDescribeRotatedSecretType,
 		IsEnabled: func(b bool) *bool { return &b }(true),
 		ItemGeneralInfo: &akeylesssdk.ItemGeneralInfo{
 			RotatedSecretDetails: &akeylesssdk.RotatedSecretDetailsInfo{
-				RotatorStatus: func(s string) *string { return &s }("RotationSucceeded"),
+				RotatorStatus: func(s string) *string { return &s }(RotatorStatusSucceeded),
 			},
 		},
 	}
@@ -137,8 +137,8 @@ func mockAuthenticate(metadata *akeylessMetadata, akeylessSecretStore *akeylessS
 			URL: metadata.GatewayURL,
 		},
 	}
-	config.UserAgent = UserAgent
-	config.AddDefaultHeader("akeylessclienttype", UserAgent)
+	config.UserAgent = ClientUserAgent
+	config.AddDefaultHeader(HeaderClientSource, ClientUserAgent)
 
 	akeylessSecretStore.v2 = akeylesssdk.NewAPIClient(config).V2Api
 
@@ -707,7 +707,7 @@ func TestGetSecretType(t *testing.T) {
 
 	secretType, err := store.getSecretType(ctx, mockDescribeStaticSecretName)
 	require.NoError(t, err)
-	assert.Equal(t, StaticSecretResponse, secretType)
+	assert.Equal(t, string(SecretResponseStatic), secretType)
 }
 
 func TestGetSingleDynamicSecret(t *testing.T) {
@@ -758,7 +758,7 @@ func TestGetSingleDynamicSecret(t *testing.T) {
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeDynamicSecretName, DynamicSecretResponse)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeDynamicSecretName, SecretResponseDynamic)
 	require.NoError(t, err)
 	assert.JSONEq(t, "{\"user\":\"generated_username\",\"password\":\"generated_password\",\"ttl_in_minutes\":\"60\",\"id\":\"username\"}", secretValue)
 	gateway.Close()
@@ -812,7 +812,7 @@ func TestGetSingleRotatedSecret(t *testing.T) {
 	require.NoError(t, err)
 	defer store.Close() // Clean up background goroutine
 
-	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeRotatedSecretName, RotatedSecretResponse)
+	secretValue, err := store.getSingleSecretValue(ctx, mockDescribeRotatedSecretName, SecretResponseRotated)
 	require.NoError(t, err)
 	assert.JSONEq(t, "{\"value\":{\"application_id\":\"1234567890\",\"password\":\"r3vE4L3D\",\"username\":\"abcdefghijklmnopqrstuvwxyz\"}}", secretValue)
 
@@ -1140,7 +1140,7 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 					IsEnabled: func(b bool) *bool { return &b }(true),
 					ItemGeneralInfo: &akeylesssdk.ItemGeneralInfo{
 						DynamicSecretProducerDetails: &akeylesssdk.DynamicSecretProducerInfo{
-							ProducerStatus: func(s string) *string { return &s }("ProducerConnected"),
+							ProducerStatus: func(s string) *string { return &s }(ProducerStatusConnected),
 						},
 					},
 				}
@@ -1151,7 +1151,7 @@ func TestGetBulkSecretValuesFromDifferentPaths(t *testing.T) {
 					IsEnabled: func(b bool) *bool { return &b }(true),
 					ItemGeneralInfo: &akeylesssdk.ItemGeneralInfo{
 						RotatedSecretDetails: &akeylesssdk.RotatedSecretDetailsInfo{
-							RotatorStatus: func(s string) *string { return &s }("RotationSucceeded"),
+							RotatorStatus: func(s string) *string { return &s }(RotatorStatusSucceeded),
 						},
 					},
 				}
@@ -1324,38 +1324,38 @@ func TestParseSecretTypes(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
-		expected    []string
+		expected    []SecretType
 		expectError bool
 	}{
 		{
 			name:     "all",
 			input:    "all",
-			expected: []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
+			expected: []SecretType{SecretTypeStatic, SecretTypeDynamic, SecretTypeRotated},
 		},
 		{
 			name:     "static",
 			input:    "static",
-			expected: []string{StaticSecretType},
+			expected: []SecretType{SecretTypeStatic},
 		},
 		{
 			name:     "dynamic",
 			input:    "dynamic",
-			expected: []string{DynamicSecretType},
+			expected: []SecretType{SecretTypeDynamic},
 		},
 		{
 			name:     "rotated",
 			input:    "rotated",
-			expected: []string{RotatedSecretType},
+			expected: []SecretType{SecretTypeRotated},
 		},
 		{
 			name:     "static,dynamic",
 			input:    "static,dynamic",
-			expected: []string{StaticSecretType, DynamicSecretType},
+			expected: []SecretType{SecretTypeStatic, SecretTypeDynamic},
 		},
 		{
 			name:     "static,dynamic,rotated",
 			input:    "static,dynamic,rotated",
-			expected: []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
+			expected: []SecretType{SecretTypeStatic, SecretTypeDynamic, SecretTypeRotated},
 		},
 		{
 			name:        "invalid",
@@ -1372,19 +1372,19 @@ func TestParseSecretTypes(t *testing.T) {
 			name:        "mixed case",
 			input:       "Static,Dynamic,ROTATED",
 			expectError: false,
-			expected:    []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
+			expected:    []SecretType{SecretTypeStatic, SecretTypeDynamic, SecretTypeRotated},
 		},
 		{
 			name:        "duplicates",
 			input:       "static-secret,dynamic-secret,static-secret",
 			expectError: false,
-			expected:    []string{StaticSecretType, DynamicSecretType},
+			expected:    []SecretType{SecretTypeStatic, SecretTypeDynamic},
 		},
 		{
 			name:        "mixed sdk format and direct format",
 			input:       "static-secret,dynamic-secret,rotated-secret,static",
 			expectError: false,
-			expected:    []string{StaticSecretType, DynamicSecretType, RotatedSecretType},
+			expected:    []SecretType{SecretTypeStatic, SecretTypeDynamic, SecretTypeRotated},
 		},
 		{
 			name:        "invalid type",

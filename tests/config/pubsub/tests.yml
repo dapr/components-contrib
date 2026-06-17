@@ -50,6 +50,14 @@ components:
     operations: []
     config:
       checkInOrderProcessing: false
+  - component: redis.valkey8
+    operations: []
+    config:
+      checkInOrderProcessing: false
+  - component: redis.valkey9
+    operations: []
+    config:
+      checkInOrderProcessing: false
   - component: jetstream
     operations: []
   - component: kafka

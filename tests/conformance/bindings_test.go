@@ -76,6 +76,10 @@ func loadOutputBindings(name string) bindings.OutputBinding {
 		return b_redis.NewRedis(testLogger)
 	case "redis.v7":
 		return b_redis.NewRedis(testLogger)
+	case "redis.valkey8":
+		return b_redis.NewRedis(testLogger)
+	case "redis.valkey9":
+		return b_redis.NewRedis(testLogger)
 	case "azure.blobstorage":
 		return b_azure_blobstorage.NewAzureBlobStorage(testLogger)
 	case "azure.storagequeues":

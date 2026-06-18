@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
@@ -42,8 +43,8 @@ type createInstancePayload struct {
 }
 
 // UnmarshalJSON implements json.Unmarshaler to provide a field-specific error message for
-// the requestTimeout duration field. The requestTimeout field must be a Go duration string
-// (e.g. "30s", "5m", "1h30m").
+// the requestTimeout duration field. The requestTimeout field accepts either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *createInstancePayload) UnmarshalJSON(data []byte) error {
 	var shadow struct {
 		BpmnProcessID        string           `json:"bpmnProcessId"`
@@ -68,7 +69,8 @@ func (p *createInstancePayload) UnmarshalJSON(data []byte) error {
 	if shadow.RequestTimeout != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
-			return fmt.Errorf("invalid value for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+			rawVal := strings.Trim(string(*shadow.RequestTimeout), "\"")
+			return fmt.Errorf("invalid value %q for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
 		}
 		p.RequestTimeout = &d
 	}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -41,7 +42,8 @@ type activateJobsPayload struct {
 }
 
 // UnmarshalJSON implements json.Unmarshaler to provide field-specific error messages for
-// duration fields. Both timeout and requestTimeout must be Go duration strings (e.g. "30s", "5m", "1h30m").
+// duration fields. Both timeout and requestTimeout accept either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
 	var shadow struct {
 		JobType           string           `json:"jobType"`
@@ -63,7 +65,8 @@ func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
 	if shadow.Timeout != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.Timeout); err != nil {
-			return fmt.Errorf("invalid value for field 'timeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+			rawVal := strings.Trim(string(*shadow.Timeout), "\"")
+			return fmt.Errorf("invalid value %q for field 'timeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
 		}
 		p.Timeout = &d
 	}
@@ -71,7 +74,8 @@ func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
 	if shadow.RequestTimeout != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
-			return fmt.Errorf("invalid value for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+			rawVal := strings.Trim(string(*shadow.RequestTimeout), "\"")
+			return fmt.Errorf("invalid value %q for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
 		}
 		p.RequestTimeout = &d
 	}

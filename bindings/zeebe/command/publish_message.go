@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -35,7 +36,8 @@ type publishMessagePayload struct {
 }
 
 // UnmarshalJSON implements json.Unmarshaler to provide field-specific error messages for
-// duration fields. The timeToLive field must be a Go duration string (e.g. "30s", "5m", "1h30m").
+// duration fields. The timeToLive field accepts either a Go duration string (e.g. "30s", "5m", "1h30m")
+// or a plain integer representing nanoseconds.
 func (p *publishMessagePayload) UnmarshalJSON(data []byte) error {
 	// Use a shadow struct with raw JSON for duration fields so we can provide better errors.
 	var shadow struct {
@@ -57,7 +59,8 @@ func (p *publishMessagePayload) UnmarshalJSON(data []byte) error {
 	if shadow.TimeToLive != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.TimeToLive); err != nil {
-			return fmt.Errorf("invalid value for field 'timeToLive' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+			rawVal := strings.Trim(string(*shadow.TimeToLive), "\"")
+			return fmt.Errorf("invalid value %q for field 'timeToLive' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
 		}
 		p.TimeToLive = &d
 	}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
@@ -37,8 +38,8 @@ type failJobPayload struct {
 }
 
 // UnmarshalJSON implements json.Unmarshaler to provide a field-specific error message for
-// the retryBackOff duration field. The retryBackOff field must be a Go duration string
-// (e.g. "30s", "5m", "1h30m").
+// the retryBackOff duration field. The retryBackOff field accepts either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *failJobPayload) UnmarshalJSON(data []byte) error {
 	var shadow struct {
 		JobKey       *int64           `json:"jobKey"`
@@ -59,7 +60,8 @@ func (p *failJobPayload) UnmarshalJSON(data []byte) error {
 	if shadow.RetryBackOff != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.RetryBackOff); err != nil {
-			return fmt.Errorf("invalid value for field 'retryBackOff' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\"): %w", err)
+			rawVal := strings.Trim(string(*shadow.RetryBackOff), "\"")
+			return fmt.Errorf("invalid value %q for field 'retryBackOff' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
 		}
 		p.RetryBackOff = &d
 	}

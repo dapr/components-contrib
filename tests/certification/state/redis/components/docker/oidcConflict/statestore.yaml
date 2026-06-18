@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  ignoreErrors: true
+  metadata:
+  - name: redisHost
+    value: localhost:6379
+  - name: redisPassword
+    value: "some-static-password"
+  - name: useOIDC
+    value: "true"
+  - name: oidcTokenEndpoint
+    value: "http://localhost:1/token"
+  - name: oidcClientID
+    value: "conflict-client"

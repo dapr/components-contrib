@@ -55,9 +55,11 @@ metadata:
     description: |
       Maximum number of idle connections in the connection pool.
       Maps to db.SetMaxIdleConns in database/sql.
-      A value of 0 or omitting this field leaves the Go default (2).
+      When set to 0 or omitted, the setter is skipped and the Go database/sql
+      default of 2 idle connections applies. To change the idle pool size,
+      set this to a value greater than 0.
     example: "5"
-    default: "0"
+    default: "2"
   - name: connMaxLifetime
     type: duration
     required: false

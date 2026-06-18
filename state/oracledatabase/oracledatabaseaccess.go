@@ -81,10 +81,10 @@ type oracleDatabaseMetadata struct {
 	MaxOpenConns int `mapstructure:"maxOpenConns"`
 
 	// MaxIdleConns is the maximum number of connections in the idle connection pool.
-	// Maps to db.SetMaxIdleConns. A value of 0 leaves the Go default (2).
-	// Note: database/sql treats 0 as "use default (2)" — there is no way to
-	// express "set to 0" via this field without a separate "was explicitly set"
-	// sentinel. This is a known limitation of the current metadata schema.
+	// Maps to db.SetMaxIdleConns. When the value is 0 (not provided), the setter
+	// is skipped entirely so Go's database/sql default of 2 idle connections applies.
+	// Note: calling SetMaxIdleConns(0) would DISABLE idle connections, which is why
+	// we skip the call rather than passing the zero value through.
 	MaxIdleConns int `mapstructure:"maxIdleConns"`
 
 	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
@@ -188,7 +188,12 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 
 	o.db = db
 
-	return o.ensureStateTable(o.metadata.TableName)
+	if err = o.ensureStateTable(o.metadata.TableName); err != nil {
+		_ = o.db.Close()
+		o.db = nil
+		return err
+	}
+	return nil
 }
 
 func parseConnectionString(meta oracleDatabaseMetadata) (string, error) {

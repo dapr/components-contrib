@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
@@ -69,8 +68,7 @@ func (p *createInstancePayload) UnmarshalJSON(data []byte) error {
 	if shadow.RequestTimeout != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
-			rawVal := strings.Trim(string(*shadow.RequestTimeout), "\"")
-			return fmt.Errorf("invalid value %q for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
+			return fmt.Errorf("invalid value %s for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.RequestTimeout), err)
 		}
 		p.RequestTimeout = &d
 	}

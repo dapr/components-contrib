@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -59,8 +58,7 @@ func (p *publishMessagePayload) UnmarshalJSON(data []byte) error {
 	if shadow.TimeToLive != nil {
 		var d metadata.Duration
 		if err := d.UnmarshalJSON(*shadow.TimeToLive); err != nil {
-			rawVal := strings.Trim(string(*shadow.TimeToLive), "\"")
-			return fmt.Errorf("invalid value %q for field 'timeToLive' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", rawVal, err)
+			return fmt.Errorf("invalid value %s for field 'timeToLive' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.TimeToLive), err)
 		}
 		p.TimeToLive = &d
 	}

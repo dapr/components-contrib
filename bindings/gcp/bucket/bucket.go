@@ -560,7 +560,7 @@ func resolveCopyDestination(destBucket, destKey, srcKey, configuredBucket string
 	destKeyProvided := destKey != ""
 
 	if !destBucketProvided && !destKeyProvided {
-		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey")
+		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey (omitting both would resolve to the source bucket and key, which is a no-op for copy and invalid for move)")
 	}
 
 	if !destBucketProvided {
@@ -589,6 +589,10 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	destBucket, destKey, err := resolveCopyDestination(payload.DestinationBucket, payload.DestinationKey, key, g.metadata.Bucket)
 	if err != nil {
 		return nil, err
+	}
+
+	if destBucket == g.metadata.Bucket && destKey == key {
+		return nil, fmt.Errorf("gcp bucket binding error: move destination %s/%s is the same as the source — move would delete the source object", destBucket, destKey)
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)

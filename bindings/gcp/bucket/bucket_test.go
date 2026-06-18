@@ -524,4 +524,18 @@ func TestMoveOption(t *testing.T) {
 		assert.Equal(t, "my_configured_bucket", bucket)
 		assert.Equal(t, "my_key", key)
 	})
+
+	// Move onto self must be rejected before any GCS call to prevent data loss
+	// (copy-then-delete where source == destination deletes the only copy of the object).
+	t.Run("move onto self is rejected", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"destinationBucket":"my_configured_bucket","destinationKey":"my_key"}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "move destination my_configured_bucket/my_key is the same as the source")
+	})
 }

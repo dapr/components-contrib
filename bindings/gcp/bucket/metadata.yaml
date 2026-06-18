@@ -17,13 +17,16 @@ binding:
       description: |
         Copy an object. Supply `destinationKey` in the request data to copy to a different
         key (including intra-bucket prefix changes). Supply `destinationBucket` to copy to a
-        different bucket. At least one of `destinationBucket` or `destinationKey` must differ
-        from the source; omitting both is an error. Both default to the source values when not
-        provided.
+        different bucket. At least one of `destinationBucket` or `destinationKey` must be
+        provided; omitting both is an error (it would resolve to the source bucket and key,
+        making the operation a no-op). Each field defaults to the corresponding source value
+        when omitted.
     - name: move
       description: |
-        Move (copy then delete) an object. Accepts the same `destinationKey` and
-        `destinationBucket` fields as `copy`. At least one must differ from the source.
+        Move an object (implemented as copy-then-delete). Accepts the same `destinationKey`
+        and `destinationBucket` fields as `copy`. At least one must be provided; omitting both
+        is an error. The destination must differ from the source — moving an object onto itself
+        would delete it after the copy succeeds.
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "gcp"

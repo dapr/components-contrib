@@ -130,8 +130,8 @@ func normalizeBulkGetChunkSize(log logger.Logger, configured int) int {
 	return configured
 }
 
-// applyConnectionPool applies non-zero connection pool settings to db.
-// Zero values are skipped so Go's built-in defaults are preserved.
+// applyConnectionPool applies positive connection pool settings to db.
+// Values <= 0 (zero or negative) are skipped so Go's built-in defaults are preserved.
 // Called by Init after sql.Open and before PingContext.
 func applyConnectionPool(db *sql.DB, m *oracleDatabaseMetadata) {
 	if m.MaxOpenConns > 0 {

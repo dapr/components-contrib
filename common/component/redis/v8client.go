@@ -318,9 +318,12 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 }
 
 func (c v8Client) AuthACL(ctx context.Context, username, password string) error {
+	// AuthACL is only exposed on the Pipeliner, so we queue it on a pipeline and
+	// Exec it. Without the Exec the command is never sent, making AUTH a no-op.
 	pipeline := c.client.Pipeline()
-	statusCmd := pipeline.AuthACL(ctx, username, password)
-	return statusCmd.Err()
+	pipeline.AuthACL(ctx, username, password)
+	_, err := pipeline.Exec(ctx)
+	return err
 }
 
 func newV8FailoverClient(s *Settings) (RedisClient, error) {

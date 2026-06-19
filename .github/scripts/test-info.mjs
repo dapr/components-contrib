@@ -225,6 +225,16 @@ const components = {
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
+    'bindings.redis.valkey8': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey8 redis',
+        sourcePkg: ['bindings/redis', 'common/component/redis'],
+    },
+    'bindings.redis.valkey9': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey9 redis',
+        sourcePkg: ['bindings/redis', 'common/component/redis'],
+    },
     'configuration.postgres': {
         certification: true,
         sourcePkg: [
@@ -261,6 +271,16 @@ const components = {
     'configuration.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
+    },
+    'configuration.redis.valkey8': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey8 redis',
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
+    },
+    'configuration.redis.valkey9': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
     'configuration.redis': {
@@ -302,6 +322,16 @@ const components = {
     'lock.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
+        sourcePkg: ['lock/redis', 'common/component/redis'],
+    },
+    'lock.redis.valkey8': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey8 redis',
+        sourcePkg: ['lock/redis', 'common/component/redis'],
+    },
+    'lock.redis.valkey9': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['lock/redis', 'common/component/redis'],
     },
     'middleware.http.bearer': {
@@ -459,6 +489,16 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
     },*/
+    'pubsub.redis.valkey8': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey8 redis',
+        sourcePkg: ['pubsub/redis', 'common/component/redis'],
+    },
+    'pubsub.redis.valkey9': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh valkey9 redis',
+        sourcePkg: ['pubsub/redis', 'common/component/redis'],
+    },
     'pubsub.solace': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh solace',
@@ -799,6 +839,18 @@ const components = {
     'state.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
+        sourcePkg: ['state/redis', 'common/component/redis'],
+    },
+    'state.redis.valkey8': {
+        conformance: true,
+        // query excluded: stock valkey/valkey does not ship RediSearch
+        conformanceSetup: 'docker-compose.sh valkey8 redis',
+        sourcePkg: ['state/redis', 'common/component/redis'],
+    },
+    'state.redis.valkey9': {
+        conformance: true,
+        // query excluded: stock valkey/valkey does not ship RediSearch
+        conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['state/redis', 'common/component/redis'],
     },
     'state.rethinkdb': {

@@ -60,6 +60,10 @@ func loadLockStore(name string) lock.Store {
 		return l_redis.NewStandaloneRedisLock(testLogger)
 	case "redis.v7":
 		return l_redis.NewStandaloneRedisLock(testLogger)
+	case "redis.valkey8":
+		return l_redis.NewStandaloneRedisLock(testLogger)
+	case "redis.valkey9":
+		return l_redis.NewStandaloneRedisLock(testLogger)
 	default:
 		return nil
 	}

@@ -59,7 +59,7 @@ func TestConfigurationConformance(t *testing.T) {
 
 func loadConfigurationStore(name string) (configuration.Store, configupdater.Updater) {
 	switch name {
-	case "redis.v6", "redis.v7":
+	case "redis.v6", "redis.v7", "redis.valkey8", "redis.valkey9":
 		return c_redis.NewRedisConfigurationStore(testLogger),
 			cu_redis.NewRedisConfigUpdater(testLogger)
 	case "postgresql.docker", "postgresql.azure":

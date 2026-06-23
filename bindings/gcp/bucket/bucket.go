@@ -670,6 +670,8 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
+	// Unlike move, copy has no source==destination guard: copying an object onto
+	// itself is a valid GCS operation that creates a new object generation.
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
 	dst := g.client.Bucket(destBucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {

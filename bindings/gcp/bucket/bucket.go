@@ -560,7 +560,7 @@ func resolveCopyDestination(destBucket, destKey, srcKey, configuredBucket string
 	destKeyProvided := destKey != ""
 
 	if !destBucketProvided && !destKeyProvided {
-		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey (omitting both would resolve to the source bucket and key, which is a no-op for copy and invalid for move)")
+		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey (omitting both resolves the destination to the source object, which rewrites it for copy and deletes it for move)")
 	}
 
 	if !destBucketProvided {

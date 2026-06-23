@@ -19,7 +19,7 @@ binding:
         key (including intra-bucket prefix changes). Supply `destinationBucket` to copy to a
         different bucket. At least one of `destinationBucket` or `destinationKey` must be
         provided; omitting both is an error (it would resolve to the source bucket and key,
-        making the operation a no-op). Each field defaults to the corresponding source value
+        rewriting the same object). Each field defaults to the corresponding source value
         when omitted.
     - name: move
       description: |

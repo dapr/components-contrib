@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: infisical
+version: v1
+status: alpha
+title: "Infisical"
+urls:
+  - title: Reference
+    url: "https://docs.dapr.io/reference/components-reference/supported-secret-stores/infisical/"
+metadata:
+  - name: projectId
+    required: false
+    description: Infisical project (workspace) ID. You can use `workspaceId` as an alias.
+    example: "2c95d8c8-cc6e-4ca8-88f9-c8e318dbf544"
+    type: string
+  - name: workspaceId
+    required: false
+    description: Alias for `projectId`.
+    example: "2c95d8c8-cc6e-4ca8-88f9-c8e318dbf544"
+    type: string
+  - name: environment
+    required: true
+    description: Infisical environment slug to query secrets from.
+    example: "dev"
+    type: string
+  - name: apiUrl
+    required: false
+    description: Infisical API or app URL. Defaults to the SDK default (`https://app.infisical.com`).
+    example: "https://app.infisical.com"
+    type: string
+  - name: accessToken
+    required: false
+    sensitive: true
+    description: Infisical access token used for authentication.
+    example: "<infisical-access-token>"
+    type: string
+  - name: clientId
+    required: false
+    sensitive: true
+    description: Infisical Universal Auth client ID. Required with `clientSecret` if `accessToken` is not provided.
+    example: "<infisical-client-id>"
+    type: string
+  - name: clientSecret
+    required: false
+    sensitive: true
+    description: Infisical Universal Auth client secret. Required with `clientId` if `accessToken` is not provided.
+    example: "<infisical-client-secret>"
+    type: string
+  - name: secretPath
+    required: false
+    description: Secret path to use when fetching and listing secrets.
+    example: "/"
+    type: string
+  - name: includeImports
+    required: false
+    description: Include imported secrets in GetSecret and BulkGetSecret calls.
+    example: "true"
+    type: bool
+  - name: expandSecretReferences
+    required: false
+    description: Expand secret references in BulkGetSecret calls.
+    example: "false"
+    type: bool

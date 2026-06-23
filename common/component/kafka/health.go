@@ -59,7 +59,9 @@ func (k *Kafka) Ping(ctx context.Context) error {
 	if deadline, ok := ctx.Deadline(); ok {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return fmt.Errorf("kafka health check: %w", ctx.Err())
+			// The deadline has already passed; wrap context.DeadlineExceeded
+			// directly since ctx.Err() may not be set yet in this narrow window.
+			return fmt.Errorf("kafka health check: %w", context.DeadlineExceeded)
 		}
 		// Clamp all net timeouts to the remaining deadline so that Sarama's
 		// underlying dials respect the caller's overall timeout.

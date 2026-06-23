@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -119,11 +120,19 @@ func TestPingContextCancelledMidFlight(t *testing.T) {
 	cfg.Net.WriteTimeout = 30 * time.Second
 	cfg.Metadata.Retry.Max = 0
 
+	// Stand up a local TCP listener that we never Accept() from. The kernel
+	// completes the TCP handshake from the listen backlog, so the Sarama client
+	// connects and then blocks waiting for a broker response that never arrives.
+	// This makes the "in-flight" state deterministic across environments, unlike
+	// relying on TEST-NET blackhole behaviour which varies by CI network stack.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
 	k := &Kafka{
-		logger: logger.NewLogger("kafka_test"),
-		config: cfg,
-		// 192.0.2.0/24 is TEST-NET-1 (RFC 5737) — packets are blackholed.
-		brokers: []string{"192.0.2.1:9092"},
+		logger:  logger.NewLogger("kafka_test"),
+		config:  cfg,
+		brokers: []string{ln.Addr().String()},
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -134,16 +143,15 @@ func TestPingContextCancelledMidFlight(t *testing.T) {
 	}()
 
 	start := time.Now()
-	err := k.Ping(ctx)
+	err = k.Ping(ctx)
 	elapsed := time.Since(start)
 
 	require.Error(t, err)
-	// In most environments, 192.0.2.1 (TEST-NET-1, RFC 5737) blackholes packets,
-	// so context cancellation wins and err wraps context.Canceled. In some CI
-	// environments (e.g. "network is unreachable") the dial fails immediately with
-	// a broker-connect error instead; both are legitimate outcomes. Accept either.
+	// The connection is accepted by the kernel but never answered, so context
+	// cancellation is what unblocks Ping and err wraps context.Canceled. Some
+	// Sarama paths may surface the cancelled read as a broker-connect error
+	// instead; both prove Ping returns on ctx rather than the Net timeout.
 	if !errors.Is(err, context.Canceled) {
-		// Fast-fail path: must be a broker/network error surfaced by Ping.
 		require.Contains(t, err.Error(), "health check",
 			"unexpected error (not ctx.Canceled and not a broker health-check error): %v", err)
 	}

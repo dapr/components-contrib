@@ -45,16 +45,15 @@ type Kafka struct {
 	mockProducer      sarama.SyncProducer
 	clients           *clients
 
-	maxMessageBytes int
-	consumerGroup   string
-	brokers         []string
-	logger          logger.Logger
-	authType        string
-	saslUsername    string
-	saslPassword    string
-	initialOffset   int64
-	config          *sarama.Config
-	escapeHeaders   bool
+	consumerGroup string
+	brokers       []string
+	logger        logger.Logger
+	authType      string
+	saslUsername  string
+	saslPassword  string
+	initialOffset int64
+	config        *sarama.Config
+	escapeHeaders bool
 
 	producerConfig ProducerConfig
 
@@ -235,7 +234,6 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		MaxMessageBytes: meta.MaxMessageBytes,
 	}
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
-	k.maxMessageBytes = meta.MaxMessageBytes
 
 	// Default retry configuration is used if no
 	// backOff properties are set.

@@ -134,6 +134,32 @@ type Settings struct {
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
 
+	// OIDC private_key_jwt (RFC 7523) authentication: an OAuth2 access token is
+	// obtained from the identity provider using a signed JWT client assertion,
+	// and used as the password for the Redis AUTH command. The token is
+	// refreshed in the background before it expires.
+	UseOIDC bool `mapstructure:"useOIDC"`
+	// URL of the OAuth2 identity provider access token endpoint
+	OidcTokenEndpoint string `mapstructure:"oidcTokenEndpoint"`
+	// The OAuth2 client ID that has been provisioned in the identity provider
+	OidcClientID string `mapstructure:"oidcClientID"`
+	// PEM-encoded X.509 certificate paired with the client assertion signing key
+	OidcClientAssertionCert string `mapstructure:"oidcClientAssertionCert"`
+	// PEM-encoded RSA private key used to sign the client assertion
+	OidcClientAssertionKey string `mapstructure:"oidcClientAssertionKey"`
+	// Optional OAuth2 resource parameter to include in the token request
+	OidcResource string `mapstructure:"oidcResource"`
+	// Optional override for the JWT client assertion audience (aud); defaults to the token endpoint URL
+	OidcAudience string `mapstructure:"oidcAudience"`
+	// Optional JWT key ID (kid) header for the client assertion
+	OidcKid string `mapstructure:"oidcKid"`
+	// Comma-delimited list of OAuth2/OIDC scopes to request with the access token; defaults to "openid"
+	OidcScopes string `mapstructure:"oidcScopes"`
+	// Optional PEM-encoded CA certificate used to verify the TLS connection to the token endpoint
+	OidcCACert string `mapstructure:"oidcCACert"`
+
+	internalOidcScopes []string `mapstructure:"-"`
+
 	// == Entra ID runtime state (populated by InitEntraIDCredential when UseEntraID is true; not configurable via metadata) ==
 
 	// entraIDUsername is the OID parsed from the initial Entra access token's "oid" claim.

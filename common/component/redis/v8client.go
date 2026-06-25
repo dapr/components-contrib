@@ -318,15 +318,12 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 }
 
 func (c v8Client) AuthACL(ctx context.Context, username, password string) error {
-	// UniversalClient only exposes Cmdable (not StatefulCmdable), so AUTH must be
-	// issued via a pipeline. The pipeline must be Exec'd for the command to actually
-	// be sent over the wire — without it the AUTH is silently queued and dropped.
+	// AuthACL is only exposed on the Pipeliner, so we queue it on a pipeline and
+	// Exec it. Without the Exec the command is never sent, making AUTH a no-op.
 	pipeline := c.client.Pipeline()
-	statusCmd := pipeline.AuthACL(ctx, username, password)
-	if _, err := pipeline.Exec(ctx); err != nil {
-		return err
-	}
-	return statusCmd.Err()
+	pipeline.AuthACL(ctx, username, password)
+	_, err := pipeline.Exec(ctx)
+	return err
 }
 
 // entraIDOnConnectV8 returns an OnConnect callback for go-redis v8 client options.

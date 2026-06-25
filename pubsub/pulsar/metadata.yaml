@@ -284,9 +284,32 @@ metadata:
   - name: subscribeMode
     type: string
     description: |
-      Subscription mode indicates the cursor belongs to "durable" type or "non_durable" type, durable subscription retains messages and persists the current position. 
+      Subscription mode indicates the cursor belongs to "durable" type or "non_durable" type, durable subscription retains messages and persists the current position.
     default: '"durable"'
     example: '"durable"'
-    url: 
+    url:
       title: "Pulsar SubscriptionMode"
       url: "https://pkg.go.dev/github.com/apache/pulsar-client-go/pulsar#SubscriptionMode"
+  - name: topicsPattern
+    type: string
+    description: |
+      A regular expression used to subscribe to all topics whose name matches the pattern within the
+      configured tenant and namespace, instead of a single explicit topic. When set, it takes precedence
+      over the subscription's topic, and Pulsar auto-discovers new matching topics over time
+      (see autoDiscoveryPeriod). The expression is matched against the local topic name within the
+      resolved persistent/non-persistent tenant/namespace scope. Can be set on the component (applies to
+      all subscriptions) or overridden per subscription via subscription metadata. Messages are delivered
+      to the application tagged with the concrete topic they arrived on, not the pattern.
+    example: '"orders-.*", "event-.+-v2"'
+    url:
+      title: "Pulsar Pattern Subscriptions"
+      url: "https://pulsar.apache.org/docs/3.0.x/client-libraries-go/#use-regular-expressions"
+  - name: autoDiscoveryPeriod
+    type: duration
+    description: |
+      When topicsPattern is set, controls how often Pulsar re-evaluates the pattern to pick up newly
+      created (or removed) matching topics. A value of "0" lets the Pulsar client use its own default
+      interval. Has no effect unless topicsPattern is set. Can be overridden per subscription via
+      subscription metadata.
+    default: '"1m"'
+    example: '"30s", "5m"'

@@ -2502,7 +2502,7 @@ func TestHandleMessageAvroDecodeRoundTrip(t *testing.T) {
 		return nil
 	}
 
-	err = p.handleMessage(t.Context(), topic, cm, handler)
+	err = p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.NoError(t, err)
 	assert.True(t, consumer.acked, "message should be acked on success")
 	assert.False(t, consumer.nacked, "message should not be nacked on success")
@@ -2568,7 +2568,7 @@ func TestHandleMessageAvroCEEnvelopeDecodeRoundTrip(t *testing.T) {
 		return nil
 	}
 
-	err = p.handleMessage(t.Context(), topic, cm, handler)
+	err = p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.NoError(t, err)
 	assert.True(t, consumer.acked)
 
@@ -2609,7 +2609,7 @@ func TestHandleMessageAvroDecodeError(t *testing.T) {
 		return nil
 	}
 
-	err = p.handleMessage(t.Context(), topic, cm, handler)
+	err = p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "avro decode failed")
 	assert.True(t, consumer.nacked, "message should be nacked on decode error")
@@ -2638,7 +2638,7 @@ func TestHandleMessageNoAvroSchema(t *testing.T) {
 		return nil
 	}
 
-	err := p.handleMessage(t.Context(), topic, cm, handler)
+	err := p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.NoError(t, err)
 	assert.JSONEq(t, string(rawJSON), string(receivedData))
 	assert.True(t, consumer.acked)
@@ -2665,7 +2665,7 @@ func TestHandleMessageHandlerErrorNacks(t *testing.T) {
 		return handlerErr
 	}
 
-	err := p.handleMessage(t.Context(), topic, cm, handler)
+	err := p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.Error(t, err)
 	assert.Equal(t, handlerErr, err)
 	assert.True(t, consumer.nacked, "message must be nacked when handler returns error")
@@ -2706,7 +2706,7 @@ func TestHandleMessageAvroPropertiesPreserved(t *testing.T) {
 		return nil
 	}
 
-	err = p.handleMessage(t.Context(), topic, cm, handler)
+	err = p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.NoError(t, err)
 	assert.Equal(t, props, receivedMetadata, "properties must be preserved through the Avro decode path")
 }
@@ -2736,7 +2736,7 @@ func TestHandleMessageNonAvroSchemaPassthrough(t *testing.T) {
 		return nil
 	}
 
-	err := p.handleMessage(t.Context(), topic, cm, handler)
+	err := p.handleMessage(t.Context(), topic, false, cm, handler)
 	require.NoError(t, err)
 	assert.JSONEq(t, string(rawJSON), string(receivedData), "non-Avro schema topics must pass raw bytes through")
 	assert.True(t, consumer.acked)
@@ -2803,4 +2803,276 @@ func TestPublishErrorClassification(t *testing.T) {
 		require.True(t, ok, "publish error must carry a gRPC status")
 		assert.Equal(t, codes.FailedPrecondition, st.Code())
 	})
+}
+
+// --- topicsPattern (regex / wildcard multi-topic subscriptions) ---
+
+func TestParsePulsarMetadataTopicsPattern(t *testing.T) {
+	tests := []struct {
+		name                string
+		properties          map[string]string
+		expectErr           bool
+		expectPattern       string
+		expectAutoDiscovery time.Duration
+	}{
+		{
+			name:          "valid pattern",
+			properties:    map[string]string{"host": "localhost:6650", "topicsPattern": "orders-.*"},
+			expectPattern: "orders-.*",
+		},
+		{
+			name:                "valid pattern with auto discovery period",
+			properties:          map[string]string{"host": "localhost:6650", "topicsPattern": "events-.+", "autoDiscoveryPeriod": "30s"},
+			expectPattern:       "events-.+",
+			expectAutoDiscovery: 30 * time.Second,
+		},
+		{
+			name:          "no pattern leaves field empty",
+			properties:    map[string]string{"host": "localhost:6650"},
+			expectPattern: "",
+		},
+		{
+			name:       "invalid regex is rejected",
+			properties: map[string]string{"host": "localhost:6650", "topicsPattern": "orders-[a-"},
+			expectErr:  true,
+		},
+		{
+			name:       "negative auto discovery period is rejected",
+			properties: map[string]string{"host": "localhost:6650", "topicsPattern": "orders-.*", "autoDiscoveryPeriod": "-5s"},
+			expectErr:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			meta, err := parsePulsarMetadata(pubsub.Metadata{Base: metadata.Base{Properties: tc.properties}})
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectPattern, meta.TopicsPattern)
+			assert.Equal(t, tc.expectAutoDiscovery, meta.AutoDiscoveryPeriod)
+		})
+	}
+}
+
+// TestSubscribe_TopicsPatternFromComponent verifies that a component-level
+// topicsPattern causes Subscribe to set ConsumerOptions.TopicsPattern (scoped to
+// the tenant/namespace) and leave the single Topic field empty.
+func TestSubscribe_TopicsPatternFromComponent(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+
+	md := pubsub.Metadata{
+		Base: metadata.Base{Properties: map[string]string{
+			"host":                "localhost:6650",
+			"consumerID":          "pattern-consumer",
+			"tenant":              "public",
+			"namespace":           "default",
+			"topicsPattern":       "orders-.*",
+			"autoDiscoveryPeriod": "45s",
+		}},
+	}
+
+	var capturedOptions pulsar.ConsumerOptions
+	p.client = &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			capturedOptions = options
+			return &MockPulsarConsumer{Ch: make(chan pulsar.ConsumerMessage)}, nil
+		},
+	}
+
+	parsedMeta, err := parsePulsarMetadata(md)
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// req.Topic is ignored when a pattern is active, but the runtime still
+	// supplies one; ensure it does not leak into ConsumerOptions.Topic.
+	req := pubsub.SubscribeRequest{Topic: "ignored-topic", Metadata: md.Properties}
+	err = p.Subscribe(ctx, req, func(ctx context.Context, msg *pubsub.NewMessage) error { return nil })
+	require.NoError(t, err)
+
+	assert.Empty(t, capturedOptions.Topic, "pattern mode must not set a single Topic")
+	assert.Equal(t, "persistent://public/default/orders-.*", capturedOptions.TopicsPattern,
+		"pattern must be scoped to the configured tenant/namespace")
+	assert.Equal(t, 45*time.Second, capturedOptions.AutoDiscoveryPeriod)
+}
+
+// TestSubscribe_TopicsPatternPerSubscriptionOverride verifies that subscription
+// metadata can enable (or change) a pattern even when the component default is a
+// single topic, and that the per-subscription auto-discovery period is applied.
+func TestSubscribe_TopicsPatternPerSubscriptionOverride(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+
+	componentMeta := pubsub.Metadata{
+		Base: metadata.Base{Properties: map[string]string{
+			"host":       "localhost:6650",
+			"consumerID": "pattern-consumer",
+		}},
+	}
+	parsedMeta, err := parsePulsarMetadata(componentMeta)
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	var capturedOptions pulsar.ConsumerOptions
+	p.client = &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			capturedOptions = options
+			return &MockPulsarConsumer{Ch: make(chan pulsar.ConsumerMessage)}, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	req := pubsub.SubscribeRequest{
+		Topic: "single-topic",
+		Metadata: map[string]string{
+			"topicsPattern":       "events-.+",
+			"autoDiscoveryPeriod": "10s",
+		},
+	}
+	err = p.Subscribe(ctx, req, func(ctx context.Context, msg *pubsub.NewMessage) error { return nil })
+	require.NoError(t, err)
+
+	assert.Empty(t, capturedOptions.Topic)
+	assert.Equal(t, "persistent://public/default/events-.+", capturedOptions.TopicsPattern)
+	assert.Equal(t, 10*time.Second, capturedOptions.AutoDiscoveryPeriod)
+}
+
+// TestSubscribe_InvalidAutoDiscoveryPeriodOverride verifies that a malformed
+// per-subscription autoDiscoveryPeriod is rejected at Subscribe time.
+func TestSubscribe_InvalidAutoDiscoveryPeriodOverride(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	p.client = &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			return &MockPulsarConsumer{Ch: make(chan pulsar.ConsumerMessage)}, nil
+		},
+	}
+
+	parsedMeta, err := parsePulsarMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{"host": "localhost:6650"}}})
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	req := pubsub.SubscribeRequest{
+		Topic: "t",
+		Metadata: map[string]string{
+			"topicsPattern":       "orders-.*",
+			"autoDiscoveryPeriod": "not-a-duration",
+		},
+	}
+	err = p.Subscribe(t.Context(), req, func(ctx context.Context, msg *pubsub.NewMessage) error { return nil })
+	require.Error(t, err)
+}
+
+// TestSubscribe_NoPatternUsesSingleTopic verifies the default (non-pattern) path
+// still sets ConsumerOptions.Topic and leaves TopicsPattern empty.
+func TestSubscribe_NoPatternUsesSingleTopic(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+
+	md := pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
+		"host":       "localhost:6650",
+		"consumerID": "c1",
+	}}}
+	parsedMeta, err := parsePulsarMetadata(md)
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	var capturedOptions pulsar.ConsumerOptions
+	p.client = &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			capturedOptions = options
+			return &MockPulsarConsumer{Ch: make(chan pulsar.ConsumerMessage)}, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	req := pubsub.SubscribeRequest{Topic: "my-topic"}
+	err = p.Subscribe(ctx, req, func(ctx context.Context, msg *pubsub.NewMessage) error { return nil })
+	require.NoError(t, err)
+
+	assert.Equal(t, "persistent://public/default/my-topic", capturedOptions.Topic)
+	assert.Empty(t, capturedOptions.TopicsPattern)
+}
+
+func TestShortTopicName(t *testing.T) {
+	p := &Pulsar{}
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"persistent://public/default/orders-eu", "orders-eu"},
+		{"non-persistent://my-tenant/my-ns/events-1", "events-1"},
+		{"persistent://public/default/orders-eu-partition-3", "orders-eu-partition-3"},
+		{"orders-eu", "orders-eu"}, // already short
+		{"", ""},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, p.shortTopicName(tc.in), "input %q", tc.in)
+	}
+}
+
+// TestHandleMessage_PatternModeDeliversConcreteTopic verifies that in pattern
+// mode the message is delivered tagged with the concrete (short) topic it
+// arrived on, not the regex pattern.
+func TestHandleMessage_PatternModeDeliversConcreteTopic(t *testing.T) {
+	p := &Pulsar{
+		logger:   logger.NewLogger("test"),
+		metadata: pulsarMetadata{internalTopicSchemas: map[string]schemaMetadata{}},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{
+		payload:    []byte(`{"hello":"world"}`),
+		properties: map[string]string{},
+		topic:      "persistent://public/default/orders-eu",
+	}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedTopic string
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedTopic = m.Topic
+		return nil
+	}
+
+	// originTopic is the regex pattern; patternMode=true must override it with
+	// the concrete topic from the message.
+	err := p.handleMessage(t.Context(), "orders-.*", true, cm, handler)
+	require.NoError(t, err)
+	assert.True(t, consumer.acked)
+	assert.Equal(t, "orders-eu", receivedTopic,
+		"pattern subscriptions must deliver the concrete topic, not the regex")
+}
+
+// TestHandleMessage_NonPatternKeepsDeclaredTopic verifies the explicit-topic path
+// still delivers the subscription's declared topic regardless of the broker's
+// fully-qualified name.
+func TestHandleMessage_NonPatternKeepsDeclaredTopic(t *testing.T) {
+	p := &Pulsar{
+		logger:   logger.NewLogger("test"),
+		metadata: pulsarMetadata{internalTopicSchemas: map[string]schemaMetadata{}},
+	}
+
+	consumer := &mockAckConsumer{}
+	msg := &mockPulsarMessage{
+		payload:    []byte(`{"hello":"world"}`),
+		properties: map[string]string{},
+		topic:      "persistent://public/default/my-topic",
+	}
+	cm := makeConsumerMessage(msg, consumer)
+
+	var receivedTopic string
+	handler := func(ctx context.Context, m *pubsub.NewMessage) error {
+		receivedTopic = m.Topic
+		return nil
+	}
+
+	err := p.handleMessage(t.Context(), "my-topic", false, cm, handler)
+	require.NoError(t, err)
+	assert.Equal(t, "my-topic", receivedTopic)
 }

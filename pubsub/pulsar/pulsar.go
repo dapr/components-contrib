@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -109,6 +110,14 @@ const (
 
 	subscribeModeDurable    = "durable"
 	subscribeModeNonDurable = "non_durable"
+
+	// topicsPatternKey is the subscription/component metadata key holding a
+	// regular expression that selects multiple topics within a single
+	// tenant/namespace. When set it takes precedence over the explicit topic.
+	topicsPatternKey = "topicsPattern"
+	// autoDiscoveryPeriodKey controls how often Pulsar re-evaluates the
+	// topicsPattern to pick up newly created (or removed) matching topics.
+	autoDiscoveryPeriodKey = "autoDiscoveryPeriod"
 
 	compressionTypeKey  = "compressionType"
 	compressionLevelKey = "compressionLevel"
@@ -239,6 +248,23 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	// workers would block the dispatch loop immediately.
 	if m.MaxConcurrentHandlers == 0 {
 		m.MaxConcurrentHandlers = defaultConcurrency
+	}
+
+	// Validate the topics regex pattern up-front so misconfiguration surfaces at
+	// Init rather than as an opaque error on the first Subscribe call. The
+	// pattern is matched by Pulsar against the local topic name within the
+	// resolved tenant/namespace (Subscribe scopes it via formatTopic), so we
+	// compile only the user-supplied expression here.
+	if m.TopicsPattern != "" {
+		if _, err := regexp.Compile(m.TopicsPattern); err != nil {
+			return nil, fmt.Errorf("invalid topicsPattern %q: %w", m.TopicsPattern, err)
+		}
+	}
+
+	// A negative auto-discovery period is meaningless; zero is allowed and lets
+	// the Pulsar client fall back to its own default interval.
+	if m.AutoDiscoveryPeriod < 0 {
+		return nil, fmt.Errorf("invalid autoDiscoveryPeriod %q: must not be negative", m.AutoDiscoveryPeriod)
 	}
 
 	// First pass: collect per-topic rawSchema flags.
@@ -713,15 +739,30 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 	channel := make(chan pulsar.ConsumerMessage, p.metadata.MaxConcurrentHandlers)
 
-	topic := p.formatTopic(req.Topic)
-
 	subscribeType := p.metadata.SubscriptionType
 	if s, exists := req.Metadata[subscribeTypeKey]; exists {
 		subscribeType = s
 	}
 
+	// Resolve the topics pattern. It may be set on the component (applies to
+	// every subscription) or overridden per-subscription via metadata. When a
+	// pattern is present the consumer subscribes by regex instead of to a single
+	// explicit topic, and Pulsar auto-discovers matching topics over time.
+	topicsPattern := p.resolveTopicsPattern(req)
+	patternMode := topicsPattern != ""
+
+	autoDiscoveryPeriod := p.metadata.AutoDiscoveryPeriod
+	if v, ok := req.Metadata[autoDiscoveryPeriodKey]; ok && v != "" {
+		d, derr := time.ParseDuration(v)
+		if derr != nil || d < 0 {
+			return fmt.Errorf("invalid %s %q in subscription metadata: must be a non-negative Go duration", autoDiscoveryPeriodKey, v)
+		}
+		autoDiscoveryPeriod = d
+	}
+
+	topic := p.formatTopic(req.Topic)
+
 	options := pulsar.ConsumerOptions{
-		Topic:                       topic,
 		SubscriptionName:            p.metadata.ConsumerID,
 		Type:                        getSubscribeType(subscribeType),
 		SubscriptionInitialPosition: getSubscribePosition(p.metadata.SubscriptionInitialPosition),
@@ -730,6 +771,17 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		NackRedeliveryDelay:         p.metadata.RedeliveryDelay,
 		ReceiverQueueSize:           p.metadata.ReceiverQueueSize,
 		ReplicateSubscriptionState:  p.metadata.ReplicateSubscriptionState,
+	}
+
+	if patternMode {
+		// Reuse formatTopic so the regex is scoped to the configured
+		// tenant/namespace, e.g. "persistent://public/default/orders-.*".
+		// Pulsar derives the namespace to scan from this prefix and matches the
+		// regex against topics within it.
+		options.TopicsPattern = p.formatTopic(topicsPattern)
+		options.AutoDiscoveryPeriod = autoDiscoveryPeriod
+	} else {
+		options.Topic = topic
 	}
 
 	// Handle KeySharedPolicy for key_shared subscription type
@@ -752,15 +804,28 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		}
 	}
 
-	if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {
-		options.Schema = getRegistrationSchema(sm)
+	// Per-topic schema registration only applies to an explicit single topic.
+	// A regex subscription can span many topics whose schemas are not known in
+	// advance, so schema enforcement is skipped in pattern mode.
+	if !patternMode {
+		if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {
+			options.Schema = getRegistrationSchema(sm)
+		}
 	}
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
-		p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
+		if patternMode {
+			p.logger.Debugf("Could not subscribe with topics pattern %q (full pattern in pulsar is %s)", topicsPattern, options.TopicsPattern)
+		} else {
+			p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
+		}
 		return err
 	}
-	p.logger.Debugf("Subscribed to '%s'(%s) with type '%s'", req.Topic, topic, subscribeType)
+	if patternMode {
+		p.logger.Debugf("Subscribed to topics pattern %q(%s) with type '%s'", topicsPattern, options.TopicsPattern, subscribeType)
+	} else {
+		p.logger.Debugf("Subscribed to '%s'(%s) with type '%s'", req.Topic, topic, subscribeType)
+	}
 
 	p.wg.Add(2)
 	listenCtx, cancel := context.WithCancel(ctx)
@@ -781,8 +846,24 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	return nil
 }
 
+// resolveTopicsPattern returns the effective topics regex for a subscription:
+// the per-subscription override if present, otherwise the component default.
+// An empty result means the subscription targets a single explicit topic.
+func (p *Pulsar) resolveTopicsPattern(req pubsub.SubscribeRequest) string {
+	if v, ok := req.Metadata[topicsPatternKey]; ok {
+		return v
+	}
+	return p.metadata.TopicsPattern
+}
+
 func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
+
+	// In pattern mode a single consumer spans many topics, so each message must
+	// be delivered tagged with the concrete topic it arrived on rather than the
+	// regex. Outside pattern mode we keep using the subscription's declared
+	// topic, preserving existing behavior (and the per-topic Avro schema path).
+	patternMode := p.resolveTopicsPattern(req) != ""
 
 	// Resolve effective process mode: component metadata is already normalized
 	// to lowercase in parsePulsarMetadata; subscription metadata may override.
@@ -806,21 +887,21 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 	originTopic := req.Topic
 
 	if mode == processModeSync {
-		p.listenMessageSync(ctx, originTopic, consumer, handler)
+		p.listenMessageSync(ctx, originTopic, patternMode, consumer, handler)
 	} else {
-		p.listenMessageAsync(ctx, originTopic, consumer, handler)
+		p.listenMessageAsync(ctx, originTopic, patternMode, consumer, handler)
 	}
 }
 
 // listenMessageSync processes messages sequentially on the calling goroutine.
-func (p *Pulsar) listenMessageSync(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessageSync(ctx context.Context, originTopic string, patternMode bool, consumer pulsar.Consumer, handler pubsub.Handler) {
 	for {
 		select {
 		case msg, ok := <-consumer.Chan():
 			if !ok {
 				return
 			}
-			if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+			if err := p.handleMessage(ctx, originTopic, patternMode, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
 				p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 			}
 		case <-ctx.Done():
@@ -836,7 +917,7 @@ func (p *Pulsar) listenMessageSync(ctx context.Context, originTopic string, cons
 // and the SDK stops requesting more messages from the broker. There is no
 // intermediate work channel, so MaxConcurrentHandlers bounds both the number
 // of concurrent handlers and the consumer channel buffer (set in Subscribe).
-func (p *Pulsar) listenMessageAsync(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessageAsync(ctx context.Context, originTopic string, patternMode bool, consumer pulsar.Consumer, handler pubsub.Handler) {
 	// Use a local WaitGroup for workers so that we can wait for in-flight
 	// handlers to finish their Ack/Nack calls before returning. The caller
 	// defers consumer.Close(), so returning early would close the consumer
@@ -854,7 +935,7 @@ func (p *Pulsar) listenMessageAsync(ctx context.Context, originTopic string, con
 					if !ok {
 						return
 					}
-					if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+					if err := p.handleMessage(ctx, originTopic, patternMode, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
 						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 					}
 				case <-ctx.Done():
@@ -873,15 +954,27 @@ func (p *Pulsar) listenMessageAsync(ctx context.Context, originTopic string, con
 	workerWg.Wait()
 }
 
-func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, patternMode bool, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
 	data := msg.Payload()
+
+	// The topic surfaced to the Dapr runtime. For an explicit single-topic
+	// subscription this is the declared topic. For a pattern subscription the
+	// declared "topic" is a regex, so we instead report the concrete topic the
+	// message arrived on (shortened to the local name, matching the short names
+	// used elsewhere) so routing and observability see the real topic.
+	deliveredTopic := originTopic
+	if patternMode {
+		deliveredTopic = p.shortTopicName(msg.Topic())
+	}
 
 	// If an Avro schema is registered for this topic, decode the Avro binary
 	// payload to JSON before passing it to the Dapr runtime. The Pulsar Go
 	// client does not automatically decode msg.Payload() when using Chan(),
 	// so we must do it explicitly here.
 	// The goavro codec was compiled once at init in parsePulsarMetadata.
-	if sm, ok := p.metadata.internalTopicSchemas[originTopic]; ok && sm.protocol == avroProtocol {
+	// Keyed on the delivered (concrete) topic so it resolves correctly for both
+	// explicit and pattern subscriptions.
+	if sm, ok := p.metadata.internalTopicSchemas[deliveredTopic]; ok && sm.protocol == avroProtocol {
 		// Use the CE envelope codec when available (matches the schema registered
 		// with the producer/consumer), otherwise fall back to the inner codec.
 		codec := sm.ceCodec
@@ -891,19 +984,19 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 		native, _, decodeErr := codec.NativeFromBinary(data)
 		if decodeErr != nil {
 			msg.Nack(msg.Message)
-			return fmt.Errorf("avro decode failed for topic %q: %w", originTopic, decodeErr)
+			return fmt.Errorf("avro decode failed for topic %q: %w", deliveredTopic, decodeErr)
 		}
 		jsonBytes, encodeErr := codec.TextualFromNative(nil, native)
 		if encodeErr != nil {
 			msg.Nack(msg.Message)
-			return fmt.Errorf("avro to json conversion failed for topic %q: %w", originTopic, encodeErr)
+			return fmt.Errorf("avro to json conversion failed for topic %q: %w", deliveredTopic, encodeErr)
 		}
 		data = jsonBytes
 	}
 
 	pubsubMsg := pubsub.NewMessage{
 		Data:     data,
-		Topic:    originTopic,
+		Topic:    deliveredTopic,
 		Metadata: msg.Properties(),
 	}
 
@@ -970,6 +1063,26 @@ func (p *Pulsar) formatTopic(topic string) string {
 		persist = nonPersistentStr
 	}
 	return fmt.Sprintf(topicFormat, persist, p.metadata.Tenant, p.metadata.Namespace, topic)
+}
+
+// shortTopicName reduces a topic name to its local part. The Pulsar client
+// reports fully-qualified names (e.g. "persistent://public/default/orders-eu");
+// for pattern subscriptions we deliver the trailing local name ("orders-eu") so
+// it matches the short topic names used by explicit subscriptions. Names that do
+// not carry the expected prefix are returned unchanged.
+func (p *Pulsar) shortTopicName(topic string) string {
+	// Drop the "{persistent|non-persistent}://" domain prefix, then keep the
+	// segment after the last "/", which is the local topic name within
+	// tenant/namespace. Partitioned topics keep their "-partition-N" suffix,
+	// which is part of the local name.
+	name := topic
+	if idx := strings.Index(name, "://"); idx >= 0 {
+		name = name[idx+len("://"):]
+	}
+	if idx := strings.LastIndex(name, "/"); idx >= 0 {
+		name = name[idx+1:]
+	}
+	return name
 }
 
 // GetComponentMetadata returns the metadata of the component.

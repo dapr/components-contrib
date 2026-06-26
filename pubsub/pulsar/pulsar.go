@@ -751,6 +751,16 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	topicsPattern := p.resolveTopicsPattern(req)
 	patternMode := topicsPattern != ""
 
+	// The component-level pattern is validated once at Init in
+	// parsePulsarMetadata, but a per-subscription override bypasses that path, so
+	// validate it here too. This keeps a malformed regex surfacing as a clear
+	// error rather than an opaque failure from the Pulsar client.
+	if v, ok := req.Metadata[topicsPatternKey]; ok && v != "" {
+		if _, err := regexp.Compile(v); err != nil {
+			return fmt.Errorf("invalid %s %q in subscription metadata: %w", topicsPatternKey, v, err)
+		}
+	}
+
 	autoDiscoveryPeriod := p.metadata.AutoDiscoveryPeriod
 	if v, ok := req.Metadata[autoDiscoveryPeriodKey]; ok && v != "" {
 		d, derr := time.ParseDuration(v)

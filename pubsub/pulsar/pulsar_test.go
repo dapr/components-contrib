@@ -2968,6 +2968,35 @@ func TestSubscribe_InvalidAutoDiscoveryPeriodOverride(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestSubscribe_InvalidTopicsPatternOverride verifies that a malformed
+// per-subscription topicsPattern is rejected at Subscribe time with a clear
+// error, rather than being passed through to the Pulsar client. The
+// component-level pattern is validated at Init, so this covers the override path.
+func TestSubscribe_InvalidTopicsPatternOverride(t *testing.T) {
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+
+	subscribeCalled := false
+	p.client = &MockPulsarClient{
+		SubscribeFn: func(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
+			subscribeCalled = true
+			return &MockPulsarConsumer{Ch: make(chan pulsar.ConsumerMessage)}, nil
+		},
+	}
+
+	parsedMeta, err := parsePulsarMetadata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{"host": "localhost:6650"}}})
+	require.NoError(t, err)
+	p.metadata = *parsedMeta
+
+	req := pubsub.SubscribeRequest{
+		Topic:    "t",
+		Metadata: map[string]string{"topicsPattern": "orders-[a-"},
+	}
+	err = p.Subscribe(t.Context(), req, func(ctx context.Context, msg *pubsub.NewMessage) error { return nil })
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "topicsPattern")
+	assert.False(t, subscribeCalled, "client.Subscribe must not be called with an invalid pattern")
+}
+
 // TestSubscribe_NoPatternUsesSingleTopic verifies the default (non-pattern) path
 // still sets ConsumerOptions.Topic and leaves TopicsPattern empty.
 func TestSubscribe_NoPatternUsesSingleTopic(t *testing.T) {

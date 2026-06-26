@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,11 +30,6 @@ type X509 struct {
 
 	x509Cert *x509.Certificate
 
-	region          *string
-	assumeRoleArn   *string
-	trustAnchorArn  *string
-	trustProfileArn *string
-
 	wrappedCredentialProvider *aws_credential_helper.CredentialProvider
 }
 
@@ -42,33 +38,20 @@ func (x *X509) Type() ProviderType {
 }
 
 func (x *X509) RefreshX509(ctx context.Context) error {
-	cert, _, signer, err := getCertAndSigner(ctx)
+	cert, signer, err := getCertAndSigner(ctx)
 	if err != nil {
 		return errors.New("failed to refresh X509 cert: " + err.Error())
 	}
 	x.x509Cert = cert
-	if x.wrappedCredentialProvider != nil {
-		if x.region == nil || x.assumeRoleArn == nil || x.trustAnchorArn == nil || x.trustProfileArn == nil {
-			return errors.New("missing required fields: Region, AssumeRoleArn, TrustAnchorArn, TrustProfileArn")
-		}
-
-		credentialProviderInput := aws_credential_helper.CredentialProviderInput{
-			Region:          *x.region,
-			TrustProfileArn: *x.trustProfileArn,
-			TrustAnchorArn:  *x.trustAnchorArn,
-			AssumeRoleArn:   *x.assumeRoleArn,
-			Signer:          *signer,
-		}
-
-		credentialProvider, err := aws_credential_helper.NewCredentialProvider(ctx, credentialProviderInput)
-		if err != nil {
-			return errors.New("failed to create new credential provider: " + err.Error())
-		}
-
-		x.wrappedCredentialProvider = credentialProvider
-	} else {
-		// change signer
-		x.wrappedCredentialProvider.ChangeSigner(*signer) //nolint:gosec,errcheck // legacy behavior preserved
+	if x.wrappedCredentialProvider == nil {
+		return errors.New("credential provider not initialized")
+	}
+	// Swap the signer on the existing provider, which retains the region and
+	// profile/anchor/role ARNs from initialization. (The previous code rebuilt
+	// the provider from x.region/x.*Arn fields that newAuthX509 never set, so
+	// every refresh after SVID expiry returned "missing required fields".)
+	if err := x.wrappedCredentialProvider.ChangeSigner(*signer); err != nil {
+		return errors.New("failed to update signer on credential provider: " + err.Error())
 	}
 
 	return nil
@@ -101,33 +84,40 @@ func marshalSvid(svid *x509svid.SVID) ([]byte, []byte, error) {
 	return svid.Marshal()
 }
 
-func getCertAndSigner(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, *aws_credential_helper.Signer,
-	error,
-) {
+func getCertAndSigner(ctx context.Context) (*x509.Certificate, *aws_credential_helper.Signer, error) {
 	// obtain certs from spiffe via context
 	x509Svid, err := getSpiffeX509Svid(ctx)
 	if err != nil {
-		panic("failed to get SPIFFE certs: " + err.Error())
+		return nil, nil, errors.New("failed to get SPIFFE certs: " + err.Error())
 	}
 
 	chain, key, err := marshalSvid(x509Svid)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	certs, err := cryptopem.DecodePEMCertificatesChain(chain)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
+	}
+	if len(certs) == 0 {
+		return nil, nil, errors.New("no certificates found in SVID")
 	}
 
 	pkey, err := cryptopem.DecodePEMPrivateKey(key)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
+	}
+	ecKey, ok := pkey.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("workload private key is %T, but IAM Roles Anywhere requires ECDSA", pkey)
 	}
 
-	signer := aws_credential_helper.NewSigner(certs[0], pkey.(*ecdsa.PrivateKey))
+	// Present the leaf plus the intermediate chain so IAM Roles Anywhere can
+	// validate against a trust anchor registered at the chain root.
+	signer := aws_credential_helper.NewSignerWithChain(certs[0], certs[1:], ecKey)
 
-	return certs[0], pkey.(*ecdsa.PrivateKey), &signer, nil
+	return certs[0], &signer, nil
 }
 
 func isCertExpired(cert *x509.Certificate) bool {
@@ -159,7 +149,7 @@ func newAuthX509(ctx context.Context, opts Options) (*X509, error) {
 		return nil, errors.New("missing required field: TrustProfileArn")
 	}
 
-	cert, _, signer, err := getCertAndSigner(ctx)
+	cert, signer, err := getCertAndSigner(ctx)
 	if err != nil {
 		return nil, errors.New("failed to get cert and signer: " + err.Error())
 	}

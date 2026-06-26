@@ -264,7 +264,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	// A negative auto-discovery period is meaningless; zero is allowed and lets
 	// the Pulsar client fall back to its own default interval.
 	if m.AutoDiscoveryPeriod < 0 {
-		return nil, fmt.Errorf("invalid autoDiscoveryPeriod %q: must not be negative", m.AutoDiscoveryPeriod)
+		return nil, fmt.Errorf("invalid autoDiscoveryPeriod %s: must not be negative", m.AutoDiscoveryPeriod)
 	}
 
 	// First pass: collect per-topic rawSchema flags.

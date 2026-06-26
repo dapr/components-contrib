@@ -308,8 +308,8 @@ metadata:
     type: duration
     description: |
       When topicsPattern is set, controls how often Pulsar re-evaluates the pattern to pick up newly
-      created (or removed) matching topics. A value of "0" lets the Pulsar client use its own default
-      interval. Has no effect unless topicsPattern is set. Can be overridden per subscription via
-      subscription metadata.
-    default: '"1m"'
+      created (or removed) matching topics. The component default is "0", which lets the Pulsar client
+      use its own default interval (currently 1m). Has no effect unless topicsPattern is set. Can be
+      overridden per subscription via subscription metadata.
+    default: '"0"'
     example: '"30s", "5m"'

@@ -24,27 +24,27 @@ import (
 )
 
 type AwsClients struct {
-	config          *sarama.Config
-	consumerGroup   *string
-	brokers         *[]string
-	maxMessageBytes *int
+	config         *sarama.Config
+	consumerGroup  *string
+	brokers        *[]string
+	producerConfig ProducerConfig
 
 	ConsumerGroup sarama.ConsumerGroup
 	Producer      sarama.SyncProducer
 }
 type KafkaOptions struct {
-	Config          *sarama.Config
-	ConsumerGroup   string
-	Brokers         []string
-	MaxMessageBytes int
+	Config         *sarama.Config
+	ConsumerGroup  string
+	Brokers        []string
+	ProducerConfig ProducerConfig
 }
 
 func InitAwsClients(opts KafkaOptions) *AwsClients {
 	return &AwsClients{
-		config:          opts.Config,
-		consumerGroup:   &opts.ConsumerGroup,
-		brokers:         &opts.Brokers,
-		maxMessageBytes: &opts.MaxMessageBytes,
+		config:         opts.Config,
+		consumerGroup:  &opts.ConsumerGroup,
+		brokers:        &opts.Brokers,
+		producerConfig: opts.ProducerConfig,
 	}
 }
 
@@ -98,16 +98,18 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 }
 
 func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
-	// Add SyncProducer specific properties to copy of base config
-	c.config.Producer.RequiredAcks = sarama.WaitForAll
-	c.config.Producer.Retry.Max = 5
-	c.config.Producer.Return.Successes = true
+	// Apply SyncProducer-specific properties to a COPY of the shared config so
+	// the consumer-group's view of the config is not mutated (OSS-1152 fix).
+	cfg := *c.config
+	cfg.Producer.RequiredAcks = c.producerConfig.RequiredAcks
+	cfg.Producer.Retry.Max = c.producerConfig.RetryMax
+	cfg.Producer.Return.Successes = true
 
-	if *c.maxMessageBytes > 0 {
-		c.config.Producer.MaxMessageBytes = *c.maxMessageBytes
+	if c.producerConfig.MaxMessageBytes > 0 {
+		cfg.Producer.MaxMessageBytes = c.producerConfig.MaxMessageBytes
 	}
 
-	saramaClient, err := sarama.NewClient(*c.brokers, c.config)
+	saramaClient, err := sarama.NewClient(*c.brokers, &cfg)
 	if err != nil {
 		return nil, err
 	}

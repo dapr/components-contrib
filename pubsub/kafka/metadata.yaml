@@ -374,6 +374,42 @@ metadata:
         The max amount of time for the client connection to be kept alive with the broker, as a Go duration, before closing the connection. A zero value (default) means keeping alive indefinitely.
       example: '4m'
       default: '0'
+    - name: dialTimeout
+      type: duration
+      description: |
+        The maximum duration to wait for the initial TCP connection to a broker to be established. Bounds how long Init() can block on an unreachable cluster (OSS-1152).
+      example: '"10s"'
+      default: '"30s"'
+    - name: readTimeout
+      type: duration
+      description: |
+        The maximum duration to wait for a response from a broker after sending a request.
+      example: '"10s"'
+      default: '"30s"'
+    - name: writeTimeout
+      type: duration
+      description: |
+        The maximum duration to wait for a request to be transmitted to a broker.
+      example: '"10s"'
+      default: '"30s"'
+    - name: metadataTimeout
+      type: duration
+      description: |
+        The per-request timeout for metadata refresh operations. When set to 0 (default) Sarama computes the effective timeout from the Net timeouts and retry count.
+      example: '"5s"'
+      default: '"0"'
+    - name: producerRequiredAcks
+      type: string
+      description: |
+        The number of partition replicas that must acknowledge a produce request before it is considered successful. Accepted values: "all" (wait for all in-sync replicas, highest durability), "local" (wait for the partition leader only), "none" (no acknowledgement required, lowest durability).
+      example: '"local"'
+      default: '"all"'
+    - name: producerRetryMax
+      type: number
+      description: |
+        The maximum number of times to retry sending a message before giving up.
+      example: '3'
+      default: '5'
     - name: consumerFetchDefault
       type: number
       description: |

@@ -64,6 +64,25 @@ const (
 	defaultClientConnectionTopicMetadataRefreshInterval = 8 * time.Minute // needs to be 8 as kafka default for killing idle connections is 9 min
 	clientConnectionKeepAliveInterval                   = "clientConnectionKeepAliveInterval"
 	defaultClientConnectionKeepAliveInterval            = time.Duration(0) // default to keep connection alive
+
+	// Sarama Net timeout defaults (mirroring sarama.NewConfig() behaviour).
+	// These preserve the current out-of-the-box behaviour when unset.
+	defaultDialTimeout  = 30 * time.Second
+	defaultReadTimeout  = 30 * time.Second
+	defaultWriteTimeout = 30 * time.Second
+	// Sarama sets Metadata.Timeout = 0 by default (disabled, meaning the
+	// effective timeout is computed from Net timeouts × retry count). We keep
+	// the same default so existing deployments are not affected.
+	defaultMetadataTimeout = time.Duration(0)
+
+	// producerRequiredAcks string constants for metadata parsing.
+	producerRequiredAcksAll   = "all"
+	producerRequiredAcksLocal = "local"
+	producerRequiredAcksNone  = "none"
+
+	// Producer defaults matching current GetSyncProducer hard-coded values.
+	defaultProducerRequiredAcks = producerRequiredAcksAll
+	defaultProducerRetryMax     = 5
 )
 
 type KafkaMetadata struct {
@@ -107,6 +126,17 @@ type KafkaMetadata struct {
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
+	// Net timeout tunables (OSS-1152).
+	// Defaults preserve Sarama's built-in values (30 s each) so unset
+	// deployments behave identically to previous releases.
+	DialTimeout  time.Duration `mapstructure:"dialTimeout"`
+	ReadTimeout  time.Duration `mapstructure:"readTimeout"`
+	WriteTimeout time.Duration `mapstructure:"writeTimeout"`
+	// MetadataTimeout is the per-request metadata timeout passed to
+	// Sarama's Metadata.Timeout. When 0 (default) Sarama's own default
+	// applies (disabled, computed from Net timeouts × retry count).
+	MetadataTimeout time.Duration `mapstructure:"metadataTimeout"`
+
 	channelBufferSize int `mapstructure:"-"`
 
 	consumerFetchMin               int32  `mapstructure:"-"`
@@ -116,6 +146,13 @@ type KafkaMetadata struct {
 	// configs for kafka producer
 	Compression         string                  `mapstructure:"compression"`
 	internalCompression sarama.CompressionCodec `mapstructure:"-"`
+
+	// Producer tunables (OSS-1152).
+	// ProducerRequiredAcks accepts "all" (default), "local", or "none".
+	ProducerRequiredAcks         string              `mapstructure:"producerRequiredAcks"`
+	internalProducerRequiredAcks sarama.RequiredAcks `mapstructure:"-"`
+	// ProducerRetryMax is the number of times to retry sending a message (default 5).
+	ProducerRetryMax int `mapstructure:"producerRetryMax"`
 
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
@@ -181,6 +218,16 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		EscapeHeaders:                                false,
 		UseAvroJSON:                                  false,
 		ExcludeHeaderMetaRegex:                       "",
+		// Net timeout defaults preserve Sarama's built-in values.
+		DialTimeout:  defaultDialTimeout,
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		// MetadataTimeout=0 matches Sarama's default (disabled).
+		MetadataTimeout: defaultMetadataTimeout,
+		// Producer defaults match the previously hard-coded values in GetSyncProducer.
+		ProducerRequiredAcks:         defaultProducerRequiredAcks,
+		internalProducerRequiredAcks: sarama.WaitForAll,
+		ProducerRetryMax:             defaultProducerRetryMax,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)
@@ -384,6 +431,37 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 
 	if m.ClientConnectionKeepAliveInterval < 0 {
 		m.ClientConnectionKeepAliveInterval = defaultClientConnectionKeepAliveInterval
+	}
+
+	// Validate and clamp Net timeout fields; fall back to defaults if invalid.
+	if m.DialTimeout <= 0 {
+		m.DialTimeout = defaultDialTimeout
+	}
+	if m.ReadTimeout <= 0 {
+		m.ReadTimeout = defaultReadTimeout
+	}
+	if m.WriteTimeout <= 0 {
+		m.WriteTimeout = defaultWriteTimeout
+	}
+	if m.MetadataTimeout < 0 {
+		m.MetadataTimeout = defaultMetadataTimeout
+	}
+
+	// Parse and validate ProducerRequiredAcks.
+	switch strings.ToLower(m.ProducerRequiredAcks) {
+	case producerRequiredAcksAll, "":
+		m.internalProducerRequiredAcks = sarama.WaitForAll
+	case producerRequiredAcksLocal:
+		m.internalProducerRequiredAcks = sarama.WaitForLocal
+	case producerRequiredAcksNone:
+		m.internalProducerRequiredAcks = sarama.NoResponse
+		k.logger.Warnf("kafka: producerRequiredAcks is set to 'none' (fire-and-forget) — messages may be silently lost if a broker fails to write them")
+	default:
+		return nil, fmt.Errorf("kafka error: invalid value for 'producerRequiredAcks': %q (must be \"all\", \"local\", or \"none\")", m.ProducerRequiredAcks)
+	}
+
+	if m.ProducerRetryMax < 0 {
+		return nil, fmt.Errorf("kafka error: invalid value for 'producerRetryMax': %d (must be >= 0)", m.ProducerRetryMax)
 	}
 
 	if val, ok := meta["excludeHeaderMetaRegex"]; ok && val != "" {

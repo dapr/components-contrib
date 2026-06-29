@@ -106,7 +106,7 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 				data, err = r.client.Get(ctx, key)
 			}
 			if err != nil {
-				if err.Error() == "redis: nil" {
+				if r.client.IsNilValueError(err) {
 					return &bindings.InvokeResponse{}, nil
 				}
 				return nil, err

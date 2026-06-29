@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: spark
+version: v1
+status: alpha
+title: "iFlytek Spark"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-spark/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key (the HTTP API password) for iFlytek Spark, obtained from the
+          iFlytek open platform console.
+        example:  "**********"
+        default: ""
+metadata:
+  - name: model
+    required: false
+    description: |
+      The iFlytek Spark LLM to use.
+    type: string
+    example: '4.0Ultra'
+    default: 'generalv3.5'
+  - name: endpoint
+    required: false
+    description: |
+      Custom API endpoint URL for the iFlytek Spark OpenAI-compatible API.
+      If not specified, the default endpoint will be used.
+    type: string
+    example: 'https://spark-api-open.xf-yun.com/v1'
+    default: 'https://spark-api-open.xf-yun.com/v1'
+  - name: maxTokens
+    required: false
+    description: |
+      Max tokens for each request
+    type: number
+    example: "2048"

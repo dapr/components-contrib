@@ -17,6 +17,16 @@ components:
     config:
       output:
         key: $((uuid))
+  - component: redis.valkey8
+    operations: ["create", "operations"]
+    config:
+      output:
+        key: $((uuid))
+  - component: redis.valkey9
+    operations: ["create", "operations"]
+    config:
+      output:
+        key: $((uuid))
   - component: azure.blobstorage
     operations: ["create", "operations", "get", "list"]
     config:

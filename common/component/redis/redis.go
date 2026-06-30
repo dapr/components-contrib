@@ -176,9 +176,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	}
 
 	var tokenExpires *time.Time
-	var tokenCredential *azcore.TokenCredential
 	if settings.UseEntraID {
-		tokenExpires, tokenCredential, err = settings.GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx, &properties)
+		tokenExpires, err = settings.InitEntraIDCredential(ctx, &properties)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -221,10 +220,12 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	// start the token refresh goroutine
+	// start the token refresh goroutine — keeps long-lived connections re-AUTHed via AUTH ACL
+	// before the prior token expires. This is complementary to the OnConnect hook that handles
+	// brand-new pool connections.
 
 	if settings.UseEntraID {
-		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
+		StartEntraIDTokenRefreshBackgroundRoutine(c, &settings, *tokenExpires, logger)
 	}
 	if settings.UseOIDC {
 		StartOIDCTokenRefreshBackgroundRoutine(c, settings.Username, oidcTokenExpiry, oidcTokenSource, logger)
@@ -232,8 +233,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	return c, &settings, nil
 }
 
-func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
-	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
+func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, s *Settings, nextExpiration time.Time, logger *kitlogger.Logger) {
+	go func(s *Settings, logger *kitlogger.Logger) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		backoffConfig := kitretry.DefaultConfig()
@@ -260,9 +261,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				tokenErr := kitretry.NotifyRecover(
 					func() error {
 						var innerTokenErr error
-						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{
-							Scopes: []string{"https://redis.azure.com/.default"},
-						})
+						token, innerTokenErr = s.entraIDToken(ctx)
 						return innerTokenErr
 					},
 					backoffManager,
@@ -283,7 +282,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
 				authErr := kitretry.NotifyRecover(
 					func() error {
-						innerAuthErr := client.AuthACL(ctx, username, token.Token)
+						innerAuthErr := client.AuthACL(ctx, s.entraIDUsername, token.Token)
 						return innerAuthErr
 					},
 					backoffManager,
@@ -306,46 +305,74 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
 			}
 		}
-	}(cred, username, logger)
+	}(s, logger)
 }
 
-func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
+// InitEntraIDCredential validates Entra ID configuration, acquires the Azure SDK token
+// credential, and parses the initial access token's "oid" claim to derive the Redis ACL
+// username. The credential and OID are stored on the Settings as unexported fields for
+// later use by:
+//
+//  1. The OnConnect hook installed on the underlying go-redis client (see v8client.go /
+//     v9client.go), which AUTHs every newly-dialed pool connection with a freshly-acquired
+//     token.
+//  2. StartEntraIDTokenRefreshBackgroundRoutine, which periodically re-AUTHs existing
+//     long-lived connections via AUTH ACL before the prior token expires.
+//
+// In contrast to the previous behavior of this function (which snapshot the initial token
+// into Settings.Password), nothing is written to Settings.Username or Settings.Password.
+// That snapshot is the source of dapr/components-contrib#3554: when go-redis later opens a
+// new pool connection, it sends the static AUTH from Options.Password — which has long
+// since expired — and Redis returns WRONGPASS. The OnConnect hook fixes this by always
+// fetching a fresh token at connect time.
+//
+// Returns the initial token's expiration, used to schedule the first refresh. The credential
+// and OID are stored on the Settings for the refresh goroutine and OnConnect hook to use.
+func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[string]string) (*time.Time, error) {
 	if len(s.Password) > 0 || len(s.Username) > 0 {
-		return nil, nil, errors.New(
-			"redis client configuration error: username or password must not be specified when using Entra ID authentication",
-		)
+		return nil, errors.New(
+			"redis client configuration error: username or password must not be specified when using Entra ID authentication")
 	}
 	envSettings, err := azure.NewEnvironmentSettings(*properties)
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 	cred, err := envSettings.GetTokenCredential()
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://redis.azure.com/.default"},
+		Scopes: []string{entraIDRedisScope},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	s.Password = token.Token
-
-	// This token has already been validated by EntraID. We use insecure parsing to get the object ID.
+	// Validate the initial token and extract the OID claim used as the Redis ACL username.
+	// We use insecure parsing here because the token was just issued by Entra ID and we are
+	// only inspecting it — Redis itself does the authoritative validation.
 	parsedToken, err := jwt.ParseString(token.Token, jwt.WithVerify(false), jwt.WithValidate(false))
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
-	objectID, found := parsedToken.Get("oid")
+	objectIDRaw, found := parsedToken.Get("oid")
+	if !found {
+		return nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
+	}
+	objectID, ok := objectIDRaw.(string)
+	if !ok {
+		return nil, errors.New("redis client configuration error: object ID claim is not a string")
+	}
+	// Fail fast on an empty OID: AUTH ACL requires a non-empty username, so an empty
+	// claim would otherwise surface as a confusing connect-time error rather than here.
+	if objectID == "" {
+		return nil, errors.New("redis client configuration error: object ID claim is empty in Auth token")
+	}
 
-	if found {
-		s.Username = objectID.(string)
-	} else {
-		return nil, nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
-	}
-	return &token.ExpiresOn, &cred, nil
+	s.entraIDUsername = objectID
+	s.entraIDTokenCredential = cred
+	return &token.ExpiresOn, nil
 }
 
 // GetOIDCTokenSourceAndSetInitialTokenAsPassword validates the OIDC private_key_jwt

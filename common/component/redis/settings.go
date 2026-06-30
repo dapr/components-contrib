@@ -14,17 +14,27 @@ limitations under the License.
 package redis
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/dapr/kit/config"
 )
 
 const defaultRedisPort = "6379"
+
+// entraIDRedisScope is the OAuth scope used to acquire Entra ID access tokens for
+// Azure Cache/Managed Redis. Kept as a single constant so the initial-token fetch,
+// the per-connection OnConnect fetch, and the background refresh loop never drift.
+const entraIDRedisScope = "https://redis.azure.com/.default"
 
 type Settings struct {
 	// The Redis host
@@ -149,6 +159,48 @@ type Settings struct {
 	OidcCACert string `mapstructure:"oidcCACert"`
 
 	internalOidcScopes []string `mapstructure:"-"`
+
+	// == Entra ID runtime state (populated by InitEntraIDCredential when UseEntraID is true; not configurable via metadata) ==
+
+	// entraIDUsername is the OID parsed from the initial Entra access token's "oid" claim.
+	// Used as the Redis ACL username by both the per-new-connection AUTH (OnConnect) and the
+	// periodic AUTH ACL refresh goroutine.
+	entraIDUsername string
+
+	// entraIDTokenCredential is the Azure SDK credential used to acquire fresh Entra access
+	// tokens on demand. The credential implementation caches tokens until close to expiry,
+	// so calling GetToken on every new pool connection is inexpensive in steady state.
+	entraIDTokenCredential azcore.TokenCredential
+}
+
+// entraIDToken acquires a fresh Entra access token for the Redis scope using the cached
+// credential. The credential caches tokens internally until shortly before expiry, so in
+// steady state this is a cheap in-memory lookup rather than a network round-trip.
+func (s *Settings) entraIDToken(ctx context.Context) (azcore.AccessToken, error) {
+	if s.entraIDTokenCredential == nil {
+		return azcore.AccessToken{}, errors.New("redis client: EntraID credential not initialized")
+	}
+	return s.entraIDTokenCredential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{entraIDRedisScope},
+	})
+}
+
+// EntraIDFetchAuthArgs returns the Redis ACL username and a freshly-acquired Entra access
+// token suitable for use as the AUTH password. It must only be called when UseEntraID is
+// true and after InitEntraIDCredential has succeeded; otherwise it returns an error.
+//
+// This is invoked from the OnConnect callback installed on the underlying go-redis client
+// so that every new pool connection authenticates with a current token, rather than the
+// stale snapshot Password that would otherwise be sent during initial AUTH.
+func (s *Settings) EntraIDFetchAuthArgs(ctx context.Context) (username, password string, err error) {
+	if s.entraIDUsername == "" {
+		return "", "", errors.New("redis client: EntraID username (OID) not initialized; AUTH ACL requires a non-empty username")
+	}
+	tok, err := s.entraIDToken(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to acquire EntraID token for redis AUTH: %w", err)
+	}
+	return s.entraIDUsername, tok.Token, nil
 }
 
 func (s *Settings) Decode(in interface{}) error {

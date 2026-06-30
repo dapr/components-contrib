@@ -15,11 +15,17 @@ package servicebus
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
 )
+
+// testInvalidHeaderKey is a sample URN-style key emitted by Dataverse / Azure Digital
+// Twins that breaks HTTP header validation when forwarded by Dapr.
+// See microsoft/azure-container-apps#1690.
+const testInvalidHeaderKey = "http://schemas.microsoft.com/xrm/2011/Claims/requestname"
 
 func TestAddMessageAttributesToMetadata(t *testing.T) {
 	testCases := []struct {
@@ -68,15 +74,37 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				"metadata.numeric":                              "1",
 			},
 		},
-	}
-
-	metadataMap := map[string]map[string]string{
-		"Nil":   nil,
-		"Empty": {},
+		{
+			name: "ApplicationProperties with reserved characters in key are URL-escaped, values pass through unchanged",
+			ASBMessage: azservicebus.ReceivedMessage{
+				DeliveryCount: testDeliveryCount,
+				LockToken:     testLockTokenBytes,
+				ApplicationProperties: map[string]interface{}{
+					testInvalidHeaderKey: "value with: special/chars and +",
+					"safe-key":           "safe-value",
+					"numeric":            42,
+					"nil-val":            nil,
+				},
+			},
+			expectedMetadata: map[string]string{
+				"metadata." + MessageKeyDeliveryCount:               "1",
+				"metadata." + MessageKeyLockToken:                   testLockTokenString,
+				"metadata." + url.QueryEscape(testInvalidHeaderKey): "value with: special/chars and +",
+				"metadata.safe-key":                                 "safe-value",
+				"metadata.numeric":                                  "42",
+				"metadata.nil-val":                                  "",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
-		for mType, mMap := range metadataMap {
+		for _, mType := range []string{"Nil", "Empty"} {
+			// Construct a fresh map per run; the function under test mutates its input,
+			// so sharing a non-nil map across cases would cause cross-case contamination.
+			var mMap map[string]string
+			if mType == "Empty" {
+				mMap = map[string]string{}
+			}
 			t.Run(fmt.Sprintf("%s, metadata is %s", tc.name, mType), func(t *testing.T) {
 				actual := addMessageAttributesToMetadata(mMap, &tc.ASBMessage)
 				assert.Equal(t, tc.expectedMetadata, actual)

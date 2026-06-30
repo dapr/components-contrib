@@ -36,6 +36,37 @@ type failJobPayload struct {
 	Variables    interface{}        `json:"variables"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to provide a field-specific error message for
+// the retryBackOff duration field. The retryBackOff field accepts either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
+func (p *failJobPayload) UnmarshalJSON(data []byte) error {
+	var shadow struct {
+		JobKey       *int64           `json:"jobKey"`
+		Retries      *int32           `json:"retries"`
+		ErrorMessage string           `json:"errorMessage"`
+		RetryBackOff *json.RawMessage `json:"retryBackOff,omitempty"`
+		Variables    interface{}      `json:"variables"`
+	}
+	if err := json.Unmarshal(data, &shadow); err != nil {
+		return err
+	}
+
+	p.JobKey = shadow.JobKey
+	p.Retries = shadow.Retries
+	p.ErrorMessage = shadow.ErrorMessage
+	p.Variables = shadow.Variables
+
+	if shadow.RetryBackOff != nil {
+		var d metadata.Duration
+		if err := d.UnmarshalJSON(*shadow.RetryBackOff); err != nil {
+			return fmt.Errorf("invalid value %s for field 'retryBackOff' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.RetryBackOff), err)
+		}
+		p.RetryBackOff = &d
+	}
+
+	return nil
+}
+
 func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload failJobPayload
 	err := json.Unmarshal(req.Data, &payload)

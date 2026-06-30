@@ -40,7 +40,7 @@ func (x *X509) Type() ProviderType {
 func (x *X509) RefreshX509(ctx context.Context) error {
 	cert, signer, err := getCertAndSigner(ctx)
 	if err != nil {
-		return errors.New("failed to refresh X509 cert: " + err.Error())
+		return fmt.Errorf("error fetching certificate and signer from context: %w", err)
 	}
 	x.x509Cert = cert
 	if x.wrappedCredentialProvider == nil {

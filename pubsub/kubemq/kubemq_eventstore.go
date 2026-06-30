@@ -77,7 +77,7 @@ func (k *kubeMQEventStore) init() error {
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	k.client = client
 	if err := k.setPublishStream(); err != nil {
-		k.logger.Errorf("error init kubemq client error: %w", err.Error())
+		k.logger.Errorf("error init kubemq client error: %s", err.Error())
 		return err
 	}
 	k.isInitialized = true

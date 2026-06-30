@@ -127,7 +127,7 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 				WaitTimeSeconds:       20,
 			})
 			if err != nil {
-				a.logger.Errorf("Unable to receive message from queue %q, %v.", url, err)
+				a.logger.Errorf("Unable to receive message from queue %q, %v.", *url, err)
 				continue
 			}
 			if len(result.Messages) > 0 {
@@ -145,7 +145,7 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 								ReceiptHandle: msgHandle,
 							})
 							if deleteError != nil {
-								a.logger.Errorf("failed to delete message from queue %q: %v", url, deleteError)
+								a.logger.Errorf("failed to delete message from queue %q: %v", *url, deleteError)
 							}
 						}
 					}

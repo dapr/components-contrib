@@ -277,7 +277,7 @@ func (a *RocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handle
 			if v.Queue != nil {
 				metadata[metadataRocketmqBrokerName] = v.Queue.BrokerName
 			}
-			a.logger.Debugf("binging-rocketmq handle msg, topic:%s msg-id:%s data-length:%d ", v.Topic, len(v.Body), v.MsgId)
+			a.logger.Debugf("binging-rocketmq handle msg, topic:%s msg-id:%s data-length:%d ", v.Topic, v.MsgId, len(v.Body))
 
 			msg := &bindings.ReadResponse{
 				Data:     v.Body,

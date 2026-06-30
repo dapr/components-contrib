@@ -29,6 +29,7 @@ const (
 	envMistralModel     = "MISTRAL_MODEL"
 	envHuggingFaceModel = "HUGGINGFACE_MODEL"
 	envOllamaModel      = "OLLAMA_MODEL"
+	envOpenRouterModel  = "OPENROUTER_MODEL"
 )
 
 // Exported default model constants for consumers of the conversation package.
@@ -41,6 +42,7 @@ const (
 	DefaultMistralModel     = "open-mistral-7b"
 	DefaultHuggingFaceModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 	DefaultOllamaModel      = "llama3.2:latest"
+	DefaultOpenRouterModel  = "openai/gpt-4o-mini"
 )
 
 // getModel returns the value of an environment variable or a default value
@@ -82,4 +84,8 @@ func GetHuggingFaceModel(metadataValue string) string {
 
 func GetOllamaModel(metadataValue string) string {
 	return getModel(envOllamaModel, DefaultOllamaModel, metadataValue)
+}
+
+func GetOpenRouterModel(metadataValue string) string {
+	return getModel(envOpenRouterModel, DefaultOpenRouterModel, metadataValue)
 }

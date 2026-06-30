@@ -162,6 +162,7 @@ linters:
     misspell:
       ignore-rules:
         - someword
+        - prompty
     lll:
       line-length: 120
       tab-width: 1

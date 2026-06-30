@@ -1,0 +1,15 @@
+# Placeholder — the certification test writes a fresh spec to a temp dir at
+# runtime with the upstream URL injected (see writeComponentSpec in
+# git_test.go). This file exists only so the directory structure is present
+# for tooling that walks tests/certification/. Init against this spec will
+# fail intentionally because the URL points at a non-existent path.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: configstore
+spec:
+  type: configuration.git
+  version: v1
+  metadata:
+    - name: remoteUrl
+      value: "file:///__cert_test_placeholder_replaced_at_runtime__"

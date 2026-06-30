@@ -15,3 +15,5 @@ components:
     operations: []
   - component: kubernetes.kind
     operations: []
+  - component: git.local
+    operations: []

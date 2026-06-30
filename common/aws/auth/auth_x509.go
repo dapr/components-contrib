@@ -42,7 +42,6 @@ func (x *X509) RefreshX509(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error fetching certificate and signer from context: %w", err)
 	}
-	x.x509Cert = cert
 	if x.wrappedCredentialProvider == nil {
 		return errors.New("credential provider not initialized")
 	}
@@ -53,6 +52,10 @@ func (x *X509) RefreshX509(ctx context.Context) error {
 	if err := x.wrappedCredentialProvider.ChangeSigner(*signer); err != nil {
 		return errors.New("failed to update signer on credential provider: " + err.Error())
 	}
+	// Store the cert last so it stays in lockstep with the signer: on any
+	// failure above the old (expired) cert is retained, so Retrieve keeps
+	// attempting a refresh instead of treating the stale signer as current.
+	x.x509Cert = cert
 
 	return nil
 }

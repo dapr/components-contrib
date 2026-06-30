@@ -1607,10 +1607,10 @@ github.com/supplyon/gremcos v0.1.40/go.mod h1:LI6lxKObicSoIw1N04rHyjz9tGSaevM6Yd
 github.com/tchap/go-patricia/v2 v2.3.2 h1:xTHFutuitO2zqKAQ5rCROYgUb7Or/+IC3fts9/Yc7nM=
 github.com/tchap/go-patricia/v2 v2.3.2/go.mod h1:VZRHKAb53DLaG+nA9EaYYiaEx6YztwDlLElMsnSHD4k=
 github.com/tebeka/strftime v0.1.3/go.mod h1:7wJm3dZlpr4l/oVK0t1HYIc4rMzQ2XJlOMIUJUJH6XQ=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732 h1:19TNf4ATZQLFDSKNsJ+FE86rc2HlqkFeIO6wNw2Hj6g=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732/go.mod h1:7sCQWVkxcsR38nffDW057DRGk8mUjK1Ing/EFOK8s8Y=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732 h1:JcnkgQlkfUYWl21YHGXdQKmmfpvp+ynG/c8ClF/euIE=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732/go.mod h1:WRkZJqoHH9P4KixWWLdUng99v8X5sr0BQglhVffornM=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.103 h1:W1dpZ/Q6+DjUpiAUSmIHuFn7rAvetlSqzQCtf0tKEEA=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.103/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.3.103 h1:J2Pg+q0uHiSLipAq8PcObG8rRNCBhfd8YtQAU366esM=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.3.103/go.mod h1:JaKPHxbM94HLnEjpzL/dXZn08PE1mUtXnmLFqhJUyo4=
 github.com/testcontainers/testcontainers-go v0.40.0 h1:pSdJYLOVgLE8YdUY2FHQ1Fxu+aMnb6JfVz1mxk7OeMU=
 github.com/testcontainers/testcontainers-go v0.40.0/go.mod h1:FSXV5KQtX2HAMlm7U3APNyLkkap35zNLxukw9oBi/MY=
 github.com/tetratelabs/wazero v1.8.0 h1:iEKu0d4c2Pd+QSRieYbnQC9yiFlMS9D+Jr0LsRmcF4g=

@@ -42,3 +42,18 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           files: component-metadata-bundle.json
+
+  # Opens (or comments on) a tracking issue when the release upload fails.
+  notify-on-failure:
+    needs: [upload-bundle]
+    if: failure() && (startsWith(github.ref, 'refs/tags/') || inputs.tag != '')
+    permissions:
+      issues: write
+      actions: read
+    uses: dapr/.github/.github/workflows/open-issue-on-failure.yml@main
+    with:
+      title: "Release publish failed: ${{ github.workflow }} (${{ inputs.tag || github.ref_name }})"
+      labels: "release,ci/publish-failure"
+      mention: "@dapr/maintainers-components-contrib @dapr/approvers-components-contrib"
+    secrets:
+      dapr_bot_token: ${{ secrets.DAPR_BOT_TOKEN }}

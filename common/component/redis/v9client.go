@@ -292,7 +292,10 @@ func (c v9Client) XClaimResult(ctx context.Context, stream string, group string,
 	// convert res to []RedisXMessage
 	redisXMessages := make([]RedisXMessage, len(res))
 	for i, xMessage := range res {
-		redisXMessages[i] = RedisXMessage(xMessage)
+		redisXMessages[i] = RedisXMessage{
+			ID:     xMessage.ID,
+			Values: xMessage.Values,
+		}
 	}
 
 	return redisXMessages, nil

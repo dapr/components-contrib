@@ -42,3 +42,17 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           files: component-metadata-bundle.json
+
+  # Opens (or comments on) a tracking issue only when the upload-bundle job
+  # (release asset upload) itself fails; any other outcome won't open an issue.
+  notify-on-failure:
+    needs: [upload-bundle]
+    if: always() && (startsWith(github.ref, 'refs/tags/') || inputs.tag != '') && needs['upload-bundle'].result == 'failure'
+    permissions:
+      issues: write
+      actions: read
+    uses: dapr/.github/.github/workflows/open-issue-on-failure.yml@main
+    with:
+      title: "Release workflow failed: ${{ github.workflow }} (${{ inputs.tag || github.ref_name }})"
+      labels: "release,ci/release-failure"
+      mention: "@dapr/maintainers-components-contrib @dapr/approvers-components-contrib"

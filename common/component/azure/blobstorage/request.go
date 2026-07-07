@@ -48,7 +48,7 @@ func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *strin
 
 	if contentType != nil {
 		if blobHTTPHeaders.BlobContentType != nil {
-			log.Warnf("ContentType received from request Metadata %s, as well as ContentType property %s, choosing value from contentType property", blobHTTPHeaders.BlobContentType, *contentType)
+			log.Warnf("ContentType received from request Metadata %s, as well as ContentType property %s, choosing value from contentType property", *blobHTTPHeaders.BlobContentType, *contentType)
 		}
 		blobHTTPHeaders.BlobContentType = contentType
 	}

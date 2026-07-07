@@ -22,11 +22,29 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+// TestJetStream_Publish_ClosedIsTerminal asserts the cheaply-reachable
+// closed-component guard in Publish is classified as terminal
+// (codes.FailedPrecondition) so the runtime can stop retrying it.
+func TestJetStream_Publish_ClosedIsTerminal(t *testing.T) {
+	js := &jetstreamPubSub{
+		l: logger.NewLogger("test"),
+	}
+	js.closed.Store(true)
+
+	err := js.Publish(t.Context(), &pubsub.PublishRequest{Topic: "test", Data: []byte("hi")})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.FailedPrecondition, st.Code())
+}
 
 func setupServerAndStream(t *testing.T) (*server.Server, *nats.Conn) {
 	// Create a new server with JetStream enabled.

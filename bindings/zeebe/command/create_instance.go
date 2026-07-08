@@ -45,32 +45,18 @@ type createInstancePayload struct {
 // the requestTimeout duration field. The requestTimeout field accepts either a Go duration string
 // (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *createInstancePayload) UnmarshalJSON(data []byte) error {
-	var shadow struct {
-		BpmnProcessID        string           `json:"bpmnProcessId"`
-		ProcessDefinitionKey *int64           `json:"processDefinitionKey"`
-		Version              *int32           `json:"version"`
-		Variables            interface{}      `json:"variables"`
-		WithResult           bool             `json:"withResult"`
-		FetchVariables       []string         `json:"fetchVariables"`
-		RequestTimeout       *json.RawMessage `json:"requestTimeout,omitempty"`
-	}
+	type alias createInstancePayload
+	shadow := struct {
+		*alias
+		RequestTimeout *json.RawMessage `json:"requestTimeout,omitempty"`
+	}{alias: (*alias)(p)}
 	if err := json.Unmarshal(data, &shadow); err != nil {
 		return err
 	}
 
-	p.BpmnProcessID = shadow.BpmnProcessID
-	p.ProcessDefinitionKey = shadow.ProcessDefinitionKey
-	p.Version = shadow.Version
-	p.Variables = shadow.Variables
-	p.WithResult = shadow.WithResult
-	p.FetchVariables = shadow.FetchVariables
-
-	if shadow.RequestTimeout != nil {
-		var d metadata.Duration
-		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
-			return fmt.Errorf("invalid value %s for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.RequestTimeout), err)
-		}
-		p.RequestTimeout = &d
+	var err error
+	if p.RequestTimeout, err = parseOptionalDuration(shadow.RequestTimeout, "requestTimeout"); err != nil {
+		return err
 	}
 
 	return nil

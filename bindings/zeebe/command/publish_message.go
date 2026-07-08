@@ -38,29 +38,19 @@ type publishMessagePayload struct {
 // duration fields. The timeToLive field accepts either a Go duration string (e.g. "30s", "5m", "1h30m")
 // or a plain integer representing nanoseconds.
 func (p *publishMessagePayload) UnmarshalJSON(data []byte) error {
-	// Use a shadow struct with raw JSON for duration fields so we can provide better errors.
-	var shadow struct {
-		MessageName    string           `json:"messageName"`
-		CorrelationKey string           `json:"correlationKey"`
-		MessageID      string           `json:"messageId"`
-		TimeToLive     *json.RawMessage `json:"timeToLive,omitempty"`
-		Variables      interface{}      `json:"variables"`
-	}
+	// Use a shadow struct with raw JSON for the duration field so we can provide better errors.
+	type alias publishMessagePayload
+	shadow := struct {
+		*alias
+		TimeToLive *json.RawMessage `json:"timeToLive,omitempty"`
+	}{alias: (*alias)(p)}
 	if err := json.Unmarshal(data, &shadow); err != nil {
 		return err
 	}
 
-	p.MessageName = shadow.MessageName
-	p.CorrelationKey = shadow.CorrelationKey
-	p.MessageID = shadow.MessageID
-	p.Variables = shadow.Variables
-
-	if shadow.TimeToLive != nil {
-		var d metadata.Duration
-		if err := d.UnmarshalJSON(*shadow.TimeToLive); err != nil {
-			return fmt.Errorf("invalid value %s for field 'timeToLive' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.TimeToLive), err)
-		}
-		p.TimeToLive = &d
+	var err error
+	if p.TimeToLive, err = parseOptionalDuration(shadow.TimeToLive, "timeToLive"); err != nil {
+		return err
 	}
 
 	return nil

@@ -40,28 +40,18 @@ type failJobPayload struct {
 // the retryBackOff duration field. The retryBackOff field accepts either a Go duration string
 // (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *failJobPayload) UnmarshalJSON(data []byte) error {
-	var shadow struct {
-		JobKey       *int64           `json:"jobKey"`
-		Retries      *int32           `json:"retries"`
-		ErrorMessage string           `json:"errorMessage"`
+	type alias failJobPayload
+	shadow := struct {
+		*alias
 		RetryBackOff *json.RawMessage `json:"retryBackOff,omitempty"`
-		Variables    interface{}      `json:"variables"`
-	}
+	}{alias: (*alias)(p)}
 	if err := json.Unmarshal(data, &shadow); err != nil {
 		return err
 	}
 
-	p.JobKey = shadow.JobKey
-	p.Retries = shadow.Retries
-	p.ErrorMessage = shadow.ErrorMessage
-	p.Variables = shadow.Variables
-
-	if shadow.RetryBackOff != nil {
-		var d metadata.Duration
-		if err := d.UnmarshalJSON(*shadow.RetryBackOff); err != nil {
-			return fmt.Errorf("invalid value %s for field 'retryBackOff' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.RetryBackOff), err)
-		}
-		p.RetryBackOff = &d
+	var err error
+	if p.RetryBackOff, err = parseOptionalDuration(shadow.RetryBackOff, "retryBackOff"); err != nil {
+		return err
 	}
 
 	return nil

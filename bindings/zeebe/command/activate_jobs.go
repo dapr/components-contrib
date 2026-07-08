@@ -44,37 +44,22 @@ type activateJobsPayload struct {
 // duration fields. Both timeout and requestTimeout accept either a Go duration string
 // (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
 func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
-	var shadow struct {
-		JobType           string           `json:"jobType"`
-		MaxJobsToActivate *int32           `json:"maxJobsToActivate"`
-		Timeout           *json.RawMessage `json:"timeout,omitempty"`
-		WorkerName        string           `json:"workerName"`
-		FetchVariables    []string         `json:"fetchVariables"`
-		RequestTimeout    *json.RawMessage `json:"requestTimeout,omitempty"`
-	}
+	type alias activateJobsPayload
+	shadow := struct {
+		*alias
+		Timeout        *json.RawMessage `json:"timeout,omitempty"`
+		RequestTimeout *json.RawMessage `json:"requestTimeout,omitempty"`
+	}{alias: (*alias)(p)}
 	if err := json.Unmarshal(data, &shadow); err != nil {
 		return err
 	}
 
-	p.JobType = shadow.JobType
-	p.MaxJobsToActivate = shadow.MaxJobsToActivate
-	p.WorkerName = shadow.WorkerName
-	p.FetchVariables = shadow.FetchVariables
-
-	if shadow.Timeout != nil {
-		var d metadata.Duration
-		if err := d.UnmarshalJSON(*shadow.Timeout); err != nil {
-			return fmt.Errorf("invalid value %s for field 'timeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.Timeout), err)
-		}
-		p.Timeout = &d
+	var err error
+	if p.Timeout, err = parseOptionalDuration(shadow.Timeout, "timeout"); err != nil {
+		return err
 	}
-
-	if shadow.RequestTimeout != nil {
-		var d metadata.Duration
-		if err := d.UnmarshalJSON(*shadow.RequestTimeout); err != nil {
-			return fmt.Errorf("invalid value %s for field 'requestTimeout' (expected a Go duration string, e.g. \"30s\", \"5m\", \"1h30m\", or a plain integer nanoseconds value): %w", string(*shadow.RequestTimeout), err)
-		}
-		p.RequestTimeout = &d
+	if p.RequestTimeout, err = parseOptionalDuration(shadow.RequestTimeout, "requestTimeout"); err != nil {
+		return err
 	}
 
 	return nil

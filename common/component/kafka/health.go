@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Dapr Authors
+Copyright 2026 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -22,15 +22,24 @@ import (
 	"github.com/IBM/sarama"
 )
 
-// Ping performs a minimal connectivity check against the configured Kafka
-// brokers. It opens a short-lived Sarama client that issues a single,
-// lightweight metadata request (Metadata.Full=false so no topic-level scan is
-// performed) and then closes it immediately.
+// Ping performs a connectivity check against the configured Kafka brokers by
+// opening a short-lived Sarama client, issuing a single metadata request, and
+// then closing it immediately.
+//
+// Note the metadata request is cluster-wide: RefreshMetadata() called with no
+// topics refreshes metadata for all topics regardless of Metadata.Full, so on
+// clusters with very many topics this is not a cheap probe. Metadata.Full=false
+// only stops sarama.NewClient from performing its own construction-time fetch;
+// the explicit RefreshMetadata() call below is what actually probes connectivity.
 //
 // The check is fully bounded and cancellable:
 //   - Pass a context with a deadline to enforce a wall-clock limit. When a
 //     deadline is present, all Net and Metadata timeouts are clamped to the
 //     remaining time so the call cannot block beyond the deadline.
+//   - Metadata retries are always disabled for the probe so a failure returns
+//     promptly instead of retrying against an unhealthy cluster (Sarama would
+//     otherwise apply its default of 3 retries, adding tens of seconds when no
+//     deadline is supplied).
 //   - Context cancellation is honoured mid-flight: sarama.NewClient is run in
 //     a goroutine and the function returns ctx.Err() as soon as ctx is done.
 //     Any partially-opened client is closed in the background to avoid leaks.
@@ -50,11 +59,16 @@ func (k *Kafka) Ping(ctx context.Context) error {
 		return errors.New("kafka health check: component not initialised")
 	}
 
-	// Build a minimal config copy that honours the context deadline.
-	// Metadata.Full=false avoids a full topic scan which would be expensive and
-	// could fail on least-privilege principals that cannot list all topics.
+	// Build a config copy for the probe. Metadata.Full=false only makes
+	// sarama.NewClient skip its construction-time metadata fetch; the explicit
+	// RefreshMetadata() call below still performs the actual connectivity probe.
 	cfgCopy := *k.config
 	cfgCopy.Metadata.Full = false
+	// A health probe should fail fast rather than retry against an unhealthy
+	// cluster, so disable metadata retries whether or not the caller supplied a
+	// deadline. Without this, Sarama's default (3 retries) can add tens of
+	// seconds when no deadline bounds the call.
+	cfgCopy.Metadata.Retry.Max = 0
 
 	if deadline, ok := ctx.Deadline(); ok {
 		remaining := time.Until(deadline)
@@ -74,10 +88,9 @@ func (k *Kafka) Ping(ctx context.Context) error {
 		if cfgCopy.Net.WriteTimeout > remaining || cfgCopy.Net.WriteTimeout == 0 {
 			cfgCopy.Net.WriteTimeout = remaining
 		}
-		// Also bound the metadata request itself and disable retries so the
-		// total time is governed by the caller's deadline alone.
+		// Also bound the metadata request itself so the total time is governed
+		// by the caller's deadline alone (retries are already disabled above).
 		cfgCopy.Metadata.Timeout = remaining
-		cfgCopy.Metadata.Retry.Max = 0
 	}
 
 	type result struct {
@@ -89,9 +102,10 @@ func (k *Kafka) Ping(ctx context.Context) error {
 	go func() {
 		// sarama.NewClient with Metadata.Full=false does NOT issue any network
 		// request — it only registers the seed broker addresses. We must call
-		// RefreshMetadata() explicitly to force an actual TCP connection and
-		// retrieve a minimal broker-list response. This is the real connectivity
-		// probe; it respects cfgCopy.Metadata.Timeout and .Retry.Max set above.
+		// RefreshMetadata() explicitly to force an actual TCP connection; called
+		// with no topics it refreshes cluster-wide metadata. This is the real
+		// connectivity probe; it respects cfgCopy.Metadata.Timeout and
+		// .Retry.Max set above.
 		cl, err := sarama.NewClient(k.brokers, &cfgCopy)
 		if err != nil {
 			ch <- result{nil, err}

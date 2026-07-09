@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Dapr Authors
+Copyright 2026 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -78,18 +78,54 @@ func TestPingUnreachableBroker(t *testing.T) {
 	cfg.Net.WriteTimeout = 200 * time.Millisecond
 	cfg.Metadata.Retry.Max = 0
 
+	// Bind a listener to obtain a free loopback port, then close it. Connecting
+	// to that address is now guaranteed to be refused (nothing is listening),
+	// which deterministically exercises the "broker unreachable" path without
+	// hard-coding a port number that might happen to be in use in CI.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+
 	k := &Kafka{
 		logger:  logger.NewLogger("kafka_test"),
 		config:  cfg,
-		brokers: []string{"127.0.0.1:19999"}, // non-routable port
+		brokers: []string{addr},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err := k.Ping(ctx)
+	err = k.Ping(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "health check")
+}
+
+// TestPingSuccess verifies that Ping returns nil when a broker answers the
+// metadata probe. A Sarama MockBroker stands in for a real cluster and replies
+// to the metadata request with its own address.
+func TestPingSuccess(t *testing.T) {
+	mockBroker := sarama.NewMockBroker(t, 1)
+	defer mockBroker.Close()
+
+	mockBroker.SetHandlerByMap(map[string]sarama.MockResponse{
+		// Sarama sends an ApiVersionsRequest when it opens a broker connection
+		// (config default), then the metadata request driven by RefreshMetadata().
+		"ApiVersionsRequest": sarama.NewMockApiVersionsResponse(t),
+		"MetadataRequest": sarama.NewMockMetadataResponse(t).
+			SetBroker(mockBroker.Addr(), mockBroker.BrokerID()),
+	})
+
+	k := &Kafka{
+		logger:  logger.NewLogger("kafka_test"),
+		config:  sarama.NewConfig(),
+		brokers: []string{mockBroker.Addr()},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, k.Ping(ctx))
 }
 
 // TestPingClosedComponent verifies that Ping returns an error when the

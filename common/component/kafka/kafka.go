@@ -45,16 +45,19 @@ type Kafka struct {
 	mockProducer      sarama.SyncProducer
 	clients           *clients
 
-	maxMessageBytes int
-	consumerGroup   string
-	brokers         []string
-	logger          logger.Logger
-	authType        string
-	saslUsername    string
-	saslPassword    string
-	initialOffset   int64
-	config          *sarama.Config
-	escapeHeaders   bool
+	maxMessageBytes   int
+	numPartitions     int32
+	replicationFactor int16
+	ensuredTopics     sync.Map
+	consumerGroup     string
+	brokers           []string
+	logger            logger.Logger
+	authType          string
+	saslUsername      string
+	saslPassword      string
+	initialOffset     int64
+	config            *sarama.Config
+	escapeHeaders     bool
 
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
@@ -223,6 +226,9 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 	k.maxMessageBytes = meta.MaxMessageBytes
 
+	k.numPartitions = meta.NumPartitions
+	k.replicationFactor = meta.ReplicationFactor
+
 	// Default retry configuration is used if no
 	// backOff properties are set.
 	if rerr := retry.DecodeConfigWithPrefix(
@@ -378,6 +384,9 @@ func (k *Kafka) Close() error {
 			if k.clients.consumerGroup != nil {
 				errs[1] = k.clients.consumerGroup.Close()
 				k.clients.consumerGroup = nil
+			}
+			if k.clients.admin != nil {
+				errs[2] = k.clients.admin.Close()
 			}
 		}
 	}

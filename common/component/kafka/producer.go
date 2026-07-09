@@ -62,6 +62,10 @@ func GetSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
+	if err := k.ensureTopic(topic); err != nil {
+		return err
+	}
+
 	clients, err := k.latestClients()
 	if err != nil || clients == nil {
 		return fmt.Errorf("failed to get latest Kafka clients: %w", err)
@@ -121,6 +125,10 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 }
 
 func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
+	if err := k.ensureTopic(topic); err != nil {
+		return pubsub.NewBulkPublishResponse(entries, err), err
+	}
+
 	clients, err := k.latestClients()
 	if err != nil || clients == nil {
 		err = fmt.Errorf("failed to get latest Kafka clients: %w", err)

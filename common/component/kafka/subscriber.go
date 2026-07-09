@@ -30,6 +30,16 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		k.subscribeTopics[topic] = handlerConfig
 	}
 
+	// Best-effort topic creation: Subscribe is async and does not return
+	// errors, so we log failures instead of propagating them. The broker's
+	// own auto-create or external provisioning will handle topics if this
+	// fails.
+	for _, topic := range topics {
+		if err := k.ensureTopic(topic); err != nil {
+			k.logger.Errorf("failed to ensure topic %s: %v", topic, err)
+		}
+	}
+
 	k.logger.Debugf("Subscribing to topic: %v", topics)
 
 	k.reloadConsumerGroup()

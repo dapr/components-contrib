@@ -342,6 +342,20 @@ metadata:
       The maximum size in bytes allowed for a single Kafka message.
     example: '2048'
     default: '1024'
+  - name: numPartitions
+    type: number
+    description: |
+      If set to a value greater than 0, dapr will create the topic with
+      this many partitions if it does not already exist. If unset
+      (default), dapr does not create topics; this is left to the
+      Kafka broker's own auto-create behavior or external provisioning.
+    example: '3'
+  - name: replicationFactor
+    type: number
+    description: |
+      Replication factor used when numPartitions is set and dapr
+      creates the topic. Defaults to 1.
+    example: '3'
   - name: consumeRetryInterval
     type: duration
     description: |

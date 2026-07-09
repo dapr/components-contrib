@@ -475,6 +475,64 @@ func TestMetadataProducerValues(t *testing.T) {
 	})
 }
 
+func TestMetadataNumPartitionsValues(t *testing.T) {
+	t.Run("numPartitions and replicationFactor parsed correctly", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m["numPartitions"] = "6"
+		m["replicationFactor"] = "3"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, int32(6), meta.NumPartitions)
+		require.Equal(t, int16(3), meta.ReplicationFactor)
+	})
+
+	t.Run("replicationFactor defaults to 1 when numPartitions is set", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m["numPartitions"] = "3"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, int32(3), meta.NumPartitions)
+		require.Equal(t, int16(1), meta.ReplicationFactor)
+	})
+
+	t.Run("numPartitions zero means no auto-create", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		// numPartitions defaults to 0, replicationFactor should stay 0
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), meta.NumPartitions)
+		require.Equal(t, int16(0), meta.ReplicationFactor)
+	})
+
+	t.Run("negative numPartitions is rejected", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m["numPartitions"] = "-1"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: 'numPartitions' must be a non-negative number", err.Error())
+	})
+
+	t.Run("numPartitions with awsiam authType is rejected", func(t *testing.T) {
+		k := getKafka()
+		m := getCompleteMetadata()
+		m["numPartitions"] = "3"
+		m["authType"] = awsIAMAuthType
+
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+		require.Equal(t, "kafka error: 'numPartitions' auto-topic-creation is not supported with authType 'awsiam'", err.Error())
+	})
+}
+
 func TestMetadataChannelBufferSize(t *testing.T) {
 	k := getKafka()
 	m := getCompleteMetadata()

@@ -78,6 +78,8 @@ type KafkaMetadata struct {
 	InitialOffset           string              `mapstructure:"initialOffset"`
 	internalInitialOffset   int64               `mapstructure:"-"`
 	MaxMessageBytes         int                 `mapstructure:"maxMessageBytes"`
+	NumPartitions           int32               `mapstructure:"numPartitions"`
+	ReplicationFactor       int16               `mapstructure:"replicationFactor"`
 	OidcTokenEndpoint       string              `mapstructure:"oidcTokenEndpoint"`
 	OidcClientID            string              `mapstructure:"oidcClientID"`
 	OidcClientSecret        string              `mapstructure:"oidcClientSecret"`
@@ -375,6 +377,16 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 
 		m.consumerFetchMin = int32(v)
+	}
+
+	if m.NumPartitions < 0 {
+		return nil, errors.New("kafka error: 'numPartitions' must be a non-negative number")
+	}
+	if m.NumPartitions > 0 && strings.EqualFold(m.AuthType, awsIAMAuthType) {
+		return nil, errors.New("kafka error: 'numPartitions' auto-topic-creation is not supported with authType 'awsiam'")
+	}
+	if m.NumPartitions > 0 && m.ReplicationFactor <= 0 {
+		m.ReplicationFactor = 1
 	}
 
 	// confirm client connection fields are valid

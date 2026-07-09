@@ -9,6 +9,7 @@ import (
 type clients struct {
 	consumerGroup sarama.ConsumerGroup
 	producer      sarama.SyncProducer
+	admin         sarama.ClusterAdmin
 }
 
 func (k *Kafka) latestClients() (*clients, error) {
@@ -64,6 +65,15 @@ func (k *Kafka) latestClients() (*clients, error) {
 			consumerGroup: cg,
 			producer:      p,
 		}
+
+		if k.numPartitions > 0 {
+			admin, err := sarama.NewClusterAdmin(k.brokers, k.config)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create kafka admin client: %w", err)
+			}
+			newStaticClients.admin = admin
+		}
+
 		k.clients = &newStaticClients
 		return k.clients, nil
 	}

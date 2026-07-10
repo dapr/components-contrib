@@ -546,6 +546,31 @@ func (g *GCPStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequest) (
 
 type movePayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
+}
+
+// resolveCopyDestination validates that at least one of destBucket or destKey was
+// explicitly provided by the caller, then fills in any missing defaults:
+//   - destBucket defaults to configuredBucket when empty
+//   - destKey defaults to srcKey when empty
+//
+// It returns an error only when both were absent (empty string == not provided).
+func resolveCopyDestination(destBucket, destKey, srcKey, configuredBucket string) (bucket, key string, err error) {
+	destBucketProvided := destBucket != ""
+	destKeyProvided := destKey != ""
+
+	if !destBucketProvided && !destKeyProvided {
+		return "", "", errors.New("gcp bucket binding error: copy/move requires at least one of destinationBucket or destinationKey (omitting both resolves the destination to the source object, which rewrites it for copy and deletes it for move)")
+	}
+
+	if !destBucketProvided {
+		destBucket = configuredBucket
+	}
+	if !destKeyProvided {
+		destKey = srcKey
+	}
+
+	return destBucket, destKey, nil
 }
 
 func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -557,17 +582,21 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	var payload movePayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, errors.New("gcp bucket binding error: invalid move payload")
+	if err := json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: invalid move payload: %w", err)
 	}
 
-	if payload.DestinationBucket == "" {
-		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
+	destBucket, destKey, err := resolveCopyDestination(payload.DestinationBucket, payload.DestinationKey, key, g.metadata.Bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	if destBucket == g.metadata.Bucket && destKey == key {
+		return nil, fmt.Errorf("gcp bucket binding error: move destination %s/%s is the same as the source — move would delete the source object", destBucket, destKey)
 	}
 
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(destBucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
@@ -577,7 +606,7 @@ func (g *GCPStorage) move(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s moved to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s moved to %s/%s", key, destBucket, destKey)),
 	}, nil
 }
 
@@ -620,6 +649,7 @@ func (g *GCPStorage) rename(ctx context.Context, req *bindings.InvokeRequest) (*
 
 type copyPayload struct {
 	DestinationBucket string `json:"destinationBucket"`
+	DestinationKey    string `json:"destinationKey"`
 }
 
 func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -631,22 +661,24 @@ func (g *GCPStorage) copy(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	}
 
 	var payload copyPayload
-	err := json.Unmarshal(req.Data, &payload)
+	if err := json.Unmarshal(req.Data, &payload); err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error: invalid copy payload: %w", err)
+	}
+
+	destBucket, destKey, err := resolveCopyDestination(payload.DestinationBucket, payload.DestinationKey, key, g.metadata.Bucket)
 	if err != nil {
-		return nil, errors.New("gcp bucket binding error: invalid copy payload")
+		return nil, err
 	}
 
-	if payload.DestinationBucket == "" {
-		return nil, errors.New("gcp bucket binding error: required 'destinationBucket' missing")
-	}
-
+	// Unlike move, copy has no source==destination guard: copying an object onto
+	// itself is a valid GCS operation that creates a new object generation.
 	src := g.client.Bucket(g.metadata.Bucket).Object(key)
-	dst := g.client.Bucket(payload.DestinationBucket).Object(key)
+	dst := g.client.Bucket(destBucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error while copying object: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
-		Data: []byte(fmt.Sprintf("object %s copied to %s", key, payload.DestinationBucket)),
+		Data: []byte(fmt.Sprintf("object %s copied to %s/%s", key, destBucket, destKey)),
 	}, nil
 }

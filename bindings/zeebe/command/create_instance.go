@@ -41,6 +41,27 @@ type createInstancePayload struct {
 	RequestTimeout       *metadata.Duration `json:"requestTimeout,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to provide a field-specific error message for
+// the requestTimeout duration field. The requestTimeout field accepts either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
+func (p *createInstancePayload) UnmarshalJSON(data []byte) error {
+	type alias createInstancePayload
+	shadow := struct {
+		*alias
+		RequestTimeout *json.RawMessage `json:"requestTimeout,omitempty"`
+	}{alias: (*alias)(p)}
+	if err := json.Unmarshal(data, &shadow); err != nil {
+		return err
+	}
+
+	var err error
+	if p.RequestTimeout, err = parseOptionalDuration(shadow.RequestTimeout, "requestTimeout"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload createInstancePayload
 	err := json.Unmarshal(req.Data, &payload)

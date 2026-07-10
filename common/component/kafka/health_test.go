@@ -51,8 +51,11 @@ func TestPingCancelledContext(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-// TestPingDeadlineExceededContext verifies that Ping respects a context whose
-// deadline is already in the past.
+// TestPingDeadlineExceededContext verifies that an already-expired deadline is
+// caught by Ping's top-of-function ctx.Err() guard: Ping returns
+// context.DeadlineExceeded immediately, before attempting any broker
+// connection. It intentionally does not exercise the deadline-clamping path,
+// which only runs when the deadline is still valid.
 func TestPingDeadlineExceededContext(t *testing.T) {
 	k := &Kafka{
 		logger:  logger.NewLogger("kafka_test"),
@@ -60,13 +63,16 @@ func TestPingDeadlineExceededContext(t *testing.T) {
 		brokers: []string{"localhost:9092"},
 	}
 
-	// Deadline in the past.
+	// Deadline already in the past: ctx.Err() is set before Ping does any work.
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 
+	start := time.Now()
 	err := k.Ping(ctx)
-	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+	// Returning near-instantly proves the guard short-circuited rather than
+	// attempting (and waiting on) a broker dial.
+	require.Less(t, time.Since(start), 100*time.Millisecond)
 }
 
 // TestPingUnreachableBroker verifies that Ping fails fast for an unreachable

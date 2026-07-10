@@ -718,7 +718,7 @@ func TestGetEventMetadata(t *testing.T) {
 	})
 }
 
-// OSS-1152: Net timeout tunables
+// Net timeout tunables
 
 func TestMetadataNetTimeouts(t *testing.T) {
 	k := getKafka()
@@ -762,7 +762,7 @@ func TestMetadataNetTimeouts(t *testing.T) {
 	})
 }
 
-// OSS-1152: Producer tunables
+// Producer tunables
 
 func TestMetadataProducerRequiredAcks(t *testing.T) {
 	k := getKafka()

@@ -126,7 +126,7 @@ type KafkaMetadata struct {
 	ClientConnectionTopicMetadataRefreshInterval time.Duration `mapstructure:"clientConnectionTopicMetadataRefreshInterval"`
 	ClientConnectionKeepAliveInterval            time.Duration `mapstructure:"clientConnectionKeepAliveInterval"`
 
-	// Net timeout tunables (OSS-1152).
+	// Net timeout tunables.
 	// Defaults preserve Sarama's built-in values (30 s each) so unset
 	// deployments behave identically to previous releases.
 	DialTimeout  time.Duration `mapstructure:"dialTimeout"`
@@ -147,7 +147,7 @@ type KafkaMetadata struct {
 	Compression         string                  `mapstructure:"compression"`
 	internalCompression sarama.CompressionCodec `mapstructure:"-"`
 
-	// Producer tunables (OSS-1152).
+	// Producer tunables.
 	// ProducerRequiredAcks accepts "all" (default), "local", or "none".
 	ProducerRequiredAcks         string              `mapstructure:"producerRequiredAcks"`
 	internalProducerRequiredAcks sarama.RequiredAcks `mapstructure:"-"`

@@ -99,7 +99,7 @@ func (m *mskTokenProvider) Token() (*sarama.AccessToken, error) {
 
 func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
 	// Apply SyncProducer-specific properties to a COPY of the shared config so
-	// the consumer-group's view of the config is not mutated (OSS-1152 fix).
+	// the consumer-group's view of the config is not mutated.
 	cfg := *c.config
 	cfg.Producer.RequiredAcks = c.producerConfig.RequiredAcks
 	cfg.Producer.Retry.Max = c.producerConfig.RetryMax

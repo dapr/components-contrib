@@ -170,7 +170,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Net.KeepAlive = meta.ClientConnectionKeepAliveInterval
 	config.Metadata.RefreshFrequency = meta.ClientConnectionTopicMetadataRefreshInterval
 
-	// Apply tunable Net timeouts (OSS-1152). These bound the initial dial and
+	// Apply tunable Net timeouts. These bound the initial dial and
 	// subsequent I/O so Init() cannot block indefinitely on unreachable brokers.
 	config.Net.DialTimeout = meta.DialTimeout
 	config.Net.ReadTimeout = meta.ReadTimeout

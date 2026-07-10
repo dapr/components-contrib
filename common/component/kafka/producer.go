@@ -49,7 +49,7 @@ type ProducerConfig struct {
 // GetSyncProducer creates a new Sarama SyncProducer using the provided base
 // config and producer tunables. RequiredAcks and RetryMax are applied from
 // ProducerConfig so callers can override the previously hard-coded defaults
-// (WaitForAll, 5 retries) via component metadata (OSS-1152).
+// (WaitForAll, 5 retries) via component metadata.
 func GetSyncProducer(config sarama.Config, brokers []string, pc ProducerConfig) (sarama.SyncProducer, error) {
 	// Apply SyncProducer-specific properties to a copy of the base config.
 	config.Producer.RequiredAcks = pc.RequiredAcks

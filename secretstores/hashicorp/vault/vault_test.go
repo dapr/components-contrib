@@ -15,8 +15,10 @@ package vault
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,12 +110,46 @@ func TestVaultTLSConfig(t *testing.T) {
 		err := kitmd.DecodeMetadata(m.Properties, &meta)
 		require.NoError(t, err)
 
-		tlsConfig := metadataToTLSConfig(&meta)
-		skipVerify, err := strconv.ParseBool(properties["skipVerify"])
-		require.NoError(t, err)
-		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)
-		assert.Equal(t, skipVerify, tlsConfig.vaultSkipVerify)
-		assert.Equal(t, properties["tlsServerName"], tlsConfig.vaultServerName)
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, properties["caCert"], tlsConf.CACert)
+		assert.False(t, tlsConf.Insecure)
+		assert.Equal(t, properties["tlsServerName"], tlsConf.TLSServerName)
+	})
+
+	t.Run("skipVerify true sets Insecure", func(t *testing.T) {
+		meta := VaultMetadata{SkipVerify: "true"}
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.True(t, tlsConf.Insecure)
+	})
+
+	// Regression test: go-rootcerts (used internally by the SDK's
+	// ConfigureTLS) applies precedence CACert > CACertBytes > CAPath, the
+	// opposite of the order documented in metadata.yaml (caPem > caPath >
+	// caCert). metadataToTLSConfig must only ever populate one of the three
+	// CA fields to avoid silently inverting the documented contract.
+	t.Run("caPem takes precedence over caPath and caCert", func(t *testing.T) {
+		meta := VaultMetadata{
+			CaPem:  "pem-contents",
+			CaPath: "/some/path",
+			CaCert: "/some/cert",
+		}
+
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, []byte("pem-contents"), tlsConf.CACertBytes)
+		assert.Empty(t, tlsConf.CACert)
+		assert.Empty(t, tlsConf.CAPath)
+	})
+
+	t.Run("caPath takes precedence over caCert when caPem is not set", func(t *testing.T) {
+		meta := VaultMetadata{
+			CaPath: "/some/path",
+			CaCert: "/some/cert",
+		}
+
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, "/some/path", tlsConf.CAPath)
+		assert.Empty(t, tlsConf.CACert)
+		assert.Empty(t, tlsConf.CACertBytes)
 	})
 }
 
@@ -430,10 +466,6 @@ func TestGetFeatures(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
 		_ = target.Init(t.Context(), m)
 
 		return target
@@ -459,4 +491,125 @@ func TestGetFeatures(t *testing.T) {
 		f := s.Features()
 		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
 	})
+}
+
+// writeJSON is a small helper for mock Vault server handlers below.
+func writeJSON(t *testing.T, w http.ResponseWriter, v interface{}) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	require.NoError(t, json.NewEncoder(w).Encode(v))
+}
+
+func TestGetSecretVersionQueryParam(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	var gotVersion string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/secret/data/dapr/mysecret" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		gotVersion = r.URL.Query().Get("version")
+		writeJSON(t, w, map[string]interface{}{
+			"data": map[string]interface{}{
+				"data": map[string]interface{}{"k": "v"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.NoError(t, err)
+	assert.Equal(t, "0", gotVersion)
+
+	_, err = target.GetSecret(t.Context(), secretstores.GetSecretRequest{
+		Name:     "mysecret",
+		Metadata: map[string]string{"version_id": "3"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "3", gotVersion)
+}
+
+// TestGetSecretDeletedVersionIsNotFound is a regression test: a soft-deleted
+// (or destroyed) KV v2 version comes back from Vault as a 404 whose body
+// still carries {"data": {"data": null, "metadata": {...}}}, and the SDK
+// surfaces that as a regular secret rather than an error. The component must
+// map it to ErrNotFound, so that GetSecret reports "not found" and
+// BulkGetSecret skips the entry instead of failing the whole bulk read.
+func TestGetSecretDeletedVersionIsNotFound(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		// Note: the SDK normalizes the request path, dropping the trailing
+		// slash of the "secret/metadata/dapr/" list path.
+		case r.URL.Path == "/v1/secret/metadata/dapr" && r.URL.Query().Get("list") == "true":
+			writeJSON(t, w, map[string]interface{}{
+				"data": map[string]interface{}{
+					"keys": []string{"alive", "deleted"},
+				},
+			})
+		case r.URL.Path == "/v1/secret/data/dapr/alive":
+			writeJSON(t, w, map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{"k": "v"},
+				},
+			})
+		case r.URL.Path == "/v1/secret/data/dapr/deleted":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"data":{"data":null,"metadata":{"created_time":"2026-01-01T00:00:00Z","deletion_time":"2026-01-02T00:00:00Z","destroyed":false,"version":1}}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "deleted"})
+	require.ErrorIs(t, err, ErrNotFound)
+
+	resp, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k": "v"}, resp.Data["alive"])
+	assert.NotContains(t, resp.Data, "deleted")
+}
+
+// TestBulkGetSecretEmptyStoreErrors locks in a deliberate behavior decision:
+// unlike the SDK's own List helpers (which treat a 404/empty list as "no
+// keys, no error"), this component treats an empty/missing store as an
+// error.
+func TestBulkGetSecretEmptyStoreErrors(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.Error(t, err)
 }

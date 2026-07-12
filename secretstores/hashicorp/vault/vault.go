@@ -22,6 +22,8 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/hashicorp/vault/api"
 
@@ -50,6 +52,9 @@ const (
 	versionID                    string = "version_id"
 
 	DataStr string = "data"
+
+	authMethodToken      string = "token"
+	authMethodKubernetes string = "kubernetes"
 )
 
 type valueType string
@@ -78,6 +83,12 @@ type vaultSecretStore struct {
 	vaultValueType      valueType
 
 	logger logger.Logger
+
+	bgCtx    context.Context
+	bgCancel context.CancelFunc
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
+	closed   atomic.Bool
 }
 
 type VaultMetadata struct {
@@ -87,13 +98,18 @@ type VaultMetadata struct {
 	SkipVerify    string
 	TLSServerName string
 
-	VaultAddr           string
-	VaultKVPrefix       string
-	VaultKVUsePrefix    bool
-	VaultToken          string
-	VaultTokenMountPath string
-	EnginePath          string
-	VaultValueType      string
+	VaultAddr        string
+	VaultKVPrefix    string
+	VaultKVUsePrefix bool
+	EnginePath       string
+	VaultValueType   string
+
+	VaultAuthMethod              string
+	VaultToken                   string
+	VaultTokenMountPath          string
+	VaultKubernetesRole          string
+	VaultKubernetesMountPath     string
+	VaultServiceAccountTokenPath string
 }
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store.
@@ -104,9 +120,10 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 }
 
 // Init creates a HashiCorp Vault client.
-func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
+func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
+		VaultAuthMethod:  authMethodToken,
 	}
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
@@ -137,13 +154,6 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 		}
 	}
 
-	v.vaultToken = m.VaultToken
-	v.vaultTokenMountPath = m.VaultTokenMountPath
-	initErr := v.initVaultToken()
-	if initErr != nil {
-		return initErr
-	}
-
 	vaultKVPrefix := m.VaultKVPrefix
 	if !m.VaultKVUsePrefix {
 		vaultKVPrefix = ""
@@ -151,6 +161,9 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 		vaultKVPrefix = defaultVaultKVPrefix
 	}
 	v.vaultKVPrefix = vaultKVPrefix
+
+	v.bgCtx, v.bgCancel = context.WithCancel(context.Background())
+	v.closeCh = make(chan struct{})
 
 	config := api.DefaultConfig()
 	if config.Error != nil {
@@ -165,7 +178,32 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 	if err != nil {
 		return fmt.Errorf("couldn't create vault client: %w", err)
 	}
-	client.SetToken(v.vaultToken)
+
+	switch m.VaultAuthMethod {
+	case "", authMethodToken:
+		v.vaultToken = m.VaultToken
+		v.vaultTokenMountPath = m.VaultTokenMountPath
+		if err := v.initVaultToken(); err != nil {
+			return err
+		}
+		client.SetToken(v.vaultToken)
+	case authMethodKubernetes:
+		if m.VaultKubernetesRole == "" {
+			return errors.New("vaultKubernetesRole is required when vaultAuthMethod is kubernetes")
+		}
+		if m.VaultToken != "" || m.VaultTokenMountPath != "" {
+			return errors.New("vaultToken and vaultTokenMountPath must not be set when vaultAuthMethod is kubernetes")
+		}
+		// Use the caller's ctx (which the Dapr runtime may bound with a
+		// component-init timeout) for the blocking first login only. The
+		// background renewal loop that initKubernetesAuth starts outlives
+		// this Init() call and uses v.bgCtx instead.
+		if err := v.initKubernetesAuth(ctx, client, &m); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("vault init error, invalid auth method %s, accepted values are token or kubernetes", m.VaultAuthMethod)
+	}
 
 	v.client = client
 
@@ -393,5 +431,14 @@ func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 }
 
 func (v *vaultSecretStore) Close() error {
+	defer v.wg.Wait()
+	if v.closed.CompareAndSwap(false, true) {
+		if v.bgCancel != nil {
+			v.bgCancel()
+		}
+		if v.closeCh != nil {
+			close(v.closeCh)
+		}
+	}
 	return nil
 }

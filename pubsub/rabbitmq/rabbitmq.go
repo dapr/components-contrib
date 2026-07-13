@@ -660,6 +660,11 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 	err := handler(ctx, pubsubMsg)
 
 	if err != nil {
+		if ctx.Err() != nil {
+			r.logger.Debugf("%s context done while handling message from topic '%s'; skipping ack/nack to allow redelivery", logMessagePrefix, topic)
+			return err
+		}
+
 		r.logger.Errorf("%s handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 
 		if !r.metadata.AutoAck {

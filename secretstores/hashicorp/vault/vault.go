@@ -170,6 +170,12 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		return fmt.Errorf("couldn't build vault client config: %w", config.Error)
 	}
 	config.Address = v.vaultAddress
+	// api.DefaultConfig() also picks up VAULT_AGENT_ADDR from the environment
+	// via ReadEnvironment(), and api.NewClient() prefers AgentAddress over
+	// Address whenever it's set, which would silently override vaultAddr
+	// above. This component doesn't support routing through a local Vault
+	// Agent, so clear it -- the metadata-configured address must always win.
+	config.AgentAddress = ""
 	if tlsErr := config.ConfigureTLS(metadataToTLSConfig(&m)); tlsErr != nil {
 		return fmt.Errorf("couldn't configure tls: %w", tlsErr)
 	}

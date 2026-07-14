@@ -363,6 +363,37 @@ func TestDefaultVaultAddress(t *testing.T) {
 	})
 }
 
+func TestVaultAddressIgnoresAgentAddrEnvVar(t *testing.T) {
+	// api.DefaultConfig() picks up VAULT_AGENT_ADDR from the environment, and
+	// api.NewClient() prefers it over the configured Address whenever it's
+	// set. This env var is also what the Vault Agent Injector sidecar sets
+	// on a pod, so it can easily still be present after switching a
+	// deployment from sidecar-based auth to vaultAuthMethod: kubernetes.
+	// The metadata-configured vaultAddr must win regardless.
+	t.Setenv("VAULT_AGENT_ADDR", "http://stale-agent-from-old-sidecar:8200")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultAddr":           "https://vault.example.com:8200",
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	assert.Equal(t, "https://vault.example.com:8200", target.client.Address())
+}
+
 func TestVaultValueType(t *testing.T) {
 	t.Run("valid vault value type map", func(t *testing.T) {
 		properties := map[string]string{

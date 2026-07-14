@@ -394,6 +394,71 @@ func TestVaultAddressIgnoresAgentAddrEnvVar(t *testing.T) {
 	assert.Equal(t, "https://vault.example.com:8200", target.client.Address())
 }
 
+func TestVaultTLSIgnoresSkipVerifyEnvVar(t *testing.T) {
+	// api.DefaultConfig() picks up VAULT_SKIP_VERIFY from the environment and
+	// applies it additively -- it can only ever turn InsecureSkipVerify on,
+	// never back off, so without an explicit reset a stray VAULT_SKIP_VERIFY=true
+	// in the environment would silently disable certificate verification even
+	// though skipVerify isn't set in the component's metadata at all.
+	t.Setenv("VAULT_SKIP_VERIFY", "true")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	transport, ok := target.client.CloneConfig().HttpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
+	// Guard against a naive fix that wipes the whole TLS config instead of
+	// resetting individual fields: that would also drop the "h2" ALPN
+	// protocol that api.DefaultConfig() registers, silently downgrading
+	// every connection to HTTP/1.1.
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2")
+}
+
+func TestVaultIgnoresNamespaceEnvVar(t *testing.T) {
+	// api.NewClient() picks up VAULT_NAMESPACE from the environment and scopes
+	// every request to it via the X-Vault-Namespace header. This component
+	// has no metadata field for namespace, so a stray VAULT_NAMESPACE in the
+	// environment must not silently redirect requests to a namespace nothing
+	// in the metadata asked for.
+	t.Setenv("VAULT_NAMESPACE", "some-other-namespace")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	assert.Empty(t, target.client.Headers().Get("X-Vault-Namespace"))
+}
+
 func TestVaultValueType(t *testing.T) {
 	t.Run("valid vault value type map", func(t *testing.T) {
 		properties := map[string]string{

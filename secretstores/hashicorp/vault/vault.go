@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -169,13 +170,25 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 	if config.Error != nil {
 		return fmt.Errorf("couldn't build vault client config: %w", config.Error)
 	}
-	config.Address = v.vaultAddress
-	// api.DefaultConfig() also picks up VAULT_AGENT_ADDR from the environment
-	// via ReadEnvironment(), and api.NewClient() prefers AgentAddress over
-	// Address whenever it's set, which would silently override vaultAddr
-	// above. This component doesn't support routing through a local Vault
-	// Agent, so clear it -- the metadata-configured address must always win.
+
+	// api.DefaultConfig() calls ReadEnvironment() internally, which lets a
+	// handful of VAULT_* environment variables silently take effect:
+	// VAULT_AGENT_ADDR reroutes all traffic through a local Vault Agent,
+	// VAULT_SKIP_VERIFY can disable certificate verification even when
+	// skipVerify isn't set, and VAULT_CACERT/VAULT_CAPATH/VAULT_CLIENT_CERT
+	// can replace the trusted CA pool or enable client-cert auth. This
+	// component's metadata must be the sole source of truth for how it
+	// connects to Vault, so undo all of that before applying it below.
 	config.AgentAddress = ""
+	if transport, ok := config.HttpClient.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
+		transport.TLSClientConfig.InsecureSkipVerify = false
+		transport.TLSClientConfig.RootCAs = nil
+		transport.TLSClientConfig.Certificates = nil
+		transport.TLSClientConfig.GetClientCertificate = nil
+		transport.TLSClientConfig.ServerName = ""
+	}
+
+	config.Address = v.vaultAddress
 	if tlsErr := config.ConfigureTLS(metadataToTLSConfig(&m)); tlsErr != nil {
 		return fmt.Errorf("couldn't configure tls: %w", tlsErr)
 	}
@@ -184,6 +197,12 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 	if err != nil {
 		return fmt.Errorf("couldn't create vault client: %w", err)
 	}
+	// api.NewClient() also picks up VAULT_NAMESPACE from the environment and
+	// scopes every request (including the kubernetes-auth login below) to it.
+	// This component has no metadata field for namespace, so a stray
+	// VAULT_NAMESPACE in the environment must not silently redirect requests
+	// to a Vault Enterprise namespace nothing in the metadata asked for.
+	client.ClearNamespace()
 
 	switch m.VaultAuthMethod {
 	case "", authMethodToken:

@@ -880,6 +880,38 @@ func TestGetSecretVersionQueryParam(t *testing.T) {
 	assert.Equal(t, "3", gotVersion)
 }
 
+// TestGetSecretMapTypeNullValueBecomesEmptyString is a regression test: the
+// pre-migration implementation decoded a map-type secret straight into a
+// map[string]string via encoding/json, under which a JSON null value for a
+// key silently becomes an empty string rather than an error. The
+// interface{}-based decoding this component now uses must preserve that
+// behavior instead of failing with "is not a string".
+func TestGetSecretMapTypeNullValueBecomesEmptyString(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, map[string]interface{}{
+			"data": map[string]interface{}{
+				"data": map[string]interface{}{"a": "x", "b": nil},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	resp, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.NoError(t, err)
+	assert.Equal(t, "x", resp.Data["a"])
+	assert.Empty(t, resp.Data["b"])
+}
+
 // TestGetSecretDeletedVersionIsNotFound is a regression test: a soft-deleted
 // (or destroyed) KV v2 version comes back from Vault as a 404 whose body
 // still carries {"data": {"data": null, "metadata": {...}}}, and the SDK

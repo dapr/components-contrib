@@ -296,6 +296,13 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 		}
 		data := make(map[string]string, len(dataMap))
 		for k, val := range dataMap {
+			if val == nil {
+				// Matches the previous jsoniter/encoding-json-based implementation,
+				// which decoded straight into a map[string]string: a JSON null
+				// value silently becomes an empty string rather than an error.
+				data[k] = ""
+				continue
+			}
 			s, ok := val.(string)
 			if !ok {
 				return nil, fmt.Errorf("value for key %s in secret %s is not a string", k, secret)

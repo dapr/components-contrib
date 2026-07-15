@@ -316,7 +316,7 @@ func UnmarshalTrackingSettings(jsonString string) (*mail.TrackingSettings, error
 	trackingSettings := &mail.TrackingSettings{}
 	err := json.Unmarshal([]byte(jsonString), trackingSettings)
 	if err != nil {
-		return nil, fmt.Errorf("error from SendGrid binding, tracking settings is not valid JSON: %w", err)
+		return nil, fmt.Errorf("error from SendGrid binding, tracking settings are not valid JSON: %w", err)
 	}
 	return trackingSettings, nil
 }

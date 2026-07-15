@@ -638,7 +638,9 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 				go func(d amqp.Delivery) {
 					defer r.wg.Done()
 					if err := r.handleMessage(ctx, d, topic, handler); err != nil {
-						r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+							r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						}
 					}
 				}(d)
 			}

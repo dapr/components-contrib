@@ -508,9 +508,9 @@ func TestHandleMessageSkipsNACKOnContextCanceled(t *testing.T) {
 		metadata: &rabbitmqMetadata{AutoAck: false},
 	}
 
-	t.Run("context canceled: no NACK and no ACK", func(t *testing.T) {
+	t.Run("context canceled: no NACK, no ACK, context error returned", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // already cancelled — simulates subscription context cancelled during shutdown
+		cancel() // already cancelled; simulates subscription context cancelled during shutdown
 
 		ack := &mockAcknowledger{}
 		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
@@ -520,8 +520,8 @@ func TestHandleMessageSkipsNACKOnContextCanceled(t *testing.T) {
 		}
 
 		err := r.handleMessage(ctx, d, "topic", handler)
-		require.Error(t, err)
-		assert.False(t, ack.nackCalled.Load(), "NACK must not be called when context is canceled — message should be redelivered, not DLQ'd")
+		require.ErrorIs(t, err, context.Canceled)
+		assert.False(t, ack.nackCalled.Load(), "NACK must not be called when context is canceled; message should be redelivered, not DLQ'd")
 		assert.False(t, ack.ackCalled.Load(), "ACK must not be called when context is canceled")
 	})
 

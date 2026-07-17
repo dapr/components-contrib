@@ -14,6 +14,7 @@ limitations under the License.
 package vault
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
@@ -430,6 +432,40 @@ func TestVaultTLSIgnoresSkipVerifyEnvVar(t *testing.T) {
 	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2")
 }
 
+func TestVaultSkipVerifyLogsWarning(t *testing.T) {
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	t.Run("skipVerify true logs a warning", func(t *testing.T) {
+		var buf bytes.Buffer
+		testLogger := logger.NewLogger("test")
+		testLogger.SetOutput(&buf)
+
+		target := &vaultSecretStore{logger: testLogger}
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+			"skipVerify":          "true",
+		}
+		require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+		assert.Contains(t, buf.String(), "skipVerify")
+	})
+
+	t.Run("skipVerify unset logs no warning", func(t *testing.T) {
+		var buf bytes.Buffer
+		testLogger := logger.NewLogger("test")
+		testLogger.SetOutput(&buf)
+
+		target := &vaultSecretStore{logger: testLogger}
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+		require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+		assert.NotContains(t, buf.String(), "skipVerify")
+	})
+}
+
 func TestVaultIgnoresNamespaceEnvVar(t *testing.T) {
 	// api.NewClient() picks up VAULT_NAMESPACE from the environment and scopes
 	// every request to it via the X-Vault-Namespace header. This component
@@ -794,6 +830,8 @@ func TestKubernetesAuthReauthenticatesWithFreshToken(t *testing.T) {
 }
 
 func TestKubernetesAuthCloseStopsRenewal(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
 	defer cleanup()
 
@@ -986,4 +1024,289 @@ func TestBulkGetSecretEmptyStoreErrors(t *testing.T) {
 
 	_, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
 	require.Error(t, err)
+}
+
+// TestBulkGetSecretKeysFieldEdgeCases is a regression test: a 200 OK LIST
+// response with a missing or null "keys" field represents a path with no
+// children, matching the pre-migration behavior of decoding straight into a
+// typed struct (where a missing/null "keys" field just left an empty
+// slice), and must not error. Only a "keys" field present with an
+// unexpected (non-array) type is a genuine malformed-response error.
+func TestBulkGetSecretKeysFieldEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		expectErr bool
+	}{
+		{name: "keys field absent", data: map[string]interface{}{}, expectErr: false},
+		{name: "keys field null", data: map[string]interface{}{"keys": nil}, expectErr: false},
+		{name: "keys field wrong type", data: map[string]interface{}{"keys": "not-an-array"}, expectErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenFile, cleanup := createTokenMountPathFile(t)
+			defer cleanup()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/secret/metadata/dapr" && r.URL.Query().Get("list") == "true" {
+					writeJSON(t, w, map[string]interface{}{"data": tt.data})
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			defer srv.Close()
+
+			target := &vaultSecretStore{logger: logger.NewLogger("test")}
+			properties := map[string]string{
+				"vaultAddr":           srv.URL,
+				"vaultTokenMountPath": tokenFile,
+			}
+			require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+			resp, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Empty(t, resp.Data)
+		})
+	}
+}
+
+// TestGetSecretBeforeInitReturnsError is a regression test: calling
+// GetSecret/BulkGetSecret before Init() has completed successfully must
+// return an error, not panic. The pre-migration client was always non-nil
+// from construction (&http.Client{}), so this misuse previously degraded to
+// a normal connection error instead of a nil-pointer dereference.
+func TestGetSecretBeforeInitReturnsError(t *testing.T) {
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+
+	_, err = target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+}
+
+// TestKubernetesAuthPacesReloginsForShortLivedSecrets is a regression test:
+// without a floor between watch cycles, a Vault role issuing short-lived or
+// non-renewable secrets would drive the renewal loop into a tight loop of
+// real login requests with no delay between them. Each cycle must be paced
+// to at least reauthInitialInterval.
+func TestKubernetesAuthPacesReloginsForShortLivedSecrets(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	var mu sync.Mutex
+	var loginTimes []time.Time
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login" {
+			mu.Lock()
+			loginTimes = append(loginTimes, time.Now())
+			n := len(loginTimes)
+			mu.Unlock()
+
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token": fmt.Sprintf("token-%d", n),
+					// Short and non-renewable so the LifetimeWatcher's
+					// DoneCh fires almost immediately, driving a fast
+					// re-login on every cycle absent pacing.
+					"lease_duration": 1,
+					"renewable":      false,
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+	defer target.Close()
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(loginTimes) >= 2
+	}, reauthInitialInterval+5*time.Second, 50*time.Millisecond, "expected a second login")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(loginTimes), 2)
+	elapsed := loginTimes[1].Sub(loginTimes[0])
+	assert.GreaterOrEqual(t, elapsed, reauthInitialInterval, "second login happened too soon after the first; renewal loop is not paced")
+}
+
+// TestKubernetesAuthCloseDuringBlockingInitDoesNotLeakGoroutine is a
+// regression test: if Close() is called while Init() is still blocked in
+// the initial (blocking) Kubernetes login, initKubernetesAuth must not
+// start the background renewal goroutine once that login finally
+// completes -- Close() has already reported "done" via its wg.Wait(), and a
+// goroutine started afterward would never be waited for again.
+func TestKubernetesAuthCloseDuringBlockingInitDoesNotLeakGoroutine(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	loginReceived := make(chan struct{})
+	releaseLogin := make(chan struct{})
+	var loginCount int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login" {
+			atomic.AddInt32(&loginCount, 1)
+			close(loginReceived)
+			<-releaseLogin
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	initErrCh := make(chan error, 1)
+	go func() {
+		initErrCh <- target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	}()
+
+	select {
+	case <-loginReceived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the blocking login request")
+	}
+
+	// Close() races in while Init() is still blocked inside the login call.
+	closeDone := make(chan struct{})
+	go func() {
+		_ = target.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close() did not return while Init() was still blocked on the login call")
+	}
+
+	close(releaseLogin)
+
+	select {
+	case err := <-initErrCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Init() did not return after the login unblocked")
+	}
+
+	// No renewal goroutine should have been started: no second login should
+	// ever occur.
+	time.Sleep(200 * time.Millisecond)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&loginCount), "no renewal goroutine should start once Close() already ran")
+}
+
+// TestKubernetesAuthCloseWaitsForInFlightRenewal is a regression test:
+// Close() must wait for the LifetimeWatcher's own goroutine (watcher.Start())
+// to fully return, not just the outer renewal-loop goroutine -- otherwise
+// Close() can report "done" while a renew-self HTTP call the watcher started
+// is still in flight.
+func TestKubernetesAuthCloseWaitsForInFlightRenewal(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	renewReceived := make(chan struct{})
+	releaseRenew := make(chan struct{})
+	var renewReceivedOnce sync.Once
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login":
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/token/renew-self":
+			// The renewal loop's LifetimeWatcher renews a renewable token
+			// immediately after login; block that first renewal so we can
+			// assert Close() waits for it instead of returning early.
+			renewReceivedOnce.Do(func() { close(renewReceived) })
+			<-releaseRenew
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	select {
+	case <-renewReceived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the renewal loop's first renew-self call")
+	}
+
+	closeDone := make(chan struct{})
+	go func() {
+		_ = target.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+		t.Fatal("Close() returned before the in-flight renewal finished")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(releaseRenew)
+
+	select {
+	case <-closeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close() did not return after the in-flight renewal finished")
+	}
 }

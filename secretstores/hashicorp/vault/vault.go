@@ -24,7 +24,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/hashicorp/vault/api"
 
@@ -75,6 +74,12 @@ var ErrNotFound = errors.New("secret key or version not exist")
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
+	// client is written once, at the end of a successful Init(), and read
+	// by every GetSecret/BulkGetSecret call. Both can happen concurrently
+	// if a caller invokes those before Init() has returned (against the
+	// component contract, but not otherwise prevented), so reads/writes go
+	// through the mu-guarded getClient/Init assignment below rather than
+	// accessing this field directly.
 	client              *api.Client
 	vaultAddress        string
 	vaultToken          string
@@ -85,11 +90,19 @@ type vaultSecretStore struct {
 
 	logger logger.Logger
 
+	// mu guards closed and the compound "check closed, then either start
+	// the renewal goroutine or cancel bgCtx/closeCh" sequences in Init()
+	// and Close() against each other. A plain atomic bool isn't enough
+	// here: checking it and then acting on the result (e.g. starting the
+	// renewal goroutine) has to be atomic with Close()'s own check-and-act,
+	// otherwise Close() can observe "not started yet" and return while the
+	// goroutine starts immediately after -- see initKubernetesAuth.
+	mu       sync.Mutex
+	closed   bool
 	bgCtx    context.Context
 	bgCancel context.CancelFunc
 	closeCh  chan struct{}
 	wg       sync.WaitGroup
-	closed   atomic.Bool
 }
 
 type VaultMetadata struct {
@@ -163,8 +176,21 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 	}
 	v.vaultKVPrefix = vaultKVPrefix
 
+	v.mu.Lock()
 	v.bgCtx, v.bgCancel = context.WithCancel(context.Background())
 	v.closeCh = make(chan struct{})
+	if v.closed {
+		// Close() already ran concurrently with this Init() call, before
+		// these fields existed for it to cancel/close. Cancel them right
+		// away, still under the same lock Close() uses, so any renewal
+		// goroutine started below sees a closed component immediately
+		// instead of running with a bgCtx/closeCh that no future Close()
+		// call can ever cancel (closed is already latched true, so
+		// Close()'s guard won't fire again).
+		v.bgCancel()
+		close(v.closeCh)
+	}
+	v.mu.Unlock()
 
 	config := api.DefaultConfig()
 	if config.Error != nil {
@@ -186,6 +212,10 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		transport.TLSClientConfig.Certificates = nil
 		transport.TLSClientConfig.GetClientCertificate = nil
 		transport.TLSClientConfig.ServerName = ""
+	}
+
+	if m.SkipVerify == "true" {
+		v.logger.Warnf("hashicorp vault: you are using 'skipVerify' to skip server config verification, which is unsafe")
 	}
 
 	config.Address = v.vaultAddress
@@ -230,9 +260,22 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		return fmt.Errorf("vault init error, invalid auth method %s, accepted values are token or kubernetes", m.VaultAuthMethod)
 	}
 
+	v.mu.Lock()
 	v.client = client
+	v.mu.Unlock()
 
 	return nil
+}
+
+// getClient returns the current Vault client, or nil if Init() hasn't
+// assigned one yet (e.g. GetSecret/BulkGetSecret called before Init() has
+// returned). Goes through mu since Init() assigns v.client under the same
+// lock, to avoid a data race between that assignment and concurrent reads
+// here.
+func (v *vaultSecretStore) getClient() *api.Client {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.client
 }
 
 func metadataToTLSConfig(meta *VaultMetadata) *api.TLSConfig {
@@ -271,8 +314,14 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 	}
 	path += secret
 
-	resp, err := v.client.Logical().ReadWithDataWithContext(ctx, path, map[string][]string{"version": {version}})
+	client := v.getClient()
+	if client == nil {
+		return nil, errors.New("hashicorp vault: component not initialized")
+	}
+
+	resp, err := client.Logical().ReadWithDataWithContext(ctx, path, map[string][]string{"version": {version}})
 	if err != nil {
+		v.logger.Debugf("hashicorp vault: get secret %s failed: %v", secret, err)
 		return nil, fmt.Errorf("couldn't get secret: %w", err)
 	}
 	if resp == nil || resp.Data == nil {
@@ -384,15 +433,29 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 	}
 	listPath += path
 
-	secret, err := v.client.Logical().ListWithContext(ctx, listPath)
+	client := v.getClient()
+	if client == nil {
+		return nil, errors.New("hashicorp vault: component not initialized")
+	}
+
+	secret, err := client.Logical().ListWithContext(ctx, listPath)
 	if err != nil {
+		v.logger.Debugf("hashicorp vault: list keys at %s failed: %v", listPath, err)
 		return nil, fmt.Errorf("couldn't list keys: %w", err)
 	}
 	if secret == nil || secret.Data == nil {
 		return nil, fmt.Errorf("list keys couldn't get successful response at %s", listPath)
 	}
 
-	keysRaw, ok := secret.Data["keys"].([]interface{})
+	// A missing or null "keys" field is how Vault represents a path with no
+	// children -- treat it as zero results, not an error. Only a "keys"
+	// field present with an unexpected (non-array) type is a genuine
+	// malformed-response error.
+	keysField, hasKeys := secret.Data["keys"]
+	if !hasKeys || keysField == nil {
+		return []string{}, nil
+	}
+	keysRaw, ok := keysField.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("unexpected list response shape at %s", listPath)
 	}
@@ -463,8 +526,9 @@ func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 }
 
 func (v *vaultSecretStore) Close() error {
-	defer v.wg.Wait()
-	if v.closed.CompareAndSwap(false, true) {
+	v.mu.Lock()
+	if !v.closed {
+		v.closed = true
 		if v.bgCancel != nil {
 			v.bgCancel()
 		}
@@ -472,5 +536,8 @@ func (v *vaultSecretStore) Close() error {
 			close(v.closeCh)
 		}
 	}
+	v.mu.Unlock()
+
+	v.wg.Wait()
 	return nil
 }

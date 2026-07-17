@@ -37,8 +37,22 @@ func (v *vaultSecretStore) initKubernetesAuth(ctx context.Context, client *api.C
 		return fmt.Errorf("couldn't log in to vault using kubernetes auth: %w", err)
 	}
 
-	v.wg.Add(1)
-	go v.renewalLoop(client, m, secret)
+	// Check closed and start the renewal goroutine as a single critical
+	// section, under the same lock Close() uses. Doing this as two separate
+	// steps (check, then Add/go) would leave a window where Close() runs in
+	// between: it would see the goroutine not started yet and return, and
+	// the goroutine would then start immediately after, racing wg.Add
+	// against Close()'s already-returned wg.Wait().
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.closed {
+		// Close() already ran while the blocking first login was in
+		// flight; don't start a renewal goroutine Close() won't wait for.
+		return nil
+	}
+	v.wg.Go(func() {
+		v.renewalLoop(client, m, secret)
+	})
 
 	return nil
 }
@@ -70,14 +84,14 @@ func (v *vaultSecretStore) kubernetesLogin(ctx context.Context, client *api.Clie
 // once that lease can no longer be renewed, re-authenticates from scratch
 // and starts watching the new lease. It returns once Close() is called.
 func (v *vaultSecretStore) renewalLoop(client *api.Client, m *VaultMetadata, secret *api.Secret) {
-	defer v.wg.Done()
-
 	for {
+		cycleStart := time.Now()
+
 		watcher, err := client.NewLifetimeWatcher(&api.LifetimeWatcherInput{Secret: secret})
 		if err != nil {
 			v.logger.Errorf("hashicorp vault: couldn't create lifetime watcher: %v", err)
 		} else {
-			go watcher.Start()
+			v.wg.Go(watcher.Start)
 			v.watchOnce(watcher)
 			watcher.Stop()
 		}
@@ -86,6 +100,20 @@ func (v *vaultSecretStore) renewalLoop(client *api.Client, m *VaultMetadata, sec
 		case <-v.closeCh:
 			return
 		default:
+		}
+
+		// A Vault role can legitimately issue short-lived or non-renewable
+		// secrets, in which case the watcher above returns almost
+		// immediately on every cycle. Without a floor here, that turns into
+		// a tight loop of real login requests against Vault. Reuse the
+		// re-auth backoff's initial interval as a minimum pause between
+		// cycles that complete faster than it.
+		if elapsed := time.Since(cycleStart); elapsed < reauthInitialInterval {
+			select {
+			case <-v.closeCh:
+				return
+			case <-time.After(reauthInitialInterval - elapsed):
+			}
 		}
 
 		var loginErr error

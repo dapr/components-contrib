@@ -151,7 +151,7 @@ func TestEntraIDOnConnectWiring(t *testing.T) {
 func TestEntraIDFetchAuthArgs(t *testing.T) {
 	t.Run("returns username and fresh token", func(t *testing.T) {
 		s := entraIDSettings(NodeType, false)
-		user, pass, err := s.EntraIDFetchAuthArgs(context.Background())
+		user, pass, err := s.entraIDFetchAuthArgs(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, "00000000-0000-0000-0000-000000000000", user)
 		assert.Equal(t, "fresh-token", pass)
@@ -159,19 +159,19 @@ func TestEntraIDFetchAuthArgs(t *testing.T) {
 
 	t.Run("errors when credential not initialized", func(t *testing.T) {
 		s := &Settings{UseEntraID: true, entraIDUsername: "oid"}
-		_, _, err := s.EntraIDFetchAuthArgs(context.Background())
+		_, _, err := s.entraIDFetchAuthArgs(context.Background())
 		require.Error(t, err)
 	})
 
 	t.Run("errors when username (OID) not initialized", func(t *testing.T) {
 		s := &Settings{UseEntraID: true, entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"}}
-		_, _, err := s.EntraIDFetchAuthArgs(context.Background())
+		_, _, err := s.entraIDFetchAuthArgs(context.Background())
 		require.Error(t, err)
 	})
 
 	t.Run("propagates token acquisition error", func(t *testing.T) {
 		s := &Settings{UseEntraID: true, entraIDUsername: "oid", entraIDTokenCredential: fakeTokenCredential{err: errors.New("boom")}}
-		_, _, err := s.EntraIDFetchAuthArgs(context.Background())
+		_, _, err := s.entraIDFetchAuthArgs(context.Background())
 		require.Error(t, err)
 	})
 }
@@ -197,6 +197,12 @@ func TestEntraIDOnConnectCallback(t *testing.T) {
 	t.Run("v8 surfaces missing-OID as a dial error", func(t *testing.T) {
 		s := &Settings{UseEntraID: true, entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"}}
 		err := entraIDOnConnectV8(s)(context.Background(), nil)
+		require.Error(t, err)
+	})
+
+	t.Run("v9 surfaces missing-OID as a dial error", func(t *testing.T) {
+		s := &Settings{UseEntraID: true, entraIDTokenCredential: fakeTokenCredential{token: "fresh-token"}}
+		err := entraIDOnConnectV9(s)(context.Background(), nil)
 		require.Error(t, err)
 	})
 }

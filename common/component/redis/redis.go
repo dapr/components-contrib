@@ -220,9 +220,10 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	// start the token refresh goroutine — keeps long-lived connections re-AUTHed via AUTH ACL
-	// before the prior token expires. This is complementary to the OnConnect hook that handles
-	// brand-new pool connections.
+	// start the token refresh goroutine — periodically issues AUTH ACL with a fresh token
+	// before the prior one expires. Note that AUTH is per-connection, so this re-authenticates
+	// pooled connections as they are exercised rather than every open connection at once. It is
+	// complementary to the OnConnect hook, which authenticates each brand-new pool connection.
 
 	if settings.UseEntraID {
 		StartEntraIDTokenRefreshBackgroundRoutine(c, &settings, *tokenExpires, logger)
@@ -349,9 +350,10 @@ func (s *Settings) InitEntraIDCredential(ctx context.Context, properties *map[st
 		return nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	// Validate the initial token and extract the OID claim used as the Redis ACL username.
-	// We use insecure parsing here because the token was just issued by Entra ID and we are
-	// only inspecting it — Redis itself does the authoritative validation.
+	// Parse the initial token without verification or validation to extract the OID claim
+	// used as the Redis ACL username. Signature/expiry are intentionally not checked here
+	// (WithVerify(false), WithValidate(false)): the token was just issued by Entra ID and we
+	// are only inspecting a claim — Redis itself does the authoritative validation at AUTH.
 	parsedToken, err := jwt.ParseString(token.Token, jwt.WithVerify(false), jwt.WithValidate(false))
 	if err != nil {
 		return nil, fmt.Errorf("redis client configuration error: %w", err)

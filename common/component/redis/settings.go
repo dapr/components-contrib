@@ -185,14 +185,14 @@ func (s *Settings) entraIDToken(ctx context.Context) (azcore.AccessToken, error)
 	})
 }
 
-// EntraIDFetchAuthArgs returns the Redis ACL username and a freshly-acquired Entra access
+// entraIDFetchAuthArgs returns the Redis ACL username and a freshly-acquired Entra access
 // token suitable for use as the AUTH password. It must only be called when UseEntraID is
 // true and after InitEntraIDCredential has succeeded; otherwise it returns an error.
 //
 // This is invoked from the OnConnect callback installed on the underlying go-redis client
 // so that every new pool connection authenticates with a current token, rather than the
 // stale snapshot Password that would otherwise be sent during initial AUTH.
-func (s *Settings) EntraIDFetchAuthArgs(ctx context.Context) (username, password string, err error) {
+func (s *Settings) entraIDFetchAuthArgs(ctx context.Context) (username, password string, err error) {
 	if s.entraIDUsername == "" {
 		return "", "", errors.New("redis client: EntraID username (OID) not initialized; AUTH ACL requires a non-empty username")
 	}

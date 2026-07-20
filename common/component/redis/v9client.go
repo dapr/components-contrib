@@ -343,7 +343,7 @@ func (c v9Client) AuthACL(ctx context.Context, username, password string) error 
 // intended behavior — a connection that cannot authenticate must not be handed out.
 func entraIDOnConnectV9(s *Settings) func(ctx context.Context, cn *v9.Conn) error {
 	return func(ctx context.Context, cn *v9.Conn) error {
-		user, pass, err := s.EntraIDFetchAuthArgs(ctx)
+		user, pass, err := s.entraIDFetchAuthArgs(ctx)
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/build-tools
 
-go 1.26.3
+go 1.26.5
 
 require (
 	github.com/dapr/components-contrib v0.0.0

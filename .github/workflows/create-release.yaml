@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       rel_version:
-        description: 'Release version (examples: 1.16.0-rc.1, 1.16.0)'
+        description: "Release version (examples: 1.16.0-rc.1, 1.16.0)"
         required: true
         type: string
 
@@ -52,7 +52,7 @@ jobs:
     name: Create GitHub release with metadata bundle
     needs: create-release
     permissions:
-      contents: write
+      contents: read
       issues: write
       actions: read
     uses: ./.github/workflows/generate-component-metadata-for-tag.yml

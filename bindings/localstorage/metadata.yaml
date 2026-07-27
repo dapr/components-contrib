@@ -23,3 +23,9 @@ metadata:
     required: true
     description: "The file name to write"
     example: "data.txt"
+  - name: fromTemp
+    required: false
+    description: "If true, resolves rootPath relative to the system-wide temporary directory, for cross-platform compatibility"
+    type: bool
+    default: "false"
+    example: "true"

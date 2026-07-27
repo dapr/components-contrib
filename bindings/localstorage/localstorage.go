@@ -57,6 +57,7 @@ type LocalStorage struct {
 // Metadata defines the metadata.
 type Metadata struct {
 	RootPath string `json:"rootPath"`
+	FromTemp bool   `json:"fromTemp"`
 }
 
 type createResponse struct {
@@ -89,6 +90,10 @@ func (ls *LocalStorage) parseMetadata(meta bindings.Metadata) (*Metadata, error)
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
+	}
+
+	if m.FromTemp {
+		m.RootPath = filepath.Join(os.TempDir(), m.RootPath)
 	}
 
 	m.RootPath, err = validateRootPath(m.RootPath)

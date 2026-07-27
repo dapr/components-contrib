@@ -248,7 +248,7 @@ func (a *akeylessSecretStore) GetSecret(ctx context.Context, req secretstores.Ge
 // The method performs the following steps:
 // 1. Recursively list all items in Akeyless
 // 2. Filter out inactive/failing secrets
-// 3. Separate items by type since only static secrets are supported for bulk get
+// 3. Separate items by type to call the appropriate retrieval endpoint
 // 4. Get secret values concurrently, each item type in a separate goroutine
 func (a *akeylessSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	if a.v2 == nil {
@@ -600,7 +600,7 @@ func (a *akeylessSecretStore) getBulkStaticSecretValues(ctx context.Context, sec
 
 	if apiErr != nil {
 		secretResponse = append(secretResponse, secretResultCollection{
-			name: "", value: "", err: fmt.Errorf("failed to get static secrets' '%s' value from Akeyless API: %w", secretNames, apiErr),
+			name: "", value: "", err: fmt.Errorf("failed to get static secrets values (%v) from Akeyless API: %w", secretNames, apiErr),
 		})
 	} else {
 		for secretName, secretValue := range secretRespMap {

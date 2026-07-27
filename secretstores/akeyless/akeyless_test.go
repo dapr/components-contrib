@@ -220,9 +220,11 @@ func TestMain(m *testing.M) {
 	// Run tests
 	code := m.Run()
 
+	// Tear down mock server
+	mockGateway.Close()
+
 	// Exit with the same code as the tests
 	os.Exit(code)
-}
 
 func TestNewAkeylessSecretStore(t *testing.T) {
 	log := logger.NewLogger("test")

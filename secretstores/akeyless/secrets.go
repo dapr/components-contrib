@@ -42,8 +42,11 @@ func getDaprSingleSecretResponse(secretName string, secretValue string) (secrets
 }
 
 func getItemNames(items []akeylesssdk.Item) []string {
-	itemNames := []string{}
+	itemNames := make([]string, 0, len(items))
 	for _, item := range items {
+		if item.ItemName == nil {
+			continue
+		}
 		itemNames = append(itemNames, *item.ItemName)
 	}
 	return itemNames
@@ -64,6 +67,14 @@ func stringifyStaticSecret(secretValue any, secretName string) (string, error) {
 }
 
 func isSecretActive(secret akeylesssdk.Item, logger logger.Logger) bool {
+	if secret.ItemName == nil {
+		logger.Debug("secret is missing itemName field, skipping...")
+		return false
+	}
+	if secret.ItemType == nil {
+		logger.Debugf("secret '%s' is missing itemType field, skipping...", *secret.ItemName)
+		return false
+	}
 	if secret.IsEnabled == nil {
 		logger.Debugf("secret '%s' is missing isEnabled field, skipping...", *secret.ItemName)
 		return false

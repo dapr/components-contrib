@@ -33,3 +33,11 @@ Upsert in Multi function, using 3 keys with updating values and TTL for 2 of the
 
 ## enableTLS set to true & enableTLS not integer:
 Testing by creating component with ignoreErrors: true and then trying to use it, by trying to save, which should error out as state store never got configured successfully. 
+
+## OIDC private_key_jwt authentication (`useOIDC`):
+Redis cannot validate JWTs itself, so the test runs a mock OAuth2 token endpoint that cryptographically verifies the client assertion (RS256 signature against the client certificate, `kid` header, `aud` as a JSON string, `resource` and `scope` form parameters) before issuing tokens, and configures the Redis ACL to require those tokens as the `AUTH` password:
+1. Unauthenticated access is rejected after the ACL is applied.
+2. CRUD operations succeed authenticated with the initial access token.
+3. The identity provider rotates to a second token; the background refresh fetches it and re-authenticates the connection pool (verified by continued CRUD operations and the second token request).
+4. The client assertion wire format is asserted on the identity provider side.
+5. A component configured with both `useOIDC` and `redisPassword` fails to initialize.

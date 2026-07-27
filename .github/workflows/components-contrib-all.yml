@@ -113,7 +113,7 @@ jobs:
           cache: 'false'
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
@@ -123,7 +123,7 @@ jobs:
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (Windows)
         if: matrix.target_os == 'windows'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~\AppData\Local\go-build
@@ -133,7 +133,7 @@ jobs:
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (macOS)
         if: matrix.target_os == 'darwin'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/go-build

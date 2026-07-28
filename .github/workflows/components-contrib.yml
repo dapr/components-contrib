@@ -46,7 +46,7 @@ jobs:
           go-version-file: 'go.mod'
           cache: 'false'
       - name: Cache Go modules (Linux)
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
@@ -62,7 +62,7 @@ jobs:
         run: make check-component-metadata
       - name: Run golangci-lint
         if: steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v6.0.1
+        uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true

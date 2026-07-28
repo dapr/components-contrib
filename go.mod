@@ -39,21 +39,21 @@ require (
 	github.com/apache/pulsar-client-go v0.18.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.1-0.20241125194140-078c08b8574a
-	github.com/aws/aws-sdk-go-v2 v1.42.0
+	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.3
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.3.10
 	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.1.4
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.24.3
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.4
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.42.10
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.8
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.21
 	github.com/aws/aws-sdk-go-v2/service/ses v1.34.18
 	github.com/aws/aws-sdk-go-v2/service/sns v1.34.7
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.8
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.45.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1
 	github.com/aws/smithy-go v1.27.3
@@ -89,7 +89,7 @@ require (
 	github.com/http-wasm/http-wasm-host-go v0.7.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
-	github.com/influxdata/influxdb-client-go/v2 v2.12.3
+	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/json-iterator/go v1.1.12
@@ -108,7 +108,7 @@ require (
 	github.com/nats-io/nats.go v1.39.1
 	github.com/nats-io/nkeys v0.4.10
 	github.com/open-policy-agent/opa v1.4.2
-	github.com/oracle/coherence-go-client/v2 v2.2.0
+	github.com/oracle/coherence-go-client/v2 v2.3.1
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -198,18 +198,19 @@ require (
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/apache/thrift v0.19.0 // indirect
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.30 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
@@ -247,7 +248,6 @@ require (
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
-	github.com/deepmap/oapi-codegen v1.11.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
@@ -269,6 +269,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gage-technologies/mistral-go v1.1.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -284,9 +285,9 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-pkgz/expirable-cache v0.1.0 // indirect
-	github.com/go-playground/locales v0.14.0 // indirect
-	github.com/go-playground/universal-translator v0.18.0 // indirect
-	github.com/go-playground/validator/v10 v10.11.0 // indirect
+	github.com/go-playground/locales v0.14.1 // indirect
+	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.14.1 // indirect
 	github.com/go-resty/resty/v2 v2.11.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
@@ -343,7 +344,7 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kubemq-io/protobuf v1.3.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
@@ -378,6 +379,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.7.3 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
+	github.com/oapi-codegen/runtime v1.1.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect

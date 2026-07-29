@@ -9,7 +9,7 @@ require (
 	github.com/IBM/sarama v1.60.0
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
-	github.com/apache/pulsar-client-go v0.18.0
+	github.com/apache/pulsar-client-go v0.21.0
 	github.com/apache/thrift v0.19.0
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
@@ -300,7 +300,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

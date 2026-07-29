@@ -244,7 +244,7 @@ jobs:
 
     - name: Install Node.js ${{ matrix.nodejs-version }}
       if: matrix.nodejs-version != ''
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ matrix.nodejs-version }}
 

@@ -15,6 +15,7 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,8 +23,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 )
 
 // stubCredential is a TokenCredential that always succeeds, and records whether it was invoked.
@@ -35,6 +39,14 @@ type stubCredential struct {
 func (c *stubCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	c.called = true
 	return azcore.AccessToken{Token: c.token, ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+// stubJWTSource is a jwtsvid.Source that is only used to signal that SPIFFE is configured; the
+// credential under test does not fetch from it.
+type stubJWTSource struct{}
+
+func (stubJWTSource) FetchJWTSVID(context.Context, jwtsvid.Params) (*jwtsvid.SVID, error) {
+	return nil, errors.New("not implemented")
 }
 
 func TestSpiffeWorkloadIdentityGetTokenCredential(t *testing.T) {
@@ -103,6 +115,36 @@ func TestSpiffeCredentialChainFallsThrough(t *testing.T) {
 
 	assert.True(t, next.called, "the chain must continue past the SPIFFE credential")
 	assert.Equal(t, "token-from-next-credential", token.Token)
+}
+
+// TestSpiffeCredentialDelegatesWithJWTSource asserts that once a JWT SVID source is available the
+// credential delegates to the underlying credential rather than reporting itself as unavailable.
+func TestSpiffeCredentialDelegatesWithJWTSource(t *testing.T) {
+	inner := &stubCredential{token: "token-from-inner-credential"}
+	cred := &spiffeCredential{cred: inner}
+
+	ctx := spiffecontext.WithJWT(context.Background(), stubJWTSource{})
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://vault.azure.net/.default"},
+	})
+	require.NoError(t, err)
+
+	assert.True(t, inner.called, "the credential must delegate when a JWT SVID source is present")
+	assert.Equal(t, "token-from-inner-credential", token.Token)
+}
+
+// TestSpiffeCredentialDoesNotDelegateWithoutJWTSource asserts that the underlying credential is not
+// invoked, and so no token request is made, when SPIFFE workload identity is not configured.
+func TestSpiffeCredentialDoesNotDelegateWithoutJWTSource(t *testing.T) {
+	inner := &stubCredential{token: "token-from-inner-credential"}
+	cred := &spiffeCredential{cred: inner}
+
+	_, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{
+		Scopes: []string{"https://vault.azure.net/.default"},
+	})
+	require.Error(t, err)
+
+	assert.False(t, inner.called, "the credential must not attempt a token request")
 }
 
 func newTestSpiffeCredential() (azcore.TokenCredential, error) {

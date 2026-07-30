@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: sqlserver
+version: v1
+status: alpha
+title: "SQL Server"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/sqlserver/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: exec
+      description: "The exec operation can be used for DDL operations (like table creation), as well as INSERT, UPDATE, DELETE operations, or to invoke a stored procedure that does not return a result set. Returns only metadata (e.g. number of affected rows)."
+    - name: query
+      description: "The query operation is used for SELECT statements, or to invoke a stored procedure that returns a result set. Returns the metadata along with data in a form of an array of row values."
+    - name: close
+      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
+authenticationProfiles:
+  - title: "Connection string"
+    description: |
+      Authenticates using a connection string.
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string used to connect. Unlike the SQL Server state store, this binding
+          does not create or manage any database, so the connection string should point at an
+          existing database that the caller already has schema, tables and/or stored procedures in.
+        example: |
+          "Server=myServerName\myInstanceName;Database=myDataBase;User Id=myUsername;Password=myPassword;"
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useAzureAD
+        required: true
+        type: bool
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
+          This authentication method only works with Azure SQL databases.
+        example: "true"
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string or URL of the Azure SQL database, without credentials.
+        example: |
+          "sqlserver://myServerName.database.windows.net:1433?database=myDataBase"
+metadata:
+  - name: maxIdleConns
+    required: false
+    description: "The max idle connections. Integer greater than 0"
+    example: "10"
+    type: number
+  - name: maxOpenConns
+    required: false
+    description: "The max open connections. Integer greater than 0"
+    example: "10"
+    type: number
+  - name: connMaxLifetime
+    required: false
+    description: "The max connection lifetime."
+    example: "12s"
+    type: duration
+  - name: connMaxIdleTime
+    required: false
+    description: "The max connection idle time."
+    example: "12s"
+    type: duration

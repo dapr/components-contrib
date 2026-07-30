@@ -14,16 +14,17 @@
 name: dapr-bot
 
 on:
-  issue_comment: 
+  issue_comment:
     types: [created]
   issues:
     types: [labeled]
-  pull_request:
+  pull_request_target:
     types: [labeled]
 
 jobs:
   daprbot:
     name: bot-processor
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

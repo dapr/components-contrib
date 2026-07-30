@@ -67,6 +67,93 @@ func getCompleteMetadata() map[string]string {
 	}
 }
 
+func TestTransactionsMetadata(t *testing.T) {
+	k := getKafka()
+
+	t.Run("defaults: transactions disabled, isolation read_uncommitted", func(t *testing.T) {
+		meta, err := k.getKafkaMetadata(getBaseMetadata())
+		require.NoError(t, err)
+		require.False(t, meta.ProducerTransactionsEnabled)
+		require.Equal(t, sarama.ReadUncommitted, meta.internalConsumerIsolationLevel)
+	})
+
+	t.Run("producerTransactionsEnabled accepted with default acks and retries", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerTransactionsEnabled"] = "true"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.True(t, meta.ProducerTransactionsEnabled)
+	})
+
+	t.Run("transactions require producerRequiredAcks all", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerTransactionsEnabled"] = "true"
+		m["producerRequiredAcks"] = "local"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "producerRequiredAcks")
+	})
+
+	t.Run("transactions require producerRetryMax >= 1", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerTransactionsEnabled"] = "true"
+		m["producerRetryMax"] = "0"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "producerRetryMax")
+	})
+
+	t.Run("transactions require kafka version >= 0.11", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["producerTransactionsEnabled"] = "true"
+		m["version"] = "0.10.2.0"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "0.11")
+	})
+
+	t.Run("transactionalIdPrefix decoded", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["transactionalIdPrefix"] = "my-app"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, "my-app", meta.TransactionalIDPrefix)
+	})
+
+	t.Run("consumerIsolationLevel read_committed accepted", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerIsolationLevel"] = "read_committed"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, sarama.ReadCommitted, meta.internalConsumerIsolationLevel)
+	})
+
+	t.Run("consumerIsolationLevel is case-insensitive", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerIsolationLevel"] = "READ_COMMITTED"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, sarama.ReadCommitted, meta.internalConsumerIsolationLevel)
+	})
+
+	t.Run("read_committed requires kafka version >= 0.11", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerIsolationLevel"] = "read_committed"
+		m["version"] = "0.10.2.0"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "0.11")
+	})
+
+	t.Run("invalid consumerIsolationLevel returns error", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerIsolationLevel"] = "read_repeatable"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "consumerIsolationLevel")
+	})
+}
+
 func TestParseMetadata(t *testing.T) {
 	k := getKafka()
 	t.Run("default kafka version", func(t *testing.T) {

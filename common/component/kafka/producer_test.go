@@ -1,7 +1,9 @@
 package kafka
 
 import (
+	"errors"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/IBM/sarama"
@@ -206,6 +208,249 @@ func TestPublish(t *testing.T) {
 		// assert
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "non-negative")
+	})
+}
+
+// fakeTxnProducer is a minimal SyncProducer for exercising the transaction
+// error paths that sarama's mocks cannot simulate (commit failures, fatal
+// producer states). Unimplemented interface methods panic via the embedded
+// nil interface, which is fine for these tests.
+type fakeTxnProducer struct {
+	sarama.SyncProducer
+
+	sendErr   error
+	commitErr error
+	abortErr  error
+	status    sarama.ProducerTxnStatusFlag
+
+	begins  int
+	sends   int
+	commits int
+	aborts  int
+	closed  bool
+}
+
+func (f *fakeTxnProducer) SendMessage(*sarama.ProducerMessage) (int32, int64, error) {
+	f.sends++
+	return 0, 0, f.sendErr
+}
+
+func (f *fakeTxnProducer) SendMessages([]*sarama.ProducerMessage) error {
+	f.sends++
+	return f.sendErr
+}
+
+func (f *fakeTxnProducer) BeginTxn() error { f.begins++; return nil }
+
+func (f *fakeTxnProducer) CommitTxn() error { f.commits++; return f.commitErr }
+
+func (f *fakeTxnProducer) AbortTxn() error { f.aborts++; return f.abortErr }
+
+func (f *fakeTxnProducer) TxnStatus() sarama.ProducerTxnStatusFlag { return f.status }
+
+func (f *fakeTxnProducer) IsTransactional() bool { return true }
+
+func (f *fakeTxnProducer) Close() error { f.closed = true; return nil }
+
+// arrangeTxnKafka injects the fake through k.clients (not mockProducer) so
+// the tests can observe producer invalidation after fatal errors.
+func arrangeTxnKafka(fake *fakeTxnProducer) *Kafka {
+	return &Kafka{
+		clients:        &clients{producer: fake},
+		producerConfig: ProducerConfig{TransactionsEnabled: true},
+		logger:         logger.NewLogger("kafka_test"),
+	}
+}
+
+func TestPublishTransactions(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("send happens inside begin/commit", func(t *testing.T) {
+		config := saramamocks.NewTestConfig()
+		config.Producer.Partitioner = newDaprPartitioner
+		config.Version = sarama.V2_0_0_0 //nolint:nosnakecase
+		config.Producer.Transaction.ID = "test-txn"
+		config.Producer.Idempotent = true
+		config.Producer.RequiredAcks = sarama.WaitForAll
+		config.Net.MaxOpenRequests = 1
+		// The mock errors if SendMessage is called while no transaction is
+		// open, so this asserts the begin -> send -> commit ordering.
+		mockP := saramamocks.NewSyncProducer(t, config)
+		mockP.ExpectSendMessageWithMessageCheckerFunctionAndSucceed(func(*sarama.ProducerMessage) error { return nil })
+		k := &Kafka{
+			mockProducer:   mockP,
+			producerConfig: ProducerConfig{TransactionsEnabled: true},
+			logger:         logger.NewLogger("kafka_test"),
+		}
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.NoError(t, err)
+		require.Equal(t, sarama.ProducerTxnFlagReady, mockP.TxnStatus())
+	})
+
+	t.Run("transactions disabled leaves the plain send path untouched", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.producerConfig.TransactionsEnabled = false
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.NoError(t, err)
+		require.Equal(t, 0, fake.begins)
+		require.Equal(t, 0, fake.commits)
+	})
+
+	t.Run("send error aborts the transaction and keeps the producer", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			sendErr: errors.New("send failed"),
+			status:  sarama.ProducerTxnFlagAbortableError,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "send failed")
+		require.Equal(t, 1, fake.begins)
+		require.Equal(t, 1, fake.aborts)
+		require.Equal(t, 0, fake.commits)
+		require.False(t, fake.closed)
+		require.Same(t, sarama.SyncProducer(fake), k.clients.producer)
+	})
+
+	t.Run("send error with plain in-transaction status still aborts", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			sendErr: errors.New("send failed"),
+			status:  sarama.ProducerTxnFlagInTransaction,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "send failed")
+		require.Equal(t, 1, fake.aborts)
+	})
+
+	t.Run("commit error with abortable status aborts and keeps the producer", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			commitErr: errors.New("commit failed"),
+			status:    sarama.ProducerTxnFlagAbortableError,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "commit failed")
+		require.Equal(t, 1, fake.commits)
+		require.Equal(t, 1, fake.aborts)
+		require.False(t, fake.closed)
+	})
+
+	t.Run("fatal transaction state drops the producer for recreation", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			commitErr: errors.New("commit failed"),
+			status:    sarama.ProducerTxnFlagFatalError,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "commit failed")
+		require.Equal(t, 0, fake.aborts)
+		require.True(t, fake.closed)
+		require.Nil(t, k.clients.producer)
+	})
+
+	t.Run("abort failure drops the producer and joins both errors", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			sendErr:  errors.New("send failed"),
+			abortErr: errors.New("abort failed"),
+			status:   sarama.ProducerTxnFlagAbortableError,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "send failed")
+		require.ErrorContains(t, err, "abort failed")
+		require.True(t, fake.closed)
+		require.Nil(t, k.clients.producer)
+	})
+
+	t.Run("bulk publish abort marks every entry failed", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			sendErr: errors.New("send failed"),
+			status:  sarama.ProducerTxnFlagAbortableError,
+		}
+		k := arrangeTxnKafka(fake)
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a")},
+			{EntryId: "1", Event: []byte("b")},
+		}
+
+		res, err := k.BulkPublish(ctx, "a", entries, nil)
+
+		require.ErrorContains(t, err, "send failed")
+		require.Equal(t, 1, fake.aborts)
+		require.Len(t, res.FailedEntries, 2)
+	})
+
+	t.Run("bulk publish commit success returns empty response", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a")},
+		}
+
+		res, err := k.BulkPublish(ctx, "a", entries, nil)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, fake.begins)
+		require.Equal(t, 1, fake.commits)
+		require.Empty(t, res.FailedEntries)
+	})
+}
+
+func TestBuildTransactionalID(t *testing.T) {
+	t.Run("explicit prefix wins", func(t *testing.T) {
+		id := buildTransactionalID("myprefix", "client", "group")
+		require.True(t, strings.HasPrefix(id, "myprefix-"))
+		require.Greater(t, len(id), len("myprefix-"))
+	})
+
+	t.Run("falls back to client id, then consumer group, then dapr", func(t *testing.T) {
+		require.True(t, strings.HasPrefix(buildTransactionalID("", "client", "group"), "client-"))
+		require.True(t, strings.HasPrefix(buildTransactionalID("", "", "group"), "group-"))
+		require.True(t, strings.HasPrefix(buildTransactionalID("", "", ""), "dapr-"))
+	})
+
+	t.Run("ids are unique per call", func(t *testing.T) {
+		first := buildTransactionalID("p", "", "")
+		second := buildTransactionalID("p", "", "")
+		require.NotEqual(t, first, second)
+	})
+}
+
+func TestApplySyncProducerConfig(t *testing.T) {
+	t.Run("transactional settings applied", func(t *testing.T) {
+		config := sarama.NewConfig()
+		applySyncProducerConfig(config, ProducerConfig{
+			RequiredAcks:        sarama.WaitForAll,
+			RetryMax:            5,
+			TransactionsEnabled: true,
+			TransactionalID:     "txid",
+		})
+		require.True(t, config.Producer.Idempotent)
+		require.Equal(t, "txid", config.Producer.Transaction.ID)
+		require.Equal(t, 1, config.Net.MaxOpenRequests)
+		require.True(t, config.Producer.Return.Successes)
+	})
+
+	t.Run("transactions disabled leaves idempotence off", func(t *testing.T) {
+		config := sarama.NewConfig()
+		applySyncProducerConfig(config, ProducerConfig{RequiredAcks: sarama.WaitForLocal, RetryMax: 3})
+		require.False(t, config.Producer.Idempotent)
+		require.Empty(t, config.Producer.Transaction.ID)
 	})
 }
 

@@ -44,6 +44,10 @@ type Kafka struct {
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
 	clients           *clients
+	// clientsLock guards clients (and awsClients) creation, producer
+	// invalidation after fatal transaction errors, and teardown.
+	clientsLock sync.Mutex
+	awsClients  *AwsClients
 
 	consumerGroup string
 	brokers       []string
@@ -56,6 +60,9 @@ type Kafka struct {
 	escapeHeaders bool
 
 	producerConfig ProducerConfig
+	// txnMu serializes transactional publishes: a sarama producer supports a
+	// single open transaction at a time.
+	txnMu sync.Mutex
 
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
@@ -161,6 +168,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
+	config.Consumer.IsolationLevel = meta.internalConsumerIsolationLevel
 	k.initConsumerGroupRebalanceStrategy(config, metadata)
 	config.ChannelBufferSize = meta.channelBufferSize
 
@@ -229,9 +237,14 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 
 	k.config = config
 	k.producerConfig = ProducerConfig{
-		RequiredAcks:    meta.internalProducerRequiredAcks,
-		RetryMax:        meta.ProducerRetryMax,
-		MaxMessageBytes: meta.MaxMessageBytes,
+		RequiredAcks:        meta.internalProducerRequiredAcks,
+		RetryMax:            meta.ProducerRetryMax,
+		MaxMessageBytes:     meta.MaxMessageBytes,
+		TransactionsEnabled: meta.ProducerTransactionsEnabled,
+	}
+	if meta.ProducerTransactionsEnabled {
+		k.producerConfig.TransactionalID = buildTransactionalID(meta.TransactionalIDPrefix, meta.ClientID, meta.ConsumerGroup)
+		k.logger.Infof("Kafka producer transactions enabled with transactional.id '%s'; publishes are serialized per transaction", k.producerConfig.TransactionalID)
 	}
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 
@@ -383,6 +396,7 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
+		k.clientsLock.Lock()
 		if k.clients != nil {
 			if k.clients.producer != nil {
 				errs[0] = k.clients.producer.Close()
@@ -393,6 +407,7 @@ func (k *Kafka) Close() error {
 				k.clients.consumerGroup = nil
 			}
 		}
+		k.clientsLock.Unlock()
 	}
 
 	return errors.Join(errs...)

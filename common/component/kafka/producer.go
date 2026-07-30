@@ -21,6 +21,7 @@ import (
 	"strconv"
 
 	"github.com/IBM/sarama"
+	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -44,6 +45,50 @@ type ProducerConfig struct {
 	RequiredAcks    sarama.RequiredAcks
 	RetryMax        int
 	MaxMessageBytes int
+	// TransactionsEnabled wraps every publish in a Kafka transaction on an
+	// idempotent producer.
+	TransactionsEnabled bool
+	// TransactionalID is used as the producer's transactional.id when
+	// TransactionsEnabled is true. It must be unique per live producer:
+	// two producers sharing an ID fence each other.
+	TransactionalID string
+}
+
+// applySyncProducerConfig applies the producer tunables to a sarama config,
+// including the settings sarama requires for an idempotent/transactional
+// producer (acks=all, a single in-flight request).
+func applySyncProducerConfig(config *sarama.Config, pc ProducerConfig) {
+	config.Producer.RequiredAcks = pc.RequiredAcks
+	config.Producer.Retry.Max = pc.RetryMax
+	config.Producer.Return.Successes = true
+
+	if pc.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = pc.MaxMessageBytes
+	}
+
+	if pc.TransactionsEnabled {
+		config.Producer.Idempotent = true
+		config.Producer.Transaction.ID = pc.TransactionalID
+		config.Net.MaxOpenRequests = 1
+	}
+}
+
+// buildTransactionalID derives the producer's transactional.id. The random
+// suffix keeps scaled replicas from fencing each other; a transaction
+// abandoned by a crashed instance is aborted by the broker once the
+// transaction timeout elapses.
+func buildTransactionalID(prefix, clientID, consumerGroup string) string {
+	if prefix == "" {
+		switch {
+		case clientID != "":
+			prefix = clientID
+		case consumerGroup != "":
+			prefix = consumerGroup
+		default:
+			prefix = "dapr"
+		}
+	}
+	return prefix + "-" + uuid.NewString()
 }
 
 // GetSyncProducer creates a new Sarama SyncProducer using the provided base
@@ -52,13 +97,7 @@ type ProducerConfig struct {
 // (WaitForAll, 5 retries) via component metadata.
 func GetSyncProducer(config sarama.Config, brokers []string, pc ProducerConfig) (sarama.SyncProducer, error) {
 	// Apply SyncProducer-specific properties to a copy of the base config.
-	config.Producer.RequiredAcks = pc.RequiredAcks
-	config.Producer.Retry.Max = pc.RetryMax
-	config.Producer.Return.Successes = true
-
-	if pc.MaxMessageBytes > 0 {
-		config.Producer.MaxMessageBytes = pc.MaxMessageBytes
-	}
+	applySyncProducerConfig(&config, pc)
 
 	saramaClient, err := sarama.NewClient(brokers, &config)
 	if err != nil {
@@ -71,6 +110,53 @@ func GetSyncProducer(config sarama.Config, brokers []string, pc ProducerConfig) 
 	}
 
 	return producer, nil
+}
+
+// withPublishTxn runs send inside a Kafka transaction on the shared
+// producer. A sarama producer supports a single open transaction at a time,
+// so transactional publishes are serialized on txnMu; that throughput cost
+// is part of opting into transactions.
+func (k *Kafka) withPublishTxn(producer sarama.SyncProducer, send func() error) error {
+	k.txnMu.Lock()
+	defer k.txnMu.Unlock()
+
+	if err := producer.BeginTxn(); err != nil {
+		return fmt.Errorf("kafka: begin transaction: %w", err)
+	}
+
+	if err := send(); err != nil {
+		return k.endTxnWithError(producer, err)
+	}
+
+	if err := producer.CommitTxn(); err != nil {
+		return k.endTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err))
+	}
+
+	return nil
+}
+
+// endTxnWithError cleans up an open transaction after cause so the producer
+// can be reused. A fatal transaction state poisons the producer entirely: it
+// is dropped and lazily recreated by the next publish (same transactional.id,
+// so the broker bumps the epoch and aborts the stale transaction).
+func (k *Kafka) endTxnWithError(producer sarama.SyncProducer, cause error) error {
+	status := producer.TxnStatus()
+
+	if status&sarama.ProducerTxnFlagFatalError != 0 {
+		k.logger.Errorf("Kafka producer in fatal transaction state, recreating producer. Cause: %v", cause)
+		k.invalidateProducer(producer)
+		return cause
+	}
+
+	if status&(sarama.ProducerTxnFlagAbortableError|sarama.ProducerTxnFlagInTransaction) != 0 {
+		if abortErr := producer.AbortTxn(); abortErr != nil {
+			k.logger.Errorf("Kafka producer failed to abort transaction, recreating producer. Cause: %v", abortErr)
+			k.invalidateProducer(producer)
+			return errors.Join(cause, fmt.Errorf("kafka: abort transaction: %w", abortErr))
+		}
+	}
+
+	return cause
 }
 
 // Publish message to Kafka cluster.
@@ -122,7 +208,19 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		})
 	}
 
-	partition, offset, err := clients.producer.SendMessage(msg)
+	var (
+		partition int32
+		offset    int64
+	)
+	if k.producerConfig.TransactionsEnabled {
+		err = k.withPublishTxn(clients.producer, func() error {
+			var sendErr error
+			partition, offset, sendErr = clients.producer.SendMessage(msg)
+			return sendErr
+		})
+	} else {
+		partition, offset, err = clients.producer.SendMessage(msg)
+	}
 
 	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 
@@ -198,6 +296,18 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		}
 
 		msgs = append(msgs, msg)
+	}
+
+	if k.producerConfig.TransactionsEnabled {
+		if err := k.withPublishTxn(clients.producer, func() error {
+			return clients.producer.SendMessages(msgs)
+		}); err != nil {
+			// The transaction was aborted: entries that were sent before the
+			// failure are not visible to consumers either, so the whole batch
+			// failed and per-entry error mapping would be misleading.
+			return pubsub.NewBulkPublishResponse(entries, err), err
+		}
+		return pubsub.BulkPublishResponse{}, nil
 	}
 
 	if err := clients.producer.SendMessages(msgs); err != nil {

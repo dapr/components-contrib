@@ -410,6 +410,23 @@ metadata:
         The maximum number of times to retry sending a message before giving up.
       example: '3'
       default: '5'
+    - name: producerTransactionsEnabled
+      type: bool
+      description: |
+        When true, every publish (single or bulk) is wrapped in a Kafka transaction on an idempotent producer: an aborted publish is never visible to consumers reading with "read_committed", and bulk publishes become atomic (all entries commit or none do). Requires producerRequiredAcks "all", producerRetryMax >= 1 and Kafka 0.11 or later. Transactions serialize publishes and add broker round trips, lowering publish throughput.
+      example: '"true"'
+      default: '"false"'
+    - name: transactionalIdPrefix
+      type: string
+      description: |
+        Prefix used to build the producer transactional.id when producerTransactionsEnabled is true. A random per-instance suffix is always appended so scaled replicas never fence each other's transactions. Defaults to the client ID, or the consumer group when no client ID is set.
+      example: '"my-app"'
+    - name: consumerIsolationLevel
+      type: string
+      description: |
+        Isolation level for consumers. "read_uncommitted" (default) delivers all records; "read_committed" hides records belonging to open or aborted Kafka transactions. Requires Kafka 0.11 or later.
+      example: '"read_committed"'
+      default: '"read_uncommitted"'
     - name: consumerFetchDefault
       type: number
       description: |

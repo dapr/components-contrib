@@ -80,6 +80,10 @@ const (
 	producerRequiredAcksLocal = "local"
 	producerRequiredAcksNone  = "none"
 
+	// consumerIsolationLevel string constants for metadata parsing.
+	isolationLevelReadUncommitted = "read_uncommitted"
+	isolationLevelReadCommitted   = "read_committed"
+
 	// Producer defaults matching current GetSyncProducer hard-coded values.
 	defaultProducerRequiredAcks = producerRequiredAcksAll
 	defaultProducerRetryMax     = 5
@@ -153,6 +157,23 @@ type KafkaMetadata struct {
 	internalProducerRequiredAcks sarama.RequiredAcks `mapstructure:"-"`
 	// ProducerRetryMax is the number of times to retry sending a message (default 5).
 	ProducerRetryMax int `mapstructure:"producerRetryMax"`
+
+	// Transaction tunables.
+	// ProducerTransactionsEnabled wraps every publish in a Kafka transaction
+	// on an idempotent producer: an aborted publish is never visible to
+	// read_committed consumers and bulk publishes become atomic. Requires
+	// producerRequiredAcks "all", producerRetryMax >= 1 and Kafka >= 0.11.
+	ProducerTransactionsEnabled bool `mapstructure:"producerTransactionsEnabled"`
+	// TransactionalIDPrefix is the prefix used to build the producer's
+	// transactional.id; a random per-instance suffix is always appended so
+	// scaled replicas never fence each other's transactions. Defaults to the
+	// client ID, or the consumer group when no client ID is set.
+	TransactionalIDPrefix string `mapstructure:"transactionalIdPrefix"`
+	// ConsumerIsolationLevel controls which records consumers see:
+	// "read_uncommitted" (default) delivers everything, "read_committed"
+	// hides records belonging to open or aborted transactions.
+	ConsumerIsolationLevel         string                `mapstructure:"consumerIsolationLevel"`
+	internalConsumerIsolationLevel sarama.IsolationLevel `mapstructure:"-"`
 
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
@@ -462,6 +483,30 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 
 	if m.ProducerRetryMax < 0 {
 		return nil, fmt.Errorf("kafka error: invalid value for 'producerRetryMax': %d (must be >= 0)", m.ProducerRetryMax)
+	}
+
+	switch strings.ToLower(m.ConsumerIsolationLevel) {
+	case isolationLevelReadUncommitted, "":
+		m.internalConsumerIsolationLevel = sarama.ReadUncommitted
+	case isolationLevelReadCommitted:
+		if !m.internalVersion.IsAtLeast(sarama.V0_11_0_0) { //nolint:nosnakecase
+			return nil, errors.New("kafka error: 'consumerIsolationLevel' \"read_committed\" requires kafka version >= 0.11")
+		}
+		m.internalConsumerIsolationLevel = sarama.ReadCommitted
+	default:
+		return nil, fmt.Errorf("kafka error: invalid value for 'consumerIsolationLevel': %q (must be \"read_uncommitted\" or \"read_committed\")", m.ConsumerIsolationLevel)
+	}
+
+	if m.ProducerTransactionsEnabled {
+		if m.internalProducerRequiredAcks != sarama.WaitForAll {
+			return nil, errors.New("kafka error: 'producerTransactionsEnabled' requires 'producerRequiredAcks' to be \"all\"")
+		}
+		if m.ProducerRetryMax < 1 {
+			return nil, errors.New("kafka error: 'producerTransactionsEnabled' requires 'producerRetryMax' to be >= 1")
+		}
+		if !m.internalVersion.IsAtLeast(sarama.V0_11_0_0) { //nolint:nosnakecase
+			return nil, errors.New("kafka error: 'producerTransactionsEnabled' requires kafka version >= 0.11")
+		}
 	}
 
 	if val, ok := meta["excludeHeaderMetaRegex"]; ok && val != "" {

@@ -38,7 +38,8 @@ module.exports = async ({ github, context }) => {
     ) {
         await handleIssueCommentCreate({ github, context })
     } else if (
-        context.eventName == 'issues' &&
+        (context.eventName == 'issues' ||
+            context.eventName == 'pull_request_target') &&
         context.payload.action == 'labeled'
     ) {
         await handleIssueOrPrLabeled({ github, context })
@@ -101,7 +102,7 @@ async function handleIssueCommentCreate({ github, context }) {
 async function handleIssueOrPrLabeled({ github, context }) {
     const payload = context.payload
     const label = payload.label.name
-    const issueNumber = payload.issue.number
+    const issueNumber = context.issue.number
 
     // This should not run in forks.
     if (context.repo.owner !== 'dapr') {
@@ -111,8 +112,7 @@ async function handleIssueOrPrLabeled({ github, context }) {
         return
     }
 
-    // Authorization is not required here because it's triggered by an issue label event.
-    // Only authorized users can add labels to issues.
+    // Authorization is not required here because only authorized users can add labels.
     if (label == 'documentation required') {
         // Open a new docs issue
         await github.rest.issues.create({

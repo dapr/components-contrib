@@ -74,24 +74,29 @@ func TestSpiffeWorkloadIdentityGetTokenCredential(t *testing.T) {
 }
 
 // TestSpiffeCredentialUnavailableWithoutJWTSource asserts that the credential reports itself as
-// unavailable, rather than failing fatally, when SPIFFE workload identity is not configured.
+// unavailable, rather than failing fatally, when SPIFFE workload identity is not configured. The
+// distinction is only observable through a chain: ChainedTokenCredential surfaces a
+// credentialUnavailableError verbatim but wraps any other error in an AuthenticationFailedError,
+// so the assertion fails if the credential returns a plain error. It also asserts that no token
+// request is attempted.
 func TestSpiffeCredentialUnavailableWithoutJWTSource(t *testing.T) {
-	cred, err := newTestSpiffeCredential()
+	inner := &stubCredential{token: "token-from-inner-credential"}
+
+	chain, err := azidentity.NewChainedTokenCredential(
+		[]azcore.TokenCredential{&spiffeCredential{cred: inner}}, nil,
+	)
 	require.NoError(t, err)
 
 	// The context carries no JWT SVID source.
-	_, err = cred.GetToken(context.Background(), policy.TokenRequestOptions{
+	_, err = chain.GetToken(context.Background(), policy.TokenRequestOptions{
 		Scopes: []string{"https://vault.azure.net/.default"},
 	})
 	require.Error(t, err)
 
-	// azidentity signals "try the next credential" with credentialUnavailableError, whose type is
-	// not exported. NewCredentialUnavailableError produces the same type, so a chain built from
-	// only this credential surfaces the unavailable error verbatim rather than wrapping it in an
-	// AuthenticationFailedError.
 	var authErr *azidentity.AuthenticationFailedError
 	require.NotErrorAs(t, err, &authErr,
 		"a fatal AuthenticationFailedError halts a ChainedTokenCredential")
+	assert.False(t, inner.called, "the credential must not attempt a token request")
 }
 
 // TestSpiffeCredentialChainFallsThrough is the regression test for the credential chain halting at
@@ -133,18 +138,32 @@ func TestSpiffeCredentialDelegatesWithJWTSource(t *testing.T) {
 	assert.Equal(t, "token-from-inner-credential", token.Token)
 }
 
-// TestSpiffeCredentialDoesNotDelegateWithoutJWTSource asserts that the underlying credential is not
-// invoked, and so no token request is made, when SPIFFE workload identity is not configured.
-func TestSpiffeCredentialDoesNotDelegateWithoutJWTSource(t *testing.T) {
-	inner := &stubCredential{token: "token-from-inner-credential"}
-	cred := &spiffeCredential{cred: inner}
+// TestGetTokenCredentialSpiffeThenManagedIdentity asserts that the explicit multi-method
+// configuration from the issue builds a credential chain: azureAuthMethods lists SPIFFE first
+// with managed identity as the fallback.
+func TestGetTokenCredentialSpiffeThenManagedIdentity(t *testing.T) {
+	// Present a managed identity endpoint so building the MSI credential skips the IMDS
+	// reachability probe and its network timeout.
+	t.Setenv(identityEndpoint, "http://localhost:8081/msi/token")
 
-	_, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{
-		Scopes: []string{"https://vault.azure.net/.default"},
+	settings, err := NewEnvironmentSettings(map[string]string{
+		"azureClientId":    fakeClientID,
+		"azureTenantId":    fakeTenantID,
+		"azureAuthMethods": "spiffeworkloadidentity,managedidentity",
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 
-	assert.False(t, inner.called, "the credential must not attempt a token request")
+	// Both methods must contribute a credential to the chain.
+	var creds []azcore.TokenCredential
+	errs := make([]error, 0)
+	settings.addProviderByAuthMethodName("spiffeworkloadidentity", &creds, &errs)
+	settings.addProviderByAuthMethodName("managedidentity", &creds, &errs)
+	require.Empty(t, errs)
+	require.Len(t, creds, 2)
+
+	cred, err := settings.GetTokenCredential()
+	require.NoError(t, err)
+	assert.NotNil(t, cred)
 }
 
 func newTestSpiffeCredential() (azcore.TokenCredential, error) {

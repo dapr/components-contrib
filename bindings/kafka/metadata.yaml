@@ -497,17 +497,34 @@ metadata:
   - name: producerTransactionsEnabled
     type: bool
     description: |
-      When true, every publish is wrapped in a Kafka transaction on an idempotent producer: an aborted publish is never visible to consumers reading with "read_committed". Requires producerRequiredAcks "all", producerRetryMax >= 1 and Kafka 0.11 or later. Transactions serialize publishes and add broker round trips, lowering publish throughput.
+      When true, every publish is wrapped in a Kafka transaction on an idempotent producer: an aborted publish is never visible to consumers reading with "read_committed".
+      Requires producerRequiredAcks "all", producerRetryMax >= 1 and Kafka 0.11 or later. Transactions serialize publishes and add broker round trips, lowering publish throughput.
+      The producer's transactional.id gets a random per-instance suffix, so the guarantee is atomicity per publish; there is no transaction recovery or fencing across component restarts.
     example: '"true"'
     default: '"false"'
   - name: transactionalIdPrefix
     type: string
     description: |
-      Prefix used to build the producer transactional.id when producerTransactionsEnabled is true. A random per-instance suffix is always appended so scaled replicas never fence each other's transactions. Defaults to the client ID, or the consumer group when no client ID is set.
+      Prefix for the producer transactional.id when producerTransactionsEnabled is true. A random per-instance suffix is appended so scaled replicas never fence each other's transactions. Defaults to the client ID, then the consumer group, then "dapr".
     example: '"my-app"'
   - name: consumerIsolationLevel
     type: string
     description: |
-      Isolation level for consumers. "read_uncommitted" (default) delivers all records; "read_committed" hides records belonging to open or aborted Kafka transactions. Requires Kafka 0.11 or later.
+      Isolation level for consumers. "read_uncommitted" (default) delivers all records; "read_committed" hides records belonging to open or aborted Kafka transactions and requires Kafka 0.11 or later.
     example: '"read_committed"'
     default: '"read_uncommitted"'
+    allowedValues:
+      - "read_uncommitted"
+      - "read_committed"
+  - name: consumerTransactionsEnabled
+    type: bool
+    description: |
+      Not supported for the Kafka binding: setting it to true fails at init. Transactional consume-transform-produce requires the delivery's transaction token to be echoed back through the same component instance, which the bindings model (separate input and output binding instances) cannot provide. Use the Kafka pubsub component instead.
+    example: '"false"'
+    default: '"false"'
+  - name: transactionTimeout
+    type: duration
+    description: |
+      Transaction timeout requested from the broker when producerTransactionsEnabled is true. It must NOT exceed the broker's transaction.max.timeout.ms (15 minutes by default): the broker REJECTS larger values at producer initialization, which fails every publish.
+    example: '"90s"'
+    default: '"60s"'

@@ -152,6 +152,74 @@ func TestTransactionsMetadata(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "consumerIsolationLevel")
 	})
+
+	t.Run("consumerTransactionsEnabled accepted with defaults", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.True(t, meta.ConsumerTransactionsEnabled)
+	})
+
+	t.Run("consumer transactions require producerRequiredAcks all", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		m["producerRequiredAcks"] = "local"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "producerRequiredAcks")
+	})
+
+	t.Run("consumer transactions require a consumer group", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		delete(m, "consumerGroup")
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "consumer group")
+	})
+
+	t.Run("consumer transactions imply read_committed", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, sarama.ReadCommitted, meta.internalConsumerIsolationLevel)
+	})
+
+	t.Run("consumer transactions accept explicit read_committed", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		m["consumerIsolationLevel"] = "read_committed"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, sarama.ReadCommitted, meta.internalConsumerIsolationLevel)
+	})
+
+	t.Run("consumer transactions reject explicit read_uncommitted", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		m["consumerIsolationLevel"] = "read_uncommitted"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "consumerIsolationLevel")
+	})
+
+	t.Run("transactionTimeout decoded", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["transactionTimeout"] = "90s"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.Equal(t, 90*time.Second, meta.TransactionTimeout)
+	})
+
+	t.Run("negative transactionTimeout returns error", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["transactionTimeout"] = "-5s"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "transactionTimeout")
+	})
 }
 
 func TestParseMetadata(t *testing.T) {

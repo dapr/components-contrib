@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"maps"
 	"strconv"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
@@ -52,6 +53,9 @@ type ProducerConfig struct {
 	// TransactionsEnabled is true. It must be unique per live producer:
 	// two producers sharing an ID fence each other.
 	TransactionalID string
+	// TransactionTimeout is the broker-side transaction timeout to request;
+	// zero keeps sarama's default (60s).
+	TransactionTimeout time.Duration
 }
 
 // applySyncProducerConfig applies the producer tunables to a sarama config,
@@ -70,25 +74,34 @@ func applySyncProducerConfig(config *sarama.Config, pc ProducerConfig) {
 		config.Producer.Idempotent = true
 		config.Producer.Transaction.ID = pc.TransactionalID
 		config.Net.MaxOpenRequests = 1
+		if pc.TransactionTimeout > 0 {
+			config.Producer.Transaction.Timeout = pc.TransactionTimeout
+		}
 	}
 }
 
-// buildTransactionalID derives the producer's transactional.id. The random
-// suffix keeps scaled replicas from fencing each other; a transaction
+// resolveTxnIDPrefix picks the transactional.id prefix: the configured one,
+// falling back to the client ID, then a fixed default.
+func resolveTxnIDPrefix(prefix, clientID string) string {
+	switch {
+	case prefix != "":
+		return prefix
+	case clientID != "":
+		return clientID
+	default:
+		return "dapr"
+	}
+}
+
+// buildTransactionalID derives the shared producer's transactional.id. The
+// random suffix keeps scaled replicas from fencing each other; a transaction
 // abandoned by a crashed instance is aborted by the broker once the
 // transaction timeout elapses.
 func buildTransactionalID(prefix, clientID, consumerGroup string) string {
-	if prefix == "" {
-		switch {
-		case clientID != "":
-			prefix = clientID
-		case consumerGroup != "":
-			prefix = consumerGroup
-		default:
-			prefix = "dapr"
-		}
+	if prefix == "" && clientID == "" && consumerGroup != "" {
+		prefix = consumerGroup
 	}
-	return prefix + "-" + uuid.NewString()
+	return resolveTxnIDPrefix(prefix, clientID) + "-" + uuid.NewString()
 }
 
 // GetSyncProducer creates a new Sarama SyncProducer using the provided base
@@ -99,32 +112,73 @@ func GetSyncProducer(config sarama.Config, brokers []string, pc ProducerConfig) 
 	// Apply SyncProducer-specific properties to a copy of the base config.
 	applySyncProducerConfig(&config, pc)
 
-	saramaClient, err := sarama.NewClient(brokers, &config)
+	return newOwnedSyncProducer(brokers, &config)
+}
+
+// clientOwningSyncProducer pairs a SyncProducer with the sarama client it was
+// built from so Close tears down both: sarama never closes caller-supplied
+// clients (it wraps them in a nopCloser), so without this the client's
+// metadata goroutine and broker connections would leak on every producer
+// close.
+type clientOwningSyncProducer struct {
+	sarama.SyncProducer
+	client sarama.Client
+}
+
+func (p *clientOwningSyncProducer) Close() error {
+	producerErr := p.SyncProducer.Close()
+	clientErr := p.client.Close()
+	return errors.Join(producerErr, clientErr)
+}
+
+// newOwnedSyncProducer builds a SyncProducer that owns its sarama client. The
+// explicit two-step construction exists because sarama leaks the client on
+// both one-step paths: NewSyncProducer abandons its internal client when the
+// transaction manager fails to initialize (e.g. transaction coordinator
+// unreachable, transactionTimeout above the broker's maximum), and
+// NewSyncProducerFromClient never closes the client at all. Producers are
+// created repeatedly (one per claim, plus recreation after fatal transaction
+// errors), so under a redelivery loop either leak is unbounded.
+func newOwnedSyncProducer(brokers []string, config *sarama.Config) (sarama.SyncProducer, error) {
+	client, err := sarama.NewClient(brokers, config)
 	if err != nil {
 		return nil, err
 	}
-
-	producer, err := sarama.NewSyncProducerFromClient(saramaClient)
+	producer, err := sarama.NewSyncProducerFromClient(client)
 	if err != nil {
+		// Constructor failure: sarama won't close the client for us.
+		_ = client.Close()
 		return nil, err
 	}
-
-	return producer, nil
+	return &clientOwningSyncProducer{SyncProducer: producer, client: client}, nil
 }
 
 // withPublishTxn runs send inside a Kafka transaction on the shared
 // producer. A sarama producer supports a single open transaction at a time,
 // so transactional publishes are serialized on txnMu; that throughput cost
 // is part of opting into transactions.
-func (k *Kafka) withPublishTxn(producer sarama.SyncProducer, send func() error) error {
+//
+// The producer is acquired INSIDE the txnMu critical section: invalidations
+// of the shared producer only happen under txnMu, so the producer cannot be
+// closed underneath an in-flight transactional publish (a snapshot taken
+// before the lock could be).
+func (k *Kafka) withPublishTxn(send func(producer sarama.SyncProducer) error) error {
 	k.txnMu.Lock()
 	defer k.txnMu.Unlock()
 
-	if err := producer.BeginTxn(); err != nil {
-		return fmt.Errorf("kafka: begin transaction: %w", err)
+	producer, err := k.transactionalProducer()
+	if err != nil {
+		return err
 	}
 
-	if err := send(); err != nil {
+	if err := producer.BeginTxn(); err != nil {
+		// Routed through the cleanup so a producer wedged in an unrecoverable
+		// transaction state (e.g. after a failed commit) gets dropped and
+		// recreated instead of failing every subsequent publish.
+		return k.endTxnWithError(producer, fmt.Errorf("kafka: begin transaction: %w", err))
+	}
+
+	if err := send(producer); err != nil {
 		return k.endTxnWithError(producer, err)
 	}
 
@@ -135,25 +189,43 @@ func (k *Kafka) withPublishTxn(producer sarama.SyncProducer, send func() error) 
 	return nil
 }
 
-// endTxnWithError cleans up an open transaction after cause so the producer
-// can be reused. A fatal transaction state poisons the producer entirely: it
-// is dropped and lazily recreated by the next publish (same transactional.id,
-// so the broker bumps the epoch and aborts the stale transaction).
+// endTxnWithError cleans up an open transaction on the shared producer; see
+// endProducerTxnWithError.
 func (k *Kafka) endTxnWithError(producer sarama.SyncProducer, cause error) error {
+	return k.endProducerTxnWithError(producer, cause, func() { k.invalidateProducer(producer) })
+}
+
+// endProducerTxnWithError cleans up an open transaction after cause so the
+// producer can be reused. A fatal transaction state poisons the producer
+// entirely: invalidate drops it for lazy recreation (same transactional.id,
+// so the broker bumps the epoch and aborts the stale transaction).
+func (k *Kafka) endProducerTxnWithError(producer sarama.SyncProducer, cause error, invalidate func()) error {
 	status := producer.TxnStatus()
 
 	if status&sarama.ProducerTxnFlagFatalError != 0 {
 		k.logger.Errorf("Kafka producer in fatal transaction state, recreating producer. Cause: %v", cause)
-		k.invalidateProducer(producer)
+		invalidate()
 		return cause
 	}
 
 	if status&(sarama.ProducerTxnFlagAbortableError|sarama.ProducerTxnFlagInTransaction) != 0 {
 		if abortErr := producer.AbortTxn(); abortErr != nil {
 			k.logger.Errorf("Kafka producer failed to abort transaction, recreating producer. Cause: %v", abortErr)
-			k.invalidateProducer(producer)
+			invalidate()
 			return errors.Join(cause, fmt.Errorf("kafka: abort transaction: %w", abortErr))
 		}
+	}
+
+	// A producer that did not land back in Ready can never start another
+	// transaction: sarama's transition table has no exit from states like
+	// EndTransaction|CommittingTransaction (a commit that exhausted its
+	// retries) or Initializing (a failed epoch bump) — BeginTxn and AbortTxn
+	// both return ErrTransitionNotAllowed forever. Close-and-recreate is the
+	// only recovery: the recreated producer reuses the transactional.id, so
+	// the broker bumps the epoch and aborts the stale transaction.
+	if producer.TxnStatus()&sarama.ProducerTxnFlagReady == 0 {
+		k.logger.Errorf("Kafka producer transaction did not return to ready state, recreating producer. Cause: %v", cause)
+		invalidate()
 	}
 
 	return cause
@@ -161,14 +233,6 @@ func (k *Kafka) endTxnWithError(producer sarama.SyncProducer, cause error) error
 
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
-	clients, err := k.latestClients()
-	if err != nil || clients == nil {
-		return fmt.Errorf("failed to get latest Kafka clients: %w", err)
-	}
-	if clients.producer == nil {
-		return errors.New("component is closed")
-	}
-
 	// k.logger.Debugf("Publishing topic %v with data: %v", topic, string(data))
 	k.logger.Debugf("Publishing on topic %v", topic)
 
@@ -192,6 +256,9 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 				return perr
 			}
 			msg.Partition = pNum
+		case txnTokenMetadataKey:
+			// Transaction-correlation plumbing, never a record header.
+			continue
 		}
 
 		if msg.Headers == nil {
@@ -208,39 +275,50 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 		})
 	}
 
+	// A publish carrying a transaction token joins the correlated delivery's
+	// open transaction on its claim producer; the shared producer is not
+	// involved.
+	if token := metadata[txnTokenMetadataKey]; token != "" {
+		return k.publishInConsumeTxn(token, func(p sarama.SyncProducer) error {
+			partition, offset, sendErr := p.SendMessage(msg)
+			if sendErr == nil {
+				k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
+			}
+			return sendErr
+		})
+	}
+
 	var (
 		partition int32
 		offset    int64
 	)
 	if k.producerConfig.TransactionsEnabled {
-		err = k.withPublishTxn(clients.producer, func() error {
+		err = k.withPublishTxn(func(producer sarama.SyncProducer) error {
 			var sendErr error
-			partition, offset, sendErr = clients.producer.SendMessage(msg)
+			partition, offset, sendErr = producer.SendMessage(msg)
 			return sendErr
 		})
 	} else {
+		clients, cerr := k.latestClients()
+		if cerr != nil || clients == nil {
+			return fmt.Errorf("failed to get latest Kafka clients: %w", cerr)
+		}
+		if clients.producer == nil {
+			return errors.New("component is closed")
+		}
 		partition, offset, err = clients.producer.SendMessage(msg)
 	}
-
-	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 
 	if err != nil {
 		return err
 	}
 
+	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
+
 	return nil
 }
 
 func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
-	clients, err := k.latestClients()
-	if err != nil || clients == nil {
-		err = fmt.Errorf("failed to get latest Kafka clients: %w", err)
-		return pubsub.NewBulkPublishResponse(entries, err), err
-	}
-	if clients.producer == nil {
-		err := errors.New("component is closed")
-		return pubsub.NewBulkPublishResponse(entries, err), err
-	}
 	k.logger.Debugf("Bulk Publishing on topic %v", topic)
 
 	msgs := []*sarama.ProducerMessage{}
@@ -279,6 +357,18 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 					return pubsub.NewBulkPublishResponse(entries, err), err
 				}
 				msg.Partition = pNum
+			case txnTokenMetadataKey:
+				// Transaction-correlation plumbing, never a record header.
+				// The routing decision below only reads the request-level
+				// metadata, so an entry-level-only token would be silently
+				// published outside the transaction — fail loudly instead.
+				// (Request-level metadata was already merged over the entry's,
+				// so a mismatch means the token arrived only on the entry.)
+				if value != metadata[txnTokenMetadataKey] {
+					err := errors.New("kafka: the transaction token must be set in the request-level metadata, not per bulk entry")
+					return pubsub.NewBulkPublishResponse(entries, err), err
+				}
+				continue
 			}
 
 			if msg.Headers == nil {
@@ -298,9 +388,20 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		msgs = append(msgs, msg)
 	}
 
+	// A bulk publish carrying a transaction token joins the correlated
+	// delivery's open transaction on its claim producer.
+	if token := metadata[txnTokenMetadataKey]; token != "" {
+		if err := k.publishInConsumeTxn(token, func(p sarama.SyncProducer) error {
+			return p.SendMessages(msgs)
+		}); err != nil {
+			return pubsub.NewBulkPublishResponse(entries, err), err
+		}
+		return pubsub.BulkPublishResponse{}, nil
+	}
+
 	if k.producerConfig.TransactionsEnabled {
-		if err := k.withPublishTxn(clients.producer, func() error {
-			return clients.producer.SendMessages(msgs)
+		if err := k.withPublishTxn(func(producer sarama.SyncProducer) error {
+			return producer.SendMessages(msgs)
 		}); err != nil {
 			// The transaction was aborted: entries that were sent before the
 			// failure are not visible to consumers either, so the whole batch
@@ -308,6 +409,16 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 			return pubsub.NewBulkPublishResponse(entries, err), err
 		}
 		return pubsub.BulkPublishResponse{}, nil
+	}
+
+	clients, err := k.latestClients()
+	if err != nil || clients == nil {
+		err = fmt.Errorf("failed to get latest Kafka clients: %w", err)
+		return pubsub.NewBulkPublishResponse(entries, err), err
+	}
+	if clients.producer == nil {
+		err := errors.New("component is closed")
+		return pubsub.NewBulkPublishResponse(entries, err), err
 	}
 
 	if err := clients.producer.SendMessages(msgs); err != nil {

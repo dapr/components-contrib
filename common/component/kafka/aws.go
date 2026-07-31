@@ -103,7 +103,7 @@ func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
 	cfg := *c.config
 	applySyncProducerConfig(&cfg, c.producerConfig)
 
-	// The producer must own its sarama client (see GetSyncProducer): a
+	// The producer must own its sarama client (see newOwnedSyncProducer): a
 	// caller-supplied client would never be closed and leak on recreation.
-	return sarama.NewSyncProducer(*c.brokers, &cfg)
+	return newOwnedSyncProducer(*c.brokers, &cfg)
 }

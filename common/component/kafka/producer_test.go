@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/IBM/sarama"
 	saramamocks "github.com/IBM/sarama/mocks"
@@ -218,37 +219,74 @@ func TestPublish(t *testing.T) {
 type fakeTxnProducer struct {
 	sarama.SyncProducer
 
-	sendErr   error
-	commitErr error
-	abortErr  error
-	status    sarama.ProducerTxnStatusFlag
+	sendErr      error
+	beginErr     error
+	commitErr    error
+	abortErr     error
+	addOffsetErr error
+	status       sarama.ProducerTxnStatusFlag
 
-	begins  int
-	sends   int
-	commits int
-	aborts  int
-	closed  bool
+	begins         int
+	sends          int
+	commits        int
+	aborts         int
+	addOffsetCalls int
+	closed         bool
+
+	lastMsg       *sarama.ProducerMessage
+	lastMsgs      []*sarama.ProducerMessage
+	offsetMsg     *sarama.ConsumerMessage
+	groupMetadata *sarama.ConsumerGroupMetadata
 }
 
-func (f *fakeTxnProducer) SendMessage(*sarama.ProducerMessage) (int32, int64, error) {
+func (f *fakeTxnProducer) SendMessage(msg *sarama.ProducerMessage) (int32, int64, error) {
 	f.sends++
+	f.lastMsg = msg
 	return 0, 0, f.sendErr
 }
 
-func (f *fakeTxnProducer) SendMessages([]*sarama.ProducerMessage) error {
+func (f *fakeTxnProducer) SendMessages(msgs []*sarama.ProducerMessage) error {
 	f.sends++
+	f.lastMsgs = msgs
 	return f.sendErr
 }
 
-func (f *fakeTxnProducer) BeginTxn() error { f.begins++; return nil }
+func (f *fakeTxnProducer) BeginTxn() error { f.begins++; return f.beginErr }
 
-func (f *fakeTxnProducer) CommitTxn() error { f.commits++; return f.commitErr }
+// CommitTxn and AbortTxn model sarama's state machine: on success the
+// producer lands back in Ready; on failure it keeps the state the test
+// configured (simulating the post-failure status). Like sarama's
+// finishTransaction, committing a transaction in an error state is refused.
+func (f *fakeTxnProducer) CommitTxn() error {
+	f.commits++
+	if f.commitErr != nil {
+		return f.commitErr
+	}
+	if f.status&(sarama.ProducerTxnFlagAbortableError|sarama.ProducerTxnFlagFatalError) != 0 {
+		return errors.New("cannot commit a transaction in an error state")
+	}
+	f.status = sarama.ProducerTxnFlagReady
+	return nil
+}
 
-func (f *fakeTxnProducer) AbortTxn() error { f.aborts++; return f.abortErr }
+func (f *fakeTxnProducer) AbortTxn() error {
+	f.aborts++
+	if f.abortErr == nil {
+		f.status = sarama.ProducerTxnFlagReady
+	}
+	return f.abortErr
+}
 
 func (f *fakeTxnProducer) TxnStatus() sarama.ProducerTxnStatusFlag { return f.status }
 
 func (f *fakeTxnProducer) IsTransactional() bool { return true }
+
+func (f *fakeTxnProducer) AddMessageToTxnWithGroupMetadata(msg *sarama.ConsumerMessage, groupMetadata *sarama.ConsumerGroupMetadata, _ *string) error {
+	f.addOffsetCalls++
+	f.offsetMsg = msg
+	f.groupMetadata = groupMetadata
+	return f.addOffsetErr
+}
 
 func (f *fakeTxnProducer) Close() error { f.closed = true; return nil }
 
@@ -265,16 +303,18 @@ func arrangeTxnKafka(fake *fakeTxnProducer) *Kafka {
 func TestPublishTransactions(t *testing.T) {
 	ctx := t.Context()
 
-	t.Run("send happens inside begin/commit", func(t *testing.T) {
+	t.Run("send happens inside an open transaction", func(t *testing.T) {
 		config := saramamocks.NewTestConfig()
 		config.Producer.Partitioner = newDaprPartitioner
 		config.Version = sarama.V2_0_0_0 //nolint:nosnakecase
 		config.Producer.Transaction.ID = "test-txn"
+		// Required by config validation for a transactional producer (the
+		// mock validates the config even though it doesn't act on these).
 		config.Producer.Idempotent = true
 		config.Producer.RequiredAcks = sarama.WaitForAll
 		config.Net.MaxOpenRequests = 1
 		// The mock errors if SendMessage is called while no transaction is
-		// open, so this asserts the begin -> send -> commit ordering.
+		// open, so this asserts the begin-before-send ordering.
 		mockP := saramamocks.NewSyncProducer(t, config)
 		mockP.ExpectSendMessageWithMessageCheckerFunctionAndSucceed(func(*sarama.ProducerMessage) error { return nil })
 		k := &Kafka{
@@ -286,7 +326,41 @@ func TestPublishTransactions(t *testing.T) {
 		err := k.Publish(ctx, "a", []byte("a"), nil)
 
 		require.NoError(t, err)
-		require.Equal(t, sarama.ProducerTxnFlagReady, mockP.TxnStatus())
+	})
+
+	t.Run("begin error is routed through cleanup and drops a wedged producer", func(t *testing.T) {
+		// A producer stuck in a state with no legal transitions (e.g. after a
+		// commit that exhausted its retries) fails BeginTxn forever; the
+		// cleanup must drop it so the next publish recreates it.
+		fake := &fakeTxnProducer{
+			beginErr: errors.New("transition not allowed"),
+			status:   sarama.ProducerTxnFlagEndTransaction | sarama.ProducerTxnFlagCommittingTransaction,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "transition not allowed")
+		require.True(t, fake.closed, "a producer that cannot leave its transaction state must be dropped")
+		require.Nil(t, k.clients.producer)
+	})
+
+	t.Run("failed commit leaving a non-ready state drops the producer", func(t *testing.T) {
+		// sarama leaves the producer in EndTransaction|CommittingTransaction
+		// when a commit exhausts its retries; neither the fatal nor the
+		// abortable branch matches, and only close-and-recreate recovers.
+		fake := &fakeTxnProducer{
+			commitErr: errors.New("commit failed"),
+			status:    sarama.ProducerTxnFlagEndTransaction | sarama.ProducerTxnFlagCommittingTransaction,
+		}
+		k := arrangeTxnKafka(fake)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "commit failed")
+		require.Equal(t, 0, fake.aborts, "no abort is legal from this state")
+		require.True(t, fake.closed)
+		require.Nil(t, k.clients.producer)
 	})
 
 	t.Run("transactions disabled leaves the plain send path untouched", func(t *testing.T) {
@@ -378,9 +452,18 @@ func TestPublishTransactions(t *testing.T) {
 	})
 
 	t.Run("bulk publish abort marks every entry failed", func(t *testing.T) {
+		// The fixture must be a sarama.ProducerErrors naming only ONE entry:
+		// the pre-existing per-entry mapping would report a single failed
+		// entry, while the transactional path must report the whole batch
+		// failed (aborted entries are not visible to consumers either).
 		fake := &fakeTxnProducer{
-			sendErr: errors.New("send failed"),
-			status:  sarama.ProducerTxnFlagAbortableError,
+			sendErr: sarama.ProducerErrors{
+				&sarama.ProducerError{
+					Msg: &sarama.ProducerMessage{Metadata: "1"},
+					Err: errors.New("send failed"),
+				},
+			},
+			status: sarama.ProducerTxnFlagAbortableError,
 		}
 		k := arrangeTxnKafka(fake)
 		entries := []pubsub.BulkMessageEntry{
@@ -390,9 +473,86 @@ func TestPublishTransactions(t *testing.T) {
 
 		res, err := k.BulkPublish(ctx, "a", entries, nil)
 
-		require.ErrorContains(t, err, "send failed")
+		require.Error(t, err)
 		require.Equal(t, 1, fake.aborts)
+		require.Len(t, res.FailedEntries, 2, "an aborted transaction fails the whole batch, not just the entry sarama named")
+	})
+
+	t.Run("bulk publish with token joins the delivery transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		k := &Kafka{
+			logger:      logger.NewLogger("kafka_test"),
+			txnSessions: map[string]*txnSession{"tok-1": {producer: fake, open: true}},
+		}
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a")},
+			{EntryId: "1", Event: []byte("b")},
+		}
+
+		res, err := k.BulkPublish(ctx, "out", entries, map[string]string{txnTokenMetadataKey: "tok-1", "h1": "v1"})
+
+		require.NoError(t, err)
+		require.Empty(t, res.FailedEntries)
+		require.Equal(t, 1, fake.sends, "the batch must be sent on the delivery's claim producer")
+		require.Equal(t, 0, fake.begins, "joining a transaction must not begin a new one")
+		// The token is transport plumbing, never a record header.
+		require.Len(t, fake.lastMsgs, 2)
+		for _, msg := range fake.lastMsgs {
+			for _, h := range msg.Headers {
+				require.NotEqual(t, txnTokenMetadataKey, string(h.Key))
+			}
+		}
+	})
+
+	t.Run("bulk publish with entry-level-only token fails loudly", func(t *testing.T) {
+		// Routing only reads the request-level metadata; silently publishing
+		// an entry-level-tokened batch outside the transaction is the exact
+		// downgrade errTxnTokenClosed exists to prevent.
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.producerConfig.TransactionsEnabled = false
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a"), Metadata: map[string]string{txnTokenMetadataKey: "tok-1"}},
+			{EntryId: "1", Event: []byte("b")},
+		}
+
+		res, err := k.BulkPublish(ctx, "out", entries, nil)
+
+		require.ErrorContains(t, err, "request-level")
 		require.Len(t, res.FailedEntries, 2)
+		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
+	})
+
+	t.Run("bulk publish token-path send error fails every entry", func(t *testing.T) {
+		// The claim producer's transaction aborts as a whole, so a send error
+		// on the token path must report the full batch failed — an empty
+		// response would read as success.
+		fake := &fakeTxnProducer{sendErr: errors.New("send failed")}
+		k := &Kafka{
+			logger:      logger.NewLogger("kafka_test"),
+			txnSessions: map[string]*txnSession{"tok-1": {producer: fake, open: true}},
+		}
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a")},
+			{EntryId: "1", Event: []byte("b")},
+		}
+
+		res, err := k.BulkPublish(ctx, "out", entries, map[string]string{txnTokenMetadataKey: "tok-1"})
+
+		require.ErrorContains(t, err, "send failed")
+		require.Len(t, res.FailedEntries, 2)
+	})
+
+	t.Run("transactional publish on a closed component fails without touching the producer", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.closed.Store(true)
+
+		err := k.Publish(ctx, "a", []byte("a"), nil)
+
+		require.ErrorContains(t, err, "component is closed")
+		require.Equal(t, 0, fake.begins)
+		require.Equal(t, 0, fake.sends)
 	})
 
 	t.Run("bulk publish commit success returns empty response", func(t *testing.T) {
@@ -408,6 +568,60 @@ func TestPublishTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.begins)
 		require.Equal(t, 1, fake.commits)
 		require.Empty(t, res.FailedEntries)
+	})
+}
+
+// fakeCloseProducer and fakeOwnedClient record Close ordering for the
+// clientOwningSyncProducer tests; everything else panics via the embedded
+// nil interfaces.
+type fakeCloseProducer struct {
+	sarama.SyncProducer
+	closeErr error
+	order    *[]string
+}
+
+func (f *fakeCloseProducer) Close() error {
+	*f.order = append(*f.order, "producer")
+	return f.closeErr
+}
+
+type fakeOwnedClient struct {
+	sarama.Client
+	closeErr error
+	order    *[]string
+}
+
+func (f *fakeOwnedClient) Close() error {
+	*f.order = append(*f.order, "client")
+	return f.closeErr
+}
+
+func TestClientOwningSyncProducerClose(t *testing.T) {
+	t.Run("closes the producer then the client and joins both errors", func(t *testing.T) {
+		var order []string
+		producerErr := errors.New("producer close failed")
+		clientErr := errors.New("client close failed")
+		p := &clientOwningSyncProducer{
+			SyncProducer: &fakeCloseProducer{order: &order, closeErr: producerErr},
+			client:       &fakeOwnedClient{order: &order, closeErr: clientErr},
+		}
+
+		err := p.Close()
+
+		require.Equal(t, []string{"producer", "client"}, order, "the client must outlive the producer built from it")
+		require.ErrorIs(t, err, producerErr)
+		require.ErrorIs(t, err, clientErr)
+	})
+
+	t.Run("clean close closes both and returns nil", func(t *testing.T) {
+		var order []string
+		p := &clientOwningSyncProducer{
+			SyncProducer: &fakeCloseProducer{order: &order},
+			client:       &fakeOwnedClient{order: &order},
+		}
+
+		require.NoError(t, p.Close())
+		require.Equal(t, []string{"producer", "client"}, order)
 	})
 }
 
@@ -439,11 +653,13 @@ func TestApplySyncProducerConfig(t *testing.T) {
 			RetryMax:            5,
 			TransactionsEnabled: true,
 			TransactionalID:     "txid",
+			TransactionTimeout:  90 * time.Second,
 		})
 		require.True(t, config.Producer.Idempotent)
 		require.Equal(t, "txid", config.Producer.Transaction.ID)
 		require.Equal(t, 1, config.Net.MaxOpenRequests)
 		require.True(t, config.Producer.Return.Successes)
+		require.Equal(t, 90*time.Second, config.Producer.Transaction.Timeout)
 	})
 
 	t.Run("transactions disabled leaves idempotence off", func(t *testing.T) {

@@ -80,14 +80,17 @@ func (store *InMemoryStore) Close() error {
 		close(store.closeCh)
 	}
 
+	// Wait for the cleanup goroutine to exit before acquiring the lock. It
+	// needs the same lock in doCleanExpiredItems, so waiting on it while
+	// holding the lock would deadlock.
+	store.wg.Wait()
+
 	// release memory reference
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	for k := range store.items {
 		delete(store.items, k)
 	}
-
-	store.wg.Wait()
 
 	return nil
 }

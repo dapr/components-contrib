@@ -17,7 +17,7 @@ binding:
     - name: query
       description: "The query operation is used for SELECT statements, or to invoke a stored procedure that returns a result set. Returns the metadata along with data in a form of an array of row values."
     - name: close
-      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
+      description: "The close operation explicitly closes the database connection pool. After closing, any subsequent operation will fail. This operation doesn't have any response."
 authenticationProfiles:
   - title: "Connection string"
     description: |

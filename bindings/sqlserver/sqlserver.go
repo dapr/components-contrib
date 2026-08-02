@@ -49,7 +49,6 @@ const (
 	respDurationKey     = "duration"
 )
 
-
 type SQLServer struct {
 	db     *sql.DB
 	logger logger.Logger
@@ -74,7 +73,6 @@ func (s *SQLServer) Init(ctx context.Context, md bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-
 
 	// The caller's connection string is used as-is (including Azure AD auth if configured).
 	connector, _, err := meta.GetConnector(false)
@@ -196,7 +194,7 @@ func (s *SQLServer) Close() error {
 	}
 
 	if s.db != nil {
-		s.db.Close()
+		_ = s.db.Close()
 		s.db = nil
 	}
 
@@ -290,6 +288,6 @@ func (s *SQLServer) convert(columnTypes []*sql.ColumnType, values []any) map[str
 // GetComponentMetadata returns the metadata of the component.
 func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sqlServerMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

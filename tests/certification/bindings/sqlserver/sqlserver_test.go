@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-
 	"github.com/dapr/components-contrib/bindings"
 	binding_sqlserver "github.com/dapr/components-contrib/bindings/sqlserver"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
@@ -61,7 +60,11 @@ func setGodebugX509Workaround(t *testing.T) {
 	// This environment variable reverts to the old behavior.
 	// Ref: https://github.com/microsoft/mssql-docker/issues/895
 	oldDebugValue := os.Getenv("GODEBUG")
-	t.Setenv("GODEBUG", "x509negativeserial=1")
+	suffix := ""
+	if oldDebugValue != "" {
+		suffix = "," + oldDebugValue
+	}
+	t.Setenv("GODEBUG", "x509negativeserial=1"+suffix)
 	t.Cleanup(func() {
 		t.Setenv("GODEBUG", oldDebugValue)
 	})
@@ -242,7 +245,7 @@ func TestSqlServerNetworkError(t *testing.T) {
 		require.NoError(t, err, "Could not initialize dapr client")
 
 		ctx.Log("Invoking output binding for query operation")
-		_, err = client.InvokeBinding(ctx, &daprClient.InvokeBindingRequest{
+		resp, err := client.InvokeBinding(ctx, &daprClient.InvokeBindingRequest{
 			Name:      "standard-binding",
 			Operation: "query",
 			Metadata: map[string]string{
@@ -250,6 +253,7 @@ func TestSqlServerNetworkError(t *testing.T) {
 			},
 		})
 		require.NoError(ctx, err, "error in output binding - query")
+		assert.Contains(t, string(resp.Data), `"id":1`)
 
 		return nil
 	}

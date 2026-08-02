@@ -99,7 +99,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.21
 	github.com/linkedin/goavro/v2 v2.14.1
 	github.com/machinebox/graphql v0.2.2
-	github.com/matoous/go-nanoid/v2 v2.0.0
+	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/microsoft/go-mssqldb v1.6.0
 	github.com/mikeee/aws_credential_helper v0.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4

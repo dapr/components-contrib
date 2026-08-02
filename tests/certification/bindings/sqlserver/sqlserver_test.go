@@ -21,8 +21,12 @@ import (
 	"testing"
 	"time"
 
+	// MSSQL driver for database/sql
+	_ "github.com/microsoft/go-mssqldb"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 
 	"github.com/dapr/components-contrib/bindings"
 	binding_sqlserver "github.com/dapr/components-contrib/bindings/sqlserver"

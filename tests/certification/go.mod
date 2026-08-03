@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.26.5
 
 require (
-	cloud.google.com/go/pubsub v1.50.4
+	cloud.google.com/go/pubsub v1.51.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.0
 	github.com/IBM/sarama v1.60.0
@@ -36,7 +36,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/riferrei/srclient v0.7.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tylertreat/comcast v1.0.1
@@ -44,7 +44,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
@@ -245,7 +245,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/matoous/go-nanoid/v2 v2.0.0 // indirect
+	github.com/matoous/go-nanoid/v2 v2.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0 // indirect
@@ -352,8 +352,8 @@ require (
 	google.golang.org/api v0.287.1 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7 // indirect
-	google.golang.org/grpc v1.82.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260727163830-6c54dddc4772 // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

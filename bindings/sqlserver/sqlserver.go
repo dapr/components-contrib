@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Dapr Authors
+Copyright 2026 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -134,9 +135,18 @@ func (s *SQLServer) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		err    error
 	)
 	if paramsStr := req.Metadata[commandParamsKey]; paramsStr != "" {
-		err = json.Unmarshal([]byte(paramsStr), &params)
+		// Decode with UseNumber so JSON numbers aren't collapsed into float64,
+		// which would silently lose precision for large integer parameters.
+		decoder := json.NewDecoder(strings.NewReader(paramsStr))
+		decoder.UseNumber()
+		err = decoder.Decode(&params)
 		if err != nil {
 			return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandParamsKey, err)
+		}
+
+		err = normalizeNumberParams(params)
+		if err != nil {
+			return nil, fmt.Errorf("invalid metadata property %s: %w", commandParamsKey, err)
 		}
 	}
 
@@ -214,6 +224,33 @@ func (s *SQLServer) query(ctx context.Context, sqlQuery string, params ...any) (
 	}
 
 	return result, nil
+}
+
+// normalizeNumberParams replaces each json.Number (produced by decoding with
+// UseNumber) with an int64 when it represents a whole number, or a float64
+// otherwise. Without this, query parameters that are whole numbers would be
+// sent to the driver as float64, which loses precision for large integers
+// (e.g. BIGINT values beyond 2^53).
+func normalizeNumberParams(params []any) error {
+	for i, p := range params {
+		n, ok := p.(json.Number)
+		if !ok {
+			continue
+		}
+
+		if i64, err := n.Int64(); err == nil {
+			params[i] = i64
+			continue
+		}
+
+		f64, err := n.Float64()
+		if err != nil {
+			return fmt.Errorf("invalid number %q at index %d: %w", n.String(), i, err)
+		}
+		params[i] = f64
+	}
+
+	return nil
 }
 
 func (s *SQLServer) exec(ctx context.Context, sqlQuery string, params ...any) (int64, error) {

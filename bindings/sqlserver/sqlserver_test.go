@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Dapr Authors
+Copyright 2026 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -155,6 +155,29 @@ func TestInvoke(t *testing.T) {
 		resp, err := m.Invoke(t.Context(), req)
 		assert.Nil(t, resp)
 		require.Error(t, err)
+	})
+
+	t.Run("large integer param preserves precision", func(t *testing.T) {
+		// Larger than 2^53, so it would lose precision if decoded as float64.
+		const bigInt int64 = 9223372036854775800
+
+		col1 := sqlmock.NewColumn("id").OfType("BIGINT", int64(1))
+		rows := sqlmock.NewRowsWithColumnDefinition(col1).AddRow(bigInt)
+		mock.ExpectQuery("SELECT \\* FROM foo WHERE id = @p1").
+			WithArgs(bigInt).
+			WillReturnRows(rows)
+
+		metadata := map[string]string{
+			commandSQLKey:    "SELECT * FROM foo WHERE id = @p1",
+			commandParamsKey: "[9223372036854775800]",
+		}
+		req := &bindings.InvokeRequest{
+			Metadata:  metadata,
+			Operation: queryOperation,
+		}
+		resp, err := m.Invoke(t.Context(), req)
+		require.NoError(t, err)
+		assert.Contains(t, string(resp.Data), "9223372036854775800")
 	})
 
 	t.Run("invalid params metadata", func(t *testing.T) {

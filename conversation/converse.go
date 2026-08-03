@@ -42,6 +42,11 @@ type Request struct {
 	ToolChoice  *string
 	Temperature float64 `json:"temperature"`
 
+	// MaxTokens caps the number of tokens the model may generate for the
+	// completion. When nil, the component-level maxTokens metadata default
+	// (if any) or the provider default applies.
+	MaxTokens *int64 `json:"maxTokens,omitempty"`
+
 	// Metadata fields that are separate from the actual component metadata fields
 	// that get passed to the LLM through the conversation.
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010

@@ -29,3 +29,10 @@ metadata:
     type: string
     example: 'http://10.20.23.21:11434/v1'
     default: 'http://localhost:11434/v1'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level max_tokens value overrides this default.
+    type: number
+    example: "2048"

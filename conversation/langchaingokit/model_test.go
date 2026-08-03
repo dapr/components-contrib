@@ -80,6 +80,44 @@ func TestConverseResponseModel(t *testing.T) {
 	})
 }
 
+// TestConverseMaxTokensDefaults verifies the component-level default cap set via
+// SetDefaultMaxTokens and its precedence against the request-level MaxTokens.
+func TestConverseMaxTokensDefaults(t *testing.T) {
+	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
+
+	tests := []struct {
+		name             string
+		defaultMaxTokens *int64
+		requestMaxTokens *int64
+		wantMaxTokens    int
+	}{
+		{name: "no default and no request value leaves max tokens unset", wantMaxTokens: 0},
+		{name: "default applies when request has no value", defaultMaxTokens: ptr.Of(int64(50)), wantMaxTokens: 50},
+		{name: "request value overrides default", defaultMaxTokens: ptr.Of(int64(50)), requestMaxTokens: ptr.Of(int64(100)), wantMaxTokens: 100},
+		{name: "zero default is ignored", defaultMaxTokens: ptr.Of(int64(0)), wantMaxTokens: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got llms.CallOptions
+			llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+				got = foldCallOptions(options)
+				return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+			})
+			llm.SetDefaultMaxTokens(tt.defaultMaxTokens)
+
+			_, err := llm.Converse(t.Context(), &conversation.Request{
+				MaxTokens: tt.requestMaxTokens,
+				Message: &[]llms.MessageContent{
+					{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+				},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMaxTokens, got.MaxTokens)
+		})
+	}
+}
+
 // TestConverseEmptyResponseWithTools verifies that when tool_choice=required is set and the LLM
 // returns an empty response (no content, no tool calls), Converse returns an error. This ensures
 // the resiliency runner in dapr/dapr can retry rather than silently completing the workflow.

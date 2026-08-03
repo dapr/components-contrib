@@ -72,6 +72,7 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	d.Model = llm
 	d.SetModel(model)
+	d.SetDefaultMaxTokens(md.MaxTokens)
 	d.md = md
 	return nil
 }

@@ -34,3 +34,10 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level max_tokens value overrides this default.
+    type: number
+    example: "2048"

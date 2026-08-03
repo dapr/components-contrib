@@ -64,6 +64,7 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	g.Model = llm
 	g.SetModel(model)
+	g.SetDefaultMaxTokens(md.MaxTokens)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.Model)

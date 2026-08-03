@@ -71,6 +71,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 	h.Model = llm
 	h.SetModel(model)
+	h.SetDefaultMaxTokens(m.MaxTokens)
 
 	if m.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.Model)

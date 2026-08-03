@@ -89,6 +89,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 
 	a.Model = llm
 	a.SetModel(model)
+	a.SetDefaultMaxTokens(md.MaxTokens)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, a.Model)

@@ -28,8 +28,9 @@ import (
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
-	model  string
-	logger logger.Logger
+	model            string
+	defaultMaxTokens *int64
+	logger           logger.Logger
 }
 
 func New(logger logger.Logger) LLM {
@@ -47,8 +48,19 @@ func (a *LLM) GetModel() string {
 	return a.model
 }
 
+// SetDefaultMaxTokens sets the component-level default cap on generated tokens.
+// It is applied to every request unless the request carries its own MaxTokens,
+// which takes precedence (langchaingo applies call options in order; later wins).
+func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
+	a.defaultMaxTokens = maxTokens
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	opts := getOptionsFromRequest(r, a.logger)
+	var baseOpts []llms.CallOption
+	if a.defaultMaxTokens != nil && *a.defaultMaxTokens > 0 {
+		baseOpts = append(baseOpts, llms.WithMaxTokens(int(*a.defaultMaxTokens)))
+	}
+	opts := getOptionsFromRequest(r, a.logger, baseOpts...)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
@@ -161,6 +173,10 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 
+	if r.MaxTokens != nil && *r.MaxTokens > 0 {
+		opts = append(opts, llms.WithMaxTokens(int(*r.MaxTokens)))
+	}
+
 	if r.ResponseFormatAsJSONSchema != nil {
 		structuredOutput, err := convertToStructuredOutputDefinition(r.ResponseFormatAsJSONSchema)
 		if err != nil {
@@ -177,7 +193,6 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	// llms.WithCacheControl()
 	// llms.WithMaxLength()
 	// llms.WithMinLength()
-	// llms.WithMaxTokens()
 
 	// Handle prompt cache retention for OpenAI's extended prompt caching feature
 	if r.PromptCacheRetention != nil {

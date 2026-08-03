@@ -99,6 +99,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.Model = llm
 	o.SetModel(model)
+	o.SetDefaultMaxTokens(md.MaxTokens)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, o.Model)

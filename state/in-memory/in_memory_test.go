@@ -16,7 +16,6 @@ package inmemory
 import (
 	"runtime"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -180,71 +179,50 @@ func TestReadAndWrite(t *testing.T) {
 	})
 }
 
-// TestCloseDoesNotDeadlock is a regression test for a deadlock between Close
-// and the background cleanup goroutine.
-//
-// Close used to call wg.Wait while holding the write lock. The cleanup
-// goroutine started by Init needs that same lock in doCleanExpiredItems, so if
-// its ticker fired in the instant between Close taking the lock and the
-// goroutine reaching Lock, the two waited on each other and Close never
-// returned.
-//
-// The window is only microseconds wide, so this reproduces it with pressure
-// rather than precision: many stores are closed at once, timed to coincide with
-// their cleanup tick, on a single processor so goroutines are forced to
-// interleave at exactly that point.
-//
-// This test changes GOMAXPROCS, so it must not call t.Parallel.
+// TestCloseDoesNotDeadlock is a regression test for Close deadlocking with the
+// cleanup goroutine, which needs the same lock Close used to hold while
+// waiting for it. The interleaving is reproduced by firing the cleanup tick
+// through the fake clock and calling Close before the woken goroutine is
+// scheduled, so Close takes the lock first. Assumes the cleanup ticker is the
+// store's only clock waiter. Changes GOMAXPROCS; must not call t.Parallel.
 func TestCloseDoesNotDeadlock(t *testing.T) {
 	const (
-		// A single store almost never lands in the window; a few thousand
-		// closing together reliably do.
-		storeCount = 2000
-
-		// Long enough that a loaded CI machine is never mistaken for a
-		// deadlock. Only reached when the test is failing.
-		closeTimeout = 30 * time.Second
+		// A few attempts absorb the rare preemption that lets the cleanup
+		// goroutine run before Close.
+		attempts = 5
+		// Reached only when the test fails.
+		closeTimeout = 10 * time.Second
 	)
 
-	// The deadlock needs the cleanup goroutine to be descheduled between
-	// leaving its select and taking the lock, which is far likelier when
-	// nothing else can run in parallel.
 	prevMaxProcs := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prevMaxProcs)
 
 	log := logger.NewLogger("test")
-	stores := make([]*InMemoryStore, storeCount)
-	for i := range stores {
-		stores[i] = NewInMemoryStateStore(log).(*InMemoryStore)
-		require.NoError(t, stores[i].Init(t.Context(), state.Metadata{}))
-	}
+	for i := range attempts {
+		store := NewInMemoryStateStore(log).(*InMemoryStore)
+		fakeClock := clocktesting.NewFakeClock(time.Now())
+		store.clock = fakeClock
+		require.NoError(t, store.Init(t.Context(), state.Metadata{}))
 
-	// Line the Close calls up with the first cleanup tick.
-	time.Sleep(cleanupInterval)
+		// Fire the cleanup tick once the goroutine is waiting on it: it is
+		// then committed to cleaning up, but not yet running.
+		for !fakeClock.HasWaiters() {
+			runtime.Gosched()
+		}
+		fakeClock.Step(cleanupInterval)
 
-	var wg sync.WaitGroup
-	for i := range stores {
-		wg.Add(1)
+		done := make(chan struct{})
 		go func() {
-			defer wg.Done()
-			// assert rather than require: require calls t.FailNow, which is
-			// only valid on the test's own goroutine.
-			assert.NoError(t, stores[i].Close())
+			// assert, not require: FailNow is only valid on the test goroutine.
+			assert.NoError(t, store.Close())
+			close(done)
 		}()
-	}
 
-	allClosed := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(allClosed)
-	}()
-
-	select {
-	case <-allClosed:
-	case <-time.After(closeTimeout):
-		// The blocked goroutines hold their stores' locks permanently and
-		// cannot be recovered; they leak for the rest of the run.
-		t.Fatalf("Close did not return within %s: shutdown deadlocked", closeTimeout)
+		select {
+		case <-done:
+		case <-time.After(closeTimeout):
+			t.Fatalf("attempt %d: Close did not return within %s: shutdown deadlocked", i, closeTimeout)
+		}
 	}
 }
 

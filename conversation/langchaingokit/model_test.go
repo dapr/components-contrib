@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
@@ -116,6 +117,34 @@ func TestConverseMaxTokensDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantMaxTokens, got.MaxTokens)
 		})
 	}
+}
+
+// TestConversePostCallOptionsSurviveRequestMetadata verifies that provider
+// flags carried in CallOptions.Metadata (e.g. openai.WithLegacyMaxTokensField)
+// survive a request that sets its own Metadata: llms.WithMetadata replaces the
+// metadata map wholesale when folded, so post options must be applied last.
+func TestConversePostCallOptionsSurviveRequestMetadata(t *testing.T) {
+	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
+
+	var got llms.CallOptions
+	llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+		got = foldCallOptions(options)
+		return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+	})
+	llm.SetPostCallOptions(openai.WithLegacyMaxTokensField())
+
+	_, err := llm.Converse(t.Context(), &conversation.Request{
+		MaxTokens: ptr.Of(int64(100)),
+		Metadata:  map[string]string{"trace": "abc"},
+		Message: &[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 100, got.MaxTokens)
+	assert.Equal(t, "abc", got.Metadata["trace"], "request metadata must still be present")
+	assert.Equal(t, true, got.Metadata["openai:use_legacy_max_tokens"], "legacy flag must survive request metadata")
 }
 
 // TestConverseEmptyResponseWithTools verifies that when tool_choice=required is set and the LLM

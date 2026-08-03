@@ -30,6 +30,7 @@ type LLM struct {
 	llms.Model
 	model            string
 	defaultMaxTokens *int64
+	postCallOptions  []llms.CallOption
 	logger           logger.Logger
 }
 
@@ -55,12 +56,22 @@ func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
 	a.defaultMaxTokens = maxTokens
 }
 
+// SetPostCallOptions sets provider-specific call options appended after all
+// request-derived options on every Converse call. Options that piggyback on
+// CallOptions.Metadata — e.g. langchaingo's openai.WithLegacyMaxTokensField()
+// — must be applied here: a request-level llms.WithMetadata(...) replaces the
+// metadata map wholesale and would wipe them if they were applied first.
+func (a *LLM) SetPostCallOptions(opts ...llms.CallOption) {
+	a.postCallOptions = opts
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	var baseOpts []llms.CallOption
 	if a.defaultMaxTokens != nil && *a.defaultMaxTokens > 0 {
 		baseOpts = append(baseOpts, llms.WithMaxTokens(int(*a.defaultMaxTokens)))
 	}
 	opts := getOptionsFromRequest(r, a.logger, baseOpts...)
+	opts = append(opts, a.postCallOptions...)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {

@@ -201,10 +201,6 @@ func TestCloseDoesNotDeadlock(t *testing.T) {
 		// closing together reliably do.
 		storeCount = 2000
 
-		// startCleanThread ticks on the real clock rather than store.clock, so
-		// the tick cannot be stepped forward and has to be waited out.
-		cleanupInterval = time.Second
-
 		// Long enough that a loaded CI machine is never mistaken for a
 		// deadlock. Only reached when the test is failing.
 		closeTimeout = 30 * time.Second

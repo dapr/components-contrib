@@ -36,6 +36,10 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
+// cleanupInterval is how often the background goroutine started by Init sweeps
+// expired items.
+const cleanupInterval = time.Second
+
 type InMemoryStore struct {
 	state.BulkStore
 
@@ -435,7 +439,7 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 func (store *InMemoryStore) startCleanThread() {
 	for {
 		select {
-		case <-time.After(time.Second):
+		case <-store.clock.After(cleanupInterval):
 			store.doCleanExpiredItems()
 		case <-store.closeCh:
 			return

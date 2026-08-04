@@ -256,6 +256,14 @@ func TestInitInvalidMaxTokens(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestGetComponentMetadata(t *testing.T) {
+	e, ok := NewEcho(logger.NewLogger("echo test")).(*Echo)
+	require.True(t, ok)
+
+	info := e.GetComponentMetadata()
+	assert.Contains(t, info, "maxTokens")
+}
+
 func TestConverseAlpha2(t *testing.T) {
 	tests := []struct {
 		name     string

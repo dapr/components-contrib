@@ -884,6 +884,7 @@ const components = {
  * Test matrix object
  * @typedef {Object} TestMatrixElement
  * @property {string} component Component name
+ * @property {boolean} authenticated Whether the test requires credentials
  * @property {string?} required-secrets Required secrets
  * @property {string?} required-certs Required certs
  * @property {boolean?} require-aws-credentials Requires AWS credentials
@@ -915,22 +916,22 @@ function GenerateMatrix(testKind, enableCloudTests) {
             continue
         }
 
-        // Skip cloud-only tests if enableCloudTests is false
-        if (!enableCloudTests) {
-            if (
-                comp.requiredSecrets?.length ||
+        const authenticated = Boolean(
+            comp.requiredSecrets?.length ||
                 comp.requiredCerts?.length ||
                 comp.requireAWSCredentials ||
                 comp.requireGCPCredentials ||
-                comp.requireCloudflareCredentials
-            ) {
-                continue
-            }
-        } else {
-            // For conformance tests, avoid running Docker and Cloud Tests together.
-            if (comp.conformance && comp.requireDocker) {
-                continue
-            }
+                comp.requireCloudflareCredentials,
+        )
+
+        // Skip cloud-only tests if enableCloudTests is false
+        if (!enableCloudTests && authenticated) {
+            continue
+        }
+
+        // For conformance tests, avoid running Docker and Cloud Tests together.
+        if (enableCloudTests && comp.conformance && comp.requireDocker) {
+            continue
         }
 
         if (comp.sourcePkg) {
@@ -946,6 +947,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
         // Add the component to the array
         res.push({
             component: name,
+            authenticated,
             'required-secrets': comp.requiredSecrets?.length
                 ? comp.requiredSecrets.join(',')
                 : undefined,

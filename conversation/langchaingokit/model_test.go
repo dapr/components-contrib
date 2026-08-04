@@ -96,6 +96,9 @@ func TestConverseMaxTokensDefaults(t *testing.T) {
 		{name: "default applies when request has no value", defaultMaxTokens: ptr.Of(int64(50)), wantMaxTokens: 50},
 		{name: "request value overrides default", defaultMaxTokens: ptr.Of(int64(50)), requestMaxTokens: ptr.Of(int64(100)), wantMaxTokens: 100},
 		{name: "zero default is ignored", defaultMaxTokens: ptr.Of(int64(0)), wantMaxTokens: 0},
+		{name: "negative default is ignored", defaultMaxTokens: ptr.Of(int64(-5)), wantMaxTokens: 0},
+		{name: "explicit zero request value falls back to default", defaultMaxTokens: ptr.Of(int64(50)), requestMaxTokens: ptr.Of(int64(0)), wantMaxTokens: 50},
+		{name: "huge request value is clamped instead of wrapping", requestMaxTokens: ptr.Of(int64(4294967296)), wantMaxTokens: 2147483647},
 	}
 
 	for _, tt := range tests {

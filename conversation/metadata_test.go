@@ -74,4 +74,10 @@ func TestLangchainMetadata(t *testing.T) {
 
 		assert.Nil(t, metadata.MaxTokens)
 	})
+
+	t.Run("malformed maxTokens returns a decode error", func(t *testing.T) {
+		var metadata LangchainMetadata
+		err := kmeta.DecodeMetadata(map[string]string{"maxTokens": "not-a-number"}, &metadata)
+		require.Error(t, err)
+	})
 }

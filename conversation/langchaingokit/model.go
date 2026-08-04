@@ -17,6 +17,7 @@ package langchaingokit
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -50,9 +51,15 @@ func (a *LLM) GetModel() string {
 }
 
 // SetDefaultMaxTokens sets the component-level default cap on generated tokens.
-// It is applied to every request unless the request carries its own MaxTokens,
-// which takes precedence (langchaingo applies call options in order; later wins).
+// It is applied to every request unless the request carries its own positive
+// MaxTokens, which then takes precedence (langchaingo applies call options in
+// order; later wins). A request-level MaxTokens of zero or a negative value is
+// treated as unset and leaves this default (if any) in effect. A non-positive
+// default is ignored with a warning.
 func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
+	if maxTokens != nil && *maxTokens <= 0 {
+		a.logger.Warnf("ignoring non-positive maxTokens component default %d", *maxTokens)
+	}
 	a.defaultMaxTokens = maxTokens
 }
 
@@ -61,14 +68,30 @@ func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
 // CallOptions.Metadata — e.g. langchaingo's openai.WithLegacyMaxTokensField()
 // — must be applied here: a request-level llms.WithMetadata(...) replaces the
 // metadata map wholesale and would wipe them if they were applied first.
+//
+// Because these options always run last, do not pass options here that set a
+// CallOptions field a request can also set (e.g. llms.WithMaxTokens,
+// llms.WithTemperature): doing so silently overrides whatever the request
+// specified for that field on every call. Reserve this hook for options that
+// only add to CallOptions.Metadata.
 func (a *LLM) SetPostCallOptions(opts ...llms.CallOption) {
 	a.postCallOptions = opts
+}
+
+// capMaxTokens narrows a positive int64 max-tokens value to int without
+// wrapping on 32-bit platforms, where a bare int(...) conversion of a value
+// above math.MaxInt32 could silently remove or scramble the cap.
+func capMaxTokens(v int64) int {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int(v)
 }
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	var baseOpts []llms.CallOption
 	if a.defaultMaxTokens != nil && *a.defaultMaxTokens > 0 {
-		baseOpts = append(baseOpts, llms.WithMaxTokens(int(*a.defaultMaxTokens)))
+		baseOpts = append(baseOpts, llms.WithMaxTokens(capMaxTokens(*a.defaultMaxTokens)))
 	}
 	opts := getOptionsFromRequest(r, a.logger, baseOpts...)
 	opts = append(opts, a.postCallOptions...)
@@ -185,7 +208,7 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	}
 
 	if r.MaxTokens != nil && *r.MaxTokens > 0 {
-		opts = append(opts, llms.WithMaxTokens(int(*r.MaxTokens)))
+		opts = append(opts, llms.WithMaxTokens(capMaxTokens(*r.MaxTokens)))
 	}
 
 	if r.ResponseFormatAsJSONSchema != nil {

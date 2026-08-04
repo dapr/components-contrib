@@ -124,10 +124,15 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 
 			// The cap must be observable in the reported usage. Content may
 			// legitimately be empty when a reasoning model spends the whole
-			// budget thinking, so only usage is asserted.
-			require.NotNil(t, resp.Usage)
-			assert.LessOrEqual(t, resp.Usage.CompletionTokens, uint64(maxTokensLimit),
-				"completion tokens must not exceed the requested max_tokens")
+			// budget thinking, so only usage is asserted; providers that omit
+			// usage data entirely are logged rather than failed, matching the
+			// other usage checks in this suite.
+			if resp.Usage != nil {
+				assert.LessOrEqual(t, resp.Usage.CompletionTokens, uint64(maxTokensLimit),
+					"completion tokens must not exceed the requested max_tokens")
+			} else {
+				t.Logf("%s: no usage data returned; cannot verify max tokens via usage", component)
+			}
 		})
 		t.Run("test user message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)

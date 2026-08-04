@@ -190,6 +190,23 @@ func TestConverseMaxTokens(t *testing.T) {
 			wantPrompt:     5,
 			wantCompletion: 2,
 		},
+		{
+			name:             "zero request max tokens without default does not truncate",
+			requestMaxTokens: ptr.Of(int64(0)),
+			wantContent:      "one two three four five",
+			wantStopReason:   "stop",
+			wantPrompt:       5,
+			wantCompletion:   5,
+		},
+		{
+			name:             "zero request max tokens falls back to metadata default",
+			properties:       map[string]string{"maxTokens": "2"},
+			requestMaxTokens: ptr.Of(int64(0)),
+			wantContent:      "one two",
+			wantStopReason:   "length",
+			wantPrompt:       5,
+			wantCompletion:   2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -221,8 +238,22 @@ func TestConverseMaxTokens(t *testing.T) {
 			assert.Equal(t, tt.wantPrompt, resp.Usage.PromptTokens)
 			assert.Equal(t, tt.wantCompletion, resp.Usage.CompletionTokens)
 			assert.Equal(t, tt.wantPrompt+tt.wantCompletion, resp.Usage.TotalTokens)
+
+			if len(tt.tools) > 0 {
+				require.NotNil(t, output.Choices[0].Message.ToolCallRequest,
+					"tool calls must be retained when truncation changes the stop reason")
+				assert.Len(t, *output.Choices[0].Message.ToolCallRequest, len(tt.tools))
+			}
 		})
 	}
+}
+
+func TestInitInvalidMaxTokens(t *testing.T) {
+	e := NewEcho(logger.NewLogger("echo test"))
+	err := e.Init(t.Context(), conversation.Metadata{
+		Base: metadata.Base{Properties: map[string]string{"maxTokens": "not-a-number"}},
+	})
+	require.Error(t, err)
 }
 
 func TestConverseAlpha2(t *testing.T) {

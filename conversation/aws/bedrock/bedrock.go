@@ -48,7 +48,8 @@ type AWSBedrockMetadata struct {
 	Model            string         `json:"model"`
 	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL" mdaliases:"cacheTTL"`
 	// MaxTokens is a component-level default cap on the number of tokens the
-	// model may generate for every request; a request-level MaxTokens overrides it.
+	// model may generate for every request; a request-level MaxTokens greater
+	// than zero overrides it. See conversation.LangchainMetadata.MaxTokens.
 	MaxTokens *int64 `json:"maxTokens,omitempty" mapstructure:"maxTokens"`
 
 	// TODO: @mikeee - Consider exporting awsCommonAuth.awsRAOpts and using it here

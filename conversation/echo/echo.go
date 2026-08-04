@@ -40,7 +40,7 @@ type Echo struct {
 type EchoMetadata struct {
 	// MaxTokens is a component-level default cap on the number of "tokens"
 	// (whitespace-delimited words) echoed back for every request; a
-	// request-level MaxTokens overrides it.
+	// request-level MaxTokens greater than zero overrides it.
 	MaxTokens *int64 `json:"maxTokens,omitempty" mapstructure:"maxTokens"`
 }
 
@@ -65,17 +65,6 @@ func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := EchoMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
-}
-
-// approximateTokensFromWords estimates the number of tokens based on word count.
-// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-func approximateTokensFromWords(text string) uint64 {
-	if text == "" {
-		return 0
-	}
-
-	// split on whitespace to count words
-	return uint64(len(strings.Fields(text)))
 }
 
 // Converse returns one output per input message.
@@ -160,7 +149,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	}
 
 	responseContent := strings.Join(contentFromMessaged, "\n")
-	promptTokens := approximateTokensFromWords(responseContent)
+	words := strings.Fields(responseContent)
+	promptTokens := uint64(len(words))
 
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
@@ -168,21 +158,26 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		// follows openai spec for tool_calls finish reason https://platform.openai.com/docs/api-reference/chat/object
 	}
 
-	// Honor the request-level MaxTokens, falling back to the component metadata
-	// default. One echo "token" is one whitespace-delimited word, matching
-	// approximateTokensFromWords; truncation joins the kept words with single spaces.
+	// A request-level MaxTokens greater than zero overrides the component
+	// metadata default; zero or negative request values are treated as unset,
+	// matching langchaingokit's precedence for the real providers. One echo
+	// "token" is one whitespace-delimited word, approximating tokens by word
+	// count (ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them);
+	// truncation joins the kept words with single spaces.
 	var maxTokens int64
-	if r.MaxTokens != nil {
+	switch {
+	case r.MaxTokens != nil && *r.MaxTokens > 0:
 		maxTokens = *r.MaxTokens
-	} else if e.md.MaxTokens != nil {
+	case e.md.MaxTokens != nil:
 		maxTokens = *e.md.MaxTokens
 	}
-	if maxTokens > 0 {
-		if words := strings.Fields(responseContent); int64(len(words)) > maxTokens {
-			responseContent = strings.Join(words[:maxTokens], " ")
-			// follows openai spec for length finish reason on truncation
-			stopReason = "length"
-		}
+
+	completionTokens := promptTokens
+	if maxTokens > 0 && int64(len(words)) > maxTokens {
+		responseContent = strings.Join(words[:maxTokens], " ")
+		completionTokens = uint64(maxTokens)
+		// follows openai spec for length finish reason on truncation
+		stopReason = "length"
 	}
 
 	choice := conversation.Choice{
@@ -202,7 +197,6 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
-	completionTokens := approximateTokensFromWords(responseContent)
 	usage := &conversation.Usage{
 		CompletionTokens: completionTokens,
 		PromptTokens:     promptTokens,

@@ -32,6 +32,7 @@ type LangchainMetadata struct {
 	ResponseCacheTTL *time.Duration `json:"responseCacheTTL,omitempty" mapstructure:"responseCacheTTL" mapstructurealiases:"cacheTTL"`
 	Endpoint         string         `json:"endpoint" mapstructure:"endpoint"`
 	// MaxTokens is a component-level default cap on the number of tokens the
-	// model may generate for every request; a request-level MaxTokens overrides it.
+	// model may generate for every request; a request-level MaxTokens greater
+	// than zero overrides it.
 	MaxTokens *int64 `json:"maxTokens,omitempty" mapstructure:"maxTokens"`
 }

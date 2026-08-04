@@ -43,8 +43,9 @@ type Request struct {
 	Temperature float64 `json:"temperature"`
 
 	// MaxTokens caps the number of tokens the model may generate for the
-	// completion. When nil, the component-level maxTokens metadata default
-	// (if any) or the provider default applies.
+	// completion. When nil, zero, or negative, the component-level maxTokens
+	// metadata default (if any) or the provider default applies. Values above
+	// math.MaxInt32 are clamped to math.MaxInt32.
 	MaxTokens *int64 `json:"maxTokens,omitempty"`
 
 	// Metadata fields that are separate from the actual component metadata fields

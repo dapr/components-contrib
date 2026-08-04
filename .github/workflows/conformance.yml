@@ -50,7 +50,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -135,7 +135,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -213,7 +213,7 @@ jobs:
 
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v4.0.1
 
     - name: Set Cloudflare env vars
       if: matrix.require-cloudflare-credentials == 'true'
@@ -243,7 +243,7 @@ jobs:
         mongodb-replica-set: test-rs
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version-file: 'go.mod'
         cache: 'false'

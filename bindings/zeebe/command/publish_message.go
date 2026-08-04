@@ -34,6 +34,28 @@ type publishMessagePayload struct {
 	Variables      interface{}        `json:"variables"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to provide field-specific error messages for
+// duration fields. The timeToLive field accepts either a Go duration string (e.g. "30s", "5m", "1h30m")
+// or a plain integer representing nanoseconds.
+func (p *publishMessagePayload) UnmarshalJSON(data []byte) error {
+	// Use a shadow struct with raw JSON for the duration field so we can provide better errors.
+	type alias publishMessagePayload
+	shadow := struct {
+		*alias
+		TimeToLive *json.RawMessage `json:"timeToLive,omitempty"`
+	}{alias: (*alias)(p)}
+	if err := json.Unmarshal(data, &shadow); err != nil {
+		return err
+	}
+
+	var err error
+	if p.TimeToLive, err = parseOptionalDuration(shadow.TimeToLive, "timeToLive"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (z *ZeebeCommand) publishMessage(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload publishMessagePayload
 	err := json.Unmarshal(req.Data, &payload)

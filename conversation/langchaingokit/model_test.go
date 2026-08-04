@@ -122,6 +122,29 @@ func TestConverseMaxTokensDefaults(t *testing.T) {
 	}
 }
 
+// TestConverseNilResponse verifies that a nil model response yields an error
+// instead of a nil-pointer panic, and that the max-tokens cap was still
+// applied to the outgoing call: options are folded before the call is made,
+// so the cap must be present regardless of what the model returns.
+func TestConverseNilResponse(t *testing.T) {
+	var got llms.CallOptions
+	llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+		got = foldCallOptions(options)
+		return nil, nil
+	})
+	llm.SetDefaultMaxTokens(ptr.Of(int64(50)))
+
+	resp, err := llm.Converse(t.Context(), &conversation.Request{
+		MaxTokens: ptr.Of(int64(100)),
+		Message: &[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+		},
+	})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, 100, got.MaxTokens, "max tokens must be applied to the outgoing call even when the response is nil")
+}
+
 // TestConversePostCallOptionsSurviveRequestMetadata verifies that provider
 // flags carried in CallOptions.Metadata (e.g. openai.WithLegacyMaxTokensField)
 // survive a request that sets its own Metadata: llms.WithMetadata replaces the

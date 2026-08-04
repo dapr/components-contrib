@@ -16,6 +16,7 @@ package langchaingokit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -104,6 +105,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return nil, errors.New("LLM returned a nil response")
 	}
 
 	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)

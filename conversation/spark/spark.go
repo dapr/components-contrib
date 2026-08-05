@@ -36,7 +36,7 @@ type Spark struct {
 }
 
 const (
-	defaultModel    = "generalv3.5"
+	defaultModel    = "4.0Ultra"
 	defaultEndpoint = "https://spark-api-open.xf-yun.com/v1"
 )
 

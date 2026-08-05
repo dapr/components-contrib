@@ -548,6 +548,10 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 		})
 
 		t.Run("test response format returned", func(t *testing.T) {
+			if component == "spark" {
+				t.Skip("IFLYTEK Spark does not support the OpenAI json_schema response format")
+			}
+
 			if component == "echo" || component == "ollama" || component == "bedrock" {
 				t.Skipf("component %s doesn't support structured output", component)
 			}

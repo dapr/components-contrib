@@ -28,7 +28,7 @@ metadata:
       The iFlytek Spark LLM to use.
     type: string
     example: '4.0Ultra'
-    default: 'generalv3.5'
+    default: '4.0Ultra'
   - name: endpoint
     required: false
     description: |

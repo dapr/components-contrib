@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: spark
+spec:
+  type: conversation.spark
+  version: v1
+  metadata:
+    - name: key
+      value: "${{IFLYTEK_API_KEY}}"
+    - name: model
+      value: "4.0Ultra"

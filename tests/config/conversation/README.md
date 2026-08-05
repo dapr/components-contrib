@@ -12,6 +12,7 @@ This directory contains conformance tests for all conversation components, inclu
 - **huggingface** - HuggingFace models (using OpenAI compatibility layer)
 - **ollama** - Local Ollama models
 - **bedrock** - AWS Bedrock models
+- **spark** - IFLYTEK Spark models
 
 ## Running the Tests
 
@@ -126,6 +127,12 @@ export OLLAMA_ENABLED="1"
 ```
 
 Requires a local Ollama server running with the `llama3.2:latest` model available.
+
+#### IFLYTEK Spark
+
+```bash
+export IFLYTEK_API_KEY="your_iflytek_spark_api_key"
+```
 
 ## Test Configuration
 

@@ -8,7 +8,6 @@ componentFolders:
   - pubsub
   - secretstores
   - state
-  - workflows
   - conversation
 
 excludeFolders:

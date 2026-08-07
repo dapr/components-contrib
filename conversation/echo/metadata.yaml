@@ -8,4 +8,12 @@ title: "Echo"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-conversation/echo/
-metadata: []
+metadata:
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of "tokens" (whitespace-delimited words) echoed back
+      per request. A request-level maxTokens value greater than zero overrides
+      this default. When the cap truncates the output, the finish reason is length.
+    type: number
+    example: "2048"

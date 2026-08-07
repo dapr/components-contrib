@@ -72,6 +72,10 @@ func (d *Deepseek) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	d.Model = llm
 	d.SetModel(model)
+	d.SetDefaultMaxTokens(md.MaxTokens)
+	// DeepSeek documents only the legacy max_tokens field;
+	// max_completion_tokens is not supported.
+	d.SetPostCallOptions(openai.WithLegacyMaxTokensField())
 	d.md = md
 	return nil
 }

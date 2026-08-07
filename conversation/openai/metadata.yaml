@@ -57,3 +57,10 @@ metadata:
       - "azure"
     example: 'azure'
     default: 'open_ai'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+    type: number
+    example: "2048"

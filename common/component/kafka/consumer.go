@@ -41,6 +41,16 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	if err != nil {
 		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
+
+	// When consumer transactions are enabled, this claim gets its own
+	// transactional producer (created lazily on the first delivery) so its
+	// transactions never contend with other claims or with the app handler.
+	var ct *claimTxn
+	if consumer.k.consumerTxnEnabled {
+		ct = consumer.k.newClaimTxn(claim.Topic(), claim.Partition())
+		defer ct.close()
+	}
+
 	if isBulkSubscribe {
 		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 		defer ticker.Stop()
@@ -48,13 +58,13 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		for {
 			select {
 			case <-session.Context().Done():
-				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct)
 			case message := <-claim.Messages():
 				consumer.mutex.Lock()
 				if message != nil {
 					messages = append(messages, message)
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxMessagesCount {
-						_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
+						_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct) //nolint:errcheck // legacy behavior preserved
 						messages = messages[:0]
 						ticker.Reset(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 					}
@@ -62,7 +72,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				consumer.mutex.Unlock()
 			case <-ticker.C:
 				consumer.mutex.Lock()
-				_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
+				_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct) //nolint:errcheck // legacy behavior preserved
 				messages = messages[:0]
 				consumer.mutex.Unlock()
 			}
@@ -86,7 +96,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 				if consumer.k.consumeRetryEnabled {
 					if err := retry.NotifyRecover(func() error {
-						return consumer.doCallback(session, message)
+						return consumer.dispatchCallback(session, message, ct)
 					}, b, func(err error, d time.Duration) {
 						consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}, func() {
@@ -106,7 +116,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
 				} else {
-					err := consumer.doCallback(session, message)
+					err := consumer.dispatchCallback(session, message, ct)
 					if err != nil {
 						consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
@@ -118,12 +128,12 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 	messages []*sarama.ConsumerMessage, session sarama.ConsumerGroupSession,
-	handler BulkEventHandler, b backoff.BackOff,
+	handler BulkEventHandler, b backoff.BackOff, ct *claimTxn,
 ) error {
 	if len(messages) > 0 {
 		if consumer.k.consumeRetryEnabled {
 			if err := retry.NotifyRecover(func() error {
-				return consumer.doBulkCallback(session, messages, handler, claim.Topic())
+				return consumer.dispatchBulkCallback(session, messages, handler, claim.Topic(), ct)
 			}, b, func(err error, d time.Duration) {
 				consumer.k.logger.Warnf("Error processing Kafka bulk messages: %s. Error: %v. Retrying...", claim.Topic(), err)
 			}, func() {
@@ -138,7 +148,7 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 				}
 			}
 		} else {
-			err := consumer.doBulkCallback(session, messages, handler, claim.Topic())
+			err := consumer.dispatchBulkCallback(session, messages, handler, claim.Topic(), ct)
 			if err != nil {
 				consumer.k.logger.Errorf("Error processing Kafka message: %s. Error: %v.", claim.Topic(), err)
 			}
@@ -146,6 +156,25 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 		}
 	}
 	return nil
+}
+
+// dispatchCallback routes a delivery to the transactional or the plain
+// callback, depending on whether this claim processes transactionally.
+func (consumer *consumer) dispatchCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, ct *claimTxn) error {
+	if ct != nil {
+		return consumer.doCallbackTxn(session, message, ct)
+	}
+	return consumer.doCallback(session, message)
+}
+
+// dispatchBulkCallback is dispatchCallback for bulk deliveries.
+func (consumer *consumer) dispatchBulkCallback(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string, ct *claimTxn,
+) error {
+	if ct != nil {
+		return consumer.doBulkCallbackTxn(session, messages, handler, topic, ct)
+	}
+	return consumer.doBulkCallback(session, messages, handler, topic)
 }
 
 func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
@@ -223,6 +252,180 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		session.MarkMessage(message, "")
 	}
 	return err
+}
+
+// doCallbackTxn processes one delivery inside a Kafka transaction on the
+// claim's producer: publishes made by the handler that carry the delivery's
+// transaction token join the transaction, and on success the consumer offset
+// commits with them atomically. On any failure the transaction aborts and
+// the existing retry/redelivery path takes over with a fresh transaction per
+// attempt.
+func (consumer *consumer) doCallbackTxn(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, ct *claimTxn) error {
+	k := consumer.k
+	k.logger.Debugf("Processing Kafka message transactionally: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+	handlerConfig, err := k.GetTopicHandlerConfig(message.Topic)
+	if err != nil {
+		return err
+	}
+	if !handlerConfig.IsBulkSubscribe && handlerConfig.Handler == nil {
+		return errors.New("invalid handler config for subscribe call")
+	}
+
+	messageVal, err := k.DeserializeValue(message, handlerConfig)
+	if err != nil {
+		return err
+	}
+
+	producer, err := ct.getProducer()
+	if err != nil {
+		return err
+	}
+	if err := producer.BeginTxn(); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: begin transaction: %w", err), ct.invalidate)
+	}
+
+	sess := &txnSession{producer: producer, open: true}
+	token := k.registerTxnSession(sess)
+	// Panic hygiene only: end/deregister run explicitly before the
+	// transaction is ended below; both are idempotent.
+	defer func() {
+		sess.end()
+		k.deregisterTxnSession(token)
+	}()
+
+	event := NewEvent{
+		Topic: message.Topic,
+		Data:  messageVal,
+	}
+	event.Metadata = GetEventMetadata(message, k)
+	event.Metadata[txnTokenMetadataKey] = token
+
+	handlerErr := handlerConfig.Handler(session.Context(), &event)
+
+	// Close the token before ending the transaction so no late publish can
+	// slip into the commit — or into the next transaction on this producer.
+	sess.end()
+	k.deregisterTxnSession(token)
+
+	if handlerErr != nil {
+		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+	}
+
+	return consumer.commitTxnWithOffset(session, producer, message, ct, sess.hasSent())
+}
+
+// doBulkCallbackTxn processes a bulk delivery inside a Kafka transaction.
+// The batch is all-or-nothing: a handler error or any per-entry error aborts
+// the whole transaction and the batch is redelivered whole. Partial success
+// cannot coexist with an atomic transaction.
+func (consumer *consumer) doBulkCallbackTxn(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string, ct *claimTxn,
+) error {
+	k := consumer.k
+	k.logger.Debugf("Processing Kafka bulk message transactionally: %s", topic)
+
+	messageValues := make([]KafkaBulkMessageEntry, len(messages))
+	var lastMessage *sarama.ConsumerMessage
+	for i, message := range messages {
+		if message != nil {
+			metadata := GetEventMetadata(message, k)
+			handlerConfig, err := k.GetTopicHandlerConfig(message.Topic)
+			if err != nil {
+				return err
+			}
+			messageVal, err := k.DeserializeValue(message, handlerConfig)
+			if err != nil {
+				return err
+			}
+			messageValues[i] = KafkaBulkMessageEntry{
+				EntryId:  strconv.Itoa(i),
+				Event:    messageVal,
+				Metadata: metadata,
+			}
+			lastMessage = message
+		}
+	}
+	if lastMessage == nil {
+		return nil
+	}
+
+	producer, err := ct.getProducer()
+	if err != nil {
+		return err
+	}
+	if err := producer.BeginTxn(); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: begin transaction: %w", err), ct.invalidate)
+	}
+
+	sess := &txnSession{producer: producer, open: true}
+	token := k.registerTxnSession(sess)
+	// Panic hygiene only: end/deregister run explicitly before the
+	// transaction is ended below; both are idempotent.
+	defer func() {
+		sess.end()
+		k.deregisterTxnSession(token)
+	}()
+
+	event := KafkaBulkMessage{
+		Topic:    topic,
+		Entries:  messageValues,
+		Metadata: map[string]string{txnTokenMetadataKey: token},
+	}
+	responses, handlerErr := handler(session.Context(), &event)
+
+	sess.end()
+	k.deregisterTxnSession(token)
+
+	if handlerErr == nil {
+		for _, resp := range responses {
+			if resp.Error != nil {
+				handlerErr = fmt.Errorf("kafka: bulk entry %s failed, aborting the batch transaction: %w", resp.EntryId, resp.Error)
+				break
+			}
+		}
+	}
+	if handlerErr != nil {
+		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+	}
+
+	// A claim is a single partition, so the last message carries the batch's
+	// highest offset.
+	return consumer.commitTxnWithOffset(session, producer, lastMessage, ct, sess.hasSent())
+}
+
+// commitTxnWithOffset finishes a successful delivery. When the handler
+// published into the transaction, the offset joins it (with the consumer
+// group member metadata so the broker fences stale members, KIP-447) and
+// both commit atomically. When nothing was published, sarama would silently
+// skip the offset commit of a record-less transaction — and with no records
+// there is nothing for the offset to be atomic with — so the empty
+// transaction is ended and the offset commits synchronously instead.
+// Autocommit is disabled in transactional mode, so no stale background
+// commit can regress a transactional offset commit.
+func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage, ct *claimTxn, sent bool) error {
+	k := consumer.k
+
+	if !sent {
+		if err := producer.CommitTxn(); err != nil {
+			return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+		}
+		session.MarkMessage(message, "")
+		session.Commit()
+		return nil
+	}
+
+	groupMetadata := &sarama.ConsumerGroupMetadata{
+		GroupID:      k.consumerGroup,
+		GenerationID: session.GenerationID(),
+		MemberID:     session.MemberID(),
+	}
+	if err := producer.AddMessageToTxnWithGroupMetadata(message, groupMetadata, nil); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: add offsets to transaction: %w", err), ct.invalidate)
+	}
+	if err := producer.CommitTxn(); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+	}
+	return nil
 }
 
 func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]string {

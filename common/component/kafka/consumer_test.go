@@ -103,6 +103,413 @@ func (m *mockConsumerGroupClaim) Messages() <-chan *sarama.ConsumerMessage {
 	return m.messages
 }
 
+func TestConsumerTransactions(t *testing.T) {
+	newMessage := func(offset int64) *sarama.ConsumerMessage {
+		return &sarama.ConsumerMessage{Topic: "mytopic", Partition: 3, Offset: offset, Value: []byte("v")}
+	}
+
+	arrange := func(t *testing.T, handlerConfig SubscriptionHandlerConfig, factory func(pc ProducerConfig) (sarama.SyncProducer, error)) (*Kafka, *consumer, *claimTxn, *mockConsumerGroupSession) {
+		t.Helper()
+		k := &Kafka{
+			logger:               logger.NewLogger("kafka_test"),
+			consumerGroup:        "group1",
+			consumerTxnEnabled:   true,
+			txnIDPrefix:          "pfx",
+			txnSessions:          make(map[string]*txnSession),
+			subscribeTopics:      TopicHandlerConfig{"mytopic": handlerConfig},
+			claimProducerFactory: factory,
+		}
+		c := &consumer{k: k}
+		ct := k.newClaimTxn("mytopic", 3)
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		return k, c, ct, session
+	}
+
+	t.Run("claim transactional id is stable per partition", func(t *testing.T) {
+		_, _, ct, _ := arrange(t, SubscriptionHandlerConfig{}, nil)
+		require.Equal(t, "pfx-group1-mytopic-3", ct.transactionalID())
+	})
+
+	t.Run("claim producer is created transactional with the stable id", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		var got ProducerConfig
+		factory := func(pc ProducerConfig) (sarama.SyncProducer, error) {
+			got = pc
+			return fake, nil
+		}
+		handler := func(context.Context, *NewEvent) error { return nil }
+		k, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
+		k.producerConfig.TransactionTimeout = 90 * time.Second
+		session.On("MarkMessage", mock.Anything, "").Return()
+		session.On("Commit").Return()
+
+		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
+
+		require.True(t, got.TransactionsEnabled, "the claim producer must be transactional")
+		require.Equal(t, "pfx-group1-mytopic-3", got.TransactionalID)
+		require.Equal(t, 90*time.Second, got.TransactionTimeout)
+	})
+
+	t.Run("claim producer is reused across deliveries", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		factoryCalls := 0
+		factory := func(ProducerConfig) (sarama.SyncProducer, error) {
+			factoryCalls++
+			return fake, nil
+		}
+		handler := func(context.Context, *NewEvent) error { return nil }
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
+		session.On("MarkMessage", mock.Anything, "").Return()
+		session.On("Commit").Return()
+
+		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
+		require.NoError(t, c.doCallbackTxn(session, newMessage(43), ct))
+
+		require.Equal(t, 1, factoryCalls, "a healthy claim producer must be reused, not recreated per delivery")
+		require.Equal(t, 2, fake.begins)
+	})
+
+	t.Run("claim producer creation failure fails the delivery", func(t *testing.T) {
+		factory := func(ProducerConfig) (sarama.SyncProducer, error) {
+			return nil, errors.New("dial failed")
+		}
+		handler := func(context.Context, *NewEvent) error {
+			t.Error("handler must not run when the claim producer cannot be created")
+			return nil
+		}
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "failed to create transactional producer for mytopic/3")
+		require.ErrorContains(t, err, "dial failed")
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("swallowed publish error still finishes through the transactional path", func(t *testing.T) {
+		// sarama adds the partition to the transaction on the send attempt,
+		// so a failed-and-swallowed publish must not take the record-less
+		// fallback (which would commit partial outputs plus the offset
+		// out-of-band).
+		fake := &fakeTxnProducer{
+			sendErr: errors.New("send failed"),
+			status:  sarama.ProducerTxnFlagAbortableError,
+		}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			// Publish fails, app swallows the error and acks anyway.
+			_ = k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+			return nil
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		// The errored transaction refuses to commit, so the delivery fails
+		// and is retried — the offset never commits alongside the partially
+		// failed outputs (neither transactionally nor via the fallback).
+		require.Error(t, err)
+		require.Equal(t, 1, fake.addOffsetCalls, "the offset must go through the transaction, not the record-less fallback")
+		require.Equal(t, 1, fake.aborts)
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("begin error on the bulk claim producer drops it for recreation", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			beginErr: errors.New("transition not allowed"),
+			status:   sarama.ProducerTxnFlagEndTransaction | sarama.ProducerTxnFlagCommittingTransaction,
+		}
+		bulkHandler := func(context.Context, *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+			t.Error("handler must not run when the transaction cannot begin")
+			return nil, nil
+		}
+		handlerConfig := SubscriptionHandlerConfig{IsBulkSubscribe: true, BulkHandler: bulkHandler}
+		_, c, ct, session := arrange(t, handlerConfig, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		messages := []*sarama.ConsumerMessage{newMessage(10), newMessage(11)}
+
+		err := c.doBulkCallbackTxn(session, messages, bulkHandler, "mytopic", ct)
+
+		require.ErrorContains(t, err, "transition not allowed")
+		require.True(t, fake.closed, "a producer wedged in a no-exit transaction state must be dropped")
+		require.Nil(t, ct.producer)
+	})
+
+	t.Run("ConsumeClaim routes deliveries through the claim transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		factoryCalls := 0
+		factory := func(ProducerConfig) (sarama.SyncProducer, error) {
+			factoryCalls++
+			return fake, nil
+		}
+		var cancel context.CancelFunc
+		handler := func(context.Context, *NewEvent) error {
+			cancel() // stop the claim loop after the first delivery
+			return nil
+		}
+		var c *consumer
+		var session *mockConsumerGroupSession
+		_, c, _, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
+		cancel = session.cancel
+		session.On("MarkMessage", mock.Anything, "").Return()
+		session.On("Commit").Return()
+		claim := &mockConsumerGroupClaim{messages: make(chan *sarama.ConsumerMessage, 1), topic: "mytopic"}
+		claim.On("Partition").Return(3)
+		claim.messages <- newMessage(42)
+
+		err := c.ConsumeClaim(session, claim)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, factoryCalls, "the delivery must be dispatched through the claim transaction")
+		require.True(t, fake.closed, "the claim producer must be released when the claim ends")
+	})
+
+	t.Run("offset-join failure aborts the transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			addOffsetErr: errors.New("offsets rejected"),
+			status:       sarama.ProducerTxnFlagAbortableError,
+		}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "offsets rejected")
+		require.Equal(t, 1, fake.aborts)
+		require.Equal(t, 0, fake.commits)
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("begin error on the claim producer drops it for recreation", func(t *testing.T) {
+		fake := &fakeTxnProducer{
+			beginErr: errors.New("transition not allowed"),
+			status:   sarama.ProducerTxnFlagEndTransaction | sarama.ProducerTxnFlagCommittingTransaction,
+		}
+		handler := func(context.Context, *NewEvent) error { return nil }
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "transition not allowed")
+		require.True(t, fake.closed, "a producer wedged in a no-exit transaction state must be dropped")
+		require.Nil(t, ct.producer)
+	})
+
+	t.Run("bulk batch of nil messages is a no-op", func(t *testing.T) {
+		factoryCalls := 0
+		factory := func(ProducerConfig) (sarama.SyncProducer, error) {
+			factoryCalls++
+			return &fakeTxnProducer{}, nil
+		}
+		bulkHandler := func(context.Context, *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+			t.Fatal("handler must not run for an all-nil batch")
+			return nil, nil
+		}
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{IsBulkSubscribe: true, BulkHandler: bulkHandler}, factory)
+
+		err := c.doBulkCallbackTxn(session, []*sarama.ConsumerMessage{nil, nil}, bulkHandler, "mytopic", ct)
+
+		require.NoError(t, err)
+		require.Equal(t, 0, factoryCalls, "no producer needed for an empty batch")
+	})
+
+	t.Run("outputs and offset commit in one transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		var k *Kafka
+		var token string
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			token = msg.Metadata[txnTokenMetadataKey]
+			require.NotEmpty(t, token)
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: token, "h1": "v1"})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, fake.begins)
+		require.Equal(t, 1, fake.sends)
+		require.Equal(t, 1, fake.addOffsetCalls)
+		require.Equal(t, 1, fake.commits)
+		require.Equal(t, 0, fake.aborts)
+		require.Equal(t, int64(42), fake.offsetMsg.Offset)
+		require.Equal(t, "group1", fake.groupMetadata.GroupID)
+		require.Equal(t, int32(7), fake.groupMetadata.GenerationID)
+		require.Equal(t, "member-a", fake.groupMetadata.MemberID)
+		// The token is transport plumbing, never a record header.
+		require.NotNil(t, fake.lastMsg)
+		for _, h := range fake.lastMsg.Headers {
+			require.NotEqual(t, txnTokenMetadataKey, string(h.Key))
+		}
+		// The offset commit rides in the transaction; marking it as well could
+		// let a stale autocommit regress it.
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+		require.Empty(t, k.txnSessions)
+	})
+
+	t.Run("handler error aborts the transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{status: sarama.ProducerTxnFlagInTransaction}
+		handler := func(context.Context, *NewEvent) error { return errors.New("app failed") }
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "app failed")
+		require.Equal(t, 1, fake.aborts)
+		require.Equal(t, 0, fake.commits)
+		require.Equal(t, 0, fake.addOffsetCalls)
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("publish after the handler returned fails loudly", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		var k *Kafka
+		var token string
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			token = msg.Metadata[txnTokenMetadataKey]
+			return nil
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		// No publish happened during the handler, so the offset commits via
+		// the synchronous mark path.
+		session.On("MarkMessage", mock.Anything, "").Return()
+		session.On("Commit").Return()
+
+		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
+
+		err := k.Publish(t.Context(), "out-topic", []byte("late"), map[string]string{txnTokenMetadataKey: token})
+		require.ErrorIs(t, err, errTxnTokenClosed)
+		require.Equal(t, 0, fake.sends)
+	})
+
+	t.Run("publish with unknown token fails loudly", func(t *testing.T) {
+		k, _, _, _ := arrange(t, SubscriptionHandlerConfig{}, nil)
+
+		err := k.Publish(t.Context(), "out-topic", []byte("x"), map[string]string{txnTokenMetadataKey: "bogus"})
+
+		require.ErrorIs(t, err, errTxnTokenClosed)
+	})
+
+	t.Run("fatal commit drops the claim producer and the next delivery recreates it", func(t *testing.T) {
+		fakes := []*fakeTxnProducer{
+			{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagFatalError},
+			{},
+		}
+		factoryCalls := 0
+		factory := func(ProducerConfig) (sarama.SyncProducer, error) {
+			p := fakes[factoryCalls]
+			factoryCalls++
+			return p, nil
+		}
+		handler := func(context.Context, *NewEvent) error { return nil }
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
+		session.On("MarkMessage", mock.Anything, "").Return()
+		session.On("Commit").Return()
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+		require.ErrorContains(t, err, "commit failed")
+		require.True(t, fakes[0].closed)
+		require.Nil(t, ct.producer)
+
+		require.NoError(t, c.doCallbackTxn(session, newMessage(43), ct))
+		require.Equal(t, 2, factoryCalls)
+		require.Equal(t, 1, fakes[1].commits)
+	})
+
+	t.Run("bulk batch commits outputs and the last offset in one transaction", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		var k *Kafka
+		bulkHandler := func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+			token := msg.Metadata[txnTokenMetadataKey]
+			require.NotEmpty(t, token)
+			require.Len(t, msg.Entries, 3)
+			return nil, k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: token})
+		}
+		handlerConfig := SubscriptionHandlerConfig{IsBulkSubscribe: true, BulkHandler: bulkHandler}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, handlerConfig, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+		messages := []*sarama.ConsumerMessage{newMessage(10), newMessage(11), newMessage(12)}
+
+		err := c.doBulkCallbackTxn(session, messages, bulkHandler, "mytopic", ct)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, fake.begins)
+		require.Equal(t, 1, fake.sends)
+		require.Equal(t, 1, fake.commits)
+		require.Equal(t, int64(12), fake.offsetMsg.Offset)
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("delivery without outputs commits the offset synchronously", func(t *testing.T) {
+		// sarama silently skips offset commits of record-less transactions,
+		// so a handler that publishes nothing must fall back to a
+		// synchronous mark+commit.
+		fake := &fakeTxnProducer{}
+		handler := func(context.Context, *NewEvent) error { return nil }
+		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		msg := newMessage(42)
+		session.On("MarkMessage", msg, "").Return()
+		session.On("Commit").Return()
+
+		err := c.doCallbackTxn(session, msg, ct)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, fake.begins)
+		require.Equal(t, 1, fake.commits, "the empty transaction is still ended")
+		require.Equal(t, 0, fake.addOffsetCalls, "no transactional offset commit for a record-less transaction")
+		session.AssertCalled(t, "MarkMessage", msg, "")
+		session.AssertCalled(t, "Commit")
+	})
+
+	t.Run("bulk per-entry error aborts the whole batch", func(t *testing.T) {
+		fake := &fakeTxnProducer{status: sarama.ProducerTxnFlagInTransaction}
+		bulkHandler := func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+			return []pubsub.BulkSubscribeResponseEntry{
+				{EntryId: "0"},
+				{EntryId: "1", Error: errors.New("entry 1 failed")},
+				{EntryId: "2"},
+			}, nil
+		}
+		handlerConfig := SubscriptionHandlerConfig{IsBulkSubscribe: true, BulkHandler: bulkHandler}
+		_, c, ct, session := arrange(t, handlerConfig, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		messages := []*sarama.ConsumerMessage{newMessage(10), newMessage(11), newMessage(12)}
+
+		err := c.doBulkCallbackTxn(session, messages, bulkHandler, "mytopic", ct)
+
+		require.ErrorContains(t, err, "entry 1 failed")
+		require.Equal(t, 1, fake.aborts)
+		require.Equal(t, 0, fake.commits)
+		require.Equal(t, 0, fake.addOffsetCalls)
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+}
+
 func Test_ConsumeClaim(t *testing.T) {
 	t.Run("single message", func(t *testing.T) {
 		t.Run("no retry", func(t *testing.T) {

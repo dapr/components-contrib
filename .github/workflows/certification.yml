@@ -48,7 +48,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -130,7 +130,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -208,7 +208,7 @@ jobs:
         done
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v4.0.1
       if: matrix.require-terraform == 'true'
 
     - name: Set Cloudflare env vars
@@ -225,7 +225,7 @@ jobs:
         echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v5
+      uses: aws-actions/configure-aws-credentials@v6.2.2
       if: matrix.require-aws-credentials == 'true'
       with:
         aws-access-key-id: "${{ secrets.AWS_ACCESS_KEY }}"
@@ -234,7 +234,7 @@ jobs:
 
     - name: Set up Go
       id: setup-go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version-file: 'go.mod'
         cache: 'false'
@@ -363,7 +363,7 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: testresults
         with:

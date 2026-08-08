@@ -149,7 +149,6 @@ const (
 	MiddlewareType         ComponentType = "middleware"
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
-	WorkflowType           ComponentType = "workflows"
 	ConversationType       ComponentType = "conversation"
 )
 
@@ -160,7 +159,7 @@ func (t ComponentType) IsValid() bool {
 		SecretStoreType, PubSubType,
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
-		NameResolutionType, WorkflowType,
+		NameResolutionType,
 		ConversationType:
 		return true
 	default:

@@ -19,11 +19,13 @@ import (
 
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/cluster/failover"
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/loadbalance/random"
+	_ "dubbo.apache.org/dubbo-go/v3/cluster/router/tag"
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
 	_ "dubbo.apache.org/dubbo-go/v3/filter/filter_impl"
 	_ "dubbo.apache.org/dubbo-go/v3/protocol/dubbo"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	_ "dubbo.apache.org/dubbo-go/v3/proxy/proxy_factory"
+	_ "dubbo.apache.org/dubbo-go/v3/registry/protocol"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"

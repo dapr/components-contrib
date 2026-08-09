@@ -66,6 +66,7 @@ func (d *dubboContext) Init() error {
 	}
 
 	opts := []dubboClient.ReferenceOption{
+		dubboClient.WithProtocolDubbo(),
 		dubboClient.WithURL(fmt.Sprintf("%s://%s:%s", constant.Dubbo, d.hostname, d.port)),
 		dubboClient.WithSerialization(constant.Hessian2Serialization),
 	}

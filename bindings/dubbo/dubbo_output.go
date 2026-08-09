@@ -20,11 +20,10 @@ import (
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/cluster/failover"
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/loadbalance/random"
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	dubboLogger "dubbo.apache.org/dubbo-go/v3/common/logger"
-	_ "dubbo.apache.org/dubbo-go/v3/common/proxy/proxy_factory"
 	_ "dubbo.apache.org/dubbo-go/v3/filter/filter_impl"
 	_ "dubbo.apache.org/dubbo-go/v3/protocol/dubbo"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
+	_ "dubbo.apache.org/dubbo-go/v3/proxy/proxy_factory"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -38,13 +37,12 @@ type DubboOutputBinding struct {
 
 var dubboBinding *DubboOutputBinding
 
-func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
+func NewDubboOutput(_ logger.Logger) bindings.OutputBinding {
 	if dubboBinding == nil {
 		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),
 		}
 	}
-	dubboLogger.SetLogger(logger)
 	return dubboBinding
 }
 

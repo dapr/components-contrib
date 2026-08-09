@@ -19,8 +19,9 @@ import (
 	"time"
 
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	"dubbo.apache.org/dubbo-go/v3/config"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
+	"dubbo.apache.org/dubbo-go/v3/protocol"
+	"dubbo.apache.org/dubbo-go/v3/server"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,6 @@ const (
 	dubboPort             = "20000"
 	providerInterfaceName = "org.apache.dubbo.samples.UserProvider"
 	paramInterfaceName    = "org.apache.dubbo.samples.User"
-	providerTypeName      = "UserProvider"
 	methodName            = "SayHello"
 	helloPrefix           = "hello "
 	testName              = "dubbo-test"
@@ -103,32 +103,27 @@ func TestInvoke(t *testing.T) {
 
 func runDubboServer(stop chan struct{}) error {
 	hessian.RegisterPOJO(&User{})
-	config.SetProviderService(&UserProvider{})
 
-	rootConfig := config.NewRootConfigBuilder().
-		SetProvider(config.NewProviderConfigBuilder().
-			AddService(providerTypeName,
-				config.NewServiceConfigBuilder().
-					SetProtocolIDs(constant.Dubbo).
-					SetInterface(providerInterfaceName).
-					Build()).
-			Build()).
-		AddProtocol(constant.Dubbo, config.NewProtocolConfigBuilder().
-			SetName(constant.Dubbo).
-			SetPort(dubboPort).
-			Build()).
-		Build()
-
-	if err := config.Load(config.WithRootConfig(rootConfig)); err != nil {
+	srv, err := server.NewServer(
+		server.WithServerProtocol(
+			protocol.WithDubbo(),
+			protocol.WithPort(20000),
+		),
+	)
+	if err != nil {
 		return err
 	}
 
-	after := time.After(time.Second * 10)
-	select {
-	case <-stop:
-	case <-after:
+	if err := srv.RegisterService(&UserProvider{}, server.WithInterface(providerInterfaceName)); err != nil {
+		return err
 	}
-	return nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-stop
+		cancel()
+	}()
+	return srv.ServeContext(ctx)
 }
 
 type UserProvider struct{}

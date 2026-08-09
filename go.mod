@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/pubsub v1.49.0
 	cloud.google.com/go/secretmanager v1.14.7
 	cloud.google.com/go/storage v1.50.0
-	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+	dubbo.apache.org/dubbo-go/v3 v3.3.2
 	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
@@ -494,8 +494,6 @@ replace (
 // replaces a retracted library
 replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday v1.0.25
 
-// this is a fork which addresses a performance issues due to go routines.
-replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 
 // kitex's bthrift apache adapter only compiles against thrift v0.13.0 (newer
 // versions added context.Context to TProtocol methods). Mirrors the replace

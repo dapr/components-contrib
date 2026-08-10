@@ -122,6 +122,30 @@ func TestConverseMaxTokensDefaults(t *testing.T) {
 	}
 }
 
+// TestSetDefaultMaxTokensDiscardsNonPositive verifies that a non-positive
+// component default is dropped by the setter itself rather than merely skipped
+// when call options are built, so the stored default is always nil or positive.
+func TestSetDefaultMaxTokensDiscardsNonPositive(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxTokens *int64
+		want      *int64
+	}{
+		{name: "nil stays nil", want: nil},
+		{name: "zero is discarded", maxTokens: ptr.Of(int64(0)), want: nil},
+		{name: "negative is discarded", maxTokens: ptr.Of(int64(-5)), want: nil},
+		{name: "positive is retained", maxTokens: ptr.Of(int64(50)), want: ptr.Of(int64(50))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			llm := New(logger.NewLogger("test"))
+			llm.SetDefaultMaxTokens(tt.maxTokens)
+			assert.Equal(t, tt.want, llm.defaultMaxTokens)
+		})
+	}
+}
+
 // TestConverseNilResponse verifies that a nil model response yields an error
 // instead of a nil-pointer panic, and that the max-tokens cap was still
 // applied to the outgoing call: options are folded before the call is made,

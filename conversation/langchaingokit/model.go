@@ -30,7 +30,10 @@ import (
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
-	model            string
+	model string
+	// defaultMaxTokens is either nil or positive: SetDefaultMaxTokens is the
+	// only writer and discards non-positive values, so callers do not need to
+	// re-validate it.
 	defaultMaxTokens *int64
 	postCallOptions  []llms.CallOption
 	logger           logger.Logger
@@ -56,10 +59,11 @@ func (a *LLM) GetModel() string {
 // MaxTokens, which then takes precedence (langchaingo applies call options in
 // order; later wins). A request-level MaxTokens of zero or a negative value is
 // treated as unset and leaves this default (if any) in effect. A non-positive
-// default is ignored with a warning.
+// default is discarded with a warning, leaving the component with no default.
 func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
 	if maxTokens != nil && *maxTokens <= 0 {
 		a.logger.Warnf("ignoring non-positive maxTokens component default %d", *maxTokens)
+		maxTokens = nil
 	}
 	a.defaultMaxTokens = maxTokens
 }
@@ -91,7 +95,7 @@ func capMaxTokens(v int64) int {
 
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
 	var baseOpts []llms.CallOption
-	if a.defaultMaxTokens != nil && *a.defaultMaxTokens > 0 {
+	if a.defaultMaxTokens != nil {
 		baseOpts = append(baseOpts, llms.WithMaxTokens(capMaxTokens(*a.defaultMaxTokens)))
 	}
 	opts := getOptionsFromRequest(r, a.logger, baseOpts...)

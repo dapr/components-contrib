@@ -98,6 +98,75 @@ func (cmd3 *mockActivateJobsCommandStep3) Send(context.Context) ([]entities.Job,
 	return []entities.Job{}, nil
 }
 
+func TestActivateJobsPayloadUnmarshal(t *testing.T) {
+	t.Run("invalid timeout produces field-scoped error", func(t *testing.T) {
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"timeout":"PT30S"}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout")
+		assert.Contains(t, err.Error(), "PT30S")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("invalid requestTimeout produces field-scoped error", func(t *testing.T) {
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"requestTimeout":"2minutes"}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requestTimeout")
+		assert.Contains(t, err.Error(), "2minutes")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("valid Go duration strings succeed", func(t *testing.T) {
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"timeout":"30s","requestTimeout":"5m"}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.Timeout)
+		assert.Equal(t, 30*time.Second, p.Timeout.Duration)
+		require.NotNil(t, p.RequestTimeout)
+		assert.Equal(t, 5*time.Minute, p.RequestTimeout.Duration)
+	})
+
+	t.Run("numeric nanosecond timeout still parses correctly", func(t *testing.T) {
+		// Regression guard: numeric (nanosecond) values were accepted before and must remain valid.
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"timeout":30000000000}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.Timeout)
+		assert.Equal(t, 30*time.Second, p.Timeout.Duration)
+	})
+
+	t.Run("numeric nanosecond requestTimeout still parses correctly", func(t *testing.T) {
+		// Regression guard: numeric (nanosecond) values were accepted before and must remain valid.
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"requestTimeout":300000000000}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.RequestTimeout)
+		assert.Equal(t, 5*time.Minute, p.RequestTimeout.Duration)
+	})
+
+	t.Run("null timeout leaves pointer nil", func(t *testing.T) {
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"timeout":null}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		assert.Nil(t, p.Timeout)
+	})
+
+	t.Run("null requestTimeout leaves pointer nil", func(t *testing.T) {
+		raw := `{"jobType":"worker","maxJobsToActivate":10,"requestTimeout":null}`
+		var p activateJobsPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		assert.Nil(t, p.RequestTimeout)
+	})
+}
+
 func TestActivateJobs(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 

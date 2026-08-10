@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: conversation
-name: spark
+name: iflytek.spark
 version: v1
 status: alpha
 title: "iFlytek Spark"

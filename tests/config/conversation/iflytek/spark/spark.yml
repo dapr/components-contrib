@@ -3,7 +3,7 @@ kind: Component
 metadata:
   name: spark
 spec:
-  type: conversation.spark
+  type: conversation.iflytek.spark
   version: v1
   metadata:
     - name: key

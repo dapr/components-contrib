@@ -25,7 +25,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
-	"github.com/dapr/components-contrib/conversation/spark"
+	"github.com/dapr/components-contrib/conversation/iflytek/spark"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -37,7 +37,7 @@ func TestSparkConversation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
-	component := spark.NewSpark(logger.NewLogger("dapr.components.conversation.spark.certification"))
+	component := spark.NewSpark(logger.NewLogger("dapr.components.conversation.iflytek.spark.certification"))
 	t.Cleanup(func() {
 		require.NoError(t, component.Close())
 	})

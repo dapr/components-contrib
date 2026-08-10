@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs'
  * @type {Record<string,ComponentTestProperties>}
  */
 const components = {
-    'conversation.spark': {
+    'conversation.iflytek.spark': {
         conformance: true,
         certification: true,
         requireIFLYTEKCredentials: true,

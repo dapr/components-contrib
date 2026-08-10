@@ -18,6 +18,6 @@ components:
     operations: []
   - component: bedrock
     operations: []
-  - component: spark
+  - component: iflytek.spark
     operations: []
 # TODO: We are missing tests for deepseek.

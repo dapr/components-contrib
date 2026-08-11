@@ -15,5 +15,7 @@ metadata:
       Default maximum number of "tokens" (whitespace-delimited words) echoed back
       per request. A request-level maxTokens value greater than zero overrides
       this default. When the cap truncates the output, the finish reason is length.
+      When unset, the input is echoed back in full without truncation.
     type: number
     example: "2048"
+    default: ''

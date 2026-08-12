@@ -51,6 +51,9 @@ const (
 	expires             = "@expires"
 	defaultEnableTTL    = true
 	defaultTTLFrequency = int64(60)
+
+	// expiresLayout is the ISO-8601 layout RavenDB uses for the @expires metadata value.
+	expiresLayout = "2006-01-02T15:04:05.9999999Z07:00"
 )
 
 type RavenDB struct {
@@ -103,8 +106,17 @@ func (r *RavenDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 		return errors.New("error in creating Raven DB Store")
 	}
 
-	r.initTTL()
-	r.setupDatabase()
+	// The database must exist before expiration can be configured on it.
+	if err = r.setupDatabase(); err != nil {
+		r.logger.Warnf("Failed to set up RavenDB database %q: %v", r.metadata.DatabaseName, err)
+	}
+
+	// Server-side expiration only reclaims storage: expired documents are
+	// filtered out on read, so a failure here must not fail initialization.
+	// Some RavenDB licenses reject delete frequencies below their minimum.
+	if err = r.initTTL(); err != nil {
+		r.logger.Warnf("Failed to configure RavenDB document expiration, expired items will not be removed from storage: %v", err)
+	}
 
 	return nil
 }
@@ -158,19 +170,16 @@ func (r *RavenDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	}
 
 	meta := make(map[string]string)
-	ttl, okTTL := ravenMeta.Get(expires)
-	if okTTL {
-		meta = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: ttl.(string),
+	if expiry, ok := expiryFromMetadata(ravenMeta); ok {
+		if isExpired(expiry) {
+			return &state.GetResponse{}, nil
 		}
+		meta[state.GetRespMetaKeyTTLExpireTime] = expiry.UTC().Format(time.RFC3339)
 	}
 
 	var etagResp string
-	eTag, okETag := ravenMeta.Get(changeVector)
-	if okETag {
-		etagResp = eTag.(string)
-	} else {
-		etagResp = ""
+	if eTag, okETag := ravenMeta.Get(changeVector); okETag {
+		etagResp, _ = eTag.(string)
 	}
 
 	resp := &state.GetResponse{
@@ -267,37 +276,73 @@ func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 
 	for ID, current := range items {
 		if current == nil {
-			convert := state.BulkGetResponse{
-				Key:      ID,
-				Data:     nil,
-				ETag:     nil,
-				Metadata: make(map[string]string),
-			}
-			resp = append(resp, convert)
-		} else {
-			meta := make(map[string]string)
-			ravenMeta, err := session.GetMetadataFor(current)
-			etagResp := ""
-			if err == nil {
-				if eTag, okETag := ravenMeta.Get(changeVector); okETag {
-					etagResp = eTag.(string)
-				}
-				if ttl, okTTL := ravenMeta.Get(expires); okTTL {
-					meta[state.GetRespMetaKeyTTLExpireTime] = ttl.(string)
-				}
-			}
-
-			convert := state.BulkGetResponse{
-				Key:      current.ID,
-				Data:     []byte(current.Value),
-				ETag:     &etagResp,
-				Metadata: meta,
-			}
-			resp = append(resp, convert)
+			resp = append(resp, missingBulkGetResponse(ID))
+			continue
 		}
+
+		meta := make(map[string]string)
+		etagResp := ""
+		if ravenMeta, err := session.GetMetadataFor(current); err == nil {
+			if eTag, okETag := ravenMeta.Get(changeVector); okETag {
+				etagResp, _ = eTag.(string)
+			}
+			if expiry, okTTL := expiryFromMetadata(ravenMeta); okTTL {
+				if isExpired(expiry) {
+					resp = append(resp, missingBulkGetResponse(current.ID))
+					continue
+				}
+				meta[state.GetRespMetaKeyTTLExpireTime] = expiry.UTC().Format(time.RFC3339)
+			}
+		}
+
+		resp = append(resp, state.BulkGetResponse{
+			Key:      current.ID,
+			Data:     []byte(current.Value),
+			ETag:     &etagResp,
+			Metadata: meta,
+		})
 	}
 
 	return resp, nil
+}
+
+func missingBulkGetResponse(key string) state.BulkGetResponse {
+	return state.BulkGetResponse{
+		Key:      key,
+		Data:     nil,
+		ETag:     nil,
+		Metadata: make(map[string]string),
+	}
+}
+
+// expiryFromMetadata returns the expiration time recorded on a RavenDB document,
+// reporting false when the document has no usable @expires metadata.
+func expiryFromMetadata(ravenMeta *ravendb.MetadataAsDictionary) (time.Time, bool) {
+	raw, ok := ravenMeta.Get(expires)
+	if !ok {
+		return time.Time{}, false
+	}
+
+	str, ok := raw.(string)
+	if !ok {
+		return time.Time{}, false
+	}
+
+	expiry, err := time.Parse(expiresLayout, str)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return expiry, true
+}
+
+// isExpired reports whether a document with the given expiration must no longer
+// be served. RavenDB removes expired documents on a background sweep, so a
+// document can stay readable well past its expiration; filtering on read keeps
+// TTL semantics independent of the sweep interval, which the server may refuse
+// to lower below a license-specific minimum.
+func isExpired(expiry time.Time) bool {
+	return !time.Now().UTC().Before(expiry)
 }
 
 func (r *RavenDB) marshalToString(v interface{}) (string, error) {
@@ -325,6 +370,10 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		Value: data,
 	}
 
+	// Entity tracked by the session. The first-write path stores the document it
+	// loaded rather than item, and metadata can only be set on a tracked entity.
+	stored := any(item)
+
 	if req.Options.Concurrency == state.FirstWrite {
 		// First write wins, we send empty change vector to check if exists
 
@@ -348,6 +397,7 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 			}
 			newItem.Value = item.Value
 			err = session.StoreWithChangeVectorAndID(newItem, eTag, req.Key)
+			stored = newItem
 		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
@@ -369,20 +419,35 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		}
 	}
 
-	reqTTL, err := stateutils.ParseTTL(req.Metadata)
+	return r.applyTTL(session, stored, req.Metadata)
+}
+
+// applyTTL records the expiration of a stored entity, or clears it when the
+// request asks for no TTL. A ttlInSeconds of -1 removes an existing expiration.
+func (r *RavenDB) applyTTL(session *ravendb.DocumentSession, entity any, reqMetadata map[string]string) error {
+	reqTTL, err := stateutils.ParseTTL(reqMetadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse TTL: %w", err)
 	}
 
-	if reqTTL != nil {
-		metaData, err := session.Advanced().GetMetadataFor(item)
-		if err != nil {
-			return errors.New("failed to get metadata for item")
-		}
-		expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
-		iso8601String := expiry.Format("2006-01-02T15:04:05.9999999Z07:00")
-		metaData.Put(expires, iso8601String)
+	metaData, err := session.Advanced().GetMetadataFor(entity)
+	if err != nil {
+		return errors.New("failed to get metadata for item")
 	}
+
+	if reqTTL == nil || *reqTTL <= 0 {
+		if _, ok := metaData.Get(expires); ok {
+			// EntrySet materializes the server-provided metadata so that the
+			// removal is tracked and sent on save.
+			metaData.EntrySet()
+			metaData.Remove(expires)
+		}
+		return nil
+	}
+
+	expiry := time.Now().Add(time.Second * time.Duration(*reqTTL)).UTC()
+	metaData.Put(expires, expiry.Format(expiresLayout))
+
 	return nil
 }
 
@@ -446,37 +511,43 @@ func (r *RavenDB) Close() error {
 	return nil
 }
 
-func (r *RavenDB) initTTL() {
+func (r *RavenDB) initTTL() error {
 	configurationExpiration := ravendb.ExpirationConfiguration{
 		Disabled:             !r.metadata.EnableTTL,
 		DeleteFrequencyInSec: &r.metadata.TTLFrequency,
 	}
 	operation, err := ravendb.NewConfigureExpirationOperationWithConfiguration(&configurationExpiration)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to create expiration configuration operation: %w", err)
 	}
-	err = r.documentStore.Maintenance().Send(operation)
-	if err != nil {
-		r.logger.Debug(err)
+
+	if err = r.documentStore.Maintenance().Send(operation); err != nil {
+		return fmt.Errorf("failed to configure expiration with a delete frequency of %ds: %w", r.metadata.TTLFrequency, err)
 	}
+
+	return nil
 }
 
-func (r *RavenDB) setupDatabase() {
+func (r *RavenDB) setupDatabase() error {
 	operation := ravendb.NewGetDatabaseRecordOperation(r.metadata.DatabaseName)
-	err := r.documentStore.Maintenance().Server().Send(operation)
-	if err == nil {
-		if operation.Command != nil && operation.Command.StatusCode == http.StatusNotFound {
-			databaseRecord := ravendb.DatabaseRecord{
-				DatabaseName: r.metadata.DatabaseName,
-				Disabled:     false,
-			}
-			createOp := ravendb.NewCreateDatabaseOperation(&databaseRecord, 1)
-			err = r.documentStore.Maintenance().Server().Send(createOp)
-			if err != nil {
-				return
-			}
-		}
+	if err := r.documentStore.Maintenance().Server().Send(operation); err != nil {
+		return fmt.Errorf("failed to load database record: %w", err)
 	}
+
+	if operation.Command == nil || operation.Command.StatusCode != http.StatusNotFound {
+		return nil
+	}
+
+	databaseRecord := ravendb.DatabaseRecord{
+		DatabaseName: r.metadata.DatabaseName,
+		Disabled:     false,
+	}
+	createOp := ravendb.NewCreateDatabaseOperation(&databaseRecord, 1)
+	if err := r.documentStore.Maintenance().Server().Send(createOp); err != nil {
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+
+	return nil
 }
 
 func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {

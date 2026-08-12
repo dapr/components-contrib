@@ -432,7 +432,7 @@ func (r *RavenDB) applyTTL(session *ravendb.DocumentSession, entity any, reqMeta
 
 	metaData, err := session.Advanced().GetMetadataFor(entity)
 	if err != nil {
-		return errors.New("failed to get metadata for item")
+		return fmt.Errorf("failed to get metadata for item: %w", err)
 	}
 
 	if reqTTL == nil || *reqTTL <= 0 {

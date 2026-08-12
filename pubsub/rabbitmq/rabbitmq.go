@@ -287,7 +287,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
@@ -301,7 +301,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 		}
 		if attempt >= publishMaxRetries {
 			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
-			return err
+			return pubsub.NewRetriableError(err)
 		}
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())
@@ -638,7 +638,9 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 				go func(d amqp.Delivery) {
 					defer r.wg.Done()
 					if err := r.handleMessage(ctx, d, topic, handler); err != nil {
-						r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+							r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						}
 					}
 				}(d)
 			}
@@ -660,6 +662,11 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 	err := handler(ctx, pubsubMsg)
 
 	if err != nil {
+		if ctx.Err() != nil {
+			r.logger.Debugf("%s context done while handling message from topic '%s'; skipping ack/nack to allow redelivery", logMessagePrefix, topic)
+			return err
+		}
+
 		r.logger.Errorf("%s handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 
 		if !r.metadata.AutoAck {

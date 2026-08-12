@@ -79,7 +79,7 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		if isGraceful && len(k.subscribeTopics) == 0 && k.clients != nil && k.clients.consumerGroup != nil {
 			k.logger.Debugf("Last subscription closing; closing consumer group.")
 			if err := k.clients.consumerGroup.Close(); err != nil {
-				k.logger.Errorf("failed to close consumer group: %w", err)
+				k.logger.Errorf("failed to close consumer group: %v", err)
 			}
 		}
 	}()
@@ -118,7 +118,7 @@ func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer
 	for {
 		clients, err := k.latestClients()
 		if err != nil || clients == nil {
-			k.logger.Errorf("failed to get latest Kafka clients: %w", err)
+			k.logger.Errorf("failed to get latest Kafka clients: %v", err)
 			return
 		}
 		if clients.consumerGroup == nil {

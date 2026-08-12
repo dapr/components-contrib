@@ -1,0 +1,8 @@
+version: '2'
+services:
+  redis:
+    image: valkey/valkey:8.0.2
+    ports:
+      - "6381:6379"
+    environment:
+      - REDIS_REPLICATION_MODE=master

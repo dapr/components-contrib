@@ -73,6 +73,10 @@ func loadPubSub(name string) pubsub.PubSub {
 		return p_redis.NewRedisStreams(testLogger)
 	case "redis.v7":
 		return p_redis.NewRedisStreams(testLogger)
+	case "redis.valkey8":
+		return p_redis.NewRedisStreams(testLogger)
+	case "redis.valkey9":
+		return p_redis.NewRedisStreams(testLogger)
 	case "azure.eventhubs":
 		return p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus.topics":

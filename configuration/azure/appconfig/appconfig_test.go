@@ -257,6 +257,21 @@ func TestInit(t *testing.T) {
 	})
 }
 
+func TestNewRetryOptions(t *testing.T) {
+	m := metadata{
+		MaxRetries:    3,
+		RetryDelay:    time.Second * 4,
+		MaxRetryDelay: time.Second * 120,
+	}
+
+	opts := newRetryOptions(m)
+
+	assert.EqualValues(t, m.MaxRetries, opts.MaxRetries)
+	assert.Equal(t, m.RetryDelay, opts.RetryDelay)
+	assert.Equal(t, m.MaxRetryDelay, opts.MaxRetryDelay)
+	assert.NotEqual(t, opts.MaxRetryDelay, opts.RetryDelay)
+}
+
 func TestParseMetadata(t *testing.T) {
 	t.Run("parse metadata with "+host, func(t *testing.T) {
 		testProperties := make(map[string]string)

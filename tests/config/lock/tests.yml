@@ -5,3 +5,7 @@ components:
     operations: []
   - component: redis.v7
     operations: []
+  - component: redis.valkey8
+    operations: []
+  - component: redis.valkey9
+    operations: []

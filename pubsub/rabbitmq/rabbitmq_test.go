@@ -24,11 +24,30 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+// TestPublishWhenClosedIsTerminal verifies that publishing through a closed
+// component returns a terminal (codes.FailedPrecondition) error so the runtime
+// does not retry it.
+func TestPublishWhenClosedIsTerminal(t *testing.T) {
+	r := &rabbitMQ{
+		logger:  logger.NewLogger("test"),
+		closeCh: make(chan struct{}),
+	}
+	r.closed.Store(true)
+
+	err := r.Publish(context.Background(), &pubsub.PublishRequest{Topic: "topic"})
+	require.Error(t, err)
+	s, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.FailedPrecondition, s.Code())
+}
 
 func newBroker() *rabbitMQInMemoryBroker {
 	return &rabbitMQInMemoryBroker{
@@ -454,6 +473,86 @@ func TestSubscribeReconnect(t *testing.T) {
 	// Check that reconnection happened
 	assert.Equal(t, int32(3), broker.connectCount.Load()) // initial connect + 2 reconnects
 	assert.Equal(t, int32(4), broker.closeCount.Load())   // two counts for each connection closure - one for connection, one for channel
+}
+
+// mockAcknowledger tracks Ack/Nack calls on an amqp.Delivery for unit tests.
+type mockAcknowledger struct {
+	nackCalled atomic.Bool
+	ackCalled  atomic.Bool
+}
+
+func (m *mockAcknowledger) Ack(_ uint64, _ bool) error {
+	m.ackCalled.Store(true)
+	return nil
+}
+
+func (m *mockAcknowledger) Nack(_ uint64, _ bool, _ bool) error {
+	m.nackCalled.Store(true)
+	return nil
+}
+
+func (m *mockAcknowledger) Reject(_ uint64, _ bool) error {
+	return nil
+}
+
+// TestHandleMessageSkipsNACKOnContextCanceled verifies that handleMessage does
+// not NACK the delivery when the handler returns because the context was
+// cancelled (e.g. during graceful shutdown). Leaving the message unacknowledged
+// lets RabbitMQ redeliver it to another consumer when the connection closes,
+// rather than routing it to the dead-letter queue.
+//
+// Regression test for https://github.com/dapr/components-contrib/issues/4449
+func TestHandleMessageSkipsNACKOnContextCanceled(t *testing.T) {
+	r := &rabbitMQ{
+		logger:   logger.NewLogger("test"),
+		metadata: &rabbitmqMetadata{AutoAck: false},
+	}
+
+	t.Run("context canceled: no NACK, no ACK, context error returned", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // already cancelled; simulates subscription context cancelled during shutdown
+
+		ack := &mockAcknowledger{}
+		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
+
+		handler := func(ctx context.Context, _ *pubsub.NewMessage) error {
+			return ctx.Err() // returns context.Canceled
+		}
+
+		err := r.handleMessage(ctx, d, "topic", handler)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.False(t, ack.nackCalled.Load(), "NACK must not be called when context is canceled; message should be redelivered, not DLQ'd")
+		assert.False(t, ack.ackCalled.Load(), "ACK must not be called when context is canceled")
+	})
+
+	t.Run("handler error with live context: NACK is called", func(t *testing.T) {
+		ack := &mockAcknowledger{}
+		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
+
+		handler := func(_ context.Context, _ *pubsub.NewMessage) error {
+			return errors.New("processing error")
+		}
+
+		// handleMessage re-assigns err = d.Nack(...); our mock returns nil so the
+		// function itself returns nil — what matters is that Nack was invoked.
+		_ = r.handleMessage(context.Background(), d, "topic", handler)
+		assert.True(t, ack.nackCalled.Load(), "NACK must be called on real handler error when context is alive")
+		assert.False(t, ack.ackCalled.Load())
+	})
+
+	t.Run("no error: ACK is called, no NACK", func(t *testing.T) {
+		ack := &mockAcknowledger{}
+		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
+
+		handler := func(_ context.Context, _ *pubsub.NewMessage) error {
+			return nil
+		}
+
+		err := r.handleMessage(context.Background(), d, "topic", handler)
+		require.NoError(t, err)
+		assert.True(t, ack.ackCalled.Load(), "ACK must be called on success")
+		assert.False(t, ack.nackCalled.Load(), "NACK must not be called on success")
+	})
 }
 
 func createAMQPMessage(body []byte) amqp.Delivery {

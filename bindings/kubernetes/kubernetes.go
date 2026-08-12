@@ -195,7 +195,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 			case obj = <-resultChan:
 				data, err = json.Marshal(obj)
 				if err != nil {
-					k.logger.Errorf("Error marshalling event %w", err)
+					k.logger.Errorf("Error marshalling event %v", err)
 				} else {
 					_, _ = handler(ctx, &bindings.ReadResponse{ //nolint:errcheck // legacy behavior preserved
 						Data: data,

@@ -328,7 +328,7 @@ func expiryFromMetadata(ravenMeta *ravendb.MetadataAsDictionary) (time.Time, boo
 		return time.Time{}, false
 	}
 
-	expiry, err := time.Parse(expiresLayout, str)
+	expiry, err := time.Parse(time.RFC3339Nano, str)
 	if err != nil {
 		return time.Time{}, false
 	}

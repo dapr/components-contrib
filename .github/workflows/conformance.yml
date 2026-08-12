@@ -50,7 +50,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -87,6 +87,12 @@ jobs:
 
   conformance:
     name: ${{ matrix.component }} conformance
+
+    # Only authenticated tests share a concurrency group across workflow runs.
+    concurrency:
+      group: component-test-${{ matrix.authenticated && matrix.component || format('{0}-{1}-{2}', github.run_id, github.run_attempt, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
 
     # Add "id-token" with the intended permissions.
     # Needed by the 'Authenticate to Google Cloud' step.
@@ -129,7 +135,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -151,7 +157,7 @@ jobs:
         export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
         echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
 
-    - uses: Azure/login@v1
+    - uses: Azure/login@v3
       if: matrix.required-secrets != ''
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -207,7 +213,7 @@ jobs:
 
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v4.0.1
 
     - name: Set Cloudflare env vars
       if: matrix.require-cloudflare-credentials == 'true'
@@ -223,7 +229,7 @@ jobs:
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
-      uses: aws-actions/configure-aws-credentials@v5
+      uses: aws-actions/configure-aws-credentials@v6.2.2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
@@ -237,14 +243,14 @@ jobs:
         mongodb-replica-set: test-rs
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version-file: 'go.mod'
         cache: 'false'
 
     - name: Install Node.js ${{ matrix.nodejs-version }}
       if: matrix.nodejs-version != ''
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ matrix.nodejs-version }}
 
@@ -388,7 +394,7 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: testresults
         with:
@@ -401,7 +407,7 @@ jobs:
       - name: Build message
         if: always() && env.PR_NUMBER != ''
         # Abusing of the github-script action to be able to write this in JS
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')

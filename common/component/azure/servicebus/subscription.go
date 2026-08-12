@@ -293,7 +293,7 @@ func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver
 	}
 
 	if s.lockRenewalInterval <= 0 {
-		s.logger.Info("Lock renewal for %s disabled", s.entity)
+		s.logger.Infof("Lock renewal for %s disabled", s.entity)
 		return nil
 	}
 

@@ -38,6 +38,12 @@ type DubboOutputBinding struct {
 
 var dubboBinding *DubboOutputBinding
 
+// dubbo-go accepts the Dapr logger structurally through its own Logger
+// interface, which requires the printf-style methods. This assertion makes a
+// change to either interface fail here, in this repo, rather than surfacing as
+// a confusing downstream build break.
+var _ dubboLogger.Logger = (logger.Logger)(nil)
+
 func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
 	if dubboBinding == nil {
 		dubboBinding = &DubboOutputBinding{

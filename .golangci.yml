@@ -27,6 +27,14 @@ linters:
     paths:
       - ^vendor$
     rules:
+      # Temporary, for the structured-logging migration (dapr/kit#165). The
+      # printf-style methods on kit's logger.Logger are deprecated in favour of
+      # structured attributes on *logger.Log, but the existing call sites are
+      # being converted incrementally. Delete this rule once the migration
+      # completes and the deprecated methods are removed from kit.
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*is deprecated: use \[Log\.'
       # G101 in test files: test fixtures use fake credentials by design
       - path: _test\.go$
         text: "G101"
@@ -64,6 +72,27 @@ linters:
         linters:
           - gosec
   settings:
+    sloglint:
+      # Structured-logging conventions, mirroring dapr/kit. Fields are only
+      # machine-filterable if the same concept is always logged under the same
+      # key in the same shape.
+      no-mixed-args: true
+      # Package-level loggers named for their scope are the established Dapr
+      # pattern, and component constructors receive loggers; both are fine.
+      no-global: ""
+      # Context-aware logging is deliberately out of scope for now.
+      context: ""
+      key-naming-case: snake
+      forbidden-keys:
+        # Reserved by the Dapr log schema; a per-call attribute with one of
+        # these names would collide with the schema field and be dropped.
+        - time
+        - level
+        - msg
+        - scope
+        - type
+        - instance
+        - ver
     gosec:
       excludes:
         # G117 (Audit: Exported struct field matches secret pattern) is noisy

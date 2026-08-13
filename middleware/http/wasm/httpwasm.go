@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"time"
@@ -33,7 +34,7 @@ import (
 )
 
 type middleware struct {
-	logger logger.Logger
+	log *logger.Log
 }
 
 type Metadata struct {
@@ -42,8 +43,8 @@ type Metadata struct {
 	GuestConfig string `mapstructure:"guestConfig"`
 }
 
-func NewMiddleware(logger logger.Logger) dapr.Middleware {
-	return &middleware{logger: logger}
+func NewMiddleware(l logger.Logger) dapr.Middleware {
+	return &middleware{log: logger.FromLogger(l)}
 }
 
 func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
@@ -81,38 +82,38 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 		return nil, err
 	}
 
-	return &requestHandler{mw: mw, logger: m.logger, stdout: &stdout, stderr: &stderr}, nil
+	return &requestHandler{mw: mw, log: m.log, stdout: &stdout, stderr: &stderr}, nil
 }
 
 // IsEnabled implements the same method as documented on api.Logger.
 func (m *middleware) IsEnabled(level api.LogLevel) bool {
-	var l logger.LogLevel
+	var l slog.Level
 	switch level {
 	case api.LogLevelError:
-		l = logger.ErrorLevel
+		l = logger.LevelError
 	case api.LogLevelWarn:
-		l = logger.WarnLevel
+		l = logger.LevelWarn
 	case api.LogLevelInfo:
-		l = logger.InfoLevel
+		l = logger.LevelInfo
 	case api.LogLevelDebug:
-		l = logger.DebugLevel
+		l = logger.LevelDebug
 	default: // same as api.LogLevelNone
 		return false
 	}
-	return m.logger.IsOutputLevelEnabled(l)
+	return m.log.Enabled(context.Background(), l)
 }
 
 // Log implements the same method as documented on api.Logger.
 func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) {
 	switch level {
 	case api.LogLevelError:
-		m.logger.Error(message)
+		m.log.Error(message)
 	case api.LogLevelWarn:
-		m.logger.Warn(message)
+		m.log.Warn(message)
 	case api.LogLevelInfo:
-		m.logger.Info(message)
+		m.log.Info(message)
 	case api.LogLevelDebug:
-		m.logger.Debug(message)
+		m.log.Debug(message)
 	default: // same as api.LogLevelNone
 		return
 	}
@@ -120,7 +121,7 @@ func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) 
 
 type requestHandler struct {
 	mw             wasmnethttp.Middleware
-	logger         logger.Logger
+	log            *logger.Log
 	stdout, stderr *bytes.Buffer
 }
 
@@ -135,10 +136,10 @@ func (rh *requestHandler) requestHandler(next http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 
 		if stdout := rh.stdout.String(); len(stdout) > 0 {
-			rh.logger.Debugf("wasm stdout: %s", stdout)
+			rh.log.Debug("wasm stdout: " + stdout)
 		}
 		if stderr := rh.stderr.String(); len(stderr) > 0 {
-			rh.logger.Debugf("wasm stderr: %s", stderr)
+			rh.log.Debug("wasm stderr: " + stderr)
 		}
 	})
 }

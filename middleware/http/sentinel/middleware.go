@@ -144,7 +144,7 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 		conf.Sentinel.Log.Dir = metadata.LogDir
 	}
 
-	conf.Sentinel.Log.Logger = &loggerAdaptor{m.logger}
+	conf.Sentinel.Log.Logger = newLoggerAdaptor(m.logger)
 
 	return conf
 }

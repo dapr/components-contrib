@@ -22,10 +22,13 @@ import (
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/router/tag"
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
 	_ "dubbo.apache.org/dubbo-go/v3/filter/filter_impl"
+	dubboLogger "dubbo.apache.org/dubbo-go/v3/logger"
 	_ "dubbo.apache.org/dubbo-go/v3/protocol/dubbo"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	_ "dubbo.apache.org/dubbo-go/v3/proxy/proxy_factory"
 	_ "dubbo.apache.org/dubbo-go/v3/registry/protocol"
+	getty "github.com/apache/dubbo-getty"
+	gostLogger "github.com/dubbogo/gost/log/logger"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,12 +42,17 @@ type DubboOutputBinding struct {
 
 var dubboBinding *DubboOutputBinding
 
-func NewDubboOutput(_ logger.Logger) bindings.OutputBinding {
+func NewDubboOutput(l logger.Logger) bindings.OutputBinding {
 	if dubboBinding == nil {
 		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),
 		}
 	}
+	// dubbo-go v3 logs through three independent backends; route all of them
+	// to the Dapr logger, mirroring dubbo-go's own initGlobalLogger wiring.
+	gostLogger.SetLogger(l)
+	dubboLogger.SetLogger(l)
+	getty.SetLogger(l)
 	return dubboBinding
 }
 

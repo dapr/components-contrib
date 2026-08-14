@@ -19,10 +19,15 @@ import (
 	"time"
 
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
+	"dubbo.apache.org/dubbo-go/v3/global"
+	"dubbo.apache.org/dubbo-go/v3/graceful_shutdown"
+	dubboLogger "dubbo.apache.org/dubbo-go/v3/logger"
 	"dubbo.apache.org/dubbo-go/v3/protocol"
+	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	"dubbo.apache.org/dubbo-go/v3/server"
+	getty "github.com/apache/dubbo-getty"
 	hessian "github.com/apache/dubbo-go-hessian2"
+	gostLogger "github.com/dubbogo/gost/log/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,16 +56,46 @@ func (u *User) JavaClassName() string {
 	return paramInterfaceName
 }
 
+// TestNewDubboOutputSetsDubboLoggers is intentionally not parallel: it mutates
+// dubbo-go's process-global logger variables and restores them on cleanup.
+func TestNewDubboOutputSetsDubboLoggers(t *testing.T) {
+	prevGost := gostLogger.GetLogger()
+	prevDubbo := dubboLogger.GetLogger()
+	prevGetty := getty.GetLogger()
+	t.Cleanup(func() {
+		gostLogger.SetLogger(prevGost)
+		dubboLogger.SetLogger(prevDubbo)
+		getty.SetLogger(prevGetty)
+	})
+
+	l := logger.NewLogger("dubbo-logger-test")
+	NewDubboOutput(l)
+
+	require.Same(t, l, gostLogger.GetLogger())
+	require.Same(t, l, dubboLogger.GetLogger())
+	require.Same(t, l, getty.GetLogger())
+}
+
 func TestInvoke(t *testing.T) {
 	// 0. init dapr provided and dubbo server
 	stopCh := make(chan struct{})
-	defer close(stopCh)
+	serverErrCh := make(chan error, 1)
 	// Create output and set serializer before go routine to prevent data race.
 	output := NewDubboOutput(logger.NewLogger("test"))
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	go func() {
-		require.NoError(t, runDubboServer(stopCh))
+		serverErrCh <- runDubboServer(stopCh)
 	}()
+	t.Cleanup(func() {
+		close(stopCh)
+		// dubbo-go's ServeContext returns the context error after a
+		// cancellation-triggered graceful shutdown.
+		require.ErrorIs(t, <-serverErrCh, context.Canceled)
+		// Wait for dubbo-go's process-global graceful shutdown to fully
+		// complete so its goroutines don't outlive the test, and surface its
+		// result (the second Shutdown call waits on the existing shutdown).
+		require.NoError(t, graceful_shutdown.Shutdown(context.Background()))
+	})
 	time.Sleep(time.Second * 3)
 
 	// 1. create req/rsp value
@@ -104,11 +139,23 @@ func TestInvoke(t *testing.T) {
 func runDubboServer(stop chan struct{}) error {
 	hessian.RegisterPOJO(&User{})
 
+	// Use immediate graceful-shutdown steps (mirroring dubbo-go's own
+	// ServeContext cancellation tests): the default multi-second waits keep
+	// the server notifying/accepting while the cached consumer reconnects,
+	// which races with the final protocol destroy under -race.
+	internalSignal := false
+	shutdownCfg := global.DefaultShutdownConfig()
+	shutdownCfg.InternalSignal = &internalSignal
+	shutdownCfg.ConsumerUpdateWaitTime = "0s"
+	shutdownCfg.StepTimeout = "0s"
+	shutdownCfg.OfflineRequestWindowTimeout = "0s"
+
 	srv, err := server.NewServer(
 		server.WithServerProtocol(
 			protocol.WithDubbo(),
 			protocol.WithPort(20000),
 		),
+		server.SetServerShutdown(shutdownCfg),
 	)
 	if err != nil {
 		return err

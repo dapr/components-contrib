@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"dubbo.apache.org/dubbo-go/v3/global"
+	"dubbo.apache.org/dubbo-go/v3/graceful_shutdown"
 	"dubbo.apache.org/dubbo-go/v3/protocol"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	"dubbo.apache.org/dubbo-go/v3/server"
@@ -101,10 +103,20 @@ func TestDubboBinding(t *testing.T) {
 		return nil
 	}
 	stopCh := make(chan struct{})
-	defer close(stopCh)
+	serverErrCh := make(chan error, 1)
 	go func() {
-		assert.Nil(t, runDubboServer(stopCh))
+		serverErrCh <- runDubboServer(stopCh)
 	}()
+	t.Cleanup(func() {
+		close(stopCh)
+		// dubbo-go's ServeContext returns the context error after a
+		// cancellation-triggered graceful shutdown.
+		require.ErrorIs(t, <-serverErrCh, context.Canceled)
+		// Wait for dubbo-go's process-global graceful shutdown to fully
+		// complete so its goroutines don't outlive the test, and surface its
+		// result (the second Shutdown call waits on the existing shutdown).
+		require.NoError(t, graceful_shutdown.Shutdown(context.Background()))
+	})
 	time.Sleep(time.Second * 3)
 
 	flow.New(t, "test dubbo binding config").
@@ -130,11 +142,23 @@ func newBindingsRegistry() *bindings_loader.Registry {
 func runDubboServer(stop chan struct{}) error {
 	hessian.RegisterPOJO(&User{})
 
+	// Use immediate graceful-shutdown steps (mirroring dubbo-go's own
+	// ServeContext cancellation tests): the default multi-second waits keep
+	// the server notifying/accepting while the cached consumer reconnects,
+	// which races with the final protocol destroy under -race.
+	internalSignal := false
+	shutdownCfg := global.DefaultShutdownConfig()
+	shutdownCfg.InternalSignal = &internalSignal
+	shutdownCfg.ConsumerUpdateWaitTime = "0s"
+	shutdownCfg.StepTimeout = "0s"
+	shutdownCfg.OfflineRequestWindowTimeout = "0s"
+
 	srv, err := server.NewServer(
 		server.WithServerProtocol(
 			protocol.WithDubbo(),
 			protocol.WithPort(20000),
 		),
+		server.SetServerShutdown(shutdownCfg),
 	)
 	if err != nil {
 		return err

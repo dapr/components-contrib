@@ -35,6 +35,7 @@ require (
 	github.com/aliyun/aliyun-log-go-sdk v0.1.54
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.9+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.10
+	github.com/apache/dubbo-getty v1.4.10
 	github.com/apache/dubbo-go-hessian2 v1.12.5
 	github.com/apache/pulsar-client-go v0.18.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
@@ -72,6 +73,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20260219105038-d0cf89ba8acf
 	github.com/dapr/kit v0.18.2
 	github.com/didip/tollbooth/v7 v7.0.1
+	github.com/dubbogo/gost v1.14.3
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v8 v8.11.5
@@ -193,7 +195,6 @@ require (
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
-	github.com/apache/dubbo-getty v1.4.10 // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/apache/thrift v0.19.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -252,7 +253,6 @@ require (
 	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dubbogo/gost v1.14.3 // indirect
 	github.com/dubbogo/grpc-go v1.42.10 // indirect
 	github.com/dubbogo/triple v1.2.2-rc4 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

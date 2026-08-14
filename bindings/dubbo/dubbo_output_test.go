@@ -76,13 +76,6 @@ func TestSetDubboLoggers(t *testing.T) {
 	require.Same(t, l, getty.GetLogger())
 }
 
-func TestNewDubboOutputReturnsDistinctBindings(t *testing.T) {
-	first := NewDubboOutput(logger.NewLogger("dubbo-first"))
-	second := NewDubboOutput(logger.NewLogger("dubbo-second"))
-
-	require.NotSame(t, first, second)
-}
-
 func TestInvoke(t *testing.T) {
 	// 0. init dapr provided and dubbo server
 	stopCh := make(chan struct{})

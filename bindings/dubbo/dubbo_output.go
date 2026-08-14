@@ -40,19 +40,15 @@ type DubboOutputBinding struct {
 	cacheLock sync.RWMutex
 }
 
-var (
-	dubboBinding     *DubboOutputBinding
-	dubboBindingOnce sync.Once
-)
+var dubboLoggerOnce sync.Once
 
 func NewDubboOutput(l logger.Logger) bindings.OutputBinding {
-	dubboBindingOnce.Do(func() {
-		dubboBinding = &DubboOutputBinding{
-			ctxCache: make(map[string]*dubboContext),
-		}
+	dubboLoggerOnce.Do(func() {
 		setDubboLoggers(l)
 	})
-	return dubboBinding
+	return &DubboOutputBinding{
+		ctxCache: make(map[string]*dubboContext),
+	}
 }
 
 func setDubboLoggers(l logger.Logger) {

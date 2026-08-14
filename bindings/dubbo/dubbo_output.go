@@ -40,20 +40,25 @@ type DubboOutputBinding struct {
 	cacheLock sync.RWMutex
 }
 
-var dubboBinding *DubboOutputBinding
+var (
+	dubboBinding     *DubboOutputBinding
+	dubboBindingOnce sync.Once
+)
 
 func NewDubboOutput(l logger.Logger) bindings.OutputBinding {
-	if dubboBinding == nil {
+	dubboBindingOnce.Do(func() {
 		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),
 		}
-	}
-	// dubbo-go v3 logs through three independent backends; route all of them
-	// to the Dapr logger, mirroring dubbo-go's own initGlobalLogger wiring.
+		setDubboLoggers(l)
+	})
+	return dubboBinding
+}
+
+func setDubboLoggers(l logger.Logger) {
 	gostLogger.SetLogger(l)
 	dubboLogger.SetLogger(l)
 	getty.SetLogger(l)
-	return dubboBinding
 }
 
 func (out *DubboOutputBinding) Init(_ context.Context, _ bindings.Metadata) error {

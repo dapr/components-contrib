@@ -122,13 +122,11 @@ require (
 	github.com/sijms/go-ora/v2 v2.8.22
 	github.com/spf13/cast v1.8.0
 	github.com/spiffe/go-spiffe/v2 v2.6.0
-	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
 	github.com/stretchr/testify v1.11.1
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.128
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.3.128
 	github.com/testcontainers/testcontainers-go v0.40.0
-	github.com/tetratelabs/wazero v1.8.0
 	github.com/tmc/langchaingo v0.1.15-0.20251029190607-e35755df7084
 	github.com/valyala/fasthttp v1.53.0
 	github.com/vmware/vmware-go-kcl-v2 v1.0.0
@@ -157,6 +155,8 @@ require (
 	modernc.org/sqlite v1.34.5
 	sigs.k8s.io/yaml v1.4.0
 )
+
+require github.com/tetratelabs/wazero v1.8.0 // indirect
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -402,6 +402,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/zerolog v1.31.0 // indirect
 	github.com/sagikazarmark/locafero v0.9.0 // indirect
+	github.com/samyfodil/wazy v0.1.2
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect

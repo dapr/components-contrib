@@ -24,11 +24,10 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/stealthrocket/wasi-go/imports/wasi_http"
-	"github.com/stealthrocket/wasi-go/imports/wasi_http/default_http"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/samyfodil/wazy"
+	"github.com/samyfodil/wazy/api"
+	"github.com/samyfodil/wazy/imports/wasi_http"
+	"github.com/samyfodil/wazy/imports/wasi_snapshot_preview1"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/common/wasm"
@@ -41,11 +40,11 @@ const ExecuteOperation bindings.OperationKind = "execute"
 
 type outputBinding struct {
 	logger        logger.Logger
-	runtimeConfig wazero.RuntimeConfig
+	runtimeConfig wazy.RuntimeConfig
 
 	meta    *wasm.InitMetadata
-	runtime wazero.Runtime
-	module  wazero.CompiledModule
+	runtime wazy.Runtime
+	module  wazy.CompiledModule
 
 	instanceCounter atomic.Uint64
 }
@@ -60,7 +59,7 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 		logger: logger,
 
 		// The below ensures context cancels in-flight wasm functions.
-		runtimeConfig: wazero.NewRuntimeConfig().
+		runtimeConfig: wazy.NewRuntimeConfig().
 			WithCloseOnContextDone(true),
 	}
 }
@@ -71,7 +70,7 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 	}
 
 	// Create the runtime, which when closed releases any resources associated with it.
-	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)
+	out.runtime = wazy.NewRuntimeWithConfig(ctx, out.runtimeConfig)
 
 	// Compile the module, which reduces execution time of Invoke
 	out.module, err = out.runtime.CompileModule(ctx, out.meta.Guest)
@@ -94,11 +93,11 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 			_ = out.runtime.Close(context.Background())
 			return errors.New("can not instantiate wasi-http with strict sandbox")
 		}
-		err = wasi_http.MakeWasiHTTP().Instantiate(ctx, out.runtime)
+		_, err = wasi_http.Instantiate(ctx, out.runtime)
 	}
 	if err != nil {
 		_ = out.runtime.Close(context.Background())
-		return fmt.Errorf("wasm: error instantiating host wasi-http functions: %w", err)
+		return fmt.Errorf("wasm: error instantiating host wasi functions: %w", err)
 	}
 	return nil
 }
@@ -178,7 +177,7 @@ func detectImports(imports []api.FunctionDefinition) map[importMode]bool {
 		switch moduleName {
 		case wasi_snapshot_preview1.ModuleName:
 			result[modeWasiP1] = true
-		case default_http.ModuleName:
+		case wasi_http.OutgoingModuleName:
 			result[modeWasiHTTP] = true
 		}
 	}

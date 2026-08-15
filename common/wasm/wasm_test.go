@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samyfodil/wazy"
+	"github.com/samyfodil/wazy/imports/wasi_snapshot_preview1"
 	"github.com/stretchr/testify/require"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -185,7 +185,7 @@ func TestNewModuleConfig(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	rt := wazero.NewRuntime(ctx)
+	rt := wazy.NewRuntime(ctx)
 	defer rt.Close(ctx)
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 

@@ -28,8 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/sys"
+	"github.com/samyfodil/wazy"
+	"github.com/samyfodil/wazy/sys"
 
 	"github.com/dapr/components-contrib/metadata"
 	kitmd "github.com/dapr/kit/metadata"
@@ -119,10 +119,10 @@ func GetInitMetadata(ctx context.Context, md metadata.Base) (*InitMetadata, erro
 
 // NewModuleConfig returns a new module config appropriate for the initialized
 // metadata.
-func NewModuleConfig(m *InitMetadata) wazero.ModuleConfig {
+func NewModuleConfig(m *InitMetadata) wazy.ModuleConfig {
 	if !m.StrictSandbox {
 		// The below violate sand-boxing, but allow code to behave as expected.
-		return wazero.NewModuleConfig().
+		return wazy.NewModuleConfig().
 			WithRandSource(rand.Reader).
 			WithSysNanotime().
 			WithSysWalltime().
@@ -133,7 +133,7 @@ func NewModuleConfig(m *InitMetadata) wazero.ModuleConfig {
 	// does not return a real clock reading by default for performance and
 	// determinism reasons.
 	// See https://github.com/tetratelabs/wazero/blob/main/RATIONALE.md#syswalltime-and-nanotime
-	return wazero.NewModuleConfig().
+	return wazy.NewModuleConfig().
 		WithWalltime(newFakeWalltime(), sys.ClockResolution(time.Millisecond))
 }
 

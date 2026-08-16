@@ -21,7 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/http-wasm/http-wasm-host-go/api"
+	"github.com/samyfodil/wazy/imports/http_handler"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/common/httputils"
@@ -45,7 +45,7 @@ func Test_middleware_log(t *testing.T) {
 
 	m := &middleware{logger: l}
 	message := "alert"
-	m.Log(t.Context(), api.LogLevelInfo, message)
+	m.Log(t.Context(), http_handler.LogLevelInfo, message)
 
 	require.Contains(t, buf.String(), `level=info msg=alert`)
 }

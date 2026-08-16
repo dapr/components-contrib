@@ -21,9 +21,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/http-wasm/http-wasm-host-go/api"
-	"github.com/http-wasm/http-wasm-host-go/handler"
-	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
+	"github.com/samyfodil/wazy/imports/http_handler"
+	wasmnethttp "github.com/samyfodil/wazy/imports/http_handler/nethttp"
 
 	"github.com/dapr/components-contrib/common/wasm"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -71,12 +70,12 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 
 	var stdout, stderr bytes.Buffer
 	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
-		handler.Logger(m),
-		handler.ModuleConfig(wasm.NewModuleConfig(meta).
+		http_handler.WithLogger(m),
+		http_handler.WithModuleConfig(wasm.NewModuleConfig(meta).
 			WithName(meta.GuestName).
 			WithStdout(&stdout).  // reset per request
 			WithStderr(&stderr)), // reset per request
-		handler.GuestConfig([]byte(middlewareMeta.GuestConfig)))
+		http_handler.WithGuestConfig([]byte(middlewareMeta.GuestConfig)))
 	if err != nil {
 		return nil, err
 	}
@@ -84,36 +83,36 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 	return &requestHandler{mw: mw, logger: m.logger, stdout: &stdout, stderr: &stderr}, nil
 }
 
-// IsEnabled implements the same method as documented on api.Logger.
-func (m *middleware) IsEnabled(level api.LogLevel) bool {
+// IsEnabled implements the same method as documented on http_handler.Logger.
+func (m *middleware) IsEnabled(level http_handler.LogLevel) bool {
 	var l logger.LogLevel
 	switch level {
-	case api.LogLevelError:
+	case http_handler.LogLevelError:
 		l = logger.ErrorLevel
-	case api.LogLevelWarn:
+	case http_handler.LogLevelWarn:
 		l = logger.WarnLevel
-	case api.LogLevelInfo:
+	case http_handler.LogLevelInfo:
 		l = logger.InfoLevel
-	case api.LogLevelDebug:
+	case http_handler.LogLevelDebug:
 		l = logger.DebugLevel
-	default: // same as api.LogLevelNone
+	default: // same as http_handler.LogLevelNone
 		return false
 	}
 	return m.logger.IsOutputLevelEnabled(l)
 }
 
-// Log implements the same method as documented on api.Logger.
-func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) {
+// Log implements the same method as documented on http_handler.Logger.
+func (m *middleware) Log(_ context.Context, level http_handler.LogLevel, message string) {
 	switch level {
-	case api.LogLevelError:
+	case http_handler.LogLevelError:
 		m.logger.Error(message)
-	case api.LogLevelWarn:
+	case http_handler.LogLevelWarn:
 		m.logger.Warn(message)
-	case api.LogLevelInfo:
+	case http_handler.LogLevelInfo:
 		m.logger.Info(message)
-	case api.LogLevelDebug:
+	case http_handler.LogLevelDebug:
 		m.logger.Debug(message)
-	default: // same as api.LogLevelNone
+	default: // same as http_handler.LogLevelNone
 		return
 	}
 }

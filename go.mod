@@ -86,7 +86,6 @@ require (
 	github.com/hashicorp/consul/api v1.25.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/http-wasm/http-wasm-host-go v0.7.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
@@ -155,8 +154,6 @@ require (
 	modernc.org/sqlite v1.34.5
 	sigs.k8s.io/yaml v1.4.0
 )
-
-require github.com/tetratelabs/wazero v1.8.0 // indirect
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -402,7 +399,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/zerolog v1.31.0 // indirect
 	github.com/sagikazarmark/locafero v0.9.0 // indirect
-	github.com/samyfodil/wazy v0.1.2
+	github.com/samyfodil/wazy v0.1.3
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect

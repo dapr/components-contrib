@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	kmeta "github.com/dapr/kit/metadata"
 )
 
 func TestLangchainMetadata(t *testing.T) {
@@ -54,5 +56,28 @@ func TestLangchainMetadata(t *testing.T) {
 
 		assert.Equal(t, "test-key", metadata.Key)
 		assert.Equal(t, "https://api.openai.com/v1", metadata.Endpoint)
+	})
+
+	t.Run("maxTokens decodes from string component metadata", func(t *testing.T) {
+		var metadata LangchainMetadata
+		err := kmeta.DecodeMetadata(map[string]string{"maxTokens": "2048"}, &metadata)
+		require.NoError(t, err)
+
+		require.NotNil(t, metadata.MaxTokens)
+		assert.Equal(t, int64(2048), *metadata.MaxTokens)
+	})
+
+	t.Run("absent maxTokens stays nil", func(t *testing.T) {
+		var metadata LangchainMetadata
+		err := kmeta.DecodeMetadata(map[string]string{"key": "test-key"}, &metadata)
+		require.NoError(t, err)
+
+		assert.Nil(t, metadata.MaxTokens)
+	})
+
+	t.Run("malformed maxTokens returns a decode error", func(t *testing.T) {
+		var metadata LangchainMetadata
+		err := kmeta.DecodeMetadata(map[string]string{"maxTokens": "not-a-number"}, &metadata)
+		require.Error(t, err)
 	})
 }

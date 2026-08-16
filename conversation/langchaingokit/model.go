@@ -16,7 +16,9 @@ package langchaingokit
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -28,8 +30,13 @@ import (
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
-	model  string
-	logger logger.Logger
+	model string
+	// defaultMaxTokens is either nil or positive: SetDefaultMaxTokens is the
+	// only writer and discards non-positive values, so callers do not need to
+	// re-validate it.
+	defaultMaxTokens *int64
+	postCallOptions  []llms.CallOption
+	logger           logger.Logger
 }
 
 func New(logger logger.Logger) LLM {
@@ -47,8 +54,52 @@ func (a *LLM) GetModel() string {
 	return a.model
 }
 
+// SetDefaultMaxTokens sets the component-level default cap on generated tokens.
+// It is applied to every request unless the request carries its own positive
+// MaxTokens, which then takes precedence (langchaingo applies call options in
+// order; later wins). A request-level MaxTokens of zero or a negative value is
+// treated as unset and leaves this default (if any) in effect. A non-positive
+// default is discarded with a warning, leaving the component with no default.
+func (a *LLM) SetDefaultMaxTokens(maxTokens *int64) {
+	if maxTokens != nil && *maxTokens <= 0 {
+		a.logger.Warnf("ignoring non-positive maxTokens component default %d", *maxTokens)
+		maxTokens = nil
+	}
+	a.defaultMaxTokens = maxTokens
+}
+
+// SetPostCallOptions sets provider-specific call options appended after all
+// request-derived options on every Converse call. Options that piggyback on
+// CallOptions.Metadata — e.g. langchaingo's openai.WithLegacyMaxTokensField()
+// — must be applied here: a request-level llms.WithMetadata(...) replaces the
+// metadata map wholesale and would wipe them if they were applied first.
+//
+// Because these options always run last, do not pass options here that set a
+// CallOptions field a request can also set (e.g. llms.WithMaxTokens,
+// llms.WithTemperature): doing so silently overrides whatever the request
+// specified for that field on every call. Reserve this hook for options that
+// only add to CallOptions.Metadata.
+func (a *LLM) SetPostCallOptions(opts ...llms.CallOption) {
+	a.postCallOptions = opts
+}
+
+// capMaxTokens narrows a positive int64 max-tokens value to int without
+// wrapping on 32-bit platforms, where a bare int(...) conversion of a value
+// above math.MaxInt32 could silently remove or scramble the cap.
+func capMaxTokens(v int64) int {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int(v)
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	opts := getOptionsFromRequest(r, a.logger)
+	var baseOpts []llms.CallOption
+	if a.defaultMaxTokens != nil {
+		baseOpts = append(baseOpts, llms.WithMaxTokens(capMaxTokens(*a.defaultMaxTokens)))
+	}
+	opts := getOptionsFromRequest(r, a.logger, baseOpts...)
+	opts = append(opts, a.postCallOptions...)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
@@ -58,6 +109,9 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 	resp, err := a.GenerateContent(ctx, messages, opts...)
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return nil, errors.New("LLM returned a nil response")
 	}
 
 	outputs, usage, err := a.NormalizeConverseResult(resp.Choices)
@@ -161,6 +215,10 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
 	}
 
+	if r.MaxTokens != nil && *r.MaxTokens > 0 {
+		opts = append(opts, llms.WithMaxTokens(capMaxTokens(*r.MaxTokens)))
+	}
+
 	if r.ResponseFormatAsJSONSchema != nil {
 		structuredOutput, err := convertToStructuredOutputDefinition(r.ResponseFormatAsJSONSchema)
 		if err != nil {
@@ -177,7 +235,6 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	// llms.WithCacheControl()
 	// llms.WithMaxLength()
 	// llms.WithMinLength()
-	// llms.WithMaxTokens()
 
 	// Handle prompt cache retention for OpenAI's extended prompt caching feature
 	if r.PromptCacheRetention != nil {

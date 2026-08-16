@@ -25,7 +25,18 @@ import (
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
+
+// foldCallOptions applies the options in order onto an empty llms.CallOptions,
+// mirroring how langchaingo providers consume them (later options win).
+func foldCallOptions(opts []llms.CallOption) llms.CallOptions {
+	folded := llms.CallOptions{}
+	for _, opt := range opts {
+		opt(&folded)
+	}
+	return folded
+}
 
 func TestExtractInt64FromGenInfo(t *testing.T) {
 	tests := []struct {
@@ -375,6 +386,42 @@ func TestGetOptionsFromRequest(t *testing.T) {
 			existingOpts: []llms.CallOption{llms.WithMaxTokens(100)},
 			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
 				assert.Len(t, opts, 2)
+			},
+		},
+		"max tokens sets option": {
+			request: &conversation.Request{
+				MaxTokens: ptr.Of(int64(100)),
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Len(t, opts, 1)
+				assert.Equal(t, 100, foldCallOptions(opts).MaxTokens)
+			},
+		},
+		"zero max tokens sets no option": {
+			request: &conversation.Request{
+				MaxTokens: ptr.Of(int64(0)),
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Empty(t, opts)
+			},
+		},
+		"negative max tokens sets no option": {
+			request: &conversation.Request{
+				MaxTokens: ptr.Of(int64(-5)),
+			},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Empty(t, opts)
+			},
+		},
+		"request max tokens overrides existing option": {
+			request: &conversation.Request{
+				MaxTokens: ptr.Of(int64(100)),
+			},
+			existingOpts: []llms.CallOption{llms.WithMaxTokens(50)},
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				// Later options win when langchaingo folds them, so the
+				// request-level value must override the pre-existing default.
+				assert.Equal(t, 100, foldCallOptions(opts).MaxTokens)
 			},
 		},
 	}

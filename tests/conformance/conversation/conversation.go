@@ -407,6 +407,66 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			}
 		})
 
+		t.Run("test tool calling with an explicit tool choice", func(t *testing.T) {
+			tools := []llms.Tool{
+				{
+					Type: "function",
+					Function: &llms.FunctionDefinition{
+						Name:        "get_project_name",
+						Description: "Get the name of an open source project",
+						Parameters: map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"repo_link": map[string]any{
+									"type":        "string",
+									"description": "The repository link",
+								},
+							},
+							"required": []string{"repo_link"},
+						},
+					},
+				},
+			}
+
+			toolChoices := []string{"auto", "required"}
+			// A named tool must be sent as an object to OpenAI too, which this layer
+			// does not translate yet, so only Anthropic exercises that form for now.
+			if component == "anthropic" {
+				toolChoices = append(toolChoices, "get_project_name")
+			}
+
+			for _, toolChoice := range toolChoices {
+				t.Run(toolChoice, func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+					defer cancel()
+
+					messages := []llms.MessageContent{
+						{
+							Role: llms.ChatMessageTypeHuman,
+							Parts: []llms.ContentPart{
+								llms.TextContent{Text: "What is this open source project called?"},
+							},
+						},
+					}
+
+					req := &conversation.Request{
+						Message:    &messages,
+						Tools:      &tools,
+						ToolChoice: &toolChoice,
+					}
+					if component == "openai" {
+						req.Temperature = 1
+					}
+
+					// Anthropic rejects a bare string tool_choice with a 400, so the
+					// request succeeding at all is what this guards against.
+					resp, err := conv.Converse(ctx, req)
+					require.NoError(t, err)
+					require.NotEmpty(t, resp.Outputs)
+				})
+			}
+		})
+
 		t.Run("test conversation history with tool calls", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()

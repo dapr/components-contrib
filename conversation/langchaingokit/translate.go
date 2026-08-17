@@ -36,6 +36,59 @@ const (
 	promptCachedKey       = "PromptCachedTokens"
 )
 
+// Provider-agnostic tool choice values accepted on conversation.Request.ToolChoice.
+const (
+	toolChoiceAuto     = "auto"
+	toolChoiceRequired = "required"
+	toolChoiceAny      = "any"
+	toolChoiceNone     = "none"
+)
+
+// Keys and type values of Anthropic's tool_choice object.
+// ref: https://docs.claude.com/en/api/messages
+const (
+	anthropicToolChoiceTypeKey = "type"
+	anthropicToolChoiceNameKey = "name"
+	anthropicToolChoiceAny     = "any"
+	anthropicToolChoiceNone    = "none"
+	anthropicToolChoiceTool    = "tool"
+)
+
+// translateToolChoice converts the provider-agnostic tool choice into the shape the
+// provider's API expects, where a nil result means the option must be omitted.
+// Anthropic requires an object and rejects the bare string that OpenAI accepts.
+// The result depends only on its arguments: Anthropic invalidates cached message blocks
+// whenever tool_choice changes between turns, so a value must not be omitted on one turn
+// and sent on the next.
+// Caveat: with manual extended thinking enabled, Anthropic accepts only the auto and none
+// forms and 400s on the forced any and tool forms. This package never enables extended
+// thinking, as it does not pass llms.WithReasoning, so that combination is unreachable.
+func translateToolChoice(toolChoice string, provider Provider, hasTools bool) any {
+	if provider != ProviderAnthropic {
+		return toolChoice
+	}
+
+	// Anthropic rejects any tool_choice when the request carries no tools.
+	if !hasTools {
+		return nil
+	}
+
+	switch toolChoice {
+	case toolChoiceAuto:
+		// Anthropic already defaults to {"type": "auto"} when tools are present.
+		return nil
+	case toolChoiceRequired, toolChoiceAny:
+		return map[string]any{anthropicToolChoiceTypeKey: anthropicToolChoiceAny}
+	case toolChoiceNone:
+		return map[string]any{anthropicToolChoiceTypeKey: anthropicToolChoiceNone}
+	default:
+		return map[string]any{
+			anthropicToolChoiceTypeKey: anthropicToolChoiceTool,
+			anthropicToolChoiceNameKey: toolChoice,
+		}
+	}
+}
+
 // extractUint64FromGenInfo extracts a uint64 value from genInfo map to extract usage data from langchaingo's GenerationInfo map in the choices response.
 func extractUint64FromGenInfo(genInfo map[string]any, key string) (uint64, error) {
 	if v, ok := genInfo[key]; ok {

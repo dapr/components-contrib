@@ -54,7 +54,7 @@ You can override the default models used by each component by setting these envi
 ```bash
 export OPENAI_MODEL="gpt-5-nano"           # Default: gpt-5-nano
 export AZURE_OPENAI_MODEL="gpt-4.1-nano"   # Default: gpt-4.1-nano
-export ANTHROPIC_MODEL="claude-3-5-sonnet-20240620"  # Default: claude-3-5-sonnet-20240620
+export ANTHROPIC_MODEL="claude-sonnet-4-6"           # Default: claude-sonnet-4-6
 export GOOGLEAI_MODEL="gemini-1.5-flash"   # Default: gemini-1.5-flash
 export MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
 export HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
@@ -133,7 +133,7 @@ Each component has its own configuration file in this directory:
 
 - `echo/echo.yml` - Echo component configuration
 - `openai/openai.yml` - OpenAI configuration with gpt-5-nano model
-- `anthropic/anthropic.yml` - Anthropic configuration with Claude 3 Haiku
+- `anthropic/anthropic.yml` - Anthropic configuration with Claude Sonnet 4.6
 - `googleai/googleai.yml` - Google AI configuration with Gemini 1.5 Flash
 - `mistral/mistral.yml` - Mistral configuration with open-mistral-7b
 - `huggingface/huggingface.yml` - HuggingFace configuration (uses OpenAI compatibility layer)

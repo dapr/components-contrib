@@ -32,7 +32,7 @@ import (
 func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	uri := httputils.RequestURI(r)
-	w.Write([]byte(uri))
+	_, _ = w.Write([]byte(uri))
 }
 
 func TestRouterAlias(t *testing.T) {
@@ -55,7 +55,7 @@ func TestRouterAlias(t *testing.T) {
 				assert.Equal(t,
 					"/v1.0/invoke/srv.default/method/mall/activity/info?id=123",
 					string(msg))
-				result.Body.Close()
+				_ = result.Body.Close()
 			})
 
 			t.Run("hit: change router with restful request", func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestRouterAlias(t *testing.T) {
 				assert.Equal(t,
 					"/v1.0/invoke/srv.default/method/hello/activity/info?id=1",
 					string(msg))
-				result.Body.Close()
+				_ = result.Body.Close()
 			})
 
 			t.Run("hit: change router with restful request and query string", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestRouterAlias(t *testing.T) {
 				assert.Equal(t,
 					"/v1.0/invoke/srv.default/method/hello/activity/user?id=1&userid=123",
 					string(msg))
-				result.Body.Close()
+				_ = result.Body.Close()
 			})
 
 			t.Run("miss: no change router", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestRouterAlias(t *testing.T) {
 				assert.Equal(t,
 					"/v1.0/invoke/srv.default",
 					string(msg))
-				result.Body.Close()
+				_ = result.Body.Close()
 			})
 		}
 	}

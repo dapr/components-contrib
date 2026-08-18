@@ -157,7 +157,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		return &result, fmt.Errorf("%s invalid TLS configuration: %w", errorMessagePrefix, err)
 	}
 
-	if result.SaslExternal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
+	if result.SaslExternal && (result.CACert == "" || result.ClientCert == "" || result.ClientKey == "") {
 		return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
 	}
 

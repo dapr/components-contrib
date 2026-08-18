@@ -94,7 +94,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(WAL)",
@@ -118,7 +118,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(WAL)",
@@ -142,7 +142,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file::memory:?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(MEMORY)",
@@ -167,7 +167,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file::memory:?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(MEMORY)",
@@ -194,7 +194,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(WAL)",
@@ -220,7 +220,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(60000)",
 				"journal_mode(WAL)",
@@ -245,7 +245,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(DELETE)",
@@ -269,7 +269,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(DELETE)",
@@ -294,7 +294,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(DELETE)",
@@ -319,7 +319,7 @@ func TestGetConnectionStringe(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, strings.HasPrefix(connString, "file:data.db?"))
-		assert.EqualValues(t, url.Values{
+		assert.Equal(t, url.Values{
 			"_pragma": {
 				"busy_timeout(2000)",
 				"journal_mode(WAL)",

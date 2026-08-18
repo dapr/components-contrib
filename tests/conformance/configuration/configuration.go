@@ -65,7 +65,7 @@ func NewTestConfig(componentName string, operations []string, configMap map[stri
 }
 
 func getKeys(mymap map[string]*configuration.Item) []string {
-	keys := []string{}
+	keys := make([]string, 0, len(mymap))
 	for key := range mymap {
 		keys = append(keys, key)
 	}
@@ -161,7 +161,7 @@ func getStringItemIgnoreVersion(item *configuration.Item) string {
 // assertItemsEqualValues compares items by Value and Metadata only, ignoring Version.
 func assertItemsEqualValues(t *testing.T, expected, actual map[string]*configuration.Item) {
 	t.Helper()
-	assert.Equal(t, len(expected), len(actual), "item count mismatch")
+	assert.Len(t, actual, len(expected), "item count mismatch")
 	for k, expectedItem := range expected {
 		actualItem, ok := actual[k]
 		assert.True(t, ok, "missing key %s", k)

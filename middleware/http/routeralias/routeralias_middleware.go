@@ -123,6 +123,6 @@ func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := struct {
 		Routes string `mapstructure:"routes"`
 	}{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return
 }

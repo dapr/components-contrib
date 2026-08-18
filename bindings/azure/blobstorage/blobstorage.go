@@ -376,7 +376,7 @@ func downloadBlobToFile(ctx context.Context, blockBlobClient *blockblob.Client, 
 	defer f.Close()
 
 	if _, dlErr := blockBlobClient.DownloadFile(ctx, f, nil); dlErr != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		if bloberror.HasCode(dlErr, bloberror.BlobNotFound) {
 			return errors.New("blob not found")
 		}
@@ -1040,7 +1040,7 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storagecommon.BlobStorageMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
 

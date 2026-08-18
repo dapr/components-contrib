@@ -84,7 +84,7 @@ func (q *CFWorkersKV) Init(_ context.Context, metadata state.Metadata) error {
 
 func (q *CFWorkersKV) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := componentMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
@@ -118,7 +118,7 @@ func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRe
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("invalid response status code: %d", res.StatusCode)
@@ -149,7 +149,7 @@ func (q *CFWorkersKV) Get(parentCtx context.Context, stateReq *state.GetRequest)
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode == http.StatusNotFound {
 		return &state.GetResponse{}, nil
@@ -205,7 +205,7 @@ func (q *CFWorkersKV) Set(parentCtx context.Context, stateReq *state.SetRequest)
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusCreated {
 		return fmt.Errorf("invalid response status code: %d", res.StatusCode)

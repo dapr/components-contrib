@@ -174,7 +174,7 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %w", err)
 		}
 
-		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
+		aeh.logger.Debugf("Calling app's handler for message %d on topic %s", messages[0].SequenceNumber, topic)
 		_, err = handler(ctx, bindingsMsg)
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties b
 			return nil, fmt.Errorf("failed to get pubsub message from azure eventhubs message: %w", err)
 		}
 
-		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
+		aeh.logger.Debugf("Calling app's handler for message %d on topic %s", messages[0].SequenceNumber, topic)
 		return nil, handler(ctx, pubsubMsg)
 	}
 }
@@ -255,7 +255,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 			aeh.logger.Debugf("Processing EventHubs events for topic %s (attempt: %d)", topic, attempts.Add(1))
 			return config.Handler(ctx, events)
 		}, b, func(err error, _ time.Duration) {
-			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic)
+			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic, err)
 		}, func() {
 			aeh.logger.Warnf("Successfully processed EventHubs events after it previously failed for topic %s", topic)
 		})
@@ -281,7 +281,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 			// Get the processor client
 			processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
 			if err != nil {
-				aeh.logger.Errorf("error trying to establish a connection: %w", err)
+				aeh.logger.Errorf("error trying to establish a connection: %v", err)
 			} else {
 				// Process all partition clients as they come in
 				subscriberLoop := func() {
@@ -346,7 +346,7 @@ func (aeh *AzureEventHubs) handleAsync(ctx context.Context, topic string, messag
 	if err != nil {
 		// If we have a response with 0 items (or a nil response), it means the handler was a non-bulk one
 		if len(resp) == 0 {
-			aeh.logger.Errorf("Failed to process Eventhubs message %s for topic %s: Error: %v", messages[0].MessageID, topic, err)
+			aeh.logger.Errorf("Failed to process Eventhubs message %s for topic %s: Error: %v", *messages[0].MessageID, topic, err)
 		}
 		for _, item := range resp {
 			if item.Error != nil {
@@ -399,9 +399,9 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 		if len(events) != 0 {
 			// Handle received message
 			if aeh.metadata.EnableInOrderMessageDelivery {
-				aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+				_ = aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
 			} else {
-				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler) //nolint:errcheck // legacy behavior preserved
 			}
 
 			// Checkpointing disabled for CheckPointFrequencyPerPartition == 0
@@ -441,7 +441,7 @@ func (aeh *AzureEventHubs) Close() (err error) {
 		go func(producer *azeventhubs.ProducerClient) {
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
 			defer closeCancel()
-			producer.Close(closeCtx)
+			_ = producer.Close(closeCtx)
 			wg.Done()
 		}(producer)
 	}

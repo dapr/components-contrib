@@ -266,7 +266,7 @@ func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, e
 // GetComponentMetadata returns the metadata of the component.
 func (a *APNS) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := APNSmetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
 

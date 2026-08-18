@@ -117,7 +117,7 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("invalid response status code: %d", res.StatusCode)
@@ -138,6 +138,6 @@ func (q *CFQueues) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (q *CFQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := componentMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

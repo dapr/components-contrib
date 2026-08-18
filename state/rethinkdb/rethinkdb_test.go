@@ -173,8 +173,8 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 
 func testBulk(t *testing.T, db state.Store, i int) {
 	// create data list
-	deleteList := make([]state.DeleteRequest, 0)
 	setList := make([]state.SetRequest, 3)
+	deleteList := make([]state.DeleteRequest, 0, len(setList))
 	for i := range setList {
 		d := []byte("test")
 		k := fmt.Sprintf("test-id-%d", i)

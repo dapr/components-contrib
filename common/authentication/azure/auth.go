@@ -155,7 +155,7 @@ func (s EnvironmentSettings) addManagedIdentityProvider(timeout time.Duration, c
 	msiCred, err := c.GetTokenCredential()
 
 	// We need to use a timeout for MSI on environments where it is not available because the request for the default IMDS endpoint can hang for several minutes.
-	if !(isCloudServiceWithManagedIdentity() || isVirtualMachineWithManagedIdentity()) {
+	if !isCloudServiceWithManagedIdentity() && !isVirtualMachineWithManagedIdentity() {
 		msiCred = &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: timeout}
 	}
 

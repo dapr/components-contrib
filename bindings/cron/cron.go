@@ -96,7 +96,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	c := cron.New(cron.WithParser(b.parser), cron.WithClock(b.clk))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
-		handler(ctx, &bindings.ReadResponse{
+		_, _ = handler(ctx, &bindings.ReadResponse{ //nolint:errcheck // legacy behavior preserved
 			Metadata: map[string]string{
 				"timeZone":    c.Location().String(),
 				"readTimeUTC": time.Now().UTC().String(),
@@ -135,6 +135,6 @@ func (b *Binding) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (b *Binding) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

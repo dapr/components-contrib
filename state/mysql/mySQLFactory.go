@@ -59,7 +59,7 @@ func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 		return errors.New("failed to append PEM")
 	}
 
-	mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})
+	_ = mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12}) //nolint:errcheck // legacy behavior preserved
 
 	return nil
 }

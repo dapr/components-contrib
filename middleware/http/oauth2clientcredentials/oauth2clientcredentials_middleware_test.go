@@ -300,5 +300,5 @@ func TestOAuth2ClientCredentialsPathFilterGetHandler(t *testing.T) {
 	w = httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
-	assert.Equal(t, "", r.Header.Get("authorization"))
+	assert.Empty(t, r.Header.Get("authorization"))
 }

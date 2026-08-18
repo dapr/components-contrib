@@ -136,6 +136,6 @@ func adaptHandler(handler bindings.Handler) kafka.EventHandler {
 // GetComponentMetadata returns the metadata of the component.
 func (b *Binding) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := kafka.KafkaMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

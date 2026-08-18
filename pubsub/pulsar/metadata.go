@@ -23,6 +23,7 @@ import (
 
 type pulsarMetadata struct {
 	Host                             string                    `mapstructure:"host"`
+	ListenerName                     string                    `mapstructure:"listenerName"`
 	ConsumerID                       string                    `mapstructure:"consumerID"`
 	EnableTLS                        bool                      `mapstructure:"enableTLS"`
 	DisableBatching                  bool                      `mapstructure:"disableBatching"`
@@ -44,6 +45,8 @@ type pulsarMetadata struct {
 	SubscriptionInitialPosition      string                    `mapstructure:"subscribeInitialPosition"`
 	ReplicateSubscriptionState       bool                      `mapstructure:"replicateSubscriptionState"`
 	SubscriptionMode                 string                    `mapstructure:"subscribeMode"`
+	TopicsPattern                    string                    `mapstructure:"topicsPattern"`
+	AutoDiscoveryPeriod              time.Duration             `mapstructure:"autoDiscoveryPeriod"`
 	Token                            string                    `mapstructure:"token"`
 	CompressionType                  string                    `mapstructure:"compressionType"`
 	CompressionLevel                 string                    `mapstructure:"compressionLevel"`

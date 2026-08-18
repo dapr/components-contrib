@@ -100,7 +100,7 @@ func (a *AWSSES) Operations() []bindings.OperationKind {
 
 func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
 	m := sesMetadata{}
-	kitmd.DecodeMetadata(meta.Properties, &m)
+	_ = kitmd.DecodeMetadata(meta.Properties, &m)
 
 	return &m, nil
 }
@@ -170,14 +170,14 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 // Helper to merge config and request metadata.
 func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) sesMetadata {
 	merged := metadata
-	kitmd.DecodeMetadata(req.Metadata, &merged)
+	_ = kitmd.DecodeMetadata(req.Metadata, &merged)
 	return merged
 }
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := sesMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
 

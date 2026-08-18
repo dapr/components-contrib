@@ -207,7 +207,7 @@ func TestReadQueue(t *testing.T) {
 		return nil, nil
 	}
 
-	a.Read(ctx, handler)
+	require.NoError(t, a.Read(ctx, handler))
 	select {
 	case <-ctx.Done():
 		// do nothing
@@ -249,7 +249,7 @@ func TestReadQueueDecode(t *testing.T) {
 		return nil, nil
 	}
 
-	a.Read(ctx, handler)
+	require.NoError(t, a.Read(ctx, handler))
 	select {
 	case <-ctx.Done():
 		// do nothing
@@ -313,7 +313,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 		return nil, nil
 	}
 
-	a.Read(ctx, handler)
+	require.NoError(t, a.Read(ctx, handler))
 	time.Sleep(1 * time.Second)
 	cancel()
 	assert.Equal(t, 0, received)

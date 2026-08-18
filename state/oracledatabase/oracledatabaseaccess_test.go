@@ -904,3 +904,135 @@ func TestBulkGetChunking_SingleChunkFastPath(t *testing.T) {
 	// Only one query issued
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+// TestParseMetadataConnectionPool verifies that connection pool fields are parsed
+// correctly from the metadata properties map.
+func TestParseMetadataConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		props           map[string]string
+		wantMaxOpen     int
+		wantMaxIdle     int
+		wantMaxLifetime time.Duration
+		wantMaxIdleTime time.Duration
+	}{
+		{
+			name: "all pool options set",
+			props: map[string]string{
+				"connectionString": "oracle://user:pass@localhost:1521/svc",
+				"maxOpenConns":     "20",
+				"maxIdleConns":     "5",
+				"connMaxLifetime":  "30m",
+				"connMaxIdleTime":  "10m",
+			},
+			wantMaxOpen:     20,
+			wantMaxIdle:     5,
+			wantMaxLifetime: 30 * time.Minute,
+			wantMaxIdleTime: 10 * time.Minute,
+		},
+		{
+			name: "no pool options — zero values, Go defaults apply",
+			props: map[string]string{
+				"connectionString": "oracle://user:pass@localhost:1521/svc",
+			},
+			wantMaxOpen:     0,
+			wantMaxIdle:     0,
+			wantMaxLifetime: 0,
+			wantMaxIdleTime: 0,
+		},
+		{
+			name: "only maxOpenConns set",
+			props: map[string]string{
+				"connectionString": "oracle://user:pass@localhost:1521/svc",
+				"maxOpenConns":     "100",
+			},
+			wantMaxOpen:     100,
+			wantMaxIdle:     0,
+			wantMaxLifetime: 0,
+			wantMaxIdleTime: 0,
+		},
+		{
+			name: "duration using seconds shorthand",
+			props: map[string]string{
+				"connectionString": "oracle://user:pass@localhost:1521/svc",
+				"connMaxLifetime":  "90s",
+				"connMaxIdleTime":  "45s",
+			},
+			wantMaxOpen:     0,
+			wantMaxIdle:     0,
+			wantMaxLifetime: 90 * time.Second,
+			wantMaxIdleTime: 45 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			meta, err := parseMetadata(tt.props)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMaxOpen, meta.MaxOpenConns, "MaxOpenConns")
+			assert.Equal(t, tt.wantMaxIdle, meta.MaxIdleConns, "MaxIdleConns")
+			assert.Equal(t, tt.wantMaxLifetime, meta.ConnMaxLifetime, "ConnMaxLifetime")
+			assert.Equal(t, tt.wantMaxIdleTime, meta.ConnMaxIdleTime, "ConnMaxIdleTime")
+		})
+	}
+}
+
+// TestApplyConnectionPool_MaxOpenConns verifies that applyConnectionPool sets
+// MaxOpenConns on the *sql.DB when provided, and that the value is reflected in
+// db.Stats().MaxOpenConnections (the only pool field exposed by database/sql).
+func TestApplyConnectionPool_MaxOpenConns(t *testing.T) {
+	t.Parallel()
+
+	db, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	meta := oracleDatabaseMetadata{
+		ConnectionString: "oracle://user:pass@localhost:1521/svc",
+		TableName:        defaultTableName,
+		BulkGetChunkSize: defaultBulkGetChunkSize,
+		MaxOpenConns:     25,
+		MaxIdleConns:     8,
+		ConnMaxLifetime:  15 * time.Minute,
+		ConnMaxIdleTime:  5 * time.Minute,
+	}
+
+	// Exercise production helper — not inline guard logic.
+	applyConnectionPool(db, &meta)
+
+	stats := db.Stats()
+	assert.Equal(t, 25, stats.MaxOpenConnections,
+		"MaxOpenConns should be reflected in db.Stats().MaxOpenConnections")
+	// database/sql does not expose MaxIdleConns, ConnMaxLifetime, or
+	// ConnMaxIdleTime in DBStats; coverage for those fields comes from the
+	// parsing tests (TestParseMetadataConnectionPool) which verify decoding,
+	// and from the helper running without error on a sqlmock DB (no panic).
+}
+
+// TestApplyConnectionPool_ZeroValuesSkipped verifies that zero-value pool
+// options are skipped by applyConnectionPool, leaving Go's built-in defaults.
+func TestApplyConnectionPool_ZeroValuesSkipped(t *testing.T) {
+	t.Parallel()
+
+	db, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	meta := oracleDatabaseMetadata{
+		ConnectionString: "oracle://user:pass@localhost:1521/svc",
+		TableName:        defaultTableName,
+		BulkGetChunkSize: defaultBulkGetChunkSize,
+		// all pool options are zero — applyConnectionPool must skip setters
+	}
+
+	// Exercise production helper — must not panic, must preserve defaults.
+	applyConnectionPool(db, &meta)
+
+	// MaxOpenConnections of 0 means unlimited (Go default).
+	stats := db.Stats()
+	assert.Equal(t, 0, stats.MaxOpenConnections,
+		"zero MaxOpenConns should leave Go default (unlimited)")
+}

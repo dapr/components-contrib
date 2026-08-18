@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -108,11 +110,13 @@ type SQLServer struct {
 // Init initializes the SQL server state store.
 func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.metadata = newMetadata()
-	metadata.Base.GetProperty()
+	metadata.GetProperty()
 	err := s.metadata.Parse(metadata.Properties)
 	if err != nil {
 		return err
 	}
+
+	s.metadata.BulkGetChunkSize = normalizeBulkGetChunkSize(s.logger, s.metadata.BulkGetChunkSize)
 
 	migration := s.migratorFactory(&s.metadata)
 	mr, err := migration.executeMigrations(ctx)
@@ -307,6 +311,245 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	}, nil
 }
 
+// BulkGet retrieves multiple entities in a single round-trip per chunk using a
+// `WHERE [Key] IN (...)` query. When the number of requested keys exceeds the
+// configured BulkGetChunkSize, BulkGet issues multiple chunked queries
+// sequentially (not in parallel) and merges the results. This avoids SQL
+// Server's hard 2100-parameter limit and reduces connection-pool pressure
+// versus the default per-key fan-out.
+//
+// The default chunk size is 1000, so callers with <= 1000 keys see a single
+// query.
+func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Validate all keys upfront — an empty key is a programmer bug, not a
+	// per-key data issue, so we fail fast before issuing any query.
+	for _, r := range req {
+		if r.Key == "" {
+			return nil, errors.New("missing key in bulk get operation")
+		}
+	}
+
+	chunkSize := s.metadata.BulkGetChunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultBulkGetChunkSize
+	}
+
+	// Eager ctx.Err() check applies to both fast and chunked paths so
+	// cancellation produces a consistent per-key error format regardless
+	// of how many request entries the caller passed. Without this, the
+	// fast path would let database/sql wrap the context error as "bulk
+	// get query failed: ..." while the chunked path would surface
+	// ctx.Err() directly, which would silently change format when a
+	// caller tunes bulkGetChunkSize.
+	if err := ctx.Err(); err != nil {
+		res := make([]state.BulkGetResponse, len(req))
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: err.Error(),
+			}
+		}
+		return res, nil
+	}
+
+	// Fast path: input fits in one chunk.
+	if len(req) <= chunkSize {
+		return s.bulkGetChunk(ctx, req), nil
+	}
+
+	// Chunked path: sequential chunks, results concatenated.
+	res := make([]state.BulkGetResponse, 0, len(req))
+	for start := 0; start < len(req); start += chunkSize {
+		// Re-check context between chunks so a cancellation that fires
+		// mid-request stops promptly instead of issuing further round-trips.
+		if err := ctx.Err(); err != nil {
+			for _, r := range req[start:] {
+				res = append(res, state.BulkGetResponse{
+					Key:   r.Key,
+					Error: err.Error(),
+				})
+			}
+			return res, nil
+		}
+
+		end := start + chunkSize
+		if end > len(req) {
+			end = len(req)
+		}
+
+		res = append(res, s.bulkGetChunk(ctx, req[start:end])...)
+	}
+	return res, nil
+}
+
+// bulkGetChunk executes a single IN-clause query for the distinct keys of
+// the given requests, then builds the response by iterating the original
+// request slice so duplicate request entries each get their own populated
+// response (matching the default fan-out BulkStore semantics). Only
+// distinct keys hit the wire.
+//
+// Pre-condition: req is non-empty and all keys are non-empty.
+//
+// Errors surface as per-key Error entries in the response (consistent with
+// other state stores like Redis and Oracle); this helper never returns a
+// hard error. Exception: rows.Scan failures lose the row's key and so
+// cannot be attributed to a specific request entry. The affected key
+// surfaces as a missing-key response (empty Data/ETag/Error) and the
+// failure is logged at warn level.
+func (s *SQLServer) bulkGetChunk(ctx context.Context, req []state.GetRequest) []state.BulkGetResponse {
+	type rowData struct {
+		data       []byte
+		etag       string
+		expireTime time.Time
+		hasExpire  bool
+		found      bool
+		// scanErr is set if reading this row failed in a recoverable way
+		// (e.g. NULL data on a non-binary row); surfaced as a per-key
+		// error in the response loop.
+		scanErr string
+	}
+
+	// Build the distinct key list, preserving first-seen order. The map is
+	// pre-populated with zero-value entries so we can detect duplicates via
+	// the `seen` check without a separate set.
+	rowByKey := make(map[string]rowData, len(req))
+	distinctKeys := make([]string, 0, len(req))
+	for _, r := range req {
+		if _, seen := rowByKey[r.Key]; seen {
+			continue
+		}
+		rowByKey[r.Key] = rowData{}
+		distinctKeys = append(distinctKeys, r.Key)
+	}
+
+	params := make([]any, len(distinctKeys))
+	bindVars := make([]string, len(distinctKeys))
+	for i, k := range distinctKeys {
+		name := "p" + strconv.Itoa(i)
+		params[i] = sql.Named(name, k)
+		bindVars[i] = "@" + name
+	}
+
+	// Schema and table names are validated at Init via IsValidSQLName, so
+	// concatenation here is safe.
+	//nolint:gosec
+	query := fmt.Sprintf(
+		"SELECT [Key], [Data], [BinaryData], [isBinary], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] IN (%s) AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())",
+		s.metadata.SchemaName, s.metadata.TableName, strings.Join(bindVars, ","),
+	)
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		// If the query fails, return per-key error entries instead of
+		// propagating the error, matching Oracle/Redis convention.
+		res := make([]state.BulkGetResponse, len(req))
+		errMsg := "bulk get query failed: " + err.Error()
+		for i, r := range req {
+			res[i] = state.BulkGetResponse{
+				Key:   r.Key,
+				Error: errMsg,
+			}
+		}
+		return res
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			key        string
+			data       sql.NullString
+			binaryData []byte
+			isBinary   bool
+			rowVersion []byte
+			expireDate sql.NullTime
+		)
+		if err := rows.Scan(&key, &data, &binaryData, &isBinary, &rowVersion, &expireDate); err != nil {
+			// We can't trust `key` after a failed scan, so we can't slot
+			// the error here. Log it; the response loop below will treat
+			// the corresponding request keys as not-found.
+			s.logger.Warnf("SQL Server BulkGet: row scan failed: %v", err)
+			continue
+		}
+
+		// Defensive: the SQL `IN` clause can only match values we bound,
+		// so any returned key must be one we requested (and therefore
+		// pre-populated in rowByKey). An unrecognized key would indicate
+		// a misbehaving driver or a future schema change leaking through;
+		// log and drop rather than insert an orphan entry into the map.
+		if _, requested := rowByKey[key]; !requested {
+			s.logger.Warnf("SQL Server BulkGet: query returned unrequested key %q, discarding", key)
+			continue
+		}
+
+		rd := rowData{found: true, etag: hex.EncodeToString(rowVersion)}
+		if expireDate.Valid {
+			rd.expireTime = expireDate.Time
+			rd.hasExpire = true
+		}
+		if isBinary {
+			rd.data = binaryData
+		} else if !data.Valid {
+			// Row was found and scanned successfully, but a non-binary
+			// row has a NULL Data column — shouldn't happen in production
+			// (the schema/upsert path always writes Data for isBinary=0).
+			// Surface as a per-key error so operators can spot corrupted
+			// rows in logs without losing the response slot.
+			rd.scanErr = "row has NULL Data column on a non-binary entry (possible data corruption)"
+		} else {
+			rd.data = []byte(data.String)
+		}
+		rowByKey[key] = rd
+	}
+
+	// rows.Err() reports errors from iteration; we surface it per-key for
+	// any request keys that didn't get a row.
+	iterErr := rows.Err()
+
+	// Build the response by iterating the original request slice so that
+	// duplicate request entries each get their own populated response with
+	// the same data, and response order matches request order.
+	res := make([]state.BulkGetResponse, len(req))
+	anyUnfound := false
+	for i, r := range req {
+		res[i].Key = r.Key
+		rd := rowByKey[r.Key]
+		if !rd.found {
+			anyUnfound = true
+			if iterErr != nil {
+				res[i].Error = "rows iteration failed: " + iterErr.Error()
+			}
+			// else: missing key, empty response — matches per-key Get
+			// semantics (`&state.GetResponse{}`).
+			continue
+		}
+		if rd.scanErr != "" {
+			res[i].Error = rd.scanErr
+			continue
+		}
+		res[i].Data = rd.data
+		res[i].ETag = ptr.Of(rd.etag)
+		if rd.hasExpire {
+			res[i].Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: rd.expireTime.UTC().Format(time.RFC3339),
+			}
+		}
+	}
+
+	// rows.Err() that fires after every requested key was already found
+	// has no per-key slot to land in (every response carries data).
+	// Without a log, the error would vanish entirely — e.g. a network
+	// reset after the last row arrived would be invisible. Warn-log it
+	// so transient driver/network failures stay diagnosable.
+	if iterErr != nil && !anyUnfound {
+		s.logger.Warnf("SQL Server BulkGet: rows iteration error after all requested keys were found: %v", iterErr)
+	}
+	return res
+}
+
 // Set adds/updates an entity on store.
 func (s *SQLServer) Set(ctx context.Context, req *state.SetRequest) error {
 	return s.executeSet(ctx, s.db, req)
@@ -388,14 +631,14 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 
 func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	settingsStruct := sqlServerMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
 // Close implements io.Closer.
 func (s *SQLServer) Close() error {
 	if s.db != nil {
-		s.db.Close()
+		_ = s.db.Close()
 		s.db = nil
 	}
 

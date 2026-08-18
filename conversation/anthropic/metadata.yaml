@@ -17,17 +17,38 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          API key for Anthropic.
+          API key for Anthropic, or for the Microsoft Foundry resource when apiType is 'foundry'.
         example:  "**********"
         default: ""
 metadata:
   - name: model
     required: false
     description: |
-      The Anthropic LLM to use. Configurable via ANTHROPIC_MODEL environment variable.
+      The Anthropic LLM to use. When apiType is 'foundry', this is the Foundry deployment name
+      (defaults to the Claude model ID, e.g. 'claude-opus-4-7'). Configurable via ANTHROPIC_MODEL
+      environment variable.
     type: string
     example: 'claude-sonnet-4-20250514'
     default: 'claude-sonnet-4-20250514'
+  - name: endpoint
+    required: false
+    description: |
+      Custom base URL for the Anthropic API. Required when apiType is 'foundry'; for Foundry use
+      the form 'https://{resource}.services.ai.azure.com/anthropic/v1'. If not specified for the
+      default apiType, the public Anthropic API is used.
+    type: string
+    example: 'https://my-resource.services.ai.azure.com/anthropic/v1'
+  - name: apiType
+    required: false
+    description: |
+      The type of API to use. Set to 'foundry' to call Anthropic Claude models hosted on
+      Microsoft Foundry; otherwise the public Anthropic API is used.
+    type: string
+    allowedValues:
+      - "anthropic"
+      - "foundry"
+    example: 'foundry'
+    default: 'anthropic'
   - name: cacheTTL
     required: false
     description: |

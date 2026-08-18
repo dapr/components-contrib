@@ -89,6 +89,6 @@ func (r *NameFormatResolver) Close() error {
 // GetComponentMetadata returns the metadata information for the component.
 func (r *NameFormatResolver) GetComponentMetadata() metadata.MetadataMap {
 	metadataInfo := metadata.MetadataMap{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(nameFormatMetadata{}), &metadataInfo, metadata.NameResolutionType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(nameFormatMetadata{}), &metadataInfo, metadata.NameResolutionType)
 	return metadataInfo
 }

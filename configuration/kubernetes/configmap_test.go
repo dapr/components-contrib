@@ -400,7 +400,7 @@ func TestComputeChangedItems(t *testing.T) {
 		items := computeChangedItems(oldCM, newCM)
 
 		assert.Len(t, items, 1)
-		assert.Equal(t, "", items["key2"].Value)
+		assert.Empty(t, items["key2"].Value)
 		assert.Equal(t, "true", items["key2"].Metadata["deleted"])
 	})
 
@@ -445,7 +445,7 @@ func TestComputeChangedItems(t *testing.T) {
 
 		items := computeChangedItems(oldCM, newCM)
 
-		assert.Equal(t, "", items["bin-key"].Value)
+		assert.Empty(t, items["bin-key"].Value)
 		assert.Equal(t, "true", items["bin-key"].Metadata["deleted"])
 	})
 
@@ -636,7 +636,7 @@ func TestSubscriberHandler_OnDelete(t *testing.T) {
 		case e := <-receivedCh:
 			assert.Len(t, e.Items, 2)
 			assert.Equal(t, "true", e.Items["key1"].Metadata["deleted"])
-			assert.Equal(t, "", e.Items["key1"].Value)
+			assert.Empty(t, e.Items["key1"].Value)
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out")
 		}

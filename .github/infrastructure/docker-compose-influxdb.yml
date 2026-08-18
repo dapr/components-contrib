@@ -1,7 +1,6 @@
-version: '2'
 services:
   standalone:
-    image: influxdb:latest
+    image: influxdb:2
     container_name: influxdb
     ports:
       - "8086:8086"
@@ -12,3 +11,22 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=dapr-conf-test
       - DOCKER_INFLUXDB_INIT_BUCKET=dapr-conf-test-bucket
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
+      # The default config.yml shipped in the influxdb:2.9 image is missing the
+      # http-bind-address / tls-cert / tls-key keys, which causes the entrypoint's
+      # dasel pipeline to fail with `map key not found` and prevents the container
+      # from starting. Point INFLUXD_CONFIG_PATH at the inline config below, which
+      # defines those keys explicitly. The path is outside /etc/influxdb2 so the
+      # entrypoint's chown of that volume does not fail on the read-only file.
+      - INFLUXD_CONFIG_PATH=/etc/influxdb2-fix/config.yml
+    configs:
+      - source: influxdb_config
+        target: /etc/influxdb2-fix/config.yml
+
+configs:
+  influxdb_config:
+    content: |
+      bolt-path: /var/lib/influxdb2/influxd.bolt
+      engine-path: /var/lib/influxdb2/engine
+      http-bind-address: :8086
+      tls-cert: ""
+      tls-key: ""

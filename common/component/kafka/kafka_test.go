@@ -167,7 +167,7 @@ func TestDeserializeValue(t *testing.T) {
 	})
 
 	t.Run("Invalid data, return error", func(t *testing.T) {
-		var invalidVal []byte
+		invalidVal := make([]byte, 0, 9)
 		invalidVal = append(invalidVal, byte(0))
 		invalidVal = append(invalidVal, recordValueFromJSON[0:5]...)
 		invalidVal = append(invalidVal, []byte("xxx")...)
@@ -236,7 +236,7 @@ func formatByteRecord(schemaID int, valueBytes []byte) []byte {
 	schemaIDBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(schemaIDBytes, uint32(schemaID)) //nolint:gosec
 
-	var recordValue []byte
+	recordValue := make([]byte, 0, 1+len(schemaIDBytes)+len(valueBytes))
 	recordValue = append(recordValue, byte(0))
 	recordValue = append(recordValue, schemaIDBytes...)
 	recordValue = append(recordValue, valueBytes...)
@@ -276,7 +276,7 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 	binary.BigEndian.PutUint32(schemaAvroJSONIDBytes, uint32(schemaAvroJSON.ID())) //nolint:gosec
 	valueBytesFromAvroJSON, _ := codecAvroJSON.BinaryFromNative(nil, testValue1AvroJSON)
 	valueAvroJSON, _ := codecAvroJSON.TextualFromNative(nil, testValue1AvroJSON)
-	var recordValueFromAvroJSON []byte
+	recordValueFromAvroJSON := make([]byte, 0, 1+len(schemaAvroJSONIDBytes)+len(valueBytesFromAvroJSON))
 	recordValueFromAvroJSON = append(recordValueFromAvroJSON, byte(0))
 	recordValueFromAvroJSON = append(recordValueFromAvroJSON, schemaAvroJSONIDBytes...)
 	recordValueFromAvroJSON = append(recordValueFromAvroJSON, valueBytesFromAvroJSON...)

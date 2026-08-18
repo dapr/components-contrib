@@ -196,7 +196,7 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 // GetComponentMetadata returns the metadata of the component.
 func (c *CosmosDB) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := cosmosDBCredentials{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }
 

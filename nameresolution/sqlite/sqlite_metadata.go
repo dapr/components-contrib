@@ -78,7 +78,7 @@ func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata) error {
 	}
 
 	// Validate and sanitize configuration
-	err = m.SqliteAuthMetadata.Validate()
+	err = m.Validate()
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (m *sqliteMetadata) GetAddress() string {
 
 // Reset the object
 func (m *sqliteMetadata) reset() {
-	m.SqliteAuthMetadata.Reset()
+	m.Reset()
 
 	// We lower the default thresholds for the nameresolver
 	m.Timeout = defaultTimeout

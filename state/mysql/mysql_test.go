@@ -274,8 +274,9 @@ func TestSetHandlesErr(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, state.ETagMismatch, err.(*state.ETagError).Kind())
+		var tagErr *state.ETagError
+		require.ErrorAs(t, err, &tagErr)
+		assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 	})
 }
 
@@ -342,8 +343,9 @@ func TestDeleteWithErr(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, state.ETagMismatch, err.(*state.ETagError).Kind())
+		var tagErr *state.ETagError
+		require.ErrorAs(t, err, &tagErr)
+		assert.Equal(t, state.ETagMismatch, tagErr.Kind())
 	})
 }
 

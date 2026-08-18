@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -36,8 +38,8 @@ func TestNew(t *testing.T) {
 func TestGetCallbacks(t *testing.T) {
 	t.Run("no wildcards", func(t *testing.T) {
 		bus := New(false).(*EventBus)
-		bus.Subscribe("topic", func() {})
-		bus.Subscribe("topic*", func() {})
+		require.NoError(t, bus.Subscribe("topic", func() {}))
+		require.NoError(t, bus.Subscribe("topic*", func() {}))
 		if cbs := bus.getCallbacks("my_topic"); len(cbs) > 0 {
 			t.Fail()
 		}
@@ -54,9 +56,9 @@ func TestGetCallbacks(t *testing.T) {
 
 	t.Run("with wildcards", func(t *testing.T) {
 		bus := New(true).(*EventBus)
-		bus.Subscribe("topic", func() {})
-		bus.Subscribe("topic*", func() {})
-		bus.Subscribe("topi*", func() {})
+		require.NoError(t, bus.Subscribe("topic", func() {}))
+		require.NoError(t, bus.Subscribe("topic*", func() {}))
+		require.NoError(t, bus.Subscribe("topi*", func() {}))
 		if cbs := bus.getCallbacks("my_topic"); len(cbs) > 0 {
 			t.Fail()
 		}
@@ -85,7 +87,7 @@ func TestSubscribe(t *testing.T) {
 func TestUnsubscribe(t *testing.T) {
 	bus := New(false)
 	handler := func() {}
-	bus.Subscribe("topic*", handler)
+	require.NoError(t, bus.Subscribe("topic*", handler))
 	if bus.Unsubscribe("topic*", handler) != nil {
 		t.Fail()
 	}
@@ -106,7 +108,7 @@ func TestUnsubscribeMethod(t *testing.T) {
 	bus := New(false)
 	h := &handler{val: 0}
 
-	bus.Subscribe("topic", h.Handle)
+	require.NoError(t, bus.Subscribe("topic", h.Handle))
 	bus.Publish("topic")
 	if bus.Unsubscribe("topic", h.Handle) != nil {
 		t.Fail()
@@ -124,7 +126,7 @@ func TestUnsubscribeMethod(t *testing.T) {
 
 func TestPublish(t *testing.T) {
 	bus := New(false)
-	bus.Subscribe("topic", func(a int, err error) {
+	require.NoError(t, bus.Subscribe("topic", func(a int, err error) {
 		if a != 10 {
 			t.Fail()
 		}
@@ -132,7 +134,7 @@ func TestPublish(t *testing.T) {
 		if err != nil {
 			t.Fail()
 		}
-	})
+	}))
 	bus.Publish("topic", 10, nil)
 }
 
@@ -140,11 +142,11 @@ func TestSubscribeAsyncTransactional(t *testing.T) {
 	results := make([]int, 0)
 
 	bus := New(false)
-	bus.SubscribeAsync("topic", func(a int, out *[]int, dur string) {
+	require.NoError(t, bus.SubscribeAsync("topic", func(a int, out *[]int, dur string) {
 		sleep, _ := time.ParseDuration(dur)
 		time.Sleep(sleep)
 		*out = append(*out, a)
-	}, true)
+	}, true))
 
 	bus.Publish("topic", 1, &results, "1s")
 	bus.Publish("topic", 2, &results, "0s")

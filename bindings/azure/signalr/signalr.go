@@ -416,7 +416,7 @@ func (s *SignalR) getToken(ctx context.Context, url string, user string, expireM
 // GetComponentMetadata returns the metadata of the component.
 func (s *SignalR) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := SignalRMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

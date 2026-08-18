@@ -80,6 +80,15 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 	return s
 }
 
+// newRetryOptions builds the Azure SDK retry options from the component metadata.
+func newRetryOptions(m metadata) policy.RetryOptions {
+	return policy.RetryOptions{
+		MaxRetries:    int32(m.MaxRetries), //nolint:gosec
+		RetryDelay:    m.RetryDelay,
+		MaxRetryDelay: m.MaxRetryDelay,
+	}
+}
+
 // Init does metadata and connection parsing.
 func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) error {
 	r.metadata = metadata{}
@@ -92,11 +101,7 @@ func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) 
 		Telemetry: policy.TelemetryOptions{
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
-		Retry: policy.RetryOptions{
-			MaxRetries:    int32(r.metadata.MaxRetries), //nolint:gosec
-			RetryDelay:    r.metadata.MaxRetryDelay,
-			MaxRetryDelay: r.metadata.MaxRetryDelay,
-		},
+		Retry: newRetryOptions(r.metadata),
 	}
 
 	options := azappconfig.ClientOptions{
@@ -218,7 +223,7 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 		Label string `mapstructure:"label"`
 	}
 	var label labelMetadata
-	kitmd.DecodeMetadata(metadata, &label)
+	_ = kitmd.DecodeMetadata(metadata, &label)
 
 	if label.Label != "" {
 		return to.Ptr(label.Label)
@@ -319,7 +324,7 @@ func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]stri
 		SentinelKey string `mapstructure:"sentinelKey"`
 	}
 	var sentinelKey sentinelKeyMetadata
-	kitmd.DecodeMetadata(metadata, &sentinelKey)
+	_ = kitmd.DecodeMetadata(metadata, &sentinelKey)
 
 	if sentinelKey.SentinelKey != "" {
 		return sentinelKey.SentinelKey
@@ -358,6 +363,6 @@ func (r *ConfigurationStore) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }

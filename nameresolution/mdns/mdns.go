@@ -250,14 +250,14 @@ func (m *Resolver) startRefreshers() {
 			case appID := <-m.refreshChan:
 				go func() {
 					if err := m.refreshApp(m.runCtx, appID); err != nil {
-						m.logger.Warnf(err.Error())
+						m.logger.Warnf("%v", err)
 					}
 				}()
 			// Refresh periodically
 			case <-t.C:
 				go func() {
 					if err := m.refreshAllApps(m.runCtx); err != nil {
-						m.logger.Warnf(err.Error())
+						m.logger.Warnf("%v", err)
 					}
 				}()
 			// Stop on context canceled

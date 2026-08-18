@@ -100,9 +100,10 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 	getResp := &state.GetResponse{}
 
 	for _, column := range columns {
-		if column.ColumnName == stateValue {
+		switch column.ColumnName {
+		case stateValue:
 			getResp.Data = unmarshal(column.Value)
-		} else if column.ColumnName == sateEtag {
+		case sateEtag:
 			getResp.ETag = ptr.Of(column.Value.(string))
 		}
 	}
@@ -189,7 +190,7 @@ func marshal(value interface{}) ([]byte, error) {
 func unmarshal(val interface{}) []byte {
 	var output string
 
-	jsoniter.UnmarshalFromString(string(val.([]byte)), &output)
+	_ = jsoniter.UnmarshalFromString(string(val.([]byte)), &output) //nolint:errcheck // legacy behavior preserved
 
 	return []byte(output)
 }
@@ -231,7 +232,7 @@ func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
 
 func (s *AliCloudTableStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := tablestoreMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

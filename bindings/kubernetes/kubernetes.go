@@ -195,9 +195,9 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 			case obj = <-resultChan:
 				data, err = json.Marshal(obj)
 				if err != nil {
-					k.logger.Errorf("Error marshalling event %w", err)
+					k.logger.Errorf("Error marshalling event %v", err)
 				} else {
-					handler(ctx, &bindings.ReadResponse{
+					_, _ = handler(ctx, &bindings.ReadResponse{ //nolint:errcheck // legacy behavior preserved
 						Data: data,
 					})
 				}
@@ -221,6 +221,6 @@ func (k *kubernetesInput) Close() error {
 // GetComponentMetadata returns the metadata of the component.
 func (k *kubernetesInput) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := kubernetesMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

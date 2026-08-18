@@ -32,7 +32,7 @@ func BenchmarkNative(b *testing.B) {
 	benchmarkAll(b, func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if httputils.RequestURI(r) == "/v1.0/hi?name=panda" {
-				httputils.SetRequestURI(r, "/v1.0/hello?name=teddy")
+				_ = httputils.SetRequestURI(r, "/v1.0/hello?name=teddy")
 			}
 			next.ServeHTTP(w, r)
 		})

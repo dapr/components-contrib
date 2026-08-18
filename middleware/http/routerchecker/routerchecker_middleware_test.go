@@ -29,7 +29,7 @@ import (
 // mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
 func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("from mock"))
+	_, _ = w.Write([]byte("from mock"))
 }
 
 func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {

@@ -335,7 +335,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 	defer func() {
 		// Drain before closing
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	var respBody io.Reader = resp.Body
@@ -375,7 +375,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 // GetComponentMetadata returns the metadata of the component.
 func (h *HTTPSource) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := httpMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

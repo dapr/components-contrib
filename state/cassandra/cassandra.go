@@ -195,7 +195,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		return nil, err
 	}
 
-	if m.Hosts == nil || len(m.Hosts) == 0 {
+	if len(m.Hosts) == 0 {
 		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
@@ -235,14 +235,15 @@ func (c *Cassandra) Delete(ctx context.Context, req *state.DeleteRequest) error 
 func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		sess, err := c.createSession(gocql.All)
 		if err != nil {
 			return nil, err
 		}
 		defer sess.Close()
 		session = sess
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		sess, err := c.createSession(gocql.One)
 		if err != nil {
 			return nil, err
@@ -290,14 +291,15 @@ func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 
 	session := c.session
 
-	if req.Options.Consistency == state.Strong {
+	switch req.Options.Consistency {
+	case state.Strong:
 		sess, err := c.createSession(gocql.Quorum)
 		if err != nil {
 			return err
 		}
 		defer sess.Close()
 		session = sess
-	} else if req.Options.Consistency == state.Eventual {
+	case state.Eventual:
 		sess, err := c.createSession(gocql.Any)
 		if err != nil {
 			return err
@@ -331,7 +333,7 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 
 func (c *Cassandra) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := cassandraMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

@@ -54,7 +54,7 @@ func Test_middleware_getHandler(t *testing.T) {
 	m := &middleware{logger: logger.NewLogger(t.Name())}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/example.wasm" {
-			w.Write(exampleWasmBin)
+			_, _ = w.Write(exampleWasmBin)
 		}
 	}))
 

@@ -143,7 +143,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 		unReq := &configuration.UnsubscribeRequest{
 			ID: subID,
 		}
-		s.Unsubscribe(t.Context(), unReq)
+		_ = s.Unsubscribe(t.Context(), unReq)
 	})
 
 	t.Run("call subscribe w/o sentinel key", func(t *testing.T) {
@@ -255,6 +255,21 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, time.Second*30, cs.metadata.SubscribePollInterval)
 		assert.Equal(t, time.Second*30, cs.metadata.RequestTimeout)
 	})
+}
+
+func TestNewRetryOptions(t *testing.T) {
+	m := metadata{
+		MaxRetries:    3,
+		RetryDelay:    time.Second * 4,
+		MaxRetryDelay: time.Second * 120,
+	}
+
+	opts := newRetryOptions(m)
+
+	assert.EqualValues(t, m.MaxRetries, opts.MaxRetries)
+	assert.Equal(t, m.RetryDelay, opts.RetryDelay)
+	assert.Equal(t, m.MaxRetryDelay, opts.MaxRetryDelay)
+	assert.NotEqual(t, opts.MaxRetryDelay, opts.RetryDelay)
 }
 
 func TestParseMetadata(t *testing.T) {

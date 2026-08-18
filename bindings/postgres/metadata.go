@@ -34,7 +34,7 @@ type psqlMetadata struct {
 
 func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
-	m.PostgresAuthMetadata.Reset()
+	m.Reset()
 	m.Timeout = defaultTimeout
 
 	err := kitmd.DecodeMetadata(meta, &m)

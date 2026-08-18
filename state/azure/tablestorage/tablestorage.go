@@ -157,7 +157,7 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 	r.client = client.NewClient(meta.TableName)
 
-	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.AccountName, meta.CosmosDBMode, meta.TableName)
+	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %t, table: %s", meta.AccountName, meta.CosmosDBMode, meta.TableName)
 
 	return nil
 }
@@ -207,7 +207,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := tablesMetadata{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return
 }
 

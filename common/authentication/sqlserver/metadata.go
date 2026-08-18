@@ -117,7 +117,7 @@ func IsLetterOrNumber(c rune) bool {
 
 func IsValidSQLName(s string) bool {
 	for _, c := range s {
-		if !(IsLetterOrNumber(c) || (c == '_')) {
+		if !IsLetterOrNumber(c) && c != '_' {
 			return false
 		}
 	}

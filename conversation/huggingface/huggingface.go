@@ -69,16 +69,16 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		return err
 	}
 
-	h.LLM.Model = llm
-	h.LLM.SetModel(model)
+	h.Model = llm
+	h.SetModel(model)
 
 	if m.ResponseCacheTTL != nil {
-		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.LLM.Model)
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, m.ResponseCacheTTL, h.Model)
 		if cacheErr != nil {
 			return cacheErr
 		}
 
-		h.LLM.Model = cachedModel
+		h.Model = cachedModel
 	}
 
 	return nil
@@ -86,7 +86,7 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 
 func (h *Huggingface) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }
 

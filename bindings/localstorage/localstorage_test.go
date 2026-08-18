@@ -53,8 +53,8 @@ func TestValidateRootPath(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(tmpDir, "aaa/bbb"), filepath.Join(tmpDir, "zzz/link")))
 	require.NoError(t, os.Symlink(filepath.Join(tmpDir, "notgood"), filepath.Join(tmpDir, "aaa/notgood")))
 	f, err := os.Create(filepath.Join(tmpDir, "aaa/file"))
-	f.Close()
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 
 	rootDir := "/"
 	if runtime.GOOS == "windows" {

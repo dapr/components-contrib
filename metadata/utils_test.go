@@ -203,7 +203,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		}
 		m := testMetadata{}
 		metadatainfo := MetadataMap{}
-		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
+		require.NoError(t, GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType))
 
 		_ = assert.NotEmpty(t, metadatainfo["Mystring"]) &&
 			assert.Equal(t, "string", metadatainfo["Mystring"].Type)

@@ -120,3 +120,16 @@ func TestInit(t *testing.T) {
 		require.NoError(t, jobWorker.Close())
 	})
 }
+
+func TestGetComponentMetadataIncludesClientMetadata(t *testing.T) {
+	jobWorker := ZeebeJobWorker{}
+	metadataInfo := jobWorker.GetComponentMetadata()
+
+	assert.Contains(t, metadataInfo, "clientId")
+	assert.Contains(t, metadataInfo, "clientSecret")
+	assert.Contains(t, metadataInfo, "authorizationServerUrl")
+	assert.Contains(t, metadataInfo, "tokenAudience")
+	assert.Contains(t, metadataInfo, "tokenScope")
+	assert.Contains(t, metadataInfo, "clientConfigPath")
+	assert.Contains(t, metadataInfo, "jobType")
+}

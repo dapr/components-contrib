@@ -149,7 +149,6 @@ const (
 	MiddlewareType         ComponentType = "middleware"
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
-	WorkflowType           ComponentType = "workflows"
 	ConversationType       ComponentType = "conversation"
 )
 
@@ -160,7 +159,7 @@ func (t ComponentType) IsValid() bool {
 		SecretStoreType, PubSubType,
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
-		NameResolutionType, WorkflowType,
+		NameResolutionType,
 		ConversationType:
 		return true
 	default:
@@ -262,7 +261,7 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		numTags := len(mapStructureTags)
 		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
 			// traverse embedded struct
-			GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType)
+			_ = GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType) //nolint:errcheck // legacy behavior preserved
 			continue
 		}
 		var fieldName string

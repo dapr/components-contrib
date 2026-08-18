@@ -531,7 +531,7 @@ func (p *PostgreSQL) GetCleanupInterval() *time.Duration {
 
 func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := pgMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

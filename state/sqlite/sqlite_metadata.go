@@ -47,7 +47,7 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	}
 
 	// Validate and sanitize input
-	err = m.SqliteAuthMetadata.Validate()
+	err = m.Validate()
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 
 // Reset the object
 func (m *sqliteMetadataStruct) reset() {
-	m.SqliteAuthMetadata.Reset()
+	m.Reset()
 
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName

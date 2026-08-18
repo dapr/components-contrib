@@ -867,7 +867,7 @@ type querier interface {
 
 func (m *MySQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mySQLMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 

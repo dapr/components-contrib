@@ -81,7 +81,7 @@ func loadEnvFile(filepath string) error {
 			}
 
 			// Set the environment variable (overriding existing value)
-			os.Setenv(key, value)
+			_ = os.Setenv(key, value) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 
@@ -134,7 +134,7 @@ func StartHTTPServer(port int, ready chan bool) {
 	ts := httptest.NewUnstartedServer(appRouter())
 	// NewUnstartedServer creates a listener. Close that listener and replace
 	// with the one we created.
-	ts.Listener.Close()
+	_ = ts.Listener.Close()
 	ts.Listener = l
 
 	// Start the server.
@@ -167,7 +167,7 @@ func handleCall(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		s.handlePost(r)
 	case http.MethodGet:
-		w.Write(s.handleGet())
+		_, _ = w.Write(s.handleGet())
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

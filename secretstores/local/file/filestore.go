@@ -86,7 +86,7 @@ func (j *localSecretStore) Init(_ context.Context, metadata secretstores.Metadat
 				allSecrets[k] = v
 			case map[string]interface{}:
 				j.secrets = make(map[string]interface{})
-				j.visitJSONObject(v)
+				_ = j.visitJSONObject(v) //nolint:errcheck // legacy behavior preserved
 				allSecrets[k] = j.secrets
 			}
 		}
@@ -98,7 +98,7 @@ func (j *localSecretStore) Init(_ context.Context, metadata secretstores.Metadat
 		}
 	} else {
 		j.secrets = map[string]interface{}{}
-		j.visitJSONObject(jsonConfig)
+		_ = j.visitJSONObject(jsonConfig) //nolint:errcheck // legacy behavior preserved
 		// MultiValued is not set: reset to its default single-value per
 		// secret (no extra feature) behavior.
 		j.features = []secretstores.Feature{}
@@ -280,7 +280,7 @@ func (j *localSecretStore) Features() []secretstores.Feature {
 
 func (j *localSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := localSecretStoreMetaData{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return
 }
 

@@ -74,7 +74,7 @@ func New(enableWildcards bool) Bus {
 func (bus *EventBus) doSubscribe(topic string, fn interface{}, handler *eventHandler) error {
 	bus.lock.Lock()
 	defer bus.lock.Unlock()
-	if !(reflect.TypeOf(fn).Kind() == reflect.Func) {
+	if reflect.TypeOf(fn).Kind() != reflect.Func {
 		return fmt.Errorf("%s is not of type reflect.Func", reflect.TypeOf(fn).Kind())
 	}
 	bus.handlers[topic] = append(bus.handlers[topic], handler)
@@ -182,7 +182,7 @@ func (bus *EventBus) removeHandler(topic string, idx int) {
 	}
 	l := len(bus.handlers[topic])
 
-	if !(0 <= idx && idx < l) {
+	if 0 > idx || idx >= l {
 		return
 	}
 

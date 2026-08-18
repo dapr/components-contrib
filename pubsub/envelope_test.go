@@ -203,7 +203,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": "10000",
 		})
-		assert.NotEqual(t, "", envelope[ExpirationField])
+		assert.NotEmpty(t, envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
 	})
 
@@ -223,7 +223,7 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": strconv.Itoa(math.MaxInt64),
 		})
-		assert.NotEqual(t, "", envelope[ExpirationField])
+		assert.NotEmpty(t, envelope[ExpirationField])
 		assert.False(t, HasExpired(envelope))
 	})
 
@@ -368,7 +368,7 @@ func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
 	jsonbytes, _ := json.Marshal(jsondata)
 
 	myevent := event.New()
-	myevent.SetData("application/json", jsonbytes)
+	_ = myevent.SetData("application/json", jsonbytes)
 	myevent.SetID("1234")
 
 	ceProtoBytes, _ := format.Protobuf.Marshal(&myevent)
@@ -387,7 +387,7 @@ func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
 		receivedProtoBytes, _ := base64.StdEncoding.DecodeString(envelope[DataBase64Field].(string))
 
 		var e event.Event
-		format.Protobuf.Unmarshal(receivedProtoBytes, &e)
+		_ = format.Protobuf.Unmarshal(receivedProtoBytes, &e)
 
 		assert.Equal(t, "1234", e.Context.GetID())
 		var receivedjsondata map[string]interface{}

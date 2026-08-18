@@ -133,7 +133,7 @@ func (callback *Callback) Fail(result *producer.Result) {
 // GetComponentMetadata returns the metadata of the component.
 func (s *AliCloudSlsLogstorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := SlsLogstorageMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }
 

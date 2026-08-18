@@ -63,6 +63,14 @@ type jobWorkerMetadata struct {
 	RetryBackOff   kitmd.Duration `mapstructure:"retryBackOff"`
 }
 
+// JobWorkerMetadata is an exported mirror type used by metadata reflection.
+type JobWorkerMetadata jobWorkerMetadata
+
+type componentMetadata struct {
+	zeebe.ClientMetadata `mapstructure:",squash"`
+	JobWorkerMetadata    `mapstructure:",squash"`
+}
+
 type jobHandler struct {
 	callback     bindings.Handler
 	logger       logger.Logger
@@ -273,7 +281,7 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 
 // GetComponentMetadata returns the metadata of the component.
 func (z *ZeebeJobWorker) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := jobWorkerMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	metadataStruct := componentMetadata{}
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

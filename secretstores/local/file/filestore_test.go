@@ -118,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(t.Context(), m)
+	require.NoError(t, s.Init(t.Context(), m))
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
@@ -160,7 +160,7 @@ func TestBulkGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(t.Context(), m)
+	require.NoError(t, s.Init(t.Context(), m))
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
@@ -179,7 +179,6 @@ func TestMultiValuedSecrets(t *testing.T) {
 	s := localSecretStore{
 		logger: logger.NewLogger("test"),
 		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
-			//nolint:gosec
 			secretsJSON := `
 			{
 				"parent": {

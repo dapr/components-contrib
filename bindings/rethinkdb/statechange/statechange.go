@@ -216,7 +216,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 			}
 		}
 
-		cursor.Close()
+		_ = cursor.Close()
 	}()
 
 	return nil
@@ -250,6 +250,6 @@ func metadataToConfig(cfg map[string]string, _ logger.Logger) (StateConfig, erro
 // GetComponentMetadata returns the metadata of the component.
 func (b *Binding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := StateConfig{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return
 }

@@ -160,6 +160,6 @@ func getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error
 
 func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := middlewareMetadata{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return
 }

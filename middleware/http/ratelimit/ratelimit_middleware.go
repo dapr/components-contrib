@@ -76,7 +76,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 				}
 				w.Header().Add("Content-Type", limiter.GetMessageContentType())
 				w.WriteHeader(httpError.StatusCode)
-				w.Write([]byte(httpError.Message))
+				_, _ = w.Write([]byte(httpError.Message)) //nolint:gosec // message from limiter, not user input
 				return
 			}
 
@@ -104,6 +104,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 
 func (m *Middleware) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rateLimitMiddlewareMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
 	return
 }

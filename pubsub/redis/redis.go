@@ -104,7 +104,7 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 
 func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("component is closed")
+		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
 
 	redisPayload := map[string]interface{}{"data": req.Data}
@@ -112,14 +112,14 @@ func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) 
 	if req.Metadata != nil {
 		serializedMetadata, err := json.Marshal(req.Metadata)
 		if err != nil {
-			return err
+			return pubsub.NewTerminalError(err)
 		}
 		redisPayload["metadata"] = serializedMetadata
 	}
 
 	_, err := r.client.XAdd(ctx, req.Topic, r.clientSettings.MaxLenApprox, r.clientSettings.GetMinID(time.Now()), redisPayload)
 	if err != nil {
-		return fmt.Errorf("redis streams: error from publish: %s", err)
+		return pubsub.NewRetriableError(fmt.Errorf("redis streams: error from publish: %s", err))
 	}
 
 	return nil
@@ -230,7 +230,7 @@ func (r *redisStreams) worker() {
 			return
 
 		case msg := <-r.queue:
-			r.processMessage(msg)
+			_ = r.processMessage(msg) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 }
@@ -288,7 +288,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 				if strings.Contains(err.Error(), "NOGROUP") {
 					r.logger.Warnf("redis streams: consumer group %s does not exist for stream %s. This could mean the server experienced data loss, or the group/stream was deleted.", r.clientSettings.ConsumerID, stream)
 					r.logger.Warnf("redis streams: recreating group %s for stream %s", r.clientSettings.ConsumerID, stream)
-					r.CreateConsumerGroup(ctx, stream)
+					_ = r.CreateConsumerGroup(ctx, stream) //nolint:errcheck // legacy behavior preserved
 				}
 				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			}
@@ -451,6 +451,6 @@ func (r *redisStreams) Ping(ctx context.Context) error {
 
 func (r *redisStreams) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return
 }

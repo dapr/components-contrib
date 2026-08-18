@@ -59,7 +59,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 		}}})
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.EqualValues(t, float64(10), res.MaxRequestsPerSecond)
+		assert.Equal(t, float64(10), res.MaxRequestsPerSecond)
 	})
 
 	t.Run(maxRequestsPerSecondKey+" is a float", func(t *testing.T) {
@@ -68,6 +68,6 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 		}}})
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.EqualValues(t, float64(42.42), res.MaxRequestsPerSecond)
+		assert.Equal(t, float64(42.42), res.MaxRequestsPerSecond)
 	})
 }

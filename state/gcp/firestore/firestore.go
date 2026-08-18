@@ -173,7 +173,7 @@ func (f *Firestore) Delete(ctx context.Context, req *state.DeleteRequest) error 
 
 func (f *Firestore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := firestoreMetadata{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
 
@@ -250,7 +250,7 @@ func getGCPClient(_ context.Context, metadata *firestoreMetadata, l logger.Logge
 		// see: https://cloud.google.com/pubsub/docs/emulator#env
 		if metadata.ConnectionEndpoint != "" {
 			l.Debugf("setting GCP Datastore Emulator environment variable to 'DATASTORE_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
-			os.Setenv("DATASTORE_EMULATOR_HOST", metadata.ConnectionEndpoint)
+			_ = os.Setenv("DATASTORE_EMULATOR_HOST", metadata.ConnectionEndpoint) //nolint:errcheck // legacy behavior preserved
 		}
 		gcpClient, err = datastore.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {

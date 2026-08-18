@@ -313,19 +313,19 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, channel string, subscription string) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
-		p.logger.Errorf("error acquiring connection:", err)
+		p.logger.Errorf("error acquiring connection: %v", err)
 		return
 	}
 	defer conn.Release()
 	if _, err = conn.Exec(ctx, command); err != nil {
-		p.logger.Errorf("error listening to channel:", err)
+		p.logger.Errorf("error listening to channel: %v", err)
 		return
 	}
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
 			if !pgconn.Timeout(err) && !errors.Is(err, context.Canceled) {
-				p.logger.Errorf("error waiting for notification:", err)
+				p.logger.Errorf("error waiting for notification: %v", err)
 			}
 			return
 		}
@@ -337,7 +337,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	payload := make(map[string]interface{})
 	err := json.Unmarshal([]byte(msg.Payload), &payload)
 	if err != nil {
-		p.logger.Errorf("error in unmarshal: ", err)
+		p.logger.Errorf("error in unmarshal: %v", err)
 		return
 	}
 	var key, value, version string
@@ -381,10 +381,10 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 		}
 		err = handler(ctx, e)
 		if err != nil {
-			p.logger.Errorf("failed to call notify event handler : %w", err)
+			p.logger.Errorf("failed to call notify event handler : %v", err)
 		}
 	} else {
-		p.logger.Info("unknown format of data received in notify event - '%s'", msg.Payload)
+		p.logger.Infof("unknown format of data received in notify event - '%s'", msg.Payload)
 	}
 }
 
@@ -396,7 +396,7 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	} else {
 		var queryBuilder strings.Builder
 		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN (")
-		var paramWildcard []string
+		paramWildcard := make([]string, 0, len(req.Keys))
 		paramPosition := 1
 		for _, v := range req.Keys {
 			paramWildcard = append(paramWildcard, "$"+strconv.Itoa(paramPosition))
@@ -480,7 +480,7 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, notifyChann
 // GetComponentMetadata returns the metadata of the component.
 func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }
 

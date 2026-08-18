@@ -176,7 +176,7 @@ func (w *Base) getWorkersSubdomain() (string, error) {
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("invalid response status code: %d", res.StatusCode)
@@ -293,7 +293,7 @@ func (w *Base) deployWorker(workerBindings []CFBinding) error {
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid response status code: %d", res.StatusCode)
@@ -321,7 +321,7 @@ func (w *Base) enableWorkersDevRoute() error {
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid response status code: %d", res.StatusCode)
@@ -360,7 +360,7 @@ func (w *Base) checkWorker(workerURL string) error {
 	defer func() {
 		// Drain the body before closing it
 		_, _ = io.ReadAll(res.Body)
-		res.Body.Close()
+		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid response status code: %d", res.StatusCode)

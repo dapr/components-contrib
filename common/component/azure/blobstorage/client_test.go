@@ -67,7 +67,7 @@ func TestSetCustomEndpoint(t *testing.T) {
 		err = m.setCustomEndpoint(log, meta, azEnvSettings)
 		require.NoError(t, err)
 
-		assert.Equal(t, "", m.customEndpoint)
+		assert.Empty(t, m.customEndpoint)
 
 		u, err := m.GetContainerURL(azEnvSettings)
 		require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestSetCustomEndpoint(t *testing.T) {
 		err = m.setCustomEndpoint(log, meta, azEnvSettings)
 		require.NoError(t, err)
 
-		assert.Equal(t, "", m.customEndpoint)
+		assert.Empty(t, m.customEndpoint)
 
 		u, err := m.GetContainerURL(azEnvSettings)
 		require.NoError(t, err)

@@ -186,6 +186,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 
 func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := oAuth2MiddlewareMetadata{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	_ = mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return
 }

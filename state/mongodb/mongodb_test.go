@@ -217,7 +217,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 
 	t.Run("test decode", func(t *testing.T) {
 		mongo := MongoDB{}
-		time.Local = time.UTC
+		time.Local = time.UTC //nolint:gosmopolitan
 		thetime, err := time.Parse(time.RFC3339, "2023-02-01T12:13:09Z")
 		require.NoError(t, err)
 		timestring := thetime.UTC().Format("2006-01-02T15:04:05Z")

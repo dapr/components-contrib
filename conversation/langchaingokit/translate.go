@@ -65,6 +65,9 @@ const (
 // thinking, as it does not pass llms.WithReasoning, so that combination is unreachable.
 func translateToolChoice(toolChoice string, provider Provider, hasTools bool) any {
 	if provider != ProviderAnthropic {
+		if toolChoice == toolChoiceAny {
+			return toolChoiceRequired
+		}
 		return toolChoice
 	}
 

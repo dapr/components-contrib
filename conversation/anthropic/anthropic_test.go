@@ -40,7 +40,7 @@ func TestInit(t *testing.T) {
 			expectedModel: conversation.DefaultAnthropicModel,
 			testFn: func(t *testing.T, a *Anthropic, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, a.LLM)
+				assert.NotEmpty(t, a.GetModel())
 			},
 		},
 		{
@@ -52,7 +52,7 @@ func TestInit(t *testing.T) {
 			expectedModel: "claude-opus-4-7",
 			testFn: func(t *testing.T, a *Anthropic, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, a.LLM)
+				assert.NotEmpty(t, a.GetModel())
 			},
 		},
 		{
@@ -65,7 +65,7 @@ func TestInit(t *testing.T) {
 			expectedModel: conversation.DefaultAnthropicModel,
 			testFn: func(t *testing.T, a *Anthropic, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, a.LLM)
+				assert.NotEmpty(t, a.GetModel())
 			},
 		},
 		{
@@ -79,7 +79,7 @@ func TestInit(t *testing.T) {
 			expectedModel: "claude-opus-4-7",
 			testFn: func(t *testing.T, a *Anthropic, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, a.LLM)
+				assert.NotEmpty(t, a.GetModel())
 			},
 		},
 		{
@@ -104,7 +104,7 @@ func TestInit(t *testing.T) {
 			expectedModel: conversation.DefaultAnthropicModel,
 			testFn: func(t *testing.T, a *Anthropic, err error) {
 				require.NoError(t, err)
-				assert.NotNil(t, a.LLM)
+				assert.NotEmpty(t, a.GetModel())
 			},
 		},
 	}

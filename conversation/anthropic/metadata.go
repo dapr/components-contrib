@@ -21,4 +21,6 @@ import (
 type AnthropicLangchainMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
 	APIType                        string `json:"apiType" mapstructure:"apiType"`
+	// MaxTokens is the maximum number of tokens to generate. Defaults to 2048 when unset.
+	MaxTokens int64 `json:"maxTokens" mapstructure:"maxTokens"`
 }

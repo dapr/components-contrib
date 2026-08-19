@@ -25,11 +25,18 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 )
 
+// Provider identifies the upstream LLM API so that request options can be translated
+// into the wire format it expects. The zero value means no translation is applied.
+type Provider string
+
+const ProviderAnthropic Provider = "anthropic"
+
 // LLM is a helper struct that wraps a LangChain Go model
 type LLM struct {
 	llms.Model
-	model  string
-	logger logger.Logger
+	model    string
+	provider Provider
+	logger   logger.Logger
 }
 
 func New(logger logger.Logger) LLM {
@@ -38,8 +45,18 @@ func New(logger logger.Logger) LLM {
 	}
 }
 
+// SetProvider records which upstream API this model talks to so that request
+// options needing a provider-specific wire format are translated correctly.
+func (a *LLM) SetProvider(provider Provider) {
+	a.provider = provider
+}
+
+func (a *LLM) GetProvider() Provider {
+	return a.provider
+}
+
 func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conversation.Response, err error) {
-	opts := getOptionsFromRequest(r, a.logger)
+	opts := getOptionsFromRequest(r, a.provider, a.logger)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
@@ -58,7 +75,7 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	// If tools were provided but the LLM returned neither content nor tool calls
 	// across any choice, treat it as a retriable error rather than silently succeeding.
-	if r.ToolChoice != nil && *r.ToolChoice == "required" && r.Tools != nil && len(*r.Tools) > 0 {
+	if r.ToolChoice != nil && (*r.ToolChoice == "required" || *r.ToolChoice == "any") && r.Tools != nil && len(*r.Tools) > 0 {
 		hasUsefulResponse := false
 		for _, output := range outputs {
 			for _, choice := range output.Choices {
@@ -134,7 +151,7 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 	return outputs, usage, nil
 }
 
-func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts ...llms.CallOption) []llms.CallOption {
+func getOptionsFromRequest(r *conversation.Request, provider Provider, logger logger.Logger, opts ...llms.CallOption) []llms.CallOption {
 	if opts == nil {
 		opts = make([]llms.CallOption, 0)
 	}
@@ -148,7 +165,10 @@ func getOptionsFromRequest(r *conversation.Request, logger logger.Logger, opts .
 	}
 
 	if r.ToolChoice != nil {
-		opts = append(opts, llms.WithToolChoice(r.ToolChoice))
+		hasTools := r.Tools != nil && len(*r.Tools) > 0
+		if toolChoice := translateToolChoice(*r.ToolChoice, provider, hasTools); toolChoice != nil {
+			opts = append(opts, llms.WithToolChoice(toolChoice))
+		}
 	}
 
 	if r.ResponseFormatAsJSONSchema != nil {

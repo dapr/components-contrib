@@ -75,7 +75,7 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 
 	// If tools were provided but the LLM returned neither content nor tool calls
 	// across any choice, treat it as a retriable error rather than silently succeeding.
-	if r.ToolChoice != nil && *r.ToolChoice == toolChoiceRequired && r.Tools != nil && len(*r.Tools) > 0 {
+	if r.ToolChoice != nil && (*r.ToolChoice == "required" || *r.ToolChoice == "any") && r.Tools != nil && len(*r.Tools) > 0 {
 		hasUsefulResponse := false
 		for _, output := range outputs {
 			for _, choice := range output.Choices {

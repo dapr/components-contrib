@@ -12,6 +12,7 @@ This directory contains conformance tests for all conversation components, inclu
 - **huggingface** - HuggingFace models (using OpenAI compatibility layer)
 - **ollama** - Local Ollama models
 - **bedrock** - AWS Bedrock models
+- **iflytek.spark** - IFLYTEK Spark models
 
 ## Running the Tests
 
@@ -127,6 +128,12 @@ export OLLAMA_ENABLED="1"
 
 Requires a local Ollama server running with the `llama3.2:latest` model available.
 
+#### IFLYTEK Spark
+
+```bash
+export IFLYTEK_API_KEY="your_iflytek_spark_api_key"
+```
+
 ## Test Configuration
 
 Each component has its own configuration file in this directory:
@@ -139,6 +146,7 @@ Each component has its own configuration file in this directory:
 - `huggingface/huggingface.yml` - HuggingFace configuration (uses OpenAI compatibility layer)
 - `ollama/ollama.yml` - Ollama configuration with llama3.2:latest
 - `bedrock/bedrock.yml` - AWS Bedrock configuration with Claude 3 Haiku
+- `iflytek/spark/spark.yml` - IFLYTEK Spark configuration with Spark 4.0 Ultra
 
 The configurations use cost-effective models where possible to minimize testing costs.
 
@@ -182,4 +190,4 @@ This approach provides better reliability and compatibility while maintaining ac
 - HuggingFace uses the OpenAI compatibility layer as a workaround due to langchaingo API issues
 - Ollama requires a local server and must be explicitly enabled
 - OpenAI component is tested for OpenAI and Azure
-- All tests include proper initialization and basic conversation functionality testing 
+- All tests include proper initialization and basic conversation functionality testing

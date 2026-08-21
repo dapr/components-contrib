@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: openrouter
+spec:
+  type: conversation.openrouter
+  version: v1
+  metadata:
+    - name: key
+      value: "${{OPENROUTER_API_KEY}}"
+    - name: model
+      value: "openai/gpt-4o-mini"

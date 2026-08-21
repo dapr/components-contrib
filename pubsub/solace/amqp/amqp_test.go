@@ -19,6 +19,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"testing"
+	"time"
 
 	amqp "github.com/Azure/go-amqp"
 	"google.golang.org/grpc/codes"
@@ -241,6 +242,34 @@ func TestSubscribeEmptyAddress(t *testing.T) {
 	err := a.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: queueScheme}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty AMQP address")
+}
+
+// TestInitUnreachableBroker verifies that a broker which cannot be reached is
+// reported as an error from Init. A failed dial used to be passed to
+// logger.Fatal, which terminated the process, so this case could not be
+// exercised at all before.
+func TestInitUnreachableBroker(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := a.Init(ctx, pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+		// Port 1 is reserved, so nothing is listening on it.
+		amqpURL:   "amqp://127.0.0.1:1",
+		anonymous: "true",
+	}}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dialing AMQP server")
+}
+
+// TestCloseWithoutSession verifies that a component whose Init never
+// established a session can still be closed.
+func TestCloseWithoutSession(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
+
+	require.NoError(t, a.Close())
 }
 
 func TestParseMetadata(t *testing.T) {

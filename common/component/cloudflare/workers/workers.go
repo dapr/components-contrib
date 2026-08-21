@@ -51,7 +51,7 @@ type Base struct {
 	infoResponseValidate func(*InfoEndpointResponse) error
 	componentDocsURL     string
 	client               *http.Client
-	logger               logger.Logger
+	logger               *logger.Log
 	ctx                  context.Context
 	cancel               context.CancelFunc
 }
@@ -70,14 +70,14 @@ func (w *Base) Init(workerBindings []CFBinding, componentDocsURL string, infoRes
 		w.logger.Info("Using externally-managed worker: " + w.metadata.WorkerURL)
 		err = w.checkWorker(w.metadata.WorkerURL)
 		if err != nil {
-			w.logger.Errorf("The component could not be initialized because the externally-managed worker cannot be used: %v", err)
+			w.logger.Error("The component could not be initialized because the externally-managed worker cannot be used", logger.Err(err))
 			return err
 		}
 	} else {
 		// We are using a Dapr-managed worker, so let's check if it exists or needs to be created or updated
 		err = w.setupWorker(workerBindings)
 		if err != nil {
-			w.logger.Errorf("The component could not be initialized because the worker cannot be created or updated: %v", err)
+			w.logger.Error("The component could not be initialized because the worker cannot be created or updated", logger.Err(err))
 			return err
 		}
 	}
@@ -86,8 +86,8 @@ func (w *Base) Init(workerBindings []CFBinding, componentDocsURL string, infoRes
 }
 
 // SetLogger sets the logger object.
-func (w *Base) SetLogger(logger logger.Logger) {
-	w.logger = logger
+func (w *Base) SetLogger(l logger.Logger) {
+	w.logger = logger.FromLogger(l)
 }
 
 // SetMetadata sets the metadata for the base object.
@@ -114,7 +114,7 @@ func (w *Base) setupWorker(workerBindings []CFBinding) error {
 	workerURL := fmt.Sprintf("https://%s.%s.workers.dev/", w.metadata.WorkerName, subdomain)
 	err = w.checkWorker(workerURL)
 	if err != nil {
-		w.logger.Infof("Deploying updated worker at URL '%s'", workerURL)
+		w.logger.Info("Deploying updated worker", "url", workerURL)
 		err = w.deployWorker(workerBindings)
 		if err != nil {
 			return fmt.Errorf("error deploying or updating the worker with the Cloudflare APIs: %w", err)
@@ -127,7 +127,7 @@ func (w *Base) setupWorker(workerBindings []CFBinding) error {
 		}
 
 		// Wait for the worker to be deplopyed, which can take up to 30 seconds (but let's give it 1 minute)
-		w.logger.Debugf("Deployed a new version of the worker at '%s' - waiting for propagation", workerURL)
+		w.logger.Debug("Deployed a new version of the worker - waiting for propagation", "url", workerURL)
 		start := time.Now()
 		for time.Since(start) < time.Minute {
 			err = w.checkWorker(workerURL)
@@ -142,7 +142,7 @@ func (w *Base) setupWorker(workerBindings []CFBinding) error {
 		}
 		w.logger.Debug("Worker is ready")
 	} else {
-		w.logger.Infof("Using worker at URL '%s'", workerURL)
+		w.logger.Info("Using worker", "url", workerURL)
 	}
 
 	// Update the URL of the worker

@@ -35,7 +35,7 @@ var exampleWasmBin []byte
 
 func Test_NewMiddleWare(t *testing.T) {
 	l := logger.NewLogger(t.Name())
-	require.Equal(t, &middleware{logger: l}, NewMiddleware(l))
+	require.Equal(t, &middleware{log: logger.FromLogger(l)}, NewMiddleware(l))
 }
 
 func Test_middleware_log(t *testing.T) {
@@ -43,7 +43,7 @@ func Test_middleware_log(t *testing.T) {
 	var buf bytes.Buffer
 	l.SetOutput(&buf)
 
-	m := &middleware{logger: l}
+	m := &middleware{log: logger.FromLogger(l)}
 	message := "alert"
 	m.Log(t.Context(), api.LogLevelInfo, message)
 
@@ -51,7 +51,7 @@ func Test_middleware_log(t *testing.T) {
 }
 
 func Test_middleware_getHandler(t *testing.T) {
-	m := &middleware{logger: logger.NewLogger(t.Name())}
+	m := &middleware{log: logger.FromLogger(logger.NewLogger(t.Name()))}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/example.wasm" {
 			_, _ = w.Write(exampleWasmBin)

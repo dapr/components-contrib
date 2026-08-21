@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -314,6 +315,70 @@ func TestPollNewMessagesLoopWhenXReadGroupResultReturnsRedisNil(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("pollNewMessagesLoop did not exit after context cancel")
+	}
+}
+
+// TestSubscribeReleasesConnectionWhenSubscriptionCtxCanceled uses a real
+// miniredis server and a real go-redis client (no stubs) to verify that when
+// an individual subscription's context is canceled (e.g. the calling app
+// unsubscribes while the pubsub component and its shared client stay alive
+// for other subscriptions), the goroutines backing that subscription still
+// exit and release the underlying XREADGROUP connection.
+//
+// With readTimeout left unset, the BLOCK argument sent to XREADGROUP
+// defaults to 0 (block forever). go-redis then sets no socket read deadline
+// at all for that command, so canceling the subscription context cannot
+// interrupt the in-flight blocking read: the goroutine leaks and the
+// connection is never returned to the pool until a new message happens to
+// arrive on the stream.
+func TestSubscribeReleasesConnectionWhenSubscriptionCtxCanceled(t *testing.T) {
+	s, err := miniredis.Run()
+	require.NoError(t, err)
+	defer s.Close()
+
+	testLogger := logger.NewLogger("test")
+	client, settings, err := commonredis.ParseClientFromProperties(map[string]string{
+		"redisHost":  s.Addr(),
+		"consumerID": "fakeConsumer",
+	}, mdata.PubSubType, t.Context(), &testLogger)
+	require.NoError(t, err)
+	defer client.Close()
+	t.Logf("settings: ReadTimeout=%s", time.Duration(settings.ReadTimeout))
+
+	rs := &redisStreams{
+		logger:         testLogger,
+		client:         client,
+		clientSettings: settings,
+		closeCh:        make(chan struct{}),
+	}
+
+	subCtx, subCancel := context.WithCancel(t.Context())
+	err = rs.Subscribe(subCtx, pubsub.SubscribeRequest{Topic: "test-topic"}, func(context.Context, *pubsub.NewMessage) error {
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Give pollNewMessagesLoop time to enter its blocking XREADGROUP call.
+	time.Sleep(2 * time.Second)
+
+	// Simulate the app unsubscribing: cancel only this subscription's
+	// context. The component and its shared client stay up for other
+	// subscriptions, so Close() (which force-closes the shared client and
+	// would mask this bug) is deliberately not called here.
+	start := time.Now()
+	subCancel()
+
+	done := make(chan struct{})
+	go func() {
+		rs.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Logf("subscription goroutines exited after %s", time.Since(start))
+	case <-time.After(6 * time.Second):
+		t.Fatal("subscription goroutines did not exit after the subscription context was canceled: the blocked XREADGROUP connection was never released")
 	}
 }
 

@@ -38,6 +38,7 @@ func (p v8Pipeliner) Do(ctx context.Context, args ...interface{}) {
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(p.writeTimeout))
 		defer cancel()
 		p.pipeliner.Do(timeoutCtx, args...)
+		return
 	}
 	p.pipeliner.Do(ctx, args...)
 }

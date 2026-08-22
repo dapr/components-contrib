@@ -19,12 +19,16 @@ import (
 
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/cluster/failover"
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/loadbalance/random"
+	_ "dubbo.apache.org/dubbo-go/v3/cluster/router/tag"
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	dubboLogger "dubbo.apache.org/dubbo-go/v3/common/logger"
-	_ "dubbo.apache.org/dubbo-go/v3/common/proxy/proxy_factory"
 	_ "dubbo.apache.org/dubbo-go/v3/filter/filter_impl"
+	dubboLogger "dubbo.apache.org/dubbo-go/v3/logger"
 	_ "dubbo.apache.org/dubbo-go/v3/protocol/dubbo"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
+	_ "dubbo.apache.org/dubbo-go/v3/proxy/proxy_factory"
+	_ "dubbo.apache.org/dubbo-go/v3/registry/protocol"
+	getty "github.com/apache/dubbo-getty"
+	gostLogger "github.com/dubbogo/gost/log/logger"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -36,16 +40,25 @@ type DubboOutputBinding struct {
 	cacheLock sync.RWMutex
 }
 
-var dubboBinding *DubboOutputBinding
+var (
+	dubboBinding     *DubboOutputBinding
+	dubboBindingOnce sync.Once
+)
 
-func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
-	if dubboBinding == nil {
+func NewDubboOutput(l logger.Logger) bindings.OutputBinding {
+	dubboBindingOnce.Do(func() {
 		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),
 		}
-	}
-	dubboLogger.SetLogger(logger)
+		setDubboLoggers(l)
+	})
 	return dubboBinding
+}
+
+func setDubboLoggers(l logger.Logger) {
+	gostLogger.SetLogger(l)
+	dubboLogger.SetLogger(l)
+	getty.SetLogger(l)
 }
 
 func (out *DubboOutputBinding) Init(_ context.Context, _ bindings.Metadata) error {

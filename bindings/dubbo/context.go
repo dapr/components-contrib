@@ -15,12 +15,11 @@ package dubbo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	dubboClient "dubbo.apache.org/dubbo-go/v3/client"
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	"dubbo.apache.org/dubbo-go/v3/config"
-	"dubbo.apache.org/dubbo-go/v3/config/generic"
+	"dubbo.apache.org/dubbo-go/v3/filter/generic"
 	hessian "github.com/apache/dubbo-go-hessian2"
 )
 
@@ -61,27 +60,26 @@ func (d *dubboContext) Init() error {
 	if d.inited {
 		return nil
 	}
-	consumerConfig := config.NewConsumerConfigBuilder().Build()
-	consumerConfig.ProxyFactory = constant.PassThroughProxyFactoryKey
-	rootConfig := config.NewRootConfigBuilder().
-		SetConsumer(consumerConfig).
-		Build()
-	referenceConfig := config.NewReferenceConfigBuilder().
-		SetInterface(d.interfaceName).
-		SetProtocol(constant.Dubbo).
-		Build()
-	referenceConfig.URL = fmt.Sprintf("%s://%s:%s", constant.Dubbo, d.hostname, d.port)
-	referenceConfig.Group = d.group
-	referenceConfig.Version = d.version
-
-	if err := referenceConfig.Init(rootConfig); err != nil {
+	cli, err := dubboClient.NewClient()
+	if err != nil {
 		return err
 	}
-	rootConfig.Start()
-	referenceConfig.GenericLoad(d.interfaceName)
-	genericService, ok := referenceConfig.GetRPCService().(*generic.GenericService)
-	if !ok {
-		return errors.New("get gerneric service of dubbo failed")
+
+	opts := []dubboClient.ReferenceOption{
+		dubboClient.WithProtocolDubbo(),
+		dubboClient.WithURL(fmt.Sprintf("%s://%s:%s", constant.Dubbo, d.hostname, d.port)),
+		dubboClient.WithSerialization(constant.Hessian2Serialization),
+	}
+	if d.group != "" {
+		opts = append(opts, dubboClient.WithGroup(d.group))
+	}
+	if d.version != "" {
+		opts = append(opts, dubboClient.WithVersion(d.version))
+	}
+
+	genericService, err := cli.NewGenericService(d.interfaceName, opts...)
+	if err != nil {
+		return err
 	}
 	d.client = genericService
 	d.inited = true

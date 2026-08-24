@@ -238,8 +238,8 @@ github.com/apache/pulsar-client-go v0.18.0/go.mod h1:GKmTD1u5YLuhUnoVTNGdhdGNAYh
 github.com/apache/rocketmq-client-go v1.2.5 h1:2hPoLHpMJy1a57HDNmx7PZKgvlgVYO1Alz925oeqphQ=
 github.com/apache/rocketmq-client-go v1.2.5/go.mod h1:Kap8oXIVLlHF50BGUbN9z97QUp1GaK1nOoCfsZnR2bw=
 github.com/apache/rocketmq-client-go/v2 v2.1.0/go.mod h1:oEZKFDvS7sz/RWU0839+dQBupazyBV7WX5cP6nrio0Q=
-github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d h1:bMkOgl4AMaJR0z6Bcxlyliwou/wZifxhRe/rK9TF5+A=
-github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d/go.mod h1:6I6vgxHR3hzrvn+6n/4mrhS+UTulzK/X9LB2Vk1U5gE=
+github.com/apache/rocketmq-client-go/v2 v2.1.2 h1:yt73olKe5N6894Dbm+ojRf/JPiP0cxfDNNffKwhpJVg=
+github.com/apache/rocketmq-client-go/v2 v2.1.2/go.mod h1:6I6vgxHR3hzrvn+6n/4mrhS+UTulzK/X9LB2Vk1U5gE=
 github.com/apache/thrift v0.13.0 h1:5hryIiq9gtn+MiLVn0wP37kb/uTeRZgN08WoCsAhIhI=
 github.com/apache/thrift v0.13.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=

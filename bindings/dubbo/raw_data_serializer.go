@@ -15,11 +15,10 @@ limitations under the License.
 package dubbo
 
 import (
-	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
-	"dubbo.apache.org/dubbo-go/v3/common/logger"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	hessian "github.com/apache/dubbo-go-hessian2"
 )
@@ -54,8 +53,7 @@ func marshalRequest(encoder *hessian.Encoder, p dubboImpl.DubboPackage) ([]byte,
 	_ = encoder.Encode(service.Version)
 	args, ok := request.Params.([]interface{})
 	if !ok {
-		logger.Infof("request args are: %+v", request.Params)
-		return nil, errors.New("@params is not of type: []interface{}")
+		return nil, fmt.Errorf("@params is not of type: []interface{}, got %T", request.Params)
 	}
 	_ = encoder.Encode(args[0].(string))
 

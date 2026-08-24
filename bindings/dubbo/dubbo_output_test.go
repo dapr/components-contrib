@@ -19,9 +19,15 @@ import (
 	"time"
 
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
-	"dubbo.apache.org/dubbo-go/v3/config"
+	"dubbo.apache.org/dubbo-go/v3/global"
+	"dubbo.apache.org/dubbo-go/v3/graceful_shutdown"
+	dubboLogger "dubbo.apache.org/dubbo-go/v3/logger"
+	"dubbo.apache.org/dubbo-go/v3/protocol"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
+	"dubbo.apache.org/dubbo-go/v3/server"
+	getty "github.com/apache/dubbo-getty"
 	hessian "github.com/apache/dubbo-go-hessian2"
+	gostLogger "github.com/dubbogo/gost/log/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,7 +40,6 @@ const (
 	dubboPort             = "20000"
 	providerInterfaceName = "org.apache.dubbo.samples.UserProvider"
 	paramInterfaceName    = "org.apache.dubbo.samples.User"
-	providerTypeName      = "UserProvider"
 	methodName            = "SayHello"
 	helloPrefix           = "hello "
 	testName              = "dubbo-test"
@@ -51,16 +56,48 @@ func (u *User) JavaClassName() string {
 	return paramInterfaceName
 }
 
+// TestSetDubboLoggers is intentionally not parallel: it mutates
+// dubbo-go's process-global logger variables and restores them on cleanup.
+func TestSetDubboLoggers(t *testing.T) {
+	prevGost := gostLogger.GetLogger()
+	prevDubbo := dubboLogger.GetLogger()
+	prevGetty := getty.GetLogger()
+	t.Cleanup(func() {
+		gostLogger.SetLogger(prevGost)
+		dubboLogger.SetLogger(prevDubbo)
+		getty.SetLogger(prevGetty)
+	})
+
+	l := logger.NewLogger("dubbo-logger-test")
+	setDubboLoggers(l)
+
+	require.Same(t, l, gostLogger.GetLogger())
+	require.Same(t, l, dubboLogger.GetLogger())
+	require.Same(t, l, getty.GetLogger())
+}
+
 func TestInvoke(t *testing.T) {
 	// 0. init dapr provided and dubbo server
 	stopCh := make(chan struct{})
-	defer close(stopCh)
+	serverErrCh := make(chan error, 1)
 	// Create output and set serializer before go routine to prevent data race.
 	output := NewDubboOutput(logger.NewLogger("test"))
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	go func() {
-		require.NoError(t, runDubboServer(stopCh))
+		serverErrCh <- runDubboServer(stopCh)
 	}()
+	t.Cleanup(func() {
+		close(stopCh)
+		// dubbo-go's ServeContext returns the context error after a
+		// cancellation-triggered graceful shutdown.
+		require.ErrorIs(t, <-serverErrCh, context.Canceled)
+		// Wait for dubbo-go's process-global graceful shutdown to finish.
+		// Getty may report an error while asynchronously closing its session;
+		// retain that as a diagnostic instead of failing the invocation.
+		if err := graceful_shutdown.Shutdown(context.Background()); err != nil {
+			t.Logf("Dubbo graceful shutdown returned an error: %v", err)
+		}
+	})
 	time.Sleep(time.Second * 3)
 
 	// 1. create req/rsp value
@@ -103,32 +140,37 @@ func TestInvoke(t *testing.T) {
 
 func runDubboServer(stop chan struct{}) error {
 	hessian.RegisterPOJO(&User{})
-	config.SetProviderService(&UserProvider{})
 
-	rootConfig := config.NewRootConfigBuilder().
-		SetProvider(config.NewProviderConfigBuilder().
-			AddService(providerTypeName,
-				config.NewServiceConfigBuilder().
-					SetProtocolIDs(constant.Dubbo).
-					SetInterface(providerInterfaceName).
-					Build()).
-			Build()).
-		AddProtocol(constant.Dubbo, config.NewProtocolConfigBuilder().
-			SetName(constant.Dubbo).
-			SetPort(dubboPort).
-			Build()).
-		Build()
+	// Use immediate graceful-shutdown steps so cleanup does not spend the
+	// default multi-second windows notifying and accepting requests.
+	internalSignal := false
+	shutdownCfg := global.DefaultShutdownConfig()
+	shutdownCfg.InternalSignal = &internalSignal
+	shutdownCfg.ConsumerUpdateWaitTime = "0s"
+	shutdownCfg.StepTimeout = "0s"
+	shutdownCfg.OfflineRequestWindowTimeout = "0s"
 
-	if err := config.Load(config.WithRootConfig(rootConfig)); err != nil {
+	srv, err := server.NewServer(
+		server.WithServerProtocol(
+			protocol.WithDubbo(),
+			protocol.WithPort(20000),
+		),
+		server.SetServerShutdown(shutdownCfg),
+	)
+	if err != nil {
 		return err
 	}
 
-	after := time.After(time.Second * 10)
-	select {
-	case <-stop:
-	case <-after:
+	if err := srv.RegisterService(&UserProvider{}, server.WithInterface(providerInterfaceName)); err != nil {
+		return err
 	}
-	return nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-stop
+		cancel()
+	}()
+	return srv.ServeContext(ctx)
 }
 
 type UserProvider struct{}

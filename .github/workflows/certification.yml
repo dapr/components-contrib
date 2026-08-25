@@ -48,7 +48,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -85,6 +85,12 @@ jobs:
 
   certification:
     name: ${{ matrix.component }} certification
+
+    # Only authenticated tests share a concurrency group across workflow runs.
+    concurrency:
+      group: component-test-${{ matrix.authenticated && matrix.component || format('{0}-{1}-{2}', github.run_id, github.run_attempt, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
 
     # Add "id-token" with the intended permissions.
     # Needed by the 'Authenticate to Google Cloud' step.
@@ -124,7 +130,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -146,7 +152,7 @@ jobs:
         # Current time (used by Terraform)
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
-    - uses: Azure/login@v1
+    - uses: Azure/login@v3
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
       if: matrix.required-secrets != ''
@@ -202,7 +208,7 @@ jobs:
         done
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v4.0.1
       if: matrix.require-terraform == 'true'
 
     - name: Set Cloudflare env vars
@@ -219,7 +225,7 @@ jobs:
         echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v5
+      uses: aws-actions/configure-aws-credentials@v6.2.2
       if: matrix.require-aws-credentials == 'true'
       with:
         aws-access-key-id: "${{ secrets.AWS_ACCESS_KEY }}"
@@ -228,7 +234,7 @@ jobs:
 
     - name: Set up Go
       id: setup-go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version-file: 'go.mod'
         cache: 'false'
@@ -357,7 +363,7 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: testresults
         with:

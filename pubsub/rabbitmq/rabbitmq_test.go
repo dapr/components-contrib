@@ -1093,3 +1093,46 @@ func TestPassiveQueueDeclareSkipsBucketWeightValidation(t *testing.T) {
 	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
 	require.NoError(t, err)
 }
+
+// TestDecorateExchangeDeclareErrorPassesThroughUnrelatedErrors verifies that
+// only the two failures specific to externally managed topologies are
+// rewritten, and every other error reaches the caller untouched.
+func TestDecorateExchangeDeclareErrorPassesThroughUnrelatedErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		declareMode string
+		err         error
+	}{
+		{
+			name:        "not an AMQP error",
+			declareMode: exchangeDeclareModeDeclare,
+			err:         errors.New("channel/connection is not open"),
+		},
+		{
+			name:        "AMQP error of another code",
+			declareMode: exchangeDeclareModeDeclare,
+			err:         &amqp.Error{Code: amqp.AccessRefused, Reason: "ACCESS_REFUSED - access to exchange 'mytopic' refused"},
+		},
+		{
+			// Only meaningful when the component was not going to create the
+			// exchange anyway; in declare mode a 404 is not a topology
+			// ownership problem.
+			name:        "not found while declaring",
+			declareMode: exchangeDeclareModeDeclare,
+			err:         &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no exchange 'mytopic' in vhost '/'"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRabbitMQForExchangeTest(newBroker(), &rabbitmqMetadata{
+				ExchangeKind:        fanoutExchangeKind,
+				ExchangeDeclareMode: tt.declareMode,
+			})
+
+			got := r.decorateExchangeDeclareError("mytopic", fanoutExchangeKind, true, true, tt.err)
+
+			assert.Equal(t, tt.err, got)
+		})
+	}
+}

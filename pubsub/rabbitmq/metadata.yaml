@@ -169,6 +169,22 @@ metadata:
       - "declare"
       - "passive"
     example: '"declare","passive"'
+  - name: queueDeclareMode
+    type: string
+    description: |
+      How the component obtains the queue for a subscription. "declare" creates
+      the queue and binds it to the exchange. "passive" only asserts that the
+      queue already exists, and leaves its bindings to the external owner; queue
+      arguments such as "maxLen", "maxPriority" and "queueType" are then the
+      owner's responsibility and are ignored by the component. Independent of
+      "exchangeDeclareMode": an operator-managed exchange is commonly paired with
+      queues the component still declares, because consumer queue names are only
+      known at runtime.
+    default: '"declare"'
+    allowedValues:
+      - "declare"
+      - "passive"
+    example: '"declare","passive"'
   - name: deliveryMode
     type: number
     description: |

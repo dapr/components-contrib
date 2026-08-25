@@ -48,6 +48,7 @@ type rabbitmqMetadata struct {
 	MaxLenBytes                        int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind                       string                 `mapstructure:"exchangeKind"`
 	ExchangeDeclareMode                string                 `mapstructure:"exchangeDeclareMode"`
+	QueueDeclareMode                   string                 `mapstructure:"queueDeclareMode"`
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
@@ -80,6 +81,7 @@ const (
 	metadataMaxLenBytesKey                        = "maxLenBytes"
 	metadataExchangeKindKey                       = "exchangeKind"
 	metadataExchangeDeclareModeKey                = "exchangeDeclareMode"
+	metadataQueueDeclareModeKey                   = "queueDeclareMode"
 	metadataPublisherConfirmKey                   = "publisherConfirm"
 	metadataSaslExternal                          = "saslExternal"
 	metadataMaxPriority                           = "maxPriority"
@@ -93,15 +95,22 @@ const (
 	protocolAMQP  = "amqp"
 	protocolAMQPS = "amqps"
 
-	// exchangeDeclareModeDeclare makes the component declare the exchange itself
-	// (an active AMQP exchange.declare). This is the default and the historical
-	// behavior.
-	exchangeDeclareModeDeclare = "declare"
-	// exchangeDeclareModePassive makes the component verify that the exchange
-	// already exists (a passive AMQP exchange.declare) without creating or
-	// modifying it. Use this when the topology is owned by something else, such
-	// as the RabbitMQ Cluster Kubernetes Topology Operator or Terraform.
-	exchangeDeclareModePassive = "passive"
+	// declareModeDeclare makes the component declare the topology object itself
+	// (an active AMQP declare). This is the default and the historical behavior.
+	declareModeDeclare = "declare"
+	// declareModePassive makes the component verify that the topology object
+	// already exists (a passive AMQP declare) without creating or modifying it.
+	// Use this when the topology is owned by something else, such as the
+	// RabbitMQ Cluster Kubernetes Topology Operator or Terraform.
+	declareModePassive = "passive"
+
+	// Kept as distinct names because the two knobs are independent: an
+	// operator-owned exchange is commonly paired with queues that the component
+	// still creates, since consumer queue names are only known at runtime.
+	exchangeDeclareModeDeclare = declareModeDeclare
+	exchangeDeclareModePassive = declareModePassive
+	queueDeclareModeDeclare    = declareModeDeclare
+	queueDeclareModePassive    = declareModePassive
 
 	// exchangeKindConsistentHash is the exchange type provided by the
 	// rabbitmq_consistent_hash_exchange plugin. It is not a built-in AMQP
@@ -121,6 +130,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		ReconnectWait:                      time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		ExchangeKind:                       fanoutExchangeKind,
 		ExchangeDeclareMode:                exchangeDeclareModeDeclare,
+		QueueDeclareMode:                   queueDeclareModeDeclare,
 		PublisherConfirm:                   false,
 		SaslExternal:                       false,
 		HeartBeat:                          defaultHeartbeat,
@@ -160,8 +170,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 	}
 
 	result.ExchangeDeclareMode = strings.ToLower(result.ExchangeDeclareMode)
-	if !exchangeDeclareModeValid(result.ExchangeDeclareMode) {
-		return &result, fmt.Errorf("%s invalid RabbitMQ exchange declare mode %q, accepted values are %q and %q", errorMessagePrefix, result.ExchangeDeclareMode, exchangeDeclareModeDeclare, exchangeDeclareModePassive)
+	if !declareModeValid(result.ExchangeDeclareMode) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ %s %q, accepted values are %q and %q", errorMessagePrefix, metadataExchangeDeclareModeKey, result.ExchangeDeclareMode, declareModeDeclare, declareModePassive)
+	}
+
+	result.QueueDeclareMode = strings.ToLower(result.QueueDeclareMode)
+	if !declareModeValid(result.QueueDeclareMode) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ %s %q, accepted values are %q and %q", errorMessagePrefix, metadataQueueDeclareModeKey, result.QueueDeclareMode, declareModeDeclare, declareModePassive)
 	}
 
 	if err := validateExchangeKind(result.ExchangeKind, result.ExchangeDeclareMode); err != nil {
@@ -204,8 +219,8 @@ func (m *rabbitmqMetadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table 
 	return origin
 }
 
-func exchangeDeclareModeValid(mode string) bool {
-	return mode == exchangeDeclareModeDeclare || mode == exchangeDeclareModePassive
+func declareModeValid(mode string) bool {
+	return mode == declareModeDeclare || mode == declareModePassive
 }
 
 // exchangeKindValid reports whether the component is able to declare an
@@ -238,10 +253,17 @@ func validateExchangeKind(kind string, declareMode string) error {
 	return nil
 }
 
-// isPassiveExchangeDeclare reports whether the exchange topology is managed
-// outside of Dapr.
+// isPassiveExchangeDeclare reports whether exchanges are managed outside of
+// Dapr.
 func (m *rabbitmqMetadata) isPassiveExchangeDeclare() bool {
 	return m.ExchangeDeclareMode == exchangeDeclareModePassive
+}
+
+// isPassiveQueueDeclare reports whether queues and their bindings are managed
+// outside of Dapr. In that case the component neither declares the queue nor
+// binds it: the external owner is responsible for both.
+func (m *rabbitmqMetadata) isPassiveQueueDeclare() bool {
+	return m.QueueDeclareMode == queueDeclareModePassive
 }
 
 func (m *rabbitmqMetadata) connectionURI() string {

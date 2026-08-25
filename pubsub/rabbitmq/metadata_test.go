@@ -574,7 +574,7 @@ func TestCreateMetadataExchangeDeclareMode(t *testing.T) {
 		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid RabbitMQ exchange declare mode")
+		assert.Contains(t, err.Error(), metadataExchangeDeclareModeKey)
 	})
 }
 
@@ -621,5 +621,53 @@ func TestCreateMetadataExchangeKindWithDeclareMode(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), metadataExchangeKindKey)
+	})
+}
+
+func TestCreateMetadataQueueDeclareMode(t *testing.T) {
+	log := logger.NewLogger("test")
+
+	t.Run("defaults to declare", func(t *testing.T) {
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: getFakeProperties()}}, log)
+
+		require.NoError(t, err)
+		assert.Equal(t, queueDeclareModeDeclare, m.QueueDeclareMode)
+		assert.False(t, m.isPassiveQueueDeclare())
+	})
+
+	t.Run("passive is accepted", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataQueueDeclareModeKey] = "Passive"
+
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.NoError(t, err)
+		assert.Equal(t, queueDeclareModePassive, m.QueueDeclareMode)
+		assert.True(t, m.isPassiveQueueDeclare())
+	})
+
+	t.Run("queueDeclareMode is invalid", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataQueueDeclareModeKey] = "use-existing"
+
+		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), metadataQueueDeclareModeKey)
+	})
+
+	// The two knobs are independent: an operator-owned exchange paired with
+	// component-declared queues is the combination needed for per-pod consumer
+	// queues, whose names are only known at runtime.
+	t.Run("modes are independent", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeDeclareModeKey] = exchangeDeclareModePassive
+		props[metadataExchangeKindKey] = exchangeKindConsistentHash
+
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.NoError(t, err)
+		assert.True(t, m.isPassiveExchangeDeclare())
+		assert.False(t, m.isPassiveQueueDeclare())
 	})
 }

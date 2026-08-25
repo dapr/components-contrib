@@ -569,14 +569,16 @@ type declaredExchange struct {
 }
 
 type rabbitMQInMemoryBroker struct {
-	buffer             chan amqp.Delivery
-	declaredQueues     []string
-	declaredExchanges  []declaredExchange
-	boundRoutingKeys   []string
-	connectCount       atomic.Int32
-	closeCount         atomic.Int32
-	lastMsgMetadata    *amqp.Publishing // Add this field to capture the last message metadata
-	exchangeDeclareErr error
+	buffer               chan amqp.Delivery
+	declaredQueues       []string
+	declaredExchanges    []declaredExchange
+	boundRoutingKeys     []string
+	connectCount         atomic.Int32
+	closeCount           atomic.Int32
+	lastMsgMetadata      *amqp.Publishing // Add this field to capture the last message metadata
+	exchangeDeclareErr   error
+	queueDeclareErr      error
+	passiveQueueDeclares []string
 }
 
 func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
@@ -611,7 +613,13 @@ func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx conte
 
 func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
 	r.declaredQueues = append(r.declaredQueues, name)
-	return amqp.Queue{Name: name}, nil
+	return amqp.Queue{Name: name}, r.queueDeclareErr
+}
+
+func (r *rabbitMQInMemoryBroker) QueueDeclarePassive(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
+	r.declaredQueues = append(r.declaredQueues, name)
+	r.passiveQueueDeclares = append(r.passiveQueueDeclares, name)
+	return amqp.Queue{Name: name}, r.queueDeclareErr
 }
 
 func (r *rabbitMQInMemoryBroker) QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error {
@@ -1017,4 +1025,71 @@ func TestBindingRoutingKeyNotValidatedForOtherKinds(t *testing.T) {
 	}, "consumer-mytopic")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"orders.created"}, broker.boundRoutingKeys)
+}
+
+// TestPassiveQueueDeclareSkipsDeclareAndBind verifies that with an externally
+// owned queue the component neither creates the queue nor binds it.
+func TestPassiveQueueDeclareSkipsDeclareAndBind(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        exchangeKindConsistentHash,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+		QueueDeclareMode:    queueDeclareModePassive,
+	})
+
+	q, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
+	require.NoError(t, err)
+	assert.Equal(t, "operator-owned-queue", q.Name)
+	assert.Equal(t, []string{"operator-owned-queue"}, broker.passiveQueueDeclares)
+	assert.Empty(t, broker.boundRoutingKeys, "bindings belong to the external owner")
+}
+
+// TestPassiveQueueDeclareCoversDeadLetterQueue verifies that the dead letter
+// queue is treated the same way as the consumer queue.
+func TestPassiveQueueDeclareCoversDeadLetterQueue(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+		QueueDeclareMode:    queueDeclareModePassive,
+		EnableDeadLetter:    true,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dlq-operator-owned-queue", "operator-owned-queue"}, broker.passiveQueueDeclares)
+	assert.Empty(t, broker.boundRoutingKeys)
+}
+
+// TestPassiveQueueDeclareMissingQueue verifies the error raised when the
+// externally managed queue has not been created.
+func TestPassiveQueueDeclareMissingQueue(t *testing.T) {
+	broker := newBroker()
+	broker.queueDeclareErr = &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no queue 'operator-owned-queue' in vhost '/'"}
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+		QueueDeclareMode:    queueDeclareModePassive,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
+	assert.Contains(t, err.Error(), metadataQueueDeclareModeKey)
+}
+
+// TestPassiveQueueDeclareSkipsBucketWeightValidation verifies that the
+// consistent hash bucket weight rule does not apply when the component is not
+// the one creating the binding.
+func TestPassiveQueueDeclareSkipsBucketWeightValidation(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        exchangeKindConsistentHash,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+		QueueDeclareMode:    queueDeclareModePassive,
+	})
+
+	// No routingKey at all, which would be rejected in declare mode.
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
+	require.NoError(t, err)
 }

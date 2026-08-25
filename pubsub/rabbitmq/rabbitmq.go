@@ -96,6 +96,7 @@ type rabbitMQChannelBroker interface {
 	PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
 	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
+	QueueDeclarePassive(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
 	Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
 	Cancel(consumer string, noWait bool) error
@@ -396,7 +397,6 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		return nil, err
 	}
 
-	r.logger.Infof("%s declaring queue '%s'", logMessagePrefix, queueName)
 	var args amqp.Table
 	if r.metadata.EnableDeadLetter {
 		// declare dead letter exchange
@@ -413,19 +413,21 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
 		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
 		dlqArgs[argQueueMode] = queueModeLazy
-		q, err = channel.QueueDeclare(dlqName, true, r.metadata.DeleteWhenUnused, false, false, dlqArgs)
+		q, err = r.declareQueue(channel, dlqName, true, r.metadata.DeleteWhenUnused, dlqArgs)
 		if err != nil {
-			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, dlqName, err)
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, dlqName, err)
 
 			return nil, err
 		}
-		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
-		if err != nil {
-			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, dlqName, err)
+		if !r.metadata.isPassiveQueueDeclare() {
+			err = channel.QueueBind(q.Name, "", dlxName, false, nil)
+			if err != nil {
+				r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, dlqName, err)
 
-			return nil, err
+				return nil, err
+			}
+			r.logger.Infof("%s declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", logMessagePrefix, queueName, dlqName, dlxName)
 		}
-		r.logger.Infof("%s declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", logMessagePrefix, queueName, dlqName, dlxName)
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
@@ -484,9 +486,9 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args[argMaxLength] = parsedVal
 	}
 
-	q, err := channel.QueueDeclare(queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
+	q, err := r.declareQueue(channel, queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, args)
 	if err != nil {
-		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)
+		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, queueName, err)
 
 		return nil, err
 	}
@@ -501,24 +503,60 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	}
 
-	for i := range routingKeys {
-		routingKey := routingKeys[i]
-		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
-		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
-		if err != nil {
-			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
+	if r.metadata.isPassiveQueueDeclare() {
+		// Bindings belong to whoever owns the queue.
+		r.logger.Debugf("%s %s is '%s': leaving the bindings of queue '%s' to their external owner", logMessagePrefix, metadataQueueDeclareModeKey, queueDeclareModePassive, q.Name)
+	} else {
+		for i := range routingKeys {
+			routingKey := routingKeys[i]
+			r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
+			err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
+			if err != nil {
+				r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
 
-			return nil, err
+				return nil, err
+			}
 		}
 	}
 
 	return &q, nil
 }
 
+// declareQueue creates the queue, or asserts that an externally managed one
+// exists when queueDeclareMode is passive. RabbitMQ ignores every argument but
+// the name on a passive declare, so queue arguments are the external owner's
+// responsibility in that mode.
+func (r *rabbitMQ) declareQueue(channel rabbitMQChannelBroker, queueName string, durable, autoDelete bool, args amqp.Table) (amqp.Queue, error) {
+	if !r.metadata.isPassiveQueueDeclare() {
+		r.logger.Infof("%s declaring queue '%s'", logMessagePrefix, queueName)
+
+		return channel.QueueDeclare(queueName, durable, autoDelete, false, false, args)
+	}
+
+	r.logger.Debugf("%s passively declaring queue '%s'", logMessagePrefix, queueName)
+	q, err := channel.QueueDeclarePassive(queueName, durable, autoDelete, false, false, nil)
+	if err != nil {
+		var amqpErr *amqp.Error
+		if errors.As(err, &amqpErr) && amqpErr.Code == amqp.NotFound {
+			return q, fmt.Errorf(
+				"%w: queue '%s' does not exist and %s is %q, so this component will not create it. "+
+					"Create the queue and its bindings out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare them",
+				err, queueName, metadataQueueDeclareModeKey, queueDeclareModePassive, metadataQueueDeclareModeKey)
+		}
+	}
+
+	return q, err
+}
+
 // validateBindingRoutingKeys rejects binding keys that the configured exchange
 // kind cannot accept, so that the failure is reported against the component
 // configuration rather than as an opaque channel error from the broker.
 func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKeys []string) error {
+	// Not our binding to make.
+	if r.metadata.isPassiveQueueDeclare() {
+		return nil
+	}
+
 	if r.metadata.ExchangeKind != exchangeKindConsistentHash {
 		return nil
 	}

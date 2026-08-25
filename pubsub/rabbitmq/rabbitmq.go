@@ -67,6 +67,11 @@ const (
 	reqMetadataMaxLenBytesKey          = "maxLenBytes"
 )
 
+// errTerminalSubscription marks a subscription failure that retrying cannot
+// fix, because it is caused by the component or subscription configuration
+// rather than by the state of the broker.
+var errTerminalSubscription = errors.New("subscription configuration is not valid")
+
 // RabbitMQ allows sending/receiving messages in pub/sub format.
 type rabbitMQ struct {
 	connection        rabbitMQConnectionBroker
@@ -97,6 +102,7 @@ type rabbitMQChannelBroker interface {
 	Nack(tag uint64, multiple bool, requeue bool) error
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
+	ExchangeDeclarePassive(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
 	Qos(prefetchCount, prefetchSize int, global bool) error
 	Confirm(noWait bool) error
 	Close() error
@@ -159,6 +165,10 @@ func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	}
 
 	r.metadata = meta
+
+	if meta.ExchangeKind == exchangeKindConsistentHash {
+		r.logger.Infof("%s exchange kind is %s: publishers must set the '%s' publish metadata to the partition key, and subscribers must set it to the queue's bucket weight", logMessagePrefix, exchangeKindConsistentHash, reqMetadataRoutingKey)
+	}
 
 	if err := r.reconnect(0); err != nil {
 		return err
@@ -372,6 +382,13 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 
 // this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
+	routingKeys := strings.Split(req.Metadata[reqMetadataRoutingKey], ",")
+	// Validated before anything is declared on the broker, so an unusable
+	// subscription never leaves a queue behind.
+	if err := r.validateBindingRoutingKeys(req.Topic, queueName, routingKeys); err != nil {
+		return nil, err
+	}
+
 	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
@@ -484,11 +501,6 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	}
 
-	metadataRoutingKey := ""
-	if val, ok := req.Metadata[reqMetadataRoutingKey]; ok && val != "" {
-		metadataRoutingKey = val
-	}
-	routingKeys := strings.Split(metadataRoutingKey, ",")
 	for i := range routingKeys {
 		routingKey := routingKeys[i]
 		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
@@ -501,6 +513,28 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	return &q, nil
+}
+
+// validateBindingRoutingKeys rejects binding keys that the configured exchange
+// kind cannot accept, so that the failure is reported against the component
+// configuration rather than as an opaque channel error from the broker.
+func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKeys []string) error {
+	if r.metadata.ExchangeKind != exchangeKindConsistentHash {
+		return nil
+	}
+
+	// For a consistent hash exchange the binding key is the weight of the bound
+	// queue, which must be a positive integer.
+	for _, routingKey := range routingKeys {
+		weight, err := strconv.ParseUint(strings.TrimSpace(routingKey), 10, 32)
+		if err != nil || weight == 0 {
+			return fmt.Errorf(
+				"%s prepareSubscription for topic/queue '%s/%s': exchange kind %s requires the '%s' subscription metadata to be a positive integer bucket weight, got %q: %w",
+				errorMessagePrefix, topic, queueName, exchangeKindConsistentHash, reqMetadataRoutingKey, routingKey, errTerminalSubscription)
+		}
+	}
+
+	return nil
 }
 
 func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
@@ -578,7 +612,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			}
 		}
 
-		if err != nil && strings.Contains(err.Error(), errorInvalidQueueType) {
+		if err != nil && (errors.Is(err, errTerminalSubscription) || strings.Contains(err.Error(), errorInvalidQueueType)) {
 			if ackCh != nil {
 				ackCh <- true
 			}
@@ -689,19 +723,61 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 
 // this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange, exchangeKind string, durable bool, autoDelete bool) error {
-	if !r.containsExchange(exchange) {
-		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, exchangeKind)
-		err := channel.ExchangeDeclare(exchange, exchangeKind, durable, autoDelete, false, false, nil)
-		if err != nil {
-			r.logger.Errorf("%s ensureExchangeDeclared: channel.ExchangeDeclare failed: %v", logMessagePrefix, err)
-
-			return err
-		}
-
-		r.putExchange(exchange)
+	if r.containsExchange(exchange) {
+		return nil
 	}
 
+	var err error
+	if r.metadata.isPassiveExchangeDeclare() {
+		// The exchange is managed outside of Dapr: only assert that it exists.
+		// RabbitMQ ignores every argument but the name on a passive declare, so
+		// an externally created exchange of any kind - including plugin kinds
+		// such as x-consistent-hash - is accepted as-is.
+		r.logger.Debugf("%s passively declaring exchange '%s'", logMessagePrefix, exchange)
+		err = channel.ExchangeDeclarePassive(exchange, exchangeKind, durable, autoDelete, false, false, nil)
+	} else {
+		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, exchangeKind)
+		err = channel.ExchangeDeclare(exchange, exchangeKind, durable, autoDelete, false, false, nil)
+	}
+	if err != nil {
+		err = r.decorateExchangeDeclareError(exchange, exchangeKind, durable, autoDelete, err)
+		r.logger.Errorf("%s ensureExchangeDeclared: %v", logMessagePrefix, err)
+
+		return err
+	}
+
+	r.putExchange(exchange)
+
 	return nil
+}
+
+// decorateExchangeDeclareError turns the two AMQP failures that are specific to
+// externally managed topologies into actionable messages. Any other error is
+// returned untouched.
+func (r *rabbitMQ) decorateExchangeDeclareError(exchange, exchangeKind string, durable, autoDelete bool, err error) error {
+	var amqpErr *amqp.Error
+	if !errors.As(err, &amqpErr) {
+		return err
+	}
+
+	switch amqpErr.Code {
+	case amqp.PreconditionFailed:
+		// The exchange already exists with different properties. Dapr's declare
+		// is idempotent only when every property matches.
+		return fmt.Errorf(
+			"%w: exchange '%s' already exists with properties that differ from the ones this component declares (kind=%s, durable=%t, autoDelete=%t). "+
+				"Either align the existing exchange with those properties, or set %s to %q so that this component uses the existing exchange instead of declaring its own",
+			err, exchange, exchangeKind, durable, autoDelete, metadataExchangeDeclareModeKey, exchangeDeclareModePassive)
+	case amqp.NotFound:
+		if r.metadata.isPassiveExchangeDeclare() {
+			return fmt.Errorf(
+				"%w: exchange '%s' does not exist and %s is %q, so this component will not create it. "+
+					"Create the exchange out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare it",
+				err, exchange, metadataExchangeDeclareModeKey, exchangeDeclareModePassive, metadataExchangeDeclareModeKey)
+		}
+	}
+
+	return err
 }
 
 // this function call should be wrapped by channelMutex.

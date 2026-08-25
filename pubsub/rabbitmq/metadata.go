@@ -16,6 +16,7 @@ package rabbitmq
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -46,6 +47,7 @@ type rabbitmqMetadata struct {
 	MaxLen                             int64                  `mapstructure:"maxLen"`
 	MaxLenBytes                        int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind                       string                 `mapstructure:"exchangeKind"`
+	ExchangeDeclareMode                string                 `mapstructure:"exchangeDeclareMode"`
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
@@ -77,6 +79,7 @@ const (
 	metadataMaxLenKey                             = "maxLen"
 	metadataMaxLenBytesKey                        = "maxLenBytes"
 	metadataExchangeKindKey                       = "exchangeKind"
+	metadataExchangeDeclareModeKey                = "exchangeDeclareMode"
 	metadataPublisherConfirmKey                   = "publisherConfirm"
 	metadataSaslExternal                          = "saslExternal"
 	metadataMaxPriority                           = "maxPriority"
@@ -89,6 +92,22 @@ const (
 
 	protocolAMQP  = "amqp"
 	protocolAMQPS = "amqps"
+
+	// exchangeDeclareModeDeclare makes the component declare the exchange itself
+	// (an active AMQP exchange.declare). This is the default and the historical
+	// behavior.
+	exchangeDeclareModeDeclare = "declare"
+	// exchangeDeclareModePassive makes the component verify that the exchange
+	// already exists (a passive AMQP exchange.declare) without creating or
+	// modifying it. Use this when the topology is owned by something else, such
+	// as the RabbitMQ Cluster Kubernetes Topology Operator or Terraform.
+	exchangeDeclareModePassive = "passive"
+
+	// exchangeKindConsistentHash is the exchange type provided by the
+	// rabbitmq_consistent_hash_exchange plugin. It is not a built-in AMQP
+	// exchange type, so it is only usable against a broker with that plugin
+	// enabled.
+	exchangeKindConsistentHash = "x-consistent-hash"
 )
 
 // createMetadata creates a new instance from the pubsub metadata.
@@ -101,6 +120,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		AutoAck:                            false,
 		ReconnectWait:                      time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		ExchangeKind:                       fanoutExchangeKind,
+		ExchangeDeclareMode:                exchangeDeclareModeDeclare,
 		PublisherConfirm:                   false,
 		SaslExternal:                       false,
 		HeartBeat:                          defaultHeartbeat,
@@ -139,8 +159,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
 	}
 
-	if !exchangeKindValid(result.ExchangeKind) {
-		return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, result.ExchangeKind)
+	result.ExchangeDeclareMode = strings.ToLower(result.ExchangeDeclareMode)
+	if !exchangeDeclareModeValid(result.ExchangeDeclareMode) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ exchange declare mode %q, accepted values are %q and %q", errorMessagePrefix, result.ExchangeDeclareMode, exchangeDeclareModeDeclare, exchangeDeclareModePassive)
+	}
+
+	if err := validateExchangeKind(result.ExchangeKind, result.ExchangeDeclareMode); err != nil {
+		return &result, err
 	}
 
 	ttl, ok, err := metadata.TryGetTTL(pubSubMetadata.Properties)
@@ -179,8 +204,44 @@ func (m *rabbitmqMetadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table 
 	return origin
 }
 
+func exchangeDeclareModeValid(mode string) bool {
+	return mode == exchangeDeclareModeDeclare || mode == exchangeDeclareModePassive
+}
+
+// exchangeKindValid reports whether the component is able to declare an
+// exchange of the given kind itself.
 func exchangeKindValid(kind string) bool {
-	return kind == amqp.ExchangeFanout || kind == amqp.ExchangeTopic || kind == amqp.ExchangeDirect || kind == amqp.ExchangeHeaders
+	switch kind {
+	case amqp.ExchangeFanout, amqp.ExchangeTopic, amqp.ExchangeDirect, amqp.ExchangeHeaders, exchangeKindConsistentHash:
+		return true
+	default:
+		return false
+	}
+}
+
+// validateExchangeKind checks exchangeKind against what the configured declare
+// mode allows. In passive mode the component never declares the exchange, so
+// any kind the broker supports (including plugin-provided kinds) is accepted.
+func validateExchangeKind(kind string, declareMode string) error {
+	if declareMode == exchangeDeclareModePassive {
+		if kind == "" {
+			return fmt.Errorf("%s %s cannot be empty", errorMessagePrefix, metadataExchangeKindKey)
+		}
+
+		return nil
+	}
+
+	if !exchangeKindValid(kind) {
+		return fmt.Errorf("%s invalid RabbitMQ exchange kind %q; the component can declare %s, %s, %s, %s and %s. To use an exchange of any other kind, create it out-of-band and set %s to %q", errorMessagePrefix, kind, amqp.ExchangeFanout, amqp.ExchangeTopic, amqp.ExchangeDirect, amqp.ExchangeHeaders, exchangeKindConsistentHash, metadataExchangeDeclareModeKey, exchangeDeclareModePassive)
+	}
+
+	return nil
+}
+
+// isPassiveExchangeDeclare reports whether the exchange topology is managed
+// outside of Dapr.
+func (m *rabbitmqMetadata) isPassiveExchangeDeclare() bool {
+	return m.ExchangeDeclareMode == exchangeDeclareModePassive
 }
 
 func (m *rabbitmqMetadata) connectionURI() string {

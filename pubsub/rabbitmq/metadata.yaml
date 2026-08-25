@@ -140,14 +140,35 @@ metadata:
   - name: exchangeKind
     type: string
     description: |
-      Exchange kind of the rabbitmq exchange.
+      Exchange kind of the rabbitmq exchange. "x-consistent-hash" requires the
+      rabbitmq_consistent_hash_exchange plugin to be enabled on the broker; with
+      it, the "routingKey" publish metadata is the partition key and the
+      "routingKey" subscription metadata is the queue's bucket weight.
+      When "exchangeDeclareMode" is "passive" any exchange kind supported by the
+      broker is accepted, because the component does not declare the exchange.
     default: '"fanout"'
     allowedValues:
       - "fanout"
       - "topic"
       - "direct"
       - "headers"
-    example: '"fanout","topic","direct","headers"'
+      - "x-consistent-hash"
+    example: '"fanout","topic","direct","headers","x-consistent-hash"'
+  - name: exchangeDeclareMode
+    type: string
+    description: |
+      How the component obtains the exchange for a topic. "declare" issues an
+      active AMQP exchange.declare, creating the exchange if it does not exist.
+      "passive" only asserts that the exchange already exists and never creates
+      or modifies it, which lets an external owner - such as the RabbitMQ Cluster
+      Kubernetes Topology Operator or Terraform - be the single source of truth
+      for the topology. In "passive" mode the dead-letter exchange must also
+      exist up front when "enableDeadLetter" is true.
+    default: '"declare"'
+    allowedValues:
+      - "declare"
+      - "passive"
+    example: '"declare","passive"'
   - name: deliveryMode
     type: number
     description: |

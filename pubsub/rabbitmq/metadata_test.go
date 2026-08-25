@@ -536,3 +536,90 @@ func TestConnectionURI(t *testing.T) {
 		assert.Equal(t, testCase.expectedOutput, m.connectionURI())
 	}
 }
+
+func TestCreateMetadataExchangeDeclareMode(t *testing.T) {
+	log := logger.NewLogger("test")
+
+	t.Run("defaults to declare", func(t *testing.T) {
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: getFakeProperties()}}, log)
+
+		require.NoError(t, err)
+		assert.Equal(t, exchangeDeclareModeDeclare, m.ExchangeDeclareMode)
+		assert.False(t, m.isPassiveExchangeDeclare())
+	})
+
+	validModes := map[string]string{
+		"declare": exchangeDeclareModeDeclare,
+		"passive": exchangeDeclareModePassive,
+		"Passive": exchangeDeclareModePassive,
+		"PASSIVE": exchangeDeclareModePassive,
+	}
+	for in, expected := range validModes {
+		t.Run("exchangeDeclareMode value="+in, func(t *testing.T) {
+			props := getFakeProperties()
+			props[metadataExchangeDeclareModeKey] = in
+
+			m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+			require.NoError(t, err)
+			assert.Equal(t, expected, m.ExchangeDeclareMode)
+			assert.Equal(t, expected == exchangeDeclareModePassive, m.isPassiveExchangeDeclare())
+		})
+	}
+
+	t.Run("exchangeDeclareMode is invalid", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeDeclareModeKey] = "use-existing"
+
+		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid RabbitMQ exchange declare mode")
+	})
+}
+
+func TestCreateMetadataExchangeKindWithDeclareMode(t *testing.T) {
+	log := logger.NewLogger("test")
+
+	t.Run("consistent hash is declarable", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeKindKey] = exchangeKindConsistentHash
+
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.NoError(t, err)
+		assert.Equal(t, exchangeKindConsistentHash, m.ExchangeKind)
+	})
+
+	t.Run("plugin exchange kind is rejected in declare mode", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeKindKey] = "x-delayed-message"
+
+		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), metadataExchangeDeclareModeKey)
+	})
+
+	t.Run("plugin exchange kind is accepted in passive mode", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeKindKey] = "x-delayed-message"
+		props[metadataExchangeDeclareModeKey] = exchangeDeclareModePassive
+
+		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.NoError(t, err)
+		assert.Equal(t, "x-delayed-message", m.ExchangeKind)
+	})
+
+	t.Run("exchangeKind cannot be empty in passive mode", func(t *testing.T) {
+		props := getFakeProperties()
+		props[metadataExchangeKindKey] = ""
+		props[metadataExchangeDeclareModeKey] = exchangeDeclareModePassive
+
+		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), metadataExchangeKindKey)
+	})
+}

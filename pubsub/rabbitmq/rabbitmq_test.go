@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -559,12 +560,23 @@ func createAMQPMessage(body []byte) amqp.Delivery {
 	return amqp.Delivery{Body: body}
 }
 
+type declaredExchange struct {
+	name       string
+	kind       string
+	durable    bool
+	autoDelete bool
+	passive    bool
+}
+
 type rabbitMQInMemoryBroker struct {
-	buffer          chan amqp.Delivery
-	declaredQueues  []string
-	connectCount    atomic.Int32
-	closeCount      atomic.Int32
-	lastMsgMetadata *amqp.Publishing // Add this field to capture the last message metadata
+	buffer             chan amqp.Delivery
+	declaredQueues     []string
+	declaredExchanges  []declaredExchange
+	boundRoutingKeys   []string
+	connectCount       atomic.Int32
+	closeCount         atomic.Int32
+	lastMsgMetadata    *amqp.Publishing // Add this field to capture the last message metadata
+	exchangeDeclareErr error
 }
 
 func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
@@ -603,6 +615,7 @@ func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDel
 }
 
 func (r *rabbitMQInMemoryBroker) QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error {
+	r.boundRoutingKeys = append(r.boundRoutingKeys, key)
 	return nil
 }
 
@@ -623,7 +636,13 @@ func (r *rabbitMQInMemoryBroker) Ack(tag uint64, multiple bool) error {
 }
 
 func (r *rabbitMQInMemoryBroker) ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error {
-	return nil
+	r.declaredExchanges = append(r.declaredExchanges, declaredExchange{name: name, kind: kind, durable: durable, autoDelete: autoDelete})
+	return r.exchangeDeclareErr
+}
+
+func (r *rabbitMQInMemoryBroker) ExchangeDeclarePassive(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error {
+	r.declaredExchanges = append(r.declaredExchanges, declaredExchange{name: name, kind: kind, durable: durable, autoDelete: autoDelete, passive: true})
+	return r.exchangeDeclareErr
 }
 
 func (r *rabbitMQInMemoryBroker) Confirm(noWait bool) error {
@@ -835,4 +854,167 @@ func TestPublishMessagePropertiesToMetadataFlag(t *testing.T) {
 		assert.Equal(t, topicName, receivedMsg.Topic)
 		assert.Empty(t, receivedMsg.Metadata, "Metadata should be empty when flag is not set (defaults to false)")
 	})
+}
+
+func newRabbitMQForExchangeTest(broker *rabbitMQInMemoryBroker, meta *rabbitmqMetadata) *rabbitMQ {
+	return &rabbitMQ{
+		declaredExchanges: make(map[string]bool),
+		logger:            logger.NewLogger("test"),
+		metadata:          meta,
+		channel:           broker,
+		closeCh:           make(chan struct{}),
+	}
+}
+
+// TestEnsureExchangeDeclaredActive verifies that the default declare mode still
+// issues an active exchange.declare.
+func TestEnsureExchangeDeclaredActive(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        fanoutExchangeKind,
+		ExchangeDeclareMode: exchangeDeclareModeDeclare,
+	})
+
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true))
+	require.Len(t, broker.declaredExchanges, 1)
+	assert.Equal(t, "mytopic", broker.declaredExchanges[0].name)
+	assert.False(t, broker.declaredExchanges[0].passive)
+
+	// The exchange is cached, so a second call is a no-op.
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true))
+	assert.Len(t, broker.declaredExchanges, 1)
+}
+
+// TestEnsureExchangeDeclaredPassive verifies that passive mode only asserts that
+// the externally managed exchange exists.
+func TestEnsureExchangeDeclaredPassive(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        exchangeKindConsistentHash,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+	})
+
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true))
+	require.Len(t, broker.declaredExchanges, 1)
+	assert.Equal(t, "mytopic", broker.declaredExchanges[0].name)
+	assert.True(t, broker.declaredExchanges[0].passive)
+}
+
+// TestEnsureExchangeDeclaredPassiveMissingExchange verifies the error raised
+// when the externally managed exchange has not been created.
+func TestEnsureExchangeDeclaredPassiveMissingExchange(t *testing.T) {
+	broker := newBroker()
+	broker.exchangeDeclareErr = &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no exchange 'mytopic' in vhost '/'"}
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        exchangeKindConsistentHash,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+	})
+
+	err := r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
+	assert.Contains(t, err.Error(), metadataExchangeDeclareModeKey)
+	assert.False(t, r.containsExchange("mytopic"))
+}
+
+// TestEnsureExchangeDeclaredPreconditionFailed verifies that a mismatch against
+// an exchange declared elsewhere points at the passive declare mode.
+func TestEnsureExchangeDeclaredPreconditionFailed(t *testing.T) {
+	broker := newBroker()
+	broker.exchangeDeclareErr = &amqp.Error{Code: amqp.PreconditionFailed, Reason: "PRECONDITION_FAILED - inequivalent arg 'type'"}
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        fanoutExchangeKind,
+		ExchangeDeclareMode: exchangeDeclareModeDeclare,
+	})
+
+	err := r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists with properties that differ")
+	assert.Contains(t, err.Error(), exchangeDeclareModePassive)
+}
+
+// TestSubscribeUsesPassiveExchangeDeclare covers the end-to-end path: with an
+// externally managed topology neither the topic exchange nor the dead letter
+// exchange may be created by the component.
+func TestSubscribeUsesPassiveExchangeDeclare(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:            "anyhost",
+			metadataConsumerIDKey:          "consumer",
+			metadataExchangeDeclareModeKey: exchangeDeclareModePassive,
+			metadataEnableDeadLetterKey:    "true",
+		},
+	}}
+	require.NoError(t, pubsubRabbitMQ.Init(t.Context(), metadata))
+
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error { return nil }
+	require.NoError(t, pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, handler))
+
+	require.NotEmpty(t, broker.declaredExchanges)
+	for _, e := range broker.declaredExchanges {
+		assert.Truef(t, e.passive, "exchange %q was declared actively", e.name)
+	}
+}
+
+// TestConsistentHashBindingRoutingKey verifies the bucket weight validation
+// applied to subscriptions bound to a consistent hash exchange.
+func TestConsistentHashBindingRoutingKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		routingKey string
+		wantErr    bool
+	}{
+		{name: "missing weight", routingKey: "", wantErr: true},
+		{name: "non numeric weight", routingKey: "orders", wantErr: true},
+		{name: "zero weight", routingKey: "0", wantErr: true},
+		{name: "valid weight", routingKey: "10", wantErr: false},
+		{name: "multiple valid weights", routingKey: "10,20", wantErr: false},
+		{name: "one invalid weight", routingKey: "10,orders", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			broker := newBroker()
+			r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+				ExchangeKind:        exchangeKindConsistentHash,
+				ExchangeDeclareMode: exchangeDeclareModePassive,
+			})
+
+			req := pubsub.SubscribeRequest{Topic: "mytopic"}
+			if tt.routingKey != "" {
+				req.Metadata = map[string]string{reqMetadataRoutingKey: tt.routingKey}
+			}
+
+			_, err := r.prepareSubscription(broker, req, "consumer-mytopic")
+			if !tt.wantErr {
+				require.NoError(t, err)
+				assert.Equal(t, strings.Split(tt.routingKey, ","), broker.boundRoutingKeys)
+				return
+			}
+
+			require.Error(t, err)
+			require.ErrorIs(t, err, errTerminalSubscription)
+			assert.Contains(t, err.Error(), exchangeKindConsistentHash)
+			assert.Empty(t, broker.boundRoutingKeys)
+		})
+	}
+}
+
+// TestBindingRoutingKeyNotValidatedForOtherKinds makes sure the bucket weight
+// rule is scoped to consistent hash exchanges only.
+func TestBindingRoutingKeyNotValidatedForOtherKinds(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModeDeclare,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{
+		Topic:    "mytopic",
+		Metadata: map[string]string{reqMetadataRoutingKey: "orders.created"},
+	}, "consumer-mytopic")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"orders.created"}, broker.boundRoutingKeys)
 }

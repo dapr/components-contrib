@@ -979,6 +979,7 @@ func TestConsistentHashBindingRoutingKey(t *testing.T) {
 		{name: "zero weight", routingKey: "0", wantErr: true},
 		{name: "valid weight", routingKey: "10", wantErr: false},
 		{name: "multiple valid weights", routingKey: "10,20", wantErr: false},
+		{name: "padded weight", routingKey: " 10 ", wantErr: true},
 		{name: "one invalid weight", routingKey: "10,orders", wantErr: true},
 	}
 
@@ -1135,4 +1136,87 @@ func TestDecorateExchangeDeclareErrorPassesThroughUnrelatedErrors(t *testing.T) 
 			assert.Equal(t, tt.err, got)
 		})
 	}
+}
+
+// TestSubscribeSurfacesTerminalError verifies that a subscription rejected for
+// a configuration reason reports why, instead of a bare "not retriable".
+func TestSubscribeSurfacesTerminalError(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:     "anyhost",
+			metadataConsumerIDKey:   "consumer",
+			metadataExchangeKindKey: exchangeKindConsistentHash,
+		},
+	}}
+	require.NoError(t, pubsubRabbitMQ.Init(t.Context(), metadata))
+
+	// No routingKey, so no bucket weight for the consistent hash binding.
+	err := pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not retriable")
+	assert.Contains(t, err.Error(), reqMetadataRoutingKey, "the reason must reach the caller, not just the retry loop")
+	assert.Contains(t, err.Error(), exchangeKindConsistentHash)
+}
+
+// TestActiveQueueDeclarePreconditionFailed verifies that a queue property
+// mismatch points at the mode that resolves it, as exchange declares do.
+func TestActiveQueueDeclarePreconditionFailed(t *testing.T) {
+	broker := newBroker()
+	broker.queueDeclareErr = &amqp.Error{Code: amqp.PreconditionFailed, Reason: "PRECONDITION_FAILED - inequivalent arg 'durable'"}
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModeDeclare,
+		QueueDeclareMode:    queueDeclareModeDeclare,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "consumer-mytopic")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists with properties that differ")
+	assert.Contains(t, err.Error(), metadataQueueDeclareModeKey)
+}
+
+// TestPassiveQueueDeclareIgnoresQueueArguments verifies that queue arguments
+// are neither validated nor sent when the queue belongs to someone else. A
+// queue type this component cannot declare must still be consumable.
+func TestPassiveQueueDeclareIgnoresQueueArguments(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModePassive,
+		QueueDeclareMode:    queueDeclareModePassive,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{
+		Topic: "mytopic",
+		Metadata: map[string]string{
+			reqMetadataQueueTypeKey: "stream", // neither classic nor quorum
+			metadataMaxPriority:     "5",
+			reqMetadataMaxLenKey:    "100",
+		},
+	}, "operator-owned-queue")
+
+	require.NoError(t, err, "queue arguments belong to the external owner and must not be validated")
+	assert.Equal(t, []string{"operator-owned-queue"}, broker.passiveQueueDeclares)
+	assert.Empty(t, broker.boundRoutingKeys)
+}
+
+// TestActiveQueueDeclareStillValidatesQueueType guards the counterpart: when
+// this component declares the queue, an unsupported type is still rejected.
+func TestActiveQueueDeclareStillValidatesQueueType(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+		ExchangeKind:        amqp.ExchangeTopic,
+		ExchangeDeclareMode: exchangeDeclareModeDeclare,
+		QueueDeclareMode:    queueDeclareModeDeclare,
+	})
+
+	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{
+		Topic:    "mytopic",
+		Metadata: map[string]string{reqMetadataQueueTypeKey: "stream"},
+	}, "consumer-mytopic")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), errorInvalidQueueType)
 }

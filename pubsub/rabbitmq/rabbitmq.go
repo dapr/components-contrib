@@ -350,7 +350,7 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
-	ackCh := make(chan bool, 1)
+	ackCh := make(chan error, 1)
 	defer close(ackCh)
 
 	subctx, cancel := context.WithCancel(ctx)
@@ -372,12 +372,12 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	select {
 	case <-time.After(time.Minute):
 		return fmt.Errorf("failed to subscribe to %s", queueName)
-	case failed := <-ackCh:
-		if failed {
-			return fmt.Errorf("error not retriable for %s", queueName)
-		} else {
-			return nil
+	case err := <-ackCh:
+		if err != nil {
+			return fmt.Errorf("error not retriable for %s: %w", queueName, err)
 		}
+
+		return nil
 	}
 }
 
@@ -395,6 +395,14 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
 
 		return nil, err
+	}
+
+	// In passive mode the queue and its arguments belong to the external owner
+	// and RabbitMQ ignores every argument but the name, so none of the argument
+	// handling below applies - including its validation, which would otherwise
+	// reject queue types this component cannot declare but can consume from.
+	if r.metadata.isPassiveQueueDeclare() {
+		return r.preparePassiveSubscription(channel, req, queueName)
 	}
 
 	var args amqp.Table
@@ -419,15 +427,13 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 			return nil, err
 		}
-		if !r.metadata.isPassiveQueueDeclare() {
-			err = channel.QueueBind(q.Name, "", dlxName, false, nil)
-			if err != nil {
-				r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, dlqName, err)
+		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
+		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, dlqName, err)
 
-				return nil, err
-			}
-			r.logger.Infof("%s declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", logMessagePrefix, queueName, dlqName, dlxName)
+			return nil, err
 		}
+		r.logger.Infof("%s declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", logMessagePrefix, queueName, dlqName, dlxName)
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
@@ -503,21 +509,51 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	}
 
-	if r.metadata.isPassiveQueueDeclare() {
-		// Bindings belong to whoever owns the queue.
-		r.logger.Debugf("%s %s is '%s': leaving the bindings of queue '%s' to their external owner", logMessagePrefix, metadataQueueDeclareModeKey, queueDeclareModePassive, q.Name)
-	} else {
-		for i := range routingKeys {
-			routingKey := routingKeys[i]
-			r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
-			err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
-			if err != nil {
-				r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
+	for i := range routingKeys {
+		routingKey := routingKeys[i]
+		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
+		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
+		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
 
-				return nil, err
-			}
+			return nil, err
 		}
 	}
+
+	return &q, nil
+}
+
+// preparePassiveSubscription binds to a queue that is managed outside of Dapr:
+// it asserts the queue (and, when dead lettering is enabled, the dead letter
+// queue) exists and applies QoS, leaving every declaration and binding to the
+// external owner.
+func (r *rabbitMQ) preparePassiveSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
+	if r.metadata.EnableDeadLetter {
+		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
+		if _, err := r.declareQueue(channel, dlqName, true, r.metadata.DeleteWhenUnused, nil); err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, dlqName, err)
+
+			return nil, err
+		}
+	}
+
+	q, err := r.declareQueue(channel, queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, nil)
+	if err != nil {
+		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, queueName, err)
+
+		return nil, err
+	}
+
+	if r.metadata.PrefetchCount > 0 {
+		r.logger.Infof("%s setting prefetch count to %s", logMessagePrefix, strconv.Itoa(int(r.metadata.PrefetchCount)))
+		if err = channel.Qos(int(r.metadata.PrefetchCount), 0, false); err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.Qos: %v", logMessagePrefix, req.Topic, queueName, err)
+
+			return nil, err
+		}
+	}
+
+	r.logger.Debugf("%s %s is '%s': leaving the bindings of queue '%s' to their external owner", logMessagePrefix, metadataQueueDeclareModeKey, queueDeclareModePassive, q.Name)
 
 	return &q, nil
 }
@@ -529,8 +565,18 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 func (r *rabbitMQ) declareQueue(channel rabbitMQChannelBroker, queueName string, durable, autoDelete bool, args amqp.Table) (amqp.Queue, error) {
 	if !r.metadata.isPassiveQueueDeclare() {
 		r.logger.Infof("%s declaring queue '%s'", logMessagePrefix, queueName)
+		q, err := channel.QueueDeclare(queueName, durable, autoDelete, false, false, args)
+		if err != nil {
+			var amqpErr *amqp.Error
+			if errors.As(err, &amqpErr) && amqpErr.Code == amqp.PreconditionFailed {
+				return q, fmt.Errorf(
+					"%w: queue '%s' already exists with properties that differ from the ones this component declares (durable=%t, autoDelete=%t, arguments=%v). "+
+						"Either align the existing queue with those properties, or set %s to %q so that this component uses the existing queue instead of declaring its own",
+					err, queueName, durable, autoDelete, args, metadataQueueDeclareModeKey, queueDeclareModePassive)
+			}
+		}
 
-		return channel.QueueDeclare(queueName, durable, autoDelete, false, false, args)
+		return q, err
 	}
 
 	r.logger.Debugf("%s passively declaring queue '%s'", logMessagePrefix, queueName)
@@ -563,8 +609,11 @@ func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKe
 
 	// For a consistent hash exchange the binding key is the weight of the bound
 	// queue, which must be a positive integer.
+	// Validate the exact values that will be bound: trimming here but binding
+	// the original would let " 10 " pass and still reach the broker as a
+	// non-integer binding key.
 	for _, routingKey := range routingKeys {
-		weight, err := strconv.ParseUint(strings.TrimSpace(routingKey), 10, 32)
+		weight, err := strconv.ParseUint(routingKey, 10, 32)
 		if err != nil || weight == 0 {
 			return fmt.Errorf(
 				"%s prepareSubscription for topic/queue '%s/%s': exchange kind %s requires the '%s' subscription metadata to be a positive integer bucket weight, got %q: %w",
@@ -588,7 +637,7 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	return r.channel, r.connectionCount, q, err
 }
 
-func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan bool) {
+func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan error) {
 	for {
 		var (
 			err             error
@@ -633,7 +682,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 
 			// one-time notification on successful subscribe
 			if ackCh != nil {
-				ackCh <- false
+				ackCh <- nil
 				ackCh = nil
 			}
 
@@ -651,8 +700,9 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 		}
 
 		if err != nil && (errors.Is(err, errTerminalSubscription) || strings.Contains(err.Error(), errorInvalidQueueType)) {
+			r.logger.Errorf("%s error in subscription for %s in %s, giving up: %v", logMessagePrefix, queueName, errFuncName, err)
 			if ackCh != nil {
-				ackCh <- true
+				ackCh <- err
 			}
 			return
 		}

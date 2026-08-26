@@ -179,7 +179,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		return &result, fmt.Errorf("%s invalid RabbitMQ %s %q, accepted values are %q and %q", errorMessagePrefix, metadataQueueDeclareModeKey, result.QueueDeclareMode, declareModeDeclare, declareModePassive)
 	}
 
-	if err := validateExchangeKind(result.ExchangeKind, result.ExchangeDeclareMode); err != nil {
+	if err := validateExchangeKind(result.ExchangeKind); err != nil {
 		return &result, err
 	}
 
@@ -223,8 +223,8 @@ func declareModeValid(mode string) bool {
 	return mode == declareModeDeclare || mode == declareModePassive
 }
 
-// exchangeKindValid reports whether the component is able to declare an
-// exchange of the given kind itself.
+// exchangeKindValid reports whether the component supports an exchange of the
+// given kind. Keep in sync with the exchangeKind allowedValues in metadata.yaml.
 func exchangeKindValid(kind string) bool {
 	switch kind {
 	case amqp.ExchangeFanout, amqp.ExchangeTopic, amqp.ExchangeDirect, amqp.ExchangeHeaders, exchangeKindConsistentHash:
@@ -234,20 +234,13 @@ func exchangeKindValid(kind string) bool {
 	}
 }
 
-// validateExchangeKind checks exchangeKind against what the configured declare
-// mode allows. In passive mode the component never declares the exchange, so
-// any kind the broker supports (including plugin-provided kinds) is accepted.
-func validateExchangeKind(kind string, declareMode string) error {
-	if declareMode == exchangeDeclareModePassive {
-		if kind == "" {
-			return fmt.Errorf("%s %s cannot be empty", errorMessagePrefix, metadataExchangeKindKey)
-		}
-
-		return nil
-	}
-
+// validateExchangeKind checks exchangeKind against the kinds this component
+// supports. The set is the same in both declare modes so that it matches the
+// allowedValues advertised in metadata.yaml, which the component metadata
+// schema treats as a hard allowlist.
+func validateExchangeKind(kind string) error {
 	if !exchangeKindValid(kind) {
-		return fmt.Errorf("%s invalid RabbitMQ exchange kind %q; the component can declare %s, %s, %s, %s and %s. To use an exchange of any other kind, create it out-of-band and set %s to %q", errorMessagePrefix, kind, amqp.ExchangeFanout, amqp.ExchangeTopic, amqp.ExchangeDirect, amqp.ExchangeHeaders, exchangeKindConsistentHash, metadataExchangeDeclareModeKey, exchangeDeclareModePassive)
+		return fmt.Errorf("%s invalid RabbitMQ exchange kind %q, accepted values are %s, %s, %s, %s and %s", errorMessagePrefix, kind, amqp.ExchangeFanout, amqp.ExchangeTopic, amqp.ExchangeDirect, amqp.ExchangeHeaders, exchangeKindConsistentHash)
 	}
 
 	return nil

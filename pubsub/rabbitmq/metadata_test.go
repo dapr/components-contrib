@@ -591,37 +591,31 @@ func TestCreateMetadataExchangeKindWithDeclareMode(t *testing.T) {
 		assert.Equal(t, exchangeKindConsistentHash, m.ExchangeKind)
 	})
 
-	t.Run("plugin exchange kind is rejected in declare mode", func(t *testing.T) {
-		props := getFakeProperties()
-		props[metadataExchangeKindKey] = "x-delayed-message"
+	// The supported set is identical in both declare modes, so that it matches
+	// the allowedValues advertised in metadata.yaml.
+	for _, mode := range []string{exchangeDeclareModeDeclare, exchangeDeclareModePassive} {
+		t.Run("unsupported exchange kind is rejected in "+mode+" mode", func(t *testing.T) {
+			props := getFakeProperties()
+			props[metadataExchangeKindKey] = "x-delayed-message"
+			props[metadataExchangeDeclareModeKey] = mode
 
-		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+			_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), metadataExchangeDeclareModeKey)
-	})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid RabbitMQ exchange kind")
+		})
 
-	t.Run("plugin exchange kind is accepted in passive mode", func(t *testing.T) {
-		props := getFakeProperties()
-		props[metadataExchangeKindKey] = "x-delayed-message"
-		props[metadataExchangeDeclareModeKey] = exchangeDeclareModePassive
+		t.Run("exchangeKind cannot be empty in "+mode+" mode", func(t *testing.T) {
+			props := getFakeProperties()
+			props[metadataExchangeKindKey] = ""
+			props[metadataExchangeDeclareModeKey] = mode
 
-		m, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
+			_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
 
-		require.NoError(t, err)
-		assert.Equal(t, "x-delayed-message", m.ExchangeKind)
-	})
-
-	t.Run("exchangeKind cannot be empty in passive mode", func(t *testing.T) {
-		props := getFakeProperties()
-		props[metadataExchangeKindKey] = ""
-		props[metadataExchangeDeclareModeKey] = exchangeDeclareModePassive
-
-		_, err := createMetadata(pubsub.Metadata{Base: mdata.Base{Properties: props}}, log)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), metadataExchangeKindKey)
-	})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid RabbitMQ exchange kind")
+		})
+	}
 }
 
 func TestCreateMetadataQueueDeclareMode(t *testing.T) {

@@ -144,8 +144,6 @@ metadata:
       rabbitmq_consistent_hash_exchange plugin to be enabled on the broker; with
       it, the "routingKey" publish metadata is the partition key and the
       "routingKey" subscription metadata is the queue's bucket weight.
-      When "exchangeDeclareMode" is "passive" any exchange kind supported by the
-      broker is accepted, because the component does not declare the exchange.
     default: '"fanout"'
     allowedValues:
       - "fanout"

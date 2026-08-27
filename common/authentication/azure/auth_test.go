@@ -16,16 +16,28 @@ package azure
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type transportFunc func(*http.Request) (*http.Response, error)
+
+func (f transportFunc) Do(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 const (
 	fakeTenantID = "14bec2db-7f9a-4f3d-97ca-2d384ac83389"
@@ -84,6 +96,182 @@ func TestAzureCloud(t *testing.T) {
 	require.NotNil(t, testCertConfig.AzureCloud)
 	assert.Equal(t, "https://login.chinacloudapi.cn/", testCertConfig.AzureCloud.ActiveDirectoryAuthorityHost)
 	assert.Equal(t, "core.chinacloudapi.cn", settings.EndpointSuffix(ServiceAzureStorage))
+}
+
+func TestGetDisableInstanceDiscovery(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		setValue  bool
+		expected  bool
+		wantError string
+	}{
+		{name: "missing"},
+		{name: "empty", setValue: true},
+		{name: "whitespace", value: " \t ", setValue: true},
+		{name: "false", value: "false", setValue: true},
+		{name: "mixed case false", value: "FaLsE", setValue: true},
+		{name: "true", value: "true", setValue: true, expected: true},
+		{name: "mixed case and whitespace", value: " TrUe ", setValue: true, expected: true},
+		{
+			name:      "invalid word",
+			value:     "enabled",
+			setValue:  true,
+			wantError: `invalid azureDisableInstanceDiscovery value "enabled": expected true or false`,
+		},
+		{
+			name:      "invalid numeric",
+			value:     "1",
+			setValue:  true,
+			wantError: `invalid azureDisableInstanceDiscovery value "1": expected true or false`,
+		},
+		{
+			name:      "invalid abbreviated",
+			value:     "t",
+			setValue:  true,
+			wantError: `invalid azureDisableInstanceDiscovery value "t": expected true or false`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			properties := map[string]string{}
+			if test.setValue {
+				properties["azureDisableInstanceDiscovery"] = test.value
+			}
+
+			actual, err := (EnvironmentSettings{Metadata: properties}).GetDisableInstanceDiscovery()
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestWorkloadIdentityDisableInstanceDiscoveryOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata map[string]string
+		expected bool
+	}{
+		{
+			name:     "missing",
+			metadata: map[string]string{"azureAuthMethods": "WorkloadIdentity"},
+		},
+		{
+			name: "false",
+			metadata: map[string]string{
+				"azureAuthMethods":              "WorkloadIdentity",
+				"azureDisableInstanceDiscovery": "false",
+			},
+		},
+		{
+			name: "true",
+			metadata: map[string]string{
+				"azureAuthMethods":              "WorkloadIdentity",
+				"azureDisableInstanceDiscovery": "true",
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setWorkloadIdentityEnvironment(t, "https://private.example/")
+
+			originalFactory := newWorkloadIdentityCredential
+			var actual bool
+			newWorkloadIdentityCredential = func(options *azidentity.WorkloadIdentityCredentialOptions) (azcore.TokenCredential, error) {
+				actual = options.DisableInstanceDiscovery
+				return originalFactory(options)
+			}
+			t.Cleanup(func() {
+				newWorkloadIdentityCredential = originalFactory
+			})
+
+			credential, err := (EnvironmentSettings{Metadata: test.metadata}).GetTokenCredential()
+			require.NoError(t, err)
+			require.NotNil(t, credential)
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestInvalidDisableInstanceDiscovery(t *testing.T) {
+	metadata := map[string]string{
+		"azureDisableInstanceDiscovery": "enabled",
+	}
+
+	_, err := NewEnvironmentSettings(metadata)
+	require.EqualError(t, err, `invalid azureDisableInstanceDiscovery value "enabled": expected true or false`)
+
+	_, err = (EnvironmentSettings{Metadata: metadata}).GetTokenCredential()
+	require.EqualError(t, err, `invalid azureDisableInstanceDiscovery value "enabled": expected true or false`)
+}
+
+func TestWorkloadIdentityDisableInstanceDiscoverySkipsPublicDiscovery(t *testing.T) {
+	const authorityHost = "private.example"
+	setWorkloadIdentityEnvironment(t, "https://"+authorityHost+"/")
+
+	originalFactory := newWorkloadIdentityCredential
+	requestHosts := make([]string, 0, 1)
+	newWorkloadIdentityCredential = func(options *azidentity.WorkloadIdentityCredentialOptions) (azcore.TokenCredential, error) {
+		copiedOptions := *options
+		copiedOptions.Transport = transportFunc(func(req *http.Request) (*http.Response, error) {
+			requestHosts = append(requestHosts, req.URL.Host)
+			if strings.EqualFold(req.URL.Hostname(), "login.microsoftonline.com") {
+				return nil, fmt.Errorf("unexpected Public Microsoft Entra instance discovery request to %s", req.URL)
+			}
+
+			var body string
+			switch req.Method {
+			case http.MethodGet:
+				body = fmt.Sprintf(
+					`{"authorization_endpoint":"https://%[1]s/%[2]s/oauth2/v2.0/authorize","token_endpoint":"https://%[1]s/%[2]s/oauth2/v2.0/token","issuer":"https://%[1]s/%[2]s/v2.0"}`,
+					authorityHost,
+					fakeTenantID,
+				)
+			case http.MethodPost:
+				body = `{"access_token":"test-token","expires_in":3600,"token_type":"Bearer"}`
+			default:
+				return nil, fmt.Errorf("unexpected request method %s", req.Method)
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    req,
+			}, nil
+		})
+		return originalFactory(&copiedOptions)
+	}
+	t.Cleanup(func() {
+		newWorkloadIdentityCredential = originalFactory
+	})
+
+	settings := EnvironmentSettings{
+		Metadata: map[string]string{
+			"azureAuthMethods":              "WorkloadIdentity",
+			"azureDisableInstanceDiscovery": "true",
+		},
+	}
+	credential, err := settings.GetTokenCredential()
+	require.NoError(t, err)
+
+	token, err := credential.GetToken(t.Context(), policy.TokenRequestOptions{
+		Scopes: []string{"https://storage.azure.com/.default"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "test-token", token.Token)
+	require.NotEmpty(t, requestHosts)
+	for _, host := range requestHosts {
+		require.Equal(t, authorityHost, host)
+	}
 }
 
 func TestEndpointSuffix(t *testing.T) {
@@ -318,6 +506,18 @@ func getTestCert() []byte {
 	certBytes, _ := base64.StdEncoding.DecodeString(testCert)
 
 	return certBytes
+}
+
+func setWorkloadIdentityEnvironment(t *testing.T, authorityHost string) {
+	t.Helper()
+
+	tokenFile := filepath.Join(t.TempDir(), "federated-token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("federated-token"), 0o600))
+
+	t.Setenv("AZURE_AUTHORITY_HOST", authorityHost)
+	t.Setenv("AZURE_CLIENT_ID", fakeClientID)
+	t.Setenv("AZURE_FEDERATED_TOKEN_FILE", tokenFile)
+	t.Setenv("AZURE_TENANT_ID", fakeTenantID)
 }
 
 func TestFallbackToCLI(t *testing.T) {

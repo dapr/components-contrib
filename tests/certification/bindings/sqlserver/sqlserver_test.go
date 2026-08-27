@@ -60,11 +60,11 @@ func setGodebugX509Workaround(t *testing.T) {
 	// This environment variable reverts to the old behavior.
 	// Ref: https://github.com/microsoft/mssql-docker/issues/895
 	oldDebugValue := os.Getenv("GODEBUG")
-	suffix := ""
-	if oldDebugValue != "" {
-		suffix = "," + oldDebugValue
+	godebugValue := oldDebugValue
+	if godebugValue != "" {
+		godebugValue += ","
 	}
-	t.Setenv("GODEBUG", "x509negativeserial=1"+suffix)
+	t.Setenv("GODEBUG", godebugValue+"x509negativeserial=1")
 	t.Cleanup(func() {
 		t.Setenv("GODEBUG", oldDebugValue)
 	})

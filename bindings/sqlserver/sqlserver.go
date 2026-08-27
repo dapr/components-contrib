@@ -16,7 +16,6 @@ package sqlserver
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,7 +95,7 @@ func (s *SQLServer) Init(ctx context.Context, md bindings.Metadata) error {
 		s.db.SetConnMaxLifetime(meta.ConnMaxLifetime)
 	}
 
-err = s.db.PingContext(ctx)
+	err = s.db.PingContext(ctx)
 	if err != nil {
 		_ = s.db.Close()
 		s.db = nil
@@ -143,7 +142,10 @@ func (s *SQLServer) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		decoder.UseNumber()
 		err = decoder.Decode(&params)
 		if err != nil {
-			return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandParamsKey, err)
+			return nil, fmt.Errorf("invalid metadata property %s: failed to decode an array: %w", commandParamsKey, err)
+		}
+		if params == nil || strings.TrimSpace(paramsStr[decoder.InputOffset():]) != "" {
+			return nil, fmt.Errorf("invalid metadata property %s: expected a single JSON array", commandParamsKey)
 		}
 
 		err = normalizeNumberParams(params)
@@ -265,55 +267,55 @@ func (s *SQLServer) exec(ctx context.Context, sqlQuery string, params ...any) (i
 }
 
 func (s *SQLServer) jsonify(rows *sql.Rows) ([]byte, error) {
-      columnTypes, err := rows.ColumnTypes()
-      if err != nil {
-              return nil, err
-      }
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
 
-      var ret []any
-      for rows.Next() {
-              values := make([]any, len(columnTypes))
-              for i := range values {
-                      values[i] = new(any)
-              }
-              err = rows.Scan(values...)
-              if err != nil {
-                      return nil, err
-              }
+	var ret []any
+	for rows.Next() {
+		values := make([]any, len(columnTypes))
+		for i := range values {
+			values[i] = new(any)
+		}
+		err = rows.Scan(values...)
+		if err != nil {
+			return nil, err
+		}
 
-              r := s.convert(columnTypes, values)
-              ret = append(ret, r)
-      }
-      if err := rows.Err(); err != nil {
-              return nil, err
-      }
+		r := s.convert(columnTypes, values)
+		ret = append(ret, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
-      return json.Marshal(ret)
+	return json.Marshal(ret)
 }
 
 func (s *SQLServer) convert(columnTypes []*sql.ColumnType, values []any) map[string]any {
-      r := map[string]any{}
+	r := map[string]any{}
 
-      for i, ct := range columnTypes {
-              value := *(values[i].(*any))
-              if value == nil {
-                      continue
-              }
+	for i, ct := range columnTypes {
+		value := *(values[i].(*any))
+		if value == nil {
+			continue
+		}
 
-              // go-mssqldb returns DECIMAL, NUMERIC, MONEY and SMALLMONEY values as a
-              // []byte holding the number's string form; convert to string so JSON
-              // marshalling does not base64-encode it.
-              if b, ok := value.([]byte); ok {
-                      switch ct.DatabaseTypeName() {
-                      case "DECIMAL", "MONEY", "SMALLMONEY":
-                              value = string(b)
-                      }
-              }
+		// go-mssqldb returns DECIMAL, NUMERIC, MONEY and SMALLMONEY values as a
+		// []byte holding the number's string form; convert to string so JSON
+		// marshalling does not base64-encode it.
+		if b, ok := value.([]byte); ok {
+			switch ct.DatabaseTypeName() {
+			case "DECIMAL", "MONEY", "SMALLMONEY":
+				value = string(b)
+			}
+		}
 
-              r[ct.Name()] = value
-      }
+		r[ct.Name()] = value
+	}
 
-      return r
+	return r
 }
 
 // GetComponentMetadata returns the metadata of the component.

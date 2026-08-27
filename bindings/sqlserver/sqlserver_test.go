@@ -194,6 +194,34 @@ func TestInvoke(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("null params metadata is rejected", func(t *testing.T) {
+		metadata := map[string]string{
+			commandSQLKey:    "SELECT * FROM foo WHERE id < @p1",
+			commandParamsKey: "null",
+		}
+		req := &bindings.InvokeRequest{
+			Metadata:  metadata,
+			Operation: queryOperation,
+		}
+		resp, err := m.Invoke(t.Context(), req)
+		assert.Nil(t, resp)
+		require.ErrorContains(t, err, "expected a single JSON array")
+	})
+
+	t.Run("trailing content after params array is rejected", func(t *testing.T) {
+		metadata := map[string]string{
+			commandSQLKey:    "SELECT * FROM foo WHERE id < @p1",
+			commandParamsKey: "[1] [2]",
+		}
+		req := &bindings.InvokeRequest{
+			Metadata:  metadata,
+			Operation: queryOperation,
+		}
+		resp, err := m.Invoke(t.Context(), req)
+		assert.Nil(t, resp)
+		require.ErrorContains(t, err, "expected a single JSON array")
+	})
+
 	t.Run("missing sql metadata", func(t *testing.T) {
 		req := &bindings.InvokeRequest{
 			Metadata:  map[string]string{},

@@ -96,8 +96,10 @@ func (s *SQLServer) Init(ctx context.Context, md bindings.Metadata) error {
 		s.db.SetConnMaxLifetime(meta.ConnMaxLifetime)
 	}
 
-	err = s.db.PingContext(ctx)
+err = s.db.PingContext(ctx)
 	if err != nil {
+		_ = s.db.Close()
+		s.db = nil
 		return fmt.Errorf("unable to ping the DB: %w", err)
 	}
 

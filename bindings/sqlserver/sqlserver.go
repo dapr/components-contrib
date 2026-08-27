@@ -265,63 +265,55 @@ func (s *SQLServer) exec(ctx context.Context, sqlQuery string, params ...any) (i
 }
 
 func (s *SQLServer) jsonify(rows *sql.Rows) ([]byte, error) {
-	columnTypes, err := rows.ColumnTypes()
-	if err != nil {
-		return nil, err
-	}
+      columnTypes, err := rows.ColumnTypes()
+      if err != nil {
+              return nil, err
+      }
 
-	var ret []any
-	for rows.Next() {
-		values := prepareValues(columnTypes)
-		err := rows.Scan(values...)
-		if err != nil {
-			return nil, err
-		}
+      var ret []any
+      for rows.Next() {
+              values := make([]any, len(columnTypes))
+              for i := range values {
+                      values[i] = new(any)
+              }
+              err = rows.Scan(values...)
+              if err != nil {
+                      return nil, err
+              }
 
-		r := s.convert(columnTypes, values)
-		ret = append(ret, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+              r := s.convert(columnTypes, values)
+              ret = append(ret, r)
+      }
+      if err := rows.Err(); err != nil {
+              return nil, err
+      }
 
-	return json.Marshal(ret)
-}
-
-func prepareValues(columnTypes []*sql.ColumnType) []any {
-	types := make([]reflect.Type, len(columnTypes))
-	for i, tp := range columnTypes {
-		types[i] = tp.ScanType()
-	}
-
-	values := make([]any, len(columnTypes))
-	for i := range values {
-		values[i] = reflect.New(types[i]).Interface()
-	}
-
-	return values
+      return json.Marshal(ret)
 }
 
 func (s *SQLServer) convert(columnTypes []*sql.ColumnType, values []any) map[string]any {
-	r := map[string]any{}
+      r := map[string]any{}
 
-	for i, ct := range columnTypes {
-		value := values[i]
+      for i, ct := range columnTypes {
+              value := *(values[i].(*any))
+              if value == nil {
+                      continue
+              }
 
-		if v, ok := values[i].(driver.Valuer); ok {
-			if vv, err := v.Value(); err == nil {
-				value = vv
-			} else {
-				s.logger.Warnf("error converting value: %v", err)
-			}
-		}
+              // go-mssqldb returns DECIMAL, NUMERIC, MONEY and SMALLMONEY values as a
+              // []byte holding the number's string form; convert to string so JSON
+              // marshalling does not base64-encode it.
+              if b, ok := value.([]byte); ok {
+                      switch ct.DatabaseTypeName() {
+                      case "DECIMAL", "MONEY", "SMALLMONEY":
+                              value = string(b)
+                      }
+              }
 
-		if value != nil {
-			r[ct.Name()] = value
-		}
-	}
+              r[ct.Name()] = value
+      }
 
-	return r
+      return r
 }
 
 // GetComponentMetadata returns the metadata of the component.

@@ -7,7 +7,7 @@ status: alpha
 title: "Apache Dubbo"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-bindings/
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/dubbo/
 binding:
   output: true
   input: false

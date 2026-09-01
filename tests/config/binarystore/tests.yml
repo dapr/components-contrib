@@ -1,0 +1,4 @@
+componentType: binarystore
+components:
+  - component: azure.blobstorage
+    operations: []

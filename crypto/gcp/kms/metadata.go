@@ -80,13 +80,30 @@ func (m kmsMetadata) hasExplicitCredentials() bool {
 
 // keyID identifies a key in the key ring, optionally including its version.
 type keyID struct {
-	Name    string
-	Version string
+	Name      string
+	Version   string
+	raw       string
+	malformed bool
 }
 
 func newKeyID(val string) keyID {
-	name, version, _ := strings.Cut(val, "/")
-	return keyID{Name: name, Version: version}
+	name, version, found := strings.Cut(val, "/")
+	return keyID{
+		Name:      name,
+		Version:   version,
+		raw:       val,
+		malformed: name == "" || (found && version == "") || strings.Contains(version, "/"),
+	}
+}
+
+func (id keyID) validate(requireVersion bool) error {
+	if id.malformed {
+		return fmt.Errorf("key %q is invalid: expected 'name' or 'name/version'", id.raw)
+	}
+	if requireVersion && id.Version == "" {
+		return fmt.Errorf("key '%s' does not include a version: operations with asymmetric keys require a key in the format 'name/version'", id.Name)
+	}
+	return nil
 }
 
 // Cacheable returns true if the public key can be cached locally, which is the case for
@@ -102,8 +119,8 @@ func (m kmsMetadata) cryptoKeyPath(id keyID) string {
 
 // Returns the full resource name of a crypto key version, which asymmetric operations require.
 func (m kmsMetadata) cryptoKeyVersionPath(id keyID) (string, error) {
-	if id.Version == "" {
-		return "", fmt.Errorf("key '%s' does not include a version: operations with asymmetric keys require a key in the format 'name/version'", id.Name)
+	if err := id.validate(true); err != nil {
+		return "", err
 	}
 	return m.cryptoKeyPath(id) + "/cryptoKeyVersions/" + id.Version, nil
 }

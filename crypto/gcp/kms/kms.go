@@ -119,6 +119,9 @@ func (k *kmsCrypto) Features() []contribCrypto.Feature {
 // The key argument must be in the format "name/version".
 func (k *kmsCrypto) GetKey(parentCtx context.Context, key string) (pubKey jwk.Key, err error) {
 	kid := newKeyID(key)
+	if err = kid.validate(true); err != nil {
+		return nil, err
+	}
 
 	if kid.Cacheable() {
 		return k.keyCache.GetKey(parentCtx, key)
@@ -175,6 +178,9 @@ func (k *kmsCrypto) Encrypt(parentCtx context.Context, plaintext []byte, algorit
 		}
 
 		kid := newKeyID(key)
+		if err = kid.validate(false); err != nil {
+			return nil, nil, err
+		}
 		ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 		res, rErr := k.client.Encrypt(ctx, &kmspb.EncryptRequest{
 			Name:                        k.md.cryptoKeyPath(kid),
@@ -216,6 +222,9 @@ func (k *kmsCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, algori
 
 	switch algorithm {
 	case AlgorithmSymmetric:
+		if err = kid.validate(false); err != nil {
+			return nil, err
+		}
 		// Cloud KMS selects the key version from the ciphertext, so decryption always uses the crypto key
 		ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 		res, rErr := k.client.Decrypt(ctx, &kmspb.DecryptRequest{

@@ -164,6 +164,12 @@ func TestMetadata(t *testing.T) {
 func TestKeyID(t *testing.T) {
 	md := kmsMetadata{ProjectID: "myproject", Location: "global", KeyRing: "myring"}
 
+	require.NoError(t, newKeyID("mykey").validate(false))
+	require.NoError(t, newKeyID("mykey/1").validate(true))
+	for _, invalid := range []string{"", "/1", "mykey/", "mykey/1/extra"} {
+		require.Error(t, newKeyID(invalid).validate(false), invalid)
+	}
+
 	assert.Equal(t, testKeyPath, md.cryptoKeyPath(newKeyID("mykey")))
 	assert.False(t, newKeyID("mykey").Cacheable())
 
@@ -196,6 +202,31 @@ func TestGetKey(t *testing.T) {
 	_, err = k.GetKey(t.Context(), "mykey")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "does not include a version")
+
+	_, err = k.GetKey(t.Context(), "mykey/1/extra")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "expected 'name' or 'name/version'")
+
+	t.Run("errors from Cloud KMS are returned", func(t *testing.T) {
+		failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+		_, err := failing.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "permission denied")
+	})
+
+	t.Run("empty public keys are rejected", func(t *testing.T) {
+		empty := newTestComponent(&fakeClient{})
+		_, err := empty.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "does not contain a public key")
+	})
+
+	t.Run("malformed public keys are rejected", func(t *testing.T) {
+		malformed := newTestComponent(&fakeClient{publicKeyPEM: "not a PEM key"})
+		_, err := malformed.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "failed to parse")
+	})
 }
 
 func TestSymmetricEncryptDecrypt(t *testing.T) {
@@ -223,6 +254,18 @@ func TestSymmetricEncryptDecrypt(t *testing.T) {
 	_, _, err = k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", []byte("nonce"), nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "nonce is not supported")
+
+	_, _, err = k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey/", nil, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "expected 'name' or 'name/version'")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("invalid ciphertext")})
+	_, _, err = failing.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", nil, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid ciphertext")
+	_, err = failing.Decrypt(t.Context(), []byte("ciphertext"), AlgorithmSymmetric, "mykey", nil, nil, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid ciphertext")
 }
 
 func TestAsymmetricEncryptDecrypt(t *testing.T) {
@@ -255,6 +298,11 @@ func TestAsymmetricEncryptDecrypt(t *testing.T) {
 	_, err = k.Decrypt(t.Context(), ciphertext, internals.Algorithm_RSA_OAEP_256, "mykey", nil, nil, nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "does not include a version")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+	_, err = failing.Decrypt(t.Context(), ciphertext, internals.Algorithm_RSA_OAEP_256, "mykey/1", nil, nil, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "permission denied")
 }
 
 func TestUnsupportedAlgorithm(t *testing.T) {
@@ -340,6 +388,10 @@ func TestSign(t *testing.T) {
 		_, err := k.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "does not include a version")
+
+		_, err = k.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1/extra")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "expected 'name' or 'name/version'")
 	})
 
 	t.Run("errors from Cloud KMS are returned", func(t *testing.T) {
@@ -347,6 +399,13 @@ func TestSign(t *testing.T) {
 		_, err := failing.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "permission denied")
+	})
+
+	t.Run("empty signatures are rejected", func(t *testing.T) {
+		empty := newTestComponent(&fakeClient{})
+		_, err := empty.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "does not contain a signature")
 	})
 }
 
@@ -367,6 +426,15 @@ func TestVerify(t *testing.T) {
 	valid, err = k.Verify(t.Context(), otherDigest[:], signature, internals.Algorithm_ES256, "mykey/1")
 	require.NoError(t, err)
 	assert.False(t, valid)
+
+	_, err = k.Verify(t.Context(), digest[:], signature, "HS256", "mykey/1")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to verify signature")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+	_, err = failing.Verify(t.Context(), digest[:], signature, internals.Algorithm_ES256, "mykey/1")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to retrieve public key")
 }
 
 func TestSupportedAlgorithms(t *testing.T) {

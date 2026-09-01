@@ -10,6 +10,7 @@ componentFolders:
   - state
   - workflows
   - conversation
+  - binarystore
 
 excludeFolders:
   - bindings/alicloud

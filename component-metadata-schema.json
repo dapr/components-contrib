@@ -215,7 +215,8 @@
         "middleware",
         "crypto",
         "nameresolution",
-        "conversation"
+        "conversation",
+        "binarystore"
       ],
       "description": "Component type, of one of the allowed values."
     },

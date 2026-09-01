@@ -150,6 +150,7 @@ const (
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	ConversationType       ComponentType = "conversation"
+	BinaryStoreType        ComponentType = "binarystore"
 )
 
 // IsValid returns true if the component type is valid.
@@ -160,7 +161,7 @@ func (t ComponentType) IsValid() bool {
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
 		NameResolutionType,
-		ConversationType:
+		ConversationType, BinaryStoreType:
 		return true
 	default:
 		return false

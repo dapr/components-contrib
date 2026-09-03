@@ -366,6 +366,13 @@ metadata:
       The maximum time between heartbeats before the consumer is considered inactive and will timeout.
     example: '"20s"'
     default: '"10s"'
+  - name: maxPollInterval
+    type: duration
+    description: |
+      The maximum time the consumer group coordinator will wait for a member to rejoin the group, allowing
+      for longer message processing times before the consumer is considered dead and a rebalance is triggered.
+    example: '"5m"'
+    default: '"60s"'
   - name: version
     type: string
     description: |

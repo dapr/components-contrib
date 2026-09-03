@@ -24,7 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/aws/s3"
 	"github.com/dapr/components-contrib/binarystore/azure/blobstorage"
+	"github.com/dapr/components-contrib/binarystore/azure/datalake"
 	conf_binarystore "github.com/dapr/components-contrib/tests/conformance/binarystore"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -70,6 +72,16 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping Azure Blob Storage conformance test: AzureBlobStorageAccount and AzureBlobStorageAccessKey environment variables must be set")
 			return true
 		}
+	case "azure.datalake":
+		if os.Getenv("AzureBlobStorageAccount") == "" || os.Getenv("AzureBlobStorageAccessKey") == "" {
+			t.Skipf("Skipping Azure Data Lake Storage conformance test: AzureBlobStorageAccount and AzureBlobStorageAccessKey environment variables must be set")
+			return true
+		}
+	case "aws.s3":
+		if os.Getenv("AWSS3Bucket") == "" {
+			t.Skipf("Skipping AWS S3 conformance test: AWSS3Bucket environment variable must be set")
+			return true
+		}
 	}
 	return false
 }
@@ -78,6 +90,10 @@ func loadBinaryStoreComponent(name string) binarystore.BinaryStore {
 	switch name {
 	case "azure.blobstorage":
 		return blobstorage.NewAzureBlobStorage(testLogger)
+	case "azure.datalake":
+		return datalake.NewAzureDataLakeStorage(testLogger)
+	case "aws.s3":
+		return s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}

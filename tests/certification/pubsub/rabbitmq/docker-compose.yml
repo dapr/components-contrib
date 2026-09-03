@@ -11,6 +11,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: test
       RABBITMQ_DEFAULT_PASS: test
+    volumes:
+      # Enables rabbitmq_consistent_hash_exchange, which provides the
+      # "x-consistent-hash" exchange type exercised by the partitioning tests.
+      - ./enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     hostname: rmq
 networks:
   rabbitmq_go_net:

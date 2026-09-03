@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: gcp.bucket
+version: v1
+status: alpha
+title: "Google Cloud Storage Bucket"
+description: "Store and retrieve large binary files using Google Cloud Storage."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/gcp-bucket/
+
+builtinAuthenticationProfiles:
+  - name: "gcp"
+
+metadata:
+  - name: bucket
+    type: string
+    required: true
+    description: |
+      The name of the Google Cloud Storage bucket to use.
+    example: '"my-binary-store-bucket"'

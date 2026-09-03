@@ -6,3 +6,7 @@ components:
     operations: []
   - component: aws.s3
     operations: []
+  - component: gcp.bucket
+    operations: []
+  - component: oci.objectstorage
+    operations: []

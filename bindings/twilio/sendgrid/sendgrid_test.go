@@ -93,6 +93,86 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 	})
 }
 
+func TestParseMetadataWithTrackingSettings(t *testing.T) {
+	logger := logger.NewLogger("test")
+
+	trackingSettingsJSON := `{
+		"click_tracking": {"enable": true, "enable_text": true},
+		"open_tracking": {"enable": true, "substitution_tag": "%open_track_tag%"},
+		"subscription_tracking": {"enable": false},
+		"ganalytics": {"enable": true, "utm_source": "transactional-email", "utm_medium": "email", "utm_campaign": "order-delivery"}
+	}`
+
+	t.Run("Has correct tracking settings metadata", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"apiKey":           "123",
+			"emailFrom":        "test1@example.net",
+			"emailTo":          "test2@example.net",
+			"subject":          "hello",
+			"trackingSettings": trackingSettingsJSON,
+		}
+		r := SendGrid{logger: logger}
+		sgMeta, err := r.parseMetadata(m)
+		require.NoError(t, err)
+		require.NotNil(t, sgMeta.trackingSettingsCache)
+		assert.True(t, *sgMeta.trackingSettingsCache.ClickTracking.Enable)
+		assert.True(t, *sgMeta.trackingSettingsCache.ClickTracking.EnableText)
+		assert.True(t, *sgMeta.trackingSettingsCache.OpenTracking.Enable)
+		assert.Equal(t, "%open_track_tag%", sgMeta.trackingSettingsCache.OpenTracking.SubstitutionTag)
+		assert.False(t, *sgMeta.trackingSettingsCache.SubscriptionTracking.Enable)
+		assert.True(t, *sgMeta.trackingSettingsCache.GoogleAnalytics.Enable)
+		assert.Equal(t, "transactional-email", sgMeta.trackingSettingsCache.GoogleAnalytics.CampaignSource)
+		assert.Equal(t, "email", sgMeta.trackingSettingsCache.GoogleAnalytics.CampaignMedium)
+		assert.Equal(t, "order-delivery", sgMeta.trackingSettingsCache.GoogleAnalytics.CampaignName)
+	})
+
+	t.Run("Has incorrect tracking settings metadata", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"apiKey":           "123",
+			"emailFrom":        "test1@example.net",
+			"emailTo":          "test2@example.net",
+			"subject":          "hello",
+			"trackingSettings": `{"wrong"}`,
+		}
+		r := SendGrid{logger: logger}
+		_, err := r.parseMetadata(m)
+		require.Error(t, err)
+	})
+
+	t.Run("No tracking settings metadata leaves cache nil", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"apiKey":    "123",
+			"emailFrom": "test1@example.net",
+			"emailTo":   "test2@example.net",
+			"subject":   "hello",
+		}
+		r := SendGrid{logger: logger}
+		sgMeta, err := r.parseMetadata(m)
+		require.NoError(t, err)
+		assert.Nil(t, sgMeta.trackingSettingsCache)
+	})
+}
+
+// Test UnmarshalTrackingSettings function
+func TestUnmarshalTrackingSettings(t *testing.T) {
+	t.Run("Valid tracking settings JSON", func(t *testing.T) {
+		trackingSettings, err := UnmarshalTrackingSettings(`{"click_tracking":{"enable":true},"open_tracking":{"enable":false}}`)
+		require.NoError(t, err)
+		assert.True(t, *trackingSettings.ClickTracking.Enable)
+		assert.False(t, *trackingSettings.OpenTracking.Enable)
+		assert.Nil(t, trackingSettings.SubscriptionTracking)
+		assert.Nil(t, trackingSettings.GoogleAnalytics)
+	})
+
+	t.Run("Invalid tracking settings JSON", func(t *testing.T) {
+		_, err := UnmarshalTrackingSettings(`{"wrong"}`)
+		require.Error(t, err)
+	})
+}
+
 // Test UnmarshalDynamicTemplateData function
 func TestUnmarshalDynamicTemplateData(t *testing.T) {
 	t.Run("Test Template Data", func(t *testing.T) {

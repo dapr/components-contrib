@@ -14,21 +14,32 @@ limitations under the License.
 package kafka
 
 import (
+	"fmt"
+
 	"github.com/dapr/kit/logger"
 )
 
+// SaramaLogBridge implements sarama.StdLogger over the Dapr logger. Sarama
+// hands over pre-rendered strings, so records carry no structured attributes;
+// everything is emitted at debug level as before.
 type SaramaLogBridge struct {
-	daprLogger logger.Logger
+	log *logger.Log
+}
+
+func newSaramaLogBridge(l logger.Logger) SaramaLogBridge {
+	return SaramaLogBridge{log: logger.FromLogger(l)}
 }
 
 func (b SaramaLogBridge) Print(v ...interface{}) {
-	b.daprLogger.Debug(v...)
+	b.log.Debug(fmt.Sprint(v...))
 }
 
 func (b SaramaLogBridge) Printf(format string, v ...interface{}) {
-	b.daprLogger.Debugf(format, v...)
+	b.log.Debug(fmt.Sprintf(format, v...))
 }
 
 func (b SaramaLogBridge) Println(v ...interface{}) {
-	b.daprLogger.Debug(v...)
+	// The previous bridge rendered Println identically to Print, and output
+	// compatibility wins over stdlib Println semantics here.
+	b.log.Debug(fmt.Sprint(v...))
 }

@@ -506,4 +506,4 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
 // Uncomment for local development for testing with changes in the components-contrib && kit repositories.
 // Don't commit with this uncommented!
 //
-// replace github.com/dapr/kit => ../kit
+replace github.com/dapr/kit => github.com/joshvanl/kit v0.0.0-20260813182616-fd5d465c8baa

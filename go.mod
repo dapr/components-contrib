@@ -116,7 +116,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/sftp v1.13.7
 	github.com/puzpuzpuz/xsync/v3 v3.5.1
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/riferrei/srclient v0.7.3

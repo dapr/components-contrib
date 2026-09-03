@@ -299,6 +299,16 @@ const components = {
         conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
         sourcePkg: ['configuration/kubernetes'],
     },
+    'conversation.echo': {
+        conformance: true,
+    },
+    'conversation.ollama': {
+        conformance: true,
+        certification: true,
+        requireDocker: true,
+        conformanceSetup: 'conformance-conversation.ollama-setup.sh',
+        conformanceLogs: 'docker-compose-logs.sh ollama',
+    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [
@@ -982,7 +992,11 @@ function GenerateMatrix(testKind, enableCloudTests) {
         }
 
         // For conformance tests, avoid running Docker and Cloud Tests together.
-        if (enableCloudTests && comp.conformance && comp.requireDocker) {
+        if (
+            testKind === 'conformance' &&
+            enableCloudTests &&
+            comp.requireDocker
+        ) {
             continue
         }
 

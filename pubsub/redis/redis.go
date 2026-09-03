@@ -39,6 +39,14 @@ const (
 	concurrency       = "concurrency"
 	maxLenApprox      = "maxLenApprox"
 	streamTTL         = "streamTTL"
+
+	// defaultBlockDuration bounds how long a single XREADGROUP call blocks
+	// when readTimeout is left unset. Without this, BLOCK 0 tells Redis to
+	// block the connection indefinitely; if the subscription's context is
+	// canceled while that read is in flight, go-redis has no deadline to
+	// interrupt it, so the connection leaks until a new message happens to
+	// arrive on the stream.
+	defaultBlockDuration = 3 * time.Second
 )
 
 // redisStreams handles consuming from a Redis stream using
@@ -280,9 +288,15 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 			return
 		}
 
-		// Read messages
+		// Read messages. Block for at most defaultBlockDuration when
+		// readTimeout is unset so a canceled subscription context is
+		// noticed promptly instead of blocking the connection forever.
+		block := time.Duration(r.clientSettings.ReadTimeout)
+		if block == 0 {
+			block = defaultBlockDuration
+		}
 		//nolint:gosec
-		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), time.Duration(r.clientSettings.ReadTimeout))
+		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), block)
 		if err != nil {
 			if !r.client.IsNilValueError(err) && err != context.Canceled {
 				if strings.Contains(err.Error(), "NOGROUP") {

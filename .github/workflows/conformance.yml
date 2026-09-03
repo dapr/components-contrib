@@ -34,7 +34,7 @@ jobs:
   # subset of the conformance tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: Set default checkout ref
       run: |
@@ -100,7 +100,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
       GOCOV_VER: "v1.1.0"
@@ -377,7 +377,7 @@ jobs:
 
   post_job:
     name: Post-completion
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: always()
     needs:
       - conformance

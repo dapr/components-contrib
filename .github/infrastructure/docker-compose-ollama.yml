@@ -1,0 +1,11 @@
+services:
+  ollama:
+    image: ollama/ollama:0.33.2
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s

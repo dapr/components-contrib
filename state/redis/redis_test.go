@@ -14,6 +14,8 @@ limitations under the License.
 package redis
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -584,4 +586,61 @@ func Test_KeyList(t *testing.T) {
 	s := NewRedisStateStore(logger.NewLogger("test"))
 	_, ok := s.(state.KeysLiker)
 	require.True(t, ok)
+}
+
+type fakeQueryIndexClient struct {
+	rediscomponent.RedisClient
+	createErr error
+	calls     []string
+}
+
+func (c *fakeQueryIndexClient) DoWrite(ctx context.Context, args ...interface{}) error {
+	cmd, _ := args[0].(string)
+	c.calls = append(c.calls, cmd)
+	if cmd == "FT.CREATE" {
+		err := c.createErr
+		// The index is dropped before the retry, so the retry succeeds.
+		c.createErr = nil
+		return err
+	}
+	return nil
+}
+
+func TestRegisterSchemas(t *testing.T) {
+	newStore := func(t *testing.T, client rediscomponent.RedisClient) *StateStore {
+		store := newStateStore(logger.NewLogger("test"))
+		schemas, err := parseQuerySchemas(`[{"name":"userIdx","indexes":[{"key":"user.email","type":"TEXT"}]}]`)
+		require.NoError(t, err)
+		store.querySchemas = schemas
+		store.client = client
+		return store
+	}
+
+	t.Run("index does not exist", func(t *testing.T) {
+		client := &fakeQueryIndexClient{}
+		store := newStore(t, client)
+		require.NoError(t, store.registerSchemas(t.Context()))
+		assert.Equal(t, []string{"FT.CREATE"}, client.calls)
+	})
+
+	t.Run("index exists on Redis < 8.8", func(t *testing.T) {
+		client := &fakeQueryIndexClient{createErr: errors.New("Index already exists")}
+		store := newStore(t, client)
+		require.NoError(t, store.registerSchemas(t.Context()))
+		assert.Equal(t, []string{"FT.CREATE", "FT.DROPINDEX", "FT.CREATE"}, client.calls)
+	})
+
+	t.Run("index exists on Redis >= 8.8", func(t *testing.T) {
+		client := &fakeQueryIndexClient{createErr: errors.New("SEARCH_INDEX_EXISTS Index already exists")}
+		store := newStore(t, client)
+		require.NoError(t, store.registerSchemas(t.Context()))
+		assert.Equal(t, []string{"FT.CREATE", "FT.DROPINDEX", "FT.CREATE"}, client.calls)
+	})
+
+	t.Run("unrelated error is returned", func(t *testing.T) {
+		client := &fakeQueryIndexClient{createErr: errors.New("LOADING Redis is loading the dataset in memory")}
+		store := newStore(t, client)
+		require.Error(t, store.registerSchemas(t.Context()))
+		assert.Equal(t, []string{"FT.CREATE"}, client.calls)
+	})
 }

@@ -117,6 +117,7 @@ type KafkaMetadata struct {
 	ConsumeRetryInterval    time.Duration       `mapstructure:"consumeRetryInterval"`
 	HeartbeatInterval       time.Duration       `mapstructure:"heartbeatInterval"`
 	SessionTimeout          time.Duration       `mapstructure:"sessionTimeout"`
+	MaxPollInterval         time.Duration       `mapstructure:"maxPollInterval"`
 	Version                 string              `mapstructure:"version"`
 	EscapeHeaders           bool                `mapstructure:"escapeHeaders"`
 	internalVersion         sarama.KafkaVersion `mapstructure:"-"`
@@ -213,6 +214,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		ClientConnectionKeepAliveInterval:            defaultClientConnectionKeepAliveInterval,
 		HeartbeatInterval:                            3 * time.Second,
 		SessionTimeout:                               10 * time.Second,
+		MaxPollInterval:                              60 * time.Second,
 		SchemaCachingEnabled:                         true,
 		SchemaLatestVersionCacheTTL:                  5 * time.Minute,
 		EscapeHeaders:                                false,

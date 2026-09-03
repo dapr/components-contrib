@@ -16,6 +16,7 @@ package amqp
 import (
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -34,6 +35,14 @@ type metadata struct {
 	Username  string
 	Password  string
 	Anonymous bool
+
+	// TopicAddressPrefix and QueueAddressPrefix are prepended to the AMQP
+	// address of every link opened by this component, for topics and queues
+	// respectively. They default to the Solace addressing convention and can be
+	// set to an empty value for brokers that address topics and queues by name,
+	// or to the prefixes the broker is configured with.
+	TopicAddressPrefix string
+	QueueAddressPrefix string
 }
 
 type tlsCfg struct {
@@ -52,7 +61,49 @@ const (
 	amqpClientCert = "clientCert"
 	amqpClientKey  = "clientKey"
 	defaultWait    = 30 * time.Second
+
+	// Address prefixes of the Solace addressing convention, kept as the
+	// defaults so that existing Solace configurations are unaffected.
+	defaultTopicAddressPrefix = "topic://"
+	defaultQueueAddressPrefix = "queue://"
+
+	// Optional scheme of a topic name, selecting which prefix is applied.
+	topicScheme = "topic:"
+	queueScheme = "queue:"
 )
+
+// addressFor returns the AMQP address a link is opened on for the given Dapr
+// topic name.
+//
+// A topic name may carry an optional "topic:" or "queue:" scheme, selecting
+// which of the two configured prefixes is applied; a bare topic name is
+// addressed as a topic. A topic name that already carries one of the configured
+// prefixes is used as the address as-is.
+func (m *metadata) addressFor(topic string) string {
+	if hasPrefix(topic, m.TopicAddressPrefix) || hasPrefix(topic, m.QueueAddressPrefix) {
+		return topic
+	}
+
+	switch {
+	case strings.HasPrefix(topic, queueScheme):
+		return m.QueueAddressPrefix + trimScheme(topic, queueScheme)
+	case strings.HasPrefix(topic, topicScheme):
+		return m.TopicAddressPrefix + trimScheme(topic, topicScheme)
+	default:
+		return m.TopicAddressPrefix + topic
+	}
+}
+
+// trimScheme removes a scheme, and the "//" that follows it in a fully
+// qualified address, from the front of a topic name.
+func trimScheme(topic string, scheme string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(topic, scheme), "//")
+}
+
+// hasPrefix reports whether s begins with a non-empty prefix.
+func hasPrefix(s, prefix string) bool {
+	return prefix != "" && strings.HasPrefix(s, prefix)
+}
 
 // isValidPEM validates the provided input has PEM formatted block.
 func isValidPEM(val string) bool {
@@ -62,7 +113,11 @@ func isValidPEM(val string) bool {
 }
 
 func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
-	m := metadata{Anonymous: false}
+	m := metadata{
+		Anonymous:          false,
+		TopicAddressPrefix: defaultTopicAddressPrefix,
+		QueueAddressPrefix: defaultQueueAddressPrefix,
+	}
 
 	err := kitmd.DecodeMetadata(md.Properties, &m)
 	if err != nil {

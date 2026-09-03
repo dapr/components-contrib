@@ -50,7 +50,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -135,7 +135,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -157,7 +157,7 @@ jobs:
         export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
         echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
 
-    - uses: Azure/login@v1
+    - uses: Azure/login@v3
       if: matrix.required-secrets != ''
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -213,7 +213,7 @@ jobs:
 
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
-      uses: hashicorp/setup-terraform@v2.0.3
+      uses: hashicorp/setup-terraform@v4.0.1
 
     - name: Set Cloudflare env vars
       if: matrix.require-cloudflare-credentials == 'true'
@@ -229,7 +229,7 @@ jobs:
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
-      uses: aws-actions/configure-aws-credentials@v5
+      uses: aws-actions/configure-aws-credentials@v6.2.2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
@@ -243,7 +243,7 @@ jobs:
         mongodb-replica-set: test-rs
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version-file: 'go.mod'
         cache: 'false'
@@ -394,7 +394,7 @@ jobs:
 
       - name: Download test result artifact
         if: always() && env.PR_NUMBER != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: testresults
         with:

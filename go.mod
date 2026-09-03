@@ -33,7 +33,7 @@ require (
 	github.com/alibabacloud-go/tea-utils v1.4.5
 	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/aliyun/aliyun-log-go-sdk v0.1.54
-	github.com/aliyun/aliyun-oss-go-sdk v2.2.9+incompatible
+	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.10
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.18.0

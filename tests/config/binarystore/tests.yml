@@ -2,3 +2,7 @@ componentType: binarystore
 components:
   - component: azure.blobstorage
     operations: []
+  - component: azure.datalake
+    operations: []
+  - component: aws.s3
+    operations: []

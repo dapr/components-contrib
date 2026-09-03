@@ -27,6 +27,8 @@ import (
 	"github.com/dapr/components-contrib/binarystore/aws/s3"
 	"github.com/dapr/components-contrib/binarystore/azure/blobstorage"
 	"github.com/dapr/components-contrib/binarystore/azure/datalake"
+	gcp_bucket "github.com/dapr/components-contrib/binarystore/gcp/bucket"
+	oci_objectstorage "github.com/dapr/components-contrib/binarystore/oci/objectstorage"
 	conf_binarystore "github.com/dapr/components-contrib/tests/conformance/binarystore"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -82,6 +84,18 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping AWS S3 conformance test: AWSS3Bucket environment variable must be set")
 			return true
 		}
+	case "gcp.bucket":
+		if os.Getenv("GCPBucket") == "" {
+			t.Skipf("Skipping Google Cloud Storage conformance test: GCPBucket environment variable must be set")
+			return true
+		}
+	case "oci.objectstorage":
+		if os.Getenv("DAPR_TEST_OCI_CONFIG_FILE_PATH") == "" ||
+			os.Getenv("DAPR_TEST_OCI_COMPARTMENT_OCID") == "" ||
+			os.Getenv("DAPR_TEST_OCI_BUCKET_NAME") == "" {
+			t.Skipf("Skipping OCI Object Storage conformance test: DAPR_TEST_OCI_CONFIG_FILE_PATH, DAPR_TEST_OCI_COMPARTMENT_OCID, and DAPR_TEST_OCI_BUCKET_NAME environment variables must be set")
+			return true
+		}
 	}
 	return false
 }
@@ -94,6 +108,10 @@ func loadBinaryStoreComponent(name string) binarystore.BinaryStore {
 		return datalake.NewAzureDataLakeStorage(testLogger)
 	case "aws.s3":
 		return s3.NewAWSS3(testLogger)
+	case "gcp.bucket":
+		return gcp_bucket.NewGCPBucket(testLogger)
+	case "oci.objectstorage":
+		return oci_objectstorage.NewOCIObjectStorage(testLogger)
 	default:
 		return nil
 	}

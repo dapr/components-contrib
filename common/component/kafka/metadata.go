@@ -80,6 +80,15 @@ const (
 	producerRequiredAcksLocal = "local"
 	producerRequiredAcksNone  = "none"
 
+	// consumerIsolationLevel string constants for metadata parsing.
+	isolationLevelReadUncommitted = "read_uncommitted"
+	isolationLevelReadCommitted   = "read_committed"
+
+	// txnTokenMetadataKey correlates an in-flight delivery with its open
+	// transaction: injected into the delivered event's metadata, and echoed
+	// back by the app on publishes that must join the transaction.
+	txnTokenMetadataKey = "__txnToken" //nolint:gosec // G101: metadata key name, not a credential
+
 	// Producer defaults matching current GetSyncProducer hard-coded values.
 	defaultProducerRequiredAcks = producerRequiredAcksAll
 	defaultProducerRetryMax     = 5
@@ -153,6 +162,41 @@ type KafkaMetadata struct {
 	internalProducerRequiredAcks sarama.RequiredAcks `mapstructure:"-"`
 	// ProducerRetryMax is the number of times to retry sending a message (default 5).
 	ProducerRetryMax int `mapstructure:"producerRetryMax"`
+
+	// Transaction tunables.
+	// ProducerTransactionsEnabled wraps every publish in a Kafka transaction
+	// on an idempotent producer: an aborted publish is never visible to
+	// read_committed consumers and bulk publishes become atomic. Requires
+	// producerRequiredAcks "all", producerRetryMax >= 1 and Kafka >= 0.11.
+	ProducerTransactionsEnabled bool `mapstructure:"producerTransactionsEnabled"`
+	// TransactionalIDPrefix is the prefix used to build transactional.ids.
+	// The shared publish producer appends a random per-instance suffix so
+	// scaled replicas never fence each other (fallback chain: prefix, client
+	// ID, consumer group, "dapr"). Claim producers (consumer transactions)
+	// use it as the stable leading segment of
+	// <prefix>-<group>-<topic>-<partition> (fallback: prefix, client ID,
+	// "dapr") — it must resolve identically on every replica for zombie
+	// fencing to work.
+	TransactionalIDPrefix string `mapstructure:"transactionalIdPrefix"`
+	// ConsumerIsolationLevel controls which records consumers see:
+	// "read_uncommitted" (default) delivers everything, "read_committed"
+	// hides records belonging to open or aborted transactions.
+	ConsumerIsolationLevel         string                `mapstructure:"consumerIsolationLevel"`
+	internalConsumerIsolationLevel sarama.IsolationLevel `mapstructure:"-"`
+	// ConsumerTransactionsEnabled processes every delivery inside a Kafka
+	// transaction: publishes made during the handler that carry the
+	// delivery's transaction token join it, and the consumer offset commits
+	// with it atomically (consume-transform-produce). Same preconditions as
+	// ProducerTransactionsEnabled, plus a consumer group. Implies
+	// consumerIsolationLevel "read_committed".
+	ConsumerTransactionsEnabled bool `mapstructure:"consumerTransactionsEnabled"`
+	// TransactionTimeout is the transaction timeout requested from the
+	// broker (sarama default 60s when unset). With consumer transactions the
+	// transaction stays open for the whole handler invocation, so it must
+	// exceed the slowest expected handler. It must not exceed the broker's
+	// transaction.max.timeout.ms: larger values are rejected at producer
+	// initialization.
+	TransactionTimeout time.Duration `mapstructure:"transactionTimeout"`
 
 	// schema registry
 	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
@@ -462,6 +506,48 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 
 	if m.ProducerRetryMax < 0 {
 		return nil, fmt.Errorf("kafka error: invalid value for 'producerRetryMax': %d (must be >= 0)", m.ProducerRetryMax)
+	}
+
+	switch strings.ToLower(m.ConsumerIsolationLevel) {
+	case isolationLevelReadUncommitted, "":
+		m.internalConsumerIsolationLevel = sarama.ReadUncommitted
+	case isolationLevelReadCommitted:
+		if !m.internalVersion.IsAtLeast(sarama.V0_11_0_0) { //nolint:nosnakecase
+			return nil, errors.New("kafka error: 'consumerIsolationLevel' \"read_committed\" requires kafka version >= 0.11")
+		}
+		m.internalConsumerIsolationLevel = sarama.ReadCommitted
+	default:
+		return nil, fmt.Errorf("kafka error: invalid value for 'consumerIsolationLevel': %q (must be \"read_uncommitted\" or \"read_committed\")", m.ConsumerIsolationLevel)
+	}
+
+	if m.ProducerTransactionsEnabled || m.ConsumerTransactionsEnabled {
+		if m.internalProducerRequiredAcks != sarama.WaitForAll {
+			return nil, errors.New("kafka error: transactions require 'producerRequiredAcks' to be \"all\"")
+		}
+		if m.ProducerRetryMax < 1 {
+			return nil, errors.New("kafka error: transactions require 'producerRetryMax' to be >= 1")
+		}
+		if !m.internalVersion.IsAtLeast(sarama.V0_11_0_0) { //nolint:nosnakecase
+			return nil, errors.New("kafka error: transactions require kafka version >= 0.11")
+		}
+	}
+
+	if m.ConsumerTransactionsEnabled {
+		if m.ConsumerGroup == "" {
+			return nil, errors.New("kafka error: 'consumerTransactionsEnabled' requires a consumer group ('consumerGroup' or 'consumerID')")
+		}
+		// Consume-transform-produce only gives end-to-end guarantees when the
+		// input side does not observe records from aborted upstream
+		// transactions, so consumer transactions imply read_committed (as
+		// Kafka Streams does under exactly-once processing).
+		if strings.EqualFold(m.ConsumerIsolationLevel, isolationLevelReadUncommitted) {
+			return nil, errors.New("kafka error: 'consumerTransactionsEnabled' requires 'consumerIsolationLevel' \"read_committed\" (leave it unset to default to \"read_committed\")")
+		}
+		m.internalConsumerIsolationLevel = sarama.ReadCommitted
+	}
+
+	if m.TransactionTimeout < 0 {
+		return nil, fmt.Errorf("kafka error: invalid value for 'transactionTimeout': %v (must be >= 0)", m.TransactionTimeout)
 	}
 
 	if val, ok := meta["excludeHeaderMetaRegex"]; ok && val != "" {

@@ -69,7 +69,7 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 		return binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(req.FileName)
+	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 
 	createOpts := &file.CreateOptions{}
 	if !req.Overwrite {
@@ -107,7 +107,7 @@ func (a *AzureDataLakeStorage) Get(ctx context.Context, req *binarystore.GetRequ
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(req.FileName)
+	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	resp, err := fileClient.DownloadStream(ctx, nil)
 	if err != nil {
 		if datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
@@ -128,7 +128,7 @@ func (a *AzureDataLakeStorage) Delete(ctx context.Context, req *binarystore.Dele
 		return binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(req.FileName)
+	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	_, err := fileClient.Delete(ctx, nil)
 	if err != nil {
 		if datalakeerror.HasCode(err, datalakeerror.PathNotFound) {

@@ -119,7 +119,7 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 
 	input := &transfermanager.UploadObjectInput{
 		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(req.FileName),
+		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
 		Body:   req.Data,
 	}
 	if !req.Overwrite {
@@ -148,7 +148,7 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 
 	resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(req.FileName),
+		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -174,7 +174,7 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 	// idempotent and does not error when the key is missing).
 	_, err := s.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(req.FileName),
+		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -185,7 +185,7 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 
 	_, err = s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(req.FileName),
+		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
 	})
 	if err != nil {
 		return fmt.Errorf("error deleting object %q: %w", req.FileName, err)

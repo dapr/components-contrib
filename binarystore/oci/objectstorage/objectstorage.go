@@ -60,6 +60,7 @@ type ObjectStorage struct {
 type objectStoreMetadata struct {
 	UserOCID                        string `json:"userOCID" mapstructure:"userOCID"`
 	BucketName                      string `json:"bucketName" mapstructure:"bucketName"`
+	Prefix                          string `json:"prefix" mapstructure:"prefix"`
 	Region                          string `json:"region" mapstructure:"region"`
 	TenancyOCID                     string `json:"tenancyOCID" mapstructure:"tenancyOCID"`
 	FingerPrint                     string `json:"fingerPrint" mapstructure:"fingerPrint"`
@@ -190,7 +191,7 @@ func (o *ObjectStorage) Set(ctx context.Context, req *binarystore.SetRequest) er
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := o.client.putObject(ctx, req.FileName, req.Data, req.Overwrite); err != nil {
+	if err := o.client.putObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
 		if isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
@@ -205,7 +206,7 @@ func (o *ObjectStorage) Get(ctx context.Context, req *binarystore.GetRequest) (*
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := o.client.getObject(ctx, req.FileName)
+	body, err := o.client.getObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -222,7 +223,7 @@ func (o *ObjectStorage) Delete(ctx context.Context, req *binarystore.DeleteReque
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := o.client.deleteObject(ctx, req.FileName); err != nil {
+	if err := o.client.deleteObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName)); err != nil {
 		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}

@@ -33,6 +33,7 @@ type Fake struct {
 	logger logger.Logger
 	mu     sync.RWMutex
 	files  map[string][]byte
+	prefix string
 }
 
 // NewFake returns a new in-memory fake BinaryStore.
@@ -43,7 +44,8 @@ func NewFake(log logger.Logger) binarystore.BinaryStore {
 	}
 }
 
-func (f *Fake) Init(_ context.Context, _ binarystore.Metadata) error {
+func (f *Fake) Init(_ context.Context, md binarystore.Metadata) error {
+	f.prefix = md.Properties["prefix"]
 	return nil
 }
 
@@ -64,12 +66,13 @@ func (f *Fake) Set(_ context.Context, req *binarystore.SetRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	fileName := binarystore.ObjectPath(f.prefix, req.FileName)
 	if !req.Overwrite {
-		if _, ok := f.files[req.FileName]; ok {
+		if _, ok := f.files[fileName]; ok {
 			return binarystore.ErrFileAlreadyExists
 		}
 	}
-	f.files[req.FileName] = data
+	f.files[fileName] = data
 	return nil
 }
 
@@ -81,7 +84,7 @@ func (f *Fake) Get(_ context.Context, req *binarystore.GetRequest) (*binarystore
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	data, ok := f.files[req.FileName]
+	data, ok := f.files[binarystore.ObjectPath(f.prefix, req.FileName)]
 	if !ok {
 		return nil, binarystore.ErrFileNotFound
 	}
@@ -96,10 +99,11 @@ func (f *Fake) Delete(_ context.Context, req *binarystore.DeleteRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if _, ok := f.files[req.FileName]; !ok {
+	fileName := binarystore.ObjectPath(f.prefix, req.FileName)
+	if _, ok := f.files[fileName]; !ok {
 		return binarystore.ErrFileNotFound
 	}
-	delete(f.files, req.FileName)
+	delete(f.files, fileName)
 	return nil
 }
 

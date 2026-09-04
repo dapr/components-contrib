@@ -43,6 +43,7 @@ type FileSystemClientOpts struct {
 	// Use a connection string
 	ConnectionString string
 	FileSystemName   string
+	Prefix           string `json:"prefix" mapstructure:"prefix"`
 
 	// Use a shared account key
 	AccountName string

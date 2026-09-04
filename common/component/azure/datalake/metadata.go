@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,30 +11,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blobstorage
+// Package datalake provides shared helpers for building Azure Data Lake
+// Storage Gen2 (ADLS Gen2) filesystem clients from Dapr component metadata.
+// It mirrors the structure of common/component/azure/blobstorage.
+package datalake
 
 import (
 	"fmt"
-	"strconv"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	kitmd "github.com/dapr/kit/metadata"
 )
 
-type BlobStorageMetadata struct {
-	ContainerClientOpts     `json:",inline" mapstructure:",squash"`
-	DecodeBase64            bool `json:"decodeBase64,string" mapstructure:"decodeBase64" mdonly:"bindings"`
-	PublicAccessLevel       azblob.PublicAccessType
+const (
+	// Specifies the maximum number of HTTP requests that will be made to retry filesystem operations. A value
+	// of zero means that no additional HTTP requests will be made.
+	defaultDataLakeRetryCount = 3
+)
+
+// DataLakeMetadata contains the parsed metadata used to construct an ADLS
+// Gen2 filesystem client.
+type DataLakeMetadata struct {
+	FileSystemClientOpts    `json:",inline" mapstructure:",squash"`
 	DisableEntityManagement bool `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
 }
 
-type ContainerClientOpts struct {
+// FileSystemClientOpts contains the connection options for an ADLS Gen2
+// filesystem client.
+type FileSystemClientOpts struct {
 	// Use a connection string
 	ConnectionString string
-	ContainerName    string
+	FileSystemName   string
 	Prefix           string `json:"prefix" mapstructure:"prefix"`
 
 	// Use a shared account key
@@ -48,9 +56,9 @@ type ContainerClientOpts struct {
 	customEndpoint string `json:"-" mapstructure:"-"`
 }
 
-func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
-	m := BlobStorageMetadata{}
-	m.RetryCount = defaultBlobRetryCount
+func parseMetadata(meta map[string]string) (*DataLakeMetadata, error) {
+	m := DataLakeMetadata{}
+	m.RetryCount = defaultDataLakeRetryCount
 	decodeErr := kitmd.DecodeMetadata(meta, &m)
 	if decodeErr != nil {
 		return nil, fmt.Errorf("failed to decode metadata: %w", decodeErr)
@@ -64,45 +72,15 @@ func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
 		}
 	}
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageContainerName"]...); ok && val != "" {
-		m.ContainerName = val
+	if val, ok := mdutils.GetMetadataProperty(meta, "fileSystemName", "fileSystem", "filesystemName"); ok && val != "" {
+		m.FileSystemName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageContainerName"][0])
+		return nil, fmt.Errorf("missing or empty fileSystemName field from metadata")
 	}
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountKey"]...); ok && val != "" {
 		m.AccountKey = val
 	}
 
-	// per the Dapr documentation "none" is a valid value
-	if m.PublicAccessLevel == "none" {
-		m.PublicAccessLevel = ""
-	}
-	if m.PublicAccessLevel != "" && !isValidPublicAccessType(m.PublicAccessLevel) {
-		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s",
-			m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
-	}
-
-	// we need this key for backwards compatibility
-	if val, ok := meta["getBlobRetryCount"]; ok && val != "" {
-		// convert val from string to int32
-		parseInt, err := strconv.ParseInt(val, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		m.RetryCount = int32(parseInt)
-	}
-
 	return &m, nil
-}
-
-func isValidPublicAccessType(accessType azblob.PublicAccessType) bool {
-	validTypes := azblob.PossiblePublicAccessTypeValues()
-	for _, item := range validTypes {
-		if item == accessType {
-			return true
-		}
-	}
-
-	return false
 }

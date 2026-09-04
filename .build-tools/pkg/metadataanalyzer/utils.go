@@ -130,6 +130,11 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
+		case "binarystore":
+			method, methodFinderErr = getConstructorMethod("binarystore.BinaryStore", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
 		}
 		// TODO: add conversation, nameresolution
 

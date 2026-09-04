@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: aws.s3
+version: v1
+status: alpha
+title: "AWS S3"
+description: "Store and retrieve large binary files using Amazon S3 or any S3-compatible object storage service."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/s3/
+
+builtinAuthenticationProfiles:
+  - name: "aws"
+
+metadata:
+  - name: bucket
+    required: true
+    description: |
+      The name of the S3 bucket to use.
+    example: '"my-binary-store-bucket"'
+
+  - name: endpoint
+    required: false
+    description: |
+      Custom endpoint for the component to use, to connect to S3-compatible
+      services or emulators (e.g. MinIO, Ceph, Cloudflare R2). Do not use this
+      when running against production AWS.
+    example: '"http://localhost:9000"'
+
+  - name: forcePathStyle
+    type: bool
+    default: 'false'
+    description: |
+      Currently Amazon S3 SDK supports virtual-hosted-style and path-style
+      access. When false (the default), uses virtual-hosted-style format, i.e.:
+      `https://<your bucket>.<endpoint>/<key>`. When true, uses path-style
+      format, i.e.: `https://<endpoint>/<your bucket>/<key>`. Most
+      S3-compatible providers require this to be set to true.
+    example: '"true", "false"'
+
+  - name: disableSSL
+    type: bool
+    default: 'false'
+    description: |
+      Allows connecting to non-`https://` endpoints.
+    example: '"true", "false"'
+
+  - name: insecureSSL
+    type: bool
+    default: 'false'
+    description: |
+      When connecting to `https://` endpoints, accepts self-signed or invalid
+      certificates.
+    example: '"true", "false"'

@@ -55,6 +55,7 @@ type gcpMetadata struct {
 	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"clientX509CertURL" mdignore:"true" mapstructurealiases:"client_x509_cert_url"`
 
 	Bucket string `json:"bucket" mapstructure:"bucket"`
+	Prefix string `json:"prefix" mapstructure:"prefix"`
 }
 
 type gcsClient interface {
@@ -128,7 +129,7 @@ func (g *GCPBucket) Set(ctx context.Context, req *binarystore.SetRequest) error 
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := g.client.putObject(ctx, g.metadata.Bucket, req.FileName, req.Data, req.Overwrite); err != nil {
+	if err := g.client.putObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
 		if isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
@@ -143,7 +144,7 @@ func (g *GCPBucket) Get(ctx context.Context, req *binarystore.GetRequest) (*bina
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := g.client.getObject(ctx, g.metadata.Bucket, req.FileName)
+	body, err := g.client.getObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -160,7 +161,7 @@ func (g *GCPBucket) Delete(ctx context.Context, req *binarystore.DeleteRequest) 
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := g.client.deleteObject(ctx, g.metadata.Bucket, req.FileName); err != nil {
+	if err := g.client.deleteObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName)); err != nil {
 		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}

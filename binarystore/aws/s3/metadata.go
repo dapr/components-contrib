@@ -31,6 +31,7 @@ type s3Metadata struct {
 	Region         string `json:"region" mapstructure:"region" mapstructurealiases:"awsRegion" mdignore:"true"`
 	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
 	Bucket         string `json:"bucket" mapstructure:"bucket"`
+	Prefix         string `json:"prefix" mapstructure:"prefix"`
 	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
 	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
 	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`

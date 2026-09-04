@@ -13,9 +13,21 @@ limitations under the License.
 
 package binarystore
 
-import "github.com/dapr/components-contrib/metadata"
+import (
+	"strings"
+
+	"github.com/dapr/components-contrib/metadata"
+)
 
 // Metadata contains a binary store specific set of metadata properties.
 type Metadata struct {
 	metadata.Base `json:",inline"`
+}
+
+// ObjectPath applies an optional object prefix to a file name.
+func ObjectPath(prefix, fileName string) string {
+	if prefix == "" {
+		return fileName
+	}
+	return strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(fileName, "/")
 }

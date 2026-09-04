@@ -80,7 +80,7 @@ func (a *AzureBlobStorage) Set(ctx context.Context, req *binarystore.SetRequest)
 		}
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(req.FileName)
+	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	_, err := blockBlobClient.UploadStream(ctx, req.Data, opts)
 	if err != nil {
 		if bloberror.HasCode(err, bloberror.BlobAlreadyExists) ||
@@ -102,7 +102,7 @@ func (a *AzureBlobStorage) Get(ctx context.Context, req *binarystore.GetRequest)
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(req.FileName)
+	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	resp, err := blockBlobClient.DownloadStream(ctx, nil)
 	if err != nil {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {
@@ -123,7 +123,7 @@ func (a *AzureBlobStorage) Delete(ctx context.Context, req *binarystore.DeleteRe
 		return binarystore.ErrMissingFileName
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(req.FileName)
+	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	_, err := blockBlobClient.Delete(ctx, nil)
 	if err != nil {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {

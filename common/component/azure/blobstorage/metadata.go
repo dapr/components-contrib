@@ -35,6 +35,7 @@ type ContainerClientOpts struct {
 	// Use a connection string
 	ConnectionString string
 	ContainerName    string
+	Prefix           string `json:"prefix" mapstructure:"prefix"`
 
 	// Use a shared account key
 	AccountName string

@@ -552,7 +552,19 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				false,              // noWait
 				nil,
 			)
+			// The broker can accept the registration even when Consume reports an
+			// error, because the channel is shared and the exception may belong to
+			// another command on it. Cancel on every exit path from here on, so a
+			// registration that did land is not left behind holding its prefetch
+			// allowance. noWait=true avoids blocking if the channel is closing.
+			cancelConsumer := func() {
+				if cancelErr := channel.Cancel(consumerTag, true); cancelErr != nil {
+					r.logger.Debugf("%s failed to cancel consumer %s: %v", logMessagePrefix, consumerTag, cancelErr)
+				}
+			}
+
 			if err != nil {
+				cancelConsumer()
 				errFuncName = "channel.Consume"
 				break
 			}
@@ -566,12 +578,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			}
 
 			err = r.listenMessages(ctx, channel, msgs, req.Topic, handler)
-			// Always cancel the consumer server-side so RabbitMQ can
-			// release the registration. noWait=true avoids blocking if
-			// the channel is already closing.
-			if cancelErr := channel.Cancel(consumerTag, true); cancelErr != nil {
-				r.logger.Debugf("%s failed to cancel consumer %s: %v", logMessagePrefix, consumerTag, cancelErr)
-			}
+			cancelConsumer()
 			if err != nil {
 				errFuncName = "listenMessages"
 				break

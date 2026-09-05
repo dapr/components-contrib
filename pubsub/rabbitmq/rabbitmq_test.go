@@ -17,6 +17,8 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -565,6 +567,15 @@ type rabbitMQInMemoryBroker struct {
 	connectCount    atomic.Int32
 	closeCount      atomic.Int32
 	lastMsgMetadata *amqp.Publishing // Add this field to capture the last message metadata
+
+	// consumeErr, when set, is returned by Consume even though the consumer is
+	// registered, which is what a shared channel does when another command on
+	// it raises a channel-level exception.
+	consumeErr error
+
+	tagsMu        sync.Mutex
+	consumedTags  []string
+	cancelledTags []string
 }
 
 func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
@@ -607,11 +618,23 @@ func (r *rabbitMQInMemoryBroker) QueueBind(name string, key string, exchange str
 }
 
 func (r *rabbitMQInMemoryBroker) Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error) {
-	return r.buffer, nil
+	r.tagsMu.Lock()
+	r.consumedTags = append(r.consumedTags, consumer)
+	r.tagsMu.Unlock()
+	return r.buffer, r.consumeErr
 }
 
 func (r *rabbitMQInMemoryBroker) Cancel(consumer string, noWait bool) error {
+	r.tagsMu.Lock()
+	r.cancelledTags = append(r.cancelledTags, consumer)
+	r.tagsMu.Unlock()
 	return nil
+}
+
+func (r *rabbitMQInMemoryBroker) tags() (consumed, cancelled []string) {
+	r.tagsMu.Lock()
+	defer r.tagsMu.Unlock()
+	return slices.Clone(r.consumedTags), slices.Clone(r.cancelledTags)
 }
 
 func (r *rabbitMQInMemoryBroker) Nack(tag uint64, multiple bool, requeue bool) error {
@@ -835,4 +858,47 @@ func TestPublishMessagePropertiesToMetadataFlag(t *testing.T) {
 		assert.Equal(t, topicName, receivedMsg.Topic)
 		assert.Empty(t, receivedMsg.Metadata, "Metadata should be empty when flag is not set (defaults to false)")
 	})
+}
+
+// A consumer registered on a shared channel survives a Consume error raised by
+// another command on that channel, so the tag has to be cancelled on every exit
+// from the subscribe loop, not only after listenMessages returns. Otherwise the
+// registration is orphaned and keeps holding its prefetch allowance.
+func TestSubscribeForeverCancelsConsumerWhenConsumeFails(t *testing.T) {
+	broker := newBroker()
+	broker.consumeErr = errors.New(errorChannelConnection)
+
+	r := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:             "anyhost",
+			metadataConsumerIDKey:           "consumer",
+			metadataReconnectWaitSecondsKey: "0",
+		},
+	}}
+	require.NoError(t, r.Init(t.Context(), metadata))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.subscribeForever(ctx, pubsub.SubscribeRequest{Topic: "mytopic"}, "myqueue", func(context.Context, *pubsub.NewMessage) error { return nil }, nil)
+	}()
+
+	require.Eventually(t, func() bool {
+		consumed, _ := broker.tags()
+		return len(consumed) >= 2
+	}, 5*time.Second, 10*time.Millisecond, "expected the subscriber to retry")
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("subscribeForever did not return")
+	}
+
+	consumed, cancelled := broker.tags()
+	for _, tag := range consumed {
+		require.Containsf(t, cancelled, tag, "consumer %s was registered but never cancelled", tag)
+	}
 }

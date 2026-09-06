@@ -263,6 +263,86 @@ func TestInvoke(t *testing.T) {
 	})
 }
 
+func TestInvokeValidation(t *testing.T) {
+	m, _, _ := mockDatabase(t)
+	defer m.Close()
+
+	t.Run("nil request", func(t *testing.T) {
+		resp, err := m.Invoke(t.Context(), nil)
+		assert.Nil(t, resp)
+		require.Error(t, err)
+	})
+
+	t.Run("nil metadata", func(t *testing.T) {
+		resp, err := m.Invoke(t.Context(), &bindings.InvokeRequest{Operation: queryOperation})
+		assert.Nil(t, resp)
+		require.ErrorContains(t, err, "metadata required")
+	})
+}
+
+func TestInvokeFloatParam(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	defer m.Close()
+
+	col1 := sqlmock.NewColumn("v").OfType("FLOAT", 1.0)
+	rows := sqlmock.NewRowsWithColumnDefinition(col1).AddRow(1.5)
+	mock.ExpectQuery("SELECT \\* FROM foo WHERE v = @p1").WithArgs(1.5).WillReturnRows(rows)
+
+	req := &bindings.InvokeRequest{
+		Metadata: map[string]string{
+			commandSQLKey:    "SELECT * FROM foo WHERE v = @p1",
+			commandParamsKey: "[1.5]",
+		},
+		Operation: queryOperation,
+	}
+	resp, err := m.Invoke(t.Context(), req)
+	require.NoError(t, err)
+	assert.Contains(t, string(resp.Data), "1.5")
+}
+
+func TestConvert(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	defer m.Close()
+
+	t.Run("decimal bytes become string, nil columns are skipped", func(t *testing.T) {
+		dec := sqlmock.NewColumn("price").OfType("DECIMAL", []byte("123.45"))
+		note := sqlmock.NewColumn("note").OfType("VARCHAR", "")
+		rows := sqlmock.NewRowsWithColumnDefinition(dec, note).AddRow([]byte("123.45"), nil)
+		mock.ExpectQuery("SELECT price, note FROM foo").WillReturnRows(rows)
+
+		ret, err := m.query(t.Context(), "SELECT price, note FROM foo")
+		require.NoError(t, err)
+		assert.Contains(t, string(ret), `"price":"123.45"`)
+		assert.NotContains(t, string(ret), "note")
+	})
+
+	t.Run("row iteration error is surfaced", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id"}).AddRow(1).AddRow(2).RowError(1, errors.New("boom"))
+		mock.ExpectQuery("SELECT id FROM foo").WillReturnRows(rows)
+		_, err := m.query(t.Context(), "SELECT id FROM foo")
+		require.Error(t, err)
+	})
+}
+
+func TestClose(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	mock.ExpectClose()
+	require.NoError(t, m.Close())
+	// Close is idempotent.
+	require.NoError(t, m.Close())
+}
+
+func TestGetComponentMetadata(t *testing.T) {
+	b := NewSQLServer(logger.NewLogger("test")).(*SQLServer)
+	assert.NotEmpty(t, b.GetComponentMetadata())
+}
+
+func TestMetadataParse(t *testing.T) {
+	m := sqlServerMetadata{}
+	err := m.Parse(map[string]string{"connMaxLifetime": "not-a-duration"})
+	require.Error(t, err)
+}
+
 func TestOperations(t *testing.T) {
 	b := NewSQLServer(logger.NewLogger("test"))
 	require.NotNil(t, b)

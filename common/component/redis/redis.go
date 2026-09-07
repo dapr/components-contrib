@@ -139,6 +139,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		settings.RedeliverInterval = 15 * time.Second
 		settings.QueueDepth = 100
 		settings.Concurrency = 10
+		settings.StreamStartID = "0"
 	}
 
 	err := settings.Decode(properties)

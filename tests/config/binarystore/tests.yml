@@ -1,5 +1,7 @@
 componentType: binarystore
 components:
+  - component: in-memory
+    operations: []
   - component: azure.blobstorage
     operations: []
   - component: azure.datalake

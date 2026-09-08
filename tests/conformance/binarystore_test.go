@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/binarystore/azure/blobstorage"
 	"github.com/dapr/components-contrib/binarystore/azure/datalake"
 	gcp_bucket "github.com/dapr/components-contrib/binarystore/gcp/bucket"
+	inmemory "github.com/dapr/components-contrib/binarystore/in-memory"
 	oci_objectstorage "github.com/dapr/components-contrib/binarystore/oci/objectstorage"
 	conf_binarystore "github.com/dapr/components-contrib/tests/conformance/binarystore"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
@@ -102,6 +103,8 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 
 func loadBinaryStoreComponent(name string) binarystore.BinaryStore {
 	switch name {
+	case "in-memory":
+		return inmemory.NewInMemoryBinaryStore(testLogger)
 	case "azure.blobstorage":
 		return blobstorage.NewAzureBlobStorage(testLogger)
 	case "azure.datalake":

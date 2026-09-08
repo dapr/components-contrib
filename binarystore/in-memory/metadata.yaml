@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: in-memory
+version: v1
+status: stable
+title: "In-memory"
+description: "In-memory binary store. Data is held only in process memory: it is not persisted to disk and does not survive a process restart, and it is not shared across multiple instances of an application."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/in-memory/
+metadata:
+  - name: prefix
+    required: false
+    description: |
+      An optional prefix prepended to all file names stored by this component.
+    example: '"myprefix"'

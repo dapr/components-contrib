@@ -209,6 +209,7 @@
         "state",
         "secretstores",
         "pubsub",
+        "workflows",
         "configuration",
         "lock",
         "middleware",

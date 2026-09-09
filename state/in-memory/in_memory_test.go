@@ -14,6 +14,7 @@ limitations under the License.
 package inmemory
 
 import (
+	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -176,6 +177,53 @@ func TestReadAndWrite(t *testing.T) {
 		err := store.Delete(t.Context(), req)
 		require.NoError(t, err)
 	})
+}
+
+// TestCloseDoesNotDeadlock is a regression test for Close deadlocking with the
+// cleanup goroutine, which needs the same lock Close used to hold while
+// waiting for it. The interleaving is reproduced by firing the cleanup tick
+// through the fake clock and calling Close before the woken goroutine is
+// scheduled, so Close takes the lock first. Assumes the cleanup ticker is the
+// store's only clock waiter. Changes GOMAXPROCS; must not call t.Parallel.
+func TestCloseDoesNotDeadlock(t *testing.T) {
+	const (
+		// A few attempts absorb the rare preemption that lets the cleanup
+		// goroutine run before Close.
+		attempts = 5
+		// Reached only when the test fails.
+		closeTimeout = 10 * time.Second
+	)
+
+	prevMaxProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(prevMaxProcs)
+
+	log := logger.NewLogger("test")
+	for i := range attempts {
+		store := NewInMemoryStateStore(log).(*InMemoryStore)
+		fakeClock := clocktesting.NewFakeClock(time.Now())
+		store.clock = fakeClock
+		require.NoError(t, store.Init(t.Context(), state.Metadata{}))
+
+		// Fire the cleanup tick once the goroutine is waiting on it: it is
+		// then committed to cleaning up, but not yet running.
+		for !fakeClock.HasWaiters() {
+			runtime.Gosched()
+		}
+		fakeClock.Step(cleanupInterval)
+
+		done := make(chan struct{})
+		go func() {
+			// assert, not require: FailNow is only valid on the test goroutine.
+			assert.NoError(t, store.Close())
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(closeTimeout):
+			t.Fatalf("attempt %d: Close did not return within %s: shutdown deadlocked", i, closeTimeout)
+		}
+	}
 }
 
 func Test_KeyLike(t *testing.T) {

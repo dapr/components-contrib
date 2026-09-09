@@ -139,7 +139,7 @@ func (a *AzureBlobStorage) Delete(ctx context.Context, req *binarystore.DeleteRe
 // the Dapr metadata linter.
 func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storagecommon.BlobStorageMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 

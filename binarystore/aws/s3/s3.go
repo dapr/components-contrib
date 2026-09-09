@@ -198,7 +198,7 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 // by the Dapr metadata linter.
 func (s *AWSS3) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := s3Metadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 

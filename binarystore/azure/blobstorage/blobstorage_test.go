@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -34,7 +35,7 @@ func newTestStore() *AzureBlobStorage {
 // --- interface compliance ---
 
 func TestImplementsBinaryStore(t *testing.T) {
-	var _ binarystore.BinaryStore = NewAzureBlobStorage(logger.NewLogger("test"))
+	var _ binarystore.BinaryStore = (*AzureBlobStorage)(nil)
 }
 
 // --- constructor ---
@@ -121,15 +122,15 @@ func TestSetRequest_OverwriteCanBeSetTrue(t *testing.T) {
 
 func TestSentinelErrors(t *testing.T) {
 	t.Run("ErrFileAlreadyExists wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrFileAlreadyExists, binarystore.ErrFileAlreadyExists)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileAlreadyExists), binarystore.ErrFileAlreadyExists)
 	})
 
 	t.Run("ErrFileNotFound wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrFileNotFound, binarystore.ErrFileNotFound)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileNotFound), binarystore.ErrFileNotFound)
 	})
 
 	t.Run("ErrMissingFileName wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrMissingFileName, binarystore.ErrMissingFileName)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrMissingFileName), binarystore.ErrMissingFileName)
 	})
 
 	t.Run("sentinel errors are distinct", func(t *testing.T) {

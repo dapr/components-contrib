@@ -36,7 +36,7 @@ func newTestStore() *AWSS3 {
 // --- interface compliance ---
 
 func TestImplementsBinaryStore(t *testing.T) {
-	var _ binarystore.BinaryStore = NewAWSS3(logger.NewLogger("test"))
+	var _ binarystore.BinaryStore = (*AWSS3)(nil)
 }
 
 // --- constructor ---
@@ -122,15 +122,15 @@ func TestSetRequest_OverwriteCanBeSetTrue(t *testing.T) {
 
 func TestSentinelErrors(t *testing.T) {
 	t.Run("ErrFileAlreadyExists wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrFileAlreadyExists, binarystore.ErrFileAlreadyExists)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileAlreadyExists), binarystore.ErrFileAlreadyExists)
 	})
 
 	t.Run("ErrFileNotFound wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrFileNotFound, binarystore.ErrFileNotFound)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileNotFound), binarystore.ErrFileNotFound)
 	})
 
 	t.Run("ErrMissingFileName wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, binarystore.ErrMissingFileName, binarystore.ErrMissingFileName)
+		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrMissingFileName), binarystore.ErrMissingFileName)
 	})
 
 	t.Run("sentinel errors are distinct", func(t *testing.T) {

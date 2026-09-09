@@ -17,6 +17,7 @@ limitations under the License.
 package datalake
 
 import (
+	"errors"
 	"fmt"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
@@ -75,7 +76,7 @@ func parseMetadata(meta map[string]string) (*DataLakeMetadata, error) {
 	if val, ok := mdutils.GetMetadataProperty(meta, "fileSystemName", "fileSystem", "filesystemName"); ok && val != "" {
 		m.FileSystemName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty fileSystemName field from metadata")
+		return nil, errors.New("missing or empty fileSystemName field from metadata")
 	}
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountKey"]...); ok && val != "" {

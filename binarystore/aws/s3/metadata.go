@@ -14,6 +14,7 @@ limitations under the License.
 package s3
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,7 +46,7 @@ func parseMetadata(meta map[string]string) (*s3Metadata, error) {
 	}
 
 	if m.Bucket == "" {
-		return nil, fmt.Errorf("missing or empty bucket field from metadata")
+		return nil, errors.New("missing or empty bucket field from metadata")
 	}
 
 	if m.DisableSSL && m.Endpoint != "" && !strings.HasPrefix(m.Endpoint, "http://") && !strings.HasPrefix(m.Endpoint, "https://") {

@@ -235,7 +235,7 @@ func (o *ObjectStorage) Delete(ctx context.Context, req *binarystore.DeleteReque
 // GetComponentMetadata returns the metadata schema for this component.
 func (o *ObjectStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := objectStoreMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 

@@ -144,7 +144,7 @@ func (a *AzureDataLakeStorage) Delete(ctx context.Context, req *binarystore.Dele
 // the Dapr metadata linter.
 func (a *AzureDataLakeStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storagecommon.DataLakeMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 

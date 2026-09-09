@@ -37,7 +37,7 @@ func newTestStore(client objectStoreClient) *ObjectStorage {
 }
 
 func TestImplementsBinaryStore(t *testing.T) {
-	var _ binarystore.BinaryStore = NewOCIObjectStorage(logger.NewLogger("test"))
+	var _ binarystore.BinaryStore = (*ObjectStorage)(nil)
 }
 
 func TestNewOCIObjectStorage(t *testing.T) {

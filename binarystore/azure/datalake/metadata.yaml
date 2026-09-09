@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: azure.datalake
+version: v1
+status: alpha
+title: "Azure Data Lake Storage Gen2"
+description: "Store and retrieve large binary files using Azure Data Lake Storage Gen2."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/azure-datalake/
+
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string from the Azure portal."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The Azure Storage connection string."
+        example: '"DefaultEndpointsProtocol=https;AccountName=mystorageaccount;AccountKey=my-key;EndpointSuffix=core.windows.net"'
+
+  - title: "Account key"
+    description: "Authenticate using a storage account name and account key."
+    metadata:
+      - name: accountName
+        required: true
+        description: "The storage account name."
+        example: '"mystorageaccount"'
+      - name: accountKey
+        required: true
+        sensitive: true
+        description: "The primary or secondary account key (base64-encoded)."
+        example: '"my-base64-encoded-account-key"'
+
+  - title: "Microsoft Entra ID"
+    description: |
+      Authenticate using Microsoft Entra ID (formerly Azure Active Directory).
+      Supported credential types include workload identity, managed identity,
+      client secret, and certificate. No additional metadata keys are required
+      when credentials are provided through the environment.
+    metadata: []
+
+metadata:
+  - name: fileSystemName
+    required: true
+    description: "The name of the Azure Data Lake Storage Gen2 filesystem to use."
+    example: '"my-binary-store-filesystem"'
+
+  - name: retryCount
+    type: number
+    default: "3"
+    description: "Maximum number of HTTP retries for transient failures."
+    example: '"5"'
+
+  - name: disableEntityManagement
+    type: bool
+    default: "false"
+    description: |
+      When true, the component will not attempt to create the filesystem during
+      initialisation. Use this when the filesystem is pre-provisioned and the
+      identity used by Dapr has read/write permissions but not create permissions.
+    example: '"true"'

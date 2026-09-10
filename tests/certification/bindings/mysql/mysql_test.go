@@ -37,6 +37,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
@@ -48,6 +49,46 @@ const (
 
 // MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
 const mySQLDateTimeFormat = "2006-01-02 15:04:05"
+
+func checkMySQLConnection(ctx flow.Context) error {
+	db, err := sql.Open("mysql", dockerConnectionString)
+	if err != nil {
+		return fmt.Errorf("failed to open MySQL connection: %w", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var result int
+	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
+	if err != nil {
+		return fmt.Errorf("failed to query MySQL: %w", err)
+	}
+	if result != 1 {
+		return fmt.Errorf("unexpected MySQL readiness result: %d", result)
+	}
+
+	return nil
+}
+
+func createTable(tableName string) flow.Runnable {
+	return func(ctx flow.Context) error {
+		db, err := sql.Open("mysql", dockerConnectionString)
+		if err != nil {
+			return fmt.Errorf("failed to open MySQL connection: %w", err)
+		}
+		defer func() {
+			_ = db.Close()
+		}()
+
+		_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS "+tableName+" (id INT, c1 TEXT, ts TIMESTAMP);")
+		if err != nil {
+			return fmt.Errorf("failed to create MySQL table %q: %w", tableName, err)
+		}
+
+		return nil
+	}
+}
 
 func TestMysql(t *testing.T) {
 	const tableName = "dapr_test_table"
@@ -136,19 +177,10 @@ func TestMysql(t *testing.T) {
 		return nil
 	}
 
-	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("mysql", dockerConnectionString)
-		require.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
-		require.NoError(t, err)
-		db.Close()
-		return nil
-	}
-
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Creating table", createTable).
+		Step("wait for MySQL to be ready", retry.Do(time.Second, 60, checkMySQLConnection)).
+		Step("Creating table", retry.Do(time.Second, 30, createTable(tableName))).
 		Step(sidecar.Run("standardSidecar",
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
@@ -205,19 +237,10 @@ func TestMysqlNetworkError(t *testing.T) {
 		return nil
 	}
 
-	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("mysql", dockerConnectionString)
-		require.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
-		require.NoError(t, err)
-		db.Close()
-		return nil
-	}
-
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Creating table", createTable).
+		Step("wait for MySQL to be ready", retry.Do(time.Second, 60, checkMySQLConnection)).
+		Step("Creating table", retry.Do(time.Second, 30, createTable(tableName))).
 		Step(sidecar.Run("standardSidecar",
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
@@ -262,7 +285,7 @@ func TestMysqlExecEncoding(t *testing.T) {
 		rowsAffected, exists := resp.Metadata["rows-affected"]
 		require.True(ctx, exists, "rows-affected metadata should exist")
 		assert.Equal(t, "1", rowsAffected, "rows-affected should be '1' for single INSERT")
-		
+
 		// Verify the encoding is correct (string, not number)
 		// Parse to verify it's a valid integer string
 		rowsCount, err := strconv.ParseInt(rowsAffected, 10, 64)
@@ -279,11 +302,11 @@ func TestMysqlExecEncoding(t *testing.T) {
 		})
 		require.NoError(ctx, err, "error in output binding - exec UPDATE")
 		require.NotNil(ctx, resp, "response should not be nil")
-		
+
 		rowsAffected, exists = resp.Metadata["rows-affected"]
 		require.True(ctx, exists, "rows-affected metadata should exist for UPDATE")
 		assert.Equal(t, "1", rowsAffected, "rows-affected should be '1' for single UPDATE")
-		
+
 		// Verify encoding again
 		rowsCount, err = strconv.ParseInt(rowsAffected, 10, 64)
 		require.NoError(ctx, err, "rows-affected should be parseable as int64")
@@ -294,17 +317,17 @@ func TestMysqlExecEncoding(t *testing.T) {
 			Name:      "standard-binding",
 			Operation: "exec",
 			Metadata: map[string]string{
-				"sql": fmt.Sprintf("INSERT INTO %s (id, c1, ts) VALUES (2, 'test2', '%s'), (3, 'test3', '%s');", 
+				"sql": fmt.Sprintf("INSERT INTO %s (id, c1, ts) VALUES (2, 'test2', '%s'), (3, 'test3', '%s');",
 					tableName, time.Now().Format(mySQLDateTimeFormat), time.Now().Format(mySQLDateTimeFormat)),
 			},
 		})
 		require.NoError(ctx, err, "error in output binding - exec multi-row INSERT")
 		require.NotNil(ctx, resp, "response should not be nil")
-		
+
 		rowsAffected, exists = resp.Metadata["rows-affected"]
 		require.True(ctx, exists, "rows-affected metadata should exist for multi-row INSERT")
 		assert.Equal(t, "2", rowsAffected, "rows-affected should be '2' for two-row INSERT")
-		
+
 		// Verify encoding for multiple rows
 		rowsCount, err = strconv.ParseInt(rowsAffected, 10, 64)
 		require.NoError(ctx, err, "rows-affected should be parseable as int64")
@@ -320,11 +343,11 @@ func TestMysqlExecEncoding(t *testing.T) {
 		})
 		require.NoError(ctx, err, "error in output binding - exec DELETE")
 		require.NotNil(ctx, resp, "response should not be nil")
-		
+
 		rowsAffected, exists = resp.Metadata["rows-affected"]
 		require.True(ctx, exists, "rows-affected metadata should exist for DELETE")
 		assert.Equal(t, "2", rowsAffected, "rows-affected should be '2' for two-row DELETE")
-		
+
 		// Verify encoding for DELETE
 		rowsCount, err = strconv.ParseInt(rowsAffected, 10, 64)
 		require.NoError(ctx, err, "rows-affected should be parseable as int64")
@@ -340,11 +363,11 @@ func TestMysqlExecEncoding(t *testing.T) {
 		})
 		require.NoError(ctx, err, "error in output binding - exec UPDATE with no match")
 		require.NotNil(ctx, resp, "response should not be nil")
-		
+
 		rowsAffected, exists = resp.Metadata["rows-affected"]
 		require.True(ctx, exists, "rows-affected metadata should exist even for zero rows")
 		assert.Equal(t, "0", rowsAffected, "rows-affected should be '0' when no rows match")
-		
+
 		// Verify encoding for zero rows
 		rowsCount, err = strconv.ParseInt(rowsAffected, 10, 64)
 		require.NoError(ctx, err, "rows-affected should be parseable as int64")
@@ -371,19 +394,10 @@ func TestMysqlExecEncoding(t *testing.T) {
 		return nil
 	}
 
-	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("mysql", dockerConnectionString)
-		require.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
-		require.NoError(t, err)
-		db.Close()
-		return nil
-	}
-
 	flow.New(t, "Run exec encoding tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Creating table", createTable).
+		Step("wait for MySQL to be ready", retry.Do(time.Second, 60, checkMySQLConnection)).
+		Step("Creating table", retry.Do(time.Second, 30, createTable(tableName))).
 		Step(sidecar.Run("standardSidecar",
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),

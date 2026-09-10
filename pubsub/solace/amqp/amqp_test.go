@@ -20,6 +20,7 @@ import (
 	"errors"
 	"testing"
 
+	amqp "github.com/Azure/go-amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -40,6 +41,152 @@ func getFakeProperties() map[string]string {
 		username:     "default",
 		password:     "default",
 	}
+}
+
+// TestAddressFor verifies how a Dapr topic name is translated into the AMQP
+// address used for the sender/receiver link, for each prefix configuration.
+func TestAddressFor(t *testing.T) {
+	tests := []struct {
+		name        string
+		topicPrefix string
+		queuePrefix string
+		topic       string
+		want        string
+	}{
+		// Solace defaults.
+		{
+			name:        "bare topic uses the topic prefix",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: defaultQueueAddressPrefix,
+			topic:       "orders",
+			want:        "topic://orders",
+		},
+		{
+			name:        "topic scheme uses the topic prefix",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: defaultQueueAddressPrefix,
+			topic:       "topic:orders",
+			want:        "topic://orders",
+		},
+		{
+			name:        "queue scheme uses the queue prefix",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: defaultQueueAddressPrefix,
+			topic:       "queue:orders",
+			want:        "queue://orders",
+		},
+		{
+			name:        "an already prefixed topic address is left untouched",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: defaultQueueAddressPrefix,
+			topic:       "topic://orders",
+			want:        "topic://orders",
+		},
+		{
+			name:        "an already prefixed queue address is left untouched",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: defaultQueueAddressPrefix,
+			topic:       "queue://orders",
+			want:        "queue://orders",
+		},
+		// Brokers that address topics and queues by name, such as ActiveMQ Artemis.
+		{
+			name:        "empty prefixes pass a bare topic through",
+			topicPrefix: "",
+			queuePrefix: "",
+			topic:       "orders",
+			want:        "orders",
+		},
+		{
+			name:        "empty prefixes strip the topic scheme",
+			topicPrefix: "",
+			queuePrefix: "",
+			topic:       "topic:orders",
+			want:        "orders",
+		},
+		{
+			name:        "empty prefixes strip the queue scheme",
+			topicPrefix: "",
+			queuePrefix: "",
+			topic:       "queue:orders",
+			want:        "orders",
+		},
+		{
+			name:        "empty prefixes strip a fully qualified topic address",
+			topicPrefix: "",
+			queuePrefix: "",
+			topic:       "topic://orders",
+			want:        "orders",
+		},
+		{
+			name:        "empty prefixes strip a fully qualified queue address",
+			topicPrefix: "",
+			queuePrefix: "",
+			topic:       "queue://orders",
+			want:        "orders",
+		},
+		{
+			name:        "one empty prefix strips only its own fully qualified address",
+			topicPrefix: defaultTopicAddressPrefix,
+			queuePrefix: "",
+			topic:       "queue://orders",
+			want:        "orders",
+		},
+		// Brokers configured with their own routing prefixes.
+		{
+			name:        "custom topic prefix is applied",
+			topicPrefix: "multicast::",
+			queuePrefix: "anycast::",
+			topic:       "orders",
+			want:        "multicast::orders",
+		},
+		{
+			name:        "custom queue prefix is applied",
+			topicPrefix: "multicast::",
+			queuePrefix: "anycast::",
+			topic:       "queue:orders",
+			want:        "anycast::orders",
+		},
+		{
+			name:        "custom prefixes replace a fully qualified topic address",
+			topicPrefix: "multicast::",
+			queuePrefix: "anycast::",
+			topic:       "topic://orders",
+			want:        "multicast::orders",
+		},
+		{
+			name:        "custom prefixes replace a fully qualified queue address",
+			topicPrefix: "multicast::",
+			queuePrefix: "anycast::",
+			topic:       "queue://orders",
+			want:        "anycast::orders",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &metadata{TopicAddressPrefix: tt.topicPrefix, QueueAddressPrefix: tt.queuePrefix}
+			assert.Equal(t, tt.want, m.addressFor(tt.topic))
+		})
+	}
+}
+
+// TestNewPubsubMessage verifies the topic and the payload a received AMQP
+// message is delivered with.
+func TestNewPubsubMessage(t *testing.T) {
+	t.Run("message is delivered under the subscribed topic", func(t *testing.T) {
+		msg := newPubsubMessage("orders", amqp.NewMessage([]byte("hello")))
+
+		assert.Equal(t, "orders", msg.Topic)
+		assert.Equal(t, []byte("hello"), msg.Data)
+	})
+
+	t.Run("the value field is used when the message carries no data", func(t *testing.T) {
+		msg := newPubsubMessage("orders", &amqp.Message{Value: "hello"})
+
+		assert.Equal(t, "orders", msg.Topic)
+		assert.Equal(t, []byte("hello"), msg.Data)
+	})
 }
 
 // TestPublishErrorClassification verifies that terminal Publish error paths
@@ -67,6 +214,33 @@ func TestPublishErrorClassification(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, codes.FailedPrecondition, st.Code())
 	})
+
+	t.Run("a topic that maps to an empty address is terminal", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		// Both prefixes empty, so the scheme alone maps to an empty address.
+		a.metadata = &metadata{}
+
+		err := a.Publish(context.Background(), &pubsub.PublishRequest{Topic: topicScheme})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "empty AMQP address")
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+}
+
+// TestSubscribeEmptyAddress verifies that a subscription whose topic maps to an
+// empty AMQP address is rejected instead of attaching a link to the anonymous
+// relay.
+func TestSubscribeEmptyAddress(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	// Both prefixes empty, so the scheme alone maps to an empty address.
+	a.metadata = &metadata{}
+
+	err := a.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: queueScheme}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty AMQP address")
 }
 
 func TestParseMetadata(t *testing.T) {
@@ -81,6 +255,47 @@ func TestParseMetadata(t *testing.T) {
 		// assert
 		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[amqpURL], m.URL)
+	})
+
+	t.Run("address prefixes default to the Solace convention", func(t *testing.T) {
+		fakeMetaData := pubsub.Metadata{Base: mdata.Base{Properties: getFakeProperties()}}
+
+		m, err := parseAMQPMetaData(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, defaultTopicAddressPrefix, m.TopicAddressPrefix)
+		assert.Equal(t, defaultQueueAddressPrefix, m.QueueAddressPrefix)
+		assert.Equal(t, "topic://orders", m.addressFor("orders"))
+	})
+
+	t.Run("address prefixes are overridden", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+		fakeProperties["topicAddressPrefix"] = "multicast::"
+		fakeProperties["queueAddressPrefix"] = "anycast::"
+		fakeMetaData := pubsub.Metadata{Base: mdata.Base{Properties: fakeProperties}}
+
+		m, err := parseAMQPMetaData(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, "multicast::", m.TopicAddressPrefix)
+		assert.Equal(t, "anycast::", m.QueueAddressPrefix)
+	})
+
+	t.Run("address prefixes are disabled when set to an empty value", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+		fakeProperties["topicAddressPrefix"] = ""
+		fakeProperties["queueAddressPrefix"] = ""
+		fakeMetaData := pubsub.Metadata{Base: mdata.Base{Properties: fakeProperties}}
+
+		m, err := parseAMQPMetaData(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Empty(t, m.TopicAddressPrefix)
+		assert.Empty(t, m.QueueAddressPrefix)
+		assert.Equal(t, "orders", m.addressFor("orders"))
 	})
 
 	t.Run("url is not given", func(t *testing.T) {

@@ -62,4 +62,26 @@ metadata:
     description: |
       TLS client key in PEM format, for using TLS.
     example: '"-----BEGIN PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"'
-    type: string    
+    type: string
+  - name: topicAddressPrefix
+    required: false
+    description: |
+      Prefix prepended to the AMQP address of a topic, which is used for a bare topic name and for
+      topics named `topic:<name>`.
+      Defaults to the Solace addressing convention. Set it to the multicast prefix the broker is
+      configured with, or to an empty value for brokers that address topics by name, such as
+      Apache ActiveMQ Artemis.
+    default: '"topic://"'
+    example: '"topic://"'
+    type: string
+  - name: queueAddressPrefix
+    required: false
+    description: |
+      Prefix prepended to the AMQP address of a queue, which is used for topics named `queue:<name>`.
+      Defaults to the Solace addressing convention. Set it to the anycast prefix the broker is
+      configured with, or to an empty value for brokers that address queues by name, such as
+      Apache ActiveMQ Artemis. Note that when both prefixes are set to an empty value,
+      `queue:<name>` addresses the same destination as `<name>`.
+    default: '"queue://"'
+    example: '"queue://"'
+    type: string

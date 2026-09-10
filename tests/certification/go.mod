@@ -36,7 +36,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	github.com/rabbitmq/amqp091-go v1.12.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/riferrei/srclient v0.7.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tylertreat/comcast v1.0.1

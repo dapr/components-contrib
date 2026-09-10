@@ -1,0 +1,25 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mq-passive
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+  - name: consumerID
+    value: passive
+  - name: connectionString
+    value: "amqp://test:test@localhost:5672"
+  # The exchange, the queue and the binding are all owned by an external
+  # topology manager (in production, the RabbitMQ Cluster Kubernetes Topology
+  # Operator). The component must use them and create nothing of its own.
+  - name: exchangeDeclareMode
+    value: passive
+  - name: queueDeclareMode
+    value: passive
+  - name: exchangeKind
+    value: topic
+  - name: durable
+    value: true
+  - name: deletedWhenUnused
+    value: false

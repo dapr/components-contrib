@@ -67,9 +67,12 @@ const (
 	reqMetadataMaxLenBytesKey          = "maxLenBytes"
 )
 
-// errTerminalSubscription marks a subscription failure that retrying cannot
-// fix, because it is caused by the component or subscription configuration
-// rather than by the state of the broker.
+// errTerminalSubscription marks a failure that retrying cannot fix, because it
+// is caused by the component or subscription configuration rather than by the
+// state of the broker. Retrying these is actively harmful on the subscribe
+// path: a failed declare is a channel exception, so the retry redials and
+// reset() drops the connection shared by every other subscription and
+// publisher on this component.
 var errTerminalSubscription = errors.New("subscription configuration is not valid")
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -236,7 +239,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		return r.channel, r.connectionCount, errors.New(errorChannelNotInitialized)
 	}
 
-	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused); err != nil {
+	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.isPassiveExchangeDeclare()); err != nil {
 		r.logger.Errorf("%s publishing to %s failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, err)
 
 		return r.channel, r.connectionCount, err
@@ -350,8 +353,10 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
+	// Buffered and never closed: subscribeForever sends at most once, and
+	// closing here would race that send once the timeout below fires, which
+	// panics the sidecar.
 	ackCh := make(chan error, 1)
-	defer close(ackCh)
 
 	subctx, cancel := context.WithCancel(ctx)
 	r.wg.Add(2)
@@ -390,7 +395,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		return nil, err
 	}
 
-	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused)
+	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.isPassiveExchangeDeclare())
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
 
@@ -411,7 +416,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
 		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
 		// dead letter exchange is always durable
-		err = r.ensureExchangeDeclared(channel, dlxName, fanoutExchangeKind, true, r.metadata.DeleteWhenUnused)
+		// The dead letter exchange is named from consumerID and topic at
+		// runtime, so it is this component's object regardless of who owns the
+		// topic exchange: always declare it actively.
+		err = r.ensureExchangeDeclared(channel, dlxName, fanoutExchangeKind, true, r.metadata.DeleteWhenUnused, false)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, dlqName, err)
 
@@ -528,13 +536,12 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 // queue) exists and applies QoS, leaving every declaration and binding to the
 // external owner.
 func (r *rabbitMQ) preparePassiveSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
+	// Dead lettering is part of the queue's definition, so under a passive
+	// queue it belongs entirely to the external owner: the component neither
+	// declares nor asserts the dead letter objects, and does not require them
+	// to follow its own naming convention.
 	if r.metadata.EnableDeadLetter {
-		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
-		if _, err := r.declareQueue(channel, dlqName, true, r.metadata.DeleteWhenUnused, nil); err != nil {
-			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, dlqName, err)
-
-			return nil, err
-		}
+		r.logger.Warnf("%s %s is '%s': %s is ignored, dead lettering is part of the externally managed definition of queue '%s'", logMessagePrefix, metadataQueueDeclareModeKey, queueDeclareModePassive, metadataEnableDeadLetterKey, queueName)
 	}
 
 	q, err := r.declareQueue(channel, queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, nil)
@@ -571,8 +578,8 @@ func (r *rabbitMQ) declareQueue(channel rabbitMQChannelBroker, queueName string,
 			if errors.As(err, &amqpErr) && amqpErr.Code == amqp.PreconditionFailed {
 				return q, fmt.Errorf(
 					"%w: queue '%s' already exists with properties that differ from the ones this component declares (durable=%t, autoDelete=%t, arguments=%v). "+
-						"Either align the existing queue with those properties, or set %s to %q so that this component uses the existing queue instead of declaring its own",
-					err, queueName, durable, autoDelete, args, metadataQueueDeclareModeKey, queueDeclareModePassive)
+						"Either align the existing queue with those properties, or set %s to %q so that this component uses the existing queue instead of declaring its own: %w",
+					err, queueName, durable, autoDelete, args, metadataQueueDeclareModeKey, queueDeclareModePassive, errTerminalSubscription)
 			}
 		}
 
@@ -586,8 +593,8 @@ func (r *rabbitMQ) declareQueue(channel rabbitMQChannelBroker, queueName string,
 		if errors.As(err, &amqpErr) && amqpErr.Code == amqp.NotFound {
 			return q, fmt.Errorf(
 				"%w: queue '%s' does not exist and %s is %q, so this component will not create it. "+
-					"Create the queue and its bindings out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare them",
-				err, queueName, metadataQueueDeclareModeKey, queueDeclareModePassive, metadataQueueDeclareModeKey)
+					"Create the queue and its bindings out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare them: %w",
+				err, queueName, metadataQueueDeclareModeKey, queueDeclareModePassive, metadataQueueDeclareModeKey, errTerminalSubscription)
 		}
 	}
 
@@ -605,6 +612,15 @@ func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKe
 
 	if r.metadata.ExchangeKind != exchangeKindConsistentHash {
 		return nil
+	}
+
+	// A consistent hash exchange has one effective ring binding per
+	// destination, so a list of weights would silently leave only one of them
+	// in force.
+	if len(routingKeys) != 1 {
+		return fmt.Errorf(
+			"%s prepareSubscription for topic/queue '%s/%s': exchange kind %s takes exactly one '%s' value, the bucket weight of this queue, got %d: %w",
+			errorMessagePrefix, topic, queueName, exchangeKindConsistentHash, reqMetadataRoutingKey, len(routingKeys), errTerminalSubscription)
 	}
 
 	// For a consistent hash exchange the binding key is the weight of the bound
@@ -810,13 +826,13 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 }
 
 // this function call should be wrapped by channelMutex.
-func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange, exchangeKind string, durable bool, autoDelete bool) error {
+func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange, exchangeKind string, durable bool, autoDelete bool, passive bool) error {
 	if r.containsExchange(exchange) {
 		return nil
 	}
 
 	var err error
-	if r.metadata.isPassiveExchangeDeclare() {
+	if passive {
 		// The exchange is managed outside of Dapr: only assert that it exists.
 		// RabbitMQ ignores every argument but the name on a passive declare, so
 		// an externally created exchange of any kind - including plugin kinds
@@ -828,7 +844,7 @@ func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchang
 		err = channel.ExchangeDeclare(exchange, exchangeKind, durable, autoDelete, false, false, nil)
 	}
 	if err != nil {
-		err = r.decorateExchangeDeclareError(exchange, exchangeKind, durable, autoDelete, err)
+		err = r.decorateExchangeDeclareError(exchange, exchangeKind, durable, autoDelete, passive, err)
 		r.logger.Errorf("%s ensureExchangeDeclared: %v", logMessagePrefix, err)
 
 		return err
@@ -842,7 +858,7 @@ func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchang
 // decorateExchangeDeclareError turns the two AMQP failures that are specific to
 // externally managed topologies into actionable messages. Any other error is
 // returned untouched.
-func (r *rabbitMQ) decorateExchangeDeclareError(exchange, exchangeKind string, durable, autoDelete bool, err error) error {
+func (r *rabbitMQ) decorateExchangeDeclareError(exchange, exchangeKind string, durable, autoDelete, passive bool, err error) error {
 	var amqpErr *amqp.Error
 	if !errors.As(err, &amqpErr) {
 		return err
@@ -854,14 +870,14 @@ func (r *rabbitMQ) decorateExchangeDeclareError(exchange, exchangeKind string, d
 		// is idempotent only when every property matches.
 		return fmt.Errorf(
 			"%w: exchange '%s' already exists with properties that differ from the ones this component declares (kind=%s, durable=%t, autoDelete=%t). "+
-				"Either align the existing exchange with those properties, or set %s to %q so that this component uses the existing exchange instead of declaring its own",
-			err, exchange, exchangeKind, durable, autoDelete, metadataExchangeDeclareModeKey, exchangeDeclareModePassive)
+				"Either align the existing exchange with those properties, or set %s to %q so that this component uses the existing exchange instead of declaring its own: %w",
+			err, exchange, exchangeKind, durable, autoDelete, metadataExchangeDeclareModeKey, exchangeDeclareModePassive, errTerminalSubscription)
 	case amqp.NotFound:
-		if r.metadata.isPassiveExchangeDeclare() {
+		if passive {
 			return fmt.Errorf(
 				"%w: exchange '%s' does not exist and %s is %q, so this component will not create it. "+
-					"Create the exchange out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare it",
-				err, exchange, metadataExchangeDeclareModeKey, exchangeDeclareModePassive, metadataExchangeDeclareModeKey)
+					"Create the exchange out-of-band (for example with the RabbitMQ Cluster Kubernetes Topology Operator), or remove %s to let this component declare it: %w",
+				err, exchange, metadataExchangeDeclareModeKey, exchangeDeclareModePassive, metadataExchangeDeclareModeKey, errTerminalSubscription)
 		}
 	}
 
@@ -935,6 +951,13 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 
 	if err == nil {
 		return false
+	}
+
+	// Any AMQP error is a channel exception, so the broker has already closed
+	// the channel even when the message does not say so.
+	var amqpErr *amqp.Error
+	if errors.As(err, &amqpErr) {
+		return true
 	}
 
 	return strings.Contains(err.Error(), errorChannelConnection)

@@ -883,13 +883,13 @@ func TestEnsureExchangeDeclaredActive(t *testing.T) {
 		ExchangeDeclareMode: exchangeDeclareModeDeclare,
 	})
 
-	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true))
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true, false))
 	require.Len(t, broker.declaredExchanges, 1)
 	assert.Equal(t, "mytopic", broker.declaredExchanges[0].name)
 	assert.False(t, broker.declaredExchanges[0].passive)
 
 	// The exchange is cached, so a second call is a no-op.
-	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true))
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true, false))
 	assert.Len(t, broker.declaredExchanges, 1)
 }
 
@@ -902,7 +902,7 @@ func TestEnsureExchangeDeclaredPassive(t *testing.T) {
 		ExchangeDeclareMode: exchangeDeclareModePassive,
 	})
 
-	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true))
+	require.NoError(t, r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true, true))
 	require.Len(t, broker.declaredExchanges, 1)
 	assert.Equal(t, "mytopic", broker.declaredExchanges[0].name)
 	assert.True(t, broker.declaredExchanges[0].passive)
@@ -918,11 +918,13 @@ func TestEnsureExchangeDeclaredPassiveMissingExchange(t *testing.T) {
 		ExchangeDeclareMode: exchangeDeclareModePassive,
 	})
 
-	err := r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true)
+	err := r.ensureExchangeDeclared(broker, "mytopic", exchangeKindConsistentHash, true, true, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not exist")
 	assert.Contains(t, err.Error(), metadataExchangeDeclareModeKey)
 	assert.False(t, r.containsExchange("mytopic"))
+	// Retrying cannot create it, and retrying drops the shared connection.
+	require.ErrorIs(t, err, errTerminalSubscription)
 }
 
 // TestEnsureExchangeDeclaredPreconditionFailed verifies that a mismatch against
@@ -935,15 +937,17 @@ func TestEnsureExchangeDeclaredPreconditionFailed(t *testing.T) {
 		ExchangeDeclareMode: exchangeDeclareModeDeclare,
 	})
 
-	err := r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true)
+	err := r.ensureExchangeDeclared(broker, "mytopic", fanoutExchangeKind, true, true, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists with properties that differ")
 	assert.Contains(t, err.Error(), exchangeDeclareModePassive)
+	require.ErrorIs(t, err, errTerminalSubscription)
 }
 
-// TestSubscribeUsesPassiveExchangeDeclare covers the end-to-end path: with an
-// externally managed topology neither the topic exchange nor the dead letter
-// exchange may be created by the component.
+// TestSubscribeUsesPassiveExchangeDeclare covers the end-to-end path: the topic
+// exchange is only asserted, while the dead letter exchange - whose name is
+// derived from consumerID and topic at runtime, so no external owner could have
+// pre-created it - is still declared by the component.
 func TestSubscribeUsesPassiveExchangeDeclare(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)
@@ -960,10 +964,18 @@ func TestSubscribeUsesPassiveExchangeDeclare(t *testing.T) {
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error { return nil }
 	require.NoError(t, pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, handler))
 
-	require.NotEmpty(t, broker.declaredExchanges)
+	byName := map[string]declaredExchange{}
 	for _, e := range broker.declaredExchanges {
-		assert.Truef(t, e.passive, "exchange %q was declared actively", e.name)
+		byName[e.name] = e
 	}
+
+	topic, ok := byName["mytopic"]
+	require.True(t, ok, "the topic exchange should have been declared")
+	assert.True(t, topic.passive, "the topic exchange is externally managed")
+
+	dlx, ok := byName["dlx-consumer-mytopic"]
+	require.True(t, ok, "the dead letter exchange should have been declared")
+	assert.False(t, dlx.passive, "the dead letter exchange is this component's own object")
 }
 
 // TestConsistentHashBindingRoutingKey verifies the bucket weight validation
@@ -978,7 +990,7 @@ func TestConsistentHashBindingRoutingKey(t *testing.T) {
 		{name: "non numeric weight", routingKey: "orders", wantErr: true},
 		{name: "zero weight", routingKey: "0", wantErr: true},
 		{name: "valid weight", routingKey: "10", wantErr: false},
-		{name: "multiple valid weights", routingKey: "10,20", wantErr: false},
+		{name: "multiple weights", routingKey: "10,20", wantErr: true},
 		{name: "padded weight", routingKey: " 10 ", wantErr: true},
 		{name: "one invalid weight", routingKey: "10,orders", wantErr: true},
 	}
@@ -1045,9 +1057,10 @@ func TestPassiveQueueDeclareSkipsDeclareAndBind(t *testing.T) {
 	assert.Empty(t, broker.boundRoutingKeys, "bindings belong to the external owner")
 }
 
-// TestPassiveQueueDeclareCoversDeadLetterQueue verifies that the dead letter
-// queue is treated the same way as the consumer queue.
-func TestPassiveQueueDeclareCoversDeadLetterQueue(t *testing.T) {
+// TestPassiveQueueDeclareIgnoresDeadLetter verifies that dead lettering is left
+// entirely to the external owner: the component must not require a dead letter
+// queue following its own naming convention to exist.
+func TestPassiveQueueDeclareIgnoresDeadLetter(t *testing.T) {
 	broker := newBroker()
 	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
 		ExchangeKind:        amqp.ExchangeTopic,
@@ -1058,7 +1071,8 @@ func TestPassiveQueueDeclareCoversDeadLetterQueue(t *testing.T) {
 
 	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"dlq-operator-owned-queue", "operator-owned-queue"}, broker.passiveQueueDeclares)
+	assert.Equal(t, []string{"operator-owned-queue"}, broker.passiveQueueDeclares,
+		"the dead letter queue belongs to the external owner and must not be asserted")
 	assert.Empty(t, broker.boundRoutingKeys)
 }
 
@@ -1131,7 +1145,7 @@ func TestDecorateExchangeDeclareErrorPassesThroughUnrelatedErrors(t *testing.T) 
 				ExchangeDeclareMode: tt.declareMode,
 			})
 
-			got := r.decorateExchangeDeclareError("mytopic", fanoutExchangeKind, true, true, tt.err)
+			got := r.decorateExchangeDeclareError("mytopic", fanoutExchangeKind, true, true, false, tt.err)
 
 			assert.Equal(t, tt.err, got)
 		})
@@ -1219,4 +1233,116 @@ func TestActiveQueueDeclareStillValidatesQueueType(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), errorInvalidQueueType)
+}
+
+// TestMustReconnectOnAMQPError verifies that any AMQP error is treated as a
+// dead channel. A failed declare is a channel exception, so without this the
+// loop spends an attempt on a channel the broker has already closed.
+func TestMustReconnectOnAMQPError(t *testing.T) {
+	broker := newBroker()
+
+	assert.True(t, mustReconnect(broker, &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no exchange 'mytopic' in vhost '/'"}))
+	assert.True(t, mustReconnect(broker, &amqp.Error{Code: amqp.PreconditionFailed, Reason: "PRECONDITION_FAILED - inequivalent arg 'type'"}))
+	assert.True(t, mustReconnect(broker, errors.New(errorChannelConnection)))
+	assert.True(t, mustReconnect(nil, nil))
+	assert.False(t, mustReconnect(broker, nil))
+	assert.False(t, mustReconnect(broker, errors.New("handler failed")))
+}
+
+// TestSubscribeFailsFastOnMissingPassiveObject is the regression test for the
+// connection teardown: a missing externally managed object must fail the
+// subscription with the actionable message, not spin in the retry loop where
+// reset() drops the connection shared by every other subscription.
+func TestSubscribeFailsFastOnMissingPassiveObject(t *testing.T) {
+	tests := []struct {
+		name        string
+		declareErr  func(*rabbitMQInMemoryBroker)
+		wantMessage string
+	}{
+		{
+			name: "missing exchange",
+			declareErr: func(b *rabbitMQInMemoryBroker) {
+				b.exchangeDeclareErr = &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no exchange 'mytopic' in vhost '/'"}
+			},
+			wantMessage: metadataExchangeDeclareModeKey,
+		},
+		{
+			name: "missing queue",
+			declareErr: func(b *rabbitMQInMemoryBroker) {
+				b.queueDeclareErr = &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no queue 'consumer-mytopic' in vhost '/'"}
+			},
+			wantMessage: metadataQueueDeclareModeKey,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			broker := newBroker()
+			tt.declareErr(broker)
+
+			pubsubRabbitMQ := newRabbitMQTest(broker)
+			require.NoError(t, pubsubRabbitMQ.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+				Properties: map[string]string{
+					metadataHostnameKey:            "anyhost",
+					metadataConsumerIDKey:          "consumer",
+					metadataExchangeDeclareModeKey: exchangeDeclareModePassive,
+					metadataQueueDeclareModeKey:    queueDeclareModePassive,
+					metadataExchangeKindKey:        amqp.ExchangeTopic,
+				},
+			}}))
+
+			start := time.Now()
+			err := pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, nil)
+
+			require.Error(t, err)
+			// The one-minute path is what the retry loop would take.
+			assert.Less(t, time.Since(start), 30*time.Second, "the subscription must fail fast, not sit in the retry loop")
+			assert.Contains(t, err.Error(), "does not exist")
+			assert.Contains(t, err.Error(), tt.wantMessage)
+		})
+	}
+}
+
+// TestDeadLetterFollowsQueueDeclareMode verifies that the dead letter objects
+// are governed by queueDeclareMode, not exchangeDeclareMode. Their names are
+// derived at runtime, so an external topology owner cannot pre-create them.
+func TestDeadLetterFollowsQueueDeclareMode(t *testing.T) {
+	t.Run("declared queue declares its dead letter objects even behind a passive exchange", func(t *testing.T) {
+		broker := newBroker()
+		r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+			ExchangeKind:        amqp.ExchangeTopic,
+			ExchangeDeclareMode: exchangeDeclareModePassive,
+			QueueDeclareMode:    queueDeclareModeDeclare,
+			EnableDeadLetter:    true,
+		})
+
+		_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "consumer-mytopic")
+		require.NoError(t, err)
+
+		assert.Contains(t, broker.declaredQueues, "dlq-consumer-mytopic")
+		assert.Empty(t, broker.passiveQueueDeclares, "dead letter objects are the component's own")
+		for _, e := range broker.declaredExchanges {
+			if e.name == "dlx-consumer-mytopic" {
+				assert.False(t, e.passive, "the dead letter exchange must be declared, not asserted")
+			}
+		}
+	})
+
+	t.Run("passive queue leaves dead lettering to the owner", func(t *testing.T) {
+		broker := newBroker()
+		r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+			ExchangeKind:        amqp.ExchangeTopic,
+			ExchangeDeclareMode: exchangeDeclareModePassive,
+			QueueDeclareMode:    queueDeclareModePassive,
+			EnableDeadLetter:    true,
+		})
+
+		_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic"}, "operator-owned-queue")
+		require.NoError(t, err)
+
+		assert.NotContains(t, broker.declaredQueues, "dlq-operator-owned-queue")
+		for _, e := range broker.declaredExchanges {
+			assert.NotEqual(t, "dlx-operator-owned-queue", e.name, "the dead letter exchange must not be touched")
+		}
+	})
 }

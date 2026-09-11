@@ -6,6 +6,38 @@ import { writeFileSync } from 'node:fs'
  * @type {Record<string,ComponentTestProperties>}
  */
 const components = {
+    // requireDocker excludes cloud-scheduled runs.
+    'bindings.aws.s3': {
+        certification: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-bindings.aws.s3-setup.sh',
+        certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
+    },
+    // 'bindings.aws.s3.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh s3',
+    // },
+    'bindings.aws.s3.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
+        conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
+    },
+    'bindings.aws-floci.s3': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait bindings-s3',
+        conformanceDestroy: 'docker-compose.sh floci floci down bindings-s3',
+        conformanceLogs: 'docker-compose.sh floci floci logs bindings-s3',
+        certificationSetup: 'docker-compose.sh floci floci up-wait bindings-s3',
+        certificationDestroy: 'docker-compose.sh floci floci down bindings-s3',
+        certificationLogs: 'docker-compose.sh floci floci logs bindings-s3',
+        certificationTestPath: 'bindings/aws/s3',
+        sourcePkg: ['bindings/aws/s3'],
+    },
     'bindings.azure.blobstorage': {
         conformance: true,
         certification: true,
@@ -94,36 +126,11 @@ const components = {
             'AzureBlobStorageQueue',
         ],
     },
-    'bindings.aws.s3': {
-        certification: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        certificationSetup: 'certification-bindings.aws.s3-setup.sh',
-        certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
-    },
-    // 'bindings.aws.s3.docker': {
-    //     conformance: true,
-    //     requireDocker: true,
-    //     conformanceSetup: 'docker-compose.sh s3',
-    // },
-    'bindings.aws.s3.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
-        conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
-    },
     'bindings.cron': {
         conformance: true,
         certification: true,
     },
     'bindings.dubbo': {
-        certification: true,
-    },
-    'bindings.zeebe.command': {
-        certification: true,
-    },
-    'bindings.zeebe.jobworker': {
         certification: true,
     },
     'bindings.http': {
@@ -185,14 +192,6 @@ const components = {
     'bindings.postgres': {
         certification: true,
     },
-    'bindings.postgresql.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh postgresql',
-        sourcePkg: [
-            'bindings/postgresql',
-            'common/authentication/postgresql',
-        ],
-    },
     'bindings.postgresql.azure': {
         conformance: true,
         requiredSecrets: [
@@ -201,6 +200,14 @@ const components = {
             'AzureDBPostgresClientSecret',
             'AzureDBPostgresTenantId',
         ],
+        sourcePkg: [
+            'bindings/postgresql',
+            'common/authentication/postgresql',
+        ],
+    },
+    'bindings.postgresql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
             'bindings/postgresql',
             'common/authentication/postgresql',
@@ -235,16 +242,26 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
+    'bindings.zeebe.command': {
+        certification: true,
+    },
+    'bindings.zeebe.jobworker': {
+        certification: true,
+    },
+    'configuration.kubernetes': {
+        certification: true,
+        requireKind: true,
+        certificationSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
+    },
+    'configuration.kubernetes.kind': {
+        conformance: true,
+        requireKind: true,
+        conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
+        sourcePkg: ['configuration/kubernetes'],
+    },
     'configuration.postgres': {
         certification: true,
-        sourcePkg: [
-            'configuration/postgresql',
-            'common/authentication/postgresql',
-        ],
-    },
-    'configuration.postgresql.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
             'configuration/postgresql',
             'common/authentication/postgresql',
@@ -262,6 +279,18 @@ const components = {
             'configuration/postgresql',
             'common/authentication/postgresql',
         ],
+    },
+    'configuration.postgresql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'configuration/postgresql',
+            'common/authentication/postgresql',
+        ],
+    },
+    'configuration.redis': {
+        certification: true,
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
     'configuration.redis.v6': {
         conformance: true,
@@ -283,22 +312,6 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
-    'configuration.redis': {
-        certification: true,
-        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
-    },
-    'configuration.kubernetes': {
-        certification: true,
-        requireKind: true,
-        certificationSetup: 'conformance-configuration.kubernetes-setup.sh',
-        sourcePkg: ['configuration/kubernetes'],
-    },
-    'configuration.kubernetes.kind': {
-        conformance: true,
-        requireKind: true,
-        conformanceSetup: 'conformance-configuration.kubernetes-setup.sh',
-        sourcePkg: ['configuration/kubernetes'],
-    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [
@@ -308,10 +321,10 @@ const components = {
             'AzureKeyVaultServicePrincipalClientSecret',
         ],
     },
-    'crypto.localstorage': {
+    'crypto.jwks': {
         conformance: true,
     },
-    'crypto.jwks': {
+    'crypto.localstorage': {
         conformance: true,
     },
     'lock.redis.v6': {
@@ -337,11 +350,11 @@ const components = {
     'middleware.http.bearer': {
         certification: true,
     },
-    'middleware.http.ratelimit': {
-        certification: true,
-    },
     'middleware.http.opa': {
         'certification': true,
+    },
+    'middleware.http.ratelimit': {
+        certification: true,
     },
     'pubsub.aws.snssqs': {
         certification: true,
@@ -365,24 +378,17 @@ const components = {
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
         sourcePkg: 'pubsub/aws/snssqs',
     },
-    'pubsub.gcp.pubsub': {
-        certification: true,
-        requireTerraform: true,
-        requireGCPCredentials: true,
-        certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
-        certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
-    },
-    // 'pubsub.gcp.pubsub.docker': {
-    //     conformance: true,
-    //     conformanceSetup: 'docker-compose.sh gcp-pubsub',
-    // },
-    'pubsub.gcp.pubsub.terraform': {
+    'pubsub.aws-floci.snssqs': {
         conformance: true,
-        requireTerraform: true,
-        requireGCPCredentials: true,
-        conformanceSetup: 'conformance-pubsub.gcp.pubsub.terraform-setup.sh',
-        conformanceDestroy:
-            'conformance-pubsub.gcp.pubsub.terraform-destroy.sh',
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait pubsub-snssqs',
+        conformanceDestroy: 'docker-compose.sh floci floci down pubsub-snssqs',
+        conformanceLogs: 'docker-compose.sh floci floci logs pubsub-snssqs',
+        certificationSetup: 'docker-compose.sh floci floci up-wait pubsub-snssqs-certification',
+        certificationDestroy: 'docker-compose.sh floci floci down pubsub-snssqs-certification',
+        certificationLogs: 'docker-compose.sh floci floci logs pubsub-snssqs-certification',
+        certificationTestPath: 'pubsub/aws/snssqs',
+        sourcePkg: ['pubsub/aws/snssqs'],
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -430,6 +436,25 @@ const components = {
             'pubsub/azure/servicebus/topics',
             'common/component/azure/servicebus',
         ],
+    },
+    'pubsub.gcp.pubsub': {
+        certification: true,
+        requireTerraform: true,
+        requireGCPCredentials: true,
+        certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
+        certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
+    },
+    // 'pubsub.gcp.pubsub.docker': {
+    //     conformance: true,
+    //     conformanceSetup: 'docker-compose.sh gcp-pubsub',
+    // },
+    'pubsub.gcp.pubsub.terraform': {
+        conformance: true,
+        requireTerraform: true,
+        requireGCPCredentials: true,
+        conformanceSetup: 'conformance-pubsub.gcp.pubsub.terraform-setup.sh',
+        conformanceDestroy:
+            'conformance-pubsub.gcp.pubsub.terraform-destroy.sh',
     },
     'pubsub.in-memory': {
         conformance: true,
@@ -504,6 +529,24 @@ const components = {
         conformanceSetup: 'docker-compose.sh solace',
         conformanceLogs: 'docker-compose-logs.sh solace',
     },
+    'secretstores.aws.secretsmanager.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh secrets-manager',
+    },
+    'secretstores.aws.secretsmanager.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
+        conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
+    },
+    'secretstores.aws-floci.secretsmanager': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait secretstores-secretsmanager',
+        conformanceDestroy: 'docker-compose.sh floci floci down secretstores-secretsmanager',
+        conformanceLogs: 'docker-compose.sh floci floci logs secretstores-secretsmanager',
+        sourcePkg: ['secretstores/aws/secretmanager'],
+    },
     'secretstores.azure.keyvault': {
         certification: true,
         requiredSecrets: [
@@ -555,17 +598,6 @@ const components = {
         conformance: true,
         certification: true,
     },
-    'secretstores.aws.secretsmanager.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
-        conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
-    },
-    'secretstores.aws.secretsmanager.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh secrets-manager',
-    },
     'state.aws.dynamodb': {
         certification: true,
         requireAWSCredentials: true,
@@ -586,8 +618,20 @@ const components = {
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
         sourcePkg: 'state/aws/dynamodb',
     },
-    'state.azure.blobstorage.v2': {
+    'state.aws-floci.dynamodb': {
         conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait state-dynamodb',
+        conformanceDestroy: 'docker-compose.sh floci floci down state-dynamodb',
+        conformanceLogs: 'docker-compose.sh floci floci logs state-dynamodb',
+        certificationSetup: 'docker-compose.sh floci floci up-wait state-dynamodb-certification',
+        certificationDestroy: 'docker-compose.sh floci floci down state-dynamodb-certification',
+        certificationLogs: 'docker-compose.sh floci floci logs state-dynamodb-certification',
+        certificationTestPath: 'state/aws/dynamodb',
+        sourcePkg: ['state/aws/dynamodb'],
+    },
+    'state.azure.blobstorage': {
+        certification: true,
         requiredSecrets: [
             'AzureBlobStorageAccount',
             'AzureBlobStorageAccessKey',
@@ -616,8 +660,8 @@ const components = {
             'common/component/azure/blobstorage',
         ],
     },
-    'state.azure.blobstorage': {
-        certification: true,
+    'state.azure.blobstorage.v2': {
+        conformance: true,
         requiredSecrets: [
             'AzureBlobStorageAccount',
             'AzureBlobStorageAccessKey',
@@ -713,6 +757,21 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh etcd',
     },
+    'state.gcp.firestore': {
+        certification: true,
+        requireGCPCredentials: true,
+        certificationSetup: 'certification-state.gcp.firestore-setup.sh',
+    },
+    'state.gcp.firestore.cloud': {
+        conformance: true,
+        requireGCPCredentials: true,
+        conformanceSetup: 'conformance-state.gcp.firestore-setup.sh',
+    },
+    // 'state.gcp.firestore.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh gcpfirestore',
+    // },
     'state.in-memory': {
         conformance: true,
     },
@@ -756,19 +815,6 @@ const components = {
             'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.v1.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh postgresql',
-        sourcePkg: [
-            'state/postgresql/v1',
-            'common/authentication/postgresql',
-            'common/component/postgresql/interfaces',
-            'common/component/postgresql/transactions',
-            'common/component/postgresql/v1',
-            'common/component/sql',
-            'common/component/sql/migrations',
-        ],
-    },
     'state.postgresql.v1.azure': {
         conformance: true,
         requiredSecrets: [
@@ -787,20 +833,21 @@ const components = {
             'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.v2': {
-        certification: true,
+    'state.postgresql.v1.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
-            'state/postgresql/v2',
+            'state/postgresql/v1',
             'common/authentication/postgresql',
             'common/component/postgresql/interfaces',
             'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
             'common/component/sql/migrations',
         ],
     },
-    'state.postgresql.v2.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh postgresql',
+    'state.postgresql.v2': {
+        certification: true,
         sourcePkg: [
             'state/postgresql/v2',
             'common/authentication/postgresql',
@@ -826,6 +873,24 @@ const components = {
             'common/component/sql',
             'common/component/sql/migrations',
         ],
+    },
+    'state.postgresql.v2.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.ravendb': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh ravendb',
+        requireRavenDBCredentials: true,
     },
     'state.redis': {
         certification: true,
@@ -869,6 +934,11 @@ const components = {
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver', 'common/component/sql'],
     },
+    'state.sqlserver.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
+        sourcePkg: ['state/sqlserver', 'common/component/sql'],
+    },
     'state.sqlserver.v2': {
         conformance: true,
         certification: true,
@@ -876,36 +946,10 @@ const components = {
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
     },
-    'state.sqlserver.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh sqlserver',
-        sourcePkg: ['state/sqlserver', 'common/component/sql'],
-    },
     'state.sqlserver.v2.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
-    },
-    // 'state.gcp.firestore.docker': {
-    //     conformance: true,
-    //     requireDocker: true,
-    //     conformanceSetup: 'docker-compose.sh gcpfirestore',
-    // },
-    'state.gcp.firestore.cloud': {
-        conformance: true,
-        requireGCPCredentials: true,
-        conformanceSetup: 'conformance-state.gcp.firestore-setup.sh',
-    },
-    'state.gcp.firestore': {
-        certification: true,
-        requireGCPCredentials: true,
-        certificationSetup: 'certification-state.gcp.firestore-setup.sh',
-    },
-    'state.ravendb': {
-        conformance: true,
-        certification: true,
-        conformanceSetup: 'docker-compose.sh ravendb',
-        requireRavenDBCredentials: true,
     },
 }
 
@@ -927,6 +971,8 @@ const components = {
  * @property {string?} conformanceDestroy Destroy script for conformance tests
  * @property {string?} certificationSetup Setup script for certification tests
  * @property {string?} certificationDestroy Destroy script for certification tests
+ * @property {string?} certificationLogs Logs script for certification tests
+ * @property {string?} certificationTestPath Path under tests/certification (default: component path)
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
  * @property {string|string[]?} sourcePkg If set, sets the specified source package
@@ -948,6 +994,7 @@ const components = {
  * @property {string?} setup-script Setup script
  * @property {string?} destroy-script Destroy script
  * @property {string?} logs-script Logs script in case of failure
+ * @property {string?} test-path Path under tests/certification
  * @property {string?} nodejs-version Install the specified Node.js version if set
  * @property {string?} mongodb-version Install the specified MongoDB version if set
  * @property {string?} source-pkg Source package
@@ -1023,6 +1070,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'setup-script': comp[testKind + 'Setup'] || undefined,
             'destroy-script': comp[testKind + 'Destroy'] || undefined,
             'logs-script': comp[testKind + 'Logs'] || undefined,
+            'test-path': testKind === 'certification'
+                ? comp.certificationTestPath || undefined
+                : undefined,
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg

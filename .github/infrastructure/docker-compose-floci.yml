@@ -1,0 +1,391 @@
+x-dapr-test-env:
+  DAPR_TEST_COMPONENT_PROFILE: "floci"
+  FLOCI_PORT: "${FLOCI_PORT:-4566}"
+  FLOCI_ENDPOINT: &floci-endpoint "http://127.0.0.1:${FLOCI_PORT:-4566}"
+  AWS_ENDPOINT_URL: *floci-endpoint
+  AWS_ENDPOINT_URL_S3: *floci-endpoint
+  AWS_ENDPOINT_URL_DYNAMODB: *floci-endpoint
+  AWS_ENDPOINT_URL_SNS: *floci-endpoint
+  AWS_ENDPOINT_URL_SQS: *floci-endpoint
+  AWS_ENDPOINT_URL_SECRETS_MANAGER: *floci-endpoint
+  AWS_ENDPOINT_URL_STS: *floci-endpoint
+  AWS_REGION: "us-east-1"
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_ACCOUNT_ID: "000000000000"
+  AWS_ACCOUNT_ID_ENDPOINT_MODE: "disabled"
+  AWS_ACCESS_KEY: "test"
+  AWS_SECRET_KEY: "test"
+  AWS_ACCESS_KEY_ID: "test"
+  AWS_SECRET_ACCESS_KEY: "test"
+  AWS_SESSION_TOKEN: ""
+  AWS_SECURITY_TOKEN: ""
+  AWS_PROFILE: ""
+  AWS_DEFAULT_PROFILE: ""
+  AWS_CONFIG_FILE: "/dev/null"
+  AWS_SHARED_CREDENTIALS_FILE: "/dev/null"
+  AWS_CREDENTIAL_FILE: "/dev/null"
+  AWS_SDK_LOAD_CONFIG: "0"
+  AWS_WEB_IDENTITY_TOKEN_FILE: ""
+  AWS_ROLE_ARN: ""
+  AWS_ROLE_SESSION_NAME: ""
+  AWS_CONTAINER_CREDENTIALS_FULL_URI: ""
+  AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: ""
+  AWS_CONTAINER_AUTHORIZATION_TOKEN: ""
+  AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE: ""
+  AWS_EC2_METADATA_DISABLED: "true"
+  AWS_EC2_METADATA_V1_DISABLED: "true"
+  AWS_EC2_METADATA_SERVICE_ENDPOINT: ""
+  AWS_DEFAULTS_MODE: "standard"
+  AWS_USE_DUALSTACK_ENDPOINT: "false"
+  AWS_USE_FIPS_ENDPOINT: "false"
+  AWS_ENABLE_ENDPOINT_DISCOVERY: "false"
+  AWS_IGNORE_CONFIGURED_ENDPOINT_URLS: "false"
+  BINDINGS_AWS_S3_BUCKET: "floci-bindings-s3"
+  STATE_AWS_DYNAMODB_TABLE_1: "floci-state-dynamodb"
+  STATE_AWS_DYNAMODB_TABLE_2: "floci-state-dynamodb-pkey"
+  PUBSUB_AWS_SNSSQS_QUEUE: "floci-conformance"
+  PUBSUB_AWS_SNSSQS_TOPIC: "floci-conformance-topic"
+  PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1: "floci-conformance-multi-1"
+  PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2: "floci-conformance-multi-2"
+  PUBSUB_AWS_SNSSQS_QUEUE_1: "floci-cert-q1"
+  PUBSUB_AWS_SNSSQS_QUEUE_2: "floci-cert-q2"
+  PUBSUB_AWS_SNSSQS_QUEUE_3: "floci-cert-q3"
+  PUBSUB_AWS_SNSSQS_TOPIC_3: "floci-cert-t3"
+  PUBSUB_AWS_SNSSQS_QUEUE_MVT: "floci-cert-q-mvt"
+  PUBSUB_AWS_SNSSQS_TOPIC_MVT: "floci-cert-t-mvt"
+  PUBSUB_AWS_SNSSQS_QUEUE_DLIN: "floci-cert-dl-in"
+  PUBSUB_AWS_SNSSQS_QUEUE_DLOUT: "floci-cert-dl-out"
+  PUBSUB_AWS_SNSSQS_TOPIC_DLIN: "floci-cert-dl-in"
+  PUBSUB_AWS_SNSSQS_QUEUE_FIFO: "floci-cert-fifo.fifo"
+  PUBSUB_AWS_SNSSQS_TOPIC_FIFO: "floci-cert-fifo.fifo"
+  PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID: "floci-cert-fifo"
+  PUBSUB_AWS_SNSSQS_QUEUE_NODRT: "floci-cert-q-nodrt"
+  PUBSUB_AWS_SNSSQS_TOPIC_NODRT: "floci-cert-t-nodrt"
+
+x-floci-container: &floci-container
+  image: floci/floci:2.0.1-compat@sha256:b4f03abb98966c766109c94b45bda4eaf0fe342fff7bd91ce38ba341b14cc872
+  ports:
+    - "127.0.0.1:${FLOCI_PORT:-4566}:4566"
+  environment: &floci-environment
+    FLOCI_PORT: "4566"
+    FLOCI_HOSTNAME: "127.0.0.1"
+    FLOCI_BASE_URL: "http://127.0.0.1:${FLOCI_PORT:-4566}"
+    FLOCI_STORAGE_MODE: memory
+    FLOCI_DEFAULT_REGION: us-east-1
+    FLOCI_DEFAULT_ACCOUNT_ID: "000000000000"
+    FLOCI_TLS_ENABLED: "false"
+    FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: "60"
+    # Disable unneeded services; Floci ignores SERVICES.
+    FLOCI_SERVICES_ACM_ENABLED: "false"
+    FLOCI_SERVICES_AMAZONMQ_ENABLED: "false"
+    FLOCI_SERVICES_APIGATEWAY_ENABLED: "false"
+    FLOCI_SERVICES_APIGATEWAYV2_ENABLED: "false"
+    FLOCI_SERVICES_APPCONFIG_ENABLED: "false"
+    FLOCI_SERVICES_APPCONFIGDATA_ENABLED: "false"
+    FLOCI_SERVICES_APPLICATIONAUTOSCALING_ENABLED: "false"
+    FLOCI_SERVICES_APPSYNC_ENABLED: "false"
+    FLOCI_SERVICES_APS_ENABLED: "false"
+    FLOCI_SERVICES_ATHENA_ENABLED: "false"
+    FLOCI_SERVICES_AUTOSCALING_ENABLED: "false"
+    FLOCI_SERVICES_BACKUP_ENABLED: "false"
+    FLOCI_SERVICES_BATCH_ENABLED: "false"
+    FLOCI_SERVICES_BCM_DATA_EXPORTS_ENABLED: "false"
+    FLOCI_SERVICES_BEDROCK_AGENT_CORE_ENABLED: "false"
+    FLOCI_SERVICES_BEDROCK_AGENT_CORE_CONTROL_ENABLED: "false"
+    FLOCI_SERVICES_BEDROCK_RUNTIME_ENABLED: "false"
+    FLOCI_SERVICES_CE_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDFORMATION_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDFRONT_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDCONTROL_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDHSMV2_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDMAP_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDTRAIL_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDWATCHLOGS_ENABLED: "false"
+    FLOCI_SERVICES_CLOUDWATCHMETRICS_ENABLED: "false"
+    FLOCI_SERVICES_CODEBUILD_ENABLED: "false"
+    FLOCI_SERVICES_CODEDEPLOY_ENABLED: "false"
+    FLOCI_SERVICES_CODEGURUREVIEWER_ENABLED: "false"
+    FLOCI_SERVICES_CODEPIPELINE_ENABLED: "false"
+    FLOCI_SERVICES_COGNITO_ENABLED: "false"
+    FLOCI_SERVICES_COMPREHEND_ENABLED: "false"
+    FLOCI_SERVICES_CONFIGSERVICE_ENABLED: "false"
+    FLOCI_SERVICES_CONNECT_ENABLED: "false"
+    FLOCI_SERVICES_CONTROLTOWER_ENABLED: "false"
+    FLOCI_SERVICES_CUR_ENABLED: "false"
+    FLOCI_SERVICES_DOCDB_ENABLED: "false"
+    FLOCI_SERVICES_DYNAMODB_ENABLED: "false"
+    FLOCI_SERVICES_EC2_ENABLED: "false"
+    FLOCI_SERVICES_ECR_ENABLED: "false"
+    FLOCI_SERVICES_ECS_ENABLED: "false"
+    FLOCI_SERVICES_EFS_ENABLED: "false"
+    FLOCI_SERVICES_EKS_ENABLED: "false"
+    FLOCI_SERVICES_ELASTICACHE_ENABLED: "false"
+    FLOCI_SERVICES_ELASTICBEANSTALK_ENABLED: "false"
+    FLOCI_SERVICES_ELB_ENABLED: "false"
+    FLOCI_SERVICES_ELBV2_ENABLED: "false"
+    FLOCI_SERVICES_EMR_ENABLED: "false"
+    FLOCI_SERVICES_EMRSERVERLESS_ENABLED: "false"
+    FLOCI_SERVICES_EVENTBRIDGE_ENABLED: "false"
+    FLOCI_SERVICES_FIREHOSE_ENABLED: "false"
+    FLOCI_SERVICES_FIS_ENABLED: "false"
+    FLOCI_SERVICES_GLUE_ENABLED: "false"
+    FLOCI_SERVICES_GUARDDUTY_ENABLED: "false"
+    FLOCI_SERVICES_IAM_ENABLED: "false"
+    FLOCI_SERVICES_IOT_ENABLED: "false"
+    FLOCI_SERVICES_IOTDATA_ENABLED: "false"
+    FLOCI_SERVICES_KINESIS_ENABLED: "false"
+    FLOCI_SERVICES_KINESIS_ANALYTICS_ENABLED: "false"
+    FLOCI_SERVICES_KMS_ENABLED: "false"
+    FLOCI_SERVICES_LAKEFORMATION_ENABLED: "false"
+    FLOCI_SERVICES_LAMBDA_ENABLED: "false"
+    FLOCI_SERVICES_LIGHTSAIL_ENABLED: "false"
+    FLOCI_SERVICES_MEMORYDB_ENABLED: "false"
+    FLOCI_SERVICES_MSK_ENABLED: "false"
+    FLOCI_SERVICES_MWAA_ENABLED: "false"
+    FLOCI_SERVICES_NEPTUNE_ENABLED: "false"
+    FLOCI_SERVICES_NETWORKFIREWALL_ENABLED: "false"
+    FLOCI_SERVICES_OPENSEARCH_ENABLED: "false"
+    FLOCI_SERVICES_ORGANIZATIONS_ENABLED: "false"
+    FLOCI_SERVICES_PIPES_ENABLED: "false"
+    FLOCI_SERVICES_PRICING_ENABLED: "false"
+    FLOCI_SERVICES_RAM_ENABLED: "false"
+    FLOCI_SERVICES_RDS_ENABLED: "false"
+    FLOCI_SERVICES_RDS_DATA_ENABLED: "false"
+    FLOCI_SERVICES_REDSHIFT_ENABLED: "false"
+    FLOCI_SERVICES_REKOGNITION_ENABLED: "false"
+    FLOCI_SERVICES_RESOURCEEXPLORER2_ENABLED: "false"
+    FLOCI_SERVICES_ROUTE53_ENABLED: "false"
+    FLOCI_SERVICES_ROUTE53RESOLVER_ENABLED: "false"
+    FLOCI_SERVICES_RUM_ENABLED: "false"
+    FLOCI_SERVICES_S3_ENABLED: "false"
+    FLOCI_SERVICES_S3TABLES_ENABLED: "false"
+    FLOCI_SERVICES_S3VECTORS_ENABLED: "false"
+    FLOCI_SERVICES_SCHEDULER_ENABLED: "false"
+    FLOCI_SERVICES_SECRETSMANAGER_ENABLED: "false"
+    FLOCI_SERVICES_SERVICECATALOG_ENABLED: "false"
+    FLOCI_SERVICES_SERVICEQUOTAS_ENABLED: "false"
+    FLOCI_SERVICES_SES_ENABLED: "false"
+    FLOCI_SERVICES_SNS_ENABLED: "false"
+    FLOCI_SERVICES_SQS_ENABLED: "false"
+    FLOCI_SERVICES_SSM_ENABLED: "false"
+    FLOCI_SERVICES_SSOADMIN_ENABLED: "false"
+    FLOCI_SERVICES_STEPFUNCTIONS_ENABLED: "false"
+    FLOCI_SERVICES_SWF_ENABLED: "false"
+    FLOCI_SERVICES_TAGGING_ENABLED: "false"
+    FLOCI_SERVICES_TEXTRACT_ENABLED: "false"
+    FLOCI_SERVICES_TRANSCRIBE_ENABLED: "false"
+    FLOCI_SERVICES_TRANSFER_ENABLED: "false"
+    FLOCI_SERVICES_UI_ENABLED: "false"
+    FLOCI_SERVICES_WAFV2_ENABLED: "false"
+    FLOCI_SERVICES_SES_SMTP_HOST: ""
+    AWS_ACCESS_KEY_ID: test
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_REGION: us-east-1
+    AWS_EC2_METADATA_DISABLED: "true"
+    AWS_CONFIG_FILE: /dev/null
+    AWS_SHARED_CREDENTIALS_FILE: /dev/null
+  tmpfs:
+    - /app/data
+  configs:
+    - source: floci-test-fixtures
+      target: /etc/floci/init/ready.d/10-test-fixtures.py
+  healthcheck:
+    test:
+      - CMD
+      - python3
+      - -c
+      - |
+        import json
+        import os
+        import sys
+        import urllib.request
+
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open("http://127.0.0.1:4566/_floci/init", timeout=2) as response:
+            status = json.load(response)
+        successful = any(
+            script["script"] == "/etc/floci/init/ready.d/10-test-fixtures.py"
+            and script["state"] == "successful" and script["return_code"] == 0
+            for script in status["scripts"]["ready"]
+        )
+        with opener.open("http://127.0.0.1:4566/health", timeout=2) as response:
+            services = json.load(response)["services"]
+        expected = set(os.environ["FLOCI_TEST_EXPECTED_SERVICES"].split())
+        running = {name for name, state in services.items() if state == "running"}
+        if not expected or running != expected:
+            raise RuntimeError(f"Expected running services {sorted(expected)}, got {sorted(running)}")
+        sys.exit(0 if status["completed"]["ready"] is True and successful else 1)
+    interval: 2s
+    timeout: 5s
+    retries: 10
+    start_period: 60s
+  stop_grace_period: 10s
+
+services:
+  floci-bindings-s3:
+    <<: *floci-container
+    profiles: ["bindings-s3"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: bindings-s3
+      FLOCI_TEST_EXPECTED_SERVICES: s3
+      FLOCI_SERVICES_S3_ENABLED: "true"
+  floci-state-dynamodb:
+    <<: *floci-container
+    profiles: ["state-dynamodb"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: state-dynamodb
+      FLOCI_TEST_EXPECTED_SERVICES: dynamodb
+      FLOCI_SERVICES_DYNAMODB_ENABLED: "true"
+  floci-state-dynamodb-certification:
+    <<: *floci-container
+    profiles: ["state-dynamodb-certification"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: state-dynamodb-certification
+      FLOCI_TEST_EXPECTED_SERVICES: dynamodb
+      FLOCI_SERVICES_DYNAMODB_ENABLED: "true"
+  floci-pubsub-snssqs:
+    <<: *floci-container
+    profiles: ["pubsub-snssqs"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: pubsub-snssqs
+      # IAM also controls STS/signin.
+      FLOCI_TEST_EXPECTED_SERVICES: iam sns sqs
+      FLOCI_SERVICES_IAM_ENABLED: "true"
+      FLOCI_SERVICES_SNS_ENABLED: "true"
+      FLOCI_SERVICES_SQS_ENABLED: "true"
+  floci-pubsub-snssqs-certification:
+    <<: *floci-container
+    profiles: ["pubsub-snssqs-certification"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: pubsub-snssqs-certification
+      FLOCI_TEST_EXPECTED_SERVICES: iam sns sqs
+      FLOCI_SERVICES_IAM_ENABLED: "true"
+      FLOCI_SERVICES_SNS_ENABLED: "true"
+      FLOCI_SERVICES_SQS_ENABLED: "true"
+  floci-secretstores-secretsmanager:
+    <<: *floci-container
+    profiles: ["secretstores-secretsmanager"]
+    environment:
+      <<: *floci-environment
+      FLOCI_TEST_PROFILE: secretstores-secretsmanager
+      FLOCI_TEST_EXPECTED_SERVICES: secretsmanager
+      FLOCI_SERVICES_SECRETSMANAGER_ENABLED: "true"
+
+configs:
+  floci-test-fixtures:
+    content: |
+      import json
+      import os
+      from functools import partial
+      from urllib.parse import urlsplit
+
+      import boto3
+      from botocore.config import Config
+
+      endpoint = "http://127.0.0.1:4566"
+      session = boto3.Session(
+          aws_access_key_id="test", aws_secret_access_key="test",
+          aws_session_token="", region_name="us-east-1",
+      )
+      config = Config(
+          connect_timeout=2, read_timeout=5, retries={"max_attempts": 0},
+          proxies={}, endpoint_discovery_enabled=False,
+          use_fips_endpoint=False, use_dualstack_endpoint=False,
+          s3={"addressing_style": "path"},
+      )
+      waiter = {"Delay": 1, "MaxAttempts": 30}
+
+      def client(service):
+          return session.client(service, endpoint_url=endpoint, config=config)
+
+      def seed_bucket():
+          s3 = client("s3")
+          s3.create_bucket(Bucket="floci-bindings-s3")
+          s3.get_waiter("bucket_exists").wait(Bucket="floci-bindings-s3", WaiterConfig=waiter)
+
+      def seed_table(name, key="key", ttl=False):
+          dynamodb = client("dynamodb")
+          dynamodb.create_table(
+              TableName=name, BillingMode="PAY_PER_REQUEST",
+              AttributeDefinitions=[{"AttributeName": key, "AttributeType": "S"}],
+              KeySchema=[{"AttributeName": key, "KeyType": "HASH"}],
+          )
+          dynamodb.get_waiter("table_exists").wait(TableName=name, WaiterConfig=waiter)
+          if ttl:
+              dynamodb.update_time_to_live(
+                  TableName=name,
+                  TimeToLiveSpecification={"AttributeName": "expiresAt", "Enabled": True},
+              )
+
+      def seed_state_tables(certification=False):
+          seed_table("floci-state-dynamodb", ttl=True)
+          if certification:
+              seed_table("floci-state-dynamodb-pkey", key="pkey")
+
+      def seed_secrets():
+          secrets = client("secretsmanager")
+          for name, value in [("conftestsecret", "abcd"), ("secondsecret", "efgh")]:
+              secrets.create_secret(Name=name, SecretString=value)
+
+      def topic(name):
+          return client("sns").create_topic(
+              Name=name, Tags=[{"Key": "dapr-topic-name", "Value": name}],
+          )["TopicArn"]
+
+      def queue(name):
+          sqs = client("sqs")
+          result = sqs.create_queue(QueueName=name, tags={"dapr-queue-name": name})
+          # Use container-local queue URLs.
+          url = endpoint + urlsplit(result["QueueUrl"]).path
+          arn = sqs.get_queue_attributes(
+              QueueUrl=url, AttributeNames=["QueueArn"],
+          )["Attributes"]["QueueArn"]
+          return url, arn
+
+      def seed_pubsub(pairs):
+          sns, sqs = client("sns"), client("sqs")
+          for queue_name, topic_names in pairs:
+              topics = [topic(name) for name in topic_names]
+              url, arn = queue(queue_name)
+              policy = {
+                  "Version": "2012-10-17",
+                  "Statement": [{
+                      "Effect": "Allow", "Principal": {"Service": "sns.amazonaws.com"},
+                      "Action": "sqs:SendMessage", "Resource": arn,
+                      "Condition": {"ArnEquals": {"aws:SourceArn": topic_arn}},
+                  } for topic_arn in topics],
+              }
+              sqs.set_queue_attributes(QueueUrl=url, Attributes={"Policy": json.dumps(policy)})
+              for topic_arn in topics:
+                  sns.subscribe(
+                      TopicArn=topic_arn, Protocol="sqs", Endpoint=arn,
+                      ReturnSubscriptionArn=True, Attributes={"RawMessageDelivery": "false"},
+                  )
+
+      seeders = {
+          "bindings-s3": seed_bucket,
+          "state-dynamodb": seed_state_tables,
+          "state-dynamodb-certification": partial(seed_state_tables, certification=True),
+          "pubsub-snssqs": partial(seed_pubsub, [
+              ("floci-conformance", [
+                  "floci-conformance-topic", "floci-conformance-multi-1",
+                  "floci-conformance-multi-2",
+              ]),
+          ]),
+          # Leave test-managed resources unseeded.
+          "pubsub-snssqs-certification": partial(seed_pubsub, [
+              ("floci-cert-q3", ["floci-cert-t3"]),
+              ("floci-cert-q-mvt", ["floci-cert-t-mvt"]),
+          ]),
+          "secretstores-secretsmanager": seed_secrets,
+      }
+      profile = os.environ.get("FLOCI_TEST_PROFILE", "")
+      if profile not in seeders:
+          raise ValueError(f"Unknown or unset FLOCI_TEST_PROFILE: {profile!r}")
+      seeders[profile]()

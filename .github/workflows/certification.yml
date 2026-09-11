@@ -136,12 +136,18 @@ jobs:
         ref: ${{ env.CHECKOUT_REF }}
 
     - name: Configure environment
+      env:
+        CERTIFICATION_TEST_PATH: ${{ matrix.test-path }}
+        TEST_COMPONENT_ID: ${{ matrix.component }}
       run: |
         # Output file
         echo "TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report" >> $GITHUB_ENV
 
         # Certification test and source path
-        TEST_COMPONENT=$(echo "${{ matrix.component }}" | sed -E 's/\./\//g')
+        TEST_COMPONENT="$CERTIFICATION_TEST_PATH"
+        if [ -z "$TEST_COMPONENT" ]; then
+          TEST_COMPONENT=$(echo "$TEST_COMPONENT_ID" | sed -E 's/\./\//g')
+        fi
         echo "TEST_PATH=tests/certification/${TEST_COMPONENT}" >> $GITHUB_ENV
         SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
@@ -263,8 +269,8 @@ jobs:
       continue-on-error: false
       working-directory: ${{ env.TEST_PATH }}
       env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        AWS_ACCESS_KEY_ID: ${{ contains(matrix.component, '.aws-floci.') && 'test' || secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ contains(matrix.component, '.aws-floci.') && 'test' || secrets.AWS_SECRET_KEY }}
         AWS_REGION: "${{ env.AWS_REGION }}"
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
@@ -305,6 +311,10 @@ jobs:
           echo "CERTIFICATION_FAILURE=false" >> $GITHUB_ENV
         fi
 
+    - name: Catch Floci test failures
+      if: failure() && contains(matrix.component, '.aws-floci.')
+      run: echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
+
     - name: Upload Cert Coverage Report File
       uses: actions/upload-artifact@v6
       if: github.event_name == 'schedule'
@@ -339,6 +349,10 @@ jobs:
       with:
         name: ${{ matrix.component }}_certification_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
+
+    - name: Retrieve infrastructure failure logs
+      if: failure() && matrix.logs-script != ''
+      run: .github/scripts/components-scripts/${{ matrix.logs-script }}
 
     - name: Run destroy script
       if: always() && matrix.destroy-script != ''

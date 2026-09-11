@@ -76,6 +76,8 @@ func loadSecretStore(name string) secretstores.SecretStore {
 		return ss_aws.NewSecretManager(testLogger)
 	case "aws.secretsmanager.terraform":
 		return ss_aws.NewSecretManager(testLogger)
+	case "aws-floci.secretsmanager":
+		return ss_aws.NewSecretManager(testLogger)
 	default:
 		return nil
 	}

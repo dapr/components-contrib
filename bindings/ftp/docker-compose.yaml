@@ -1,0 +1,24 @@
+services:
+  ftp:
+    image: stilliard/pure-ftpd
+    environment:
+      - PUBLICHOST=127.0.0.1
+      - FTP_USER_NAME=foo
+      - FTP_USER_PASS=pass
+      - FTP_USER_HOME=/home/foo
+      # --tls=1 makes TLS optional, so one server covers both the plain FTP and the explicit FTPS tests.
+      # pure-ftpd has no implicit FTPS (port 990) mode.
+      - ADDED_FLAGS=--tls=1 --chrooteveryone
+      # A self-signed certificate is generated at startup when TLS_CN is set.
+      - TLS_CN=localhost
+      - TLS_ORG=dapr
+      - TLS_C=US
+    ports:
+      - "2121:21"
+      - "30000-30009:30000-30009"
+    # Certificate generation can take a while; --wait in docker compose blocks until the port is open.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/21"]
+      interval: 2s
+      timeout: 3s
+      retries: 60

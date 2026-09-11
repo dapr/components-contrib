@@ -919,7 +919,7 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
- * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials
+ * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials (license) and makes the test "cloud-only"
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
@@ -973,7 +973,8 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 comp.requiredCerts?.length ||
                 comp.requireAWSCredentials ||
                 comp.requireGCPCredentials ||
-                comp.requireCloudflareCredentials,
+                comp.requireCloudflareCredentials ||
+                comp.requireRavenDBCredentials,
         )
 
         // Skip cloud-only tests if enableCloudTests is false

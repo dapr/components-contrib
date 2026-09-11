@@ -232,6 +232,21 @@ jobs:
         aws-secret-access-key: "${{ secrets.AWS_SECRET_KEY }}"
         aws-region: "${{ env.AWS_REGION }}"
 
+    - name: Set RavenDB env vars
+      if: matrix.require-ravendb-credentials == 'true'
+      env:
+        RAVENDBLICENSE: ${{ secrets.RAVENDBLICENSE }}
+      run: |
+        if [ -z "$RAVENDBLICENSE" ]; then
+          echo "::error::RAVENDBLICENSE secret is not set"
+          exit 1
+        fi
+        {
+          echo "RAVENDBLICENSE<<EOF_RAVENDBLICENSE"
+          echo "$RAVENDBLICENSE"
+          echo "EOF_RAVENDBLICENSE"
+        } >> "$GITHUB_ENV"
+
     - name: Set up Go
       id: setup-go
       uses: actions/setup-go@v7

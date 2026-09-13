@@ -193,8 +193,7 @@ func (c *storageClient) putObject(ctx context.Context, bucket, name string, data
 
 	writer := obj.NewWriter(ctx)
 	if _, err := io.Copy(writer, data); err != nil {
-		_ = writer.Close()
-		return err
+		return writer.CloseWithError(err)
 	}
 	return writer.Close()
 }
@@ -212,6 +211,9 @@ func (c *storageClient) close() error {
 }
 
 func isNotFound(err error) bool {
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return true
+	}
 	var apiErr *googleapi.Error
 	return errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound
 }

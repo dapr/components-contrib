@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"reflect"
 	"sync"
 
 	"github.com/dapr/components-contrib/binarystore"
@@ -109,7 +110,10 @@ func (s *InMemoryBinaryStore) Delete(_ context.Context, req *binarystore.DeleteR
 }
 
 func (s *InMemoryBinaryStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	// no metadata, hence no metadata struct to convert here
+	metadataStruct := struct {
+		Prefix string `json:"prefix" mapstructure:"prefix"`
+	}{}
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BinaryStoreType)
 	return
 }
 

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/datalakeerror"
@@ -69,7 +70,12 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 		return binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
+	objectPath := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
+	if err := a.ensureParentDirectories(ctx, objectPath); err != nil {
+		return fmt.Errorf("error creating parent directories for file %q: %w", req.FileName, err)
+	}
+
+	fileClient := a.fileSystemClient.NewFileClient(objectPath)
 
 	createOpts := &file.CreateOptions{}
 	if !req.Overwrite {
@@ -93,6 +99,24 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 
 	if err = fileClient.UploadStream(ctx, req.Data, nil); err != nil {
 		return fmt.Errorf("error uploading file %q: %w", req.FileName, err)
+	}
+
+	return nil
+}
+
+func (a *AzureDataLakeStorage) ensureParentDirectories(ctx context.Context, objectPath string) error {
+	parts := strings.Split(strings.Trim(objectPath, "/"), "/")
+	if len(parts) <= 1 {
+		return nil
+	}
+
+	for i := 1; i < len(parts); i++ {
+		dirPath := strings.Join(parts[:i], "/")
+		dirClient := a.fileSystemClient.NewDirectoryClient(dirPath)
+		_, err := dirClient.Create(ctx, nil)
+		if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet) {
+			return err
+		}
 	}
 
 	return nil

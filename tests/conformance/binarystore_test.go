@@ -34,7 +34,7 @@ import (
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
 
-func TestBinaryStoreConformance(t *testing.T) {
+func TestBinarystoreConformance(t *testing.T) {
 	const configPath = "../config/binarystore/"
 
 	// Try to load environment variables from .env file

@@ -10,6 +10,42 @@ const components = {
         conformance: true,
         sourcePkg: ['binarystore/in-memory'],
     },
+    'binarystore.azure.blobstorage': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+        ],
+        sourcePkg: ['binarystore/azure/blobstorage', 'common/component/azure/blobstorage'],
+    },
+    'binarystore.azure.datalake': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+        ],
+        sourcePkg: ['binarystore/azure/datalake', 'common/component/azure/datalake'],
+    },
+    'binarystore.aws.s3': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requiredSecrets: ['AWSS3Bucket'],
+        sourcePkg: ['binarystore/aws/s3', 'common/aws'],
+    },
+    'binarystore.gcp.bucket': {
+        conformance: true,
+        requiredSecrets: ['GCPBucket'],
+        sourcePkg: ['binarystore/gcp/bucket'],
+    },
+    'binarystore.oci.objectstorage': {
+        conformance: true,
+        requiredSecrets: [
+            'DAPR_TEST_OCI_CONFIG_FILE_PATH',
+            'DAPR_TEST_OCI_COMPARTMENT_OCID',
+            'DAPR_TEST_OCI_BUCKET_NAME',
+        ],
+        sourcePkg: ['binarystore/oci/objectstorage'],
+    },
     'bindings.azure.blobstorage': {
         conformance: true,
         certification: true,

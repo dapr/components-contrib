@@ -42,11 +42,33 @@ type SetRequest struct {
 	// returns.
 	Data io.Reader
 
+	// Reset is an optional callback used by callers that retry a failed Set.
+	// When set, it should rewind or recreate Data so a later retry starts from
+	// the beginning. If Data implements io.Seeker, the caller may also rewind it
+	// directly before retrying.
+	Reset func() error
+
 	// Overwrite controls create-vs-upsert semantics.
 	//
 	// false — POST semantics: return ErrFileAlreadyExists if the file exists.
 	// true  — PUT semantics: create the file or replace it if it already exists.
 	Overwrite bool
+}
+
+// ResetReader rewinds Data to the beginning if possible. Callers may use it to
+// prepare a Set request for a retry when Data supports seeking.
+func (r *SetRequest) ResetReader() error {
+	if r == nil || r.Data == nil {
+		return nil
+	}
+	if resetFn := r.Reset; resetFn != nil {
+		return resetFn()
+	}
+	if seeker, ok := r.Data.(io.Seeker); ok {
+		_, err := seeker.Seek(0, io.SeekStart)
+		return err
+	}
+	return nil
 }
 
 // GetRequest is the request object for the Get operation.

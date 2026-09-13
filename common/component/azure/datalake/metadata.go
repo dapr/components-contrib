@@ -35,7 +35,8 @@ const (
 // Gen2 filesystem client.
 type DataLakeMetadata struct {
 	FileSystemClientOpts    `json:",inline" mapstructure:",squash"`
-	DisableEntityManagement bool `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
+	Prefix                  string `json:"prefix" mapstructure:"prefix" mdonly:"binarystore"`
+	DisableEntityManagement bool   `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
 }
 
 // FileSystemClientOpts contains the connection options for an ADLS Gen2
@@ -44,7 +45,6 @@ type FileSystemClientOpts struct {
 	// Use a connection string
 	ConnectionString string
 	FileSystemName   string
-	Prefix           string `json:"prefix" mapstructure:"prefix"`
 
 	// Use a shared account key
 	AccountName string

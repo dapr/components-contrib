@@ -26,16 +26,16 @@ import (
 
 type BlobStorageMetadata struct {
 	ContainerClientOpts     `json:",inline" mapstructure:",squash"`
-	DecodeBase64            bool `json:"decodeBase64,string" mapstructure:"decodeBase64" mdonly:"bindings"`
+	Prefix                  string                  `json:"prefix" mapstructure:"prefix" mdonly:"binarystore"`
+	DecodeBase64            bool                    `json:"decodeBase64,string" mapstructure:"decodeBase64" mdonly:"bindings"`
 	PublicAccessLevel       azblob.PublicAccessType `json:"publicAccessLevel" mapstructure:"publicAccessLevel"`
-	DisableEntityManagement bool `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
+	DisableEntityManagement bool                    `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
 }
 
 type ContainerClientOpts struct {
 	// Use a connection string
 	ConnectionString string
 	ContainerName    string
-	Prefix           string `json:"prefix" mapstructure:"prefix"`
 
 	// Use a shared account key
 	AccountName string

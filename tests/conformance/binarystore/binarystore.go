@@ -16,8 +16,13 @@ package binarystore
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
+	cryptorand "crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
+	mathrand "math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +46,19 @@ func NewTestConfig(componentName string) TestConfig {
 			ComponentName: componentName,
 		},
 	}
+}
+
+func makeObjectName(component, suffix string) string {
+	sanitized := strings.NewReplacer("/", "-", "\\", "-", " ", "-", "_", "-", ".", "-").Replace(component + "-" + suffix)
+	var randomSuffix [8]byte
+	if _, err := cryptorand.Read(randomSuffix[:]); err == nil {
+		return sanitized + "-" + hex.EncodeToString(randomSuffix[:])
+	}
+	return sanitized + "-" + fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+func randReader(seed int64) io.Reader {
+	return mathrand.New(mathrand.NewSource(seed))
 }
 
 // ConformanceTests runs the binary store conformance suite against the given
@@ -67,9 +85,17 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		_ = store.Close()
 	})
 
-	// Use a unique object name per test run to avoid collisions in shared
-	// containers across CI runs.
-	fileName := "conformance-" + component + "-" + t.Name()
+	// Use a unique, slash-free object name per test run to avoid collisions in
+	// shared containers across CI runs and nested path issues in ADLS.
+	fileName := makeObjectName(component, t.Name())
+	cleanupNames := map[string]struct{}{fileName: {}}
+	t.Cleanup(func() {
+		for name := range cleanupNames {
+			if err := store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: name}); err != nil && !errors.Is(err, binarystore.ErrFileNotFound) {
+				t.Logf("cleanup delete %q failed: %v", name, err)
+			}
+		}
+	})
 
 	t.Run("set then get round-trips small payload", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -143,17 +169,15 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 
-		// 4 MiB of random data — large enough to exceed any reasonable
-		// in-memory buffer and exercise the streaming path.
 		size := 4 * 1024 * 1024
-		payload := make([]byte, size)
-		_, err := rand.Read(payload)
-		require.NoError(t, err)
+		seed := time.Now().UnixNano()
+		payloadReader := io.LimitReader(randReader(seed), int64(size))
+		bigName := makeObjectName(component, "large")
+		cleanupNames[bigName] = struct{}{}
 
-		bigName := fileName + "-large"
-		err = store.Set(ctx, &binarystore.SetRequest{
+		err := store.Set(ctx, &binarystore.SetRequest{
 			FileName:  bigName,
-			Data:      bytes.NewReader(payload),
+			Data:      payloadReader,
 			Overwrite: true,
 		})
 		require.NoError(t, err)
@@ -162,12 +186,27 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		require.NoError(t, err)
 		defer resp.Data.Close()
 
-		// Read in modest chunks to verify the reader is genuinely streaming and
-		// to keep peak memory low.
-		got, err := io.ReadAll(resp.Data)
+		expected := sha256.New()
+		_, err = io.Copy(expected, io.LimitReader(randReader(seed), int64(size)))
 		require.NoError(t, err)
-		require.Len(t, got, size)
-		assert.True(t, bytes.Equal(payload, got), "round-tripped large payload must match byte-for-byte")
+
+		gotHash := sha256.New()
+		buf := make([]byte, 64*1024)
+		readTotal := 0
+		for {
+			n, readErr := resp.Data.Read(buf)
+			if n > 0 {
+				_, err = gotHash.Write(buf[:n])
+				require.NoError(t, err)
+				readTotal += n
+			}
+			if readErr == io.EOF {
+				break
+			}
+			require.NoError(t, readErr)
+		}
+		require.Equal(t, size, readTotal)
+		assert.Equal(t, expected.Sum(nil), gotHash.Sum(nil), "round-tripped large payload must match byte-for-byte")
 	})
 
 	t.Run("get missing file returns ErrFileNotFound", func(t *testing.T) {

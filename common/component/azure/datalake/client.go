@@ -179,7 +179,7 @@ func (opts *FileSystemClientOpts) EnsureFileSystem(ctx context.Context, client *
 		// Check if it's an Azure Storage error
 		resErr := &azcore.ResponseError{}
 		// If the filesystem already exists, return no error
-		if errors.As(err, &resErr) && (resErr.ErrorCode == "FileSystemAlreadyExists" || resErr.ErrorCode == "ResourceAlreadyExists") {
+		if errors.As(err, &resErr) && (strings.EqualFold(resErr.ErrorCode, "FilesystemAlreadyExists") || strings.EqualFold(resErr.ErrorCode, "FileSystemAlreadyExists") || strings.EqualFold(resErr.ErrorCode, "ResourceAlreadyExists")) {
 			return nil
 		}
 		return err

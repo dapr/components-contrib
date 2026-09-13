@@ -285,6 +285,10 @@ jobs:
           KIND_UPPER=SecretStore
         fi
 
+        if [ "${KIND}" = "binarystore" ]; then
+          KIND_UPPER=BinaryStore
+        fi
+
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
         echo "Source Package: " ${{ matrix.source-pkg }}
 

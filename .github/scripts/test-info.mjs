@@ -6,6 +6,10 @@ import { writeFileSync } from 'node:fs'
  * @type {Record<string,ComponentTestProperties>}
  */
 const components = {
+    'binarystore.in-memory': {
+        conformance: true,
+        sourcePkg: ['binarystore/in-memory'],
+    },
     'bindings.azure.blobstorage': {
         conformance: true,
         certification: true,

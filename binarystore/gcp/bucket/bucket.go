@@ -173,7 +173,7 @@ func (g *GCPBucket) Delete(ctx context.Context, req *binarystore.DeleteRequest) 
 // GetComponentMetadata returns the metadata schema for this component.
 func (g *GCPBucket) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := gcpMetadata{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 

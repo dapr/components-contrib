@@ -39,7 +39,7 @@ func newTestStore(client gcsClient) *GCPBucket {
 }
 
 func TestImplementsBinaryStore(t *testing.T) {
-	var _ binarystore.BinaryStore = NewGCPBucket(logger.NewLogger("test"))
+	var _ binarystore.BinaryStore = (*GCPBucket)(nil)
 }
 
 func TestNewGCPBucket(t *testing.T) {

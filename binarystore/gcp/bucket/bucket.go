@@ -186,14 +186,19 @@ func (g *GCPBucket) Close() error {
 }
 
 func (c *storageClient) putObject(ctx context.Context, bucket, name string, data io.Reader, overwrite bool) error {
+	wctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	obj := c.client.Bucket(bucket).Object(name)
 	if !overwrite {
 		obj = obj.If(storage.Conditions{DoesNotExist: true})
 	}
 
-	writer := obj.NewWriter(ctx)
+	writer := obj.NewWriter(wctx)
 	if _, err := io.Copy(writer, data); err != nil {
-		return writer.CloseWithError(err)
+		cancel()
+		_ = writer.Close()
+		return err
 	}
 	return writer.Close()
 }

@@ -20,9 +20,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	mathrand "math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -54,11 +54,11 @@ func makeObjectName(component, suffix string) string {
 	if _, err := cryptorand.Read(randomSuffix[:]); err == nil {
 		return sanitized + "-" + hex.EncodeToString(randomSuffix[:])
 	}
-	return sanitized + "-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	return sanitized + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 func randReader(seed int64) io.Reader {
-	return mathrand.New(mathrand.NewSource(seed))
+	return mathrand.New(mathrand.NewSource(seed)) //nolint:gosec // Deterministic reader for testing
 }
 
 // ConformanceTests runs the binary store conformance suite against the given

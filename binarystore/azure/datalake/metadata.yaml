@@ -47,6 +47,11 @@ metadata:
     description: "The name of the Azure Data Lake Storage Gen2 filesystem to use."
     example: '"my-binary-store-filesystem"'
 
+  - name: prefix
+    required: false
+    description: "An optional prefix prepended to all file names stored by this component."
+    example: '"myprefix"'
+
   - name: retryCount
     type: number
     default: "3"

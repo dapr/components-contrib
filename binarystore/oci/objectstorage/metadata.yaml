@@ -75,6 +75,10 @@ metadata:
     required: true
     description: The name of the OCI Object Storage bucket.
     example: "my-binary-store-bucket"
+  - name: prefix
+    required: false
+    description: An optional prefix prepended to all file names stored by this component.
+    example: '"myprefix"'
   - name: compartmentOCID
     type: string
     required: true

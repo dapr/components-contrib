@@ -48,6 +48,10 @@ metadata:
     description: |
       The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist.
     example: '"container"'
+  - name: prefix
+    required: false
+    description: "An optional prefix prepended to all blob names."
+    example: '"myprefix"'
   - name: publicAccessLevel
     type: string
     required: false

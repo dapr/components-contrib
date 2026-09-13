@@ -47,6 +47,21 @@ metadata:
     description: "The name of the Azure Blob Storage container to use."
     example: '"my-binary-store-container"'
 
+  - name: publicAccessLevel
+    required: false
+    description: "Indicates whether data in the container may be accessed publicly and the level of access."
+    example: '"none"'
+    default: "none"
+    allowedValues:
+      - "none"
+      - "blob"
+      - "container"
+
+  - name: prefix
+    required: false
+    description: "An optional prefix prepended to all file names stored by this component."
+    example: '"myprefix"'
+
   - name: retryCount
     type: number
     default: "3"

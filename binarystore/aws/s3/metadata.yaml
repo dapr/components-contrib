@@ -20,6 +20,12 @@ metadata:
       The name of the S3 bucket to use.
     example: '"my-binary-store-bucket"'
 
+  - name: prefix
+    required: false
+    description: |
+      An optional prefix prepended to all file names stored by this component.
+    example: '"myprefix"'
+
   - name: endpoint
     required: false
     description: |

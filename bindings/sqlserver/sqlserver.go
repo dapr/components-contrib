@@ -208,8 +208,7 @@ func (s *SQLServer) Close() error {
 	}
 
 	if s.db != nil {
-		_ = s.db.Close()
-		s.db = nil
+		return s.db.Close()
 	}
 
 	return nil

@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	mssql "github.com/microsoft/go-mssqldb"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -308,6 +310,11 @@ func (s *SQLServer) convert(columnTypes []*sql.ColumnType, values []any) map[str
 			switch ct.DatabaseTypeName() {
 			case "DECIMAL", "MONEY", "SMALLMONEY":
 				value = string(b)
+			case "UNIQUEIDENTIFIER":
+				var guid mssql.UniqueIdentifier
+				if err := guid.Scan(b); err == nil {
+					value = guid.String()
+				}
 			}
 		}
 

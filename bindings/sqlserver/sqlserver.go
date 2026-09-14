@@ -271,7 +271,7 @@ func (s *SQLServer) jsonify(rows *sql.Rows) ([]byte, error) {
 		return nil, err
 	}
 
-	var ret []any
+	ret := []any{}
 	for rows.Next() {
 		values := make([]any, len(columnTypes))
 		for i := range values {

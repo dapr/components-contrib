@@ -196,7 +196,7 @@ func TestConverseEmptyResponseWithTools(t *testing.T) {
 			wantErr:    true,
 			errSubstr:  "LLM returned empty response with no tool calls",
 		},
-	        {
+		{
 			name: "empty content no tool calls with tools provided and tool_choice=any - returns error",
 			choices: []*llms.ContentChoice{
 				{Content: "", StopReason: "stop"},
@@ -213,7 +213,7 @@ func TestConverseEmptyResponseWithTools(t *testing.T) {
 			toolChoice: ptr.Of("any"),
 			wantErr:    true,
 			errSubstr:  "LLM returned empty response with no tool calls",
-		},	
+		},
 	}
 
 	for _, tt := range tests {

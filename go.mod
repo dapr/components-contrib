@@ -91,7 +91,7 @@ require (
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/json-iterator/go v1.1.12
 	github.com/kubemq-io/kubemq-go v1.7.9
 	github.com/labd/commercetools-go-sdk v1.3.1
@@ -114,7 +114,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/sftp v1.13.7
 	github.com/puzpuzpuz/xsync/v3 v3.5.1
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/ravendb/ravendb-go-client v0.0.0-20240723121956-2b87f37fe427
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/riferrei/srclient v0.7.3

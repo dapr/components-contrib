@@ -389,7 +389,7 @@ func (s *SQLServer) CleanupExpired() error {
 	return nil
 }
 
-func (s *SQLServer) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+func (s *SQLServer) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
 	if len(req.Pattern) == 0 {
 		return nil, state.ErrKeysLikeEmptyPattern
 	}

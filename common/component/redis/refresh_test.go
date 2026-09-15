@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/require"
 
 	kitlogger "github.com/dapr/kit/logger"
@@ -32,6 +34,7 @@ import (
 type fakeRedisClient struct {
 	RedisClient
 	doWriteCalls chan []interface{}
+	authACLCalls chan []string
 }
 
 func (f *fakeRedisClient) DoWrite(_ context.Context, args ...interface{}) error {
@@ -39,8 +42,30 @@ func (f *fakeRedisClient) DoWrite(_ context.Context, args ...interface{}) error 
 	return nil
 }
 
+// AuthACL records the AUTH command issued by the EntraID refresh loop, which
+// re-authenticates through the pipelined ACL form instead of DoWrite.
+func (f *fakeRedisClient) AuthACL(_ context.Context, username, password string) error {
+	f.authACLCalls <- []string{username, password}
+	return nil
+}
+
 func (f *fakeRedisClient) Close() error {
 	return nil
+}
+
+// fakeTokenCredential issues a new token on every call, each with the same
+// lifetime.
+type fakeTokenCredential struct {
+	lifetime time.Duration
+	calls    atomic.Int32
+}
+
+func (f *fakeTokenCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	n := f.calls.Add(1)
+	return azcore.AccessToken{
+		Token:     fmt.Sprintf("entraid-token-%d", n),
+		ExpiresOn: time.Now().Add(f.lifetime),
+	}, nil
 }
 
 func TestRunTokenRefreshLoop(t *testing.T) {
@@ -196,4 +221,57 @@ func TestNextTokenRefreshIntervalInvariants(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStartEntraIDTokenRefreshBackgroundRoutine covers the EntraID refresh
+// schedule. The loop previously subtracted a fixed 5 minute grace period from
+// the expiry with no floor under the result, so any token issued with a
+// lifetime at or under that period produced a non-positive wait. time.After
+// then fired immediately on every iteration and the loop refreshed without
+// pause.
+func TestStartEntraIDTokenRefreshBackgroundRoutine(t *testing.T) {
+	// Each subtest starts a goroutine that outlives it. The credential hands
+	// back a long-lived token, so the loop reschedules hours out and stays
+	// dormant once the assertions are done.
+	const refreshedTokenLifetime = 24 * time.Hour
+
+	t.Run("token shorter than the floor waits for the floor", func(t *testing.T) {
+		logger := kitlogger.NewLogger("test")
+		fake := &fakeRedisClient{authACLCalls: make(chan []string, 10)}
+		cred := &fakeTokenCredential{lifetime: refreshedTokenLifetime}
+		var tokenCredential azcore.TokenCredential = cred
+
+		// A 500ms lifetime is below twice the floor, so the wait is the floor.
+		// Before the fix this was time.Until(expiry-5m), a negative duration.
+		start := time.Now()
+		StartEntraIDTokenRefreshBackgroundRoutine(fake, "alice", time.Now().Add(500*time.Millisecond), &tokenCredential, &logger)
+
+		select {
+		case call := <-fake.authACLCalls:
+			require.GreaterOrEqual(t, time.Since(start), minTokenRefreshInterval,
+				"the first refresh must not fire before the floor elapses")
+			require.Equal(t, []string{"alice", "entraid-token-1"}, call)
+		case <-time.After(minTokenRefreshInterval + 10*time.Second):
+			t.Fatal("timed out waiting for AUTH after token refresh")
+		}
+	})
+
+	t.Run("token shorter than the grace period refreshes at its midpoint", func(t *testing.T) {
+		logger := kitlogger.NewLogger("test")
+		fake := &fakeRedisClient{authACLCalls: make(chan []string, 10)}
+		cred := &fakeTokenCredential{lifetime: refreshedTokenLifetime}
+		var tokenCredential azcore.TokenCredential = cred
+
+		// A 20s lifetime is shorter than the 5 minute grace period, so the
+		// refresh must land on its 10s midpoint: later than the floor, and far
+		// later than the immediate refresh the fixed grace period produced.
+		StartEntraIDTokenRefreshBackgroundRoutine(fake, "alice", time.Now().Add(20*time.Second), &tokenCredential, &logger)
+
+		select {
+		case call := <-fake.authACLCalls:
+			t.Fatalf("token refreshed after less than the midpoint: %v", call)
+		case <-time.After(minTokenRefreshInterval + time.Second):
+		}
+		require.Equal(t, int32(0), cred.calls.Load(), "no token must be requested before the midpoint")
+	})
 }

@@ -241,8 +241,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 		backoffConfig.Policy = kitretry.PolicyExponential
 
 		var backoffManager backoff.BackOff
-		const refreshGracePeriod = 5 * time.Minute
-		tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
+		tokenRefreshDuration := nextTokenRefreshInterval(time.Until(nextExpiration))
 
 		(*logger).Debugf("redis client: starting entraID token refresh loop")
 
@@ -303,7 +302,7 @@ func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username stri
 
 				(*logger).Debugf("redis client: entraID auth token successfully refreshed with the server")
 
-				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
+				tokenRefreshDuration = nextTokenRefreshInterval(time.Until(token.ExpiresOn))
 			}
 		}
 	}(cred, username, logger)

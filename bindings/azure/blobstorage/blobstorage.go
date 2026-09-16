@@ -212,6 +212,14 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 	}
 }
 
+// blobName applies the configured prefix to a user-supplied blob name.
+func (a *AzureBlobStorage) blobName(name string) string {
+	if a.metadata == nil || a.metadata.Prefix == "" {
+		return name
+	}
+	return strings.TrimSuffix(a.metadata.Prefix, "/") + "/" + strings.TrimPrefix(name, "/")
+}
+
 func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobName string
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
@@ -254,7 +262,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		req.Data = decoded
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
+	blockBlobClient := a.containerClient.NewBlockBlobClient(a.blobName(blobName))
 
 	// Generate the SAS URL before uploading so we don't leave an orphaned
 	// blob if SAS generation fails.
@@ -301,7 +309,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blockBlobClient *blockblob.Client
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
-		blockBlobClient = a.containerClient.NewBlockBlobClient(val)
+		blockBlobClient = a.containerClient.NewBlockBlobClient(a.blobName(val))
 	} else {
 		return nil, ErrMissingBlobName
 	}
@@ -419,7 +427,7 @@ func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeReque
 		AccessConditions: &blob.AccessConditions{},
 	}
 
-	blockBlobClient = a.containerClient.NewBlockBlobClient(val)
+	blockBlobClient = a.containerClient.NewBlockBlobClient(a.blobName(val))
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 
 	if bloberror.HasCode(err, bloberror.BlobNotFound) {
@@ -456,7 +464,11 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}
 
 	if hasPayload && payload.Prefix != "" {
-		options.Prefix = &payload.Prefix
+		p := a.blobName(payload.Prefix)
+		options.Prefix = &p
+	} else if a.metadata != nil && a.metadata.Prefix != "" {
+		p := a.blobName("")
+		options.Prefix = &p
 	}
 
 	var initialMarker string
@@ -521,21 +533,25 @@ func (a *AzureBlobStorage) resolveBlobs(ctx context.Context, prefix *string, blo
 	seen := make(map[string]struct{}, len(blobNames))
 	result := make([]string, 0, len(blobNames))
 
-	// Add explicit blob names first.
+	// Add explicit blob names first, applying the configured component prefix.
 	for _, name := range blobNames {
 		if name == "" {
 			continue
 		}
-		if _, ok := seen[name]; !ok {
-			seen[name] = struct{}{}
-			result = append(result, name)
+		resolved := a.blobName(name)
+		if _, ok := seen[resolved]; !ok {
+			seen[resolved] = struct{}{}
+			result = append(result, resolved)
 		}
 	}
 
-	// If prefix is set, list blobs and merge.
+	// If prefix is set, list blobs (scoped under the configured component
+	// prefix, if any) and merge. Names returned by the listing are already
+	// full blob names, so they must not be prefixed again.
 	if prefix != nil && *prefix != "" {
+		listPrefix := a.blobName(*prefix)
 		options := container.ListBlobsFlatOptions{
-			Prefix: prefix,
+			Prefix: &listPrefix,
 		}
 		pager := a.containerClient.NewListBlobsFlatPager(&options)
 		for pager.More() {
@@ -653,7 +669,7 @@ func (a *AzureBlobStorage) presign(req *bindings.InvokeRequest) (*bindings.Invok
 		return nil, ErrMissingSignTTL
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
+	blockBlobClient := a.containerClient.NewBlockBlobClient(a.blobName(blobName))
 	presignURL, err := a.generateSASURL(blockBlobClient, ttl)
 	if err != nil {
 		return nil, fmt.Errorf("error generating SAS URL: %w", err)
@@ -680,12 +696,16 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 	// Track blob names from explicit items so prefix discovery doesn't duplicate them.
 	explicitNames := make(map[string]struct{})
 
-	// Add explicit items as-is (no dedup — same blob with different filePaths is valid).
+	// Add explicit items, applying the configured component prefix. BlobName
+	// is resolved to the actual full blob name so it is not prefixed a
+	// second time in bulkGet.
 	for _, item := range payload.Items {
 		if item.BlobName == "" {
 			continue
 		}
-		explicitNames[item.BlobName] = struct{}{}
+		resolved := a.blobName(item.BlobName)
+		explicitNames[resolved] = struct{}{}
+		item.BlobName = resolved
 		items = append(items, item)
 	}
 
@@ -695,9 +715,10 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 			return nil, ErrMissingDestinationDir
 		}
 
+		listPrefix := a.blobName(*payload.Prefix)
 		seen := make(map[string]struct{})
 		options := container.ListBlobsFlatOptions{
-			Prefix: payload.Prefix,
+			Prefix: &listPrefix,
 		}
 		pager := a.containerClient.NewListBlobsFlatPager(&options)
 		for pager.More() {
@@ -768,7 +789,7 @@ func (a *AzureBlobStorage) bulkCreate(ctx context.Context, req *bindings.InvokeR
 		g.Go(func() error {
 			results[i].BlobName = item.BlobName
 
-			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
+			blockBlobClient := a.containerClient.NewBlockBlobClient(a.blobName(item.BlobName))
 
 			// Build HTTP headers if contentType is specified.
 			var httpHeaders *blob.HTTPHeaders

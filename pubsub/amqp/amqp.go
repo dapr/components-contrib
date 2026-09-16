@@ -27,10 +27,12 @@ import (
 	time "time"
 
 	amqp "github.com/Azure/go-amqp"
+	backoff "github.com/cenkalti/backoff/v4"
 
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -43,13 +45,19 @@ const (
 
 // amqpPubSub type allows sending and receiving data to/from an AMQP 1.0 broker
 type amqpPubSub struct {
-	session     *amqp.Session
-	metadata    *metadata
-	logger      logger.Logger
-	publishLock sync.RWMutex
-	wg          sync.WaitGroup
-	closed      atomic.Bool
-	closeCh     chan struct{}
+	// connMu guards client and session. Operations that use the connection
+	// hold it for reading, so that publishing is concurrent; only replacing a
+	// dead connection takes it for writing.
+	connMu  sync.RWMutex
+	client  *amqp.Conn
+	session *amqp.Session
+
+	metadata      *metadata
+	logger        logger.Logger
+	backOffConfig retry.Config
+	wg            sync.WaitGroup
+	closed        atomic.Bool
+	closeCh       chan struct{}
 
 	// Address prefixes applied when the component configuration does not set
 	// them. They are fixed by the constructor, because the component cannot
@@ -93,21 +101,92 @@ func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 	a.metadata = amqpMeta
 
-	s, err := a.connect(ctx)
+	// Reconnect backoff, tunable with the usual backOff* metadata keys. The
+	// default is an unlimited constant retry every 5 seconds.
+	a.backOffConfig = retry.DefaultConfig()
+	if err = retry.DecodeConfigWithPrefix(&a.backOffConfig, metadata.Properties, "backOff"); err != nil {
+		return err
+	}
+
+	client, session, err := a.connect(ctx)
 	if err != nil {
 		return err
 	}
 
-	a.session = s
+	a.connMu.Lock()
+	a.client, a.session = client, session
+	a.connMu.Unlock()
 
-	return err
+	return nil
+}
+
+// currentSession returns the session operations must use. It is nil only
+// before a successful Init.
+func (a *amqpPubSub) currentSession() *amqp.Session {
+	a.connMu.RLock()
+	defer a.connMu.RUnlock()
+
+	return a.session
+}
+
+// renewSession replaces stale with a freshly dialled connection and session.
+//
+// go-amqp 1.0.5 exposes no liveness signal on a Conn or a Session, so a dead
+// connection is only discovered when an operation fails. Callers pass the
+// session they were using: if another caller has already reconnected, the new
+// session is returned and no second dial happens, so a broker restart costs
+// one dial rather than one per in-flight operation.
+func (a *amqpPubSub) renewSession(ctx context.Context, stale *amqp.Session) (*amqp.Session, error) {
+	a.connMu.Lock()
+	defer a.connMu.Unlock()
+
+	if a.closed.Load() {
+		return nil, errors.New("component is closed")
+	}
+
+	if a.metadata == nil {
+		return nil, errors.New("component is not initialized")
+	}
+
+	if a.session != stale {
+		return a.session, nil
+	}
+
+	a.closeConnLocked()
+
+	client, session, err := a.connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	a.client, a.session = client, session
+	a.logger.Infof("Reconnected to %s", a.metadata.URL)
+
+	return session, nil
+}
+
+// closeConnLocked tears down the current session and connection. The caller
+// must hold connMu for writing.
+func (a *amqpPubSub) closeConnLocked() {
+	if a.session != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
+		if err := a.session.Close(closeCtx); err != nil {
+			a.logger.Warnf("failed to close the AMQP session: %v", err)
+		}
+		cancel()
+		a.session = nil
+	}
+
+	if a.client != nil {
+		if err := a.client.Close(); err != nil {
+			a.logger.Warnf("failed to close the AMQP connection: %v", err)
+		}
+		a.client = nil
+	}
 }
 
 // Publish the topic to amqp pubsub
 func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
-	a.publishLock.Lock()
-	defer a.publishLock.Unlock()
-
 	if a.closed.Load() {
 		return pubsub.NewTerminalError(errors.New("component is closed"))
 	}
@@ -134,10 +213,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		}
 	}
 
-	sender, err := a.session.NewSender(ctx,
-		address,
-		nil,
-	)
+	sender, err := a.newSender(ctx, address)
 	if err != nil {
 		a.logger.Errorf("Unable to create link to %s: %v", address, err)
 		return pubsub.NewRetriableError(err)
@@ -176,6 +252,58 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	return pubsub.NewRetriableError(err)
 }
 
+// sessionOrRenew returns the current session, dialling a new one if an earlier
+// reconnect attempt failed and left none behind.
+func (a *amqpPubSub) sessionOrRenew(ctx context.Context) (*amqp.Session, error) {
+	if session := a.currentSession(); session != nil {
+		return session, nil
+	}
+
+	return a.renewSession(ctx, nil)
+}
+
+// newSender attaches a sender link, reconnecting once if the session it used
+// turns out to be dead.
+func (a *amqpPubSub) newSender(ctx context.Context, address string) (*amqp.Sender, error) {
+	session, err := a.sessionOrRenew(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sender, err := session.NewSender(ctx, address, nil)
+	if err == nil {
+		return sender, nil
+	}
+
+	session, rerr := a.renewSession(ctx, session)
+	if rerr != nil {
+		return nil, errors.Join(err, rerr)
+	}
+
+	return session.NewSender(ctx, address, nil)
+}
+
+// newReceiver attaches a receiver link, reconnecting once if the session it
+// used turns out to be dead.
+func (a *amqpPubSub) newReceiver(ctx context.Context, address string) (*amqp.Receiver, error) {
+	session, err := a.sessionOrRenew(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	receiver, err := session.NewReceiver(ctx, address, nil)
+	if err == nil {
+		return receiver, nil
+	}
+
+	session, rerr := a.renewSession(ctx, session)
+	if rerr != nil {
+		return nil, errors.Join(err, rerr)
+	}
+
+	return session.NewReceiver(ctx, address, nil)
+}
+
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if a.closed.Load() {
 		return errors.New("component is closed")
@@ -186,10 +314,9 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return fmt.Errorf("topic %q maps to an empty AMQP address", req.Topic)
 	}
 
-	receiver, err := a.session.NewReceiver(ctx,
-		address,
-		nil,
-	)
+	// Attach once here, so that an unreachable broker or an address the broker
+	// rejects fails the Subscribe call rather than retrying in the background.
+	receiver, err := a.newReceiver(ctx, address)
 	if err != nil {
 		a.logger.Errorf("Unable to create a receiver for %s: %v", address, err)
 		return err
@@ -214,11 +341,55 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	return nil
 }
 
-// subscribeForever delivers messages from the receiver link until the context
-// is cancelled or the link fails.
+// subscribeForever delivers messages for the lifetime of the subscription. If
+// the receiver link fails, for example because the broker restarted, it
+// re-attaches with backoff instead of ending the subscription.
 // topic is the Dapr topic name the messages are delivered under, address is the
 // AMQP address the receiver link is attached to.
 func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, topic string, address string) {
+	b := a.backOffConfig.NewBackOffWithContext(ctx)
+
+	for {
+		a.deliver(ctx, receiver, handler, topic, address)
+
+		if ctx.Err() != nil || a.closed.Load() {
+			return
+		}
+
+		var err error
+		receiver, err = a.reattach(ctx, address, b)
+		if err != nil {
+			a.logger.Errorf("Ending the subscription to %s: %v", address, err)
+			return
+		}
+		b.Reset()
+	}
+}
+
+// reattach re-opens a receiver link, retrying with backoff until it succeeds,
+// the context is cancelled or the component closes.
+func (a *amqpPubSub) reattach(ctx context.Context, address string, b backoff.BackOff) (*amqp.Receiver, error) {
+	return retry.NotifyRecoverWithData(
+		func() (*amqp.Receiver, error) {
+			if a.closed.Load() {
+				return nil, backoff.Permanent(errors.New("component is closed"))
+			}
+
+			return a.newReceiver(ctx, address)
+		},
+		b,
+		func(err error, d time.Duration) {
+			a.logger.Warnf("Failed to re-attach the receiver for %s, retrying in %v: %v", address, d, err)
+		},
+		func() {
+			a.logger.Infof("Re-attached the receiver for %s", address)
+		},
+	)
+}
+
+// deliver pumps messages from one receiver link until the context is cancelled
+// or the link fails. It closes the link before returning.
+func (a *amqpPubSub) deliver(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, topic string, address string) {
 	defer func() {
 		a.logger.Infof("closing receiver for %s", address)
 		closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
@@ -239,8 +410,8 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 			// Receive only fails on a cancelled context or on a link that is
 			// done for good, in which case it returns the same error
 			// immediately every time. Returning here rather than continuing
-			// avoids spinning on it.
-			a.logger.Errorf("Ending the subscription to %s, the receiver link failed: %v", address, err)
+			// avoids spinning on it, and lets the caller re-attach.
+			a.logger.Errorf("The receiver link for %s failed: %v", address, err)
 			return
 		}
 
@@ -283,11 +454,12 @@ func newPubsubMessage(topic string, msg *amqp.Message) *pubsub.NewMessage {
 	}
 }
 
-// Connect to the AMQP broker
-func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
+// connect dials the broker and opens a session on the connection. It returns
+// both, because closing only the session leaves the socket open.
+func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Conn, *amqp.Session, error) {
 	uri, err := url.Parse(a.metadata.URL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	clientOpts := a.createClientOptions(uri)
@@ -295,7 +467,7 @@ func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 	a.logger.Infof("Attempting to connect to %s", a.metadata.URL)
 	client, err := amqp.Dial(ctx, a.metadata.URL, &clientOpts)
 	if err != nil {
-		return nil, fmt.Errorf("%s dialing AMQP server: %w", errorMsgPrefix, err)
+		return nil, nil, fmt.Errorf("%s dialing AMQP server: %w", errorMsgPrefix, err)
 	}
 
 	// Open a session
@@ -304,10 +476,10 @@ func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 		if cerr := client.Close(); cerr != nil {
 			a.logger.Warnf("failed to close the connection after a failed session: %v", cerr)
 		}
-		return nil, fmt.Errorf("%s creating AMQP session: %w", errorMsgPrefix, err)
+		return nil, nil, fmt.Errorf("%s creating AMQP session: %w", errorMsgPrefix, err)
 	}
 
-	return session, nil
+	return client, session, nil
 }
 
 func (a *amqpPubSub) newTLSConfig() *tls.Config {
@@ -355,31 +527,32 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 // Close the session
 func (a *amqpPubSub) Close() error {
-	defer a.wg.Wait()
-	a.publishLock.Lock()
-	defer a.publishLock.Unlock()
-
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
 
-	// Init may have failed before a session was established.
-	if a.session == nil {
-		return nil
-	}
+	// Let the subscription goroutines observe closeCh and release their links
+	// before the session underneath them is torn down.
+	a.wg.Wait()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
-	defer cancel()
-	err := a.session.Close(ctx)
-	if err != nil {
-		a.logger.Warnf("failed to close the connection: %v", err)
-	}
-	return err
+	a.connMu.Lock()
+	defer a.connMu.Unlock()
+
+	// Init may have failed before a connection was established.
+	a.closeConnLocked()
+
+	return nil
 }
 
-// Feature list for AMQP PubSub
+// Features lists what this component guarantees.
+//
+// FeatureSubscribeWildcards is deliberately not declared. Wildcard syntax is
+// broker-specific: Solace matches with "*" and ">", ActiveMQ Artemis with "*"
+// and "#" over a "." delimiter. The feature is a single boolean with no syntax
+// dimension, so a component that points at any AMQP 1.0 broker cannot promise
+// it. metadata.yaml has never declared it either.
 func (a *amqpPubSub) Features() []pubsub.Feature {
-	return []pubsub.Feature{pubsub.FeatureSubscribeWildcards, pubsub.FeatureMessageTTL}
+	return []pubsub.Feature{pubsub.FeatureMessageTTL}
 }
 
 // GetComponentMetadata returns the metadata of the component.

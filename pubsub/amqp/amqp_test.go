@@ -492,3 +492,77 @@ func TestAddressForBrokerPrefixes(t *testing.T) {
 	assert.Equal(t, "anycast://orders", m.addressFor("anycast://orders"),
 		"an address that already carries a configured prefix is used as-is")
 }
+
+// TestFeaturesDoesNotClaimWildcards pins the capability list. Wildcard syntax
+// is broker-specific and pubsub.Feature carries no syntax dimension, so a
+// component pointed at any AMQP 1.0 broker must not declare it. metadata.yaml
+// declares ttl only, and the two have to agree.
+func TestFeaturesDoesNotClaimWildcards(t *testing.T) {
+	features := NewAMQPPubsub(logger.NewLogger("test")).Features()
+
+	assert.Equal(t, []pubsub.Feature{pubsub.FeatureMessageTTL}, features)
+	assert.NotContains(t, features, pubsub.FeatureSubscribeWildcards)
+}
+
+// TestRenewSessionIsSingleFlight covers the guard that stops a broker restart
+// costing one dial per in-flight operation. A caller handing back a session
+// that is no longer current gets the replacement, and no dial is attempted.
+func TestRenewSessionIsSingleFlight(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"} // would fail if dialled
+
+	current := &amqp.Session{}
+	a.session = current
+
+	// A caller whose session is already superseded gets the current one back.
+	stale := &amqp.Session{}
+	got, err := a.renewSession(t.Context(), stale)
+	require.NoError(t, err)
+	assert.Same(t, current, got, "a superseded caller must not trigger a dial")
+	assert.Same(t, current, a.currentSession())
+}
+
+// TestRenewSessionRefusesWhenClosed stops a reconnect racing a shutdown and
+// re-opening a connection that nothing will ever close.
+func TestRenewSessionRefusesWhenClosed(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
+	a.closed.Store(true)
+
+	_, err := a.renewSession(t.Context(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "closed")
+}
+
+// TestPublishDoesNotHoldAWriteLock guards the throughput fix. Publish used to
+// take connMu for writing for its whole body, which serialised every publisher
+// on the component. It must take it for reading, so a reader can be acquired
+// while a publish is in flight.
+func TestPublishDoesNotHoldAWriteLock(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+
+	a.connMu.RLock()
+	defer a.connMu.RUnlock()
+
+	// A second reader must not block behind the first.
+	acquired := make(chan struct{})
+	go func() {
+		defer close(acquired)
+		assert.Nil(t, a.currentSession())
+	}()
+
+	select {
+	case <-acquired:
+	case <-time.After(2 * time.Second):
+		t.Fatal("connMu is being used as an exclusive lock on the read path")
+	}
+}
+
+// TestCloseWithoutInitIsSafe covers Close running after Init failed, when
+// neither a connection nor a session was ever established.
+func TestCloseWithoutInitIsSafe(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
+
+	require.NoError(t, a.Close())
+	require.NoError(t, a.Close(), "Close must be idempotent")
+}

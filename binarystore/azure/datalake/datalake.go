@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/datalakeerror"
@@ -123,7 +124,10 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 }
 
 func cleanupFileIfExists(ctx context.Context, client *file.Client) error {
-	_, err := client.Delete(ctx, nil)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+
+	_, err := client.Delete(cleanupCtx, nil)
 	if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
 		return err
 	}

@@ -81,10 +81,9 @@ type objectStoreClient interface {
 }
 
 type ociObjectStoreClient struct {
-	metadata      *objectStoreMetadata
-	objectClient  *ociobjectstorage.ObjectStorageClient
-	uploadManager *transfer.UploadManager
-	logger        logger.Logger
+	metadata     *objectStoreMetadata
+	objectClient *ociobjectstorage.ObjectStorageClient
+	logger       logger.Logger
 }
 
 // NewOCIObjectStorage returns a new OCI Object Storage binary store.
@@ -100,9 +99,8 @@ func (o *ObjectStorage) Init(ctx context.Context, md binarystore.Metadata) error
 	}
 
 	client := &ociObjectStoreClient{
-		metadata:      m,
-		uploadManager: transfer.NewUploadManager(),
-		logger:        o.logger,
+		metadata: m,
+		logger:   o.logger,
 	}
 	if err = client.init(ctx); err != nil {
 		return fmt.Errorf("failed to initialize OCI Object Storage binary store: %w", err)
@@ -339,7 +337,7 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 		req.IfNoneMatch = common.String("*")
 	}
 
-	_, err := c.uploadManager.UploadStream(ctx, req)
+	_, err := transfer.NewUploadManager().UploadStream(ctx, req)
 	return err
 }
 

@@ -198,6 +198,21 @@ func TestGetComponentMetadata(t *testing.T) {
 	assert.True(t, hasBucket, "bucketName must appear in component metadata")
 }
 
+func TestIsAlreadyExists(t *testing.T) {
+	require.True(t, isAlreadyExists(testServiceError{
+		status: http.StatusConflict,
+		code:   "BucketAlreadyExists",
+	}))
+	require.False(t, isAlreadyExists(testServiceError{
+		status: http.StatusConflict,
+		code:   "Conflict",
+	}))
+	require.False(t, isAlreadyExists(testServiceError{
+		status: http.StatusNotFound,
+		code:   "BucketAlreadyExists",
+	}))
+}
+
 type fakeOCIClient struct {
 	objects       map[string][]byte
 	lastOverwrite bool

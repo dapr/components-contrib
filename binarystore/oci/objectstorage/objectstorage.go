@@ -316,6 +316,9 @@ func (c *ociObjectStoreClient) ensureBucketExists(ctx context.Context) error {
 		},
 	})
 	if err != nil {
+		if isAlreadyExists(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 	c.logger.Debugf("Created OCI Object Storage bucket %s for BinaryStore", c.metadata.BucketName)
@@ -395,6 +398,16 @@ func isPreconditionFailed(err error) bool {
 			strings.EqualFold(se.GetCode(), "ConditionNotMet") ||
 			(se.GetHTTPStatusCode() == http.StatusConflict &&
 				strings.Contains(strings.ToLower(se.GetCode()), "alreadyexists"))
+	}
+	return false
+}
+
+func isAlreadyExists(err error) bool {
+	var se serviceError
+	if errors.As(err, &se) {
+		code := strings.ToLower(se.GetCode())
+		return se.GetHTTPStatusCode() == http.StatusConflict &&
+			(strings.Contains(code, "alreadyexists") || strings.Contains(code, "bucketalreadyexists"))
 	}
 	return false
 }

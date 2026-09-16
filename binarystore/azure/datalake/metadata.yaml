@@ -39,7 +39,11 @@ authenticationProfiles:
       Supported credential types include workload identity, managed identity,
       client secret, and certificate. No additional metadata keys are required
       when credentials are provided through the environment.
-    metadata: []
+    metadata:
+      - name: accountName
+        required: true
+        description: "The storage account name."
+        example: '"mystorageaccount"'
 
 metadata:
   - name: fileSystemName

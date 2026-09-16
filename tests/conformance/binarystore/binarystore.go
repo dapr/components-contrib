@@ -90,8 +90,10 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 	fileName := makeObjectName(component, t.Name())
 	cleanupNames := map[string]struct{}{fileName: {}}
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
 		for name := range cleanupNames {
-			if err := store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: name}); err != nil && !errors.Is(err, binarystore.ErrFileNotFound) {
+			if err := store.Delete(ctx, &binarystore.DeleteRequest{FileName: name}); err != nil && !errors.Is(err, binarystore.ErrFileNotFound) {
 				t.Logf("cleanup delete %q failed: %v", name, err)
 			}
 		}
@@ -222,6 +224,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		defer cancel()
 
 		delName := fileName + "-delete-me"
+		cleanupNames[delName] = struct{}{}
 		require.NoError(t, store.Set(ctx, &binarystore.SetRequest{
 			FileName:  delName,
 			Data:      strings.NewReader("bye"),

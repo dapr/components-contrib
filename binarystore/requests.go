@@ -30,6 +30,10 @@ var (
 
 	// ErrMissingFileName is returned when a required FileName field is empty.
 	ErrMissingFileName = errors.New("file name is required")
+
+	// ErrReaderNotResettable is returned when a Set request cannot be rewound
+	// for a retry.
+	ErrReaderNotResettable = errors.New("data reader cannot be reset")
 )
 
 // SetRequest is the request object for the Set operation.
@@ -68,7 +72,7 @@ func (r *SetRequest) ResetReader() error {
 		_, err := seeker.Seek(0, io.SeekStart)
 		return err
 	}
-	return nil
+	return ErrReaderNotResettable
 }
 
 // GetRequest is the request object for the Get operation.

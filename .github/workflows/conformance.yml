@@ -178,8 +178,17 @@ jobs:
             --query value \
             --output tsv)
           echo "::add-mask::$value"
-          echo "$secretName=$value" >> $GITHUB_OUTPUT
-          echo "$secretName=$value" >> $GITHUB_ENV
+          delimiter=$(openssl rand -hex 16)
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_ENV"
         done
 
     - name: Setup OCI config file

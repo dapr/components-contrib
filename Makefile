@@ -25,12 +25,14 @@ GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 CGO ?= 0
 DAPR_PACKAGE ?= $(dapr_package)
 
-export GOARCH ?= $(shell go env GOHOSTARCH)
-export GOOS ?= $(shell go env GOHOSTOS)
+HOST_GOOS := $(shell go env GOHOSTOS)
+HOST_GOARCH := $(shell go env GOHOSTARCH)
+export GOARCH ?= $(HOST_GOARCH)
+export GOOS ?= $(HOST_GOOS)
 TARGET_ARCH_LOCAL := $(GOARCH)
 TARGET_OS_LOCAL := $(GOOS)
 
-ifeq ($(GOOS),windows)
+ifeq ($(HOST_GOOS),windows)
   FINDBIN := where
   BINARY_EXT_LOCAL:=.exe
   GOLANGCI_LINT:=golangci-lint.exe
@@ -93,8 +95,6 @@ verify-linter-version:
 ################################################################################
 TARGET_GOOS := $(GOOS)
 TARGET_GOARCH := $(GOARCH)
-HOST_GOOS := $(shell go env GOHOSTOS)
-HOST_GOARCH := $(shell go env GOHOSTARCH)
 
 # When cross-compiling, skip executing test binaries because the host cannot run
 # binaries for a different OS/architecture. This still compiles the tests and

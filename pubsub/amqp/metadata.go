@@ -38,9 +38,10 @@ type metadata struct {
 
 	// TopicAddressPrefix and QueueAddressPrefix are prepended to the AMQP
 	// address of every link opened by this component, for topics and queues
-	// respectively. They default to the Solace addressing convention and can be
-	// set to an empty value for brokers that address topics and queues by name,
-	// or to the prefixes the broker is configured with.
+	// respectively. Their defaults depend on the component type: pubsub.amqp
+	// applies no prefix, and pubsub.solace.amqp applies the Solace convention.
+	// Set them to the prefixes the broker is configured with, for example the
+	// anycastPrefix and multicastPrefix of an ActiveMQ Artemis acceptor.
 	TopicAddressPrefix string
 	QueueAddressPrefix string
 }
@@ -62,10 +63,16 @@ const (
 	amqpClientKey  = "clientKey"
 	defaultWait    = 30 * time.Second
 
-	// Address prefixes of the Solace addressing convention, kept as the
-	// defaults so that existing Solace configurations are unaffected.
-	defaultTopicAddressPrefix = "topic://"
-	defaultQueueAddressPrefix = "queue://"
+	// Address prefixes of the Solace addressing convention. They are the
+	// defaults of pubsub.solace.amqp only, so that existing Solace
+	// configurations are unaffected. pubsub.amqp defaults to no prefix.
+	solaceTopicAddressPrefix = "topic://"
+	solaceQueueAddressPrefix = "queue://"
+
+	// genericAddressPrefix is the default of pubsub.amqp: the Dapr topic name
+	// is used as the AMQP address unchanged, which is what brokers that
+	// address destinations by name expect.
+	genericAddressPrefix = ""
 
 	// Optional scheme of a topic name, selecting which prefix is applied.
 	topicScheme = "topic:"
@@ -112,11 +119,16 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
+// parseAMQPMetaData builds the component metadata. defaultTopicPrefix and
+// defaultQueuePrefix are supplied by the constructor rather than read from a
+// package constant, because the two registered component types start from
+// different addressing conventions: pubsub.amqp addresses destinations by name,
+// while pubsub.solace.amqp keeps the Solace prefixes.
+func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger, defaultTopicPrefix, defaultQueuePrefix string) (*metadata, error) {
 	m := metadata{
 		Anonymous:          false,
-		TopicAddressPrefix: defaultTopicAddressPrefix,
-		QueueAddressPrefix: defaultQueueAddressPrefix,
+		TopicAddressPrefix: defaultTopicPrefix,
+		QueueAddressPrefix: defaultQueuePrefix,
 	}
 
 	err := kitmd.DecodeMetadata(md.Properties, &m)

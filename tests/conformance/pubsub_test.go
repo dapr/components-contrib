@@ -36,7 +36,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
-	p_solaceamqp "github.com/dapr/components-contrib/pubsub/solace/amqp"
+	p_amqp "github.com/dapr/components-contrib/pubsub/amqp"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 )
 
@@ -105,8 +105,10 @@ func loadPubSub(name string) pubsub.PubSub {
 		return p_gcppubsub.NewGCPPubSub(testLogger)
 	case "kubemq":
 		return p_kubemq.NewKubeMQ(testLogger)
+	case "amqp":
+		return p_amqp.NewAMQPPubsub(testLogger)
 	case "solace.amqp":
-		return p_solaceamqp.NewAMQPPubsub(testLogger)
+		return p_amqp.NewSolaceAMQPPubsub(testLogger)
 	default:
 		return nil
 	}

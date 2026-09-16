@@ -50,19 +50,43 @@ type amqpPubSub struct {
 	wg          sync.WaitGroup
 	closed      atomic.Bool
 	closeCh     chan struct{}
+
+	// Address prefixes applied when the component configuration does not set
+	// them. They are fixed by the constructor, because the component cannot
+	// read back which registered type name the user declared.
+	defaultTopicPrefix string
+	defaultQueuePrefix string
 }
 
-// NewAMQPPubsub returns a new AMQPPubSub instance
+// NewAMQPPubsub returns a new AMQP 1.0 pub/sub instance, registered as
+// pubsub.amqp. It addresses topics and queues by name, which is what a broker
+// such as ActiveMQ Artemis expects. To reach a broker that namespaces its
+// destinations, set topicAddressPrefix and queueAddressPrefix to the prefixes
+// that broker is configured with.
 func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
+	return newAMQPPubsub(logger, genericAddressPrefix, genericAddressPrefix)
+}
+
+// NewSolaceAMQPPubsub returns an AMQP 1.0 pub/sub instance that defaults to the
+// Solace addressing convention. It backs the deprecated pubsub.solace.amqp
+// type, so that configurations written against it keep working unchanged.
+// New configurations must use pubsub.amqp.
+func NewSolaceAMQPPubsub(logger logger.Logger) pubsub.PubSub {
+	return newAMQPPubsub(logger, solaceTopicAddressPrefix, solaceQueueAddressPrefix)
+}
+
+func newAMQPPubsub(logger logger.Logger, defaultTopicPrefix, defaultQueuePrefix string) pubsub.PubSub {
 	return &amqpPubSub{
-		logger:  logger,
-		closeCh: make(chan struct{}),
+		logger:             logger,
+		closeCh:            make(chan struct{}),
+		defaultTopicPrefix: defaultTopicPrefix,
+		defaultQueuePrefix: defaultQueuePrefix,
 	}
 }
 
 // Init parses the metadata and creates a new Pub Sub Client.
 func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
-	amqpMeta, err := parseAMQPMetaData(metadata, a.logger)
+	amqpMeta, err := parseAMQPMetaData(metadata, a.logger, a.defaultTopicPrefix, a.defaultQueuePrefix)
 	if err != nil {
 		return err
 	}

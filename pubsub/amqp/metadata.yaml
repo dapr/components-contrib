@@ -1,18 +1,22 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: v1
 type: pubsub
-name: solace.amqp
+name: amqp
 version: v1
 status: beta
-title: "Solace-AMQP"
+title: "AMQP 1.0"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-solace-amqp/
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-amqp/
 capabilities:
   - ttl
+description: |
+  Publish and subscribe over AMQP 1.0. Verified against Apache ActiveMQ Artemis and Solace PubSub+.
+  Note that this is AMQP 1.0, which is a different protocol from the AMQP 0-9-1 spoken by
+  `pubsub.rabbitmq`.
 authenticationProfiles:
-  - title: "Solace authentication"
-    description: "Authenticate using Solace credentials"
+  - title: "Username and password"
+    description: "Authenticate with broker credentials"
     metadata:
       - name: username
         required: true

@@ -121,13 +121,13 @@ ifneq ($(TARGET_GOOS),$(HOST_GOOS))
 ifeq ($(HOST_GOOS),windows)
 GO_TEST_EXEC := -exec="cmd /C exit 0"
 else
-GO_TEST_EXEC := -exec=/bin/true
+GO_TEST_EXEC := -exec=true
 endif
 else ifneq ($(TARGET_GOARCH),$(HOST_GOARCH))
 ifeq ($(HOST_GOOS),windows)
 GO_TEST_EXEC := -exec="cmd /C exit 0"
 else
-GO_TEST_EXEC := -exec=/bin/true
+GO_TEST_EXEC := -exec=true
 endif
 endif
 

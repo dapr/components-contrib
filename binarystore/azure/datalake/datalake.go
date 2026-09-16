@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/datalakeerror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/file"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/filesystem"
+	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/binarystore"
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/datalake"
@@ -76,31 +77,56 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 	}
 
 	fileClient := a.fileSystemClient.NewFileClient(objectPath)
+	tempPath := fmt.Sprintf("%s.tmp-%s", objectPath, uuid.NewString())
+	tempClient := a.fileSystemClient.NewFileClient(tempPath)
 
-	createOpts := &file.CreateOptions{}
 	if !req.Overwrite {
-		// If-None-Match: * instructs the service to reject the create if any
-		// version of the path already exists (HTTP 409 PathAlreadyExists).
+		_, err := fileClient.GetProperties(ctx, nil)
+		switch {
+		case err == nil:
+			return binarystore.ErrFileAlreadyExists
+		case !datalakeerror.HasCode(err, datalakeerror.PathNotFound):
+			return fmt.Errorf("error checking file %q: %w", req.FileName, err)
+		}
+	}
+
+	if _, err := tempClient.Create(ctx, nil); err != nil {
+		return fmt.Errorf("error creating temporary file %q: %w", req.FileName, err)
+	}
+
+	if err := tempClient.UploadStream(ctx, req.Data, nil); err != nil {
+		_ = cleanupFileIfExists(ctx, tempClient)
+		return fmt.Errorf("error uploading file %q: %w", req.FileName, err)
+	}
+
+	renameOpts := &file.RenameOptions{}
+	if !req.Overwrite {
+		// If-None-Match: * instructs the service to reject the rename if any
+		// version of the destination path already exists (HTTP 409 PathAlreadyExists).
 		etagAny := azcore.ETagAny
-		createOpts.AccessConditions = &file.AccessConditions{
+		renameOpts.AccessConditions = &file.AccessConditions{
 			ModifiedAccessConditions: &file.ModifiedAccessConditions{
 				IfNoneMatch: &etagAny,
 			},
 		}
 	}
 
-	_, err := fileClient.Create(ctx, createOpts)
-	if err != nil {
+	if _, err := tempClient.Rename(ctx, objectPath, renameOpts); err != nil {
+		_ = cleanupFileIfExists(ctx, tempClient)
 		if datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet) {
 			return binarystore.ErrFileAlreadyExists
 		}
-		return fmt.Errorf("error creating file %q: %w", req.FileName, err)
+		return fmt.Errorf("error renaming uploaded file %q: %w", req.FileName, err)
 	}
 
-	if err = fileClient.UploadStream(ctx, req.Data, nil); err != nil {
-		return fmt.Errorf("error uploading file %q: %w", req.FileName, err)
-	}
+	return nil
+}
 
+func cleanupFileIfExists(ctx context.Context, client *file.Client) error {
+	_, err := client.Delete(ctx, nil)
+	if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
+		return err
+	}
 	return nil
 }
 

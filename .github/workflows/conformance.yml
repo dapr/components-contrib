@@ -177,7 +177,10 @@ jobs:
             --vault-name $VAULT_NAME \
             --query value \
             --output tsv)
-          echo "::add-mask::$value"
+          masked_value=${value//%/%25}
+          masked_value=${masked_value//$'\r'/%0D}
+          masked_value=${masked_value//$'\n'/%0A}
+          echo "::add-mask::$masked_value"
           delimiter=$(openssl rand -hex 16)
           {
             echo "$secretName<<$delimiter"

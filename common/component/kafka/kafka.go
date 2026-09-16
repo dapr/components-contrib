@@ -454,9 +454,6 @@ func (k *Kafka) Close() error {
 		// Producer second, only if no transactional publish holds txnMu.
 		// Closing under a live transactional send would panic (send on a
 		// closed channel); blocking would violate the shutdown bound above.
-		// If contended, abandon the producer: k.closed is already set, so
-		// the in-flight publish is the last transactional use, and the
-		// producer's resources are reclaimed at process exit.
 		if k.txnMu.TryLock() {
 			var p sarama.SyncProducer
 			k.clientsLock.Lock()
@@ -470,7 +467,17 @@ func (k *Kafka) Close() error {
 			}
 			k.txnMu.Unlock()
 		} else {
-			k.logger.Warnf("Kafka producer left to process exit: a transactional publish was in flight during Close")
+			// Contended: hand the close to a goroutine that waits the
+			// in-flight publish out. Close() must not block on it, and it
+			// must not be abandoned either — Close() also runs on component
+			// reload, with the process carrying on afterwards, so an
+			// abandoned producer leaks its client, metadata goroutine and
+			// broker connections for the remaining process lifetime.
+			// Deliberately not tracked by k.wg: the deferred Waits above
+			// would turn this back into a blocking shutdown. Its close error
+			// can only be logged, since Close() has already returned.
+			k.logger.Debugf("Kafka producer close deferred: a transactional publish was in flight during Close")
+			go k.closeProducerWhenIdle()
 		}
 	}
 

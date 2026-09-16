@@ -536,6 +536,17 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		if m.ConsumerGroup == "" {
 			return nil, errors.New("kafka error: 'consumerTransactionsEnabled' requires a consumer group ('consumerGroup' or 'consumerID')")
 		}
+		// Higher floor than the 0.11 above: consume-transform-produce leans on
+		// KIP-447 group-member fencing, and sarama only sends the member ID and
+		// generation (TxnOffsetCommit v3) when the configured version is >= 2.5
+		// — below it the request carries the protocol defaults, which tell the
+		// broker to skip fencing, with no error. Without it a revoked claim can
+		// still commit its offsets in the window before the new owner
+		// initializes the same transactional.id, so the guarantee would be
+		// advertised but not delivered.
+		if !m.internalVersion.IsAtLeast(sarama.V2_5_0_0) { //nolint:nosnakecase
+			return nil, errors.New("kafka error: 'consumerTransactionsEnabled' requires kafka version >= 2.5 (group member fencing, KIP-447); set 'version' accordingly")
+		}
 		// Consume-transform-produce only gives end-to-end guarantees when the
 		// input side does not observe records from aborted upstream
 		// transactions, so consumer transactions imply read_committed (as

@@ -93,10 +93,10 @@ func (c *clients) snapshot() *clients {
 // use the shared producer.
 //
 // Callers must hold txnMu. Every invalidation of the shared producer happens
-// under txnMu (endTxnWithError runs inside withPublishTxn, and Close only
-// closes the producer if it wins a TryLock on txnMu, abandoning it
-// otherwise), so a producer returned here cannot be closed for the duration
-// of the caller's critical section.
+// under txnMu (endTxnWithError runs inside withPublishTxn, and Close either
+// wins a TryLock on txnMu or hands the close to closeProducerWhenIdle, which
+// takes txnMu itself), so a producer returned here cannot be closed for the
+// duration of the caller's critical section.
 func (k *Kafka) transactionalProducer() (sarama.SyncProducer, error) {
 	// Checked before the mock short-circuit so the closed contract is
 	// uniform between mock-backed tests and real clients.
@@ -140,8 +140,10 @@ func (k *Kafka) transactionalProducer() (sarama.SyncProducer, error) {
 	k.clientsLock.Lock()
 	defer k.clientsLock.Unlock()
 	// Close() may have run during the dial; its TryLock on txnMu failed (the
-	// caller holds it), so the producer slot was abandoned — storing the
-	// fresh producer now would leak it past Close.
+	// caller holds it), so closeProducerWhenIdle is parked on txnMu waiting
+	// for this publish. Closing the fresh producer here rather than storing
+	// it keeps the dial from outliving Close by the length of the caller's
+	// critical section.
 	if k.closed.Load() {
 		_ = p.Close()
 		return nil, errors.New("component is closed")
@@ -153,16 +155,53 @@ func (k *Kafka) transactionalProducer() (sarama.SyncProducer, error) {
 	return p, nil
 }
 
+// closeProducerWhenIdle waits for the in-flight transactional publish to
+// release txnMu, then detaches and closes the shared producer. It only runs
+// after Close() set k.closed, so transactionalProducer() refuses to hand the
+// producer out again and no new transaction can start behind it; the publish
+// it waits on is the last transactional use. If that publish never releases
+// txnMu the goroutine stays parked, which leaks no more than abandoning the
+// producer outright would have.
+func (k *Kafka) closeProducerWhenIdle() {
+	k.txnMu.Lock()
+	defer k.txnMu.Unlock()
+
+	var p sarama.SyncProducer
+	k.clientsLock.Lock()
+	if k.clients != nil && k.clients.producer != nil {
+		p = k.clients.producer
+		k.clients.producer = nil
+	}
+	k.clientsLock.Unlock()
+	if p == nil {
+		return
+	}
+	if err := p.Close(); err != nil {
+		k.logger.Warnf("Failed to close the Kafka producer once the in-flight transactional publish finished: %v", err)
+	}
+}
+
 // invalidateProducer closes and drops the cached producer after a fatal
 // transaction error; the next publish recreates it with the same
 // transactional.id, which bumps the producer epoch and aborts any stale
 // transaction broker-side. The consumer group is untouched. The producer
 // argument prevents dropping a replacement created by a concurrent caller.
 func (k *Kafka) invalidateProducer(producer sarama.SyncProducer) {
+	// Detach under the lock, close outside it — same split Close() uses, and
+	// for the same reason: sarama's producer shutdown blocks on in-flight
+	// work, so closing here would hold clientsLock for that whole drain and
+	// stall Close()'s consumer-group teardown, which is what keeps the
+	// rebalance prompt (dapr/components-contrib#3907). Detaching first is
+	// enough: the slot is already nil to everyone else, and txnMu serializes
+	// recreation.
+	var detached sarama.SyncProducer
 	k.clientsLock.Lock()
-	defer k.clientsLock.Unlock()
 	if k.clients != nil && k.clients.producer == producer {
-		_ = k.clients.producer.Close()
+		detached = k.clients.producer
 		k.clients.producer = nil
+	}
+	k.clientsLock.Unlock()
+	if detached != nil {
+		_ = detached.Close()
 	}
 }

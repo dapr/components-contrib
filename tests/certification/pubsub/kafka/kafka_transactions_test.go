@@ -47,6 +47,9 @@ func txnProps(extra map[string]string) map[string]string {
 		"brokers":       strings.Join(brokers, ","),
 		"authType":      "none",
 		"initialOffset": "oldest",
+		// consumerTransactionsEnabled requires >= 2.5 for KIP-447 group member
+		// fencing; the component default (2.0) is below that floor.
+		"version": "2.5.0",
 	}
 	for k, v := range extra {
 		props[k] = v

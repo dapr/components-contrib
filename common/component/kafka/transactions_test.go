@@ -95,6 +95,7 @@ func TestInitTransactionsWiring(t *testing.T) {
 		"consumerGroup":               "g1",
 		"consumerTransactionsEnabled": "true",
 		"producerTransactionsEnabled": "true",
+		"version":                     "2.5.0",
 		"transactionalIdPrefix":       "pfx",
 		"transactionTimeout":          "90s",
 	})
@@ -165,13 +166,15 @@ func TestCloseTeardown(t *testing.T) {
 		require.NoError(t, k.Close())
 	})
 
-	t.Run("contended close still closes the consumer group promptly and abandons the producer", func(t *testing.T) {
+	t.Run("contended close defers the producer close until the publish finishes", func(t *testing.T) {
 		// A transactional publish (or a producer-recreation dial) can hold
 		// txnMu for minutes. Close must still tear down the consumer group
 		// immediately — a prompt group close triggers an immediate rebalance
 		// so peers take over the partitions (dapr/components-contrib#3907) —
-		// and must abandon the producer rather than wait.
-		fake := &fakeTxnProducer{}
+		// and must not close the producer under the live send. The producer
+		// is not abandoned either: Close() also runs on component reload, so
+		// it has to be closed once the publish releases txnMu.
+		fake := &closeSignalProducer{closed: make(chan struct{})}
 		groupClosed := false
 		group := mocks.NewConsumerGroup().WithCloseFn(func() error {
 			groupClosed = true
@@ -183,10 +186,6 @@ func TestCloseTeardown(t *testing.T) {
 		}
 
 		k.txnMu.Lock()
-		go func() {
-			time.Sleep(5 * time.Second)
-			k.txnMu.Unlock()
-		}()
 
 		start := time.Now()
 		err := k.Close()
@@ -196,9 +195,38 @@ func TestCloseTeardown(t *testing.T) {
 		require.Less(t, elapsed, 2*time.Second, "Close must not wait out the in-flight transactional publish")
 		require.True(t, groupClosed, "the consumer group must close regardless of txnMu")
 		require.Nil(t, k.clients.consumerGroup)
-		require.False(t, fake.closed, "the producer must be abandoned, never closed under a live transactional send")
-		require.NotNil(t, k.clients.producer)
+
+		select {
+		case <-fake.closed:
+			t.Fatal("the producer must not be closed under a live transactional send")
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		// The publish finishes and releases txnMu.
+		k.txnMu.Unlock()
+
+		select {
+		case <-fake.closed:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the producer must be closed once the in-flight publish releases txnMu")
+		}
+		k.clientsLock.Lock()
+		require.Nil(t, k.clients.producer)
+		k.clientsLock.Unlock()
 	})
+}
+
+// closeSignalProducer reports its Close over a channel so a deferred close
+// can be awaited without racing on a plain bool.
+type closeSignalProducer struct {
+	sarama.SyncProducer
+
+	closed chan struct{}
+}
+
+func (p *closeSignalProducer) Close() error {
+	close(p.closed)
+	return nil
 }
 
 func TestTransactionalProducerClosed(t *testing.T) {
@@ -229,4 +257,63 @@ func TestTransactionalProducerClosedBeatsMock(t *testing.T) {
 	_, err := k.transactionalProducer()
 
 	require.ErrorContains(t, err, "component is closed")
+}
+
+// blockingCloseProducer holds its Close open until released, standing in for
+// sarama's producer shutdown draining in-flight work.
+type blockingCloseProducer struct {
+	sarama.SyncProducer
+
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (p *blockingCloseProducer) Close() error {
+	close(p.entered)
+	<-p.release
+	return nil
+}
+
+func TestInvalidateProducerReleasesClientsLock(t *testing.T) {
+	// The producer close drains in-flight work and can take as long as the
+	// broker makes it take. Holding clientsLock across it would stall
+	// Close()'s consumer-group teardown and every publish for that whole
+	// drain, which is the prompt-rebalance contract of
+	// dapr/components-contrib#3907.
+	fake := &blockingCloseProducer{entered: make(chan struct{}), release: make(chan struct{})}
+	k := &Kafka{
+		logger:  logger.NewLogger("kafka_test"),
+		clients: &clients{producer: fake},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		k.invalidateProducer(fake)
+		close(done)
+	}()
+
+	select {
+	case <-fake.entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the producer close was never reached")
+	}
+
+	acquired := make(chan struct{})
+	go func() {
+		k.clientsLock.Lock()
+		k.clientsLock.Unlock() //nolint:staticcheck
+		close(acquired)
+	}()
+	select {
+	case <-acquired:
+	case <-time.After(10 * time.Second):
+		t.Fatal("clientsLock is held across the producer close")
+	}
+
+	close(fake.release)
+	<-done
+
+	k.clientsLock.Lock()
+	require.Nil(t, k.clients.producer)
+	k.clientsLock.Unlock()
 }

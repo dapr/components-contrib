@@ -153,17 +153,47 @@ func TestTransactionsMetadata(t *testing.T) {
 		require.Contains(t, err.Error(), "consumerIsolationLevel")
 	})
 
-	t.Run("consumerTransactionsEnabled accepted with defaults", func(t *testing.T) {
+	t.Run("consumerTransactionsEnabled accepted at version 2.5", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
 		require.True(t, meta.ConsumerTransactionsEnabled)
 	})
 
+	t.Run("consumer transactions require kafka version >= 2.5", func(t *testing.T) {
+		// The component's default version is 2.0, below the KIP-447 floor: the
+		// member ID and generation sarama needs for group fencing only go on
+		// the wire from 2.5, so an unset version must be rejected rather than
+		// silently losing the fencing.
+		m := getBaseMetadata()
+		m["consumerTransactionsEnabled"] = "true"
+		_, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "2.5")
+
+		m["version"] = "2.4.0"
+		_, err = k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "2.5")
+	})
+
+	t.Run("producer transactions still accepted below 2.5", func(t *testing.T) {
+		// Producer-only transactions and read_committed do not depend on
+		// KIP-447, so they keep the 0.11 floor.
+		m := getBaseMetadata()
+		m["producerTransactionsEnabled"] = "true"
+		m["version"] = "0.11.0.0"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.True(t, meta.ProducerTransactionsEnabled)
+	})
+
 	t.Run("consumer transactions require producerRequiredAcks all", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		m["producerRequiredAcks"] = "local"
 		_, err := k.getKafkaMetadata(m)
 		require.Error(t, err)
@@ -173,6 +203,7 @@ func TestTransactionsMetadata(t *testing.T) {
 	t.Run("consumer transactions require a consumer group", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		delete(m, "consumerGroup")
 		_, err := k.getKafkaMetadata(m)
 		require.Error(t, err)
@@ -182,6 +213,7 @@ func TestTransactionsMetadata(t *testing.T) {
 	t.Run("consumer transactions imply read_committed", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
 		require.Equal(t, sarama.ReadCommitted, meta.internalConsumerIsolationLevel)
@@ -190,6 +222,7 @@ func TestTransactionsMetadata(t *testing.T) {
 	t.Run("consumer transactions accept explicit read_committed", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		m["consumerIsolationLevel"] = "read_committed"
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
@@ -199,6 +232,7 @@ func TestTransactionsMetadata(t *testing.T) {
 	t.Run("consumer transactions reject explicit read_uncommitted", func(t *testing.T) {
 		m := getBaseMetadata()
 		m["consumerTransactionsEnabled"] = "true"
+		m["version"] = "2.5.0"
 		m["consumerIsolationLevel"] = "read_uncommitted"
 		_, err := k.getKafkaMetadata(m)
 		require.Error(t, err)

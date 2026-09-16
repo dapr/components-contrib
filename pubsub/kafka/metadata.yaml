@@ -443,7 +443,7 @@ metadata:
         IMPORTANT: token-carrying publishes must go through the SAME pubsub component the message was delivered by. The transaction is tracked per component instance: a publish through a different Kafka component fails loudly, while a non-Kafka component would ignore the token and publish outside any transaction.
         On handler failure the whole transaction aborts and the message is redelivered while consumeRetryEnabled is true (the pubsub default); with it disabled, a failed delivery is skipped once a later delivery commits a higher offset. Redelivery is governed by this component's backOff metadata (unbounded by default; set backOffMaxRetries to bound it) — Dapr resiliency policies bound the individual handler call, not the redelivery loop. The failed attempts' outputs are never visible to "read_committed" consumers. Non-Kafka side effects (databases, external calls) stay outside the transaction.
         With bulk subscribe the batch is all-or-nothing: any entry failure aborts and redelivers the whole batch.
-        Requires a consumer group, producerRequiredAcks "all", producerRetryMax >= 1 and Kafka 0.11 or later.
+        Requires a consumer group, producerRequiredAcks "all", producerRetryMax >= 1 and Kafka 2.5 or later (set "version" accordingly). The 2.5 floor is higher than the one for producerTransactionsEnabled because the offset commit only carries the consumer group member ID and generation from Kafka 2.5 on, and without them the broker cannot fence a revoked member that commits late.
       example: '"true"'
       default: '"false"'
     - name: transactionTimeout

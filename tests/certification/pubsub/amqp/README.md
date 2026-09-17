@@ -36,9 +36,17 @@ This covers the path where the peer never sends a detach frame.
 ### Addressing with prefixes
 
 Run a component configured with `topicAddressPrefix` and `queueAddressPrefix`,
-and verify that publisher and subscriber still meet. A broker that namespaces
-its destinations needs this, for example an ActiveMQ Artemis acceptor with
-`anycastPrefix` and `multicastPrefix` set.
+and verify that publisher and subscriber still meet on the prefixed address.
+
+What this proves is that the component applies the configured prefix
+consistently on both the publish and the subscribe path, against a real broker.
+Artemis auto-creates an address under whatever literal name it is given, so the
+round trip succeeds without the broker being configured for those prefixes.
+
+What it does **not** prove is routing-type separation. The broker here runs a
+default acceptor, so it is not configured with `anycastPrefix` and
+`multicastPrefix`, and nothing here checks that `queue:` reaches an ANYCAST
+address while a bare topic reaches a MULTICAST one. See the known gaps.
 
 ## Running the tests
 
@@ -60,6 +68,9 @@ rabbitmq suites use the same helper.
 
 ## Known gaps
 
+- Routing-type separation is not covered. Proving it needs a broker whose
+  acceptor is configured with `anycastPrefix` and `multicastPrefix`, which
+  means a custom `broker.xml` mounted into the container.
 - Message TTL is declared by the component but is not covered here or by the
   conformance suite.
 - Wildcard subscriptions are not covered. The component does not declare

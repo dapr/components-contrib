@@ -46,6 +46,12 @@ const (
 	// receiver link, so that a link failing immediately after it attaches
 	// cannot spin against the broker.
 	reattachFloor = time.Second
+
+	// defaultDialTimeout bounds a single dial. amqp.Dial blocks for as long as
+	// its context allows, and renewSession holds connMu across it, so an
+	// unbounded dial would hold the lock until the network recovered and Close
+	// would wait behind it.
+	defaultDialTimeout = 30 * time.Second
 )
 
 // amqpPubSub type allows sending and receiving data to/from an AMQP 1.0 broker
@@ -116,7 +122,10 @@ func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		return err
 	}
 
-	client, session, err := a.connect(ctx, amqpMeta)
+	dialCtx, cancel := a.dialContext(ctx)
+	client, session, err := a.connect(dialCtx, amqpMeta)
+	cancel()
+
 	if err != nil {
 		return err
 	}
@@ -185,7 +194,10 @@ func (a *amqpPubSub) renewSession(ctx context.Context, stale *amqp.Session) (*am
 
 	a.closeConnLocked()
 
-	client, session, err := a.connect(ctx, a.metadata)
+	dialCtx, cancel := a.dialContext(ctx)
+	client, session, err := a.connect(dialCtx, a.metadata)
+	cancel()
+
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +206,29 @@ func (a *amqpPubSub) renewSession(ctx context.Context, stale *amqp.Session) (*am
 	a.logger.Infof("Reconnected to %s", a.metadata.URL)
 
 	return session, nil
+}
+
+// dialContext bounds a dial, and cancels it if the component closes. Publish
+// passes the caller's context, which is never tied to the component lifetime,
+// so without this a dial into a black hole would hold connMu for the life of
+// the process.
+func (a *amqpPubSub) dialContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(parent, defaultDialTimeout)
+	stopped := make(chan struct{})
+
+	go func() {
+		select {
+		case <-a.closeCh:
+			cancel()
+		case <-ctx.Done():
+		case <-stopped:
+		}
+	}()
+
+	return ctx, func() {
+		close(stopped)
+		cancel()
+	}
 }
 
 // closeConnLocked tears down the current session and connection. The caller
@@ -211,7 +246,11 @@ func (a *amqpPubSub) closeConnLocked() {
 	if a.client != nil {
 		// Conn.Close takes no context and blocks until the writer goroutine
 		// drains, so a wedged peer would hang this call, and with it connMu
-		// and every later reconnect. Bound it.
+		// and every later reconnect. Bound the wait.
+		//
+		// There is no way to cancel Close, so on a timeout the goroutine and
+		// the connection it holds are abandoned rather than released. That
+		// leaks them, which is the lesser of the two outcomes.
 		client := a.client
 		done := make(chan error, 1)
 		go func() { done <- client.Close() }()
@@ -452,7 +491,10 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 // stops consuming for the lifetime of the process. That is a worse outcome
 // than retrying for a long time, and it would be silent.
 func (a *amqpPubSub) reconnectBackOff(ctx context.Context) backoff.BackOff {
+	a.connMu.RLock()
 	cfg := a.backOffConfig
+	a.connMu.RUnlock()
+
 	cfg.MaxRetries = -1
 	cfg.MaxElapsedTime = 0
 

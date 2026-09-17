@@ -508,18 +508,41 @@ func TestFeaturesDoesNotClaimWildcards(t *testing.T) {
 // costing one dial per in-flight operation. A caller handing back a session
 // that is no longer current gets the replacement, and no dial is attempted.
 func TestRenewSessionIsSingleFlight(t *testing.T) {
-	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
-	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"} // would fail if dialled
+	newComponent := func() *amqpPubSub {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		// Dialling this address fails fast, so any test that reaches a dial
+		// reports an error rather than hanging.
+		a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
 
-	current := &amqp.Session{}
-	a.session = current
+		return a
+	}
 
-	// A caller whose session is already superseded gets the current one back.
-	stale := &amqp.Session{}
-	got, err := a.renewSession(t.Context(), stale)
-	require.NoError(t, err)
-	assert.Same(t, current, got, "a superseded caller must not trigger a dial")
-	assert.Same(t, current, a.currentSession())
+	t.Run("a superseded caller gets the live session and does not dial", func(t *testing.T) {
+		a := newComponent()
+		current := &amqp.Session{}
+		a.session = current
+
+		got, err := a.renewSession(t.Context(), &amqp.Session{})
+		require.NoError(t, err)
+		assert.Same(t, current, got)
+		assert.Same(t, current, a.currentSession())
+	})
+
+	// This is the case the single-flight guard originally got wrong. A failed
+	// reconnect leaves a.session nil, which is also "different from stale". The
+	// guard must not report that as success, or the caller dereferences nil.
+	t.Run("a caller racing a failed reconnect never gets a nil session and a nil error", func(t *testing.T) {
+		a := newComponent()
+		a.session = nil
+
+		got, err := a.renewSession(t.Context(), &amqp.Session{})
+
+		require.Error(t, err, "with no live session the caller must dial, and this dial fails")
+		assert.Nil(t, got)
+		if err == nil && got == nil {
+			t.Fatal("renewSession returned a nil session with a nil error")
+		}
+	})
 }
 
 // TestRenewSessionRefusesWhenClosed stops a reconnect racing a shutdown and
@@ -538,23 +561,33 @@ func TestRenewSessionRefusesWhenClosed(t *testing.T) {
 // take connMu for writing for its whole body, which serialised every publisher
 // on the component. It must take it for reading, so a reader can be acquired
 // while a publish is in flight.
-func TestPublishDoesNotHoldAWriteLock(t *testing.T) {
-	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+// TestPublishDoesNotTakeTheWriteLock guards the throughput fix. Publish used to
+// take the connection lock exclusively for its whole body, including the retry
+// backoff, which serialised every publisher on the component. Holding the lock
+// for reading here means a Publish that takes it for writing cannot proceed, so
+// the call blocks and the test fails.
+func TestPublishDoesNotTakeTheWriteLock(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
 
-	a.connMu.RLock()
-	defer a.connMu.RUnlock()
+	component := a.(*amqpPubSub)
+	component.connMu.RLock()
+	defer component.connMu.RUnlock()
 
-	// A second reader must not block behind the first.
-	acquired := make(chan struct{})
+	returned := make(chan error, 1)
 	go func() {
-		defer close(acquired)
-		assert.Nil(t, a.currentSession())
+		returned <- a.Publish(t.Context(), &pubsub.PublishRequest{
+			Topic: "orders",
+			Data:  []byte("hello"),
+		})
 	}()
 
 	select {
-	case <-acquired:
-	case <-time.After(2 * time.Second):
-		t.Fatal("connMu is being used as an exclusive lock on the read path")
+	case err := <-returned:
+		// Init never ran, so the publish fails. What matters is that it
+		// returned at all while a read lock was held.
+		require.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Publish blocked while a read lock was held, so it is taking the connection lock for writing")
 	}
 }
 
@@ -565,4 +598,36 @@ func TestCloseWithoutInitIsSafe(t *testing.T) {
 
 	require.NoError(t, a.Close())
 	require.NoError(t, a.Close(), "Close must be idempotent")
+}
+
+// TestAddressForEmptyTopic covers the guard that an empty topic has no address.
+//
+// Without it, a configured prefix makes the result the bare prefix, which is
+// not empty and so passes the emptiness check both callers rely on. The
+// component would then open a link on the literal address "topic://".
+func TestAddressForEmptyTopic(t *testing.T) {
+	tests := []struct {
+		name string
+		md   *metadata
+	}{
+		{
+			name: "no prefixes",
+			md:   &metadata{TopicAddressPrefix: "", QueueAddressPrefix: ""},
+		},
+		{
+			name: "Solace prefixes",
+			md:   &metadata{TopicAddressPrefix: solaceTopicAddressPrefix, QueueAddressPrefix: solaceQueueAddressPrefix},
+		},
+		{
+			name: "broker prefixes",
+			md:   &metadata{TopicAddressPrefix: "multicast://", QueueAddressPrefix: "anycast://"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Empty(t, tt.md.addressFor(""),
+				"an empty topic must have no address, whatever the prefixes are")
+		})
+	}
 }

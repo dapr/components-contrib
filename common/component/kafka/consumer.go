@@ -400,8 +400,15 @@ func (consumer *consumer) doBulkCallbackTxn(session sarama.ConsumerGroupSession,
 // skip the offset commit of a record-less transaction — and with no records
 // there is nothing for the offset to be atomic with — so the empty
 // transaction is ended and the offset commits synchronously instead.
-// Autocommit is disabled in transactional mode, so no stale background
-// commit can regress a transactional offset commit.
+//
+// Both paths mark the message on the session. Autocommit is disabled in
+// transactional mode, so marking sends nothing by itself; it keeps the
+// session's offset manager level with what the transaction committed. That
+// matters because session.Commit() flushes every dirty partition of the
+// session at once: if the transactional path left its partition behind, a
+// record-less delivery on ANOTHER partition could flush the stale offset and
+// overwrite a transactionally committed one downwards, redelivering messages
+// whose output was already on the topic.
 func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage, ct *claimTxn, sent bool) error {
 	k := consumer.k
 
@@ -425,6 +432,11 @@ func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSessio
 	if err := producer.CommitTxn(); err != nil {
 		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
 	}
+	// The broker already has this offset, committed inside the transaction.
+	// Marking it keeps the session's offset manager from lagging behind (see
+	// the note above); MarkOffset only ever moves an offset forward, so this
+	// cannot regress anything either.
+	session.MarkMessage(message, "")
 	return nil
 }
 

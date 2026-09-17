@@ -209,6 +209,7 @@ func TestConsumerTransactions(t *testing.T) {
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		session.On("GenerationID").Return(7)
 		session.On("MemberID").Return("member-a")
+		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
@@ -285,6 +286,7 @@ func TestConsumerTransactions(t *testing.T) {
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		session.On("GenerationID").Return(7)
 		session.On("MemberID").Return("member-a")
+		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
@@ -342,6 +344,7 @@ func TestConsumerTransactions(t *testing.T) {
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		session.On("GenerationID").Return(7)
 		session.On("MemberID").Return("member-a")
+		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
@@ -360,9 +363,15 @@ func TestConsumerTransactions(t *testing.T) {
 		for _, h := range fake.lastMsg.Headers {
 			require.NotEqual(t, txnTokenMetadataKey, string(h.Key))
 		}
-		// The offset commit rides in the transaction; marking it as well could
-		// let a stale autocommit regress it.
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+		// The offset commit rides in the transaction, but the session's
+		// offset manager is marked too, or it would lag behind: a later
+		// session.Commit() flushes every dirty partition of the session at
+		// once, and a partition left behind here would be flushed at its
+		// stale offset, overwriting this transactional commit downwards.
+		// Marking sends nothing on its own — autocommit is off in
+		// transactional mode — so the transaction stays the only committer.
+		session.AssertCalled(t, "MarkMessage", mock.Anything, "")
+		session.AssertNotCalled(t, "Commit")
 		require.Empty(t, k.txnSessions)
 	})
 
@@ -454,6 +463,7 @@ func TestConsumerTransactions(t *testing.T) {
 		k, c, ct, session = arrange(t, handlerConfig, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		session.On("GenerationID").Return(7)
 		session.On("MemberID").Return("member-a")
+		session.On("MarkMessage", mock.Anything, "").Return()
 		messages := []*sarama.ConsumerMessage{newMessage(10), newMessage(11), newMessage(12)}
 
 		err := c.doBulkCallbackTxn(session, messages, bulkHandler, "mytopic", ct)
@@ -463,7 +473,11 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.sends)
 		require.Equal(t, 1, fake.commits)
 		require.Equal(t, int64(12), fake.offsetMsg.Offset)
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+		// Same as the single-delivery case: the batch's highest offset is
+		// marked on the session so it cannot be overwritten downwards by a
+		// later flush, without being committed out of band.
+		session.AssertCalled(t, "MarkMessage", messages[2], "")
+		session.AssertNotCalled(t, "Commit")
 	})
 
 	t.Run("delivery without outputs commits the offset synchronously", func(t *testing.T) {

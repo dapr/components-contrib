@@ -278,7 +278,11 @@ func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata m
 	// A publish carrying a transaction token joins the correlated delivery's
 	// open transaction on its claim producer; the shared producer is not
 	// involved.
-	if token := metadata[txnTokenMetadataKey]; token != "" {
+	// Routed on key presence, not on a non-empty value: an empty token is a
+	// token the caller supplied and lost, so it must fail loudly like any
+	// other unknown token rather than quietly publish outside the
+	// transaction.
+	if token, ok := metadata[txnTokenMetadataKey]; ok {
 		return k.publishInConsumeTxn(token, func(p sarama.SyncProducer) error {
 			partition, offset, sendErr := p.SendMessage(msg)
 			if sendErr == nil {
@@ -363,8 +367,9 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 				// metadata, so an entry-level-only token would be silently
 				// published outside the transaction — fail loudly instead.
 				// (Request-level metadata was already merged over the entry's,
-				// so a mismatch means the token arrived only on the entry.)
-				if value != metadata[txnTokenMetadataKey] {
+				// so an absent key or a mismatch means the token arrived only
+				// on the entry.)
+				if reqToken, ok := metadata[txnTokenMetadataKey]; !ok || value != reqToken {
 					err := errors.New("kafka: the transaction token must be set in the request-level metadata, not per bulk entry")
 					return pubsub.NewBulkPublishResponse(entries, err), err
 				}
@@ -390,7 +395,8 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 
 	// A bulk publish carrying a transaction token joins the correlated
 	// delivery's open transaction on its claim producer.
-	if token := metadata[txnTokenMetadataKey]; token != "" {
+	// Key presence, not a non-empty value — same reason as Publish.
+	if token, ok := metadata[txnTokenMetadataKey]; ok {
 		if err := k.publishInConsumeTxn(token, func(p sarama.SyncProducer) error {
 			return p.SendMessages(msgs)
 		}); err != nil {

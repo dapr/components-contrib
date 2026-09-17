@@ -523,6 +523,54 @@ func TestPublishTransactions(t *testing.T) {
 		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
 	})
 
+	t.Run("empty token fails loudly instead of publishing untokened", func(t *testing.T) {
+		// A present-but-empty token is a token the caller supplied and lost —
+		// an app echoing a header it never received. Treating it as "no
+		// token" would publish outside the delivery transaction, which is the
+		// downgrade the fail-loud contract exists to prevent. An absent key
+		// stays legal: publishing outside the transaction on purpose is
+		// allowed.
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.txnSessions = map[string]*txnSession{"tok-1": {producer: fake, open: true}}
+
+		err := k.Publish(ctx, "out", []byte("a"), map[string]string{txnTokenMetadataKey: ""})
+
+		require.ErrorIs(t, err, errTxnTokenClosed)
+		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
+	})
+
+	t.Run("bulk publish with an empty token fails loudly", func(t *testing.T) {
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.txnSessions = map[string]*txnSession{"tok-1": {producer: fake, open: true}}
+		entries := []pubsub.BulkMessageEntry{{EntryId: "0", Event: []byte("a")}}
+
+		res, err := k.BulkPublish(ctx, "out", entries, map[string]string{txnTokenMetadataKey: ""})
+
+		require.ErrorIs(t, err, errTxnTokenClosed)
+		require.Len(t, res.FailedEntries, 1)
+		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
+	})
+
+	t.Run("bulk publish with an entry-level-only empty token fails loudly", func(t *testing.T) {
+		// The entry-level guard compares values, so an empty entry token
+		// against an absent request token must be caught on key presence,
+		// not by comparing "" with "".
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		k.producerConfig.TransactionsEnabled = false
+		entries := []pubsub.BulkMessageEntry{
+			{EntryId: "0", Event: []byte("a"), Metadata: map[string]string{txnTokenMetadataKey: ""}},
+		}
+
+		res, err := k.BulkPublish(ctx, "out", entries, nil)
+
+		require.ErrorContains(t, err, "request-level")
+		require.Len(t, res.FailedEntries, 1)
+		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
+	})
+
 	t.Run("bulk publish token-path send error fails every entry", func(t *testing.T) {
 		// The claim producer's transaction aborts as a whole, so a send error
 		// on the token path must report the full batch failed — an empty

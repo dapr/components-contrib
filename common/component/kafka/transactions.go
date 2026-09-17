@@ -48,12 +48,15 @@ func (s *txnSession) send(send func(sarama.SyncProducer) error) error {
 	if !s.open {
 		return errTxnTokenClosed
 	}
-	// sarama adds the partition to the transaction on the send *attempt*, so
-	// the transaction may hold records even when the send returns an error.
-	// Mark before sending: a failed publish whose error the app swallows must
-	// finish through the transactional path (where the error state aborts)
-	// rather than the record-less fallback, which would commit any records
-	// that did land plus the offset out-of-band.
+	// Mark before sending, because a failed send still dirties the
+	// transaction: sarama moves a transactional producer to
+	// InError|AbortableError inside returnError, before the error reaches
+	// this caller, and it does so for every rejection — including the ones
+	// that never add the partition, like an oversized message refused in the
+	// dispatcher. So a publish whose error the app swallows must finish
+	// through the transactional path, where that error state aborts the
+	// delivery, rather than through the record-less fallback, which would
+	// commit any records that did land plus the offset out of band.
 	s.sent = true
 	return send(s.producer)
 }

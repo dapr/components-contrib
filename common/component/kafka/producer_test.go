@@ -571,6 +571,24 @@ func TestPublishTransactions(t *testing.T) {
 		require.Equal(t, 0, fake.sends, "nothing may be published outside the transaction")
 	})
 
+	t.Run("empty bulk publish never marks the delivery as sent", func(t *testing.T) {
+		// SendMessages on an empty slice puts no records in the transaction,
+		// so taking the token path would leave a clean, record-less
+		// transaction marked as sent — and sarama drops the offset commit of
+		// a record-less transaction without reporting anything.
+		fake := &fakeTxnProducer{}
+		k := arrangeTxnKafka(fake)
+		sess := &txnSession{producer: fake, open: true}
+		k.txnSessions = map[string]*txnSession{"tok-1": sess}
+
+		res, err := k.BulkPublish(ctx, "out", nil, map[string]string{txnTokenMetadataKey: "tok-1"})
+
+		require.NoError(t, err)
+		require.Empty(t, res.FailedEntries)
+		require.Equal(t, 0, fake.sends)
+		require.False(t, sess.hasSent(), "an empty batch must leave the delivery on the record-less path")
+	})
+
 	t.Run("bulk publish token-path send error fails every entry", func(t *testing.T) {
 		// The claim producer's transaction aborts as a whole, so a send error
 		// on the token path must report the full batch failed — an empty

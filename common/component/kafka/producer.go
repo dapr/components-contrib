@@ -393,6 +393,14 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		msgs = append(msgs, msg)
 	}
 
+	// A zero-entry batch sends nothing, and it must not reach the token path:
+	// marking the delivery as having sent would take the transactional commit
+	// path, where sarama silently skips the offset commit of a transaction
+	// that holds no records, leaving the offset to ride on some later flush.
+	if len(msgs) == 0 {
+		return pubsub.BulkPublishResponse{}, nil
+	}
+
 	// A bulk publish carrying a transaction token joins the correlated
 	// delivery's open transaction on its claim producer.
 	// Key presence, not a non-empty value — same reason as Publish.

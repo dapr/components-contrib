@@ -38,10 +38,15 @@ builtinAuthenticationProfiles:
       - name: enableInOrderMessageDelivery
         type: bool
         required: false
-        default: "false"
-        example: "false"
+        default: "true"
+        example: "true"
         description: |
-          Enable in order processing of messages within a partition.
+          Enable in order processing of messages within a partition. When true,
+          checkpoints advance only after the subscriber successfully processes a batch.
+          If no checkpoint exists, consumption starts from the earliest retained event.
+          When false, handler calls run concurrently and checkpointing does not wait for
+          their completion, and consumption starts from the latest event if no checkpoint
+          exists.
 
       # The following four properties are needed only if enableEntityManagement is set to true
       - name: resourceGroupName
@@ -110,6 +115,16 @@ metadata:
     description: |
       The name of the Event Hubs Consumer Group to listen on.
     example: '"group1"'
+  - name: checkPointFrequencyPerPartition
+    type: number
+    required: false
+    default: "1"
+    description: |
+      Update the checkpoint after every N successful batches for a partition,
+      starting with the first batch. Set to 0 to disable checkpointing. With
+      in-order delivery enabled, disabling checkpointing causes each restart
+      to consume from the earliest retained event.
+    example: "1"
   - name: getAllMessageProperties
     required: false
     default: "false"

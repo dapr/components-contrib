@@ -53,7 +53,9 @@ type AzureEventHubsMetadata struct {
 }
 
 func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*AzureEventHubsMetadata, error) {
-	var m AzureEventHubsMetadata
+	m := AzureEventHubsMetadata{
+		EnableInOrderMessageDelivery: true,
+	}
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode metada: %w", err)

@@ -39,6 +39,7 @@ const (
 	DefaultMaxBulkSubCount                 = 100
 	DefaultMaxBulkSubAwaitDurationMs       = 10000
 	DefaultCheckpointFrequencyPerPartition = 1
+	failedBatchRetryInterval               = time.Second
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
@@ -71,6 +72,13 @@ type SubscribeConfig struct {
 	MaxBulkSubAwaitDurationMs       int
 	CheckPointFrequencyPerPartition int
 	Handler                         HandlerFn
+}
+
+type processorPartitionClient interface {
+	ReceiveEvents(context.Context, int, *azeventhubs.ReceiveEventsOptions) ([]*azeventhubs.ReceivedEventData, error)
+	UpdateCheckpoint(context.Context, *azeventhubs.ReceivedEventData, *azeventhubs.UpdateCheckpointOptions) error
+	PartitionID() string
+	Close(context.Context) error
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -357,7 +365,7 @@ func (aeh *AzureEventHubs) handleAsync(ctx context.Context, topic string, messag
 	return err
 }
 
-func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient, config SubscribeConfig) error {
+func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient processorPartitionClient, config SubscribeConfig) error {
 	// At the end of the method we need to do some cleanup and close the partition client
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
@@ -399,7 +407,24 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 		if len(events) != 0 {
 			// Handle received message
 			if aeh.metadata.EnableInOrderMessageDelivery {
-				_ = aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+				// Keep the batch on this client until it is resolved. Receiving another batch or
+				// recreating a fresh client could advance past these events without a checkpoint.
+				for {
+					err = aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler)
+					if err == nil {
+						break
+					}
+
+					select {
+					case <-subscribeCtx.Done():
+						return subscribeCtx.Err()
+					case <-time.After(failedBatchRetryInterval):
+						aeh.logger.Warnf("Retrying unresolved EventHubs batch for topic %s, partition %s without advancing the checkpoint", config.Topic, partitionClient.PartitionID())
+					}
+				}
+				if err = subscribeCtx.Err(); err != nil {
+					return err
+				}
 			} else {
 				go aeh.handleAsync(subscribeCtx, config.Topic, events, config.Handler) //nolint:errcheck // legacy behavior preserved
 			}
@@ -409,8 +434,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 				// Update checkpoint with frequency of `checkpointFrequencyPerPartition` for a given partition
 				if counter%config.CheckPointFrequencyPerPartition == 0 {
 					// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
-					// This context inherits from the background one in case subscriptionCtx gets canceled
-					ctx, cancel = context.WithTimeout(context.Background(), resourceCreationTimeout)
+					ctx, cancel = context.WithTimeout(subscribeCtx, resourceCreationTimeout)
 					err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1], nil)
 					cancel()
 					if err != nil {
@@ -572,12 +596,25 @@ func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic strin
 	}
 
 	// Create the processor from the consumer client and checkpoint store
-	processor, err := azeventhubs.NewProcessor(consumerClient, checkpointStore, nil)
+	processor, err := azeventhubs.NewProcessor(consumerClient, checkpointStore, aeh.processorOptions())
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the processor: %w", err)
 	}
 
 	return processor, nil
+}
+
+func (aeh *AzureEventHubs) processorOptions() *azeventhubs.ProcessorOptions {
+	if !aeh.metadata.EnableInOrderMessageDelivery {
+		return nil
+	}
+
+	earliest := true
+	return &azeventhubs.ProcessorOptions{
+		StartPositions: azeventhubs.StartPositions{
+			Default: azeventhubs.StartPosition{Earliest: &earliest},
+		},
+	}
 }
 
 // Returns the checkpoint store from the object. If it doesn't exist, it lazily initializes it.

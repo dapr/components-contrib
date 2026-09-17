@@ -60,10 +60,15 @@ builtinAuthenticationProfiles:
       - name: enableInOrderMessageDelivery
         type: bool
         required: false
-        default: "false"
-        example: "false"
+        default: "true"
+        example: "true"
         description: |
-          Enable in order processing of messages within a partition.
+          Enable in order processing of messages within a partition. When true,
+          checkpoints advance only after the input handler successfully processes an event.
+          If no checkpoint exists, consumption starts from the earliest retained event.
+          When false, handler calls run concurrently and checkpointing does not wait for
+          their completion, and consumption starts from the latest event if no checkpoint
+          exists.
       - name: resourceGroupName
         type: string
         required: false

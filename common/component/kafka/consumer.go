@@ -430,7 +430,21 @@ func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSessio
 		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: add offsets to transaction: %w", err), ct.invalidate)
 	}
 	if err := producer.CommitTxn(); err != nil {
-		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+		// A commit that exhausted sarama's EndTxn retries leaves the producer
+		// in CommittingTransaction with no answer from the broker: the
+		// transaction may or may not have committed. Retrying the delivery
+		// blind would republish its outputs if it did, and epoch fencing
+		// cannot take a committed transaction back — fencing aborts open
+		// transactions only. Ask the broker instead. This must run before the
+		// cleanup below, which closes the client the query uses.
+		landed := producer.TxnStatus()&sarama.ProducerTxnFlagCommittingTransaction != 0 &&
+			consumer.commitLanded(producer, message)
+
+		cleanupErr := k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+		if !landed {
+			return cleanupErr
+		}
+		k.logger.Warnf("Kafka transaction commit returned %v but the broker had already committed it; not reprocessing %s/%d/%d", err, message.Topic, message.Partition, message.Offset)
 	}
 	// The broker already has this offset, committed inside the transaction.
 	// Marking it keeps the session's offset manager from lagging behind (see
@@ -438,6 +452,64 @@ func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSessio
 	// cannot regress anything either.
 	session.MarkMessage(message, "")
 	return nil
+}
+
+// clientOwner is implemented by the producers this component builds.
+type clientOwner interface {
+	Client() sarama.Client
+}
+
+// commitLanded reports whether the broker committed the transaction whose
+// CommitTxn returned an unknown outcome, by reading the consumer group's
+// committed offset. A transactional commit writes message.Offset+1, so any
+// committed offset past this message means the transaction landed.
+//
+// Every failure to find out answers false, which reprocesses the delivery —
+// the pre-existing behaviour, and the safe side of the guess for a
+// transaction that most likely did not commit.
+func (consumer *consumer) commitLanded(producer sarama.SyncProducer, message *sarama.ConsumerMessage) bool {
+	k := consumer.k
+
+	fetch := k.committedOffsetFetcher
+	if fetch == nil {
+		fetch = fetchCommittedOffset
+	}
+	committed, err := fetch(producer, k.consumerGroup, message.Topic, message.Partition)
+	if err != nil {
+		k.logger.Warnf("Could not read the committed offset after an unknown-outcome transaction commit for %s/%d/%d, reprocessing the delivery: %v", message.Topic, message.Partition, message.Offset, err)
+		return false
+	}
+	return committed > message.Offset
+}
+
+// fetchCommittedOffset asks the group coordinator for the consumer group's
+// committed offset on one partition, over the client the producer already
+// owns.
+func fetchCommittedOffset(producer sarama.SyncProducer, group, topic string, partition int32) (int64, error) {
+	owner, ok := producer.(clientOwner)
+	if !ok {
+		return 0, errors.New("kafka: producer does not carry a client")
+	}
+	client := owner.Client()
+
+	coordinator, err := client.Coordinator(group)
+	if err != nil {
+		return 0, fmt.Errorf("kafka: locate group coordinator: %w", err)
+	}
+	resp, err := coordinator.FetchOffset(sarama.NewOffsetFetchRequest(
+		client.Config().Version, group, map[string][]int32{topic: {partition}},
+	))
+	if err != nil {
+		return 0, fmt.Errorf("kafka: fetch committed offset: %w", err)
+	}
+	block := resp.GetBlock(topic, partition)
+	if block == nil {
+		return 0, errors.New("kafka: fetch committed offset: no block for the partition")
+	}
+	if block.Err != sarama.ErrNoError {
+		return 0, fmt.Errorf("kafka: fetch committed offset: %w", block.Err)
+	}
+	return block.Offset, nil
 }
 
 func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]string {

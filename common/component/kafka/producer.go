@@ -125,6 +125,14 @@ type clientOwningSyncProducer struct {
 	client sarama.Client
 }
 
+// Client hands back the sarama client behind this producer, so the commit
+// path can ask the broker what the consumer group actually committed when a
+// transaction commit ends with an unknown outcome. Deliberately not part of
+// any sarama interface: only producers this component builds carry a client.
+func (p *clientOwningSyncProducer) Client() sarama.Client {
+	return p.client
+}
+
 func (p *clientOwningSyncProducer) Close() error {
 	producerErr := p.SyncProducer.Close()
 	clientErr := p.client.Close()

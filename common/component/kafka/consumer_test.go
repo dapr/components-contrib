@@ -447,6 +447,113 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fakes[1].commits)
 	})
 
+	t.Run("unknown-outcome commit that the broker committed is not reprocessed", func(t *testing.T) {
+		// sarama can exhaust its EndTxn retries without an answer, leaving
+		// the producer in CommittingTransaction: the transaction may already
+		// be committed. Reprocessing then republishes its outputs, and epoch
+		// fencing cannot take a committed transaction back.
+		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+		session.On("MarkMessage", mock.Anything, "").Return()
+		fetches := 0
+		k.committedOffsetFetcher = func(_ sarama.SyncProducer, group, topic string, partition int32) (int64, error) {
+			fetches++
+			require.Equal(t, "group1", group)
+			require.Equal(t, "mytopic", topic)
+			require.Equal(t, int32(3), partition)
+			return 43, nil // the transaction wrote message.Offset+1
+		}
+
+		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
+
+		require.Equal(t, 1, fetches)
+		session.AssertCalled(t, "MarkMessage", mock.Anything, "")
+		session.AssertNotCalled(t, "Commit")
+		require.True(t, fake.closed, "the wedged producer is still recycled")
+		require.Nil(t, ct.producer)
+	})
+
+	t.Run("unknown-outcome commit that did not land is reprocessed", func(t *testing.T) {
+		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
+			return 42, nil // still behind: the transaction never committed
+		}
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "commit failed")
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("unreadable committed offset reprocesses the delivery", func(t *testing.T) {
+		// Not knowing is the same as not committed: reprocessing is the
+		// pre-existing behaviour and the safe side of the guess.
+		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
+			return 0, errors.New("coordinator unreachable")
+		}
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "commit failed")
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
+	})
+
+	t.Run("unambiguous commit failure does not ask the broker", func(t *testing.T) {
+		// A fatal or abortable status means the broker rejected the commit,
+		// so there is nothing to disambiguate and no round trip to pay.
+		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagFatalError}
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		session.On("GenerationID").Return(7)
+		session.On("MemberID").Return("member-a")
+		fetches := 0
+		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
+			fetches++
+			return 43, nil
+		}
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "commit failed")
+		require.Equal(t, 0, fetches, "an unambiguous failure must not query the broker")
+	})
+
 	t.Run("bulk batch commits outputs and the last offset in one transaction", func(t *testing.T) {
 		fake := &fakeTxnProducer{}
 		var k *Kafka

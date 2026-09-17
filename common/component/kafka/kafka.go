@@ -77,6 +77,10 @@ type Kafka struct {
 	// without a broker; nil means GetSyncProducer.
 	claimProducerFactory func(pc ProducerConfig) (sarama.SyncProducer, error)
 
+	// committedOffsetFetcher is a test seam for reading the consumer group's
+	// committed offset; nil uses the broker.
+	committedOffsetFetcher func(producer sarama.SyncProducer, group, topic string, partition int32) (int64, error)
+
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 	consumerCancel  context.CancelFunc

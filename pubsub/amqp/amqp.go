@@ -41,10 +41,20 @@ const (
 
 	// defaultCloseTimeout bounds how long closing a link or session may block.
 	defaultCloseTimeout = 5 * time.Second
+
+	// reattachFloor is the minimum delay between two attempts to re-attach a
+	// receiver link, so that a link failing immediately after it attaches
+	// cannot spin against the broker.
+	reattachFloor = time.Second
 )
 
 // amqpPubSub type allows sending and receiving data to/from an AMQP 1.0 broker
 type amqpPubSub struct {
+	// lifecycleMu serialises admitting a new subscription against Close. Without
+	// it, Subscribe can call wg.Add after Close has started wg.Wait, which is a
+	// WaitGroup misuse that panics the process.
+	lifecycleMu sync.Mutex
+
 	// connMu guards client and session. Operations that use the connection
 	// hold it for reading, so that publishing is concurrent; only replacing a
 	// dead connection takes it for writing.
@@ -99,25 +109,42 @@ func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		return err
 	}
 
-	a.metadata = amqpMeta
-
 	// Reconnect backoff, tunable with the usual backOff* metadata keys. The
-	// default is an unlimited constant retry every 5 seconds.
-	a.backOffConfig = retry.DefaultConfig()
-	if err = retry.DecodeConfigWithPrefix(&a.backOffConfig, metadata.Properties, "backOff"); err != nil {
+	// default is a constant retry every 5 seconds.
+	backOffConfig := retry.DefaultConfig()
+	if err = retry.DecodeConfigWithPrefix(&backOffConfig, metadata.Properties, "backOff"); err != nil {
 		return err
 	}
 
-	client, session, err := a.connect(ctx)
+	client, session, err := a.connect(ctx, amqpMeta)
 	if err != nil {
 		return err
 	}
 
 	a.connMu.Lock()
+	a.metadata, a.backOffConfig = amqpMeta, backOffConfig
 	a.client, a.session = client, session
 	a.connMu.Unlock()
 
 	return nil
+}
+
+// currentMetadata returns the parsed configuration, or nil before Init.
+func (a *amqpPubSub) currentMetadata() *metadata {
+	a.connMu.RLock()
+	defer a.connMu.RUnlock()
+
+	return a.metadata
+}
+
+// closeReceiver detaches a receiver link, bounded by defaultCloseTimeout.
+func (a *amqpPubSub) closeReceiver(receiver *amqp.Receiver, address string) {
+	closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
+	defer cancel()
+
+	if err := receiver.Close(closeCtx); err != nil {
+		a.logger.Warnf("failed to close the receiver link for %s: %v", address, err)
+	}
 }
 
 // currentSession returns the session operations must use. It is nil only
@@ -148,13 +175,17 @@ func (a *amqpPubSub) renewSession(ctx context.Context, stale *amqp.Session) (*am
 		return nil, errors.New("component is not initialized")
 	}
 
-	if a.session != stale {
+	// Defer to another caller's reconnect only if it actually produced a
+	// session. A failed attempt also leaves a.session different from stale,
+	// because it is set to nil, and this caller must dial rather than hand
+	// back a nil session for the caller to dereference.
+	if a.session != nil && a.session != stale {
 		return a.session, nil
 	}
 
 	a.closeConnLocked()
 
-	client, session, err := a.connect(ctx)
+	client, session, err := a.connect(ctx, a.metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -178,9 +209,22 @@ func (a *amqpPubSub) closeConnLocked() {
 	}
 
 	if a.client != nil {
-		if err := a.client.Close(); err != nil {
-			a.logger.Warnf("failed to close the AMQP connection: %v", err)
+		// Conn.Close takes no context and blocks until the writer goroutine
+		// drains, so a wedged peer would hang this call, and with it connMu
+		// and every later reconnect. Bound it.
+		client := a.client
+		done := make(chan error, 1)
+		go func() { done <- client.Close() }()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				a.logger.Warnf("failed to close the AMQP connection: %v", err)
+			}
+		case <-time.After(defaultCloseTimeout):
+			a.logger.Warnf("timed out closing the AMQP connection, abandoning it")
 		}
+
 		a.client = nil
 	}
 }
@@ -195,7 +239,12 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		return pubsub.NewTerminalError(errors.New("topic name is empty"))
 	}
 
-	address := a.metadata.addressFor(req.Topic)
+	md := a.currentMetadata()
+	if md == nil {
+		return pubsub.NewTerminalError(errors.New("component is not initialized"))
+	}
+
+	address := md.addressFor(req.Topic)
 	if address == "" {
 		return pubsub.NewTerminalError(fmt.Errorf("topic %q maps to an empty AMQP address", req.Topic))
 	}
@@ -213,30 +262,18 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		}
 	}
 
-	sender, err := a.newSender(ctx, address)
-	if err != nil {
-		a.logger.Errorf("Unable to create link to %s: %v", address, err)
-		return pubsub.NewRetriableError(err)
-	}
-
-	// The link is opened per publish, so it has to be closed again here;
-	// otherwise every published message leaks a link on the broker.
-	defer func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
-		defer cancel()
-		if cerr := sender.Close(closeCtx); cerr != nil {
-			a.logger.Warnf("failed to close the sender link for %s: %v", address, cerr)
-		}
-	}()
-
 	// Publish the message, retrying a bounded number of times before giving up.
+	// Every attempt opens its own link. Once a link is done, go-amqp returns
+	// the same error from every Send without touching the network, so retrying
+	// on the link that just failed can never succeed.
+	var err error
 	for attempt := 0; ; attempt++ {
-		err = sender.Send(ctx, m, nil)
+		err = a.publishOnce(ctx, address, m)
 		if err == nil {
 			return nil
 		}
 
-		if attempt >= publishMaxRetries {
+		if attempt >= publishMaxRetries || a.closed.Load() {
 			break
 		}
 
@@ -250,6 +287,26 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	}
 
 	return pubsub.NewRetriableError(err)
+}
+
+// publishOnce opens a sender link, sends one message and closes the link again.
+// The link is per publish, so it has to be closed here; otherwise every
+// published message leaks a link on the broker.
+func (a *amqpPubSub) publishOnce(ctx context.Context, address string, m *amqp.Message) error {
+	sender, err := a.newSender(ctx, address)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
+		defer cancel()
+		if cerr := sender.Close(closeCtx); cerr != nil {
+			a.logger.Warnf("failed to close the sender link for %s: %v", address, cerr)
+		}
+	}()
+
+	return sender.Send(ctx, m, nil)
 }
 
 // sessionOrRenew returns the current session, dialling a new one if an earlier
@@ -309,7 +366,11 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return errors.New("component is closed")
 	}
 
-	address := a.metadata.addressFor(req.Topic)
+	if a.currentMetadata() == nil {
+		return errors.New("component is not initialized")
+	}
+
+	address := a.currentMetadata().addressFor(req.Topic)
 	if address == "" {
 		return fmt.Errorf("topic %q maps to an empty AMQP address", req.Topic)
 	}
@@ -322,8 +383,20 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return err
 	}
 
-	a.logger.Infof("Attempting to subscribe to %s", address)
+	// Admitting the subscription has to be atomic with Close marking the
+	// component closed. Otherwise wg.Add can run while Close is inside
+	// wg.Wait, which panics, and the subscription leaks past Close.
+	a.lifecycleMu.Lock()
+	if a.closed.Load() {
+		a.lifecycleMu.Unlock()
+		a.closeReceiver(receiver, address)
+
+		return errors.New("component is closed")
+	}
 	a.wg.Add(2)
+	a.lifecycleMu.Unlock()
+
+	a.logger.Infof("Attempting to subscribe to %s", address)
 	subCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer a.wg.Done()
@@ -347,12 +420,19 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 // topic is the Dapr topic name the messages are delivered under, address is the
 // AMQP address the receiver link is attached to.
 func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, topic string, address string) {
-	b := a.backOffConfig.NewBackOffWithContext(ctx)
+	b := a.reconnectBackOff(ctx)
 
 	for {
 		a.deliver(ctx, receiver, handler, topic, address)
 
 		if ctx.Err() != nil || a.closed.Load() {
+			return
+		}
+
+		// Wait before re-attaching. A link that attaches and then fails
+		// immediately would otherwise spin against the broker, because the
+		// retry helper runs its first attempt with no delay.
+		if !a.wait(ctx, reattachFloor) {
 			return
 		}
 
@@ -362,7 +442,35 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 			a.logger.Errorf("Ending the subscription to %s: %v", address, err)
 			return
 		}
-		b.Reset()
+	}
+}
+
+// reconnectBackOff returns the backoff used between re-attach attempts.
+//
+// The configured interval is honoured, but the retry never gives up. The
+// runtime never calls Subscribe again, so a subscription that stops retrying
+// stops consuming for the lifetime of the process. That is a worse outcome
+// than retrying for a long time, and it would be silent.
+func (a *amqpPubSub) reconnectBackOff(ctx context.Context) backoff.BackOff {
+	cfg := a.backOffConfig
+	cfg.MaxRetries = -1
+	cfg.MaxElapsedTime = 0
+
+	return cfg.NewBackOffWithContext(ctx)
+}
+
+// wait sleeps for d, reporting false if the subscription ended first.
+func (a *amqpPubSub) wait(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+
+	select {
+	case <-t.C:
+		return !a.closed.Load()
+	case <-ctx.Done():
+		return false
+	case <-a.closeCh:
+		return false
 	}
 }
 
@@ -392,11 +500,7 @@ func (a *amqpPubSub) reattach(ctx context.Context, address string, b backoff.Bac
 func (a *amqpPubSub) deliver(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, topic string, address string) {
 	defer func() {
 		a.logger.Infof("closing receiver for %s", address)
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultCloseTimeout)
-		defer cancel()
-		if err := receiver.Close(closeCtx); err != nil {
-			a.logger.Warnf("failed to close the receiver link for %s: %v", address, err)
-		}
+		a.closeReceiver(receiver, address)
 	}()
 
 	for {
@@ -421,10 +525,15 @@ func (a *amqpPubSub) deliver(ctx context.Context, receiver *amqp.Receiver, handl
 
 		if err = handler(ctx, newPubsubMessage(topic, msg)); err != nil {
 			a.logger.Errorf("Error processing message from %s: %v", address, err)
-			if err = receiver.RejectMessage(ctx, msg, nil); err != nil {
-				a.logger.Errorf("failed to NAK a message from %s: %v", address, err)
+
+			// Release rather than reject. In AMQP 1.0 the rejected outcome
+			// tells the broker the message is invalid, so it is dead-lettered
+			// or discarded and never comes back. A handler error in Dapr means
+			// "deliver this again", which is the released outcome.
+			if err = receiver.ReleaseMessage(ctx, msg); err != nil {
+				a.logger.Errorf("failed to release a message from %s: %v", address, err)
 			} else {
-				a.logger.Debugf("NAKd a message")
+				a.logger.Debugf("released a message for redelivery")
 			}
 
 			continue
@@ -456,16 +565,16 @@ func newPubsubMessage(topic string, msg *amqp.Message) *pubsub.NewMessage {
 
 // connect dials the broker and opens a session on the connection. It returns
 // both, because closing only the session leaves the socket open.
-func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Conn, *amqp.Session, error) {
-	uri, err := url.Parse(a.metadata.URL)
+func (a *amqpPubSub) connect(ctx context.Context, md *metadata) (*amqp.Conn, *amqp.Session, error) {
+	uri, err := url.Parse(md.URL)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	clientOpts := a.createClientOptions(uri)
+	clientOpts := a.createClientOptions(uri, md)
 
-	a.logger.Infof("Attempting to connect to %s", a.metadata.URL)
-	client, err := amqp.Dial(ctx, a.metadata.URL, &clientOpts)
+	a.logger.Infof("Attempting to connect to %s", md.URL)
+	client, err := amqp.Dial(ctx, md.URL, &clientOpts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s dialing AMQP server: %w", errorMsgPrefix, err)
 	}
@@ -482,11 +591,11 @@ func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Conn, *amqp.Session, er
 	return client, session, nil
 }
 
-func (a *amqpPubSub) newTLSConfig() *tls.Config {
+func (a *amqpPubSub) newTLSConfig(md *metadata) *tls.Config {
 	tlsConfig := new(tls.Config)
 
-	if a.metadata.ClientCert != "" && a.metadata.ClientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(a.metadata.ClientCert), []byte(a.metadata.ClientKey))
+	if md.ClientCert != "" && md.ClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(md.ClientCert), []byte(md.ClientKey))
 		if err != nil {
 			a.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
 
@@ -495,9 +604,9 @@ func (a *amqpPubSub) newTLSConfig() *tls.Config {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	if a.metadata.CaCert != "" {
+	if md.CaCert != "" {
 		tlsConfig.RootCAs = x509.NewCertPool()
-		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(a.metadata.CaCert)); !ok {
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(md.CaCert)); !ok {
 			a.logger.Warnf("unable to load ca certificate.")
 		}
 	}
@@ -505,21 +614,21 @@ func (a *amqpPubSub) newTLSConfig() *tls.Config {
 	return tlsConfig
 }
 
-func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
+func (a *amqpPubSub) createClientOptions(uri *url.URL, md *metadata) amqp.ConnOptions {
 	var opts amqp.ConnOptions
 
 	scheme := uri.Scheme
 
 	switch scheme {
 	case "amqp":
-		if a.metadata.Anonymous {
+		if md.Anonymous {
 			opts.SASLType = amqp.SASLTypeAnonymous()
 		} else {
-			opts.SASLType = amqp.SASLTypePlain(a.metadata.Username, a.metadata.Password)
+			opts.SASLType = amqp.SASLTypePlain(md.Username, md.Password)
 		}
 	case "amqps":
-		opts.SASLType = amqp.SASLTypePlain(a.metadata.Username, a.metadata.Password)
-		opts.TLSConfig = a.newTLSConfig()
+		opts.SASLType = amqp.SASLTypePlain(md.Username, md.Password)
+		opts.TLSConfig = a.newTLSConfig(md)
 	}
 
 	return opts
@@ -527,9 +636,11 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 // Close the session
 func (a *amqpPubSub) Close() error {
+	a.lifecycleMu.Lock()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
+	a.lifecycleMu.Unlock()
 
 	// Let the subscription goroutines observe closeCh and release their links
 	// before the session underneath them is torn down.

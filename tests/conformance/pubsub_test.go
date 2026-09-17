@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
+	p_amqp "github.com/dapr/components-contrib/pubsub/amqp"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -36,7 +37,6 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
-	p_amqp "github.com/dapr/components-contrib/pubsub/amqp"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 )
 

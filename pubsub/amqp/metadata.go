@@ -87,6 +87,13 @@ const (
 // addressed as a topic. A topic name that already carries one of the configured
 // prefixes is used as the address as-is.
 func (m *metadata) addressFor(topic string) string {
+	// An empty topic has no address. Without this, a configured prefix would
+	// make the result the bare prefix, which is not empty and so passes the
+	// callers' emptiness check.
+	if topic == "" {
+		return ""
+	}
+
 	if hasPrefix(topic, m.TopicAddressPrefix) || hasPrefix(topic, m.QueueAddressPrefix) {
 		return topic
 	}

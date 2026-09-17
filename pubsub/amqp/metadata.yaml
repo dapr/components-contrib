@@ -72,20 +72,21 @@ metadata:
     description: |
       Prefix prepended to the AMQP address of a topic, which is used for a bare topic name and for
       topics named `topic:<name>`.
-      Defaults to the Solace addressing convention. Set it to the multicast prefix the broker is
-      configured with, or to an empty value for brokers that address topics by name, such as
-      Apache ActiveMQ Artemis.
-    default: '"topic://"'
-    example: '"topic://"'
+      Defaults to no prefix, which addresses the topic by name. Set it to the multicast prefix the
+      broker is configured with, for example the `multicastPrefix` of an Apache ActiveMQ Artemis
+      acceptor. Solace brokers use `topic://`.
+    default: '""'
+    example: '"multicast://"'
     type: string
   - name: queueAddressPrefix
     required: false
     description: |
       Prefix prepended to the AMQP address of a queue, which is used for topics named `queue:<name>`.
-      Defaults to the Solace addressing convention. Set it to the anycast prefix the broker is
-      configured with, or to an empty value for brokers that address queues by name, such as
-      Apache ActiveMQ Artemis. Note that when both prefixes are set to an empty value,
-      `queue:<name>` addresses the same destination as `<name>`.
-    default: '"queue://"'
-    example: '"queue://"'
+      Defaults to no prefix, which addresses the queue by name. Set it to the anycast prefix the
+      broker is configured with, for example the `anycastPrefix` of an Apache ActiveMQ Artemis
+      acceptor. Solace brokers use `queue://`.
+      If both prefixes are empty, `queue:<name>` addresses the same destination as `<name>`, so
+      configure both on a broker that distinguishes queue and topic semantics.
+    default: '""'
+    example: '"anycast://"'
     type: string

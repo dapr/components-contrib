@@ -499,6 +499,9 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['pubsub/redis', 'common/component/redis'],
     },
+    'pubsub.amqp': {
+        certification: true,
+    },
     'pubsub.amqp-artemis': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh artemis',

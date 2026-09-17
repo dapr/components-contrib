@@ -339,7 +339,7 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 	}
 
 	resp, err := transfer.NewUploadManager().UploadStream(ctx, req)
-	if err != nil && resp.MultipartUploadResponse != nil && resp.MultipartUploadResponse.UploadID != nil {
+	if err != nil && resp.MultipartUploadResponse != nil && resp.UploadID != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 
@@ -347,7 +347,7 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			NamespaceName: &c.metadata.Namespace,
 			BucketName:    &c.metadata.BucketName,
 			ObjectName:    &name,
-			UploadId:      resp.MultipartUploadResponse.UploadID,
+			UploadId:      resp.UploadID,
 		})
 		if abortErr != nil {
 			c.logger.Warnf("failed to abort OCI multipart upload for object %q: %v", name, abortErr)

@@ -73,11 +73,6 @@ metadata:
       The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
     example: '"http://127.0.0.1:10000"'
     type: string
-  - name: prefix
-    type: string
-    required: false
-    description: "An optional prefix prepended to all blob names used by this binding."
-    example: '"myprefix"'
   - name: publicAccessLevel
     required: false
     description: |

@@ -42,7 +42,6 @@ const components = {
         conformance: true,
         requiredSecrets: [
             'DAPR_TEST_OCI_CONFIG_FILE_PATH',
-            'DAPR_TEST_OCI_CONFIG_PROFILE',
             'DAPR_TEST_OCI_COMPARTMENT_OCID',
             'DAPR_TEST_OCI_BUCKET_NAME',
         ],

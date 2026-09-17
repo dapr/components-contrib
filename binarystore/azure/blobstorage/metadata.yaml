@@ -37,9 +37,12 @@ authenticationProfiles:
     description: |
       Authenticate using Microsoft Entra ID (formerly Azure Active Directory).
       Supported credential types include workload identity, managed identity,
-      client secret, and certificate. No additional metadata keys are required
-      when credentials are provided through the environment.
-    metadata: []
+      client secret, and certificate.
+    metadata:
+      - name: accountName
+        required: true
+        description: "The storage account name."
+        example: '"mystorageaccount"'
 
 metadata:
   - name: containerName
@@ -61,6 +64,14 @@ metadata:
     required: false
     description: "An optional prefix prepended to all file names stored by this component."
     example: '"myprefix"'
+
+  - name: endpoint
+    type: string
+    required: false
+    description: |
+      Optional custom endpoint URL, useful when using the Azurite emulator or
+      custom domains for Azure Storage.
+    example: '"http://127.0.0.1:10000"'
 
   - name: retryCount
     type: number

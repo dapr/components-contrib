@@ -54,7 +54,7 @@ else
 endif
 
 # Build tools
-ifeq ($(GOOS),windows)
+ifeq ($(HOST_GOOS),windows)
 	BUILD_TOOLS_BIN ?= components-contrib-build-tools.exe
 	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
 	RUN_BUILD_TOOLS ?= cd .build-tools; go.exe run .

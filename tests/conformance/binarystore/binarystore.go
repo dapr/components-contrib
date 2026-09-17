@@ -140,6 +140,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 			Overwrite: false,
 		})
 		require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
+
+		resp, err := store.Get(ctx, &binarystore.GetRequest{FileName: fileName})
+		require.NoError(t, err)
+		defer resp.Data.Close()
+
+		got, err := io.ReadAll(resp.Data)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("first"), got)
 	})
 
 	t.Run("set with overwrite replaces content", func(t *testing.T) {

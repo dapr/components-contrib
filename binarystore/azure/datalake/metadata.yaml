@@ -62,6 +62,14 @@ metadata:
     description: "Maximum number of HTTP retries for transient failures."
     example: '"5"'
 
+  - name: endpoint
+    type: string
+    required: false
+    description: |
+      Optional custom endpoint URL, useful when using the Azurite emulator or
+      custom domains for Azure Storage.
+    example: '"http://127.0.0.1:10000"'
+
   - name: disableEntityManagement
     type: bool
     default: "false"

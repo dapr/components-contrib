@@ -9,4 +9,8 @@ description: "In-memory binary store for tests only. Not intended for production
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-binarystore/
-metadata: []
+metadata:
+  - name: prefix
+    required: false
+    description: "An optional prefix prepended to all file names stored by this component."
+    example: '"myprefix"'

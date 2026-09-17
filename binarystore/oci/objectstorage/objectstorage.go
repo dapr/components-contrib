@@ -25,6 +25,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/oracle/oci-go-sdk/v54/common"
 	"github.com/oracle/oci-go-sdk/v54/common/auth"
@@ -337,7 +338,21 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 		req.IfNoneMatch = common.String("*")
 	}
 
-	_, err := transfer.NewUploadManager().UploadStream(ctx, req)
+	resp, err := transfer.NewUploadManager().UploadStream(ctx, req)
+	if err != nil && resp.MultipartUploadResponse != nil && resp.MultipartUploadResponse.UploadID != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+
+		_, abortErr := c.objectClient.AbortMultipartUpload(cleanupCtx, ociobjectstorage.AbortMultipartUploadRequest{
+			NamespaceName: &c.metadata.Namespace,
+			BucketName:    &c.metadata.BucketName,
+			ObjectName:    &name,
+			UploadId:      resp.MultipartUploadResponse.UploadID,
+		})
+		if abortErr != nil {
+			c.logger.Warnf("failed to abort OCI multipart upload for object %q: %v", name, abortErr)
+		}
+	}
 	return err
 }
 

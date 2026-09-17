@@ -16,6 +16,7 @@ package amqp
 import (
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -77,6 +78,9 @@ const (
 	// Optional scheme of a topic name, selecting which prefix is applied.
 	topicScheme = "topic:"
 	queueScheme = "queue:"
+
+	// amqpsScheme is the URL scheme that turns on TLS.
+	amqpsScheme = "amqps"
 )
 
 // addressFor returns the AMQP address a link is opened on for the given Dapr
@@ -146,6 +150,18 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger, defaultTopicPrefix
 	// required configuration settings
 	if m.URL == "" {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
+	}
+
+	uri, err := url.Parse(m.URL)
+	if err != nil {
+		return &m, fmt.Errorf("%s invalid url: %w", errorMsgPrefix, err)
+	}
+
+	// TLS material is only applied to an amqps:// connection. Accepting it on a
+	// plaintext url would report success and then connect in the clear.
+	if uri.Scheme != amqpsScheme && (m.CaCert != "" || m.ClientCert != "" || m.ClientKey != "") {
+		return &m, fmt.Errorf("%s caCert, clientCert and clientKey require the %q url scheme, but the url uses %q",
+			errorMsgPrefix, amqpsScheme, uri.Scheme)
 	}
 
 	// optional configuration settings

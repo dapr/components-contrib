@@ -15,8 +15,14 @@ ActiveMQ Artemis, which containerises cheaply and speaks plain AMQP 1.0.
   This case found a real defect. The component answered a handler error with
   the AMQP `rejected` outcome, which tells the broker the message is invalid,
   so it was dead-lettered and never came back. A handler error in Dapr means
-  "deliver this again", which is the `released` outcome. The conformance suite
-  never exercises a handler error, so nothing caught it before.
+  "deliver this again". The component now answers with `modified` and
+  `delivery-failed`, which asks for redelivery and increments the broker's
+  delivery count, so redelivery-delay and max-delivery-attempts apply and a
+  message that always fails eventually dead-letters instead of spinning.
+
+  The conformance suite does return a handler error, but it removes the message
+  from its expected set before doing so, so it never asserts redelivery and
+  could not detect the outcome being wrong.
 
 ### Recovery from a broker restart
 

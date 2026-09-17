@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ import (
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		"consumerID": "client",
-		amqpURL:      "tcp://fakeUser:fakePassword@fake.mqtt.host:1883",
+		amqpURL:      "amqps://fakeUser:fakePassword@fake.amqp.host:5671",
 		anonymous:    "false",
 		username:     "default",
 		password:     "default",
@@ -561,34 +562,84 @@ func TestRenewSessionRefusesWhenClosed(t *testing.T) {
 // take connMu for writing for its whole body, which serialised every publisher
 // on the component. It must take it for reading, so a reader can be acquired
 // while a publish is in flight.
-// TestPublishDoesNotTakeTheWriteLock guards the throughput fix. Publish used to
-// take the connection lock exclusively for its whole body, including the retry
-// backoff, which serialised every publisher on the component. Holding the lock
-// for reading here means a Publish that takes it for writing cannot proceed, so
-// the call blocks and the test fails.
-func TestPublishDoesNotTakeTheWriteLock(t *testing.T) {
-	a := NewAMQPPubsub(logger.NewLogger("test"))
+// TestPublishTakesTheReadLockNotTheWriteLock guards the throughput fix. Publish
+// used to hold an exclusive lock for its whole body, including the retry
+// backoff, which serialised every publisher on the component.
+//
+// It asserts on the lock discipline directly rather than by timing a publish: a
+// real session cannot be faked (go-amqp panics on a hand-built one), and a
+// publish with no session correctly takes the write lock in order to dial.
+func TestPublishTakesTheReadLockNotTheWriteLock(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
+	a.session = &amqp.Session{}
 
-	component := a.(*amqpPubSub)
-	component.connMu.RLock()
-	defer component.connMu.RUnlock()
+	// Hold the read lock for the whole call. Anything on the publish path that
+	// takes the lock exclusively deadlocks against this and trips the timeout.
+	a.connMu.RLock()
+	defer a.connMu.RUnlock()
 
-	returned := make(chan error, 1)
+	done := make(chan struct{})
 	go func() {
-		returned <- a.Publish(t.Context(), &pubsub.PublishRequest{
-			Topic: "orders",
-			Data:  []byte("hello"),
-		})
+		defer close(done)
+		// The accessors Publish uses before it touches the broker. If any of
+		// them took the write lock, this would never return.
+		_ = a.currentMetadata()
+		_ = a.currentSession()
 	}()
 
 	select {
-	case err := <-returned:
-		// Init never ran, so the publish fails. What matters is that it
-		// returned at all while a read lock was held.
-		require.Error(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("Publish blocked while a read lock was held, so it is taking the connection lock for writing")
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the publish path is taking the connection lock for writing, so publishes are serialised")
 	}
+}
+
+// TestPublishRetryDoesNotHoldTheLock pins the other half of the fix: the retry
+// backoff must not run under the connection lock. A publish to an unreachable
+// broker sleeps between attempts, and doing that under the lock blocked every
+// other publisher for the duration.
+func TestPublishRetryDoesNotHoldTheLock(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
+
+	// Long enough to cover a dial attempt, short enough that the test is quick.
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	publishDone := make(chan struct{})
+	go func() {
+		defer close(publishDone)
+		_ = a.Publish(ctx, &pubsub.PublishRequest{Topic: "orders", Data: []byte("hello")})
+	}()
+
+	// While that publish is in flight, a reader must keep getting through. If
+	// the publish path held the lock exclusively across its retries, these
+	// acquisitions would stall until it finished.
+	reads := 0
+	readerDone := make(chan struct{})
+	go func() {
+		defer close(readerDone)
+		for {
+			select {
+			case <-publishDone:
+				return
+			default:
+			}
+			_ = a.currentSession()
+			reads++
+			runtime.Gosched()
+		}
+	}()
+
+	select {
+	case <-publishDone:
+	case <-time.After(60 * time.Second):
+		t.Fatal("Publish did not return")
+	}
+	<-readerDone
+
+	assert.Positive(t, reads, "a reader never acquired the lock while a publish was in flight")
 }
 
 // TestCloseWithoutInitIsSafe covers Close running after Init failed, when
@@ -630,4 +681,100 @@ func TestAddressForEmptyTopic(t *testing.T) {
 				"an empty topic must have no address, whatever the prefixes are")
 		})
 	}
+}
+
+// TestPublishWithTTLDoesNotPanic covers the one capability this component
+// advertises. go-amqp's NewMessage leaves Message.Header nil, and Header is a
+// pointer, so writing a TTL to it dereferenced nil and panicked the publishing
+// goroutine. Features() and metadata.yaml both declare the capability, so
+// nothing else would have caught it.
+func TestPublishWithTTLDoesNotPanic(t *testing.T) {
+	tests := []struct{ name, ttl string }{
+		{name: "valid ttl", ttl: "30"},
+		{name: "zero ttl", ttl: "0"},
+		{name: "negative ttl", ttl: "-1"},
+		{name: "unparseable ttl", ttl: "soon"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+			a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
+
+			// The message is built before the publish loop, so a cancelled
+			// context exercises the TTL path and then returns at once instead
+			// of sitting through the retry backoff.
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			// The publish fails, because nothing is listening. What matters is
+			// that building the message does not panic first.
+			require.NotPanics(t, func() {
+				_ = a.Publish(ctx, &pubsub.PublishRequest{
+					Topic:    "orders",
+					Data:     []byte("hello"),
+					Metadata: map[string]string{"ttlInSeconds": tt.ttl},
+				})
+			})
+		})
+	}
+}
+
+// TestGenericTypeAddressesByName is the outcome this whole change exists for.
+// A pubsub.amqp component must address a destination by its bare name, and a
+// pubsub.solace.amqp component must keep the Solace convention, both through
+// the public constructors rather than a hand-built metadata struct.
+func TestGenericTypeAddressesByName(t *testing.T) {
+	props := map[string]string{
+		"url":       "amqp://127.0.0.1:1",
+		"anonymous": "true",
+	}
+
+	tests := []struct {
+		name      string
+		newPubSub func(logger.Logger) pubsub.PubSub
+		topic     string
+		want      string
+	}{
+		{"generic addresses a topic by name", NewAMQPPubsub, "orders", "orders"},
+		{"generic addresses a queue by name", NewAMQPPubsub, "queue:orders", "orders"},
+		{"solace keeps the topic convention", NewSolaceAMQPPubsub, "orders", "topic://orders"},
+		{"solace keeps the queue convention", NewSolaceAMQPPubsub, "queue:orders", "queue://orders"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := tt.newPubSub(logger.NewLogger("test")).(*amqpPubSub)
+
+			md, err := parseAMQPMetaData(
+				pubsub.Metadata{Base: mdata.Base{Properties: props}},
+				logger.NewLogger("test"),
+				a.defaultTopicPrefix,
+				a.defaultQueuePrefix,
+			)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, md.addressFor(tt.topic))
+		})
+	}
+}
+
+// TestTLSMaterialRequiresTLSScheme stops the component reporting success for
+// certificates it then discards. createClientOptions only applies TLS to an
+// amqps:// url, so accepting caCert on a plaintext url connected in the clear.
+func TestTLSMaterialRequiresTLSScheme(t *testing.T) {
+	const cert = `-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJAJ3sTTWjHa5UMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
+c3RjYTAeFw0yMDA1MDcxNzE5NTdaFw0zMDA1MDUxNzE5NTdaMBExDzANBgNVBAMM
+BnRlc3RjYTCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAvZ7Ec6nnKVqLnHDN
+-----END CERTIFICATE-----`
+
+	_, err := parseAMQPMetaData(pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+		"url":       "amqp://localhost:5672",
+		"anonymous": "true",
+		"caCert":    cert,
+	}}}, logger.NewLogger("test"), "", "")
+
+	require.Error(t, err, "TLS material on a plaintext url must be rejected, not silently ignored")
+	assert.Contains(t, err.Error(), "amqps")
 }

@@ -90,3 +90,33 @@ metadata:
     default: '""'
     example: '"anycast://"'
     type: string
+  - name: backOffPolicy
+    required: false
+    description: |
+      Retry policy used between attempts to re-open a subscription after the broker connection drops.
+      Either `constant` or `exponential`.
+    default: '"constant"'
+    example: '"constant"'
+    type: string
+  - name: backOffDuration
+    required: false
+    description: |
+      Delay between attempts to re-open a subscription, when `backOffPolicy` is `constant`.
+      The component retries for as long as the subscription exists, so this sets the pace, not a limit.
+    default: '"5s"'
+    example: '"1s"'
+    type: duration
+  - name: backOffInitialInterval
+    required: false
+    description: |
+      First delay between attempts to re-open a subscription, when `backOffPolicy` is `exponential`.
+    default: '"500ms"'
+    example: '"100ms"'
+    type: duration
+  - name: backOffMaxInterval
+    required: false
+    description: |
+      Longest delay between attempts to re-open a subscription, when `backOffPolicy` is `exponential`.
+    default: '"60s"'
+    example: '"30s"'
+    type: duration

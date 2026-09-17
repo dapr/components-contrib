@@ -504,7 +504,7 @@ const components = {
     },
     'pubsub.amqp-artemis': {
         conformance: true,
-        conformanceSetup: 'docker-compose.sh artemis',
+        conformanceSetup: 'docker-compose.sh artemis artemis --wait',
         conformanceLogs: 'docker-compose-logs.sh artemis',
         sourcePkg: ['pubsub/amqp'],
     },

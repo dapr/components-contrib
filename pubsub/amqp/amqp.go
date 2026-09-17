@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	time "time"
@@ -208,6 +209,30 @@ func (a *amqpPubSub) renewSession(ctx context.Context, stale *amqp.Session) (*am
 	return session, nil
 }
 
+// closeClient closes an AMQP connection, bounded by defaultCloseTimeout.
+//
+// Conn.Close takes no context and blocks until the writer goroutine drains, so
+// a wedged peer would hang the caller. Every caller here holds connMu for
+// writing, so an unbounded close would hold the lock and block every later
+// reconnect, and Close itself.
+//
+// Close cannot be cancelled, so on a timeout the goroutine and the connection
+// it holds are abandoned rather than released. That leaks them, which is the
+// lesser of the two outcomes.
+func (a *amqpPubSub) closeClient(client *amqp.Conn) {
+	done := make(chan error, 1)
+	go func() { done <- client.Close() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			a.logger.Warnf("failed to close the AMQP connection: %v", err)
+		}
+	case <-time.After(defaultCloseTimeout):
+		a.logger.Warnf("timed out closing the AMQP connection, abandoning it")
+	}
+}
+
 // dialContext bounds a dial, and cancels it if the component closes. Publish
 // passes the caller's context, which is never tied to the component lifetime,
 // so without this a dial into a black hole would hold connMu for the life of
@@ -244,26 +269,7 @@ func (a *amqpPubSub) closeConnLocked() {
 	}
 
 	if a.client != nil {
-		// Conn.Close takes no context and blocks until the writer goroutine
-		// drains, so a wedged peer would hang this call, and with it connMu
-		// and every later reconnect. Bound the wait.
-		//
-		// There is no way to cancel Close, so on a timeout the goroutine and
-		// the connection it holds are abandoned rather than released. That
-		// leaks them, which is the lesser of the two outcomes.
-		client := a.client
-		done := make(chan error, 1)
-		go func() { done <- client.Close() }()
-
-		select {
-		case err := <-done:
-			if err != nil {
-				a.logger.Warnf("failed to close the AMQP connection: %v", err)
-			}
-		case <-time.After(defaultCloseTimeout):
-			a.logger.Warnf("timed out closing the AMQP connection, abandoning it")
-		}
-
+		a.closeClient(a.client)
 		a.client = nil
 	}
 }
@@ -290,14 +296,18 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 
 	m := amqp.NewMessage(req.Data)
 
-	// If the request has ttl specified, put it on the message header
+	// If the request has ttl specified, put it on the message header.
+	// NewMessage leaves Header nil, so it has to be created before it is used.
 	ttlProp := req.Metadata["ttlInSeconds"]
 	if ttlProp != "" {
 		ttlInSeconds, err := strconv.Atoi(ttlProp)
-		if err != nil {
-			a.logger.Warnf("Invalid ttl received from message %d", ttlInSeconds)
-		} else {
-			m.Header.TTL = time.Second * time.Duration(ttlInSeconds)
+		switch {
+		case err != nil:
+			a.logger.Warnf("Invalid ttl %q received for a message to %s: %v", ttlProp, address, err)
+		case ttlInSeconds < 0:
+			a.logger.Warnf("Negative ttl %d received for a message to %s, ignoring it", ttlInSeconds, address)
+		default:
+			m.Header = &amqp.MessageHeader{TTL: time.Second * time.Duration(ttlInSeconds)}
 		}
 	}
 
@@ -348,6 +358,52 @@ func (a *amqpPubSub) publishOnce(ctx context.Context, address string, m *amqp.Me
 	return sender.Send(ctx, m, nil)
 }
 
+// shouldRenew reports whether an attach failure means the connection underneath
+// is gone, rather than the broker refusing this one link.
+//
+// Renewing tears down the shared connection, which ends every other
+// subscription and publish on the component. That is the right response to a
+// dead connection and the wrong response to a link the broker refused, for
+// example an address that does not exist or that the credentials cannot reach.
+// go-amqp keeps the session and connection healthy across a refused attach and
+// reports it as *amqp.Error.
+func shouldRenew(ctx context.Context, err error) bool {
+	// The caller gave up. Nothing is known about the connection, and tearing
+	// it down because one publish timed out would punish every other user.
+	if ctx.Err() != nil {
+		return false
+	}
+
+	// go-amqp reports a dead connection or session with these, including when
+	// the failure reaches a link. Neither implements Unwrap, so this matches
+	// the error itself rather than a chain.
+	var connErr *amqp.ConnError
+	if errors.As(err, &connErr) {
+		return true
+	}
+
+	var sessErr *amqp.SessionError
+	if errors.As(err, &sessErr) {
+		return true
+	}
+
+	// A bare protocol error carries the condition the peer sent. Conditions in
+	// the connection and session namespaces mean the layer underneath the link
+	// is gone, for example amqp:connection:forced when a broker restarts.
+	var protoErr *amqp.Error
+	if errors.As(err, &protoErr) {
+		cond := string(protoErr.Condition)
+
+		return strings.HasPrefix(cond, "amqp:connection:") || strings.HasPrefix(cond, "amqp:session:")
+	}
+
+	// Anything else is the broker refusing this one link, for example an
+	// address that does not exist or that the credentials cannot reach.
+	// Tearing down the shared connection for that would end every other
+	// subscription and publish on the component.
+	return false
+}
+
 // sessionOrRenew returns the current session, dialling a new one if an earlier
 // reconnect attempt failed and left none behind.
 func (a *amqpPubSub) sessionOrRenew(ctx context.Context) (*amqp.Session, error) {
@@ -371,6 +427,10 @@ func (a *amqpPubSub) newSender(ctx context.Context, address string) (*amqp.Sende
 		return sender, nil
 	}
 
+	if !shouldRenew(ctx, err) {
+		return nil, err
+	}
+
 	session, rerr := a.renewSession(ctx, session)
 	if rerr != nil {
 		return nil, errors.Join(err, rerr)
@@ -390,6 +450,10 @@ func (a *amqpPubSub) newReceiver(ctx context.Context, address string) (*amqp.Rec
 	receiver, err := session.NewReceiver(ctx, address, nil)
 	if err == nil {
 		return receiver, nil
+	}
+
+	if !shouldRenew(ctx, err) {
+		return nil, err
 	}
 
 	session, rerr := a.renewSession(ctx, session)
@@ -568,14 +632,24 @@ func (a *amqpPubSub) deliver(ctx context.Context, receiver *amqp.Receiver, handl
 		if err = handler(ctx, newPubsubMessage(topic, msg)); err != nil {
 			a.logger.Errorf("Error processing message from %s: %v", address, err)
 
-			// Release rather than reject. In AMQP 1.0 the rejected outcome
-			// tells the broker the message is invalid, so it is dead-lettered
-			// or discarded and never comes back. A handler error in Dapr means
-			// "deliver this again", which is the released outcome.
-			if err = receiver.ReleaseMessage(ctx, msg); err != nil {
-				a.logger.Errorf("failed to release a message from %s: %v", address, err)
+			// Modify with DeliveryFailed, not reject and not release.
+			//
+			// Rejected tells the broker the message is invalid, so it is
+			// dead-lettered and never comes back, which loses a message the
+			// handler merely failed on. Released returns it without counting
+			// the attempt, so a message that always fails is redelivered
+			// forever at full speed and blocks everything behind it.
+			//
+			// Modified with DeliveryFailed asks for redelivery and increments
+			// the delivery count, so the broker's own redelivery-delay and
+			// max-delivery-attempts settings apply and a poison message
+			// eventually reaches the dead-letter address.
+			if err = receiver.ModifyMessage(ctx, msg, &amqp.ModifyMessageOptions{
+				DeliveryFailed: true,
+			}); err != nil {
+				a.logger.Errorf("failed to return a message to %s for redelivery: %v", address, err)
 			} else {
-				a.logger.Debugf("released a message for redelivery")
+				a.logger.Debugf("returned a message to %s for redelivery", address)
 			}
 
 			continue
@@ -624,9 +698,8 @@ func (a *amqpPubSub) connect(ctx context.Context, md *metadata) (*amqp.Conn, *am
 	// Open a session
 	session, err := client.NewSession(ctx, nil)
 	if err != nil {
-		if cerr := client.Close(); cerr != nil {
-			a.logger.Warnf("failed to close the connection after a failed session: %v", cerr)
-		}
+		// Bounded, because this runs while connMu is held for writing.
+		a.closeClient(client)
 		return nil, nil, fmt.Errorf("%s creating AMQP session: %w", errorMsgPrefix, err)
 	}
 
@@ -659,17 +732,15 @@ func (a *amqpPubSub) newTLSConfig(md *metadata) *tls.Config {
 func (a *amqpPubSub) createClientOptions(uri *url.URL, md *metadata) amqp.ConnOptions {
 	var opts amqp.ConnOptions
 
-	scheme := uri.Scheme
-
-	switch scheme {
-	case "amqp":
-		if md.Anonymous {
-			opts.SASLType = amqp.SASLTypeAnonymous()
-		} else {
-			opts.SASLType = amqp.SASLTypePlain(md.Username, md.Password)
-		}
-	case "amqps":
+	// The SASL mechanism follows the configuration, not the scheme. Before
+	// this, anonymous was honoured over amqp:// and ignored over amqps://.
+	if md.Anonymous {
+		opts.SASLType = amqp.SASLTypeAnonymous()
+	} else {
 		opts.SASLType = amqp.SASLTypePlain(md.Username, md.Password)
+	}
+
+	if uri.Scheme == amqpsScheme {
 		opts.TLSConfig = a.newTLSConfig(md)
 	}
 

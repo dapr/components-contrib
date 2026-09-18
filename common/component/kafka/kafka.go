@@ -44,8 +44,16 @@ type Kafka struct {
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
 	clients           *clients
-	// clientsLock guards clients (and awsClients) creation, producer
-	// invalidation after fatal transaction errors, and teardown.
+	// clientsLock guards creating the client pair (and awsClients),
+	// invalidating the producer after a fatal transaction error, and
+	// detaching either client during teardown. It does NOT guard every read
+	// of the pair: Pause, Resume and the graceful-unsubscribe path read
+	// clients.consumerGroup under subscribeLock only, as they did before
+	// transactions were added. That read/write pair is unsynchronized, which
+	// is pre-existing — on main the field was written with no lock at all,
+	// and after the close rather than before it — and what it can cost is
+	// PauseAll or ResumeAll landing on a group that is closing, which sarama
+	// answers with an atomic store on whatever partition consumers are left.
 	clientsLock sync.Mutex
 	awsClients  *AwsClients
 

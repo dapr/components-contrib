@@ -499,10 +499,22 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['pubsub/redis', 'common/component/redis'],
     },
+    'pubsub.amqp': {
+        certification: true,
+    },
+    'pubsub.amqp-artemis': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh artemis artemis --wait',
+        conformanceLogs: 'docker-compose-logs.sh artemis',
+        sourcePkg: ['pubsub/amqp'],
+    },
     'pubsub.solace': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh solace',
         conformanceLogs: 'docker-compose-logs.sh solace',
+        // The implementation moved to pubsub/amqp, so the source package no
+        // longer follows from the component name.
+        sourcePkg: ['pubsub/amqp'],
     },
     'secretstores.azure.keyvault': {
         certification: true,

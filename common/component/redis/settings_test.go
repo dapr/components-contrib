@@ -396,3 +396,18 @@ func TestKeepAliveIntervalMustBeShorterThanProcessingTimeout(t *testing.T) {
 		})
 	}
 }
+
+// TestNegativeDurationsRejected covers the values that reach time.NewTicker or a context deadline.
+// redeliverInterval in particular used to be unreachable through Decode, so a negative could not be
+// configured; now that it maps, a negative would panic the reclaim ticker.
+func TestNegativeDurationsRejected(t *testing.T) {
+	for _, key := range []string{"processingTimeout", "redeliverInterval", "entryKeepAliveInterval"} {
+		t.Run(key+" as a duration string", func(t *testing.T) {
+			log := logger.NewLogger("test")
+			_, _, err := ParseClientFromProperties(map[string]string{
+				"redisHost": "localhost:6379", key: "-1000s",
+			}, metadata.PubSubType, t.Context(), &log)
+			require.ErrorContains(t, err, key+" cannot be negative")
+		})
+	}
+}

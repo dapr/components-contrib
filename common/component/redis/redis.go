@@ -174,6 +174,23 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			settings.EntryKeepAliveInterval = settings.ProcessingTimeout / 2
 		}
 
+		// Decode accepts negative durations, and a negative redeliverInterval reaches
+		// time.NewTicker, which panics. The gates downstream only test for zero, so reject
+		// negatives here rather than let them through.
+		for _, d := range []struct {
+			key   string
+			value time.Duration
+		}{
+			{processingTimeoutKey, settings.ProcessingTimeout},
+			{redeliverIntervalKey, settings.RedeliverInterval},
+			{entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval},
+		} {
+			if d.value < 0 {
+				return nil, nil, fmt.Errorf(
+					"redis client configuration error: %s cannot be negative, got %s", d.key, d.value)
+			}
+		}
+
 		// A keep-alive that is not comfortably shorter than the reclaim threshold cannot do
 		// its job: the entry becomes reclaimable before the first renewal, and an interval
 		// equal to the threshold races the reclaim ticker. Either reproduces the duplicate

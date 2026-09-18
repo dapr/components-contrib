@@ -594,3 +594,38 @@ func TestHeldEntryRefcounting(t *testing.T) {
 	assert.Empty(t, r.heldEntries("stream"))
 	assert.Empty(t, r.heldEntries("other"))
 }
+
+// TestEnqueueHoldsWholeBatchWhileBlocked covers the case where the queue fills part-way through a
+// batch. Every message the read returned is already pending in Redis, so all of them must be kept
+// alive even while enqueueMessages is blocked on the channel, not just the ones handed to a worker.
+func TestEnqueueHoldsWholeBatchWhileBlocked(t *testing.T) {
+	r := &redisStreams{
+		logger:         logger.NewLogger("test"),
+		client:         &stubRedisClient{},
+		clientSettings: &commonredis.Settings{ConsumerID: "group"},
+	}
+	// Capacity 1 against a batch of 3 and no workers draining, so the send blocks on the
+	// second message with the third still untouched.
+	r.queue = make(chan redisMessageWrapper, 1)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.enqueueMessages(ctx, "stream", func(context.Context, *pubsub.NewMessage) error { return nil },
+			generateRedisStreamTestData(3, "data", "md"))
+	}()
+
+	require.Eventually(t, func() bool {
+		return len(r.heldEntries("stream")) == 3
+	}, time.Second, 10*time.Millisecond, "all three entries should be held while the enqueue is blocked")
+
+	// Cancelling must release the entries that never made it onto the queue, so that a
+	// consumer which is going away stops keeping them alive and they can be reclaimed.
+	cancel()
+	<-done
+
+	assert.Len(t, r.heldEntries("stream"), 1, "only the message already queued should still be held")
+}

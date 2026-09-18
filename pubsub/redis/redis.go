@@ -265,12 +265,16 @@ func (r *redisStreams) keepAliveLoop(ctx context.Context, stream string) {
 // and redelivered messages (via reclaiming) to a channel where workers can
 // pick them up for processing.
 func (r *redisStreams) enqueueMessages(ctx context.Context, stream string, handler pubsub.Handler, msgs []rediscomponent.RedisXMessage) {
+	// Every message in the batch is pending in Redis from the moment the read returned, so
+	// hold them all up front. The send below blocks while the queue is full, and anything
+	// further along the batch would otherwise sit untracked in the PEL, ageing towards
+	// processingTimeout with no keep-alive.
 	for _, msg := range msgs {
-		rmsg := r.createRedisMessageWrapper(ctx, stream, handler, msg)
-
-		// The entry is pending in Redis from the moment it was read, so start keeping it
-		// alive now rather than when a worker picks it up.
 		r.holdEntry(stream, msg.ID)
+	}
+
+	for i, msg := range msgs {
+		rmsg := r.createRedisMessageWrapper(ctx, stream, handler, msg)
 
 		select {
 		// Might block if the queue is full so we need the ctx.Done below.
@@ -278,7 +282,12 @@ func (r *redisStreams) enqueueMessages(ctx context.Context, stream string, handl
 			// Noop
 		// Handle cancelation
 		case <-ctx.Done():
-			r.releaseEntry(stream, msg.ID)
+			// Release this message and the rest of the batch; the ones already queued
+			// are released by processMessage.
+			for _, unqueued := range msgs[i:] {
+				r.releaseEntry(stream, unqueued.ID)
+			}
+
 			return
 		}
 	}

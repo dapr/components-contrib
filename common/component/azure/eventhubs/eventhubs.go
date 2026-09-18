@@ -399,6 +399,23 @@ func (g *partitionCheckpointGate) loseOwnership(cancel context.CancelFunc) {
 	g.ownershipLost.Store(true)
 }
 
+func waitForHandlers(handlers *sync.WaitGroup, timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		handlers.Wait()
+		close(done)
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
 type partitionCheckpointTracker struct {
 	mu sync.Mutex
 	// Batches are keyed by receive order so completions can arrive out of order
@@ -469,15 +486,18 @@ func (t *partitionCheckpointTracker) complete(
 
 func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient processorPartitionClient, config SubscribeConfig) error {
 	processCtx, processCancel := context.WithCancel(subscribeCtx)
+	checkpointGate := &partitionCheckpointGate{}
 	var handlers sync.WaitGroup
 	defer func() {
-		processCancel()
-		handlers.Wait()
+		checkpointGate.loseOwnership(processCancel)
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
-		defer closeCancel()
 		closeErr := partitionClient.Close(closeCtx)
+		closeCancel()
 		if closeErr != nil {
 			aeh.logger.Errorf("Error while closing partition client: %v", closeErr)
+		}
+		if !waitForHandlers(&handlers, resourceGetTimeout) {
+			aeh.logger.Warnf("Timed out waiting for Event Hubs handlers to stop for partition %s", partitionClient.PartitionID())
 		}
 	}()
 
@@ -496,7 +516,6 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 		}
 	}
 	tracker := newPartitionCheckpointTracker(config.CheckPointFrequencyPerPartition)
-	checkpointGate := &partitionCheckpointGate{}
 	counter := 0
 	for {
 		if !aeh.metadata.EnableInOrderMessageDelivery {

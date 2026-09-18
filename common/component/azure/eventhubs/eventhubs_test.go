@@ -192,6 +192,15 @@ func (f *fakeProcessorPartitionClient) isClosed() bool {
 	return f.closed
 }
 
+func TestWaitForHandlersTimesOut(t *testing.T) {
+	var handlers sync.WaitGroup
+	handlers.Add(1)
+
+	assert.False(t, waitForHandlers(&handlers, time.Millisecond))
+	handlers.Done()
+	assert.True(t, waitForHandlers(&handlers, time.Second))
+}
+
 func TestProcessEventsDoesNotReceiveNextBatchAfterHandlerFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	messageIDA := "A"
@@ -717,6 +726,44 @@ func TestProcessEventsDoesNotCheckpointHandlerAfterOwnershipLoss(t *testing.T) {
 	require.NoError(t, <-result)
 	assert.Empty(t, client.checkpointSequences())
 	assert.True(t, client.isClosed())
+}
+
+func TestProcessEventsClosesPartitionClientBeforeHandlersDrain(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	client := &fakeProcessorPartitionClient{
+		batches: [][]*azeventhubs.ReceivedEventData{{receivedEvent("A", 1, 10)}},
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 1,
+		},
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 1,
+			Handler: func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				close(handlerStarted)
+				<-releaseHandler
+				return nil, nil
+			},
+		})
+	}()
+
+	<-handlerStarted
+	cancel()
+	require.Eventually(t, client.isClosed, time.Second, time.Millisecond)
+	close(releaseHandler)
+
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Empty(t, client.checkpointSequences())
 }
 
 func TestProcessorOptions(t *testing.T) {

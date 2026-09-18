@@ -37,7 +37,7 @@ require (
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.10
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.18.0
-	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
+	github.com/apache/rocketmq-client-go/v2 v2.1.2
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.1-0.20241125194140-078c08b8574a
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.17

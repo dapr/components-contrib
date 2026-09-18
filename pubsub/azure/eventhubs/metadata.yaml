@@ -82,8 +82,10 @@ metadata:
     example: "10"
     description: |
       Maximum number of batches per partition that can be received but are not yet
-      covered by the contiguous success checkpoint. This also limits concurrent
-      handler calls and pauses receives at capacity. Applies when
+      included in the in-memory contiguous-success prefix. This limits concurrent
+      handler calls and pauses receives at capacity. The persisted checkpoint can lag
+      behind this prefix according to `checkPointFrequencyPerPartition`, so restart
+      replay may include additional successful batches. Applies when
       `enableInOrderMessageDelivery` is false and must be greater than 0.
   - name: storageAccountKey
     type: string

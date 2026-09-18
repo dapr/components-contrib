@@ -428,6 +428,11 @@ func TestEventhubBindingRedeliversAfterFailedHandlerAndRestart(t *testing.T) {
 			embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
 		)
 	}
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh", "eventhubs-bindings-container-c1").Output()
+		require.NoErrorf(ctx, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
 
 	flow.New(t, "eventhubs binding redelivery after restart").
 		Step(app.Run("redelivery-app", fmt.Sprintf(":%d", redeliveryAppPort), application)).
@@ -460,6 +465,7 @@ func TestEventhubBindingRedeliversAfterFailedHandlerAndRestart(t *testing.T) {
 			received.Assert(ctx, time.Minute)
 			return nil
 		}).
+		Step("delete container", deleteEventhub).
 		Run()
 }
 

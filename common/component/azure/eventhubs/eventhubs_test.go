@@ -681,6 +681,27 @@ func TestHandleWithRetryRetriesPartialBulkFailure(t *testing.T) {
 	assert.Equal(t, 2, attempts)
 }
 
+func TestHandleWithRetrySupportsMissingMessageID(t *testing.T) {
+	aeh := &AzureEventHubs{
+		logger:        testLogger,
+		backOffConfig: retryConfigWithoutDelay(),
+	}
+	attempts := 0
+
+	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+		{SequenceNumber: 1},
+	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, errors.New("retry message without ID")
+		}
+		return nil, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
 func retryConfigWithoutDelay() retry.Config {
 	config := retry.DefaultConfig()
 	config.Duration = 0

@@ -333,7 +333,7 @@ func (aeh *AzureEventHubs) handle(ctx context.Context, topic string, messages []
 	if err != nil {
 		// If we have a response with 0 items (or a nil response), it means the handler was a non-bulk one
 		if len(resp) == 0 {
-			aeh.logger.Errorf("Failed to process Eventhubs message %s for topic %s: Error: %v", *messages[0].MessageID, topic, err)
+			aeh.logger.Errorf("Failed to process Eventhubs message with sequence number %d for topic %s: Error: %v", messages[0].SequenceNumber, topic, err)
 		}
 		for _, item := range resp {
 			if item.Error != nil {

@@ -66,16 +66,6 @@ builtinAuthenticationProfiles:
           Enable in order processing of messages within a partition. Checkpoints advance
           only through contiguous successfully processed events in both modes. When false,
           handler calls run concurrently up to `maxConcurrentHandlers`.
-      - name: maxConcurrentHandlers
-        type: number
-        required: false
-        default: "100"
-        example: "10"
-        description: |
-          Maximum number of events per partition that can be received but are not yet
-          covered by the contiguous success checkpoint. This also limits concurrent
-          input handler calls and pauses receives at capacity. Applies when
-          `enableInOrderMessageDelivery` is false and must be greater than 0.
       - name: resourceGroupName
         type: string
         required: false
@@ -110,6 +100,19 @@ builtinAuthenticationProfiles:
           entity management is enabled.
 metadata:
   # Input-only metadata
+  - name: maxConcurrentHandlers
+    type: number
+    required: false
+    default: "100"
+    example: "10"
+    binding:
+      input: true
+      output: false
+    description: |
+      Maximum number of events per partition that can be received but are not yet
+      covered by the contiguous success checkpoint. This also limits concurrent
+      input handler calls and pauses receives at capacity. Applies when
+      `enableInOrderMessageDelivery` is false and must be greater than 0.
   # consumerGroup is an alias for consumerID, if both are defined consumerID takes precedence.
   - name: consumerID
     type: string

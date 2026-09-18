@@ -39,12 +39,13 @@ const (
 	ClusterType = "cluster"
 	NodeType    = "node"
 
-	processingTimeoutKey     = "processingTimeout"
-	redeliverIntervalKey     = "redeliverInterval"
-	redisMinRetryIntervalKey = "redisMinRetryInterval"
-	maxRetryBackoffKey       = "maxRetryBackoff"
-	redisMaxRetriesKey       = "redisMaxRetries"
-	maxRetriesKey            = "maxRetries"
+	processingTimeoutKey      = "processingTimeout"
+	redeliverIntervalKey      = "redeliverInterval"
+	entryKeepAliveIntervalKey = "entryKeepAliveInterval"
+	redisMinRetryIntervalKey  = "redisMinRetryInterval"
+	maxRetryBackoffKey        = "maxRetryBackoff"
+	redisMaxRetriesKey        = "redisMaxRetries"
+	maxRetriesKey             = "maxRetries"
 )
 
 type RedisXMessage struct {
@@ -89,6 +90,7 @@ type RedisClient interface {
 	XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error)
 	XPendingExtResult(ctx context.Context, stream string, group string, start string, end string, count int64) ([]RedisXPendingExt, error)
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
+	XClaimJustIDResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]string, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 	AuthACL(ctx context.Context, username, password string) error
@@ -164,6 +166,41 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond //nolint:gosec
 			}
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
+
+		// Unless the operator set it explicitly, keep the held entries alive at half the
+		// reclaim threshold, which is frequent enough to stay well clear of it.
+		if _, ok := properties[entryKeepAliveIntervalKey]; !ok {
+			settings.EntryKeepAliveInterval = settings.ProcessingTimeout / 2
+		}
+
+		// Decode accepts negative durations, and a negative redeliverInterval reaches
+		// time.NewTicker, which panics. The gates downstream only test for zero, so reject
+		// negatives here rather than let them through.
+		for _, d := range []struct {
+			key   string
+			value time.Duration
+		}{
+			{processingTimeoutKey, settings.ProcessingTimeout},
+			{redeliverIntervalKey, settings.RedeliverInterval},
+			{entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval},
+		} {
+			if d.value < 0 {
+				return nil, nil, fmt.Errorf(
+					"redis client configuration error: %s cannot be negative, got %s", d.key, d.value)
+			}
+		}
+
+		// A keep-alive that is not comfortably shorter than the reclaim threshold cannot do
+		// its job: the entry becomes reclaimable before the first renewal, and an interval
+		// equal to the threshold races the reclaim ticker. Either reproduces the duplicate
+		// delivery this setting exists to prevent, so reject it rather than appear to work.
+		if settings.RedeliverInterval > 0 && settings.ProcessingTimeout > 0 &&
+			settings.EntryKeepAliveInterval >= settings.ProcessingTimeout {
+			return nil, nil, fmt.Errorf(
+				"redis client configuration error: %s (%s) must be shorter than %s (%s), otherwise held messages are reclaimed before the first keep-alive",
+				entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval,
+				processingTimeoutKey, settings.ProcessingTimeout)
 		}
 	}
 	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT

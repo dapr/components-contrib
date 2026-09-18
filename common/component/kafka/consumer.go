@@ -502,14 +502,11 @@ func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, gener
 	return nil
 }
 
-const (
-	// How long resolveAmbiguousCommit waits for the coordinator to make a
-	// pending transaction terminal. A commit that is already writing its
-	// markers finishes in milliseconds; anything slower is treated as
-	// unresolvable and the delivery is reprocessed.
-	ambiguousCommitFenceAttempts = 5
-	ambiguousCommitFenceBackoff  = 200 * time.Millisecond
-)
+// How often resolveAmbiguousCommit re-asks the coordinator whether a pending
+// transaction has become terminal. A commit already writing its markers
+// finishes in milliseconds; the wait is bounded by the session, not by a
+// retry count.
+const ambiguousCommitFenceBackoff = 200 * time.Millisecond
 
 // clientOwner is implemented by the producers this component builds.
 type clientOwner interface {
@@ -529,16 +526,21 @@ type clientOwner interface {
 // producer) until one already committing becomes terminal. Once the producer
 // exists, the offset the coordinator reports is final.
 //
-// Failing to settle it answers false, which reprocesses the delivery: the
-// behaviour the component had before, risking a duplicate rather than a lost
-// message.
+// It keeps trying until the session ends. Giving up early would buy nothing:
+// the delivery would go back to the retry loop, which re-enters through the
+// same getProducer and blocks on the same pending transaction — so the wait
+// happens either way, and stopping here only throws away the offset read that
+// tells a committed transaction from an aborted one. Session cancellation
+// answers false, which reprocesses the delivery on whoever takes the
+// partition over: a duplicate rather than a lost message.
 func (consumer *consumer) resolveAmbiguousCommit(session sarama.ConsumerGroupSession, ct *claimTxn, message *sarama.ConsumerMessage) bool {
 	k := consumer.k
 
-	for attempt := range ambiguousCommitFenceAttempts {
+	for attempt := 0; ; attempt++ {
 		if attempt > 0 {
 			select {
 			case <-session.Context().Done():
+				k.logger.Warnf("Session ended before the transaction of %s/%d/%d settled; the delivery will be reprocessed by the next owner", message.Topic, message.Partition, message.Offset)
 				return false
 			case <-time.After(ambiguousCommitFenceBackoff):
 			}
@@ -549,9 +551,6 @@ func (consumer *consumer) resolveAmbiguousCommit(session sarama.ConsumerGroupSes
 		}
 		k.logger.Debugf("Waiting for the transaction of %s/%d/%d to settle before reading the committed offset: %v", message.Topic, message.Partition, message.Offset, err)
 	}
-
-	k.logger.Warnf("Could not settle the transaction of %s/%d/%d after an unknown-outcome commit, reprocessing the delivery", message.Topic, message.Partition, message.Offset)
-	return false
 }
 
 // commitLanded reports whether the broker committed the transaction whose

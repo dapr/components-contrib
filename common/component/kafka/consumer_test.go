@@ -496,10 +496,14 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Same(t, fakes[1], ct.producer, "the fenced producer stays as the claim's")
 	})
 
-	t.Run("a transaction that will not settle reprocesses the delivery", func(t *testing.T) {
+	t.Run("an unsettled transaction is waited out until the session ends", func(t *testing.T) {
 		// While the coordinator has not made the pending transaction
 		// terminal, rebuilding the producer fails (CONCURRENT_TRANSACTIONS).
-		// Unresolved means reprocess: a duplicate beats a lost message.
+		// The fence keeps asking rather than giving up after a fixed count:
+		// reprocessing would block on the same rebuild anyway, and stopping
+		// early throws away the offset read that tells a committed
+		// transaction from an aborted one. Only the session ending gives up,
+		// and then the next owner reprocesses the delivery.
 		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
 		factoryCalls := 0
 		var k *Kafka
@@ -514,6 +518,10 @@ func TestConsumerTransactions(t *testing.T) {
 			if factoryCalls == 1 {
 				return fake, nil
 			}
+			// Well past the old five-attempt cap before the session ends.
+			if factoryCalls == 12 {
+				session.cancel()
+			}
 			return nil, errors.New("concurrent transactions")
 		})
 		fetches := 0
@@ -526,7 +534,7 @@ func TestConsumerTransactions(t *testing.T) {
 
 		require.ErrorContains(t, err, "commit failed")
 		require.Equal(t, 0, fetches, "the offset is never read before the transaction settles")
-		require.Greater(t, factoryCalls, 2, "the fence is retried")
+		require.GreaterOrEqual(t, factoryCalls, 12, "the fence keeps asking past any fixed retry count")
 	})
 
 	t.Run("unknown-outcome commit that did not land is reprocessed", func(t *testing.T) {

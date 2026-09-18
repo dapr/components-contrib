@@ -17,8 +17,10 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 )
 
-// AnthropicLangchainMetadata extends LangchainMetadata with Anthropic-specific properties.
-type AnthropicLangchainMetadata struct {
+// AnthropicMetadata extends LangchainMetadata with Anthropic-specific properties.
+type AnthropicMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
 	APIType                        string `json:"apiType" mapstructure:"apiType"`
 }
+
+type AnthropicLangchainMetadata = AnthropicMetadata

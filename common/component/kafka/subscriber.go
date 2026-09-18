@@ -117,20 +117,25 @@ func (k *Kafka) reloadConsumerGroup() {
 func (k *Kafka) consume(ctx context.Context, topics []string, consumer *consumer) {
 	for {
 		clients, err := k.latestClients()
-		if err != nil || clients == nil {
-			k.logger.Errorf("failed to get latest Kafka clients: %v", err)
-			return
-		}
-		if clients.consumerGroup == nil {
+		switch {
+		case err != nil || clients == nil:
+			// latestClients can only fail while first creating the clients
+			// (e.g. brokers unreachable); its cached path is infallible.
+			// Producer recreation deliberately lives on the publish path
+			// (transactionalProducer), not here, so a producer-side problem
+			// never gates consumption. Retry below instead of returning.
+			k.logger.Errorf("failed to get latest Kafka clients: %v. Retrying...", err)
+		case clients.consumerGroup == nil:
 			k.logger.Errorf("component is closed")
 			return
-		}
-		err = clients.consumerGroup.Consume(ctx, topics, consumer)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if err != nil {
-			k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+		default:
+			err = clients.consumerGroup.Consume(ctx, topics, consumer)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+			}
 		}
 
 		select {

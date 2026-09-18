@@ -44,6 +44,18 @@ type Kafka struct {
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
 	clients           *clients
+	// clientsLock guards creating the client pair (and awsClients),
+	// invalidating the producer after a fatal transaction error, and
+	// detaching either client during teardown. It does NOT guard every read
+	// of the pair: Pause, Resume and the graceful-unsubscribe path read
+	// clients.consumerGroup under subscribeLock only, as they did before
+	// transactions were added. That read/write pair is unsynchronized, which
+	// is pre-existing — on main the field was written with no lock at all,
+	// and after the close rather than before it — and what it can cost is
+	// PauseAll or ResumeAll landing on a group that is closing, which sarama
+	// answers with an atomic store on whatever partition consumers are left.
+	clientsLock sync.Mutex
+	awsClients  *AwsClients
 
 	consumerGroup string
 	brokers       []string
@@ -56,6 +68,30 @@ type Kafka struct {
 	escapeHeaders bool
 
 	producerConfig ProducerConfig
+	// txnMu serializes transactional publishes: a sarama producer supports a
+	// single open transaction at a time.
+	txnMu sync.Mutex
+
+	// Consume-transform-produce transactions (consumerTransactionsEnabled).
+	consumerTxnEnabled bool
+	// txnIDPrefix is the resolved prefix for claim producers'
+	// transactional.id.
+	txnIDPrefix string
+	// txnSessions maps a delivery's transaction token to its open
+	// transaction so publishes carrying the token can join it.
+	txnSessions   map[string]*txnSession
+	txnSessionsMu sync.RWMutex
+	// claimProducerFactory is a test seam for creating claim producers
+	// without a broker; nil means GetSyncProducer.
+	claimProducerFactory func(pc ProducerConfig) (sarama.SyncProducer, error)
+
+	// offsetCommitter is a test seam for committing one partition's offset;
+	// nil uses the broker.
+	offsetCommitter func(producer sarama.SyncProducer, group string, generation int32, memberID string, message *sarama.ConsumerMessage) error
+
+	// committedOffsetFetcher is a test seam for reading the consumer group's
+	// committed offset; nil uses the broker.
+	committedOffsetFetcher func(producer sarama.SyncProducer, group, topic string, partition int32) (int64, error)
 
 	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
@@ -161,6 +197,14 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
+	config.Consumer.IsolationLevel = meta.internalConsumerIsolationLevel
+	if meta.ConsumerTransactionsEnabled {
+		// Offsets commit either inside the delivery's transaction or via an
+		// explicit synchronous commit (record-less deliveries). Autocommit is
+		// disabled so a stale background commit of a marked offset can never
+		// regress a transactional offset commit.
+		config.Consumer.Offsets.AutoCommit.Enable = false
+	}
 	k.initConsumerGroupRebalanceStrategy(config, metadata)
 	config.ChannelBufferSize = meta.channelBufferSize
 
@@ -229,9 +273,21 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 
 	k.config = config
 	k.producerConfig = ProducerConfig{
-		RequiredAcks:    meta.internalProducerRequiredAcks,
-		RetryMax:        meta.ProducerRetryMax,
-		MaxMessageBytes: meta.MaxMessageBytes,
+		RequiredAcks:        meta.internalProducerRequiredAcks,
+		RetryMax:            meta.ProducerRetryMax,
+		MaxMessageBytes:     meta.MaxMessageBytes,
+		TransactionsEnabled: meta.ProducerTransactionsEnabled,
+		TransactionTimeout:  meta.TransactionTimeout,
+	}
+	if meta.ProducerTransactionsEnabled {
+		k.producerConfig.TransactionalID = buildTransactionalID(meta.TransactionalIDPrefix, meta.ClientID, meta.ConsumerGroup)
+		k.logger.Infof("Kafka producer transactions enabled with transactional.id '%s'; publishes are serialized per transaction", k.producerConfig.TransactionalID)
+	}
+	k.consumerTxnEnabled = meta.ConsumerTransactionsEnabled
+	if meta.ConsumerTransactionsEnabled {
+		k.txnIDPrefix = resolveTxnIDPrefix(meta.TransactionalIDPrefix, meta.ClientID)
+		k.txnSessions = make(map[string]*txnSession)
+		k.logger.Infof("Kafka consumer transactions enabled: deliveries are processed in transactions with read_committed isolation (transactional.id prefix '%s-%s'), and publishes carrying the delivery's transaction token join them", k.txnIDPrefix, k.consumerGroup)
 	}
 	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 
@@ -365,6 +421,10 @@ func (k *Kafka) Resume(ctx context.Context) error {
 }
 
 func (k *Kafka) Close() error {
+	// These Waits run after the body below has finished the teardown: a
+	// handler blocked in withPublishTxn only drains once the closed check
+	// rejects its publish, so the Waits must not run while the body could
+	// still be holding txnMu or clientsLock.
 	defer k.wg.Wait()
 	defer k.consumerWG.Wait()
 
@@ -383,15 +443,57 @@ func (k *Kafka) Close() error {
 		}
 		k.subscribeLock.Unlock()
 
-		if k.clients != nil {
-			if k.clients.producer != nil {
-				errs[0] = k.clients.producer.Close()
+		// Consumer group FIRST. Closing the group promptly triggers an
+		// immediate Kafka rebalance so peers take over this instance's
+		// partitions without waiting out the session timeout (the contract
+		// fixed once in dapr/components-contrib#3907). This must never wait
+		// on txnMu: a wedged transactional publish or a producer-recreation
+		// dial can hold it for minutes.
+		//
+		// clientsLock only guards the field swap; the Close() call itself
+		// runs outside it. sarama's ConsumerGroup.Close() blocks until every
+		// in-flight handler returns, and a handler mid-publish needs
+		// clientsLock (latestClients) — closing under the lock would
+		// deadlock shutdown. Same reason the group closes before the
+		// producer: draining handlers may still be publishing.
+		var cg sarama.ConsumerGroup
+		k.clientsLock.Lock()
+		if k.clients != nil && k.clients.consumerGroup != nil {
+			cg = k.clients.consumerGroup
+			k.clients.consumerGroup = nil
+		}
+		k.clientsLock.Unlock()
+		if cg != nil {
+			errs[1] = cg.Close()
+		}
+
+		// Producer second, only if no transactional publish holds txnMu.
+		// Closing under a live transactional send would panic (send on a
+		// closed channel); blocking would violate the shutdown bound above.
+		if k.txnMu.TryLock() {
+			var p sarama.SyncProducer
+			k.clientsLock.Lock()
+			if k.clients != nil && k.clients.producer != nil {
+				p = k.clients.producer
 				k.clients.producer = nil
 			}
-			if k.clients.consumerGroup != nil {
-				errs[1] = k.clients.consumerGroup.Close()
-				k.clients.consumerGroup = nil
+			k.clientsLock.Unlock()
+			if p != nil {
+				errs[0] = p.Close()
 			}
+			k.txnMu.Unlock()
+		} else {
+			// Contended: hand the close to a goroutine that waits the
+			// in-flight publish out. Close() must not block on it, and it
+			// must not be abandoned either — Close() also runs on component
+			// reload, with the process carrying on afterwards, so an
+			// abandoned producer leaks its client, metadata goroutine and
+			// broker connections for the remaining process lifetime.
+			// Deliberately not tracked by k.wg: the deferred Waits above
+			// would turn this back into a blocking shutdown. Its close error
+			// can only be logged, since Close() has already returned.
+			k.logger.Debugf("Kafka producer close deferred: a transactional publish was in flight during Close")
+			go k.closeProducerWhenIdle()
 		}
 	}
 

@@ -41,6 +41,16 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	if err != nil {
 		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
+
+	// When consumer transactions are enabled, this claim gets its own
+	// transactional producer (created lazily on the first delivery) so its
+	// transactions never contend with other claims or with the app handler.
+	var ct *claimTxn
+	if consumer.k.consumerTxnEnabled {
+		ct = consumer.k.newClaimTxn(claim.Topic(), claim.Partition())
+		defer ct.close()
+	}
+
 	if isBulkSubscribe {
 		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 		defer ticker.Stop()
@@ -48,13 +58,13 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		for {
 			select {
 			case <-session.Context().Done():
-				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct)
 			case message := <-claim.Messages():
 				consumer.mutex.Lock()
 				if message != nil {
 					messages = append(messages, message)
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxMessagesCount {
-						_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
+						_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct) //nolint:errcheck // legacy behavior preserved
 						messages = messages[:0]
 						ticker.Reset(time.Duration(handlerConfig.SubscribeConfig.MaxAwaitDurationMs) * time.Millisecond)
 					}
@@ -62,7 +72,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				consumer.mutex.Unlock()
 			case <-ticker.C:
 				consumer.mutex.Lock()
-				_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b) //nolint:errcheck // legacy behavior preserved
+				_ = consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct) //nolint:errcheck // legacy behavior preserved
 				messages = messages[:0]
 				consumer.mutex.Unlock()
 			}
@@ -86,7 +96,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 				if consumer.k.consumeRetryEnabled {
 					if err := retry.NotifyRecover(func() error {
-						return consumer.doCallback(session, message)
+						return consumer.dispatchCallback(session, message, ct)
 					}, b, func(err error, d time.Duration) {
 						consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}, func() {
@@ -106,7 +116,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
 				} else {
-					err := consumer.doCallback(session, message)
+					err := consumer.dispatchCallback(session, message, ct)
 					if err != nil {
 						consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
@@ -118,12 +128,12 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 	messages []*sarama.ConsumerMessage, session sarama.ConsumerGroupSession,
-	handler BulkEventHandler, b backoff.BackOff,
+	handler BulkEventHandler, b backoff.BackOff, ct *claimTxn,
 ) error {
 	if len(messages) > 0 {
 		if consumer.k.consumeRetryEnabled {
 			if err := retry.NotifyRecover(func() error {
-				return consumer.doBulkCallback(session, messages, handler, claim.Topic())
+				return consumer.dispatchBulkCallback(session, messages, handler, claim.Topic(), ct)
 			}, b, func(err error, d time.Duration) {
 				consumer.k.logger.Warnf("Error processing Kafka bulk messages: %s. Error: %v. Retrying...", claim.Topic(), err)
 			}, func() {
@@ -138,7 +148,7 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 				}
 			}
 		} else {
-			err := consumer.doBulkCallback(session, messages, handler, claim.Topic())
+			err := consumer.dispatchBulkCallback(session, messages, handler, claim.Topic(), ct)
 			if err != nil {
 				consumer.k.logger.Errorf("Error processing Kafka message: %s. Error: %v.", claim.Topic(), err)
 			}
@@ -146,6 +156,25 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 		}
 	}
 	return nil
+}
+
+// dispatchCallback routes a delivery to the transactional or the plain
+// callback, depending on whether this claim processes transactionally.
+func (consumer *consumer) dispatchCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, ct *claimTxn) error {
+	if ct != nil {
+		return consumer.doCallbackTxn(session, message, ct)
+	}
+	return consumer.doCallback(session, message)
+}
+
+// dispatchBulkCallback is dispatchCallback for bulk deliveries.
+func (consumer *consumer) dispatchBulkCallback(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string, ct *claimTxn,
+) error {
+	if ct != nil {
+		return consumer.doBulkCallbackTxn(session, messages, handler, topic, ct)
+	}
+	return consumer.doBulkCallback(session, messages, handler, topic)
 }
 
 func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
@@ -223,6 +252,365 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		session.MarkMessage(message, "")
 	}
 	return err
+}
+
+// doCallbackTxn processes one delivery inside a Kafka transaction on the
+// claim's producer: publishes made by the handler that carry the delivery's
+// transaction token join the transaction, and on success the consumer offset
+// commits with them atomically. On any failure the transaction aborts and
+// the existing retry/redelivery path takes over with a fresh transaction per
+// attempt.
+func (consumer *consumer) doCallbackTxn(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, ct *claimTxn) error {
+	k := consumer.k
+	k.logger.Debugf("Processing Kafka message transactionally: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+	handlerConfig, err := k.GetTopicHandlerConfig(message.Topic)
+	if err != nil {
+		return err
+	}
+	if !handlerConfig.IsBulkSubscribe && handlerConfig.Handler == nil {
+		return errors.New("invalid handler config for subscribe call")
+	}
+
+	messageVal, err := k.DeserializeValue(message, handlerConfig)
+	if err != nil {
+		return err
+	}
+
+	producer, err := ct.getProducer()
+	if err != nil {
+		return err
+	}
+	if err := producer.BeginTxn(); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: begin transaction: %w", err), ct.invalidate)
+	}
+
+	sess := &txnSession{producer: producer, open: true}
+	token := k.registerTxnSession(sess)
+	// Panic hygiene only: end/deregister run explicitly before the
+	// transaction is ended below; both are idempotent.
+	defer func() {
+		sess.end()
+		k.deregisterTxnSession(token)
+	}()
+
+	event := NewEvent{
+		Topic: message.Topic,
+		Data:  messageVal,
+	}
+	event.Metadata = GetEventMetadata(message, k)
+	event.Metadata[txnTokenMetadataKey] = token
+
+	handlerErr := handlerConfig.Handler(session.Context(), &event)
+
+	// Close the token before ending the transaction so no late publish can
+	// slip into the commit — or into the next transaction on this producer.
+	sess.end()
+	k.deregisterTxnSession(token)
+
+	if handlerErr != nil {
+		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+	}
+
+	return consumer.commitTxnWithOffset(session, producer, message, ct, sess.hasSent())
+}
+
+// doBulkCallbackTxn processes a bulk delivery inside a Kafka transaction.
+// The batch is all-or-nothing: a handler error or any per-entry error aborts
+// the whole transaction and the batch is redelivered whole. Partial success
+// cannot coexist with an atomic transaction.
+func (consumer *consumer) doBulkCallbackTxn(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string, ct *claimTxn,
+) error {
+	k := consumer.k
+	k.logger.Debugf("Processing Kafka bulk message transactionally: %s", topic)
+
+	messageValues := make([]KafkaBulkMessageEntry, len(messages))
+	var lastMessage *sarama.ConsumerMessage
+	for i, message := range messages {
+		if message != nil {
+			metadata := GetEventMetadata(message, k)
+			handlerConfig, err := k.GetTopicHandlerConfig(message.Topic)
+			if err != nil {
+				return err
+			}
+			messageVal, err := k.DeserializeValue(message, handlerConfig)
+			if err != nil {
+				return err
+			}
+			messageValues[i] = KafkaBulkMessageEntry{
+				EntryId:  strconv.Itoa(i),
+				Event:    messageVal,
+				Metadata: metadata,
+			}
+			lastMessage = message
+		}
+	}
+	if lastMessage == nil {
+		return nil
+	}
+
+	producer, err := ct.getProducer()
+	if err != nil {
+		return err
+	}
+	if err := producer.BeginTxn(); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: begin transaction: %w", err), ct.invalidate)
+	}
+
+	sess := &txnSession{producer: producer, open: true}
+	token := k.registerTxnSession(sess)
+	// Panic hygiene only: end/deregister run explicitly before the
+	// transaction is ended below; both are idempotent.
+	defer func() {
+		sess.end()
+		k.deregisterTxnSession(token)
+	}()
+
+	event := KafkaBulkMessage{
+		Topic:    topic,
+		Entries:  messageValues,
+		Metadata: map[string]string{txnTokenMetadataKey: token},
+	}
+	responses, handlerErr := handler(session.Context(), &event)
+
+	sess.end()
+	k.deregisterTxnSession(token)
+
+	if handlerErr == nil {
+		for _, resp := range responses {
+			if resp.Error != nil {
+				handlerErr = fmt.Errorf("kafka: bulk entry %s failed, aborting the batch transaction: %w", resp.EntryId, resp.Error)
+				break
+			}
+		}
+	}
+	if handlerErr != nil {
+		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+	}
+
+	// A claim is a single partition, so the last message carries the batch's
+	// highest offset.
+	return consumer.commitTxnWithOffset(session, producer, lastMessage, ct, sess.hasSent())
+}
+
+// commitTxnWithOffset finishes a successful delivery. When the handler
+// published into the transaction, the offset joins it (with the consumer
+// group member metadata so the broker fences stale members, KIP-447) and
+// both commit atomically. When nothing was published, sarama would silently
+// skip the offset commit of a record-less transaction — and with no records
+// there is nothing for the offset to be atomic with — so the empty
+// transaction is ended and the offset commits synchronously instead.
+//
+// Neither path touches the session's offset manager, which stays unused in
+// transactional mode. session.Commit() flushes every dirty partition of the
+// session at once, so one partition's record-less commit would also write
+// whatever the offset manager last held for the others — a value that lags
+// the offsets the transactional path commits inside its transactions, which
+// would redeliver messages whose output is already on the topic. Committing
+// only this partition keeps the two paths from writing each other's
+// offsets.
+func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage, ct *claimTxn, sent bool) error {
+	k := consumer.k
+
+	if !sent {
+		if err := producer.CommitTxn(); err != nil {
+			return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+		}
+		return consumer.commitOffset(session, producer, message)
+	}
+
+	groupMetadata := &sarama.ConsumerGroupMetadata{
+		GroupID:      k.consumerGroup,
+		GenerationID: session.GenerationID(),
+		MemberID:     session.MemberID(),
+	}
+	if err := producer.AddMessageToTxnWithGroupMetadata(message, groupMetadata, nil); err != nil {
+		return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: add offsets to transaction: %w", err), ct.invalidate)
+	}
+	if err := producer.CommitTxn(); err != nil {
+		// A commit that exhausted sarama's EndTxn retries leaves the producer
+		// in CommittingTransaction with no answer from the broker: the
+		// transaction may still be open, or already committing. Retrying the
+		// delivery blind republishes its outputs if it committed, and epoch
+		// fencing cannot take a committed transaction back — fencing aborts
+		// open transactions only.
+		ambiguous := producer.TxnStatus()&sarama.ProducerTxnFlagCommittingTransaction != 0
+		cleanupErr := k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
+		if !ambiguous || !consumer.resolveAmbiguousCommit(session, ct, message) {
+			return cleanupErr
+		}
+		k.logger.Warnf("Kafka transaction commit returned %v but the broker had committed it; not reprocessing %s/%d/%d", err, message.Topic, message.Partition, message.Offset)
+	}
+	// The offset is already at the broker, committed inside the transaction.
+	return nil
+}
+
+// commitOffset commits this partition's offset on its own, without going
+// through the session's offset manager. sarama's session.Commit() flushes
+// every dirty partition of the session in one request, which would let a
+// record-less delivery on one partition write a stale offset for the others;
+// a single-partition request cannot. The group generation and member id go
+// with it so the broker fences a commit from a revoked member, the same
+// fencing the transactional path gets from KIP-447.
+func (consumer *consumer) commitOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage) error {
+	k := consumer.k
+
+	commit := k.offsetCommitter
+	if commit == nil {
+		commit = commitOffsetToCoordinator
+	}
+	if err := commit(producer, k.consumerGroup, session.GenerationID(), session.MemberID(), message); err != nil {
+		return fmt.Errorf("kafka: commit offset for %s/%d/%d: %w", message.Topic, message.Partition, message.Offset, err)
+	}
+	return nil
+}
+
+// commitOffsetToCoordinator sends a single-partition OffsetCommit to the
+// group coordinator over the client the producer already owns.
+func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, generation int32, memberID string, message *sarama.ConsumerMessage) error {
+	owner, ok := producer.(clientOwner)
+	if !ok {
+		return errors.New("kafka: producer does not carry a client")
+	}
+	coordinator, err := owner.Client().Coordinator(group)
+	if err != nil {
+		return fmt.Errorf("locate group coordinator: %w", err)
+	}
+
+	req := &sarama.OffsetCommitRequest{
+		// consumerTransactionsEnabled enforces Kafka >= 2.5, so the flexible
+		// v8 request is always supported.
+		Version:                 8,
+		ConsumerGroup:           group,
+		ConsumerGroupGeneration: generation,
+		ConsumerID:              memberID,
+	}
+	// The committed offset is the next one to read, not the one just handled.
+	req.AddBlock(message.Topic, message.Partition, message.Offset+1, 0, "")
+
+	resp, err := coordinator.CommitOffset(req)
+	if err != nil {
+		return fmt.Errorf("commit offset: %w", err)
+	}
+	kerr, ok := resp.Errors[message.Topic][message.Partition]
+	if !ok {
+		return errors.New("commit offset: no result for the partition")
+	}
+	if kerr != sarama.ErrNoError {
+		return fmt.Errorf("commit offset: %w", kerr)
+	}
+	return nil
+}
+
+// How often resolveAmbiguousCommit re-asks the coordinator whether a pending
+// transaction has become terminal. A commit already writing its markers
+// finishes in milliseconds; the wait is bounded by the session, not by a
+// retry count.
+const ambiguousCommitFenceBackoff = 200 * time.Millisecond
+
+// clientOwner is implemented by the producers this component builds.
+type clientOwner interface {
+	Client() sarama.Client
+}
+
+// resolveAmbiguousCommit settles a transaction whose commit outcome is
+// unknown and reports whether it committed.
+//
+// The order is load-bearing. Reading the committed offset straight away
+// cannot answer the question: until the transaction is terminal the group
+// coordinator still shows the pre-transaction offset whether it is about to
+// commit or can still abort. Recreating the claim's producer first is what
+// settles it — the new producer reuses the same transactional.id, so the
+// coordinator aborts a transaction that was still open, and answers
+// CONCURRENT_TRANSACTIONS (which sarama surfaces as a failure to build the
+// producer) until one already committing becomes terminal. Once the producer
+// exists, the offset the coordinator reports is final.
+//
+// It keeps trying until the session ends. Giving up early would buy nothing:
+// the delivery would go back to the retry loop, which re-enters through the
+// same getProducer and blocks on the same pending transaction — so the wait
+// happens either way, and stopping here only throws away the offset read that
+// tells a committed transaction from an aborted one. Session cancellation
+// answers false, which reprocesses the delivery on whoever takes the
+// partition over: a duplicate rather than a lost message.
+func (consumer *consumer) resolveAmbiguousCommit(session sarama.ConsumerGroupSession, ct *claimTxn, message *sarama.ConsumerMessage) bool {
+	k := consumer.k
+
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-session.Context().Done():
+				k.logger.Warnf("Session ended before the transaction of %s/%d/%d settled; the delivery will be reprocessed by the next owner", message.Topic, message.Partition, message.Offset)
+				return false
+			case <-time.After(ambiguousCommitFenceBackoff):
+			}
+		}
+		producer, err := ct.getProducer()
+		if err == nil {
+			return consumer.commitLanded(producer, message)
+		}
+		k.logger.Debugf("Waiting for the transaction of %s/%d/%d to settle before reading the committed offset: %v", message.Topic, message.Partition, message.Offset, err)
+	}
+}
+
+// commitLanded reports whether the broker committed the transaction whose
+// CommitTxn returned an unknown outcome, by reading the consumer group's
+// committed offset. A transactional commit writes message.Offset+1, so any
+// committed offset past this message means the transaction landed.
+//
+// Every failure to find out answers false, which reprocesses the delivery —
+// the pre-existing behaviour, and the safe side of the guess for a
+// transaction that most likely did not commit.
+func (consumer *consumer) commitLanded(producer sarama.SyncProducer, message *sarama.ConsumerMessage) bool {
+	k := consumer.k
+
+	fetch := k.committedOffsetFetcher
+	if fetch == nil {
+		fetch = fetchCommittedOffset
+	}
+	committed, err := fetch(producer, k.consumerGroup, message.Topic, message.Partition)
+	if err != nil {
+		k.logger.Warnf("Could not read the committed offset after an unknown-outcome transaction commit for %s/%d/%d, reprocessing the delivery: %v", message.Topic, message.Partition, message.Offset, err)
+		return false
+	}
+	return committed > message.Offset
+}
+
+// fetchCommittedOffset asks the group coordinator for the consumer group's
+// committed offset on one partition, over the client the producer already
+// owns.
+func fetchCommittedOffset(producer sarama.SyncProducer, group, topic string, partition int32) (int64, error) {
+	owner, ok := producer.(clientOwner)
+	if !ok {
+		return 0, errors.New("kafka: producer does not carry a client")
+	}
+	client := owner.Client()
+
+	coordinator, err := client.Coordinator(group)
+	if err != nil {
+		return 0, fmt.Errorf("kafka: locate group coordinator: %w", err)
+	}
+	// Deliberately without RequireStable. It would answer
+	// ErrUnstableOffsetCommit whenever a transactional offset commit for this
+	// partition has not materialized, and the group coordinator gives that
+	// same answer whether the transaction is about to commit or is still open
+	// and can yet abort — it only knows "pending" from "materialized", the
+	// distinction lives in the transaction coordinator's log. Reading pending
+	// as committed would skip a message that never got published.
+	resp, err := coordinator.FetchOffset(sarama.NewOffsetFetchRequest(
+		client.Config().Version, group, map[string][]int32{topic: {partition}},
+	))
+	if err != nil {
+		return 0, fmt.Errorf("kafka: fetch committed offset: %w", err)
+	}
+	block := resp.GetBlock(topic, partition)
+	if block == nil {
+		return 0, errors.New("kafka: fetch committed offset: no block for the partition")
+	}
+	if block.Err != sarama.ErrNoError {
+		return 0, fmt.Errorf("kafka: fetch committed offset: %w", block.Err)
+	}
+	return block.Offset, nil
 }
 
 func GetEventMetadata(message *sarama.ConsumerMessage, kafka *Kafka) map[string]string {

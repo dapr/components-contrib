@@ -39,12 +39,13 @@ const (
 	ClusterType = "cluster"
 	NodeType    = "node"
 
-	processingTimeoutKey     = "processingTimeout"
-	redeliverIntervalKey     = "redeliverInterval"
-	redisMinRetryIntervalKey = "redisMinRetryInterval"
-	maxRetryBackoffKey       = "maxRetryBackoff"
-	redisMaxRetriesKey       = "redisMaxRetries"
-	maxRetriesKey            = "maxRetries"
+	processingTimeoutKey      = "processingTimeout"
+	redeliverIntervalKey      = "redeliverInterval"
+	entryKeepAliveIntervalKey = "entryKeepAliveInterval"
+	redisMinRetryIntervalKey  = "redisMinRetryInterval"
+	maxRetryBackoffKey        = "maxRetryBackoff"
+	redisMaxRetriesKey        = "redisMaxRetries"
+	maxRetriesKey             = "maxRetries"
 )
 
 type RedisXMessage struct {
@@ -89,6 +90,7 @@ type RedisClient interface {
 	XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error)
 	XPendingExtResult(ctx context.Context, stream string, group string, start string, end string, count int64) ([]RedisXPendingExt, error)
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
+	XClaimJustIDResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]string, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 	AuthACL(ctx context.Context, username, password string) error
@@ -164,6 +166,12 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond //nolint:gosec
 			}
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
+
+		// Unless the operator set it explicitly, keep the held entries alive at half the
+		// reclaim threshold, which is frequent enough to stay well clear of it.
+		if _, ok := properties[entryKeepAliveIntervalKey]; !ok {
+			settings.EntryKeepAliveInterval = settings.ProcessingTimeout / 2
 		}
 	}
 	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT

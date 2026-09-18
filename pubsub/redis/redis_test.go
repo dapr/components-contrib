@@ -352,6 +352,16 @@ type stubRedisClient struct {
 	claimErr       error // if set, XClaimResult returns (nil, claimErr)
 	xPendingErr    error // if set, XPendingExtResult returns (nil, xPendingErr)
 	readGroupErr   error // if set, XReadGroupResult returns (nil, readGroupErr)
+
+	justIDLock  sync.Mutex
+	justIDCalls [][]string // message IDs passed to each XClaimJustIDResult call
+}
+
+func (s *stubRedisClient) recordedJustIDCalls() [][]string {
+	s.justIDLock.Lock()
+	defer s.justIDLock.Unlock()
+
+	return append([][]string(nil), s.justIDCalls...)
 }
 
 func (s *stubRedisClient) IsNilValueError(err error) bool {
@@ -444,6 +454,15 @@ func (s *stubRedisClient) XClaimResult(context.Context, string, string, string, 
 	return nil, nil
 }
 
+func (s *stubRedisClient) XClaimJustIDResult(_ context.Context, _ string, _ string, _ string, _ time.Duration, messageIDs []string) ([]string, error) {
+	s.justIDLock.Lock()
+	defer s.justIDLock.Unlock()
+
+	s.justIDCalls = append(s.justIDCalls, append([]string(nil), messageIDs...))
+
+	return messageIDs, nil
+}
+
 func (s *stubRedisClient) TxPipeline() commonredis.RedisPipeliner {
 	return &stubRedisPipeliner{}
 }
@@ -463,3 +482,115 @@ func (p *stubRedisPipeliner) Exec(context.Context) error {
 }
 
 func (p *stubRedisPipeliner) Do(context.Context, ...interface{}) {}
+
+// TestKeepAliveResetsIdleTimeOfHeldEntries covers the case this keep-alive exists for: messages
+// that have been read from the stream but are still waiting for a free worker. Their idle time
+// is already running, so without the keep-alive they cross processingTimeout and are redelivered
+// while the first delivery is still outstanding.
+func TestKeepAliveResetsIdleTimeOfHeldEntries(t *testing.T) {
+	client := &stubRedisClient{}
+	testRedisStream := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID:             "group",
+			ProcessingTimeout:      time.Minute,
+			RedeliverInterval:      time.Second,
+			EntryKeepAliveInterval: 10 * time.Millisecond,
+		},
+	}
+	// Queue depth of 1 against no workers, so the second message stays buffered: exactly the
+	// state that used to age out of processingTimeout unnoticed.
+	testRedisStream.queue = make(chan redisMessageWrapper, 1)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	go testRedisStream.keepAliveLoop(ctx, "stream")
+
+	handler := func(context.Context, *pubsub.NewMessage) error { return nil }
+	go testRedisStream.enqueueMessages(ctx, "stream", handler, generateRedisStreamTestData(2, "data", "md"))
+
+	require.Eventually(t, func() bool {
+		for _, ids := range client.recordedJustIDCalls() {
+			if len(ids) == 2 {
+				return true
+			}
+		}
+
+		return false
+	}, time.Second, 10*time.Millisecond, "both the buffered and the queued entry should be kept alive")
+
+	// Draining and acknowledging a message must stop the keep-alive for it, so that a message
+	// this consumer is no longer working on can still be reclaimed.
+	msg := <-testRedisStream.queue
+	require.NoError(t, testRedisStream.processMessage(msg))
+
+	assert.Len(t, testRedisStream.heldEntries("stream"), 1)
+}
+
+// TestKeepAliveDisabled verifies the opt-out restores the previous behaviour.
+func TestKeepAliveDisabled(t *testing.T) {
+	client := &stubRedisClient{}
+	testRedisStream := &redisStreams{
+		logger: logger.NewLogger("test"),
+		client: client,
+		clientSettings: &commonredis.Settings{
+			ConsumerID:             "group",
+			ProcessingTimeout:      time.Minute,
+			RedeliverInterval:      time.Second,
+			EntryKeepAliveInterval: 0,
+		},
+	}
+	testRedisStream.queue = make(chan redisMessageWrapper, 10)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	handler := func(context.Context, *pubsub.NewMessage) error { return nil }
+	testRedisStream.enqueueMessages(ctx, "stream", handler, generateRedisStreamTestData(2, "data", "md"))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		testRedisStream.keepAliveLoop(ctx, "stream")
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("keepAliveLoop should return immediately when disabled")
+	}
+
+	assert.Empty(t, client.recordedJustIDCalls())
+}
+
+// TestHeldEntryRefcounting covers a message being held more than once, which happens when an
+// entry is reclaimed while a previous delivery of it is still outstanding. The first delivery
+// finishing must not stop the keep-alive for the one still in flight.
+func TestHeldEntryRefcounting(t *testing.T) {
+	r := &redisStreams{logger: logger.NewLogger("test")}
+
+	assert.Empty(t, r.heldEntries("stream"), "no entries held yet")
+
+	r.holdEntry("stream", "1-0")
+	r.holdEntry("stream", "1-0")
+	r.holdEntry("stream", "2-0")
+	assert.ElementsMatch(t, []string{"1-0", "2-0"}, r.heldEntries("stream"))
+
+	// Releasing one of the two holds on 1-0 must keep it alive for the other.
+	r.releaseEntry("stream", "1-0")
+	assert.ElementsMatch(t, []string{"1-0", "2-0"}, r.heldEntries("stream"))
+
+	r.releaseEntry("stream", "1-0")
+	assert.Equal(t, []string{"2-0"}, r.heldEntries("stream"))
+
+	r.releaseEntry("stream", "2-0")
+	assert.Empty(t, r.heldEntries("stream"))
+
+	// Releasing an entry that is not held, or one on an unknown stream, is a no-op.
+	r.releaseEntry("stream", "2-0")
+	r.releaseEntry("other", "1-0")
+	assert.Empty(t, r.heldEntries("stream"))
+	assert.Empty(t, r.heldEntries("other"))
+}

@@ -56,6 +56,12 @@ type redisStreams struct {
 	closeCh        chan struct{}
 
 	queue chan redisMessageWrapper
+
+	// held tracks, per stream, the pending entries this consumer currently owns but has not
+	// acknowledged yet: those buffered in queue and those inside a handler. Entries are
+	// refcounted because the same message can legitimately be held twice.
+	heldLock sync.Mutex
+	held     map[string]map[string]int
 }
 
 // redisMessageWrapper encapsulates the message identifier,
@@ -145,7 +151,7 @@ func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 	}
 
 	loopCtx, cancel := context.WithCancel(ctx)
-	r.wg.Add(3)
+	r.wg.Add(4)
 	go func() {
 		// Add a context which catches the close signal to account for situations
 		// where Close is called, but the context is not cancelled.
@@ -164,8 +170,95 @@ func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 		defer r.wg.Done()
 		r.reclaimPendingMessagesLoop(loopCtx, req.Topic, handler)
 	}()
+	go func() {
+		defer r.wg.Done()
+		r.keepAliveLoop(loopCtx, req.Topic)
+	}()
 
 	return nil
+}
+
+func (r *redisStreams) holdEntry(stream string, messageID string) {
+	r.heldLock.Lock()
+	defer r.heldLock.Unlock()
+
+	if r.held == nil {
+		r.held = make(map[string]map[string]int)
+	}
+	ids, ok := r.held[stream]
+	if !ok {
+		ids = make(map[string]int)
+		r.held[stream] = ids
+	}
+	ids[messageID]++
+}
+
+func (r *redisStreams) releaseEntry(stream string, messageID string) {
+	r.heldLock.Lock()
+	defer r.heldLock.Unlock()
+
+	ids, ok := r.held[stream]
+	if !ok {
+		return
+	}
+	if ids[messageID] <= 1 {
+		delete(ids, messageID)
+		return
+	}
+	ids[messageID]--
+}
+
+func (r *redisStreams) heldEntries(stream string) []string {
+	r.heldLock.Lock()
+	defer r.heldLock.Unlock()
+
+	ids := r.held[stream]
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+
+	return out
+}
+
+// keepAliveLoop periodically resets the idle time of the pending entries this consumer holds,
+// so that reclaimPendingMessages does not redeliver a message that is still buffered or being
+// processed. Without it, a message's idle time starts when it is read from the stream while its
+// handler deadline only starts when a worker picks it up, so anything that waits in the queue
+// can cross `processingTimeout` while its first handler is still running.
+func (r *redisStreams) keepAliveLoop(ctx context.Context, stream string) {
+	// Redelivery disabled, or the operator opted out: nothing to keep alive.
+	if r.clientSettings.ProcessingTimeout == 0 || r.clientSettings.RedeliverInterval == 0 ||
+		r.clientSettings.EntryKeepAliveInterval <= 0 {
+		return
+	}
+
+	keepAliveTicker := time.NewTicker(r.clientSettings.EntryKeepAliveInterval)
+	defer keepAliveTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-keepAliveTicker.C:
+			ids := r.heldEntries(stream)
+			if len(ids) == 0 {
+				continue
+			}
+
+			// Claiming entries for the consumer that already owns them does not change
+			// ownership, but it does reset their idle time. JUSTID leaves the delivery
+			// count untouched.
+			_, err := r.client.XClaimJustIDResult(ctx, stream, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, 0, ids)
+			if err != nil && !r.client.IsNilValueError(err) && !errors.Is(err, context.Canceled) {
+				r.logger.Warnf("redis streams: error keeping pending messages alive for stream %s: %v", stream, err)
+			}
+		}
+	}
 }
 
 // enqueueMessages is a shared function that funnels new messages (via polling)
@@ -175,12 +268,17 @@ func (r *redisStreams) enqueueMessages(ctx context.Context, stream string, handl
 	for _, msg := range msgs {
 		rmsg := r.createRedisMessageWrapper(ctx, stream, handler, msg)
 
+		// The entry is pending in Redis from the moment it was read, so start keeping it
+		// alive now rather than when a worker picks it up.
+		r.holdEntry(stream, msg.ID)
+
 		select {
 		// Might block if the queue is full so we need the ctx.Done below.
 		case r.queue <- rmsg:
 			// Noop
 		// Handle cancelation
 		case <-ctx.Done():
+			r.releaseEntry(stream, msg.ID)
 			return
 		}
 	}
@@ -241,6 +339,11 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
+
+	// Stop keeping this entry alive once we are done with it, whether it ends up acknowledged
+	// or deliberately left pending for redelivery.
+	defer r.releaseEntry(msg.message.Topic, msg.messageID)
+
 	ctx := msg.ctx
 	var cancel context.CancelFunc
 	if r.clientSettings.ProcessingTimeout != 0 && r.clientSettings.RedeliverInterval != 0 {

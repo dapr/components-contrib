@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func TestResolveHost(t *testing.T) {
@@ -287,4 +290,64 @@ func TestSettings(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestPubSubDurationSettings covers the parsing of the pub/sub timing settings. redeliverInterval
+// previously had no mapstructure tag, so the duration form documented in metadata.yaml was
+// silently discarded and the value fell back to the default.
+func TestPubSubDurationSettings(t *testing.T) {
+	tests := map[string]struct {
+		properties             map[string]string
+		expectedRedeliver      time.Duration
+		expectedProcessing     time.Duration
+		expectedEntryKeepAlive time.Duration
+	}{
+		"defaults": {
+			properties:             map[string]string{},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 30 * time.Second,
+		},
+		"duration strings": {
+			properties:             map[string]string{"redeliverInterval": "30s", "processingTimeout": "15m"},
+			expectedRedeliver:      30 * time.Second,
+			expectedProcessing:     15 * time.Minute,
+			expectedEntryKeepAlive: 7*time.Minute + 30*time.Second,
+		},
+		"legacy bare milliseconds": {
+			properties:             map[string]string{"redeliverInterval": "30000", "processingTimeout": "20000"},
+			expectedRedeliver:      30 * time.Second,
+			expectedProcessing:     20 * time.Second,
+			expectedEntryKeepAlive: 10 * time.Second,
+		},
+		"explicit keep-alive wins over the derived default": {
+			properties:             map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "5s"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 5 * time.Second,
+		},
+		"keep-alive can be disabled": {
+			properties:             map[string]string{"entryKeepAliveInterval": "0"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 0,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, settings, err := ParseClientFromProperties(props, metadata.PubSubType, t.Context(), &log)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedRedeliver, settings.RedeliverInterval, "redeliverInterval")
+			require.Equal(t, tc.expectedProcessing, settings.ProcessingTimeout, "processingTimeout")
+			require.Equal(t, tc.expectedEntryKeepAlive, settings.EntryKeepAliveInterval, "entryKeepAliveInterval")
+		})
+	}
 }

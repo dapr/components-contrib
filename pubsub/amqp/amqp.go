@@ -511,6 +511,13 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}()
 	go func() {
 		defer a.wg.Done()
+		// Cancel on the way out. A subscription can end on its own, when
+		// re-attaching the receiver gives up, and without this the goroutine
+		// above stays blocked on subCtx until the component closes.
+		//
+		// Not unit tested: reaching it needs a live receiver link, and a
+		// hand-built amqp.Session panics inside go-amqp.
+		defer cancel()
 		a.subscribeForever(subCtx, receiver, handler, req.Topic, address)
 	}()
 

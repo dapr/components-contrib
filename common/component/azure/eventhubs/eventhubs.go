@@ -523,19 +523,23 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 
 		// A DeadlineExceeded error means that the context timed out before we received the full batch of messages, and that's fine
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			// If we get an error like ErrorCodeOwnershipLost, it means that the partition was rebalanced and we lost it.
+			// Fence checkpoint writes before any other cleanup can yield to a completing handler.
+			eventHubError := (*azeventhubs.Error)(nil)
+			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
+				checkpointGate.loseOwnership(processCancel)
+				if !aeh.metadata.EnableInOrderMessageDelivery {
+					<-deliverySlots
+				}
+				aeh.logger.Debugf("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), config.Topic)
+				return nil
+			}
+
 			if !aeh.metadata.EnableInOrderMessageDelivery {
 				<-deliverySlots
 				if checkpointErr := checkpointError(); checkpointErr != nil {
 					return checkpointErr
 				}
-			}
-			// If we get an error like ErrorCodeOwnershipLost, it means that the partition was rebalanced and we lost it
-			// We'll just stop this subscription and return
-			eventHubError := (*azeventhubs.Error)(nil)
-			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
-				aeh.logger.Debugf("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), config.Topic)
-				checkpointGate.loseOwnership(processCancel)
-				return nil
 			}
 
 			return fmt.Errorf("error receiving events: %w", err)

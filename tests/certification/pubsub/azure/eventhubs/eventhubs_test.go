@@ -15,10 +15,13 @@ package eventhubs_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,6 +40,7 @@ import (
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 
@@ -319,6 +323,70 @@ func TestEventhubs(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	fmt.Println("Deleting EventHub resources created as part of the management test…")
 	deleteEventhub()
+}
+
+func TestEventhubsRedeliversAfterFailedHandlerAndRestart(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	redeliveryAppPort := ports[2]
+	message := "redelivery-" + uuid.NewString()
+	received := watcher.NewUnordered()
+	received.ExpectStrings(message)
+	firstFailure := make(chan struct{})
+	var firstFailureOnce sync.Once
+	var accept atomic.Bool
+
+	application := func(_ flow.Context, s common.Service) error {
+		return s.AddTopicEventHandler(&common.Subscription{
+			PubsubName: pubsubName,
+			Topic:      topicActiveName,
+			Route:      "/redelivery",
+		}, func(_ context.Context, event *common.TopicEvent) (bool, error) {
+			if fmt.Sprint(event.Data) == message && !accept.Load() {
+				firstFailureOnce.Do(func() { close(firstFailure) })
+				return true, errors.New("intentional certification failure")
+			}
+			received.Observe(event.Data)
+			return false, nil
+		})
+	}
+
+	sidecarOptions := func() []embedded.Option {
+		return append(componentRuntimeOptions(6),
+			embedded.WithComponentsPath("./components/consumer1"),
+			embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(redeliveryAppPort)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+		)
+	}
+
+	flow.New(t, "eventhubs pubsub redelivery after restart").
+		Step(app.Run("redelivery-app", fmt.Sprintf(":%d", redeliveryAppPort), application)).
+		Step(sidecar.Run("redelivery-sidecar", sidecarOptions()...)).
+		Step("publish message that fails", func(ctx flow.Context) error {
+			client := sidecar.GetClient(ctx, "redelivery-sidecar")
+			err := client.PublishEvent(ctx, pubsubName, topicActiveName, message,
+				dapr.PublishEventWithMetadata(map[string]string{messageKey: partition0}))
+			require.NoError(ctx, err)
+			select {
+			case <-firstFailure:
+				return nil
+			case <-time.After(time.Minute):
+				return errors.New("timed out waiting for intentional handler failure")
+			}
+		}).
+		Step("stop sidecar before handler succeeds", sidecar.Stop("redelivery-sidecar")).
+		Step("allow handler success", func(flow.Context) error {
+			accept.Store(true)
+			return nil
+		}).
+		Step(sidecar.Run("redelivery-sidecar", sidecarOptions()...)).
+		Step("verify failed message is redelivered", func(ctx flow.Context) error {
+			received.Assert(ctx, time.Minute)
+			return nil
+		}).
+		Run()
 }
 
 func componentRuntimeOptions(instance int) []embedded.Option {

@@ -16,13 +16,17 @@ package eventhubs
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 var testLogger = logger.NewLogger("test")
@@ -88,53 +92,71 @@ func TestParseEventHubsMetadata(t *testing.T) {
 		require.True(t, m.EnableInOrderMessageDelivery)
 	})
 
-	t.Run("test in order delivery enabled by default", func(t *testing.T) {
+	t.Run("test concurrent delivery enabled by default", func(t *testing.T) {
 		m, err := parseEventHubsMetadata(map[string]string{"connectionString": "fake"}, false, testLogger)
 
 		require.NoError(t, err)
-		require.True(t, m.EnableInOrderMessageDelivery)
+		require.False(t, m.EnableInOrderMessageDelivery)
+		require.Equal(t, DefaultMaxConcurrentHandlers, m.MaxConcurrentHandlers)
 	})
 
-	t.Run("test in order delivery can be disabled explicitly", func(t *testing.T) {
+	t.Run("test max concurrent handlers", func(t *testing.T) {
 		m, err := parseEventHubsMetadata(map[string]string{
-			"enableInOrderMessageDelivery": "false",
-			"connectionString":             "fake",
+			"maxConcurrentHandlers": "7",
+			"connectionString":      "fake",
 		}, false, testLogger)
 
 		require.NoError(t, err)
-		require.False(t, m.EnableInOrderMessageDelivery)
+		require.Equal(t, 7, m.MaxConcurrentHandlers)
+	})
+
+	t.Run("test max concurrent handlers must be positive", func(t *testing.T) {
+		_, err := parseEventHubsMetadata(map[string]string{
+			"maxConcurrentHandlers": "0",
+			"connectionString":      "fake",
+		}, false, testLogger)
+
+		require.ErrorContains(t, err, "maxConcurrentHandlers must be greater than 0")
 	})
 }
 
 type fakeProcessorPartitionClient struct {
+	mu              sync.Mutex
 	batches         [][]*azeventhubs.ReceivedEventData
 	receiveCalls    int
 	checkpointCalls []*azeventhubs.ReceivedEventData
 	closed          bool
 	checkpointHook  func()
+	checkpointErr   error
 	receiveErr      error
 }
 
 func (f *fakeProcessorPartitionClient) ReceiveEvents(ctx context.Context, _ int, _ *azeventhubs.ReceiveEventsOptions) ([]*azeventhubs.ReceivedEventData, error) {
+	f.mu.Lock()
 	if f.receiveErr != nil {
 		f.receiveCalls++
+		f.mu.Unlock()
 		return nil, f.receiveErr
 	}
 	if f.receiveCalls >= len(f.batches) {
+		f.mu.Unlock()
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
 	batch := f.batches[f.receiveCalls]
 	f.receiveCalls++
+	f.mu.Unlock()
 	return batch, nil
 }
 
 func (f *fakeProcessorPartitionClient) UpdateCheckpoint(_ context.Context, event *azeventhubs.ReceivedEventData, _ *azeventhubs.UpdateCheckpointOptions) error {
+	f.mu.Lock()
 	f.checkpointCalls = append(f.checkpointCalls, event)
+	f.mu.Unlock()
 	if f.checkpointHook != nil {
 		f.checkpointHook()
 	}
-	return nil
+	return f.checkpointErr
 }
 
 func (f *fakeProcessorPartitionClient) PartitionID() string {
@@ -142,8 +164,32 @@ func (f *fakeProcessorPartitionClient) PartitionID() string {
 }
 
 func (f *fakeProcessorPartitionClient) Close(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.closed = true
 	return nil
+}
+
+func (f *fakeProcessorPartitionClient) checkpointSequences() []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	sequences := make([]int64, len(f.checkpointCalls))
+	for i, event := range f.checkpointCalls {
+		sequences[i] = event.SequenceNumber
+	}
+	return sequences
+}
+
+func (f *fakeProcessorPartitionClient) receivedCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.receiveCalls
+}
+
+func (f *fakeProcessorPartitionClient) isClosed() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closed
 }
 
 func TestProcessEventsDoesNotReceiveNextBatchAfterHandlerFailure(t *testing.T) {
@@ -186,48 +232,198 @@ func TestProcessEventsDoesNotReceiveNextBatchAfterHandlerFailure(t *testing.T) {
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, []int64{1}, handled)
-	assert.Equal(t, 1, client.receiveCalls, "must not receive B after A remains unresolved")
-	assert.Empty(t, client.checkpointCalls, "must not checkpoint A or advance past it")
-	assert.True(t, client.closed)
+	assert.Equal(t, 1, client.receivedCount(), "must not receive B after A remains unresolved")
+	assert.Empty(t, client.checkpointSequences(), "must not checkpoint A or advance past it")
+	assert.True(t, client.isClosed())
 }
 
-func TestProcessEventsExplicitAsyncModeDoesNotWaitForHandler(t *testing.T) {
+func TestProcessEventsConcurrentModeWaitsForContiguousSuccess(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	handlerStarted := make(chan struct{})
-	releaseHandler := make(chan struct{})
-	handlerFinished := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	laterCompleted := make(chan struct{}, 2)
 	client := &fakeProcessorPartitionClient{
-		batches: [][]*azeventhubs.ReceivedEventData{{receivedEvent("A", 1, 10)}},
-		checkpointHook: func() {
+		batches: [][]*azeventhubs.ReceivedEventData{
+			{receivedEvent("A", 1, 10)},
+			{receivedEvent("B", 2, 20)},
+			{receivedEvent("C", 3, 30)},
+		},
+	}
+	client.checkpointHook = func() {
+		if len(client.checkpointSequences()) == 1 {
 			cancel()
+		}
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			EnableInOrderMessageDelivery: false,
+			MaxConcurrentHandlers:        3,
+		},
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 1,
+			Handler: func(_ context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				if events[0].SequenceNumber == 1 {
+					<-releaseFirst
+				} else {
+					laterCompleted <- struct{}{}
+				}
+				return nil, nil
+			},
+		})
+	}()
+
+	<-laterCompleted
+	<-laterCompleted
+	assert.Empty(t, client.checkpointSequences(), "later successes must not checkpoint past unresolved A")
+	close(releaseFirst)
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Equal(t, []int64{3}, client.checkpointSequences())
+	assert.True(t, client.isClosed())
+}
+
+func TestProcessEventsConcurrentModeStopsReceivingAtCapacity(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	releases := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
+	started := make(chan int64, 3)
+	client := &fakeProcessorPartitionClient{
+		batches: [][]*azeventhubs.ReceivedEventData{
+			{receivedEvent("A", 1, 10)},
+			{receivedEvent("B", 2, 20)},
+			{receivedEvent("C", 3, 30)},
 		},
 	}
 	aeh := &AzureEventHubs{
-		logger:   testLogger,
-		metadata: &AzureEventHubsMetadata{EnableInOrderMessageDelivery: false},
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 2,
+		},
+	}
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 1,
+			Handler: func(_ context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				sequence := events[0].SequenceNumber
+				started <- sequence
+				<-releases[sequence-1]
+				return nil, nil
+			},
+		})
+	}()
+
+	<-started
+	<-started
+	assert.Equal(t, 2, client.receivedCount())
+	close(releases[1])
+	select {
+	case sequence := <-started:
+		require.Failf(t, "received over capacity", "started handler for sequence %d while A pins the checkpoint", sequence)
+	case <-time.After(50 * time.Millisecond):
+	}
+	assert.Equal(t, 2, client.receivedCount())
+	close(releases[0])
+	assert.Equal(t, int64(3), <-started)
+	cancel()
+	close(releases[2])
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Equal(t, []int64{2}, client.checkpointSequences())
+}
+
+func TestProcessEventsConcurrentCheckpointWritesAreSerialized(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var activeWrites atomic.Int32
+	var maxActiveWrites atomic.Int32
+	checkpointStarted := make(chan struct{})
+	releaseCheckpoint := make(chan struct{})
+	secondHandlerReturned := make(chan struct{})
+	var checkpointStartedOnce sync.Once
+	client := &fakeProcessorPartitionClient{
+		batches: [][]*azeventhubs.ReceivedEventData{
+			{receivedEvent("A", 1, 10)},
+			{receivedEvent("B", 2, 20)},
+		},
+	}
+	client.checkpointHook = func() {
+		active := activeWrites.Add(1)
+		for {
+			max := maxActiveWrites.Load()
+			if active <= max || maxActiveWrites.CompareAndSwap(max, active) {
+				break
+			}
+		}
+		checkpointStartedOnce.Do(func() { close(checkpointStarted) })
+		<-releaseCheckpoint
+		if activeWrites.Add(-1) == 0 && len(client.checkpointSequences()) == 2 {
+			cancel()
+		}
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 2,
+		},
 	}
 
-	err := aeh.processEvents(ctx, client, SubscribeConfig{
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 1,
+			Handler: func(_ context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				if events[0].SequenceNumber == 2 {
+					<-checkpointStarted
+					close(secondHandlerReturned)
+				}
+				return nil, nil
+			},
+		})
+	}()
+
+	<-checkpointStarted
+	<-secondHandlerReturned
+	close(releaseCheckpoint)
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Equal(t, int32(1), maxActiveWrites.Load())
+	assert.Equal(t, []int64{1, 2}, client.checkpointSequences())
+}
+
+func TestProcessEventsConcurrentModeReturnsCheckpointError(t *testing.T) {
+	checkpointErr := errors.New("checkpoint unavailable")
+	client := &fakeProcessorPartitionClient{
+		batches:       [][]*azeventhubs.ReceivedEventData{{receivedEvent("A", 1, 10)}},
+		checkpointErr: checkpointErr,
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 1,
+		},
+	}
+
+	err := aeh.processEvents(context.Background(), client, SubscribeConfig{
 		Topic:                           "topic",
 		MaxBulkSubCount:                 1,
 		MaxBulkSubAwaitDurationMs:       100,
 		CheckPointFrequencyPerPartition: 1,
 		Handler: func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
-			close(handlerStarted)
-			<-releaseHandler
-			close(handlerFinished)
 			return nil, nil
 		},
 	})
 
-	require.ErrorIs(t, err, context.Canceled)
-	<-handlerStarted
-	require.Len(t, client.checkpointCalls, 1, "explicit async mode must retain legacy checkpoint behavior")
-	assert.Equal(t, int64(1), client.checkpointCalls[0].SequenceNumber)
-	assert.True(t, client.closed)
-
-	close(releaseHandler)
-	<-handlerFinished
+	require.ErrorIs(t, err, checkpointErr)
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessEventsDoesNotReceiveNextBatchAfterBulkFailure(t *testing.T) {
@@ -256,9 +452,9 @@ func TestProcessEventsDoesNotReceiveNextBatchAfterBulkFailure(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Equal(t, 1, client.receiveCalls, "must replay the whole batch instead of receiving C")
-	assert.Empty(t, client.checkpointCalls, "must not checkpoint a partially failed batch")
-	assert.True(t, client.closed)
+	assert.Equal(t, 1, client.receivedCount(), "must replay the whole batch instead of receiving C")
+	assert.Empty(t, client.checkpointSequences(), "must not checkpoint a partially failed batch")
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessEventsRetriesFailedBatchBeforeReceivingNextBatch(t *testing.T) {
@@ -270,7 +466,7 @@ func TestProcessEventsRetriesFailedBatchBeforeReceivingNextBatch(t *testing.T) {
 		},
 	}
 	client.checkpointHook = func() {
-		if len(client.checkpointCalls) == 2 {
+		if len(client.checkpointSequences()) == 2 {
 			cancel()
 		}
 	}
@@ -298,10 +494,8 @@ func TestProcessEventsRetriesFailedBatchBeforeReceivingNextBatch(t *testing.T) {
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, []int64{1, 1, 2}, handled)
-	require.Len(t, client.checkpointCalls, 2)
-	assert.Equal(t, int64(1), client.checkpointCalls[0].SequenceNumber)
-	assert.Equal(t, int64(2), client.checkpointCalls[1].SequenceNumber)
-	assert.True(t, client.closed)
+	assert.Equal(t, []int64{1, 2}, client.checkpointSequences())
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessEventsCheckpointsSuccessfulBatchesAtConfiguredFrequency(t *testing.T) {
@@ -314,7 +508,7 @@ func TestProcessEventsCheckpointsSuccessfulBatchesAtConfiguredFrequency(t *testi
 		},
 	}
 	client.checkpointHook = func() {
-		if len(client.checkpointCalls) == 2 {
+		if len(client.checkpointSequences()) == 2 {
 			cancel()
 		}
 	}
@@ -334,10 +528,8 @@ func TestProcessEventsCheckpointsSuccessfulBatchesAtConfiguredFrequency(t *testi
 	})
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.Len(t, client.checkpointCalls, 2)
-	assert.Equal(t, int64(1), client.checkpointCalls[0].SequenceNumber)
-	assert.Equal(t, int64(3), client.checkpointCalls[1].SequenceNumber)
-	assert.True(t, client.closed)
+	assert.Equal(t, []int64{1, 3}, client.checkpointSequences())
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessEventsDoesNotCheckpointAfterCancellation(t *testing.T) {
@@ -362,8 +554,8 @@ func TestProcessEventsDoesNotCheckpointAfterCancellation(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Empty(t, client.checkpointCalls)
-	assert.True(t, client.closed)
+	assert.Empty(t, client.checkpointSequences())
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessEventsDoesNotCheckpointAfterOwnershipLoss(t *testing.T) {
@@ -387,9 +579,9 @@ func TestProcessEventsDoesNotCheckpointAfterOwnershipLoss(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, client.receiveCalls)
-	assert.Empty(t, client.checkpointCalls)
-	assert.True(t, client.closed)
+	assert.Equal(t, 1, client.receivedCount())
+	assert.Empty(t, client.checkpointSequences())
+	assert.True(t, client.isClosed())
 }
 
 func TestProcessorOptions(t *testing.T) {
@@ -405,13 +597,48 @@ func TestProcessorOptions(t *testing.T) {
 		assert.True(t, *options.StartPositions.Default.Earliest)
 	})
 
-	t.Run("explicit async mode preserves SDK default latest position", func(t *testing.T) {
+	t.Run("concurrent delivery starts at earliest when no checkpoint exists", func(t *testing.T) {
 		aeh := &AzureEventHubs{
 			metadata: &AzureEventHubsMetadata{EnableInOrderMessageDelivery: false},
 		}
 
-		assert.Nil(t, aeh.processorOptions())
+		options := aeh.processorOptions()
+
+		require.NotNil(t, options)
+		require.NotNil(t, options.StartPositions.Default.Earliest)
+		assert.True(t, *options.StartPositions.Default.Earliest)
 	})
+}
+
+func TestHandleWithRetryRetriesPartialBulkFailure(t *testing.T) {
+	aeh := &AzureEventHubs{
+		logger:        testLogger,
+		backOffConfig: retryConfigWithoutDelay(),
+	}
+	attempts := 0
+
+	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+		receivedEvent("A", 1, 10),
+		receivedEvent("B", 2, 20),
+	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+		attempts++
+		if attempts == 1 {
+			return []HandlerResponseItem{
+				{EntryID: "A"},
+				{EntryID: "B", Error: errors.New("B failed")},
+			}, nil
+		}
+		return []HandlerResponseItem{{EntryID: "A"}, {EntryID: "B"}}, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
+func retryConfigWithoutDelay() retry.Config {
+	config := retry.DefaultConfig()
+	config.Duration = 0
+	return config
 }
 
 func receivedEvent(messageID string, sequenceNumber, offset int64) *azeventhubs.ReceivedEventData {

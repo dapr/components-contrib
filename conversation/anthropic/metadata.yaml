@@ -25,11 +25,11 @@ metadata:
     required: false
     description: |
       The Anthropic LLM to use. When apiType is 'foundry', this is the Foundry deployment name
-      (defaults to the Claude model ID, e.g. 'claude-opus-4-7'). Configurable via ANTHROPIC_MODEL
+      (defaults to the Claude model ID, e.g. 'claude-opus-4-6'). Configurable via ANTHROPIC_MODEL
       environment variable.
     type: string
-    example: 'claude-sonnet-4-20250514'
-    default: 'claude-sonnet-4-20250514'
+    example: 'claude-sonnet-4-6'
+    default: 'claude-sonnet-4-6'
   - name: endpoint
     required: false
     description: |

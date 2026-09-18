@@ -103,13 +103,29 @@ func (m *mockConsumerGroupClaim) Messages() <-chan *sarama.ConsumerMessage {
 	return m.messages
 }
 
+// committedOffset records one direct offset commit made by the record-less
+// delivery path.
+type committedOffset struct {
+	group      string
+	generation int32
+	memberID   string
+	topic      string
+	partition  int32
+	offset     int64
+}
+
 func TestConsumerTransactions(t *testing.T) {
 	newMessage := func(offset int64) *sarama.ConsumerMessage {
 		return &sarama.ConsumerMessage{Topic: "mytopic", Partition: 3, Offset: offset, Value: []byte("v")}
 	}
 
+	// Offsets committed through the direct single-partition path, reset by
+	// every arrange. Subtests here run sequentially.
+	var committedOffsets []committedOffset
+
 	arrange := func(t *testing.T, handlerConfig SubscriptionHandlerConfig, factory func(pc ProducerConfig) (sarama.SyncProducer, error)) (*Kafka, *consumer, *claimTxn, *mockConsumerGroupSession) {
 		t.Helper()
+		committedOffsets = nil
 		k := &Kafka{
 			logger:               logger.NewLogger("kafka_test"),
 			consumerGroup:        "group1",
@@ -124,6 +140,18 @@ func TestConsumerTransactions(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		session := &mockConsumerGroupSession{ctx: ctx, cancel: cancel}
+		// Defaults so a test only registers what it asserts on. arrange runs
+		// before the subtest body, so these are always the first match — a
+		// subtest that needs different values has to change them here.
+		session.On("GenerationID").Return(7).Maybe()
+		session.On("MemberID").Return("member-a").Maybe()
+		k.offsetCommitter = func(_ sarama.SyncProducer, group string, generation int32, memberID string, msg *sarama.ConsumerMessage) error {
+			committedOffsets = append(committedOffsets, committedOffset{
+				group: group, generation: generation, memberID: memberID,
+				topic: msg.Topic, partition: msg.Partition, offset: msg.Offset + 1,
+			})
+			return nil
+		}
 		return k, c, ct, session
 	}
 
@@ -142,8 +170,6 @@ func TestConsumerTransactions(t *testing.T) {
 		handler := func(context.Context, *NewEvent) error { return nil }
 		k, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
 		k.producerConfig.TransactionTimeout = 90 * time.Second
-		session.On("MarkMessage", mock.Anything, "").Return()
-		session.On("Commit").Return()
 
 		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
 
@@ -161,8 +187,6 @@ func TestConsumerTransactions(t *testing.T) {
 		}
 		handler := func(context.Context, *NewEvent) error { return nil }
 		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
-		session.On("MarkMessage", mock.Anything, "").Return()
-		session.On("Commit").Return()
 
 		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
 		require.NoError(t, c.doCallbackTxn(session, newMessage(43), ct))
@@ -185,7 +209,6 @@ func TestConsumerTransactions(t *testing.T) {
 
 		require.ErrorContains(t, err, "failed to create transactional producer for mytopic/3")
 		require.ErrorContains(t, err, "dial failed")
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("swallowed publish error still finishes through the transactional path", func(t *testing.T) {
@@ -207,9 +230,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
-		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
@@ -219,7 +239,6 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, 1, fake.addOffsetCalls, "the offset must go through the transaction, not the record-less fallback")
 		require.Equal(t, 1, fake.aborts)
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("begin error on the bulk claim producer drops it for recreation", func(t *testing.T) {
@@ -258,8 +277,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var session *mockConsumerGroupSession
 		_, c, _, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
 		cancel = session.cancel
-		session.On("MarkMessage", mock.Anything, "").Return()
-		session.On("Commit").Return()
 		claim := &mockConsumerGroupClaim{messages: make(chan *sarama.ConsumerMessage, 1), topic: "mytopic"}
 		claim.On("Partition").Return(3)
 		claim.messages <- newMessage(42)
@@ -284,16 +301,12 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
-		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
 		require.ErrorContains(t, err, "offsets rejected")
 		require.Equal(t, 1, fake.aborts)
 		require.Equal(t, 0, fake.commits)
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("begin error on the claim producer drops it for recreation", func(t *testing.T) {
@@ -342,9 +355,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
-		session.On("MarkMessage", mock.Anything, "").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
@@ -358,6 +368,10 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, "group1", fake.groupMetadata.GroupID)
 		require.Equal(t, int32(7), fake.groupMetadata.GenerationID)
 		require.Equal(t, "member-a", fake.groupMetadata.MemberID)
+		// The offset rode inside the transaction, so nothing commits it
+		// again out of band.
+		require.Empty(t, committedOffsets)
+		session.AssertNotCalled(t, "Commit")
 		// The token is transport plumbing, never a record header.
 		require.NotNil(t, fake.lastMsg)
 		for _, h := range fake.lastMsg.Headers {
@@ -370,8 +384,6 @@ func TestConsumerTransactions(t *testing.T) {
 		// stale offset, overwriting this transactional commit downwards.
 		// Marking sends nothing on its own — autocommit is off in
 		// transactional mode — so the transaction stays the only committer.
-		session.AssertCalled(t, "MarkMessage", mock.Anything, "")
-		session.AssertNotCalled(t, "Commit")
 		require.Empty(t, k.txnSessions)
 	})
 
@@ -386,7 +398,6 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.aborts)
 		require.Equal(t, 0, fake.commits)
 		require.Equal(t, 0, fake.addOffsetCalls)
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("publish after the handler returned fails loudly", func(t *testing.T) {
@@ -403,8 +414,6 @@ func TestConsumerTransactions(t *testing.T) {
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		// No publish happened during the handler, so the offset commits via
 		// the synchronous mark path.
-		session.On("MarkMessage", mock.Anything, "").Return()
-		session.On("Commit").Return()
 
 		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
 
@@ -434,8 +443,6 @@ func TestConsumerTransactions(t *testing.T) {
 		}
 		handler := func(context.Context, *NewEvent) error { return nil }
 		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, factory)
-		session.On("MarkMessage", mock.Anything, "").Return()
-		session.On("Commit").Return()
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 		require.ErrorContains(t, err, "commit failed")
@@ -452,7 +459,11 @@ func TestConsumerTransactions(t *testing.T) {
 		// the producer in CommittingTransaction: the transaction may already
 		// be committed. Reprocessing then republishes its outputs, and epoch
 		// fencing cannot take a committed transaction back.
-		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
+		fakes := []*fakeTxnProducer{
+			{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction},
+			{},
+		}
+		factoryCalls := 0
 		var k *Kafka
 		handler := func(ctx context.Context, msg *NewEvent) error {
 			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
@@ -460,13 +471,17 @@ func TestConsumerTransactions(t *testing.T) {
 		var c *consumer
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
-		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
-		session.On("MarkMessage", mock.Anything, "").Return()
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) {
+			p := fakes[factoryCalls]
+			factoryCalls++
+			return p, nil
+		})
 		fetches := 0
-		k.committedOffsetFetcher = func(_ sarama.SyncProducer, group, topic string, partition int32) (int64, error) {
+		k.committedOffsetFetcher = func(p sarama.SyncProducer, group, topic string, partition int32) (int64, error) {
 			fetches++
+			// The read must go through the producer built AFTER the fence:
+			// only then has the coordinator settled the transaction.
+			require.Same(t, fakes[1], p)
 			require.Equal(t, "group1", group)
 			require.Equal(t, "mytopic", topic)
 			require.Equal(t, int32(3), partition)
@@ -476,10 +491,42 @@ func TestConsumerTransactions(t *testing.T) {
 		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
 
 		require.Equal(t, 1, fetches)
-		session.AssertCalled(t, "MarkMessage", mock.Anything, "")
-		session.AssertNotCalled(t, "Commit")
-		require.True(t, fake.closed, "the wedged producer is still recycled")
-		require.Nil(t, ct.producer)
+		require.Equal(t, 2, factoryCalls, "the claim producer is rebuilt to fence the pending transaction")
+		require.True(t, fakes[0].closed, "the wedged producer is recycled")
+		require.Same(t, fakes[1], ct.producer, "the fenced producer stays as the claim's")
+	})
+
+	t.Run("a transaction that will not settle reprocesses the delivery", func(t *testing.T) {
+		// While the coordinator has not made the pending transaction
+		// terminal, rebuilding the producer fails (CONCURRENT_TRANSACTIONS).
+		// Unresolved means reprocess: a duplicate beats a lost message.
+		fake := &fakeTxnProducer{commitErr: errors.New("commit failed"), status: sarama.ProducerTxnFlagCommittingTransaction}
+		factoryCalls := 0
+		var k *Kafka
+		handler := func(ctx context.Context, msg *NewEvent) error {
+			return k.Publish(ctx, "out-topic", []byte("out"), map[string]string{txnTokenMetadataKey: msg.Metadata[txnTokenMetadataKey]})
+		}
+		var c *consumer
+		var ct *claimTxn
+		var session *mockConsumerGroupSession
+		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) {
+			factoryCalls++
+			if factoryCalls == 1 {
+				return fake, nil
+			}
+			return nil, errors.New("concurrent transactions")
+		})
+		fetches := 0
+		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
+			fetches++
+			return 0, nil
+		}
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "commit failed")
+		require.Equal(t, 0, fetches, "the offset is never read before the transaction settles")
+		require.Greater(t, factoryCalls, 2, "the fence is retried")
 	})
 
 	t.Run("unknown-outcome commit that did not land is reprocessed", func(t *testing.T) {
@@ -492,8 +539,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
 		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
 			return 42, nil // still behind: the transaction never committed
 		}
@@ -501,7 +546,6 @@ func TestConsumerTransactions(t *testing.T) {
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
 		require.ErrorContains(t, err, "commit failed")
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("unreadable committed offset reprocesses the delivery", func(t *testing.T) {
@@ -516,8 +560,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
 		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
 			return 0, errors.New("coordinator unreachable")
 		}
@@ -525,7 +567,6 @@ func TestConsumerTransactions(t *testing.T) {
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
 		require.ErrorContains(t, err, "commit failed")
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("unambiguous commit failure does not ask the broker", func(t *testing.T) {
@@ -540,8 +581,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
 		fetches := 0
 		k.committedOffsetFetcher = func(sarama.SyncProducer, string, string, int32) (int64, error) {
 			fetches++
@@ -568,9 +607,6 @@ func TestConsumerTransactions(t *testing.T) {
 		var ct *claimTxn
 		var session *mockConsumerGroupSession
 		k, c, ct, session = arrange(t, handlerConfig, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
-		session.On("GenerationID").Return(7)
-		session.On("MemberID").Return("member-a")
-		session.On("MarkMessage", mock.Anything, "").Return()
 		messages := []*sarama.ConsumerMessage{newMessage(10), newMessage(11), newMessage(12)}
 
 		err := c.doBulkCallbackTxn(session, messages, bulkHandler, "mytopic", ct)
@@ -580,11 +616,9 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.sends)
 		require.Equal(t, 1, fake.commits)
 		require.Equal(t, int64(12), fake.offsetMsg.Offset)
-		// Same as the single-delivery case: the batch's highest offset is
-		// marked on the session so it cannot be overwritten downwards by a
-		// later flush, without being committed out of band.
-		session.AssertCalled(t, "MarkMessage", messages[2], "")
-		session.AssertNotCalled(t, "Commit")
+		// Same as the single-delivery case: the batch's highest offset rode
+		// inside the transaction, with nothing committed out of band.
+		require.Empty(t, committedOffsets)
 	})
 
 	t.Run("delivery without outputs commits the offset synchronously", func(t *testing.T) {
@@ -595,8 +629,6 @@ func TestConsumerTransactions(t *testing.T) {
 		handler := func(context.Context, *NewEvent) error { return nil }
 		_, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
 		msg := newMessage(42)
-		session.On("MarkMessage", msg, "").Return()
-		session.On("Commit").Return()
 
 		err := c.doCallbackTxn(session, msg, ct)
 
@@ -604,8 +636,16 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.begins)
 		require.Equal(t, 1, fake.commits, "the empty transaction is still ended")
 		require.Equal(t, 0, fake.addOffsetCalls, "no transactional offset commit for a record-less transaction")
-		session.AssertCalled(t, "MarkMessage", msg, "")
-		session.AssertCalled(t, "Commit")
+		// Committed on its own, not through the session: session.Commit()
+		// flushes every partition of the session at once, which would let
+		// this delivery write a stale offset for the other claims.
+		require.Len(t, committedOffsets, 1)
+		require.Equal(t, committedOffset{
+			group: "group1", generation: 7, memberID: "member-a",
+			topic: "mytopic", partition: 3, offset: 43,
+		}, committedOffsets[0])
+		session.AssertNotCalled(t, "Commit")
+		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 
 	t.Run("bulk per-entry error aborts the whole batch", func(t *testing.T) {
@@ -627,7 +667,6 @@ func TestConsumerTransactions(t *testing.T) {
 		require.Equal(t, 1, fake.aborts)
 		require.Equal(t, 0, fake.commits)
 		require.Equal(t, 0, fake.addOffsetCalls)
-		session.AssertNotCalled(t, "MarkMessage", mock.Anything, mock.Anything)
 	})
 }
 

@@ -401,14 +401,14 @@ func (consumer *consumer) doBulkCallbackTxn(session sarama.ConsumerGroupSession,
 // there is nothing for the offset to be atomic with — so the empty
 // transaction is ended and the offset commits synchronously instead.
 //
-// Both paths mark the message on the session. Autocommit is disabled in
-// transactional mode, so marking sends nothing by itself; it keeps the
-// session's offset manager level with what the transaction committed. That
-// matters because session.Commit() flushes every dirty partition of the
-// session at once: if the transactional path left its partition behind, a
-// record-less delivery on ANOTHER partition could flush the stale offset and
-// overwrite a transactionally committed one downwards, redelivering messages
-// whose output was already on the topic.
+// Neither path touches the session's offset manager, which stays unused in
+// transactional mode. session.Commit() flushes every dirty partition of the
+// session at once, so one partition's record-less commit would also write
+// whatever the offset manager last held for the others — a value that lags
+// the offsets the transactional path commits inside its transactions, which
+// would redeliver messages whose output is already on the topic. Committing
+// only this partition keeps the two paths from writing each other's
+// offsets.
 func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage, ct *claimTxn, sent bool) error {
 	k := consumer.k
 
@@ -416,9 +416,7 @@ func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSessio
 		if err := producer.CommitTxn(); err != nil {
 			return k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
 		}
-		session.MarkMessage(message, "")
-		session.Commit()
-		return nil
+		return consumer.commitOffset(session, producer, message)
 	}
 
 	groupMetadata := &sarama.ConsumerGroupMetadata{
@@ -432,31 +430,128 @@ func (consumer *consumer) commitTxnWithOffset(session sarama.ConsumerGroupSessio
 	if err := producer.CommitTxn(); err != nil {
 		// A commit that exhausted sarama's EndTxn retries leaves the producer
 		// in CommittingTransaction with no answer from the broker: the
-		// transaction may or may not have committed. Retrying the delivery
-		// blind would republish its outputs if it did, and epoch fencing
-		// cannot take a committed transaction back — fencing aborts open
-		// transactions only. Ask the broker instead. This must run before the
-		// cleanup below, which closes the client the query uses.
-		landed := producer.TxnStatus()&sarama.ProducerTxnFlagCommittingTransaction != 0 &&
-			consumer.commitLanded(producer, message)
-
+		// transaction may still be open, or already committing. Retrying the
+		// delivery blind republishes its outputs if it committed, and epoch
+		// fencing cannot take a committed transaction back — fencing aborts
+		// open transactions only.
+		ambiguous := producer.TxnStatus()&sarama.ProducerTxnFlagCommittingTransaction != 0
 		cleanupErr := k.endProducerTxnWithError(producer, fmt.Errorf("kafka: commit transaction: %w", err), ct.invalidate)
-		if !landed {
+		if !ambiguous || !consumer.resolveAmbiguousCommit(session, ct, message) {
 			return cleanupErr
 		}
-		k.logger.Warnf("Kafka transaction commit returned %v but the broker had already committed it; not reprocessing %s/%d/%d", err, message.Topic, message.Partition, message.Offset)
+		k.logger.Warnf("Kafka transaction commit returned %v but the broker had committed it; not reprocessing %s/%d/%d", err, message.Topic, message.Partition, message.Offset)
 	}
-	// The broker already has this offset, committed inside the transaction.
-	// Marking it keeps the session's offset manager from lagging behind (see
-	// the note above); MarkOffset only ever moves an offset forward, so this
-	// cannot regress anything either.
-	session.MarkMessage(message, "")
+	// The offset is already at the broker, committed inside the transaction.
 	return nil
 }
+
+// commitOffset commits this partition's offset on its own, without going
+// through the session's offset manager. sarama's session.Commit() flushes
+// every dirty partition of the session in one request, which would let a
+// record-less delivery on one partition write a stale offset for the others;
+// a single-partition request cannot. The group generation and member id go
+// with it so the broker fences a commit from a revoked member, the same
+// fencing the transactional path gets from KIP-447.
+func (consumer *consumer) commitOffset(session sarama.ConsumerGroupSession, producer sarama.SyncProducer, message *sarama.ConsumerMessage) error {
+	k := consumer.k
+
+	commit := k.offsetCommitter
+	if commit == nil {
+		commit = commitOffsetToCoordinator
+	}
+	if err := commit(producer, k.consumerGroup, session.GenerationID(), session.MemberID(), message); err != nil {
+		return fmt.Errorf("kafka: commit offset for %s/%d/%d: %w", message.Topic, message.Partition, message.Offset, err)
+	}
+	return nil
+}
+
+// commitOffsetToCoordinator sends a single-partition OffsetCommit to the
+// group coordinator over the client the producer already owns.
+func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, generation int32, memberID string, message *sarama.ConsumerMessage) error {
+	owner, ok := producer.(clientOwner)
+	if !ok {
+		return errors.New("kafka: producer does not carry a client")
+	}
+	coordinator, err := owner.Client().Coordinator(group)
+	if err != nil {
+		return fmt.Errorf("locate group coordinator: %w", err)
+	}
+
+	req := &sarama.OffsetCommitRequest{
+		// consumerTransactionsEnabled enforces Kafka >= 2.5, so the flexible
+		// v8 request is always supported.
+		Version:                 8,
+		ConsumerGroup:           group,
+		ConsumerGroupGeneration: generation,
+		ConsumerID:              memberID,
+	}
+	// The committed offset is the next one to read, not the one just handled.
+	req.AddBlock(message.Topic, message.Partition, message.Offset+1, 0, "")
+
+	resp, err := coordinator.CommitOffset(req)
+	if err != nil {
+		return fmt.Errorf("commit offset: %w", err)
+	}
+	kerr, ok := resp.Errors[message.Topic][message.Partition]
+	if !ok {
+		return errors.New("commit offset: no result for the partition")
+	}
+	if kerr != sarama.ErrNoError {
+		return fmt.Errorf("commit offset: %w", kerr)
+	}
+	return nil
+}
+
+const (
+	// How long resolveAmbiguousCommit waits for the coordinator to make a
+	// pending transaction terminal. A commit that is already writing its
+	// markers finishes in milliseconds; anything slower is treated as
+	// unresolvable and the delivery is reprocessed.
+	ambiguousCommitFenceAttempts = 5
+	ambiguousCommitFenceBackoff  = 200 * time.Millisecond
+)
 
 // clientOwner is implemented by the producers this component builds.
 type clientOwner interface {
 	Client() sarama.Client
+}
+
+// resolveAmbiguousCommit settles a transaction whose commit outcome is
+// unknown and reports whether it committed.
+//
+// The order is load-bearing. Reading the committed offset straight away
+// cannot answer the question: until the transaction is terminal the group
+// coordinator still shows the pre-transaction offset whether it is about to
+// commit or can still abort. Recreating the claim's producer first is what
+// settles it — the new producer reuses the same transactional.id, so the
+// coordinator aborts a transaction that was still open, and answers
+// CONCURRENT_TRANSACTIONS (which sarama surfaces as a failure to build the
+// producer) until one already committing becomes terminal. Once the producer
+// exists, the offset the coordinator reports is final.
+//
+// Failing to settle it answers false, which reprocesses the delivery: the
+// behaviour the component had before, risking a duplicate rather than a lost
+// message.
+func (consumer *consumer) resolveAmbiguousCommit(session sarama.ConsumerGroupSession, ct *claimTxn, message *sarama.ConsumerMessage) bool {
+	k := consumer.k
+
+	for attempt := range ambiguousCommitFenceAttempts {
+		if attempt > 0 {
+			select {
+			case <-session.Context().Done():
+				return false
+			case <-time.After(ambiguousCommitFenceBackoff):
+			}
+		}
+		producer, err := ct.getProducer()
+		if err == nil {
+			return consumer.commitLanded(producer, message)
+		}
+		k.logger.Debugf("Waiting for the transaction of %s/%d/%d to settle before reading the committed offset: %v", message.Topic, message.Partition, message.Offset, err)
+	}
+
+	k.logger.Warnf("Could not settle the transaction of %s/%d/%d after an unknown-outcome commit, reprocessing the delivery", message.Topic, message.Partition, message.Offset)
+	return false
 }
 
 // commitLanded reports whether the broker committed the transaction whose
@@ -496,6 +591,13 @@ func fetchCommittedOffset(producer sarama.SyncProducer, group, topic string, par
 	if err != nil {
 		return 0, fmt.Errorf("kafka: locate group coordinator: %w", err)
 	}
+	// Deliberately without RequireStable. It would answer
+	// ErrUnstableOffsetCommit whenever a transactional offset commit for this
+	// partition has not materialized, and the group coordinator gives that
+	// same answer whether the transaction is about to commit or is still open
+	// and can yet abort — it only knows "pending" from "materialized", the
+	// distinction lives in the transaction coordinator's log. Reading pending
+	// as committed would skip a message that never got published.
 	resp, err := coordinator.FetchOffset(sarama.NewOffsetFetchRequest(
 		client.Config().Version, group, map[string][]int32{topic: {partition}},
 	))

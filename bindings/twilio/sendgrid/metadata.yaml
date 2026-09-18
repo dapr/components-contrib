@@ -61,3 +61,7 @@ metadata:
     required: false
     description: "The dynamic template ID"
     example: "your-template-id"
+  - name: trackingSettings
+    required: false
+    description: "JSON object controlling SendGrid email tracking, using SendGrid API field names (click_tracking, open_tracking, subscription_tracking, ganalytics)"
+    example: '{"click_tracking":{"enable":true,"enable_text":true},"open_tracking":{"enable":true},"subscription_tracking":{"enable":false},"ganalytics":{"enable":true,"utm_source":"transactional-email","utm_medium":"email"}}'

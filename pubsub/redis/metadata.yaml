@@ -223,6 +223,15 @@ metadata:
       The number of concurrent workers that are processing messages.
     example: "15"
     default: "10"
+  - name: streamStartID
+    required: false
+    description: |
+      The stream entry ID a new consumer group starts reading from. Use "0" to
+      read the entire stream history, or "$" to only receive messages published
+      after the consumer group is created.
+    example: "$"
+    default: "0"
+    type: string
     type: number
   - name: redisType
     required: false

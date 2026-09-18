@@ -113,6 +113,8 @@ type Settings struct {
 	QueueDepth uint `mapstructure:"queueDepth" mdonly:"pubsub"`
 	// The number of concurrent workers that are processing messages
 	Concurrency uint `mapstructure:"concurrency" mdonly:"pubsub"`
+	// The stream entry ID a new consumer group starts reading from
+	StreamStartID string `mapstructure:"streamStartID" mdonly:"pubsub"`
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`

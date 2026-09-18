@@ -14,18 +14,26 @@ limitations under the License.
 package sentinel
 
 import (
-	"github.com/alibaba/sentinel-golang/logging"
-
 	"github.com/dapr/kit/logger"
 )
 
+// loggerAdaptor implements sentinel's logging.Logger over the Dapr logger.
+//
+// Sentinel already logs with a message plus alternating keys and values, which
+// maps directly onto the structured logger. The previous adaptor flattened
+// everything into one string via logging.AssembleMsg, burying sentinel's own
+// timestamp and caller inside the message, and logged warnings and errors at
+// info level; both are corrected here.
 type loggerAdaptor struct {
-	logger logger.Logger
+	log *logger.Log
+}
+
+func newLoggerAdaptor(l logger.Logger) *loggerAdaptor {
+	return &loggerAdaptor{log: logger.FromLogger(l)}
 }
 
 func (l *loggerAdaptor) Debug(msg string, keysAndValues ...interface{}) {
-	s := logging.AssembleMsg(logging.GlobalCallerDepth, "DEBUG", msg, nil, keysAndValues...)
-	l.logger.Debug(s)
+	l.log.Debug(msg, keysAndValues...)
 }
 
 func (l *loggerAdaptor) DebugEnabled() bool {
@@ -33,8 +41,7 @@ func (l *loggerAdaptor) DebugEnabled() bool {
 }
 
 func (l *loggerAdaptor) Info(msg string, keysAndValues ...interface{}) {
-	s := logging.AssembleMsg(logging.GlobalCallerDepth, "INFO", msg, nil, keysAndValues...)
-	l.logger.Info(s)
+	l.log.Info(msg, keysAndValues...)
 }
 
 func (l *loggerAdaptor) InfoEnabled() bool {
@@ -42,8 +49,7 @@ func (l *loggerAdaptor) InfoEnabled() bool {
 }
 
 func (l *loggerAdaptor) Warn(msg string, keysAndValues ...interface{}) {
-	s := logging.AssembleMsg(logging.GlobalCallerDepth, "WARNING", msg, nil, keysAndValues...)
-	l.logger.Info(s)
+	l.log.Warn(msg, keysAndValues...)
 }
 
 func (l *loggerAdaptor) WarnEnabled() bool {
@@ -51,8 +57,14 @@ func (l *loggerAdaptor) WarnEnabled() bool {
 }
 
 func (l *loggerAdaptor) Error(err error, msg string, keysAndValues ...interface{}) {
-	s := logging.AssembleMsg(logging.GlobalCallerDepth, "ERROR", msg, nil, keysAndValues...)
-	l.logger.Info(s)
+	args := make([]any, 0, len(keysAndValues)+1)
+	args = append(args, keysAndValues...)
+
+	if err != nil {
+		args = append(args, logger.Err(err))
+	}
+
+	l.log.Error(msg, args...)
 }
 
 func (l *loggerAdaptor) ErrorEnabled() bool {

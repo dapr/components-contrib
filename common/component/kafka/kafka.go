@@ -233,7 +233,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 		RetryMax:        meta.ProducerRetryMax,
 		MaxMessageBytes: meta.MaxMessageBytes,
 	}
-	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
+	sarama.Logger = newSaramaLogBridge(k.logger)
 
 	// Default retry configuration is used if no
 	// backOff properties are set.

@@ -459,7 +459,9 @@ func (r *StateStore) registerSchemas(ctx context.Context) error {
 	for name, elem := range r.querySchemas {
 		r.logger.Infof("create query index %s", name)
 		if err := r.client.DoWrite(ctx, elem.schema...); err != nil {
-			if err.Error() != "Index already exists" {
+			// Redis < 8.8 replies "Index already exists"; Redis >= 8.8 prefixes
+			// the reply with an error code: "SEARCH_INDEX_EXISTS Index already exists".
+			if !strings.Contains(err.Error(), "Index already exists") {
 				return err
 			}
 			r.logger.Infof("drop stale query index %s", name)

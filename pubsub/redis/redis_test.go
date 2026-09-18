@@ -618,8 +618,11 @@ func TestEnqueueHoldsWholeBatchWhileBlocked(t *testing.T) {
 			generateRedisStreamTestData(3, "data", "md"))
 	}()
 
+	// Wait until the first message is on the queue as well as all three being held, so the
+	// enqueue is genuinely blocked on the second. Without the queue check, cancelling could
+	// land while the loop is still on the first message, where the send is also ready.
 	require.Eventually(t, func() bool {
-		return len(r.heldEntries("stream")) == 3
+		return len(r.heldEntries("stream")) == 3 && len(r.queue) == 1
 	}, time.Second, 10*time.Millisecond, "all three entries should be held while the enqueue is blocked")
 
 	// Cancelling must release the entries that never made it onto the queue, so that a

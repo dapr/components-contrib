@@ -70,7 +70,7 @@ metadata:
     type: bool
     required: false
     default: "false"
-    example: "true"
+    example: "false"
     description: |
       Enable in order processing of messages within a partition. Checkpoints advance
       only through contiguous successfully processed batches in both modes. When false,

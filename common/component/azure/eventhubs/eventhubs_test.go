@@ -288,6 +288,95 @@ func TestProcessEventsConcurrentModeWaitsForContiguousSuccess(t *testing.T) {
 	assert.True(t, client.isClosed())
 }
 
+func TestProcessEventsConcurrentModeDoesNotCheckpointWhenDisabled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	handled := make(chan struct{}, 2)
+	client := &fakeProcessorPartitionClient{
+		batches: [][]*azeventhubs.ReceivedEventData{
+			{receivedEvent("A", 1, 10)},
+			{receivedEvent("B", 2, 20)},
+		},
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 2,
+		},
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 0,
+			Handler: func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				handled <- struct{}{}
+				return nil, nil
+			},
+		})
+	}()
+
+	<-handled
+	<-handled
+	require.Eventually(t, func() bool {
+		return client.receivedCount() == 2
+	}, time.Second, time.Millisecond)
+	cancel()
+
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Empty(t, client.checkpointSequences())
+	assert.True(t, client.isClosed())
+}
+
+func TestProcessEventsConcurrentModeCheckpointsContiguousSuccessAtConfiguredFrequency(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	releaseFirst := make(chan struct{})
+	laterCompleted := make(chan struct{}, 2)
+	client := &fakeProcessorPartitionClient{
+		batches: [][]*azeventhubs.ReceivedEventData{
+			{receivedEvent("A", 1, 10)},
+			{receivedEvent("B", 2, 20)},
+			{receivedEvent("C", 3, 30)},
+		},
+	}
+	client.checkpointHook = cancel
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 3,
+		},
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(ctx, client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 2,
+			Handler: func(_ context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				if events[0].SequenceNumber == 1 {
+					<-releaseFirst
+				} else {
+					laterCompleted <- struct{}{}
+				}
+				return nil, nil
+			},
+		})
+	}()
+
+	<-laterCompleted
+	<-laterCompleted
+	assert.Empty(t, client.checkpointSequences(), "later successes must not checkpoint past unresolved A")
+	close(releaseFirst)
+
+	require.ErrorIs(t, <-result, context.Canceled)
+	assert.Equal(t, []int64{3}, client.checkpointSequences())
+	assert.True(t, client.isClosed())
+}
+
 func TestProcessEventsConcurrentModeStopsReceivingAtCapacity(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
@@ -700,6 +789,27 @@ func TestHandleWithRetrySupportsMissingMessageID(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, attempts)
+}
+
+func TestHandleWithRetryContinuesPastConfiguredRetryLimit(t *testing.T) {
+	aeh := &AzureEventHubs{
+		logger:        testLogger,
+		backOffConfig: retryConfigWithoutDelay(),
+	}
+	attempts := 0
+
+	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+		receivedEvent("A", 1, 10),
+	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+		attempts++
+		if attempts <= 5 {
+			return nil, errors.New("message remains unresolved")
+		}
+		return nil, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 6, attempts)
 }
 
 func retryConfigWithoutDelay() retry.Config {

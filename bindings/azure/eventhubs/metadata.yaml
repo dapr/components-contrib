@@ -95,7 +95,7 @@ metadata:
     type: bool
     required: false
     default: "false"
-    example: "true"
+    example: "false"
     binding:
       input: true
       output: false

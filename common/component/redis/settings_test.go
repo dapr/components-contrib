@@ -351,3 +351,48 @@ func TestPubSubDurationSettings(t *testing.T) {
 		})
 	}
 }
+
+// TestKeepAliveIntervalMustBeShorterThanProcessingTimeout rejects a keep-alive that cannot renew an
+// entry before it becomes reclaimable, which would silently reintroduce the duplicate delivery the
+// setting exists to prevent.
+func TestKeepAliveIntervalMustBeShorterThanProcessingTimeout(t *testing.T) {
+	tests := map[string]struct {
+		properties map[string]string
+		wantErr    bool
+	}{
+		"shorter than the timeout is fine": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "30s"},
+		},
+		"equal to the timeout races the reclaim": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "60s"},
+			wantErr:    true,
+		},
+		"longer than the timeout renews too late": {
+			properties: map[string]string{"processingTimeout": "20m", "entryKeepAliveInterval": "30m"},
+			wantErr:    true,
+		},
+		"disabled keep-alive is fine": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "0"},
+		},
+		"irrelevant when redelivery is disabled": {
+			properties: map[string]string{"processingTimeout": "60s", "redeliverInterval": "0", "entryKeepAliveInterval": "90s"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, _, err := ParseClientFromProperties(props, metadata.PubSubType, t.Context(), &log)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "must be shorter than")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

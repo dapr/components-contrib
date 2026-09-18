@@ -215,9 +215,11 @@ metadata:
     description: |
       The interval at which the component resets the idle time of the pending messages it is
       holding, so that messages still buffered or being processed are not redelivered before
-      "processingTimeout" elapses. Defaults to half of "processingTimeout". "0" disables the
-      keep-alive, restoring the previous behaviour where queueing time counts towards
-      "processingTimeout".
+      "processingTimeout" elapses. Must be shorter than "processingTimeout" while redelivery
+      is enabled, otherwise a held message becomes reclaimable before it is renewed; the
+      component fails to initialise if it is not. Defaults to half of "processingTimeout".
+      "0" disables the keep-alive, restoring the previous behaviour where queueing time
+      counts towards "processingTimeout".
     example: "30s"
     default: "processingTimeout / 2"
     type: duration

@@ -173,6 +173,18 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		if _, ok := properties[entryKeepAliveIntervalKey]; !ok {
 			settings.EntryKeepAliveInterval = settings.ProcessingTimeout / 2
 		}
+
+		// A keep-alive that is not comfortably shorter than the reclaim threshold cannot do
+		// its job: the entry becomes reclaimable before the first renewal, and an interval
+		// equal to the threshold races the reclaim ticker. Either reproduces the duplicate
+		// delivery this setting exists to prevent, so reject it rather than appear to work.
+		if settings.RedeliverInterval > 0 && settings.ProcessingTimeout > 0 &&
+			settings.EntryKeepAliveInterval >= settings.ProcessingTimeout {
+			return nil, nil, fmt.Errorf(
+				"redis client configuration error: %s (%s) must be shorter than %s (%s), otherwise held messages are reclaimed before the first keep-alive",
+				entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval,
+				processingTimeoutKey, settings.ProcessingTimeout)
+		}
 	}
 	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT
 	var oidcTokenExpiry time.Time

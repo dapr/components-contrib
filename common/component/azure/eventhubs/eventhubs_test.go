@@ -133,7 +133,7 @@ type fakeProcessorPartitionClient struct {
 
 func (f *fakeProcessorPartitionClient) ReceiveEvents(ctx context.Context, _ int, _ *azeventhubs.ReceiveEventsOptions) ([]*azeventhubs.ReceivedEventData, error) {
 	f.mu.Lock()
-	if f.receiveErr != nil {
+	if f.receiveCalls >= len(f.batches) && f.receiveErr != nil {
 		f.receiveCalls++
 		f.mu.Unlock()
 		return nil, f.receiveErr
@@ -580,6 +580,52 @@ func TestProcessEventsDoesNotCheckpointAfterOwnershipLoss(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, client.receivedCount())
+	assert.Empty(t, client.checkpointSequences())
+	assert.True(t, client.isClosed())
+}
+
+func TestProcessEventsDoesNotCheckpointHandlerAfterOwnershipLoss(t *testing.T) {
+	handlerStarted := make(chan struct{})
+	handlerCanceled := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	client := &fakeProcessorPartitionClient{
+		batches:    [][]*azeventhubs.ReceivedEventData{{receivedEvent("A", 1, 10)}},
+		receiveErr: &azeventhubs.Error{Code: azeventhubs.ErrorCodeOwnershipLost},
+	}
+	aeh := &AzureEventHubs{
+		logger: testLogger,
+		metadata: &AzureEventHubsMetadata{
+			MaxConcurrentHandlers: 2,
+		},
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- aeh.processEvents(context.Background(), client, SubscribeConfig{
+			Topic:                           "topic",
+			MaxBulkSubCount:                 1,
+			MaxBulkSubAwaitDurationMs:       100,
+			CheckPointFrequencyPerPartition: 1,
+			Handler: func(ctx context.Context, _ []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+				close(handlerStarted)
+				go func() {
+					<-ctx.Done()
+					close(handlerCanceled)
+				}()
+				<-releaseHandler
+				return nil, nil
+			},
+		})
+	}()
+
+	<-handlerStarted
+	require.Eventually(t, func() bool {
+		return client.receivedCount() == 2
+	}, time.Second, time.Millisecond)
+	<-handlerCanceled
+	close(releaseHandler)
+
+	require.NoError(t, <-result)
 	assert.Empty(t, client.checkpointSequences())
 	assert.True(t, client.isClosed())
 }

@@ -366,6 +366,39 @@ type pendingBatch struct {
 	completed bool
 }
 
+type partitionCheckpointGate struct {
+	mu            sync.Mutex
+	ownershipLost atomic.Bool
+}
+
+func (g *partitionCheckpointGate) update(
+	ctx context.Context,
+	partitionClient processorPartitionClient,
+	event *azeventhubs.ReceivedEventData,
+) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.ownershipLost.Load() {
+		return context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	checkpointCtx, cancel := context.WithTimeout(ctx, resourceCreationTimeout)
+	defer cancel()
+	return partitionClient.UpdateCheckpoint(checkpointCtx, event, nil)
+}
+
+func (g *partitionCheckpointGate) loseOwnership(cancel context.CancelFunc) {
+	cancel()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.ownershipLost.Store(true)
+}
+
 type partitionCheckpointTracker struct {
 	mu sync.Mutex
 	// Batches are keyed by receive order so completions can arrive out of order
@@ -400,6 +433,7 @@ func (t *partitionCheckpointTracker) complete(
 	ctx context.Context,
 	index uint64,
 	partitionClient processorPartitionClient,
+	checkpointGate *partitionCheckpointGate,
 ) (int, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -425,12 +459,7 @@ func (t *partitionCheckpointTracker) complete(
 	}
 
 	if checkpoint != nil {
-		if err := ctx.Err(); err != nil {
-			return advanced, err
-		}
-		checkpointCtx, cancel := context.WithTimeout(ctx, resourceCreationTimeout)
-		err := partitionClient.UpdateCheckpoint(checkpointCtx, checkpoint, nil)
-		cancel()
+		err := checkpointGate.update(ctx, partitionClient, checkpoint)
 		if err != nil {
 			return advanced, fmt.Errorf("failed to update checkpoint: %w", err)
 		}
@@ -467,6 +496,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 		}
 	}
 	tracker := newPartitionCheckpointTracker(config.CheckPointFrequencyPerPartition)
+	checkpointGate := &partitionCheckpointGate{}
 	counter := 0
 	for {
 		if !aeh.metadata.EnableInOrderMessageDelivery {
@@ -504,6 +534,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 			eventHubError := (*azeventhubs.Error)(nil)
 			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
 				aeh.logger.Debugf("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), config.Topic)
+				checkpointGate.loseOwnership(processCancel)
 				return nil
 			}
 
@@ -530,7 +561,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 					if handleErr := aeh.handleWithRetry(processCtx, config.Topic, events, config.Handler); handleErr != nil {
 						return
 					}
-					advanced, checkpointErr := tracker.complete(processCtx, index, partitionClient)
+					advanced, checkpointErr := tracker.complete(processCtx, index, partitionClient, checkpointGate)
 					for range advanced {
 						<-deliverySlots
 					}
@@ -551,9 +582,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 				// Update checkpoint with frequency of `checkpointFrequencyPerPartition` for a given partition
 				if counter%config.CheckPointFrequencyPerPartition == 0 {
 					// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
-					ctx, cancel = context.WithTimeout(processCtx, resourceCreationTimeout)
-					err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1], nil)
-					cancel()
+					err = checkpointGate.update(processCtx, partitionClient, events[len(events)-1])
 					if err != nil {
 						return fmt.Errorf("failed to update checkpoint: %w", err)
 					}

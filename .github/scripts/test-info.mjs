@@ -235,6 +235,10 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
+    'bindings.sqlserver': {
+        certification: true,
+        sourcePkg: ['bindings/sqlserver', 'common/authentication/sqlserver'],
+    },
     'configuration.postgres': {
         certification: true,
         sourcePkg: [

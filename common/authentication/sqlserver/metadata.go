@@ -29,9 +29,11 @@ import (
 // SQLServerAuthMetadata contains the auth metadata for a SQL Server component.
 type SQLServerAuthMetadata struct {
 	ConnectionString string `mapstructure:"connectionString" mapstructurealiases:"url"`
-	DatabaseName     string `mapstructure:"databaseName" mapstructurealiases:"database"`
-	SchemaName       string `mapstructure:"schemaName" mapstructurealiases:"schema"`
-	UseAzureAD       bool   `mapstructure:"useAzureAD"`
+	// DatabaseName and SchemaName are only used by the SQL Server state store, which manages its
+	// own database/schema. The SQL Server binding relies entirely on the connection string instead.
+	DatabaseName string `mapstructure:"databaseName" mapstructurealiases:"database" mdonly:"state"`
+	SchemaName   string `mapstructure:"schemaName" mapstructurealiases:"schema" mdonly:"state"`
+	UseAzureAD   bool   `mapstructure:"useAzureAD"`
 
 	azureEnv azure.EnvironmentSettings
 }

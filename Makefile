@@ -93,30 +93,9 @@ verify-linter-version:
 ################################################################################
 # Target: test                                                                 #
 ################################################################################
-TARGET_GOOS := $(GOOS)
-TARGET_GOARCH := $(GOARCH)
-
-# When cross-compiling, skip executing test binaries because the host cannot run
-# binaries for a different OS/architecture. This still compiles the tests and
-# validates the build for the target platform.
-GO_TEST_EXEC :=
-ifneq ($(TARGET_GOOS),$(HOST_GOOS))
-ifeq ($(HOST_GOOS),windows)
-GO_TEST_EXEC := -exec="cmd /C exit 0"
-else
-GO_TEST_EXEC := -exec=true
-endif
-else ifneq ($(TARGET_GOARCH),$(HOST_GOARCH))
-ifeq ($(HOST_GOOS),windows)
-GO_TEST_EXEC := -exec="cmd /C exit 0"
-else
-GO_TEST_EXEC := -exec=true
-endif
-endif
-
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test $(GO_TEST_EXEC) ./... $(COVERAGE_OPTS) $(BUILDMODE) -tags metadata --timeout=15m
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) -tags metadata --timeout=15m
 
 ################################################################################
 # Target: lint                                                                 #

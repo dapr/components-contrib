@@ -177,10 +177,38 @@ jobs:
             --vault-name $VAULT_NAME \
             --query value \
             --output tsv)
-          echo "::add-mask::$value"
-          echo "$secretName=$value" >> $GITHUB_OUTPUT
-          echo "$secretName=$value" >> $GITHUB_ENV
+          masked_value=${value//%/%25}
+          masked_value=${masked_value//$'\r'/%0D}
+          masked_value=${masked_value//$'\n'/%0A}
+          echo "::add-mask::$masked_value"
+          delimiter=$(openssl rand -hex 16)
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_ENV"
         done
+
+    - name: Setup OCI config file
+      if: env.DAPR_TEST_OCI_CONFIG_FILE_PATH != '' || env.DAPR_TEST_OCI_CONFIG_PROFILE != ''
+      shell: bash
+      run: |
+        if [ -n "${DAPR_TEST_OCI_CONFIG_FILE_PATH:-}" ] && [ ! -f "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" ]; then
+          if printf '%s' "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" | grep -Eq '(^\[|^\s*\[|user=|tenancy=|fingerprint=)'; then
+            OCI_CONFIG_FILE=$(mktemp)
+            printf '%s' "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" > "$OCI_CONFIG_FILE"
+            echo "DAPR_TEST_OCI_CONFIG_FILE_PATH=$OCI_CONFIG_FILE" >> "$GITHUB_ENV"
+          fi
+        fi
+
+        if [ -z "${DAPR_TEST_OCI_CONFIG_PROFILE:-}" ]; then
+          echo "DAPR_TEST_OCI_CONFIG_PROFILE=DEFAULT" >> "$GITHUB_ENV"
+        fi
 
     # Authenticate with GCP Workload Identity Pool
     # Exports GCP ENV Vars:
@@ -283,6 +311,10 @@ jobs:
 
         if [ "${KIND}" = "secretstores" ]; then
           KIND_UPPER=SecretStore
+        fi
+
+        if [ "${KIND}" = "binarystore" ]; then
+          KIND_UPPER=BinaryStore
         fi
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "

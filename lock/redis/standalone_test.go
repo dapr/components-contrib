@@ -14,6 +14,7 @@ limitations under the License.
 package redis
 
 import (
+	"net"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -28,6 +29,16 @@ import (
 
 const resourceID = "resource_xxx"
 
+func getClosedPort(t *testing.T) string {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+	return addr
+}
+
 func TestStandaloneRedisLock_InitError(t *testing.T) {
 	t.Run("error when connection fail", func(t *testing.T) {
 		// construct component
@@ -37,7 +48,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
 		}}
-		cfg.Properties["redisHost"] = "127.0.0.1"
+		cfg.Properties["redisHost"] = getClosedPort(t)
 		cfg.Properties["redisPassword"] = ""
 
 		// init
@@ -69,7 +80,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
 		}}
-		cfg.Properties["redisHost"] = "127.0.0.1"
+		cfg.Properties["redisHost"] = getClosedPort(t)
 		cfg.Properties["redisPassword"] = ""
 		cfg.Properties["maxRetries"] = "1 "
 
@@ -274,7 +285,7 @@ func TestStandaloneRedisLock_ErrorScenarios(t *testing.T) {
 		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
 		}}
-		cfg.Properties["redisHost"] = "127.0.0.1:9999" // Non-existent Redis port
+		cfg.Properties["redisHost"] = getClosedPort(t)
 		cfg.Properties["redisPassword"] = ""
 
 		// init should fail due to connection error

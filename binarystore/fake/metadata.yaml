@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: fake
+version: v1
+status: development-only
+title: "Fake (in-memory)"
+description: "In-memory binary store for tests only. Not intended for production use."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/
+metadata:
+  - name: prefix
+    required: false
+    description: "An optional prefix prepended to all file names stored by this component."
+    example: '"myprefix"'

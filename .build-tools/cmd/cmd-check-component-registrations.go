@@ -49,6 +49,7 @@ This is a required step before an official Dapr release.`,
 		fmt.Println("========================================================================================")
 
 		checkConversationComponents()
+		checkBinaryStoreComponents()
 		checkStateComponents()
 		checkPubSubComponents()
 		checkSecretStoreComponents()
@@ -71,6 +72,11 @@ func init() {
 func checkConversationComponents() {
 	fmt.Println("\nChecking conversation components...")
 	checkComponents("conversation", []string{}, []string{})
+}
+
+func checkBinaryStoreComponents() {
+	fmt.Println("\nChecking binarystore components...")
+	checkComponents("binarystore", []string{}, []string{})
 }
 
 func checkStateComponents() {

@@ -39,6 +39,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/riferrei/srclient v0.7.3
 	github.com/stretchr/testify v1.11.1
+	github.com/tmc/langchaingo v0.1.15-0.20251029190607-e35755df7084
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.17.7
 	go.uber.org/multierr v1.11.0
@@ -308,7 +309,6 @@ require (
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/tmc/langchaingo v0.1.15-0.20251029190607-e35755df7084 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/vmware/vmware-go-kcl-v2 v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

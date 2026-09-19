@@ -37,9 +37,9 @@ metadata:
     type: string
     example: 'https://spark-api-open.xf-yun.com/v1'
     default: 'https://spark-api-open.xf-yun.com/v1'
-  - name: maxTokens
+  - name: cacheTTL
     required: false
     description: |
-      Max tokens for each request
-    type: number
-    example: "2048"
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

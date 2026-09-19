@@ -17,6 +17,7 @@ package spark
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -55,6 +56,10 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 	if err != nil {
 		return err
 	}
+	if md.Key == "" {
+		return errors.New("spark api key is required")
+	}
+
 	model := defaultModel
 	if md.Model != "" {
 		model = md.Model
@@ -73,6 +78,15 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 	s.Model = llm
 	s.SetModel(model)
 	s.md = md
+
+	if md.ResponseCacheTTL != nil {
+		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, s.Model)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		s.Model = cachedModel
+	}
 	return nil
 }
 

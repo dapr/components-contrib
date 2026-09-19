@@ -13,14 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// SparkMetadata is a common metadata structure for langchain supported implementations.
-
 package spark
 
 import "github.com/dapr/components-contrib/conversation"
 
+// SparkMetadata is the metadata for the iFlytek Spark conversation component.
 type SparkMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
-	Key                            string `json:"key"`
-	MaxTokens                      int    `json:"maxTokens"`
 }

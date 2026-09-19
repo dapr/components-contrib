@@ -220,6 +220,19 @@ func (a *AzureBlobStorage) blobName(name string) string {
 	return strings.TrimSuffix(a.metadata.Prefix, "/") + "/" + strings.TrimPrefix(name, "/")
 }
 
+// stripPrefix removes the configured component prefix from a full blob name
+// so that names returned to callers (from list, bulkGet, bulkDelete, ...) are
+// prefix-free and match what the caller would pass back into blobName. This
+// keeps the binding's external contract prefix-free, mirroring how names are
+// supplied by callers on the way in.
+func (a *AzureBlobStorage) stripPrefix(name string) string {
+	if a.metadata == nil || a.metadata.Prefix == "" {
+		return name
+	}
+	trimmedPrefix := strings.TrimSuffix(a.metadata.Prefix, "/") + "/"
+	return strings.TrimPrefix(name, trimmedPrefix)
+}
+
 func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobName string
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
@@ -508,6 +521,17 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	metadata[metadataKeyNumber] = strconv.FormatInt(int64(numBlobs), 10)
 	metadata[metadataKeyPagesTraversed] = strconv.FormatInt(int64(pagesTraversed), 10)
 
+	// Strip the configured component prefix from returned blob names so the
+	// external contract stays prefix-free. Otherwise a name that comes out of
+	// list and is passed back into get/delete/presign would get the prefix
+	// applied a second time.
+	for _, item := range blobs {
+		if item.Name != nil {
+			stripped := a.stripPrefix(*item.Name)
+			item.Name = &stripped
+		}
+	}
+
 	jsonResponse, err := json.Marshal(blobs)
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal blobs to json: %w", err)
@@ -604,7 +628,10 @@ func (a *AzureBlobStorage) bulkGet(ctx context.Context, req *bindings.InvokeRequ
 
 	for i, item := range items {
 		g.Go(func() error {
-			results[i].BlobName = item.BlobName
+			// item.BlobName is the full (prefixed) name needed for the actual
+			// blob client; report the prefix-free name back to the caller so
+			// the external contract stays prefix-free.
+			results[i].BlobName = a.stripPrefix(item.BlobName)
 			blockBlobClient := a.containerClient.NewBlockBlobClient(item.BlobName)
 
 			if item.FilePath != nil && *item.FilePath != "" {
@@ -893,7 +920,9 @@ func (a *AzureBlobStorage) bulkDelete(ctx context.Context, req *bindings.InvokeR
 	nameIndices := make(map[string][]int, len(names))
 	results := make([]bulkDeleteResponseItem, len(names))
 	for i, name := range names {
-		results[i].BlobName = name
+		// names holds the full (prefixed) blob name required for the actual
+		// delete calls; report the prefix-free name back to the caller.
+		results[i].BlobName = a.stripPrefix(name)
 		nameIndices[name] = append(nameIndices[name], i)
 	}
 

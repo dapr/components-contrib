@@ -106,9 +106,13 @@ func (s *AWSS3) Features() []binarystore.Feature {
 //
 // When req.Overwrite is false, an If-None-Match: * condition is applied so
 // that the server rejects the upload atomically if the object already
-// exists, returning binarystore.ErrFileAlreadyExists. Not all S3-compatible
-// providers support conditional writes; in that case the underlying error is
-// surfaced unless it maps to a PreconditionFailed-style response.
+// exists, returning binarystore.ErrFileAlreadyExists. This relies on the
+// endpoint honouring conditional writes: AWS S3 and other conforming
+// S3-compatible providers do, but a provider that does not recognize
+// If-None-Match may silently ignore the header and perform a normal
+// PutObject, overwriting any existing object without error. Only use
+// req.Overwrite = false against endpoints that are known to support
+// conditional writes.
 //
 // When req.Overwrite is true, the object is created or replaced without a
 // condition check.

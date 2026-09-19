@@ -31,7 +31,12 @@ metadata:
     description: |
       Custom endpoint for the component to use, to connect to S3-compatible
       services or emulators (e.g. MinIO, Ceph, Cloudflare R2). Do not use this
-      when running against production AWS.
+      when running against production AWS. Note: the `Set` operation's
+      overwrite=false semantics rely on the endpoint honouring conditional
+      writes (`If-None-Match`). Older or non-conforming S3-compatible
+      providers may silently ignore this header and overwrite existing
+      objects instead of failing; verify your provider supports conditional
+      writes before relying on overwrite=false to prevent data loss.
     example: '"http://localhost:9000"'
 
   - name: forcePathStyle

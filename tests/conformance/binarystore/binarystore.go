@@ -61,6 +61,16 @@ func randReader(seed int64) io.Reader {
 	return mathrand.New(mathrand.NewSource(seed)) //nolint:gosec // Deterministic reader for testing
 }
 
+// emptyReader is an io.Reader that always returns io.EOF immediately and is
+// deliberately not one of the concrete types (*bytes.Buffer, *bytes.Reader,
+// *strings.Reader, *os.File) that some SDKs special-case for zero-length
+// detection. Requests arriving from the Dapr runtime typically use a reader
+// of this shape, so this catches regressions where an empty payload fails to
+// upload unless the underlying provider special-cases those specific types.
+type emptyReader struct{}
+
+func (emptyReader) Read([]byte) (int, error) { return 0, io.EOF }
+
 // ConformanceTests runs the binary store conformance suite against the given
 // provider. Providers are expected to be initialised inside this function via
 // the supplied properties map.
@@ -120,6 +130,30 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		got, err := io.ReadAll(resp.Data)
 		require.NoError(t, err)
 		assert.Equal(t, payload, got)
+	})
+
+	t.Run("set and get empty payload", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
+		emptyName := makeObjectName(component, "empty")
+		cleanupNames[emptyName] = struct{}{}
+
+		err := store.Set(ctx, &binarystore.SetRequest{
+			FileName:  emptyName,
+			Data:      emptyReader{},
+			Overwrite: true,
+		})
+		require.NoError(t, err)
+
+		resp, err := store.Get(ctx, &binarystore.GetRequest{FileName: emptyName})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		defer resp.Data.Close()
+
+		got, err := io.ReadAll(resp.Data)
+		require.NoError(t, err)
+		assert.Empty(t, got)
 	})
 
 	t.Run("set without overwrite conflicts on existing file", func(t *testing.T) {

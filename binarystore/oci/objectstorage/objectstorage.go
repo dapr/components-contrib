@@ -17,6 +17,7 @@ limitations under the License.
 package objectstorage
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -325,6 +326,27 @@ func (c *ociObjectStoreClient) ensureBucketExists(ctx context.Context) error {
 }
 
 func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
+	// transfer.UploadManager.UploadStream only short-circuits a zero-length
+	// body to a single PutObject when the reader is one of a fixed set of
+	// concrete types (*bytes.Buffer, *bytes.Reader, *strings.Reader,
+	// *os.File); anything else - including the streaming reader supplied by
+	// the runtime for req.Data - falls through to the multipart path, which
+	// emits zero parts for an empty stream and fails when the commit is
+	// attempted. Peek the first byte ourselves so an empty payload is always
+	// represented as a *bytes.Reader that the SDK recognises as zero-length.
+	peek := make([]byte, 1)
+	n, err := io.ReadFull(data, peek)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("failed to read object data: %w", err)
+	}
+
+	var streamReader io.Reader
+	if n == 0 {
+		streamReader = bytes.NewReader(nil)
+	} else {
+		streamReader = io.MultiReader(bytes.NewReader(peek[:n]), data)
+	}
+
 	req := transfer.UploadStreamRequest{
 		UploadRequest: transfer.UploadRequest{
 			NamespaceName:       &c.metadata.Namespace,
@@ -332,7 +354,7 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			ObjectName:          &name,
 			ObjectStorageClient: c.objectClient,
 		},
-		StreamReader: data,
+		StreamReader: streamReader,
 	}
 	if !overwrite {
 		req.IfNoneMatch = common.String("*")

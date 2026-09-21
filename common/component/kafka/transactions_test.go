@@ -413,3 +413,47 @@ func TestConsumerGroupReadsRaceWithClose(t *testing.T) {
 	}
 	require.Nil(t, k.currentConsumerGroup(), "Close detaches the group")
 }
+
+func TestTransactionalIDIsInjective(t *testing.T) {
+	id := func(prefix, group, topic string, partition int32) string {
+		k := &Kafka{txnIDPrefix: prefix, consumerGroup: group}
+		return (&claimTxn{k: k, topic: topic, partition: partition}).transactionalID()
+	}
+
+	t.Run("hyphenated group and topic cannot collide", func(t *testing.T) {
+		// Joining the parts with "-" was ambiguous, and "-" is legal in both
+		// consumer group ids and topic names. Two components landing on the
+		// same id fence each other's producers on every transaction, with no
+		// error naming the cause.
+		require.NotEqual(t, id("dapr", "a-b", "c", 0), id("dapr", "a", "b-c", 0))
+	})
+
+	t.Run("a prefix cannot collide with a group either", func(t *testing.T) {
+		// The digest is fixed width, so the id parses from the right —
+		// partition, digest, prefix — and no prefix can eat into the rest.
+		require.NotEqual(t, id("dapr-a", "b", "c", 0), id("dapr", "a-b", "c", 0))
+	})
+
+	t.Run("stable across replicas and distinct per partition", func(t *testing.T) {
+		// Two replicas of the same app resolve the same id for a partition,
+		// which is what lets the new owner fence the old one. Nothing in the
+		// derivation may vary per process.
+		replicaA := &Kafka{txnIDPrefix: "pfx", consumerGroup: "group1"}
+		replicaB := &Kafka{txnIDPrefix: "pfx", consumerGroup: "group1"}
+		claimA := &claimTxn{k: replicaA, topic: "mytopic", partition: 3}
+		claimB := &claimTxn{k: replicaB, topic: "mytopic", partition: 3}
+		require.Equal(t, claimA.transactionalID(), claimB.transactionalID())
+
+		require.NotEqual(t, id("pfx", "group1", "mytopic", 3), id("pfx", "group1", "mytopic", 4))
+	})
+
+	t.Run("the prefix stays verbatim so prefix ACLs keep working", func(t *testing.T) {
+		require.True(t, strings.HasPrefix(id("my-app", "group1", "mytopic", 3), "my-app-"))
+	})
+
+	t.Run("format is the documented one", func(t *testing.T) {
+		// metadata.yaml tells operators to recompute this to map an id back
+		// to a group and topic, so the derivation is a published contract.
+		require.Equal(t, "pfx-a122fd13f2b4fa56-3", id("pfx", "group1", "mytopic", 3))
+	})
+}

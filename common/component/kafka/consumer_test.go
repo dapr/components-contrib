@@ -157,7 +157,7 @@ func TestConsumerTransactions(t *testing.T) {
 
 	t.Run("claim transactional id is stable per partition", func(t *testing.T) {
 		_, _, ct, _ := arrange(t, SubscriptionHandlerConfig{}, nil)
-		require.Equal(t, "pfx-group1-mytopic-3", ct.transactionalID())
+		require.Equal(t, "pfx-a122fd13f2b4fa56-3", ct.transactionalID())
 	})
 
 	t.Run("claim producer is created transactional with the stable id", func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestConsumerTransactions(t *testing.T) {
 		require.NoError(t, c.doCallbackTxn(session, newMessage(42), ct))
 
 		require.True(t, got.TransactionsEnabled, "the claim producer must be transactional")
-		require.Equal(t, "pfx-group1-mytopic-3", got.TransactionalID)
+		require.Equal(t, "pfx-a122fd13f2b4fa56-3", got.TransactionalID)
 		require.Equal(t, 90*time.Second, got.TransactionTimeout)
 	})
 

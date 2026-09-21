@@ -14,9 +14,9 @@ limitations under the License.
 package kafka
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/IBM/sarama"
@@ -124,8 +124,21 @@ func (k *Kafka) newClaimTxn(topic string, partition int32) *claimTxn {
 	return &claimTxn{k: k, topic: topic, partition: partition}
 }
 
+// transactionalID derives the claim's transactional.id. The consumer group
+// and topic go through a digest rather than into the id verbatim: joining
+// them with a separator is not injective, because "-" is legal in both, so
+// group "a-b" on topic "c" and group "a" on topic "b-c" would register the
+// same id and fence each other's producers on every transaction, forever and
+// with no error naming the cause. A fixed-width digest also keeps the id
+// parseable from the right — partition, digest, prefix — so no prefix can
+// collide with a group either.
+//
+// The prefix stays verbatim so "<prefix>-*" broker ACLs keep working. What is
+// lost is reading the group and topic straight off a transactional.id at the
+// broker; metadata.yaml documents how to recompute the digest for that.
 func (ct *claimTxn) transactionalID() string {
-	return ct.k.txnIDPrefix + "-" + ct.k.consumerGroup + "-" + ct.topic + "-" + strconv.Itoa(int(ct.partition))
+	sum := sha256.Sum256([]byte(ct.k.consumerGroup + "\x00" + ct.topic))
+	return fmt.Sprintf("%s-%x-%d", ct.k.txnIDPrefix, sum[:8], ct.partition)
 }
 
 // getProducer lazily creates the claim's transactional producer on the first

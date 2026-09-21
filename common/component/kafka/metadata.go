@@ -172,11 +172,13 @@ type KafkaMetadata struct {
 	// TransactionalIDPrefix is the prefix used to build transactional.ids.
 	// The shared publish producer appends a random per-instance suffix so
 	// scaled replicas never fence each other (fallback chain: prefix, client
-	// ID, consumer group, "dapr"). Claim producers (consumer transactions)
-	// use it as the stable leading segment of
-	// <prefix>-<group>-<topic>-<partition> (fallback: prefix, client ID,
-	// "dapr") — it must resolve identically on every replica for zombie
-	// fencing to work.
+	// ID, consumer group, "dapr").
+	//
+	// Claim producers (consumer transactions) use it as the stable leading
+	// segment of <prefix>-<digest>-<partition>, where the digest covers the
+	// consumer group and topic (fallback chain: prefix, client ID, "dapr").
+	// It must resolve identically on every replica for zombie fencing to
+	// work.
 	TransactionalIDPrefix string `mapstructure:"transactionalIdPrefix"`
 	// ConsumerIsolationLevel controls which records consumers see:
 	// "read_uncommitted" (default) delivers everything, "read_committed"

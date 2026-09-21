@@ -192,7 +192,10 @@ func (o *ObjectStorage) Set(ctx context.Context, req *binarystore.SetRequest) er
 	}
 
 	if err := o.client.putObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
-		if isPreconditionFailed(err) {
+		// Only a create-only write can fail because the object already
+		// exists; when overwriting, a precondition failure signals an
+		// unrelated condition that must be surfaced to the caller.
+		if !req.Overwrite && isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
 		return fmt.Errorf("error uploading object %q: %w", req.FileName, err)
@@ -353,6 +356,11 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			BucketName:          &c.metadata.BucketName,
 			ObjectName:          &name,
 			ObjectStorageClient: c.objectClient,
+			// Set explicitly so buffering matches the other binary store
+			// providers rather than the SDK defaults (10 MiB parts, 5
+			// goroutines).
+			PartSize:           common.Int64(binarystore.DefaultUploadPartSize),
+			NumberOfGoroutines: common.Int(binarystore.DefaultUploadConcurrency),
 		},
 		StreamReader: streamReader,
 	}

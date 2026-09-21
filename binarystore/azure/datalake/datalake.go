@@ -19,6 +19,7 @@ package datalake
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 
@@ -34,18 +35,29 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	// uploadChunkSize is the chunk size used when streaming uploads. The SDK
-	// default of 1 MiB serialises large uploads into many small requests.
-	uploadChunkSize = 8 * 1024 * 1024
-	// uploadConcurrency is the number of chunks uploaded in parallel.
-	uploadConcurrency = 4
-)
+// cleanupTimeout bounds the best-effort removal of a temporary file after a
+// failed upload, which must not inherit an already-cancelled request context.
+const cleanupTimeout = 30 * time.Second
 
 // AzureDataLakeStorage implements binarystore.BinaryStore using Azure Data
 // Lake Storage Gen2.
 type AzureDataLakeStorage struct {
-	metadata         *storagecommon.DataLakeMetadata
+	metadata *storagecommon.DataLakeMetadata
+	client   datalakeStoreClient
+	logger   logger.Logger
+}
+
+// datalakeStoreClient isolates the SDK calls the component makes, mirroring
+// the client seams used by the other binary store providers so that behaviour
+// can be unit tested without a live storage account.
+type datalakeStoreClient interface {
+	putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error
+	getObject(ctx context.Context, name string) (io.ReadCloser, error)
+	deleteObject(ctx context.Context, name string) error
+	close() error
+}
+
+type azureDataLakeClient struct {
 	fileSystemClient *filesystem.Client
 	logger           logger.Logger
 }
@@ -57,9 +69,17 @@ func NewAzureDataLakeStorage(log logger.Logger) binarystore.BinaryStore {
 
 // Init initialises the Azure Data Lake Storage client from the component metadata.
 func (a *AzureDataLakeStorage) Init(ctx context.Context, md binarystore.Metadata) error {
-	var err error
-	a.fileSystemClient, a.metadata, err = storagecommon.CreateFileSystemStorageClient(ctx, a.logger, md.Properties)
-	return err
+	fileSystemClient, m, err := storagecommon.CreateFileSystemStorageClient(ctx, a.logger, md.Properties)
+	if err != nil {
+		return err
+	}
+
+	a.metadata = m
+	a.client = &azureDataLakeClient{
+		fileSystemClient: fileSystemClient,
+		logger:           a.logger,
+	}
+	return nil
 }
 
 // Features returns the optional features supported by this component.
@@ -79,65 +99,16 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 		return binarystore.ErrMissingFileName
 	}
 
-	objectPath := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
-
-	// The data is uploaded to a temporary path and then renamed onto the
-	// target path, so that a failed upload never leaves a partial file in
-	// place and the create-only condition is evaluated atomically by the
-	// service during the rename.
-	tempPath := fmt.Sprintf("%s.tmp-%s", objectPath, uuid.NewString())
-	tempClient := a.fileSystemClient.NewFileClient(tempPath)
-
-	if _, err := tempClient.Create(ctx, nil); err != nil {
-		return fmt.Errorf("error creating temporary file %q: %w", req.FileName, err)
-	}
-
-	uploadOpts := &file.UploadStreamOptions{
-		// The SDK default chunk size of 1 MiB uploaded one at a time bounds
-		// throughput by per-request latency for multi-gigabyte files.
-		ChunkSize:   uploadChunkSize,
-		Concurrency: uploadConcurrency,
-	}
-	if err := tempClient.UploadStream(ctx, req.Data, uploadOpts); err != nil {
-		if cleanupErr := cleanupFileIfExists(ctx, tempClient); cleanupErr != nil {
-			a.logger.Warnf("failed to remove temporary file %q: %v", tempPath, cleanupErr)
+	if err := a.client.putObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+		// Only a create-only write can fail because the path already exists;
+		// when overwriting, a condition failure signals an unrelated
+		// condition that must be surfaced to the caller.
+		if !req.Overwrite && isPreconditionFailed(err) {
+			return binarystore.ErrFileAlreadyExists
 		}
 		return fmt.Errorf("error uploading file %q: %w", req.FileName, err)
 	}
 
-	renameOpts := &file.RenameOptions{}
-	if !req.Overwrite {
-		// If-None-Match: * instructs the service to reject the rename if any
-		// version of the destination path already exists (HTTP 409 PathAlreadyExists).
-		etagAny := azcore.ETagAny
-		renameOpts.AccessConditions = &file.AccessConditions{
-			ModifiedAccessConditions: &file.ModifiedAccessConditions{
-				IfNoneMatch: &etagAny,
-			},
-		}
-	}
-
-	if _, err := tempClient.Rename(ctx, objectPath, renameOpts); err != nil {
-		if cleanupErr := cleanupFileIfExists(ctx, tempClient); cleanupErr != nil {
-			a.logger.Warnf("failed to remove temporary file %q: %v", tempPath, cleanupErr)
-		}
-		if datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet) {
-			return binarystore.ErrFileAlreadyExists
-		}
-		return fmt.Errorf("error renaming uploaded file %q: %w", req.FileName, err)
-	}
-
-	return nil
-}
-
-func cleanupFileIfExists(ctx context.Context, client *file.Client) error {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-	defer cancel()
-
-	_, err := client.Delete(cleanupCtx, nil)
-	if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
-		return err
-	}
 	return nil
 }
 
@@ -150,18 +121,15 @@ func (a *AzureDataLakeStorage) Get(ctx context.Context, req *binarystore.GetRequ
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
-	resp, err := fileClient.DownloadStream(ctx, nil)
+	body, err := a.client.getObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	if err != nil {
-		if datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
+		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
 		}
 		return nil, fmt.Errorf("error downloading file %q: %w", req.FileName, err)
 	}
 
-	return &binarystore.GetResponse{
-		Data: resp.Body,
-	}, nil
+	return &binarystore.GetResponse{Data: body}, nil
 }
 
 // Delete removes a path from Azure Data Lake Storage. If the path does not
@@ -171,10 +139,8 @@ func (a *AzureDataLakeStorage) Delete(ctx context.Context, req *binarystore.Dele
 		return binarystore.ErrMissingFileName
 	}
 
-	fileClient := a.fileSystemClient.NewFileClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
-	_, err := fileClient.Delete(ctx, nil)
-	if err != nil {
-		if datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
+	if err := a.client.deleteObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName)); err != nil {
+		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}
 		return fmt.Errorf("error deleting file %q: %w", req.FileName, err)
@@ -191,7 +157,94 @@ func (a *AzureDataLakeStorage) GetComponentMetadata() (metadataInfo contribMetad
 	return
 }
 
-// Close is a no-op; the Azure SDK manages connection lifecycle internally.
+// Close closes the underlying Azure Data Lake Storage client.
 func (a *AzureDataLakeStorage) Close() error {
+	if a.client == nil {
+		return nil
+	}
+	return a.client.close()
+}
+
+// putObject uploads to a temporary path and renames it onto the target path,
+// so that a failed upload never leaves a partial file behind and the
+// create-only condition is evaluated atomically by the service. Data Lake
+// Storage Gen2 has a hierarchical namespace, so intermediate directories in
+// the object path are created implicitly.
+func (c *azureDataLakeClient) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
+	tempPath := fmt.Sprintf("%s.tmp-%s", name, uuid.NewString())
+	tempClient := c.fileSystemClient.NewFileClient(tempPath)
+
+	if _, err := tempClient.Create(ctx, nil); err != nil {
+		return err
+	}
+
+	uploadOpts := &file.UploadStreamOptions{
+		// Chunk size and concurrency are set explicitly so buffering matches
+		// the other binary store providers rather than the SDK defaults.
+		ChunkSize:   binarystore.DefaultUploadPartSize,
+		Concurrency: binarystore.DefaultUploadConcurrency,
+	}
+	if err := tempClient.UploadStream(ctx, data, uploadOpts); err != nil {
+		c.cleanupFile(ctx, tempClient, tempPath)
+		return err
+	}
+
+	renameOpts := &file.RenameOptions{}
+	if !overwrite {
+		// If-None-Match: * instructs the service to reject the rename if any
+		// version of the destination path already exists (HTTP 409 PathAlreadyExists).
+		etagAny := azcore.ETagAny
+		renameOpts.AccessConditions = &file.AccessConditions{
+			ModifiedAccessConditions: &file.ModifiedAccessConditions{
+				IfNoneMatch: &etagAny,
+			},
+		}
+	}
+
+	if _, err := tempClient.Rename(ctx, name, renameOpts); err != nil {
+		c.cleanupFile(ctx, tempClient, tempPath)
+		return err
+	}
+
 	return nil
+}
+
+func (c *azureDataLakeClient) getObject(ctx context.Context, name string) (io.ReadCloser, error) {
+	resp, err := c.fileSystemClient.NewFileClient(name).DownloadStream(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *azureDataLakeClient) deleteObject(ctx context.Context, name string) error {
+	_, err := c.fileSystemClient.NewFileClient(name).Delete(ctx, nil)
+	return err
+}
+
+// close is a no-op; the Azure SDK manages connection lifecycle internally.
+func (c *azureDataLakeClient) close() error {
+	return nil
+}
+
+// cleanupFile removes a temporary file on a best-effort basis, logging rather
+// than swallowing failures so that leaked temporary files are diagnosable.
+func (c *azureDataLakeClient) cleanupFile(ctx context.Context, client *file.Client, path string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+
+	if _, err := client.Delete(cleanupCtx, nil); err != nil && !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
+		c.logger.Warnf("failed to remove temporary file %q: %v", path, err)
+	}
+}
+
+// isNotFound reports whether err indicates the requested path does not exist.
+func isNotFound(err error) bool {
+	return datalakeerror.HasCode(err, datalakeerror.PathNotFound)
+}
+
+// isPreconditionFailed reports whether err indicates that a create-only write
+// (If-None-Match: *) was rejected because the path already exists.
+func isPreconditionFailed(err error) bool {
+	return datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet)
 }

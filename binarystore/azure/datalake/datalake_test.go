@@ -14,140 +14,190 @@ limitations under the License.
 package datalake
 
 import (
+	"bytes"
+	"context"
 	"errors"
-	"strings"
+	"io"
+	"sort"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azdatalake/datalakeerror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/internal/storetest"
+	storagecommon "github.com/dapr/components-contrib/common/component/azure/datalake"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
-// newTestStore returns an uninitialised AzureDataLakeStorage cast to its
-// concrete type so that unit tests can call unexported helpers without a live
-// Azure connection.
-func newTestStore() *AzureDataLakeStorage {
-	return NewAzureDataLakeStorage(logger.NewLogger("test")).(*AzureDataLakeStorage)
+func newTestStore(client datalakeStoreClient, prefix string) *AzureDataLakeStorage {
+	return &AzureDataLakeStorage{
+		metadata: &storagecommon.DataLakeMetadata{
+			FileSystemClientOpts: storagecommon.FileSystemClientOpts{FileSystemName: "test-filesystem"},
+			Prefix:               prefix,
+		},
+		client: client,
+		logger: logger.NewLogger("test"),
+	}
 }
 
-// --- interface compliance ---
+// --- shared behaviour suite ---
+
+func TestStoreBehaviour(t *testing.T) {
+	storetest.RunSuite(t, func(t *testing.T, prefix string) storetest.Harness {
+		client := newFakeDataLakeClient()
+		return storetest.Harness{
+			Store:  newTestStore(client, prefix),
+			Prefix: prefix,
+			Names:  client.names,
+		}
+	})
+}
+
+// --- interface compliance and constructor ---
 
 func TestImplementsBinaryStore(t *testing.T) {
 	var _ binarystore.BinaryStore = (*AzureDataLakeStorage)(nil)
 }
 
-// --- constructor ---
-
 func TestNewAzureDataLakeStorage(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAzureDataLakeStorage(log)
-	require.NotNil(t, store)
+	require.NotNil(t, NewAzureDataLakeStorage(logger.NewLogger("test")))
 }
 
 // --- Close ---
 
 func TestClose(t *testing.T) {
-	store := newTestStore()
-	require.NoError(t, store.Close())
+	t.Run("nil client", func(t *testing.T) {
+		store := NewAzureDataLakeStorage(logger.NewLogger("test"))
+		require.NoError(t, store.Close())
+	})
+
+	t.Run("configured client", func(t *testing.T) {
+		client := newFakeDataLakeClient()
+		require.NoError(t, newTestStore(client, "").Close())
+		assert.True(t, client.closed)
+	})
 }
 
-// --- Features ---
+// --- provider specific behaviour ---
 
-func TestFeatures(t *testing.T) {
-	store := newTestStore()
-	features := store.Features()
-	// Features must return a non-nil slice (may be empty for this release).
-	require.NotNil(t, features)
-	assert.Empty(t, features)
-}
-
-// --- Set validation (no Azure connection required) ---
-
-func TestSet_MissingFileName(t *testing.T) {
-	store := newTestStore()
+func TestSetOverwriteDoesNotMaskConditionErrors(t *testing.T) {
+	// A ConditionNotMet raised while overwriting is not an existence conflict
+	// and must not be reported as ErrFileAlreadyExists.
+	client := newFakeDataLakeClient()
+	client.putErr = &azcore.ResponseError{ErrorCode: string(datalakeerror.ConditionNotMet)}
+	store := newTestStore(client, "")
 
 	err := store.Set(t.Context(), &binarystore.SetRequest{
-		Data:      strings.NewReader("payload"),
+		FileName:  "file.bin",
+		Data:      bytes.NewReader([]byte("payload")),
 		Overwrite: true,
 	})
-
 	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
+	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
-// --- Get validation (no Azure connection required) ---
+// --- metadata ---
 
-func TestGet_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	_, err := store.Get(t.Context(), &binarystore.GetRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- Delete validation (no Azure connection required) ---
-
-func TestDelete_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	err := store.Delete(t.Context(), &binarystore.DeleteRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- SetRequest semantics ---
-
-func TestSetRequest_OverwriteDefaultsFalse(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName: "test.bin",
-		Data:     strings.NewReader("hello"),
-	}
-	assert.False(t, req.Overwrite, "zero value of Overwrite must be false (create-only semantics)")
-}
-
-func TestSetRequest_OverwriteCanBeSetTrue(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName:  "test.bin",
-		Data:      strings.NewReader("hello"),
-		Overwrite: true,
-	}
-	assert.True(t, req.Overwrite)
-}
-
-// --- Sentinel error identity ---
-
-func TestSentinelErrors(t *testing.T) {
-	t.Run("ErrFileAlreadyExists wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileAlreadyExists), binarystore.ErrFileAlreadyExists)
+func TestParseMetadata(t *testing.T) {
+	t.Run("missing account name", func(t *testing.T) {
+		store := NewAzureDataLakeStorage(logger.NewLogger("test"))
+		err := store.Init(t.Context(), binarystore.Metadata{})
+		require.Error(t, err)
 	})
 
-	t.Run("ErrFileNotFound wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileNotFound), binarystore.ErrFileNotFound)
-	})
-
-	t.Run("ErrMissingFileName wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrMissingFileName), binarystore.ErrMissingFileName)
-	})
-
-	t.Run("sentinel errors are distinct", func(t *testing.T) {
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrFileNotFound)
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrMissingFileName)
-		assert.NotEqual(t, binarystore.ErrFileNotFound, binarystore.ErrMissingFileName)
+	t.Run("missing file system name", func(t *testing.T) {
+		store := NewAzureDataLakeStorage(logger.NewLogger("test"))
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"accountName": "myaccount",
+				"accountKey":  "a2V5",
+			}},
+		})
+		require.Error(t, err)
 	})
 }
-
-// --- GetComponentMetadata ---
 
 func TestGetComponentMetadata(t *testing.T) {
-	store := newTestStore()
-	md := store.GetComponentMetadata()
-	// The metadata map must be non-nil and contain at least the common Azure
-	// Data Lake Storage properties (FileSystemName is always required).
+	md := newTestStore(newFakeDataLakeClient(), "").GetComponentMetadata()
 	require.NotNil(t, md)
-	_, hasFileSystem := md["FileSystemName"]
-	assert.True(t, hasFileSystem, "FileSystemName must appear in component metadata")
+	assert.Contains(t, md, "FileSystemName")
+	assert.Contains(t, md, "prefix")
+}
+
+// --- error classification ---
+
+func TestErrorClassification(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		assert.True(t, isNotFound(&azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}))
+		assert.False(t, isNotFound(&azcore.ResponseError{ErrorCode: string(datalakeerror.ConditionNotMet)}))
+		assert.False(t, isNotFound(errors.New("boom")))
+	})
+
+	t.Run("precondition failed", func(t *testing.T) {
+		assert.True(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(datalakeerror.PathAlreadyExists)}))
+		assert.True(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(datalakeerror.ConditionNotMet)}))
+		assert.False(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}))
+		assert.False(t, isPreconditionFailed(errors.New("boom")))
+	})
+}
+
+// --- fakes ---
+
+type fakeDataLakeClient struct {
+	objects map[string][]byte
+	putErr  error
+	closed  bool
+}
+
+func newFakeDataLakeClient() *fakeDataLakeClient {
+	return &fakeDataLakeClient{objects: map[string][]byte{}}
+}
+
+func (f *fakeDataLakeClient) names() []string {
+	names := make([]string, 0, len(f.objects))
+	for name := range f.objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (f *fakeDataLakeClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	if f.putErr != nil {
+		return f.putErr
+	}
+	if _, ok := f.objects[name]; ok && !overwrite {
+		return &azcore.ResponseError{ErrorCode: string(datalakeerror.PathAlreadyExists)}
+	}
+	b, err := io.ReadAll(data)
+	if err != nil {
+		return err
+	}
+	f.objects[name] = b
+	return nil
+}
+
+func (f *fakeDataLakeClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	data, ok := f.objects[name]
+	if !ok {
+		return nil, &azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+func (f *fakeDataLakeClient) deleteObject(_ context.Context, name string) error {
+	if _, ok := f.objects[name]; !ok {
+		return &azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}
+	}
+	delete(f.objects, name)
+	return nil
+}
+
+func (f *fakeDataLakeClient) close() error {
+	f.closed = true
+	return nil
 }

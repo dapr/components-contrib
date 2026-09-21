@@ -14,142 +14,190 @@ limitations under the License.
 package blobstorage
 
 import (
+	"bytes"
+	"context"
 	"errors"
-	"strings"
+	"io"
+	"sort"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/internal/storetest"
+	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
-// newTestStore returns an uninitialised AzureBlobStorage cast to its concrete
-// type so that unit tests can call unexported helpers without a live Azure
-// connection.
-func newTestStore() *AzureBlobStorage {
-	return NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+func newTestStore(client blobStoreClient, prefix string) *AzureBlobStorage {
+	return &AzureBlobStorage{
+		metadata: &storagecommon.BlobStorageMetadata{
+			ContainerClientOpts: storagecommon.ContainerClientOpts{ContainerName: "test-container"},
+			Prefix:              prefix,
+		},
+		client:   client,
+		logger:   logger.NewLogger("test"),
+	}
 }
 
-// --- interface compliance ---
+// --- shared behaviour suite ---
+
+func TestStoreBehaviour(t *testing.T) {
+	storetest.RunSuite(t, func(t *testing.T, prefix string) storetest.Harness {
+		client := newFakeBlobClient()
+		return storetest.Harness{
+			Store:  newTestStore(client, prefix),
+			Prefix: prefix,
+			Names:  client.names,
+		}
+	})
+}
+
+// --- interface compliance and constructor ---
 
 func TestImplementsBinaryStore(t *testing.T) {
 	var _ binarystore.BinaryStore = (*AzureBlobStorage)(nil)
 }
 
-// --- constructor ---
-
 func TestNewAzureBlobStorage(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAzureBlobStorage(log)
-	require.NotNil(t, store)
+	require.NotNil(t, NewAzureBlobStorage(logger.NewLogger("test")))
 }
 
 // --- Close ---
 
 func TestClose(t *testing.T) {
-	store := newTestStore()
-	require.NoError(t, store.Close())
+	t.Run("nil client", func(t *testing.T) {
+		store := NewAzureBlobStorage(logger.NewLogger("test"))
+		require.NoError(t, store.Close())
+	})
+
+	t.Run("configured client", func(t *testing.T) {
+		client := newFakeBlobClient()
+		require.NoError(t, newTestStore(client, "").Close())
+		assert.True(t, client.closed)
+	})
 }
 
-// --- Features ---
+// --- provider specific behaviour ---
 
-func TestFeatures(t *testing.T) {
-	store := newTestStore()
-	features := store.Features()
-	// Features must return a non-nil slice (may be empty for this release).
-	require.NotNil(t, features)
-	assert.Empty(t, features)
-}
-
-// --- Set validation (no Azure connection required) ---
-
-func TestSet_MissingFileName(t *testing.T) {
-	store := newTestStore()
+func TestSetOverwriteDoesNotMaskConditionErrors(t *testing.T) {
+	// A ConditionNotMet raised while overwriting is not an existence conflict
+	// and must not be reported as ErrFileAlreadyExists.
+	client := newFakeBlobClient()
+	client.putErr = &azcore.ResponseError{ErrorCode: string(bloberror.ConditionNotMet)}
+	store := newTestStore(client, "")
 
 	err := store.Set(t.Context(), &binarystore.SetRequest{
-		Data:      strings.NewReader("payload"),
+		FileName:  "file.bin",
+		Data:      bytes.NewReader([]byte("payload")),
 		Overwrite: true,
 	})
-
 	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
+	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
-// --- Get validation (no Azure connection required) ---
+// --- metadata ---
 
-func TestGet_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	_, err := store.Get(t.Context(), &binarystore.GetRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- Delete validation (no Azure connection required) ---
-
-func TestDelete_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	err := store.Delete(t.Context(), &binarystore.DeleteRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- SetRequest semantics ---
-
-func TestSetRequest_OverwriteDefaultsFalse(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName: "test.bin",
-		Data:     strings.NewReader("hello"),
-	}
-	assert.False(t, req.Overwrite, "zero value of Overwrite must be false (create-only semantics)")
-}
-
-func TestSetRequest_OverwriteCanBeSetTrue(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName:  "test.bin",
-		Data:      strings.NewReader("hello"),
-		Overwrite: true,
-	}
-	assert.True(t, req.Overwrite)
-}
-
-// --- Sentinel error identity ---
-
-func TestSentinelErrors(t *testing.T) {
-	t.Run("ErrFileAlreadyExists wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileAlreadyExists), binarystore.ErrFileAlreadyExists)
+func TestParseMetadata(t *testing.T) {
+	t.Run("missing account name", func(t *testing.T) {
+		store := NewAzureBlobStorage(logger.NewLogger("test"))
+		err := store.Init(t.Context(), binarystore.Metadata{})
+		require.Error(t, err)
 	})
 
-	t.Run("ErrFileNotFound wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileNotFound), binarystore.ErrFileNotFound)
-	})
-
-	t.Run("ErrMissingFileName wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrMissingFileName), binarystore.ErrMissingFileName)
-	})
-
-	t.Run("sentinel errors are distinct", func(t *testing.T) {
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrFileNotFound)
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrMissingFileName)
-		assert.NotEqual(t, binarystore.ErrFileNotFound, binarystore.ErrMissingFileName)
+	t.Run("missing container name", func(t *testing.T) {
+		store := NewAzureBlobStorage(logger.NewLogger("test"))
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"accountName": "myaccount",
+				"accountKey":  "a2V5",
+			}},
+		})
+		require.Error(t, err)
 	})
 }
-
-// --- GetComponentMetadata ---
 
 func TestGetComponentMetadata(t *testing.T) {
-	store := newTestStore()
-	md := store.GetComponentMetadata()
-	// The metadata map must be non-nil and contain at least the common Azure
-	// Blob Storage properties (containerName is always required).
+	md := newTestStore(newFakeBlobClient(), "").GetComponentMetadata()
 	require.NotNil(t, md)
-	// ContainerClientOpts has no mapstructure tag on ContainerName, so the key
-	// is the raw struct field name "ContainerName".
-	_, hasContainer := md["ContainerName"]
-	assert.True(t, hasContainer, "ContainerName must appear in component metadata")
+	assert.Contains(t, md, "ContainerName")
+	assert.Contains(t, md, "prefix")
+}
+
+// --- error classification ---
+
+func TestErrorClassification(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		assert.True(t, isNotFound(&azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}))
+		assert.False(t, isNotFound(&azcore.ResponseError{ErrorCode: string(bloberror.ConditionNotMet)}))
+		assert.False(t, isNotFound(errors.New("boom")))
+	})
+
+	t.Run("precondition failed", func(t *testing.T) {
+		assert.True(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(bloberror.BlobAlreadyExists)}))
+		assert.True(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(bloberror.ConditionNotMet)}))
+		assert.False(t, isPreconditionFailed(&azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}))
+		assert.False(t, isPreconditionFailed(errors.New("boom")))
+	})
+}
+
+// --- fakes ---
+
+type fakeBlobClient struct {
+	objects map[string][]byte
+	putErr  error
+	closed  bool
+}
+
+func newFakeBlobClient() *fakeBlobClient {
+	return &fakeBlobClient{objects: map[string][]byte{}}
+}
+
+func (f *fakeBlobClient) names() []string {
+	names := make([]string, 0, len(f.objects))
+	for name := range f.objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (f *fakeBlobClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	if f.putErr != nil {
+		return f.putErr
+	}
+	if _, ok := f.objects[name]; ok && !overwrite {
+		return &azcore.ResponseError{ErrorCode: string(bloberror.BlobAlreadyExists)}
+	}
+	b, err := io.ReadAll(data)
+	if err != nil {
+		return err
+	}
+	f.objects[name] = b
+	return nil
+}
+
+func (f *fakeBlobClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	data, ok := f.objects[name]
+	if !ok {
+		return nil, &azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+func (f *fakeBlobClient) deleteObject(_ context.Context, name string) error {
+	if _, ok := f.objects[name]; !ok {
+		return &azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}
+	}
+	delete(f.objects, name)
+	return nil
+}
+
+func (f *fakeBlobClient) close() error {
+	f.closed = true
+	return nil
 }

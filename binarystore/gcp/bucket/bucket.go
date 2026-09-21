@@ -130,7 +130,10 @@ func (g *GCPBucket) Set(ctx context.Context, req *binarystore.SetRequest) error 
 	}
 
 	if err := g.client.putObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
-		if isPreconditionFailed(err) {
+		// Only a create-only write can fail because the object already
+		// exists; when overwriting, a precondition failure signals an
+		// unrelated condition that must be surfaced to the caller.
+		if !req.Overwrite && isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
 		return fmt.Errorf("error uploading object %q: %w", req.FileName, err)
@@ -195,6 +198,9 @@ func (c *storageClient) putObject(ctx context.Context, bucket, name string, data
 	}
 
 	writer := obj.NewWriter(wctx)
+	// Set the upload chunk size explicitly so that buffering matches the
+	// other binary store providers rather than the SDK default.
+	writer.ChunkSize = int(binarystore.DefaultUploadPartSize)
 	if _, err := io.Copy(writer, data); err != nil {
 		cancel()
 		_ = writer.Close()
@@ -215,6 +221,8 @@ func (c *storageClient) close() error {
 	return c.client.Close()
 }
 
+// isNotFound reports whether err indicates the requested object does not
+// exist.
 func isNotFound(err error) bool {
 	if errors.Is(err, storage.ErrObjectNotExist) {
 		return true
@@ -223,8 +231,11 @@ func isNotFound(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound
 }
 
+// isPreconditionFailed reports whether err indicates that a create-only write
+// (the DoesNotExist generation condition) was rejected because the object
+// already exists. 409 is deliberately not matched: Cloud Storage returns it
+// for unrelated conflicts, such as concurrent writes to the same object.
 func isPreconditionFailed(err error) bool {
 	var apiErr *googleapi.Error
-	return errors.As(err, &apiErr) &&
-		(apiErr.Code == http.StatusPreconditionFailed || apiErr.Code == http.StatusConflict)
+	return errors.As(err, &apiErr) && apiErr.Code == http.StatusPreconditionFailed
 }

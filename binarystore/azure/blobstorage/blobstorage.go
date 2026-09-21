@@ -19,6 +19,7 @@ package blobstorage
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -33,20 +34,25 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	// blockUploadSize is the block size used when streaming uploads to a
-	// block blob. The SDK default of 1 MiB caps a blob at ~48.8 GiB given the
-	// 50,000 block limit and serialises the upload.
-	blockUploadSize = 8 * 1024 * 1024
-	// blockUploadConcurrency is the number of blocks staged in parallel.
-	blockUploadConcurrency = 4
-)
-
 // AzureBlobStorage implements binarystore.BinaryStore using Azure Blob Storage.
 type AzureBlobStorage struct {
-	metadata        *storagecommon.BlobStorageMetadata
+	metadata *storagecommon.BlobStorageMetadata
+	client   blobStoreClient
+	logger   logger.Logger
+}
+
+// blobStoreClient isolates the SDK calls the component makes, mirroring the
+// client seams used by the other binary store providers so that behaviour can
+// be unit tested without a live storage account.
+type blobStoreClient interface {
+	putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error
+	getObject(ctx context.Context, name string) (io.ReadCloser, error)
+	deleteObject(ctx context.Context, name string) error
+	close() error
+}
+
+type azureBlobClient struct {
 	containerClient *container.Client
-	logger          logger.Logger
 }
 
 // NewAzureBlobStorage returns a new AzureBlobStorage binary store.
@@ -56,9 +62,14 @@ func NewAzureBlobStorage(log logger.Logger) binarystore.BinaryStore {
 
 // Init initialises the Azure Blob Storage client from the component metadata.
 func (a *AzureBlobStorage) Init(ctx context.Context, md binarystore.Metadata) error {
-	var err error
-	a.containerClient, a.metadata, err = storagecommon.CreateContainerStorageClient(ctx, a.logger, md.Properties)
-	return err
+	containerClient, m, err := storagecommon.CreateContainerStorageClient(ctx, a.logger, md.Properties)
+	if err != nil {
+		return err
+	}
+
+	a.metadata = m
+	a.client = &azureBlobClient{containerClient: containerClient}
+	return nil
 }
 
 // Features returns the optional features supported by this component.
@@ -77,30 +88,11 @@ func (a *AzureBlobStorage) Set(ctx context.Context, req *binarystore.SetRequest)
 		return binarystore.ErrMissingFileName
 	}
 
-	opts := &blockblob.UploadStreamOptions{
-		// The SDK defaults to 1 MiB blocks uploaded one at a time, which caps
-		// a block blob at roughly 48.8 GiB (50,000 blocks) and bounds
-		// throughput by per-request latency. 8 MiB blocks with 4 in flight
-		// keeps buffering modest while supporting multi-gigabyte files.
-		BlockSize:   blockUploadSize,
-		Concurrency: blockUploadConcurrency,
-	}
-	if !req.Overwrite {
-		// If-None-Match: * instructs the service to reject the write if any
-		// version of the blob already exists (HTTP 412 / ConditionNotMet).
-		etagAny := azcore.ETagAny
-		opts.AccessConditions = &blob.AccessConditions{
-			ModifiedAccessConditions: &blob.ModifiedAccessConditions{
-				IfNoneMatch: &etagAny,
-			},
-		}
-	}
-
-	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
-	_, err := blockBlobClient.UploadStream(ctx, req.Data, opts)
-	if err != nil {
-		if bloberror.HasCode(err, bloberror.BlobAlreadyExists) ||
-			bloberror.HasCode(err, bloberror.ConditionNotMet) {
+	if err := a.client.putObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+		// Only a create-only write can fail because the blob already exists;
+		// when overwriting, a condition failure signals an unrelated
+		// condition that must be surfaced to the caller.
+		if !req.Overwrite && isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
 		return fmt.Errorf("error uploading blob %q: %w", req.FileName, err)
@@ -118,18 +110,15 @@ func (a *AzureBlobStorage) Get(ctx context.Context, req *binarystore.GetRequest)
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
-	resp, err := blockBlobClient.DownloadStream(ctx, nil)
+	body, err := a.client.getObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
 	if err != nil {
-		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
 		}
 		return nil, fmt.Errorf("error downloading blob %q: %w", req.FileName, err)
 	}
 
-	return &binarystore.GetResponse{
-		Data: resp.Body,
-	}, nil
+	return &binarystore.GetResponse{Data: body}, nil
 }
 
 // Delete removes a blob from Azure Blob Storage. If the blob does not exist,
@@ -139,10 +128,8 @@ func (a *AzureBlobStorage) Delete(ctx context.Context, req *binarystore.DeleteRe
 		return binarystore.ErrMissingFileName
 	}
 
-	blockBlobClient := a.containerClient.NewBlockBlobClient(binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
-	_, err := blockBlobClient.Delete(ctx, nil)
-	if err != nil {
-		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+	if err := a.client.deleteObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName)); err != nil {
+		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}
 		return fmt.Errorf("error deleting blob %q: %w", req.FileName, err)
@@ -159,7 +146,63 @@ func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.
 	return
 }
 
-// Close is a no-op; the Azure SDK manages connection lifecycle internally.
+// Close closes the underlying Azure Blob Storage client.
 func (a *AzureBlobStorage) Close() error {
+	if a.client == nil {
+		return nil
+	}
+	return a.client.close()
+}
+
+func (c *azureBlobClient) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
+	opts := &blockblob.UploadStreamOptions{
+		// Block size and concurrency are set explicitly so buffering matches
+		// the other binary store providers rather than the SDK defaults of 1
+		// MiB blocks staged one at a time, which also cap a block blob at
+		// ~48.8 GiB given the 50,000 block limit.
+		BlockSize:   binarystore.DefaultUploadPartSize,
+		Concurrency: binarystore.DefaultUploadConcurrency,
+	}
+	if !overwrite {
+		// If-None-Match: * instructs the service to reject the write if any
+		// version of the blob already exists (HTTP 412 / ConditionNotMet).
+		etagAny := azcore.ETagAny
+		opts.AccessConditions = &blob.AccessConditions{
+			ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+				IfNoneMatch: &etagAny,
+			},
+		}
+	}
+
+	_, err := c.containerClient.NewBlockBlobClient(name).UploadStream(ctx, data, opts)
+	return err
+}
+
+func (c *azureBlobClient) getObject(ctx context.Context, name string) (io.ReadCloser, error) {
+	resp, err := c.containerClient.NewBlockBlobClient(name).DownloadStream(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *azureBlobClient) deleteObject(ctx context.Context, name string) error {
+	_, err := c.containerClient.NewBlockBlobClient(name).Delete(ctx, nil)
+	return err
+}
+
+// close is a no-op; the Azure SDK manages connection lifecycle internally.
+func (c *azureBlobClient) close() error {
 	return nil
+}
+
+// isNotFound reports whether err indicates the requested blob does not exist.
+func isNotFound(err error) bool {
+	return bloberror.HasCode(err, bloberror.BlobNotFound)
+}
+
+// isPreconditionFailed reports whether err indicates that a create-only write
+// (If-None-Match: *) was rejected because the blob already exists.
+func isPreconditionFailed(err error) bool {
+	return bloberror.HasCode(err, bloberror.BlobAlreadyExists, bloberror.ConditionNotMet)
 }

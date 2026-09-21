@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,131 +16,105 @@ package bucket
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
-	"strings"
+	"sort"
 	"testing"
 
-	"google.golang.org/api/googleapi"
-
+	"cloud.google.com/go/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/googleapi"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/internal/storetest"
 	"github.com/dapr/kit/logger"
 )
 
-func newTestStore(client gcsClient) *GCPBucket {
+func newTestStore(client gcsClient, prefix string) *GCPBucket {
 	return &GCPBucket{
-		metadata: &gcpMetadata{Bucket: "test-bucket"},
+		metadata: &gcpMetadata{Bucket: "test-bucket", Prefix: prefix},
 		client:   client,
 		logger:   logger.NewLogger("test"),
 	}
 }
+
+// --- shared behaviour suite ---
+
+func TestStoreBehaviour(t *testing.T) {
+	storetest.RunSuite(t, func(t *testing.T, prefix string) storetest.Harness {
+		client := newFakeGCSClient()
+		return storetest.Harness{
+			Store:  newTestStore(client, prefix),
+			Prefix: prefix,
+			Names:  client.names,
+		}
+	})
+}
+
+// --- interface compliance and constructor ---
 
 func TestImplementsBinaryStore(t *testing.T) {
 	var _ binarystore.BinaryStore = (*GCPBucket)(nil)
 }
 
 func TestNewGCPBucket(t *testing.T) {
-	store := NewGCPBucket(logger.NewLogger("test"))
-	require.NotNil(t, store)
+	require.NotNil(t, NewGCPBucket(logger.NewLogger("test")))
 }
+
+// --- Close ---
 
 func TestClose(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
-		store := &GCPBucket{}
+		store := NewGCPBucket(logger.NewLogger("test"))
 		require.NoError(t, store.Close())
 	})
 
 	t.Run("configured client", func(t *testing.T) {
 		client := newFakeGCSClient()
-		store := newTestStore(client)
-		require.NoError(t, store.Close())
+		require.NoError(t, newTestStore(client, "").Close())
 		assert.True(t, client.closed)
 	})
 }
 
-func TestFeatures(t *testing.T) {
-	store := newTestStore(newFakeGCSClient())
-	features := store.Features()
-	require.NotNil(t, features)
-	assert.Empty(t, features)
-}
+// --- provider specific behaviour ---
 
-func TestMissingFileName(t *testing.T) {
-	store := newTestStore(newFakeGCSClient())
-
-	err := store.Set(t.Context(), &binarystore.SetRequest{Data: strings.NewReader("payload")})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-
-	_, err = store.Get(t.Context(), &binarystore.GetRequest{})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-
-	err = store.Delete(t.Context(), &binarystore.DeleteRequest{})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-func TestSetCreateOnlyAndOverwrite(t *testing.T) {
+func TestSetPassesOverwriteToTheClient(t *testing.T) {
 	client := newFakeGCSClient()
-	store := newTestStore(client)
+	store := newTestStore(client, "")
 
-	err := store.Set(t.Context(), &binarystore.SetRequest{
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName: "file.bin",
-		Data:     strings.NewReader("first"),
-	})
-	require.NoError(t, err)
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
 	assert.False(t, client.lastOverwrite)
 
-	err = store.Set(t.Context(), &binarystore.SetRequest{
-		FileName: "file.bin",
-		Data:     strings.NewReader("second"),
-	})
-	require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
-	assert.Equal(t, []byte("first"), client.objects["file.bin"])
-
-	err = store.Set(t.Context(), &binarystore.SetRequest{
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "file.bin",
-		Data:      strings.NewReader("second"),
+		Data:      bytes.NewReader([]byte("payload")),
+		Overwrite: true,
+	}))
+	assert.True(t, client.lastOverwrite)
+}
+
+func TestSetOverwriteDoesNotMaskPreconditionErrors(t *testing.T) {
+	// A 412 raised while overwriting is not an existence conflict and must not
+	// be reported as ErrFileAlreadyExists.
+	client := newFakeGCSClient()
+	client.putErr = &googleapi.Error{Code: http.StatusPreconditionFailed}
+	store := newTestStore(client, "")
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "file.bin",
+		Data:      bytes.NewReader([]byte("payload")),
 		Overwrite: true,
 	})
-	require.NoError(t, err)
-	assert.True(t, client.lastOverwrite)
-	assert.Equal(t, []byte("second"), client.objects["file.bin"])
+	require.Error(t, err)
+	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
-func TestGetStreamingBodyAndNotFound(t *testing.T) {
-	client := newFakeGCSClient()
-	client.objects["file.bin"] = []byte("payload")
-	store := newTestStore(client)
-
-	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "file.bin"})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.Data)
-
-	data, err := io.ReadAll(resp.Data)
-	require.NoError(t, err)
-	assert.Equal(t, "payload", string(data))
-	assert.False(t, client.lastReader.closed)
-	require.NoError(t, resp.Data.Close())
-	assert.True(t, client.lastReader.closed)
-
-	_, err = store.Get(t.Context(), &binarystore.GetRequest{FileName: "missing.bin"})
-	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
-}
-
-func TestDeleteAndNotFound(t *testing.T) {
-	client := newFakeGCSClient()
-	client.objects["file.bin"] = []byte("payload")
-	store := newTestStore(client)
-
-	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"}))
-	assert.NotContains(t, client.objects, "file.bin")
-
-	err := store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"})
-	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
-}
+// --- metadata ---
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("missing bucket", func(t *testing.T) {
@@ -151,6 +125,7 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("bucket and gcp auth fields", func(t *testing.T) {
 		m, err := parseMetadata(map[string]string{
 			"bucket":        "my-bucket",
+			"PREFIX":        "tenant-a",
 			"project_id":    "project",
 			"privateKeyID":  "key-id",
 			"client_email":  "client@example.com",
@@ -163,6 +138,7 @@ func TestParseMetadata(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "my-bucket", m.Bucket)
+		assert.Equal(t, "tenant-a", m.Prefix, "metadata keys must be matched case-insensitively")
 		assert.Equal(t, "project", m.ProjectID)
 		assert.Equal(t, "key-id", m.PrivateKeyID)
 		assert.Equal(t, "client@example.com", m.ClientEmail)
@@ -170,17 +146,35 @@ func TestParseMetadata(t *testing.T) {
 }
 
 func TestGetComponentMetadata(t *testing.T) {
-	store := newTestStore(newFakeGCSClient())
-	md := store.GetComponentMetadata()
+	md := newTestStore(newFakeGCSClient(), "").GetComponentMetadata()
 	require.NotNil(t, md)
-	_, hasBucket := md["bucket"]
-	assert.True(t, hasBucket, "bucket must appear in component metadata")
+	assert.Contains(t, md, "bucket")
+	assert.Contains(t, md, "prefix")
 }
+
+// --- error classification ---
+
+func TestErrorClassification(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		assert.True(t, isNotFound(storage.ErrObjectNotExist))
+		assert.True(t, isNotFound(&googleapi.Error{Code: http.StatusNotFound}))
+		assert.False(t, isNotFound(errors.New("boom")))
+	})
+
+	t.Run("precondition failed", func(t *testing.T) {
+		assert.True(t, isPreconditionFailed(&googleapi.Error{Code: http.StatusPreconditionFailed}))
+		// 409 alone is not an existence conflict on Cloud Storage.
+		assert.False(t, isPreconditionFailed(&googleapi.Error{Code: http.StatusConflict}))
+		assert.False(t, isPreconditionFailed(errors.New("boom")))
+	})
+}
+
+// --- fakes ---
 
 type fakeGCSClient struct {
 	objects       map[string][]byte
 	lastOverwrite bool
-	lastReader    *trackingReadCloser
+	putErr        error
 	closed        bool
 }
 
@@ -188,8 +182,20 @@ func newFakeGCSClient() *fakeGCSClient {
 	return &fakeGCSClient{objects: map[string][]byte{}}
 }
 
+func (f *fakeGCSClient) names() []string {
+	names := make([]string, 0, len(f.objects))
+	for name := range f.objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (f *fakeGCSClient) putObject(_ context.Context, _, name string, data io.Reader, overwrite bool) error {
 	f.lastOverwrite = overwrite
+	if f.putErr != nil {
+		return f.putErr
+	}
 	if _, ok := f.objects[name]; ok && !overwrite {
 		return &googleapi.Error{Code: http.StatusPreconditionFailed, Message: "conditionNotMet"}
 	}
@@ -206,8 +212,7 @@ func (f *fakeGCSClient) getObject(_ context.Context, _, name string) (io.ReadClo
 	if !ok {
 		return nil, &googleapi.Error{Code: http.StatusNotFound, Message: "not found"}
 	}
-	f.lastReader = &trackingReadCloser{Reader: bytes.NewReader(data)}
-	return f.lastReader, nil
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 func (f *fakeGCSClient) deleteObject(_ context.Context, _, name string) error {
@@ -220,15 +225,5 @@ func (f *fakeGCSClient) deleteObject(_ context.Context, _, name string) error {
 
 func (f *fakeGCSClient) close() error {
 	f.closed = true
-	return nil
-}
-
-type trackingReadCloser struct {
-	*bytes.Reader
-	closed bool
-}
-
-func (r *trackingReadCloser) Close() error {
-	r.closed = true
 	return nil
 }

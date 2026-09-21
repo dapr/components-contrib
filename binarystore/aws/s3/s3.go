@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 
@@ -42,9 +43,25 @@ import (
 // S3-compatible object storage service.
 type AWSS3 struct {
 	metadata *s3Metadata
+	client   s3StoreClient
+	logger   logger.Logger
+}
+
+// s3StoreClient isolates the SDK calls the component makes, mirroring the
+// client seams used by the other binary store providers so that behaviour can
+// be unit tested without a live endpoint.
+type s3StoreClient interface {
+	putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error
+	getObject(ctx context.Context, name string) (io.ReadCloser, error)
+	headObject(ctx context.Context, name string) error
+	deleteObject(ctx context.Context, name string) error
+	close() error
+}
+
+type awsS3Client struct {
+	bucket   string
 	s3Client *s3.Client
 	tmClient *transfermanager.Client
-	logger   logger.Logger
 }
 
 // NewAWSS3 returns a new AWSS3 binary store.
@@ -58,7 +75,6 @@ func (s *AWSS3) Init(ctx context.Context, md binarystore.Metadata) error {
 	if err != nil {
 		return err
 	}
-	s.metadata = m
 
 	configOpts := awsCommonAuth.Options{
 		Logger:       s.logger,
@@ -89,10 +105,21 @@ func (s *AWSS3) Init(ctx context.Context, md binarystore.Metadata) error {
 		return err
 	}
 
-	s.s3Client = s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.UsePathStyle = m.ForcePathStyle
 	})
-	s.tmClient = transfermanager.New(s.s3Client)
+
+	s.metadata = m
+	s.client = &awsS3Client{
+		bucket:   m.Bucket,
+		s3Client: s3Client,
+		// Part size and concurrency are set explicitly so buffering matches
+		// the other binary store providers rather than the SDK defaults.
+		tmClient: transfermanager.New(s3Client, func(o *transfermanager.Options) {
+			o.PartSizeBytes = binarystore.DefaultUploadPartSize
+			o.Concurrency = binarystore.DefaultUploadConcurrency
+		}),
+	}
 
 	return nil
 }
@@ -121,18 +148,8 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 		return binarystore.ErrMissingFileName
 	}
 
-	input := &transfermanager.UploadObjectInput{
-		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
-		Body:   req.Data,
-	}
-	if !req.Overwrite {
-		input.IfNoneMatch = ptr.Of("*")
-	}
-
-	_, err := s.tmClient.UploadObject(ctx, input)
-	if err != nil {
-		// Only a conditional write can fail because the object already
+	if err := s.client.putObject(ctx, binarystore.ObjectPath(s.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a conflict signals an unrelated
 		// condition (e.g. OperationAborted from racing writers) that must be
 		// surfaced to the caller rather than masked as ErrFileAlreadyExists.
@@ -154,10 +171,7 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
-	})
+	body, err := s.client.getObject(ctx, binarystore.ObjectPath(s.metadata.Prefix, req.FileName))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -165,9 +179,7 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 		return nil, fmt.Errorf("error downloading object %q: %w", req.FileName, err)
 	}
 
-	return &binarystore.GetResponse{
-		Data: resp.Body,
-	}, nil
+	return &binarystore.GetResponse{Data: body}, nil
 }
 
 // Delete removes an object from S3. If the object does not exist,
@@ -184,14 +196,12 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 		return binarystore.ErrMissingFileName
 	}
 
-	// S3 requires the object to exist to distinguish delete from no-op; check
-	// first so callers reliably receive ErrFileNotFound (S3's DeleteObject is
-	// idempotent and does not error when the key is missing).
-	_, err := s.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
-	})
-	if err != nil {
+	name := binarystore.ObjectPath(s.metadata.Prefix, req.FileName)
+
+	// Unlike the other providers, S3's DeleteObject is idempotent and does not
+	// error when the key is missing, so an existence check is needed to return
+	// ErrFileNotFound consistently with them.
+	if err := s.client.headObject(ctx, name); err != nil {
 		switch {
 		case isNotFound(err):
 			return binarystore.ErrFileNotFound
@@ -203,11 +213,7 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 		}
 	}
 
-	_, err = s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: ptr.Of(s.metadata.Bucket),
-		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
-	})
-	if err != nil {
+	if err := s.client.deleteObject(ctx, name); err != nil {
 		return fmt.Errorf("error deleting object %q: %w", req.FileName, err)
 	}
 
@@ -222,8 +228,57 @@ func (s *AWSS3) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap
 	return
 }
 
-// Close is a no-op; the AWS SDK manages connection lifecycle internally.
+// Close closes the underlying S3 client.
 func (s *AWSS3) Close() error {
+	if s.client == nil {
+		return nil
+	}
+	return s.client.close()
+}
+
+func (c *awsS3Client) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
+	input := &transfermanager.UploadObjectInput{
+		Bucket: ptr.Of(c.bucket),
+		Key:    ptr.Of(name),
+		Body:   data,
+	}
+	if !overwrite {
+		input.IfNoneMatch = ptr.Of("*")
+	}
+
+	_, err := c.tmClient.UploadObject(ctx, input)
+	return err
+}
+
+func (c *awsS3Client) getObject(ctx context.Context, name string) (io.ReadCloser, error) {
+	resp, err := c.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: ptr.Of(c.bucket),
+		Key:    ptr.Of(name),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *awsS3Client) headObject(ctx context.Context, name string) error {
+	_, err := c.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: ptr.Of(c.bucket),
+		Key:    ptr.Of(name),
+	})
+	return err
+}
+
+func (c *awsS3Client) deleteObject(ctx context.Context, name string) error {
+	_, err := c.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: ptr.Of(c.bucket),
+		Key:    ptr.Of(name),
+	})
+	return err
+}
+
+// close is a no-op; the AWS SDK manages connection lifecycle internally.
+func (c *awsS3Client) close() error {
 	return nil
 }
 

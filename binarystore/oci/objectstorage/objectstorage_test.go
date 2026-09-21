@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The Dapr Authors
+Copyright 2025 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,129 +16,107 @@ package objectstorage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
-	"strings"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/internal/storetest"
 	"github.com/dapr/kit/logger"
 )
 
-func newTestStore(client objectStoreClient) *ObjectStorage {
+func newTestStore(client objectStoreClient, prefix string) *ObjectStorage {
 	return &ObjectStorage{
-		metadata: &objectStoreMetadata{BucketName: "test-bucket", Namespace: "test-namespace"},
-		client:   client,
-		logger:   logger.NewLogger("test"),
+		metadata: &objectStoreMetadata{
+			BucketName: "test-bucket",
+			Namespace:  "test-namespace",
+			Prefix:     prefix,
+		},
+		client: client,
+		logger: logger.NewLogger("test"),
 	}
 }
+
+// --- shared behaviour suite ---
+
+func TestStoreBehaviour(t *testing.T) {
+	storetest.RunSuite(t, func(t *testing.T, prefix string) storetest.Harness {
+		client := newFakeOCIClient()
+		return storetest.Harness{
+			Store:  newTestStore(client, prefix),
+			Prefix: prefix,
+			Names:  client.names,
+		}
+	})
+}
+
+// --- interface compliance and constructor ---
 
 func TestImplementsBinaryStore(t *testing.T) {
 	var _ binarystore.BinaryStore = (*ObjectStorage)(nil)
 }
 
 func TestNewOCIObjectStorage(t *testing.T) {
-	store := NewOCIObjectStorage(logger.NewLogger("test"))
-	require.NotNil(t, store)
+	require.NotNil(t, NewOCIObjectStorage(logger.NewLogger("test")))
 }
+
+// --- Close ---
 
 func TestClose(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
-		store := &ObjectStorage{}
+		store := NewOCIObjectStorage(logger.NewLogger("test"))
 		require.NoError(t, store.Close())
 	})
 
 	t.Run("configured client", func(t *testing.T) {
 		client := newFakeOCIClient()
-		store := newTestStore(client)
-		require.NoError(t, store.Close())
+		require.NoError(t, newTestStore(client, "").Close())
 		assert.True(t, client.closed)
 	})
 }
 
-func TestFeatures(t *testing.T) {
-	store := newTestStore(newFakeOCIClient())
-	features := store.Features()
-	require.NotNil(t, features)
-	assert.Empty(t, features)
-}
+// --- provider specific behaviour ---
 
-func TestMissingFileName(t *testing.T) {
-	store := newTestStore(newFakeOCIClient())
-
-	err := store.Set(t.Context(), &binarystore.SetRequest{Data: strings.NewReader("payload")})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-
-	_, err = store.Get(t.Context(), &binarystore.GetRequest{})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-
-	err = store.Delete(t.Context(), &binarystore.DeleteRequest{})
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-func TestSetCreateOnlyAndOverwrite(t *testing.T) {
+func TestSetPassesOverwriteToTheClient(t *testing.T) {
 	client := newFakeOCIClient()
-	store := newTestStore(client)
+	store := newTestStore(client, "")
 
-	err := store.Set(t.Context(), &binarystore.SetRequest{
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName: "file.bin",
-		Data:     strings.NewReader("first"),
-	})
-	require.NoError(t, err)
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
 	assert.False(t, client.lastOverwrite)
 
-	err = store.Set(t.Context(), &binarystore.SetRequest{
-		FileName: "file.bin",
-		Data:     strings.NewReader("second"),
-	})
-	require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
-	assert.Equal(t, []byte("first"), client.objects["file.bin"])
-
-	err = store.Set(t.Context(), &binarystore.SetRequest{
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "file.bin",
-		Data:      strings.NewReader("second"),
+		Data:      bytes.NewReader([]byte("payload")),
+		Overwrite: true,
+	}))
+	assert.True(t, client.lastOverwrite)
+}
+
+func TestSetOverwriteDoesNotMaskPreconditionErrors(t *testing.T) {
+	// A 412 raised while overwriting is not an existence conflict and must not
+	// be reported as ErrFileAlreadyExists.
+	client := newFakeOCIClient()
+	client.putErr = testServiceError{status: http.StatusPreconditionFailed, code: "PreconditionFailed"}
+	store := newTestStore(client, "")
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "file.bin",
+		Data:      bytes.NewReader([]byte("payload")),
 		Overwrite: true,
 	})
-	require.NoError(t, err)
-	assert.True(t, client.lastOverwrite)
-	assert.Equal(t, []byte("second"), client.objects["file.bin"])
+	require.Error(t, err)
+	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
-func TestGetStreamingBodyAndNotFound(t *testing.T) {
-	client := newFakeOCIClient()
-	client.objects["file.bin"] = []byte("payload")
-	store := newTestStore(client)
-
-	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "file.bin"})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.Data)
-
-	data, err := io.ReadAll(resp.Data)
-	require.NoError(t, err)
-	assert.Equal(t, "payload", string(data))
-	assert.False(t, client.lastReader.closed)
-	require.NoError(t, resp.Data.Close())
-	assert.True(t, client.lastReader.closed)
-
-	_, err = store.Get(t.Context(), &binarystore.GetRequest{FileName: "missing.bin"})
-	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
-}
-
-func TestDeleteAndNotFound(t *testing.T) {
-	client := newFakeOCIClient()
-	client.objects["file.bin"] = []byte("payload")
-	store := newTestStore(client)
-
-	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"}))
-	assert.NotContains(t, client.objects, "file.bin")
-
-	err := store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"})
-	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
-}
+// --- metadata ---
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("identity authentication", func(t *testing.T) {
@@ -151,10 +129,12 @@ func TestParseMetadata(t *testing.T) {
 			privateKeyKey:  "private-key",
 			tenancyKey:     "tenancy",
 			"namespace":    "namespace",
+			"PREFIX":       "tenant-a",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "bucket", m.BucketName)
 		assert.Equal(t, "namespace", m.Namespace)
+		assert.Equal(t, "tenant-a", m.Prefix, "metadata keys must be matched case-insensitively")
 	})
 
 	t.Run("missing bucket", func(t *testing.T) {
@@ -191,32 +171,43 @@ func TestParseMetadata(t *testing.T) {
 }
 
 func TestGetComponentMetadata(t *testing.T) {
-	store := newTestStore(newFakeOCIClient())
-	md := store.GetComponentMetadata()
+	md := newTestStore(newFakeOCIClient(), "").GetComponentMetadata()
 	require.NotNil(t, md)
-	_, hasBucket := md["bucketName"]
-	assert.True(t, hasBucket, "bucketName must appear in component metadata")
+	assert.Contains(t, md, bucketNameKey)
+	assert.Contains(t, md, "prefix")
 }
 
-func TestIsAlreadyExists(t *testing.T) {
-	require.True(t, isAlreadyExists(testServiceError{
-		status: http.StatusConflict,
-		code:   "BucketAlreadyExists",
-	}))
-	require.False(t, isAlreadyExists(testServiceError{
-		status: http.StatusConflict,
-		code:   "Conflict",
-	}))
-	require.False(t, isAlreadyExists(testServiceError{
-		status: http.StatusNotFound,
-		code:   "BucketAlreadyExists",
-	}))
+// --- error classification ---
+
+func TestErrorClassification(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		assert.True(t, isNotFound(testServiceError{status: http.StatusNotFound, code: "ObjectNotFound"}))
+		assert.False(t, isNotFound(testServiceError{status: http.StatusConflict, code: "Conflict"}))
+		assert.False(t, isNotFound(errors.New("boom")))
+	})
+
+	t.Run("precondition failed", func(t *testing.T) {
+		assert.True(t, isPreconditionFailed(testServiceError{status: http.StatusPreconditionFailed, code: "PreconditionFailed"}))
+		assert.True(t, isPreconditionFailed(testServiceError{status: http.StatusOK, code: "ConditionNotMet"}))
+		assert.True(t, isPreconditionFailed(testServiceError{status: http.StatusConflict, code: "ObjectAlreadyExists"}))
+		// A bare 409 is an unrelated conflict, not an existence conflict.
+		assert.False(t, isPreconditionFailed(testServiceError{status: http.StatusConflict, code: "Conflict"}))
+		assert.False(t, isPreconditionFailed(errors.New("boom")))
+	})
+
+	t.Run("already exists", func(t *testing.T) {
+		assert.True(t, isAlreadyExists(testServiceError{status: http.StatusConflict, code: "BucketAlreadyExists"}))
+		assert.False(t, isAlreadyExists(testServiceError{status: http.StatusConflict, code: "Conflict"}))
+		assert.False(t, isAlreadyExists(testServiceError{status: http.StatusNotFound, code: "BucketAlreadyExists"}))
+	})
 }
+
+// --- fakes ---
 
 type fakeOCIClient struct {
 	objects       map[string][]byte
 	lastOverwrite bool
-	lastReader    *trackingReadCloser
+	putErr        error
 	closed        bool
 }
 
@@ -224,8 +215,20 @@ func newFakeOCIClient() *fakeOCIClient {
 	return &fakeOCIClient{objects: map[string][]byte{}}
 }
 
+func (f *fakeOCIClient) names() []string {
+	names := make([]string, 0, len(f.objects))
+	for name := range f.objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (f *fakeOCIClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
 	f.lastOverwrite = overwrite
+	if f.putErr != nil {
+		return f.putErr
+	}
 	if _, ok := f.objects[name]; ok && !overwrite {
 		return testServiceError{status: http.StatusPreconditionFailed, code: "PreconditionFailed"}
 	}
@@ -240,15 +243,14 @@ func (f *fakeOCIClient) putObject(_ context.Context, name string, data io.Reader
 func (f *fakeOCIClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
 	data, ok := f.objects[name]
 	if !ok {
-		return nil, testServiceError{status: http.StatusNotFound, code: "NotFound"}
+		return nil, testServiceError{status: http.StatusNotFound, code: "ObjectNotFound"}
 	}
-	f.lastReader = &trackingReadCloser{Reader: bytes.NewReader(data)}
-	return f.lastReader, nil
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 func (f *fakeOCIClient) deleteObject(_ context.Context, name string) error {
 	if _, ok := f.objects[name]; !ok {
-		return testServiceError{status: http.StatusNotFound, code: "NotFound"}
+		return testServiceError{status: http.StatusNotFound, code: "ObjectNotFound"}
 	}
 	delete(f.objects, name)
 	return nil
@@ -256,16 +258,6 @@ func (f *fakeOCIClient) deleteObject(_ context.Context, name string) error {
 
 func (f *fakeOCIClient) close() error {
 	f.closed = true
-	return nil
-}
-
-type trackingReadCloser struct {
-	*bytes.Reader
-	closed bool
-}
-
-func (r *trackingReadCloser) Close() error {
-	r.closed = true
 	return nil
 }
 

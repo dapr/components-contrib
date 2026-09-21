@@ -14,8 +14,12 @@ limitations under the License.
 package s3
 
 import (
+	"bytes"
+	"context"
 	"errors"
-	"strings"
+	"io"
+	"net/http"
+	"sort"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -24,206 +28,246 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/components-contrib/binarystore/internal/storetest"
 	"github.com/dapr/kit/logger"
 )
 
-// newTestStore returns an uninitialised AWSS3 cast to its concrete type so
-// that unit tests can call unexported helpers without a live AWS connection.
-func newTestStore() *AWSS3 {
-	return NewAWSS3(logger.NewLogger("test")).(*AWSS3)
+func newTestStore(client s3StoreClient, prefix string) *AWSS3 {
+	return &AWSS3{
+		metadata: &s3Metadata{Bucket: "test-bucket", Prefix: prefix},
+		client:   client,
+		logger:   logger.NewLogger("test"),
+	}
 }
 
-// --- interface compliance ---
+// --- shared behaviour suite ---
+
+func TestStoreBehaviour(t *testing.T) {
+	storetest.RunSuite(t, func(t *testing.T, prefix string) storetest.Harness {
+		client := newFakeS3Client()
+		return storetest.Harness{
+			Store:  newTestStore(client, prefix),
+			Prefix: prefix,
+			Names:  client.names,
+		}
+	})
+}
+
+// --- interface compliance and constructor ---
 
 func TestImplementsBinaryStore(t *testing.T) {
 	var _ binarystore.BinaryStore = (*AWSS3)(nil)
 }
 
-// --- constructor ---
-
 func TestNewAWSS3(t *testing.T) {
-	log := logger.NewLogger("test")
-	store := NewAWSS3(log)
-	require.NotNil(t, store)
+	require.NotNil(t, NewAWSS3(logger.NewLogger("test")))
 }
 
 // --- Close ---
 
 func TestClose(t *testing.T) {
-	store := newTestStore()
-	require.NoError(t, store.Close())
+	t.Run("nil client", func(t *testing.T) {
+		store := NewAWSS3(logger.NewLogger("test"))
+		require.NoError(t, store.Close())
+	})
+
+	t.Run("configured client", func(t *testing.T) {
+		client := newFakeS3Client()
+		require.NoError(t, newTestStore(client, "").Close())
+		assert.True(t, client.closed)
+	})
 }
 
-// --- Features ---
+// --- provider specific behaviour ---
 
-func TestFeatures(t *testing.T) {
-	store := newTestStore()
-	features := store.Features()
-	require.NotNil(t, features)
-	assert.Empty(t, features)
+func TestDeleteWithoutReadPermission(t *testing.T) {
+	// S3 answers HeadObject with 403 rather than 404 when the caller lacks
+	// s3:ListBucket, so a delete-only policy must still be able to delete.
+	client := newFakeS3Client()
+	client.objects["file.bin"] = []byte("payload")
+	client.headErr = &fakeAPIError{code: "AccessDenied"}
+	store := newTestStore(client, "")
+
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"}))
+	assert.NotContains(t, client.objects, "file.bin")
 }
 
-// --- Set validation (no AWS connection required) ---
+func TestDeleteSurfacesUnexpectedHeadErrors(t *testing.T) {
+	client := newFakeS3Client()
+	client.objects["file.bin"] = []byte("payload")
+	client.headErr = errors.New("boom")
+	store := newTestStore(client, "")
 
-func TestSet_MissingFileName(t *testing.T) {
-	store := newTestStore()
+	err := store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "file.bin"})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, binarystore.ErrFileNotFound)
+	assert.Contains(t, client.objects, "file.bin")
+}
+
+func TestSetOverwriteDoesNotMaskConflicts(t *testing.T) {
+	// A conflict raised while overwriting (e.g. OperationAborted from racing
+	// writers) is unrelated to object existence and must not be reported as
+	// ErrFileAlreadyExists.
+	client := newFakeS3Client()
+	client.putErr = &fakeAPIError{code: "ConditionalRequestConflict"}
+	store := newTestStore(client, "")
 
 	err := store.Set(t.Context(), &binarystore.SetRequest{
-		Data:      strings.NewReader("payload"),
+		FileName:  "file.bin",
+		Data:      bytes.NewReader([]byte("payload")),
 		Overwrite: true,
 	})
-
 	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
+	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
-// --- Get validation (no AWS connection required) ---
+// --- metadata ---
 
-func TestGet_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	_, err := store.Get(t.Context(), &binarystore.GetRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- Delete validation (no AWS connection required) ---
-
-func TestDelete_MissingFileName(t *testing.T) {
-	store := newTestStore()
-
-	err := store.Delete(t.Context(), &binarystore.DeleteRequest{})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, binarystore.ErrMissingFileName)
-}
-
-// --- SetRequest semantics ---
-
-func TestSetRequest_OverwriteDefaultsFalse(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName: "test.bin",
-		Data:     strings.NewReader("hello"),
-	}
-	assert.False(t, req.Overwrite, "zero value of Overwrite must be false (create-only semantics)")
-}
-
-func TestSetRequest_OverwriteCanBeSetTrue(t *testing.T) {
-	req := &binarystore.SetRequest{
-		FileName:  "test.bin",
-		Data:      strings.NewReader("hello"),
-		Overwrite: true,
-	}
-	assert.True(t, req.Overwrite)
-}
-
-// --- Sentinel error identity ---
-
-func TestSentinelErrors(t *testing.T) {
-	t.Run("ErrFileAlreadyExists wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileAlreadyExists), binarystore.ErrFileAlreadyExists)
+func TestParseMetadata(t *testing.T) {
+	t.Run("missing bucket", func(t *testing.T) {
+		_, err := parseMetadata(map[string]string{})
+		require.Error(t, err)
 	})
 
-	t.Run("ErrFileNotFound wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrFileNotFound), binarystore.ErrFileNotFound)
+	t.Run("bucket and prefix", func(t *testing.T) {
+		m, err := parseMetadata(map[string]string{"bucket": "my-bucket", "PREFIX": "tenant-a"})
+		require.NoError(t, err)
+		assert.Equal(t, "my-bucket", m.Bucket)
+		assert.Equal(t, "tenant-a", m.Prefix, "metadata keys must be matched case-insensitively")
 	})
 
-	t.Run("ErrMissingFileName wraps correctly", func(t *testing.T) {
-		require.ErrorIs(t, errors.Join(errors.New("wrapped"), binarystore.ErrMissingFileName), binarystore.ErrMissingFileName)
+	t.Run("disableSSL adds an http scheme", func(t *testing.T) {
+		m, err := parseMetadata(map[string]string{
+			"bucket":     "my-bucket",
+			"endpoint":   "localhost:9000",
+			"disableSSL": "true",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "http://localhost:9000", m.Endpoint)
 	})
 
-	t.Run("sentinel errors are distinct", func(t *testing.T) {
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrFileNotFound)
-		assert.NotEqual(t, binarystore.ErrFileAlreadyExists, binarystore.ErrMissingFileName)
-		assert.NotEqual(t, binarystore.ErrFileNotFound, binarystore.ErrMissingFileName)
+	t.Run("disableSSL preserves an existing scheme", func(t *testing.T) {
+		m, err := parseMetadata(map[string]string{
+			"bucket":     "my-bucket",
+			"endpoint":   "https://localhost:9000",
+			"disableSSL": "true",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://localhost:9000", m.Endpoint)
 	})
 }
-
-// --- GetComponentMetadata ---
 
 func TestGetComponentMetadata(t *testing.T) {
-	store := newTestStore()
-	md := store.GetComponentMetadata()
+	md := newTestStore(newFakeS3Client(), "").GetComponentMetadata()
 	require.NotNil(t, md)
-	_, hasBucket := md["bucket"]
-	assert.True(t, hasBucket, "bucket must appear in component metadata")
+	assert.Contains(t, md, "bucket")
+	assert.Contains(t, md, "prefix")
 }
 
-// --- metadata parsing ---
+// --- error classification ---
 
-func TestParseMetadata_MissingBucket(t *testing.T) {
-	_, err := parseMetadata(map[string]string{})
-	require.Error(t, err)
-}
-
-func TestParseMetadata_Bucket(t *testing.T) {
-	m, err := parseMetadata(map[string]string{"bucket": "my-bucket"})
-	require.NoError(t, err)
-	assert.Equal(t, "my-bucket", m.Bucket)
-}
-
-func TestParseMetadata_DisableSSLAddsHTTPPrefix(t *testing.T) {
-	m, err := parseMetadata(map[string]string{
-		"bucket":     "my-bucket",
-		"endpoint":   "localhost:9000",
-		"disableSSL": "true",
+func TestErrorClassification(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		assert.True(t, isNotFound(&types.NoSuchKey{}))
+		assert.True(t, isNotFound(&fakeAPIError{code: "NoSuchKey"}))
+		assert.True(t, isNotFound(&fakeAPIError{code: "NotFound"}))
+		assert.True(t, isNotFound(&fakeHTTPError{status: http.StatusNotFound}))
+		assert.False(t, isNotFound(errors.New("boom")))
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "http://localhost:9000", m.Endpoint)
-}
 
-func TestParseMetadata_DisableSSLPreservesExistingScheme(t *testing.T) {
-	m, err := parseMetadata(map[string]string{
-		"bucket":     "my-bucket",
-		"endpoint":   "https://localhost:9000",
-		"disableSSL": "true",
+	t.Run("precondition failed", func(t *testing.T) {
+		assert.True(t, isPreconditionFailed(&fakeAPIError{code: "PreconditionFailed"}))
+		assert.True(t, isPreconditionFailed(&fakeAPIError{code: "ConditionalRequestConflict"}))
+		assert.True(t, isPreconditionFailed(&fakeHTTPError{status: http.StatusPreconditionFailed}))
+		// 409 alone is not an existence conflict on S3.
+		assert.False(t, isPreconditionFailed(&fakeHTTPError{status: http.StatusConflict}))
+		assert.False(t, isPreconditionFailed(errors.New("boom")))
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "https://localhost:9000", m.Endpoint)
+
+	t.Run("access denied", func(t *testing.T) {
+		assert.True(t, isAccessDenied(&fakeAPIError{code: "AccessDenied"}))
+		assert.True(t, isAccessDenied(&fakeHTTPError{status: http.StatusForbidden}))
+		assert.False(t, isAccessDenied(errors.New("boom")))
+	})
 }
 
-// --- error mapping helpers ---
+// --- fakes ---
+
+type fakeS3Client struct {
+	objects map[string][]byte
+	putErr  error
+	headErr error
+	closed  bool
+}
+
+func newFakeS3Client() *fakeS3Client {
+	return &fakeS3Client{objects: map[string][]byte{}}
+}
+
+func (f *fakeS3Client) names() []string {
+	names := make([]string, 0, len(f.objects))
+	for name := range f.objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (f *fakeS3Client) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	if f.putErr != nil {
+		return f.putErr
+	}
+	if _, ok := f.objects[name]; ok && !overwrite {
+		return &fakeAPIError{code: "PreconditionFailed"}
+	}
+	b, err := io.ReadAll(data)
+	if err != nil {
+		return err
+	}
+	f.objects[name] = b
+	return nil
+}
+
+func (f *fakeS3Client) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	data, ok := f.objects[name]
+	if !ok {
+		return nil, &types.NoSuchKey{}
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+func (f *fakeS3Client) headObject(_ context.Context, name string) error {
+	if f.headErr != nil {
+		return f.headErr
+	}
+	if _, ok := f.objects[name]; !ok {
+		return &fakeAPIError{code: "NotFound"}
+	}
+	return nil
+}
+
+func (f *fakeS3Client) deleteObject(_ context.Context, name string) error {
+	delete(f.objects, name)
+	return nil
+}
+
+func (f *fakeS3Client) close() error {
+	f.closed = true
+	return nil
+}
 
 type fakeAPIError struct {
 	code string
 }
 
-func (e *fakeAPIError) Error() string        { return e.code }
-func (e *fakeAPIError) ErrorCode() string    { return e.code }
-func (e *fakeAPIError) ErrorMessage() string { return e.code }
-func (e *fakeAPIError) ErrorFault() smithy.ErrorFault {
-	return smithy.FaultUnknown
+func (e *fakeAPIError) Error() string                 { return e.code }
+func (e *fakeAPIError) ErrorCode() string             { return e.code }
+func (e *fakeAPIError) ErrorMessage() string          { return e.code }
+func (e *fakeAPIError) ErrorFault() smithy.ErrorFault { return smithy.FaultUnknown }
+
+type fakeHTTPError struct {
+	status int
 }
 
-func TestIsNotFound(t *testing.T) {
-	t.Run("NoSuchKey type", func(t *testing.T) {
-		assert.True(t, isNotFound(&types.NoSuchKey{}))
-	})
-
-	t.Run("API error code NoSuchKey", func(t *testing.T) {
-		assert.True(t, isNotFound(&fakeAPIError{code: "NoSuchKey"}))
-	})
-
-	t.Run("API error code NotFound", func(t *testing.T) {
-		assert.True(t, isNotFound(&fakeAPIError{code: "NotFound"}))
-	})
-
-	t.Run("unrelated error", func(t *testing.T) {
-		assert.False(t, isNotFound(errors.New("boom")))
-	})
-}
-
-func TestIsPreconditionFailed(t *testing.T) {
-	t.Run("API error code PreconditionFailed", func(t *testing.T) {
-		assert.True(t, isPreconditionFailed(&fakeAPIError{code: "PreconditionFailed"}))
-	})
-
-	t.Run("API error code ConditionalRequestConflict", func(t *testing.T) {
-		assert.True(t, isPreconditionFailed(&fakeAPIError{code: "ConditionalRequestConflict"}))
-	})
-
-	t.Run("unrelated error", func(t *testing.T) {
-		assert.False(t, isPreconditionFailed(errors.New("boom")))
-	})
-}
+func (e *fakeHTTPError) Error() string       { return http.StatusText(e.status) }
+func (e *fakeHTTPError) HTTPStatusCode() int { return e.status }

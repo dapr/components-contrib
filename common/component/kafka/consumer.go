@@ -58,6 +58,25 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		for {
 			select {
 			case <-session.Context().Done():
+				// Flushing after the session is cancelled is pre-existing
+				// behaviour, and it stays safe under transactions because the
+				// broker rejects what a revoked member tries to commit: the
+				// offset carries this session's generation and member id, so
+				// a commit from a generation the coordinator has moved past
+				// comes back ILLEGAL_GENERATION / UNKNOWN_MEMBER_ID and the
+				// delivery aborts. The buffered records are then redelivered
+				// to whoever owns the partition, which is what should happen.
+				//
+				// The one cost is that this flush may create the claim's
+				// producer for the first time, and creating it is an
+				// InitProducerId on a transactional.id the new owner may
+				// already hold — bumping the epoch under them. That costs the
+				// new owner one aborted transaction and one redelivered
+				// batch, which it recovers from on its next delivery. Not
+				// worth skipping the flush over: in an ordinary rebalance
+				// sarama waits for this call to return before the member
+				// rejoins, so the new owner initializes last and it is this
+				// producer that gets fenced, which is the intended direction.
 				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b, ct)
 			case message := <-claim.Messages():
 				consumer.mutex.Lock()

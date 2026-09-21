@@ -22,7 +22,6 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	time "time"
@@ -78,21 +77,6 @@ func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	return err
 }
 
-func AddPrefixToAddress(t string) string {
-	dest := t
-
-	// Unless the request comes in to publish on a queue, publish directly on a topic
-	if !strings.HasPrefix(dest, "queue:") && !strings.HasPrefix(dest, "topic:") {
-		dest = "topic://" + dest
-	} else if strings.HasPrefix(dest, "queue:") {
-		dest = strings.Replace(dest, "queue:", "queue://", 1)
-	} else if strings.HasPrefix(dest, "topic:") {
-		dest = strings.Replace(dest, "topic:", "topic://", 1)
-	}
-
-	return dest
-}
-
 // Publish the topic to amqp pubsub
 func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	a.publishLock.Lock()
@@ -106,6 +90,11 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 
 	if req.Topic == "" {
 		return pubsub.NewTerminalError(errors.New("topic name is empty"))
+	}
+
+	address := a.metadata.addressFor(req.Topic)
+	if address == "" {
+		return pubsub.NewTerminalError(fmt.Errorf("topic %q maps to an empty AMQP address", req.Topic))
 	}
 
 	m := amqp.NewMessage(req.Data)
@@ -122,7 +111,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	}
 
 	sender, err := a.session.NewSender(ctx,
-		AddPrefixToAddress(req.Topic),
+		address,
 		nil,
 	)
 
@@ -159,15 +148,18 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return errors.New("component is closed")
 	}
 
-	prefixedTopic := AddPrefixToAddress(req.Topic)
+	address := a.metadata.addressFor(req.Topic)
+	if address == "" {
+		return fmt.Errorf("topic %q maps to an empty AMQP address", req.Topic)
+	}
 
 	receiver, err := a.session.NewReceiver(ctx,
-		prefixedTopic,
+		address,
 		nil,
 	)
 
 	if err == nil {
-		a.logger.Infof("Attempting to subscribe to %s", prefixedTopic)
+		a.logger.Infof("Attempting to subscribe to %s", address)
 		a.wg.Add(2)
 		subCtx, cancel := context.WithCancel(ctx)
 		go func() {
@@ -180,7 +172,7 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		}()
 		go func() {
 			defer a.wg.Done()
-			a.subscribeForever(subCtx, receiver, handler, prefixedTopic)
+			a.subscribeForever(subCtx, receiver, handler, req.Topic, address)
 		}()
 	} else {
 		a.logger.Error("Unable to create a receiver:", err)
@@ -189,25 +181,17 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	return err
 }
 
-// function that subscribes to a queue in a tight loop
-func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, t string) {
-	defer a.logger.Infof("closing receiver for %s", t)
+// function that subscribes to a queue in a tight loop.
+// topic is the Dapr topic name the messages are delivered under, address is the
+// AMQP address the receiver link is attached to.
+func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, topic string, address string) {
+	defer a.logger.Infof("closing receiver for %s", address)
 	for ctx.Err() == nil {
 		// Receive next message
 		msg, err := receiver.Receive(ctx, nil)
 
 		if msg != nil {
-			data := msg.GetData()
-
-			// if data is empty, then check the value field for data
-			if len(data) == 0 {
-				data = []byte(fmt.Sprint(msg.Value))
-			}
-
-			pubsubMsg := &pubsub.NewMessage{
-				Data:  data,
-				Topic: receiver.LinkName(),
-			}
+			pubsubMsg := newPubsubMessage(topic, msg)
 
 			if err != nil {
 				a.logger.Errorf("failed to establish receiver")
@@ -222,7 +206,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 					a.logger.Errorf("failed to acknowledge a message")
 				}
 			} else {
-				a.logger.Errorf("Error processing message from %s", receiver.LinkName())
+				a.logger.Errorf("Error processing message from %s", address)
 				a.logger.Debugf("NAKd a message")
 				err := receiver.RejectMessage(ctx, msg, nil)
 				if err != nil {
@@ -230,6 +214,22 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 				}
 			}
 		}
+	}
+}
+
+// newPubsubMessage converts a message received from the broker into a Dapr
+// pub/sub message delivered under the topic the subscription was created for.
+func newPubsubMessage(topic string, msg *amqp.Message) *pubsub.NewMessage {
+	data := msg.GetData()
+
+	// if data is empty, then check the value field for data
+	if len(data) == 0 {
+		data = []byte(fmt.Sprint(msg.Value))
+	}
+
+	return &pubsub.NewMessage{
+		Data:  data,
+		Topic: topic,
 	}
 }
 

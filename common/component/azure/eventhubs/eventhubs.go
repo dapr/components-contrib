@@ -432,7 +432,7 @@ func newPartitionCheckpointTracker(frequency int) *partitionCheckpointTracker {
 	}
 	return &partitionCheckpointTracker{
 		pending:   map[uint64]*pendingBatch{},
-		frequency: uint64(frequency),
+		frequency: uint64(frequency), //nolint:gosec
 	}
 }
 

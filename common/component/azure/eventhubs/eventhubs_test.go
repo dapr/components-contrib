@@ -202,7 +202,7 @@ func TestWaitForHandlersTimesOut(t *testing.T) {
 }
 
 func TestProcessEventsDoesNotReceiveNextBatchAfterHandlerFailure(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	messageIDA := "A"
 	messageIDB := "B"
 	eventA := &azeventhubs.ReceivedEventData{
@@ -247,7 +247,7 @@ func TestProcessEventsDoesNotReceiveNextBatchAfterHandlerFailure(t *testing.T) {
 }
 
 func TestProcessEventsConcurrentModeWaitsForContiguousSuccess(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	releaseFirst := make(chan struct{})
 	laterCompleted := make(chan struct{}, 2)
 	client := &fakeProcessorPartitionClient{
@@ -298,7 +298,7 @@ func TestProcessEventsConcurrentModeWaitsForContiguousSuccess(t *testing.T) {
 }
 
 func TestProcessEventsConcurrentModeDoesNotCheckpointWhenDisabled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	handled := make(chan struct{}, 2)
 	client := &fakeProcessorPartitionClient{
 		batches: [][]*azeventhubs.ReceivedEventData{
@@ -340,7 +340,7 @@ func TestProcessEventsConcurrentModeDoesNotCheckpointWhenDisabled(t *testing.T) 
 }
 
 func TestProcessEventsConcurrentModeCheckpointsContiguousSuccessAtConfiguredFrequency(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	releaseFirst := make(chan struct{})
 	laterCompleted := make(chan struct{}, 2)
 	client := &fakeProcessorPartitionClient{
@@ -387,7 +387,7 @@ func TestProcessEventsConcurrentModeCheckpointsContiguousSuccessAtConfiguredFreq
 }
 
 func TestProcessEventsConcurrentModeStopsReceivingAtCapacity(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 	started := make(chan int64, 3)
 	client := &fakeProcessorPartitionClient{
@@ -438,7 +438,7 @@ func TestProcessEventsConcurrentModeStopsReceivingAtCapacity(t *testing.T) {
 }
 
 func TestProcessEventsConcurrentCheckpointWritesAreSerialized(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	var activeWrites atomic.Int32
 	var maxActiveWrites atomic.Int32
 	checkpointStarted := make(chan struct{})
@@ -510,7 +510,7 @@ func TestProcessEventsConcurrentModeReturnsCheckpointError(t *testing.T) {
 		},
 	}
 
-	err := aeh.processEvents(context.Background(), client, SubscribeConfig{
+	err := aeh.processEvents(t.Context(), client, SubscribeConfig{
 		Topic:                           "topic",
 		MaxBulkSubCount:                 1,
 		MaxBulkSubAwaitDurationMs:       100,
@@ -525,7 +525,7 @@ func TestProcessEventsConcurrentModeReturnsCheckpointError(t *testing.T) {
 }
 
 func TestProcessEventsDoesNotReceiveNextBatchAfterBulkFailure(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	eventA := receivedEvent("A", 1, 10)
 	eventB := receivedEvent("B", 2, 20)
 	eventC := receivedEvent("C", 3, 30)
@@ -556,7 +556,7 @@ func TestProcessEventsDoesNotReceiveNextBatchAfterBulkFailure(t *testing.T) {
 }
 
 func TestProcessEventsRetriesFailedBatchBeforeReceivingNextBatch(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	client := &fakeProcessorPartitionClient{
 		batches: [][]*azeventhubs.ReceivedEventData{
 			{receivedEvent("A", 1, 10)},
@@ -597,7 +597,7 @@ func TestProcessEventsRetriesFailedBatchBeforeReceivingNextBatch(t *testing.T) {
 }
 
 func TestProcessEventsCheckpointsSuccessfulBatchesAtConfiguredFrequency(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	client := &fakeProcessorPartitionClient{
 		batches: [][]*azeventhubs.ReceivedEventData{
 			{receivedEvent("A", 1, 10)},
@@ -631,7 +631,7 @@ func TestProcessEventsCheckpointsSuccessfulBatchesAtConfiguredFrequency(t *testi
 }
 
 func TestProcessEventsDoesNotCheckpointAfterCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	client := &fakeProcessorPartitionClient{
 		batches: [][]*azeventhubs.ReceivedEventData{{receivedEvent("A", 1, 10)}},
 	}
@@ -665,7 +665,7 @@ func TestProcessEventsDoesNotCheckpointAfterOwnershipLoss(t *testing.T) {
 		metadata: &AzureEventHubsMetadata{EnableInOrderMessageDelivery: true},
 	}
 
-	err := aeh.processEvents(context.Background(), client, SubscribeConfig{
+	err := aeh.processEvents(t.Context(), client, SubscribeConfig{
 		Topic:                           "topic",
 		MaxBulkSubCount:                 1,
 		MaxBulkSubAwaitDurationMs:       100,
@@ -699,7 +699,7 @@ func TestProcessEventsDoesNotCheckpointHandlerAfterOwnershipLoss(t *testing.T) {
 
 	result := make(chan error, 1)
 	go func() {
-		result <- aeh.processEvents(context.Background(), client, SubscribeConfig{
+		result <- aeh.processEvents(t.Context(), client, SubscribeConfig{
 			Topic:                           "topic",
 			MaxBulkSubCount:                 1,
 			MaxBulkSubAwaitDurationMs:       100,
@@ -729,7 +729,7 @@ func TestProcessEventsDoesNotCheckpointHandlerAfterOwnershipLoss(t *testing.T) {
 }
 
 func TestProcessEventsClosesPartitionClientBeforeHandlersDrain(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	handlerStarted := make(chan struct{})
 	releaseHandler := make(chan struct{})
 	client := &fakeProcessorPartitionClient{
@@ -799,7 +799,7 @@ func TestHandleWithRetryRetriesPartialBulkFailure(t *testing.T) {
 	}
 	attempts := 0
 
-	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+	err := aeh.handleWithRetry(t.Context(), "topic", []*azeventhubs.ReceivedEventData{
 		receivedEvent("A", 1, 10),
 		receivedEvent("B", 2, 20),
 	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
@@ -824,7 +824,7 @@ func TestHandleWithRetrySupportsMissingMessageID(t *testing.T) {
 	}
 	attempts := 0
 
-	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+	err := aeh.handleWithRetry(t.Context(), "topic", []*azeventhubs.ReceivedEventData{
 		{SequenceNumber: 1},
 	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		attempts++
@@ -845,7 +845,7 @@ func TestHandleWithRetryContinuesPastConfiguredRetryLimit(t *testing.T) {
 	}
 	attempts := 0
 
-	err := aeh.handleWithRetry(context.Background(), "topic", []*azeventhubs.ReceivedEventData{
+	err := aeh.handleWithRetry(t.Context(), "topic", []*azeventhubs.ReceivedEventData{
 		receivedEvent("A", 1, 10),
 	}, func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		attempts++

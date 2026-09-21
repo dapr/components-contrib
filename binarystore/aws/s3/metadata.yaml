@@ -17,7 +17,11 @@ metadata:
   - name: bucket
     required: true
     description: |
-      The name of the S3 bucket to use.
+      The name of the S3 bucket to use. The component requires the
+      `s3:PutObject` and `s3:DeleteObject` permissions on the bucket, plus
+      `s3:GetObject` for `Get` and for the existence check performed by
+      `Delete`. Without `s3:GetObject`, `Delete` cannot report whether the
+      object existed and always reports success.
     example: '"my-binary-store-bucket"'
 
   - name: prefix

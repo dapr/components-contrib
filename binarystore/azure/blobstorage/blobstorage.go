@@ -33,6 +33,15 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	// blockUploadSize is the block size used when streaming uploads to a
+	// block blob. The SDK default of 1 MiB caps a blob at ~48.8 GiB given the
+	// 50,000 block limit and serialises the upload.
+	blockUploadSize = 8 * 1024 * 1024
+	// blockUploadConcurrency is the number of blocks staged in parallel.
+	blockUploadConcurrency = 4
+)
+
 // AzureBlobStorage implements binarystore.BinaryStore using Azure Blob Storage.
 type AzureBlobStorage struct {
 	metadata        *storagecommon.BlobStorageMetadata
@@ -68,7 +77,14 @@ func (a *AzureBlobStorage) Set(ctx context.Context, req *binarystore.SetRequest)
 		return binarystore.ErrMissingFileName
 	}
 
-	opts := &blockblob.UploadStreamOptions{}
+	opts := &blockblob.UploadStreamOptions{
+		// The SDK defaults to 1 MiB blocks uploaded one at a time, which caps
+		// a block blob at roughly 48.8 GiB (50,000 blocks) and bounds
+		// throughput by per-request latency. 8 MiB blocks with 4 in flight
+		// keeps buffering modest while supporting multi-gigabyte files.
+		BlockSize:   blockUploadSize,
+		Concurrency: blockUploadConcurrency,
+	}
 	if !req.Overwrite {
 		// If-None-Match: * instructs the service to reject the write if any
 		// version of the blob already exists (HTTP 412 / ConditionNotMet).

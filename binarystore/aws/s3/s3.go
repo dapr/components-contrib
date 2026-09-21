@@ -132,7 +132,11 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 
 	_, err := s.tmClient.UploadObject(ctx, input)
 	if err != nil {
-		if isPreconditionFailed(err) {
+		// Only a conditional write can fail because the object already
+		// exists; when overwriting, a conflict signals an unrelated
+		// condition (e.g. OperationAborted from racing writers) that must be
+		// surfaced to the caller rather than masked as ErrFileAlreadyExists.
+		if !req.Overwrite && isPreconditionFailed(err) {
 			return binarystore.ErrFileAlreadyExists
 		}
 		return fmt.Errorf("error uploading object %q: %w", req.FileName, err)
@@ -168,6 +172,13 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 
 // Delete removes an object from S3. If the object does not exist,
 // binarystore.ErrFileNotFound is returned.
+//
+// Because S3's DeleteObject is idempotent and succeeds for missing keys, an
+// existence check is issued first, which requires the s3:GetObject permission.
+// When that permission is absent S3 answers HeadObject for a missing key with
+// 403 AccessDenied rather than 404 so that key existence is not leaked; in
+// that case the delete proceeds without the existence guarantee rather than
+// failing outright.
 func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) error {
 	if req.FileName == "" {
 		return binarystore.ErrMissingFileName
@@ -181,10 +192,15 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 		Key:    ptr.Of(binarystore.ObjectPath(s.metadata.Prefix, req.FileName)),
 	})
 	if err != nil {
-		if isNotFound(err) {
+		switch {
+		case isNotFound(err):
 			return binarystore.ErrFileNotFound
+		case isAccessDenied(err):
+			// Existence cannot be determined without s3:GetObject; fall
+			// through to the delete so a delete-only policy still works.
+		default:
+			return fmt.Errorf("error checking object %q: %w", req.FileName, err)
 		}
-		return fmt.Errorf("error checking object %q: %w", req.FileName, err)
 	}
 
 	_, err = s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
@@ -235,6 +251,27 @@ func isNotFound(err error) bool {
 	return false
 }
 
+// isAccessDenied reports whether err indicates that the caller is not
+// authorised for the request. S3 returns this instead of a 404 for HeadObject
+// on a missing key when the caller lacks s3:ListBucket, so that key existence
+// is not disclosed.
+func isAccessDenied(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "AccessDenied", "Forbidden":
+			return true
+		}
+	}
+
+	var re interface{ HTTPStatusCode() int }
+	if errors.As(err, &re) {
+		return re.HTTPStatusCode() == http.StatusForbidden
+	}
+
+	return false
+}
+
 // isPreconditionFailed reports whether err indicates that a conditional write
 // (If-None-Match) was rejected because the object already exists.
 func isPreconditionFailed(err error) bool {
@@ -248,7 +285,11 @@ func isPreconditionFailed(err error) bool {
 
 	var re interface{ HTTPStatusCode() int }
 	if errors.As(err, &re) {
-		return re.HTTPStatusCode() == http.StatusPreconditionFailed || re.HTTPStatusCode() == http.StatusConflict
+		// 409 is deliberately not matched here: S3 also returns it for
+		// conditions unrelated to object existence, such as OperationAborted.
+		// The ConditionalRequestConflict error code above covers the
+		// existence case.
+		return re.HTTPStatusCode() == http.StatusPreconditionFailed
 	}
 
 	return false

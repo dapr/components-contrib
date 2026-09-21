@@ -391,16 +391,10 @@ func (c *ociObjectStoreClient) getObject(ctx context.Context, name string) (io.R
 }
 
 func (c *ociObjectStoreClient) deleteObject(ctx context.Context, name string) error {
-	_, err := c.objectClient.HeadObject(ctx, ociobjectstorage.HeadObjectRequest{
-		NamespaceName: &c.metadata.Namespace,
-		BucketName:    &c.metadata.BucketName,
-		ObjectName:    &name,
-	})
-	if err != nil {
-		return err
-	}
-
-	_, err = c.objectClient.DeleteObject(ctx, ociobjectstorage.DeleteObjectRequest{
+	// OCI Object Storage returns 404 ObjectNotFound from DeleteObject for a
+	// missing key, so no existence pre-check is required; the caller maps the
+	// error through isNotFound to produce binarystore.ErrFileNotFound.
+	_, err := c.objectClient.DeleteObject(ctx, ociobjectstorage.DeleteObjectRequest{
 		NamespaceName: &c.metadata.Namespace,
 		BucketName:    &c.metadata.BucketName,
 		ObjectName:    &name,

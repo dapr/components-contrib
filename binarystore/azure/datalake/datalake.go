@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -33,6 +32,14 @@ import (
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/datalake"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+)
+
+const (
+	// uploadChunkSize is the chunk size used when streaming uploads. The SDK
+	// default of 1 MiB serialises large uploads into many small requests.
+	uploadChunkSize = 8 * 1024 * 1024
+	// uploadConcurrency is the number of chunks uploaded in parallel.
+	uploadConcurrency = 4
 )
 
 // AzureDataLakeStorage implements binarystore.BinaryStore using Azure Data
@@ -73,30 +80,28 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 	}
 
 	objectPath := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
-	if err := a.ensureParentDirectories(ctx, objectPath); err != nil {
-		return fmt.Errorf("error creating parent directories for file %q: %w", req.FileName, err)
-	}
 
-	fileClient := a.fileSystemClient.NewFileClient(objectPath)
+	// The data is uploaded to a temporary path and then renamed onto the
+	// target path, so that a failed upload never leaves a partial file in
+	// place and the create-only condition is evaluated atomically by the
+	// service during the rename.
 	tempPath := fmt.Sprintf("%s.tmp-%s", objectPath, uuid.NewString())
 	tempClient := a.fileSystemClient.NewFileClient(tempPath)
-
-	if !req.Overwrite {
-		_, err := fileClient.GetProperties(ctx, nil)
-		switch {
-		case err == nil:
-			return binarystore.ErrFileAlreadyExists
-		case !datalakeerror.HasCode(err, datalakeerror.PathNotFound):
-			return fmt.Errorf("error checking file %q: %w", req.FileName, err)
-		}
-	}
 
 	if _, err := tempClient.Create(ctx, nil); err != nil {
 		return fmt.Errorf("error creating temporary file %q: %w", req.FileName, err)
 	}
 
-	if err := tempClient.UploadStream(ctx, req.Data, nil); err != nil {
-		_ = cleanupFileIfExists(ctx, tempClient)
+	uploadOpts := &file.UploadStreamOptions{
+		// The SDK default chunk size of 1 MiB uploaded one at a time bounds
+		// throughput by per-request latency for multi-gigabyte files.
+		ChunkSize:   uploadChunkSize,
+		Concurrency: uploadConcurrency,
+	}
+	if err := tempClient.UploadStream(ctx, req.Data, uploadOpts); err != nil {
+		if cleanupErr := cleanupFileIfExists(ctx, tempClient); cleanupErr != nil {
+			a.logger.Warnf("failed to remove temporary file %q: %v", tempPath, cleanupErr)
+		}
 		return fmt.Errorf("error uploading file %q: %w", req.FileName, err)
 	}
 
@@ -113,7 +118,9 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 	}
 
 	if _, err := tempClient.Rename(ctx, objectPath, renameOpts); err != nil {
-		_ = cleanupFileIfExists(ctx, tempClient)
+		if cleanupErr := cleanupFileIfExists(ctx, tempClient); cleanupErr != nil {
+			a.logger.Warnf("failed to remove temporary file %q: %v", tempPath, cleanupErr)
+		}
 		if datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet) {
 			return binarystore.ErrFileAlreadyExists
 		}
@@ -131,24 +138,6 @@ func cleanupFileIfExists(ctx context.Context, client *file.Client) error {
 	if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
 		return err
 	}
-	return nil
-}
-
-func (a *AzureDataLakeStorage) ensureParentDirectories(ctx context.Context, objectPath string) error {
-	parts := strings.Split(strings.Trim(objectPath, "/"), "/")
-	if len(parts) <= 1 {
-		return nil
-	}
-
-	for i := 1; i < len(parts); i++ {
-		dirPath := strings.Join(parts[:i], "/")
-		dirClient := a.fileSystemClient.NewDirectoryClient(dirPath)
-		_, err := dirClient.Create(ctx, nil)
-		if err != nil && !datalakeerror.HasCode(err, datalakeerror.PathAlreadyExists, datalakeerror.ConditionNotMet) {
-			return err
-		}
-	}
-
 	return nil
 }
 

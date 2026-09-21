@@ -21,6 +21,7 @@ package inmemory
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"reflect"
 	"sync"
@@ -28,7 +29,13 @@ import (
 	"github.com/dapr/components-contrib/binarystore"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
+
+// inMemoryMetadata contains the parsed metadata for the in-memory store.
+type inMemoryMetadata struct {
+	Prefix string `json:"prefix" mapstructure:"prefix"`
+}
 
 // InMemoryBinaryStore is an in-memory BinaryStore implementation.
 type InMemoryBinaryStore struct {
@@ -47,7 +54,13 @@ func NewInMemoryBinaryStore(log logger.Logger) binarystore.BinaryStore {
 }
 
 func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) error {
-	s.prefix = md.Properties["prefix"]
+	// Decoded through the metadata decoder so that key matching is
+	// case-insensitive and consistent with the other binary store providers.
+	var m inMemoryMetadata
+	if err := kitmd.DecodeMetadata(md.Properties, &m); err != nil {
+		return fmt.Errorf("failed to decode metadata: %w", err)
+	}
+	s.prefix = m.Prefix
 	return nil
 }
 
@@ -110,9 +123,7 @@ func (s *InMemoryBinaryStore) Delete(_ context.Context, req *binarystore.DeleteR
 }
 
 func (s *InMemoryBinaryStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := struct {
-		Prefix string `json:"prefix" mapstructure:"prefix"`
-	}{}
+	metadataStruct := inMemoryMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BinaryStoreType)
 	return
 }

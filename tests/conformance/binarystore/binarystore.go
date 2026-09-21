@@ -156,6 +156,34 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 		assert.Empty(t, got)
 	})
 
+	t.Run("set without overwrite creates a new file", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
+		// Exercises each provider's create-only precondition (If-None-Match,
+		// DoesNotExist, and similar) against a name that does not yet exist:
+		// the write must succeed rather than be rejected.
+		createName := makeObjectName(component, "create-only")
+		cleanupNames[createName] = struct{}{}
+
+		payload := []byte("created without overwrite")
+		err := store.Set(ctx, &binarystore.SetRequest{
+			FileName:  createName,
+			Data:      bytes.NewReader(payload),
+			Overwrite: false,
+		})
+		require.NoError(t, err)
+
+		resp, err := store.Get(ctx, &binarystore.GetRequest{FileName: createName})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		defer resp.Data.Close()
+
+		got, err := io.ReadAll(resp.Data)
+		require.NoError(t, err)
+		assert.Equal(t, payload, got)
+	})
+
 	t.Run("set without overwrite conflicts on existing file", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()

@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: binarystore-oci-objectstorage
+  name: binarystore-oci-objectstorage-prefix
 spec:
   type: binarystore.oci.objectstorage
   version: v1
@@ -16,3 +16,5 @@ spec:
     value: ${{OCICompartmentOCID}}
   - name: bucketName
     value: ${{OCIBucketName}}
+  - name: prefix
+    value: conf-prefix/nested

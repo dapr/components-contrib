@@ -195,19 +195,19 @@ jobs:
         done
 
     - name: Setup OCI config file
-      if: env.DAPR_TEST_OCI_CONFIG_FILE_PATH != '' || env.DAPR_TEST_OCI_CONFIG_PROFILE != ''
+      if: env.OCIConfigFile != '' || env.OCIConfigProfile != ''
       shell: bash
       run: |
-        if [ -n "${DAPR_TEST_OCI_CONFIG_FILE_PATH:-}" ] && [ ! -f "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" ]; then
-          if printf '%s' "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" | grep -Eq '(^\[|^\s*\[|user=|tenancy=|fingerprint=)'; then
+        if [ -n "${OCIConfigFile:-}" ] && [ ! -f "${OCIConfigFile}" ]; then
+          if printf '%s' "${OCIConfigFile}" | grep -Eq '(^\[|^\s*\[|user=|tenancy=|fingerprint=)'; then
             OCI_CONFIG_FILE=$(mktemp)
-            printf '%s' "${DAPR_TEST_OCI_CONFIG_FILE_PATH}" > "$OCI_CONFIG_FILE"
-            echo "DAPR_TEST_OCI_CONFIG_FILE_PATH=$OCI_CONFIG_FILE" >> "$GITHUB_ENV"
+            printf '%s' "${OCIConfigFile}" > "$OCI_CONFIG_FILE"
+            echo "OCIConfigFile=$OCI_CONFIG_FILE" >> "$GITHUB_ENV"
           fi
         fi
 
-        if [ -z "${DAPR_TEST_OCI_CONFIG_PROFILE:-}" ]; then
-          echo "DAPR_TEST_OCI_CONFIG_PROFILE=DEFAULT" >> "$GITHUB_ENV"
+        if [ -z "${OCIConfigProfile:-}" ]; then
+          echo "OCIConfigProfile=DEFAULT" >> "$GITHUB_ENV"
         fi
 
     # Authenticate with GCP Workload Identity Pool

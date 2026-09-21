@@ -83,6 +83,15 @@ metadata:
       - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
       - "blob"
       - "container"
+  - name: prefix
+    type: string
+    required: false
+    description: |
+      An optional prefix prepended to all blob names used by this component.
+      Blob names returned by the `list` and bulk operations have the prefix
+      stripped, so names supplied to other operations must always be
+      prefix-free.
+    example: '"myprefix"'
   - name: decodeBase64
     description: "Decode the blob in base64."
     example: "true"

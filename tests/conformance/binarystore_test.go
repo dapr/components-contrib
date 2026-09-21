@@ -91,10 +91,10 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 			return true
 		}
 	case "oci.objectstorage":
-		if os.Getenv("DAPR_TEST_OCI_CONFIG_FILE_PATH") == "" ||
-			os.Getenv("DAPR_TEST_OCI_COMPARTMENT_OCID") == "" ||
-			os.Getenv("DAPR_TEST_OCI_BUCKET_NAME") == "" {
-			t.Skipf("Skipping OCI Object Storage conformance test: DAPR_TEST_OCI_CONFIG_FILE_PATH, DAPR_TEST_OCI_COMPARTMENT_OCID, and DAPR_TEST_OCI_BUCKET_NAME environment variables must be set")
+		if os.Getenv("OCIConfigFile") == "" ||
+			os.Getenv("OCICompartmentOCID") == "" ||
+			os.Getenv("OCIBucketName") == "" {
+			t.Skipf("Skipping OCI Object Storage conformance test: OCIConfigFile, OCICompartmentOCID, and OCIBucketName environment variables must be set")
 			return true
 		}
 	}

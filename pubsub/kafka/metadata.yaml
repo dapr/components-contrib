@@ -424,6 +424,7 @@ metadata:
         Prefix for the transactional.ids this component registers with the broker.
         The publish producer appends a random per-instance suffix (prefix defaults to clientID, then the consumer group, then "dapr").
         With consumerTransactionsEnabled, each topic-partition uses the stable id "<prefix>-<consumerGroup>-<topic>-<partition>" (prefix defaults to clientID, then "dapr"); it must resolve to the same value on every replica for zombie fencing to work, so do not template a per-replica clientID in that case.
+        The parts are joined with "-" and are not escaped, so components that share a prefix and a cluster must not produce the same joined value: consumer group "a-b" on topic "c" and consumer group "a" on topic "b-c" both give "<prefix>-a-b-c-<partition>". Two components landing on the same id fence each other's producers and neither makes progress, so give one of them its own transactionalIdPrefix.
       example: '"my-app"'
     - name: consumerIsolationLevel
       type: string

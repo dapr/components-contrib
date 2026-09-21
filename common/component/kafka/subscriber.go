@@ -57,9 +57,9 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		// further FetchRequests while the consume goroutine winds down,
 		// keeping the close path quieter and bounding any last-second
 		// claim-buffer growth between session cancel and LeaveGroup.
-		if isGraceful && k.clients != nil && k.clients.consumerGroup != nil {
+		if cg := k.currentConsumerGroup(); isGraceful && cg != nil {
 			k.logger.Debugf("Pausing all partitions before closing consumer group.")
-			k.clients.consumerGroup.PauseAll()
+			cg.PauseAll()
 		}
 
 		k.logger.Debugf("Unsubscribing to topic: %v", topics)
@@ -76,9 +76,9 @@ func (k *Kafka) Subscribe(ctx context.Context, handlerConfig SubscriptionHandler
 		// reloadConsumerGroup just started for the remaining topics, leaving
 		// it to error out with "tried to use a consumer group that was
 		// closed".
-		if isGraceful && len(k.subscribeTopics) == 0 && k.clients != nil && k.clients.consumerGroup != nil {
+		if cg := k.currentConsumerGroup(); isGraceful && len(k.subscribeTopics) == 0 && cg != nil {
 			k.logger.Debugf("Last subscription closing; closing consumer group.")
-			if err := k.clients.consumerGroup.Close(); err != nil {
+			if err := cg.Close(); err != nil {
 				k.logger.Errorf("failed to close consumer group: %v", err)
 			}
 		}

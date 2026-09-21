@@ -44,16 +44,10 @@ type Kafka struct {
 	mockConsumerGroup sarama.ConsumerGroup
 	mockProducer      sarama.SyncProducer
 	clients           *clients
-	// clientsLock guards creating the client pair (and awsClients),
-	// invalidating the producer after a fatal transaction error, and
-	// detaching either client during teardown. It does NOT guard every read
-	// of the pair: Pause, Resume and the graceful-unsubscribe path read
-	// clients.consumerGroup under subscribeLock only, as they did before
-	// transactions were added. That read/write pair is unsynchronized, which
-	// is pre-existing — on main the field was written with no lock at all,
-	// and after the close rather than before it — and what it can cost is
-	// PauseAll or ResumeAll landing on a group that is closing, which sarama
-	// answers with an atomic store on whatever partition consumers are left.
+	// clientsLock guards the client pair: creating it, invalidating the
+	// producer after a fatal transaction error, and detaching either client
+	// during teardown. Every read of the pair takes it too — the paths that
+	// hold only subscribeLock go through currentConsumerGroup.
 	clientsLock sync.Mutex
 	awsClients  *AwsClients
 
@@ -388,6 +382,22 @@ func (k *Kafka) ValidateAWS(metadata map[string]string) (awsAuth.Options, error)
 	}, nil
 }
 
+// currentConsumerGroup returns the cached consumer group, read under
+// clientsLock. Close detaches the field under that lock, so every reader has
+// to take it too: reading a two-word interface value while it is being
+// written is a data race, and a torn read would leave PauseAll running on a
+// nil group. The callers hold subscribeLock, which does not exclude the
+// detach; Close releases subscribeLock before taking clientsLock, so the
+// order stays subscribeLock then clientsLock everywhere.
+func (k *Kafka) currentConsumerGroup() sarama.ConsumerGroup {
+	k.clientsLock.Lock()
+	defer k.clientsLock.Unlock()
+	if k.clients == nil {
+		return nil
+	}
+	return k.clients.consumerGroup
+}
+
 // Pause stops fetching new messages from the broker for all active
 // subscriptions on this component. The Sarama session and partition
 // assignments are preserved so messages already buffered in claim queues can
@@ -398,9 +408,9 @@ func (k *Kafka) Pause(ctx context.Context) error {
 	}
 	k.subscribeLock.Lock()
 	defer k.subscribeLock.Unlock()
-	if k.clients != nil && k.clients.consumerGroup != nil {
+	if cg := k.currentConsumerGroup(); cg != nil {
 		k.logger.Debugf("Pausing all subscriptions")
-		k.clients.consumerGroup.PauseAll()
+		cg.PauseAll()
 	}
 	return nil
 }
@@ -413,9 +423,9 @@ func (k *Kafka) Resume(ctx context.Context) error {
 	}
 	k.subscribeLock.Lock()
 	defer k.subscribeLock.Unlock()
-	if k.clients != nil && k.clients.consumerGroup != nil {
+	if cg := k.currentConsumerGroup(); cg != nil {
 		k.logger.Debugf("Resuming all subscriptions")
-		k.clients.consumerGroup.ResumeAll()
+		cg.ResumeAll()
 	}
 	return nil
 }

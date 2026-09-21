@@ -491,7 +491,9 @@ func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, gener
 	if !ok {
 		return errors.New("kafka: producer does not carry a client")
 	}
-	coordinator, err := owner.Client().Coordinator(group)
+	client := owner.Client()
+
+	coordinator, err := client.Coordinator(group)
 	if err != nil {
 		return fmt.Errorf("locate group coordinator: %w", err)
 	}
@@ -516,6 +518,7 @@ func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, gener
 		return errors.New("commit offset: no result for the partition")
 	}
 	if kerr != sarama.ErrNoError {
+		dropStaleCoordinator(client, group, kerr)
 		return fmt.Errorf("commit offset: %w", kerr)
 	}
 	return nil
@@ -526,6 +529,19 @@ func commitOffsetToCoordinator(producer sarama.SyncProducer, group string, gener
 // finishes in milliseconds; the wait is bounded by the session, not by a
 // retry count.
 const ambiguousCommitFenceBackoff = 200 * time.Millisecond
+
+// dropStaleCoordinator clears the client's cached group coordinator when the
+// broker answers that it is not the coordinator any more. sarama looks the
+// coordinator up once and caches it until something asks for a refresh, so
+// without this every redelivery reuses the claim producer, hence the same
+// client, hence the same migrated-away broker: the offset stops advancing
+// and the handler re-runs on each attempt until the session dies.
+func dropStaleCoordinator(client sarama.Client, group string, kerr sarama.KError) {
+	switch kerr { //nolint:exhaustive // only the coordinator-moved errors matter
+	case sarama.ErrNotCoordinatorForConsumer, sarama.ErrConsumerCoordinatorNotAvailable:
+		_ = client.RefreshCoordinator(group)
+	}
+}
 
 // clientOwner is implemented by the producers this component builds.
 type clientOwner interface {
@@ -627,6 +643,7 @@ func fetchCommittedOffset(producer sarama.SyncProducer, group, topic string, par
 		return 0, errors.New("kafka: fetch committed offset: no block for the partition")
 	}
 	if block.Err != sarama.ErrNoError {
+		dropStaleCoordinator(client, group, block.Err)
 		return 0, fmt.Errorf("kafka: fetch committed offset: %w", block.Err)
 	}
 	return block.Offset, nil

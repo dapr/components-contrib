@@ -16,6 +16,7 @@ package kafka
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -316,4 +317,99 @@ func TestInvalidateProducerReleasesClientsLock(t *testing.T) {
 	k.clientsLock.Lock()
 	require.Nil(t, k.clients.producer)
 	k.clientsLock.Unlock()
+}
+
+// staleCoordinatorClient records RefreshCoordinator calls; every other
+// sarama.Client method is left nil because dropStaleCoordinator uses none.
+type staleCoordinatorClient struct {
+	sarama.Client
+
+	refreshed []string
+}
+
+func (c *staleCoordinatorClient) RefreshCoordinator(group string) error {
+	c.refreshed = append(c.refreshed, group)
+	return nil
+}
+
+func TestDropStaleCoordinator(t *testing.T) {
+	// sarama caches the group coordinator until something asks for a refresh,
+	// so a redelivery that keeps reusing the claim producer would keep
+	// talking to the broker that just said it is no longer the coordinator.
+	t.Run("refreshes on the coordinator-moved errors", func(t *testing.T) {
+		for _, kerr := range []sarama.KError{
+			sarama.ErrNotCoordinatorForConsumer,
+			sarama.ErrConsumerCoordinatorNotAvailable,
+		} {
+			client := &staleCoordinatorClient{}
+			dropStaleCoordinator(client, "group1", kerr)
+			require.Equal(t, []string{"group1"}, client.refreshed, "expected a refresh for %v", kerr)
+		}
+	})
+
+	t.Run("leaves the cache alone for every other error", func(t *testing.T) {
+		for _, kerr := range []sarama.KError{
+			sarama.ErrNoError,
+			sarama.ErrIllegalGeneration,
+			sarama.ErrUnknownMemberId,
+			sarama.ErrOffsetMetadataTooLarge,
+		} {
+			client := &staleCoordinatorClient{}
+			dropStaleCoordinator(client, "group1", kerr)
+			require.Empty(t, client.refreshed, "unexpected refresh for %v", kerr)
+		}
+	})
+}
+
+func TestConsumerGroupReadsRaceWithClose(t *testing.T) {
+	// Pause and Resume hold subscribeLock; Close detaches
+	// clients.consumerGroup under clientsLock, which subscribeLock does not
+	// exclude — Close has already released it by the time it swaps the field.
+	// A reader going straight to the field is therefore racing the detach on
+	// a two-word interface value, and a torn read would leave PauseAll
+	// running on a nil group. Under -race this fails against readers that do
+	// not go through currentConsumerGroup; both of them have to be reverted
+	// to see it every time, because one reader still taking clientsLock in
+	// its loop orders many of the other's reads against the detach.
+	group := mocks.NewConsumerGroup()
+	k := &Kafka{
+		logger:  logger.NewLogger("kafka_test"),
+		clients: &clients{consumerGroup: group},
+	}
+
+	stop := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	// Assertions stay on the test goroutine: testify's require calls
+	// runtime.Goexit, which reports unreliably from a spawned one.
+	reader := func(call func() error) {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				if err := call(); err != nil {
+					errs <- err
+					return
+				}
+			}
+		}
+	}
+	go reader(func() error { return k.Pause(t.Context()) })
+	go reader(func() error { return k.Resume(t.Context()) })
+
+	// Let the readers get going, detach underneath them, then let them run on.
+	time.Sleep(20 * time.Millisecond)
+	require.NoError(t, k.Close())
+	time.Sleep(20 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	require.Nil(t, k.currentConsumerGroup(), "Close detaches the group")
 }

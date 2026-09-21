@@ -70,3 +70,31 @@ func TestInitWiresMaxTokens(t *testing.T) {
 		assert.NotContains(t, stub.got.Metadata, "openai:use_legacy_max_tokens")
 	}
 }
+
+// TestInitWiresLegacyMaxTokensField guards the opt-in for OpenAI-compatible
+// endpoints that only accept max_tokens. Without it langchaingo sends
+// max_completion_tokens and such a gateway drops or rejects the cap.
+func TestInitWiresLegacyMaxTokensField(t *testing.T) {
+	o := NewOpenAI(logger.NewLogger("test")).(*OpenAI)
+	err := o.Init(t.Context(), conversation.Metadata{
+		Base: metadata.Base{Properties: map[string]string{
+			"key":                     "test-key",
+			"maxTokens":               "50",
+			"useLegacyMaxTokensField": "true",
+		}},
+	})
+	require.NoError(t, err)
+
+	stub := &captureModel{}
+	o.Model = stub
+
+	_, err = o.Converse(t.Context(), &conversation.Request{
+		Message: &[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 50, stub.got.MaxTokens)
+	assert.Equal(t, true, stub.got.Metadata["openai:use_legacy_max_tokens"])
+}

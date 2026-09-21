@@ -66,3 +66,12 @@ metadata:
     type: number
     example: "2048"
     default: ''
+  - name: useLegacyMaxTokensField
+    required: false
+    description: |
+      Send the token cap as max_tokens instead of max_completion_tokens.
+      Set this when endpoint points at an OpenAI-compatible service that does
+      not recognise max_completion_tokens, otherwise the cap is ignored.
+    type: bool
+    example: "true"
+    default: 'false'

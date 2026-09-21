@@ -766,9 +766,13 @@ func (a *AzureBlobStorage) resolveBulkGetItems(ctx context.Context, payload *bul
 				}
 				seen[*blobItem.Name] = struct{}{}
 
-				destPath, err := securejoin.SecureJoin(*payload.DestinationDir, *blobItem.Name)
+				// The destination layout mirrors the caller-visible (prefix-free)
+				// names, so the component prefix is not reproduced on disk. The
+				// full name is retained for the Azure client below.
+				relativeName := a.stripPrefix(*blobItem.Name)
+				destPath, err := securejoin.SecureJoin(*payload.DestinationDir, relativeName)
 				if err != nil {
-					return nil, fmt.Errorf("unsafe blob name %q: %w", *blobItem.Name, err)
+					return nil, fmt.Errorf("unsafe blob name %q: %w", relativeName, err)
 				}
 				items = append(items, bulkGetItem{
 					BlobName: *blobItem.Name,

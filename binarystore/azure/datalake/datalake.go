@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -167,14 +168,18 @@ func (a *AzureDataLakeStorage) Close() error {
 
 // putObject uploads to a temporary path and renames it onto the target path,
 // so that a failed upload never leaves a partial file behind and the
-// create-only condition is evaluated atomically by the service. Data Lake
-// Storage Gen2 has a hierarchical namespace, so intermediate directories in
-// the object path are created implicitly.
+// create-only condition is evaluated atomically by the service.
+//
+// Parent directories are not created up front: on a hierarchical namespace
+// the create normally succeeds for nested paths, and pre-creating one
+// directory per path segment would cost a metadata round trip per segment on
+// every write. Instead, the rare PathNotFound is handled lazily by creating
+// the parent directory once and retrying.
 func (c *azureDataLakeClient) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
 	tempPath := fmt.Sprintf("%s.tmp-%s", name, uuid.NewString())
 	tempClient := c.fileSystemClient.NewFileClient(tempPath)
 
-	if _, err := tempClient.Create(ctx, nil); err != nil {
+	if err := c.createFile(ctx, tempClient, tempPath); err != nil {
 		return err
 	}
 
@@ -207,6 +212,45 @@ func (c *azureDataLakeClient) putObject(ctx context.Context, name string, data i
 	}
 
 	return nil
+}
+
+// createFile creates path, creating the parent directory hierarchy and
+// retrying once if the service reports that the parent does not exist.
+// Creating a directory with a nested path creates the intermediate
+// directories in a single request, so at most one extra round trip is spent,
+// and only the first time a given directory is written to.
+func (c *azureDataLakeClient) createFile(ctx context.Context, client *file.Client, path string) error {
+	return createWithParent(ctx, path,
+		func(ctx context.Context) error {
+			_, err := client.Create(ctx, nil)
+			return err
+		},
+		func(ctx context.Context, dir string) error {
+			_, err := c.fileSystemClient.NewDirectoryClient(dir).Create(ctx, nil)
+			return err
+		},
+	)
+}
+
+// createWithParent runs create, and if the service reports that the parent
+// path does not exist, creates the parent directory once and retries.
+func createWithParent(ctx context.Context, path string, create func(context.Context) error, createDir func(context.Context, string) error) error {
+	err := create(ctx)
+	if err == nil || !datalakeerror.HasCode(err, datalakeerror.PathNotFound) {
+		return err
+	}
+
+	idx := strings.LastIndex(path, "/")
+	if idx <= 0 {
+		return err
+	}
+	parent := path[:idx]
+
+	if dirErr := createDir(ctx, parent); dirErr != nil && !datalakeerror.HasCode(dirErr, datalakeerror.PathAlreadyExists) {
+		return fmt.Errorf("error creating parent directory %q: %w", parent, dirErr)
+	}
+
+	return create(ctx)
 }
 
 func (c *azureDataLakeClient) getObject(ctx context.Context, name string) (io.ReadCloser, error) {

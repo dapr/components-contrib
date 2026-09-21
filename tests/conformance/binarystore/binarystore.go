@@ -238,10 +238,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store binarystore.B
 	})
 
 	t.Run("set and get large payload streams without buffering", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
-		size := 4 * 1024 * 1024
+		// Larger than two upload parts so the multipart/chunked upload path is
+		// genuinely exercised, including a final part smaller than the rest.
+		size := int(2*binarystore.DefaultUploadPartSize + 1024*1024)
 		seed := time.Now().UnixNano()
 		payloadReader := io.LimitReader(randReader(seed), int64(size))
 		bigName := makeObjectName(component, "large")

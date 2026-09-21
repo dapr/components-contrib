@@ -23,11 +23,17 @@ const (
 	// maximum supported file size differ from one component to the next.
 	// Implementations therefore pass this value to their SDK explicitly
 	// instead of relying on the SDK default.
-	DefaultUploadPartSize int64 = 8 * 1024 * 1024
+	//
+	// 16 MiB is chosen because it satisfies every provider's constraints:
+	// OCI Object Storage rejects non-final multipart parts smaller than
+	// 10 MiB, S3 allows at most 10,000 parts, and Azure block blobs allow at
+	// most 50,000 blocks, so a smaller value would either fail outright on
+	// OCI or lower the maximum object size on the other providers.
+	DefaultUploadPartSize int64 = 16 * 1024 * 1024
 
 	// DefaultUploadConcurrency is the number of upload parts that binary
 	// store implementations transfer in parallel. Combined with
 	// DefaultUploadPartSize this bounds the buffered data per upload to
-	// roughly 32 MiB while keeping several requests in flight.
-	DefaultUploadConcurrency = 4
+	// roughly 32 MiB while still keeping more than one request in flight.
+	DefaultUploadConcurrency = 2
 )

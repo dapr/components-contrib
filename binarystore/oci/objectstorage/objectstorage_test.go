@@ -82,6 +82,13 @@ func TestClose(t *testing.T) {
 
 // --- provider specific behaviour ---
 
+func TestUploadPartSizeMeetsOCIMinimum(t *testing.T) {
+	// OCI rejects non-final multipart parts smaller than 10 MiB, so uploads
+	// larger than one part would fail if the shared default dropped below it.
+	const ociMinimumPartSize = 10 * 1024 * 1024
+	assert.GreaterOrEqual(t, binarystore.DefaultUploadPartSize, int64(ociMinimumPartSize))
+}
+
 func TestSetPassesOverwriteToTheClient(t *testing.T) {
 	client := newFakeOCIClient()
 	store := newTestStore(client, "")

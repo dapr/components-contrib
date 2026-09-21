@@ -62,7 +62,11 @@ func TestSetRequestOverwriteDefaultsToCreateOnly(t *testing.T) {
 
 func TestDefaultUploadTuning(t *testing.T) {
 	// Providers pass these to their SDKs explicitly, so a change here changes
-	// every component's buffering behaviour at once.
-	assert.Equal(t, int64(8*1024*1024), DefaultUploadPartSize)
-	assert.Equal(t, 4, DefaultUploadConcurrency)
+	// every component's buffering behaviour at once. The part size must stay
+	// at or above OCI Object Storage's 10 MiB minimum for non-final multipart
+	// parts, otherwise uploads larger than one part fail on that provider.
+	assert.Equal(t, int64(16*1024*1024), DefaultUploadPartSize)
+	assert.Equal(t, 2, DefaultUploadConcurrency)
+	assert.GreaterOrEqual(t, DefaultUploadPartSize, int64(10*1024*1024),
+		"part size must satisfy the largest provider minimum part size (OCI, 10 MiB)")
 }

@@ -358,7 +358,8 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			ObjectStorageClient: c.objectClient,
 			// Set explicitly so buffering matches the other binary store
 			// providers rather than the SDK defaults (10 MiB parts, 5
-			// goroutines).
+			// goroutines). The shared part size is deliberately at or above
+			// OCI's 10 MiB minimum for non-final multipart parts.
 			PartSize:           common.Int64(binarystore.DefaultUploadPartSize),
 			NumberOfGoroutines: common.Int(binarystore.DefaultUploadConcurrency),
 		},

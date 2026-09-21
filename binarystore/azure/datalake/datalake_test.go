@@ -84,6 +84,76 @@ func TestClose(t *testing.T) {
 
 // --- provider specific behaviour ---
 
+func TestCreateWithParent(t *testing.T) {
+	notFound := &azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}
+
+	t.Run("no retry when the create succeeds", func(t *testing.T) {
+		creates, dirs := 0, 0
+		err := createWithParent(t.Context(), "a/b/file.bin",
+			func(context.Context) error { creates++; return nil },
+			func(context.Context, string) error { dirs++; return nil },
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 1, creates)
+		assert.Zero(t, dirs, "the parent directory must not be created on the happy path")
+	})
+
+	t.Run("creates the parent directory once and retries", func(t *testing.T) {
+		creates := 0
+		var createdDir string
+		err := createWithParent(t.Context(), "a/b/file.bin",
+			func(context.Context) error {
+				creates++
+				if creates == 1 {
+					return notFound
+				}
+				return nil
+			},
+			func(_ context.Context, dir string) error { createdDir = dir; return nil },
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 2, creates)
+		assert.Equal(t, "a/b", createdDir, "the full parent path is created in one request")
+	})
+
+	t.Run("tolerates a concurrently created parent directory", func(t *testing.T) {
+		creates := 0
+		err := createWithParent(t.Context(), "a/b/file.bin",
+			func(context.Context) error {
+				creates++
+				if creates == 1 {
+					return notFound
+				}
+				return nil
+			},
+			func(context.Context, string) error {
+				return &azcore.ResponseError{ErrorCode: string(datalakeerror.PathAlreadyExists)}
+			},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 2, creates)
+	})
+
+	t.Run("no parent to create", func(t *testing.T) {
+		creates := 0
+		err := createWithParent(t.Context(), "file.bin",
+			func(context.Context) error { creates++; return notFound },
+			func(context.Context, string) error { t.Fatal("must not create a directory"); return nil },
+		)
+		require.ErrorIs(t, err, notFound)
+		assert.Equal(t, 1, creates)
+	})
+
+	t.Run("other errors are returned unchanged", func(t *testing.T) {
+		sentinel := errors.New("boom")
+		err := createWithParent(t.Context(), "a/b/file.bin",
+			func(context.Context) error { return sentinel },
+			func(context.Context, string) error { t.Fatal("must not create a directory"); return nil },
+		)
+		require.ErrorIs(t, err, sentinel)
+	})
+}
+
 func TestSetOverwriteDoesNotMaskConditionErrors(t *testing.T) {
 	// A ConditionNotMet raised while overwriting is not an existence conflict
 	// and must not be reported as ErrFileAlreadyExists.

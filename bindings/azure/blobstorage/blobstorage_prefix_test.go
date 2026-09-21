@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -112,6 +113,15 @@ func newFakeBlobServer(t *testing.T, recorder *requestRecorder, blobNames []stri
 
 		case req.Method == http.MethodDelete:
 			w.WriteHeader(http.StatusAccepted)
+
+		case req.Method == http.MethodHead:
+			// Blob properties, issued by the SDK before a download-to-file.
+			w.Header().Set("Content-Length", "3")
+			w.Header().Set("ETag", `"0x1"`)
+			w.Header().Set("Last-Modified", "Wed, 09 Sep 2009 09:20:02 GMT")
+			w.Header().Set("x-ms-blob-type", "BlockBlob")
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.WriteHeader(http.StatusOK)
 
 		case req.Method == http.MethodGet:
 			// Plain blob download.
@@ -245,6 +255,36 @@ func TestBulkGetResponseStripsConfiguredPrefix(t *testing.T) {
 	// ...even though the actual request on the wire used the fully
 	// prefixed name.
 	assert.True(t, recorder.hasExact(http.MethodGet, "/testcontainer/tenantA/report.pdf"))
+}
+
+func TestBulkGetPrefixDiscoveryDoesNotLeakPrefixIntoDestination(t *testing.T) {
+	recorder := &requestRecorder{}
+	server := newFakeBlobServer(t, recorder, []string{"tenantA/bulkprefix/a.txt", "tenantA/bulkprefix/nested/b.txt"})
+	blobStorage := newTestBlobStorageWithPrefix(t, server, "tenantA")
+
+	destDir := t.TempDir()
+	req := &bindings.InvokeRequest{
+		Data: []byte(fmt.Sprintf(`{"prefix":"bulkprefix/","destinationDir":%q}`, filepath.ToSlash(destDir))),
+	}
+	resp, err := blobStorage.bulkGet(t.Context(), req)
+	require.NoError(t, err)
+
+	var results []bulkGetResponseItem
+	require.NoError(t, json.Unmarshal(resp.Data, &results))
+	require.Len(t, results, 2)
+	for _, result := range results {
+		assert.Empty(t, result.Error)
+	}
+
+	// The on-disk layout mirrors the caller-visible (prefix-free) names, so
+	// the component prefix is not reproduced under the destination dir.
+	assert.FileExists(t, filepath.Join(destDir, "bulkprefix", "a.txt"))
+	assert.FileExists(t, filepath.Join(destDir, "bulkprefix", "nested", "b.txt"))
+	assert.NoDirExists(t, filepath.Join(destDir, "tenantA"))
+
+	// The blobs themselves are still fetched using their fully prefixed names.
+	assert.True(t, recorder.hasExact(http.MethodGet, "/testcontainer/tenantA/bulkprefix/a.txt"))
+	assert.True(t, recorder.hasExact(http.MethodGet, "/testcontainer/tenantA/bulkprefix/nested/b.txt"))
 }
 
 func TestBulkDeleteResponseStripsConfiguredPrefix(t *testing.T) {

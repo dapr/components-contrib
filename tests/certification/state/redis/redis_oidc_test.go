@@ -177,9 +177,10 @@ func TestRedisOIDC(t *testing.T) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 
-	// The initial token expires in 310s: the background refresh runs 5 minutes
-	// before expiry, so the first refresh fires ~10s after init.
-	idp := &mockIdentityProvider{publicKey: &key.PublicKey, token: oidcTokenOne, expiresIn: 310}
+	// The refresh grace period scales with the token lifetime, and a token this
+	// short-lived is refreshed at its midpoint, so the first refresh fires ~10s
+	// after init and every ~10s after that until the token is rotated below.
+	idp := &mockIdentityProvider{publicKey: &key.PublicKey, token: oidcTokenOne, expiresIn: 20}
 	idpServer := httptest.NewServer(idp)
 	defer idpServer.Close()
 

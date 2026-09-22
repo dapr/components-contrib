@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -53,6 +54,12 @@ const (
 	// unbounded dial would hold the lock until the network recovered and Close
 	// would wait behind it.
 	defaultDialTimeout = 30 * time.Second
+
+	// maxTTLSeconds is the longest TTL the AMQP 1.0 message header can carry.
+	// The wire format is an unsigned 32-bit count of milliseconds, and go-amqp
+	// converts the duration with a plain uint32 cast, so a longer TTL would be
+	// truncated and expire the message at an unrelated earlier time.
+	maxTTLSeconds = math.MaxUint32 / 1000
 )
 
 // amqpPubSub type allows sending and receiving data to/from an AMQP 1.0 broker
@@ -131,10 +138,31 @@ func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		return err
 	}
 
+	return a.adoptConnection(client, session, amqpMeta, backOffConfig)
+}
+
+// adoptConnection stores the connection Init dialled, unless the component
+// closed while the dial was in flight.
+//
+// The dial runs outside connMu, so Close can run to completion between the dial
+// returning and the connection being stored: it marks the component closed,
+// finds nothing under connMu and returns, and a connection stored after that
+// would never be closed. Rechecking closed under the lock Close uses leaves two
+// orderings, and both are safe: either Close finds the connection and closes
+// it, or Init finds the component closed and closes the connection itself.
+func (a *amqpPubSub) adoptConnection(client *amqp.Conn, session *amqp.Session, md *metadata, backOffConfig retry.Config) error {
 	a.connMu.Lock()
-	a.metadata, a.backOffConfig = amqpMeta, backOffConfig
+	defer a.connMu.Unlock()
+
+	if a.closed.Load() {
+		a.client, a.session = client, session
+		a.closeConnLocked()
+
+		return errors.New("component is closed")
+	}
+
+	a.metadata, a.backOffConfig = md, backOffConfig
 	a.client, a.session = client, session
-	a.connMu.Unlock()
 
 	return nil
 }
@@ -298,17 +326,10 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 
 	// If the request has ttl specified, put it on the message header.
 	// NewMessage leaves Header nil, so it has to be created before it is used.
-	ttlProp := req.Metadata["ttlInSeconds"]
-	if ttlProp != "" {
-		ttlInSeconds, err := strconv.Atoi(ttlProp)
-		switch {
-		case err != nil:
-			a.logger.Warnf("Invalid ttl %q received for a message to %s: %v", ttlProp, address, err)
-		case ttlInSeconds < 0:
-			a.logger.Warnf("Negative ttl %d received for a message to %s, ignoring it", ttlInSeconds, address)
-		default:
-			m.Header = &amqp.MessageHeader{TTL: time.Second * time.Duration(ttlInSeconds)}
-		}
+	if ttl, err := messageTTL(req.Metadata["ttlInSeconds"]); err != nil {
+		a.logger.Warnf("Ignoring the ttl on a message to %s: %v", address, err)
+	} else if ttl > 0 {
+		m.Header = &amqp.MessageHeader{TTL: ttl}
 	}
 
 	// Publish the message, retrying a bounded number of times before giving up.
@@ -336,6 +357,28 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	}
 
 	return pubsub.NewRetriableError(err)
+}
+
+// messageTTL returns the TTL a publish request asks for, or 0 if it asks for
+// none. A value the header cannot carry is an error, and the caller publishes
+// without a TTL rather than with a truncated one: a message that lingers is a
+// retention problem, a message that expires early is lost.
+func messageTTL(ttlProp string) (time.Duration, error) {
+	if ttlProp == "" {
+		return 0, nil
+	}
+
+	ttlInSeconds, err := strconv.Atoi(ttlProp)
+	switch {
+	case err != nil:
+		return 0, fmt.Errorf("ttlInSeconds %q is not an integer: %w", ttlProp, err)
+	case ttlInSeconds < 0:
+		return 0, fmt.Errorf("ttlInSeconds %d is negative", ttlInSeconds)
+	case ttlInSeconds > maxTTLSeconds:
+		return 0, fmt.Errorf("ttlInSeconds %d is above the %d seconds an AMQP 1.0 header can carry", ttlInSeconds, maxTTLSeconds)
+	}
+
+	return time.Duration(ttlInSeconds) * time.Second, nil
 }
 
 // publishOnce opens a sender link, sends one message and closes the link again.

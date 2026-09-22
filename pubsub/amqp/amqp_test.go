@@ -18,7 +18,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"runtime"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -558,52 +560,22 @@ func TestRenewSessionRefusesWhenClosed(t *testing.T) {
 	assert.Contains(t, err.Error(), "closed")
 }
 
-// TestPublishDoesNotHoldAWriteLock guards the throughput fix. Publish used to
-// take connMu for writing for its whole body, which serialised every publisher
-// on the component. It must take it for reading, so a reader can be acquired
-// while a publish is in flight.
-// TestPublishTakesTheReadLockNotTheWriteLock guards the throughput fix. Publish
-// used to hold an exclusive lock for its whole body, including the retry
-// backoff, which serialised every publisher on the component.
+// TestPublishRetriesOutsideTheConnectionLock guards the throughput fix. Publish
+// used to hold an exclusive lock for its whole body, including the sleep
+// between retries, which serialised every publisher on the component and held
+// up reconnects for the duration.
 //
-// It asserts on the lock discipline directly rather than by timing a publish: a
-// real session cannot be faked (go-amqp panics on a hand-built one), and a
-// publish with no session correctly takes the write lock in order to dial.
-func TestPublishTakesTheReadLockNotTheWriteLock(t *testing.T) {
-	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
-	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
-	a.session = &amqp.Session{}
-
-	// Hold the read lock for the whole call. Anything on the publish path that
-	// takes the lock exclusively deadlocks against this and trips the timeout.
-	a.connMu.RLock()
-	defer a.connMu.RUnlock()
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		// The accessors Publish uses before it touches the broker. If any of
-		// them took the write lock, this would never return.
-		_ = a.currentMetadata()
-		_ = a.currentSession()
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the publish path is taking the connection lock for writing, so publishes are serialised")
-	}
-}
-
-// TestPublishRetryDoesNotHoldTheLock pins the other half of the fix: the retry
-// backoff must not run under the connection lock. A publish to an unreachable
-// broker sleeps between attempts, and doing that under the lock blocked every
-// other publisher for the duration.
-func TestPublishRetryDoesNotHoldTheLock(t *testing.T) {
+// The probe takes the lock for writing. A reader would get through whether
+// Publish held nothing or held the lock shared, so only a writer tells the two
+// apart. Publish does take the write lock to dial, but a dial to a closed local
+// port is refused within milliseconds, so a writer that waits as long as a
+// retry interval is waiting behind the retry loop itself.
+func TestPublishRetriesOutsideTheConnectionLock(t *testing.T) {
 	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
 	a.metadata = &metadata{URL: "amqp://127.0.0.1:1"}
 
-	// Long enough to cover a dial attempt, short enough that the test is quick.
+	// Long enough for at least one retry sleep, short enough to keep the test
+	// quick. Publish returns when the context ends.
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
 
@@ -613,33 +585,86 @@ func TestPublishRetryDoesNotHoldTheLock(t *testing.T) {
 		_ = a.Publish(ctx, &pubsub.PublishRequest{Topic: "orders", Data: []byte("hello")})
 	}()
 
-	// While that publish is in flight, a reader must keep getting through. If
-	// the publish path held the lock exclusively across its retries, these
-	// acquisitions would stall until it finished.
-	reads := 0
-	readerDone := make(chan struct{})
-	go func() {
-		defer close(readerDone)
-		for {
-			select {
-			case <-publishDone:
-				return
-			default:
+	// Probe for the whole life of the publish, so that at least one attempt
+	// overlaps whatever Publish holds the lock across.
+	deadline := time.After(60 * time.Second)
+	var longest time.Duration
+	for {
+		select {
+		case <-publishDone:
+			if longest >= time.Second {
+				t.Fatalf("a writer waited %v for the connection lock, so Publish holds it across its retries", longest)
 			}
-			_ = a.currentSession()
-			reads++
-			runtime.Gosched()
+
+			return
+		case <-deadline:
+			t.Fatal("Publish did not return")
+		default:
 		}
-	}()
 
-	select {
-	case <-publishDone:
-	case <-time.After(60 * time.Second):
-		t.Fatal("Publish did not return")
+		start := time.Now()
+		a.connMu.Lock()
+		waited := time.Since(start)
+		a.connMu.Unlock()
+
+		if waited > longest {
+			longest = waited
+		}
+
+		time.Sleep(10 * time.Millisecond)
 	}
-	<-readerDone
+}
 
-	assert.Positive(t, reads, "a reader never acquired the lock while a publish was in flight")
+// TestShouldRenew pins the error classifier that keeps one refused link from
+// tearing down the shared connection. The certification suite only exercises
+// whole-broker and network failures, so a change in the shape of go-amqp's
+// errors would otherwise reintroduce the shared-connection failure silently.
+func TestShouldRenew(t *testing.T) {
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{"a dead connection", t.Context(), &amqp.ConnError{}, true},
+		{"a dead session", t.Context(), &amqp.SessionError{}, true},
+		{"a dead connection inside a wrapped error", t.Context(), fmt.Errorf("attach: %w", &amqp.ConnError{}), true},
+		{"a connection-level condition", t.Context(), &amqp.Error{Condition: amqp.ErrCondConnectionForced}, true},
+		{"a session-level condition", t.Context(), &amqp.Error{Condition: amqp.ErrCondWindowViolation}, true},
+		{"a refused link, address not found", t.Context(), &amqp.Error{Condition: amqp.ErrCondNotFound}, false},
+		{"a refused link, unauthorized", t.Context(), &amqp.Error{Condition: amqp.ErrCondUnauthorizedAccess}, false},
+		{"a link-level condition", t.Context(), &amqp.Error{Condition: amqp.ErrCondDetachForced}, false},
+		{"a detached link", t.Context(), &amqp.LinkError{}, false},
+		{"an error of no known shape", t.Context(), errors.New("boom"), false},
+		{"a caller that gave up, whatever the error", cancelled, &amqp.ConnError{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldRenew(tt.ctx, tt.err))
+		})
+	}
+}
+
+// TestInitDoesNotStoreAConnectionAfterClose covers the window between Init's
+// dial returning and the connection being stored. Close can run to completion
+// inside it and find nothing to close, so a connection stored afterwards would
+// leak for the life of the process.
+//
+// A live *amqp.Conn cannot be built without a broker, so this drives the guard
+// with nil handles: it must refuse them and leave the component uninitialised.
+func TestInitDoesNotStoreAConnectionAfterClose(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	require.NoError(t, a.Close())
+
+	err := a.adoptConnection(nil, nil, &metadata{URL: "amqp://127.0.0.1:1"}, retry.DefaultConfig())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "closed")
+	assert.Nil(t, a.currentMetadata(), "a closed component must not become initialised")
+	assert.Nil(t, a.currentSession())
 }
 
 // TestCloseWithoutInitIsSafe covers Close running after Init failed, when
@@ -694,6 +719,7 @@ func TestPublishWithTTLDoesNotPanic(t *testing.T) {
 		{name: "zero ttl", ttl: "0"},
 		{name: "negative ttl", ttl: "-1"},
 		{name: "unparseable ttl", ttl: "soon"},
+		{name: "ttl above what the header can carry", ttl: "4294968"},
 	}
 
 	for _, tt := range tests {
@@ -718,6 +744,48 @@ func TestPublishWithTTLDoesNotPanic(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestMessageTTL pins the bounds on ttlInSeconds. The AMQP 1.0 header carries
+// the TTL as an unsigned 32-bit count of milliseconds, and go-amqp truncates a
+// longer duration with a plain cast, so a TTL above that has to be refused
+// rather than sent and silently shortened.
+func TestMessageTTL(t *testing.T) {
+	tests := []struct {
+		name    string
+		ttl     string
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "absent", ttl: "", want: 0},
+		{name: "zero", ttl: "0", want: 0},
+		{name: "thirty seconds", ttl: "30", want: 30 * time.Second},
+		{name: "the longest the header can carry", ttl: "4294967", want: 4294967 * time.Second},
+		{name: "one second above the limit", ttl: "4294968", wantErr: true},
+		{name: "large enough to overflow a duration", ttl: "99999999999", wantErr: true},
+		{name: "negative", ttl: "-1", wantErr: true},
+		{name: "not an integer", ttl: "soon", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := messageTTL(tt.ttl)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Zero(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	// The limit is derived from the wire format, so pin the derivation: the
+	// longest accepted TTL must fit the uint32 milliseconds go-amqp writes.
+	assert.LessOrEqual(t, (time.Duration(maxTTLSeconds) * time.Second).Milliseconds(), int64(math.MaxUint32))
+	assert.Greater(t, (time.Duration(maxTTLSeconds+1) * time.Second).Milliseconds(), int64(math.MaxUint32))
 }
 
 // TestGenericTypeAddressesByName is the outcome this whole change exists for.

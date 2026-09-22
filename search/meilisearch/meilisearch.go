@@ -103,7 +103,8 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRe
 	}
 	// Meilisearch reports an existing index as a failed creation task with
 	// the `index_already_exists` code, which maps to ALREADY_EXISTS.
-	if err := commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("create meilisearch index %q", req.Index)); err != nil {
+	err = commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("create meilisearch index %q", req.Index))
+	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
 			return status.Errorf(codes.AlreadyExists, "meilisearch index %q already exists", req.Index)
 		}
@@ -183,10 +184,11 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, req *search.DeleteIndexRe
 	if err != nil {
 		return err
 	}
-	if _, err := client.DeleteIndexWithContext(ctx, req.Index); err != nil {
+	task, err := client.DeleteIndexWithContext(ctx, req.Index)
+	if err != nil {
 		return commonmeilisearch.StatusError(err, fmt.Sprintf("delete meilisearch index %q", req.Index))
 	}
-	return nil
+	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("delete meilisearch index %q", req.Index))
 }
 
 // IndexDocuments is a keyed upsert of documents into a Meilisearch index.
@@ -203,10 +205,10 @@ func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocum
 	for i, doc := range req.Documents {
 		ids[i] = doc.ID
 	}
-	if err := search.ValidateWriteIDs(ids); err != nil {
+	if err = search.ValidateWriteIDs(ids); err != nil {
 		return nil, err
 	}
-	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+	if err = search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
 		return nil, err
 	}
 
@@ -296,7 +298,7 @@ func (m *Meilisearch) DeleteDocuments(ctx context.Context, req *search.DeleteDoc
 	if err != nil {
 		return nil, err
 	}
-	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+	if err = search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
 		return nil, err
 	}
 	if len(req.IDs) == 0 {
@@ -339,7 +341,7 @@ func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*s
 
 // GetComponentMetadata returns the metadata of the component.
 func (m *Meilisearch) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(commonmeilisearch.MeilisearchMetadata{}), &metadataInfo, metadata.SearchType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(commonmeilisearch.MeilisearchMetadata{}), &metadataInfo, metadata.SearchType)
 	return metadataInfo
 }
 

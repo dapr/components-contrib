@@ -242,6 +242,11 @@ func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
 		}
 		return err
 	}
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	d.mu.Lock()
@@ -253,6 +258,7 @@ func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
 	d.mu.Unlock()
 
 	go d.run(streamCtx, resp, done)
+	resp = nil
 	return nil
 }
 
@@ -632,6 +638,11 @@ func (d *TaskDispatcher) stale() bool {
 func (d *TaskDispatcher) run(ctx context.Context, resp *http.Response, done chan struct{}) {
 	defer close(done)
 	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	defer func() {
 		d.mu.Lock()
 		d.running = false
 		d.body = nil
@@ -789,6 +800,7 @@ func (d *TaskDispatcher) dial(ctx context.Context) (*http.Response, error) {
 		req.Header.Set("Authorization", "Bearer "+d.apiKey)
 	}
 
+	// #nosec G704 -- endpoint is assembled from the component's configured host and fixed stream path.
 	resp, err := d.httpClient.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -851,6 +863,7 @@ func jitter(d time.Duration) time.Duration {
 	if d <= 0 {
 		return 0
 	}
+	// #nosec G404 -- reconnect jitter does not require cryptographic randomness.
 	return d/2 + time.Duration(rand.Int64N(int64(d)))
 }
 

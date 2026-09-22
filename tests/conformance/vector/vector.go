@@ -285,8 +285,6 @@ func ConformanceTests(t *testing.T, props map[string]string, v vector.Vector, cf
 		// was created with DISTANCE_METRIC_UNSPECIFIED.
 		assert.NotEqual(t, vector.DistanceMetricUnspecified, resp.Metric, "the effective metric is always concrete")
 		assert.True(t, cfg.metricDeclared(resp.Metric), "the default metric %v is not declared as supported by %s", resp.Metric, component)
-		// RecordCount is approximate; providers that cannot supply it return 0.
-		assert.GreaterOrEqual(t, resp.RecordCount, uint64(0))
 	})
 
 	t.Run("GetCollection on a missing collection", func(t *testing.T) {

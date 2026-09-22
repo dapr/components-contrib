@@ -186,6 +186,8 @@ func TestCollectionLifecycle(t *testing.T) {
 				"embedders":            map[string]any{"default": map[string]any{"source": "userProvided", "dimensions": 3}},
 				"filterableAttributes": []string{"daprMetadata"},
 			})
+		case "/tasks/1":
+			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexDeletion"})
 		default:
 			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
 		}
@@ -207,6 +209,32 @@ func TestCollectionLifecycle(t *testing.T) {
 	assert.Equal(t, map[string]string{"primaryKey": "id", "filterableAttributes": "daprMetadata"}, got.Properties)
 
 	require.NoError(t, component.DeleteCollection(t.Context(), &vector.DeleteCollectionRequest{Collection: "books"}))
+}
+
+func TestDeleteCollectionReportsMissingCollection(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/indexes/books":
+			require.Equal(t, http.MethodDelete, r.Method)
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexDeletion"})
+		case "/tasks/1":
+			writeJSON(t, w, http.StatusOK, map[string]any{
+				"uid": 1, "status": "failed", "type": "indexDeletion", "indexUid": "books",
+				"error": map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"},
+			})
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	component := initializedVector(t, server.URL)
+	err := component.DeleteCollection(t.Context(), &vector.DeleteCollectionRequest{Collection: "books"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestUpsert(t *testing.T) {

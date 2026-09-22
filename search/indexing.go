@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -175,5 +174,5 @@ func IndexingOutcomeUnknownError(code codes.Code, msg string) error {
 	if code == codes.OK {
 		code = codes.Unknown
 	}
-	return NewErrorWithReason(code, ReasonIndexingOutcomeUnknown, fmt.Sprintf("indexing outcome unknown: %s", msg))
+	return NewErrorWithReason(code, ReasonIndexingOutcomeUnknown, "indexing outcome unknown: "+msg)
 }

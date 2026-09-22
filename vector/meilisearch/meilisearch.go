@@ -124,7 +124,8 @@ func (m *Meilisearch) CreateCollection(ctx context.Context, req *vector.CreateCo
 	}
 	// Meilisearch reports an existing index as a failed creation task with
 	// the `index_already_exists` code, which maps to ALREADY_EXISTS.
-	if err := commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("create meilisearch collection %q", req.Collection)); err != nil {
+	err = commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("create meilisearch collection %q", req.Collection))
+	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
 			return status.Errorf(codes.AlreadyExists, "meilisearch collection %q already exists", req.Collection)
 		}
@@ -176,6 +177,9 @@ func (m *Meilisearch) GetCollection(ctx context.Context, req *vector.GetCollecti
 
 	var dimensions uint32
 	if embedder, ok := settings.Embedders[DefaultEmbedder]; ok && embedder.Dimensions > 0 {
+		if embedder.Dimensions > math.MaxUint32 {
+			return nil, status.Errorf(codes.Internal, "meilisearch collection %q reported dimensions outside the uint32 range", req.Collection)
+		}
 		dimensions = uint32(embedder.Dimensions)
 	}
 	properties := map[string]string{"primaryKey": idx.PrimaryKey}
@@ -224,10 +228,11 @@ func (m *Meilisearch) DeleteCollection(ctx context.Context, req *vector.DeleteCo
 	if err != nil {
 		return err
 	}
-	if _, err := client.DeleteIndexWithContext(ctx, req.Collection); err != nil {
+	task, err := client.DeleteIndexWithContext(ctx, req.Collection)
+	if err != nil {
 		return commonmeilisearch.StatusError(err, fmt.Sprintf("delete meilisearch collection %q", req.Collection))
 	}
-	return nil
+	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("delete meilisearch collection %q", req.Collection))
 }
 
 // Upsert is a keyed upsert of dense vector records into a collection.
@@ -244,10 +249,10 @@ func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*v
 	for i, record := range req.Records {
 		ids[i] = record.ID
 	}
-	if err := search.ValidateWriteIDs(ids); err != nil {
+	if err = search.ValidateWriteIDs(ids); err != nil {
 		return nil, err
 	}
-	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+	if err = search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
 		return nil, err
 	}
 
@@ -336,7 +341,7 @@ func (m *Meilisearch) Delete(ctx context.Context, req *vector.DeleteRequest) (*v
 	if err != nil {
 		return nil, err
 	}
-	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+	if err = search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
 		return nil, err
 	}
 	if len(req.IDs) == 0 {
@@ -407,7 +412,7 @@ func (m *Meilisearch) BatchQuery(ctx context.Context, req *vector.BatchQueryRequ
 
 // GetComponentMetadata returns the metadata of the component.
 func (m *Meilisearch) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(commonmeilisearch.MeilisearchMetadata{}), &metadataInfo, metadata.VectorType)
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(commonmeilisearch.MeilisearchMetadata{}), &metadataInfo, metadata.VectorType)
 	return metadataInfo
 }
 

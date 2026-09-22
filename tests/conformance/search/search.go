@@ -225,9 +225,6 @@ func ConformanceTests(t *testing.T, props map[string]string, s search.Search, cf
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Equal(t, indexName, resp.Index)
-		// DocumentCount is approximate and providers that cannot supply it
-		// efficiently return 0, so only its presence is asserted here.
-		assert.GreaterOrEqual(t, resp.DocumentCount, uint64(0))
 	})
 
 	t.Run("GetIndex on a missing index", func(t *testing.T) {

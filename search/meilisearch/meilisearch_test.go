@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,7 +83,7 @@ func TestIndexLifecycle(t *testing.T) {
 				return
 			}
 			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{{"uid": "books", "primaryKey": "id"}}, "limit": 20, "total": 1})
-		case "/tasks/1", "/tasks/2":
+		case "/tasks/1", "/tasks/2", "/tasks/3":
 			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
 		case "/indexes/books/settings":
 			if r.Method == http.MethodPatch {
@@ -131,6 +130,32 @@ func TestIndexLifecycle(t *testing.T) {
 	assert.Equal(t, []string{"books"}, indexes.Indexes)
 
 	require.NoError(t, component.DeleteIndex(t.Context(), &search.DeleteIndexRequest{Index: "books"}))
+}
+
+func TestDeleteIndexReportsMissingIndex(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/indexes/books":
+			require.Equal(t, http.MethodDelete, r.Method)
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexDeletion"})
+		case "/tasks/1":
+			writeJSON(t, w, http.StatusOK, map[string]any{
+				"uid": 1, "status": "failed", "type": "indexDeletion", "indexUid": "books",
+				"error": map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"},
+			})
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	component := initializedSearch(t, server.URL)
+	err := component.DeleteIndex(t.Context(), &search.DeleteIndexRequest{Index: "books"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestCreateIndexAlwaysDeclaresTheIDSortable(t *testing.T) {
@@ -361,16 +386,16 @@ func TestIndexDocumentsWaitForCompletion(t *testing.T) {
 
 		var enqueued atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.URL.Path == "/tasks/stream":
+			switch r.URL.Path {
+			case "/tasks/stream":
 				w.Header().Set("Content-Type", "text/event-stream")
 				w.WriteHeader(http.StatusOK)
 				w.(http.Flusher).Flush()
 				<-r.Context().Done()
-			case r.URL.Path == "/indexes/books/documents":
+			case "/indexes/books/documents":
 				enqueued.Add(1)
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 15, "status": "enqueued", "type": "documentAdditionOrUpdate"})
-			case strings.HasPrefix(r.URL.Path, "/tasks/"):
+			case "/tasks/15":
 				// Reconciliation after registration already finds the task
 				// terminal.
 				writeJSON(t, w, http.StatusOK, map[string]any{"uid": 15, "status": "succeeded", "type": "documentAdditionOrUpdate"})
@@ -399,18 +424,18 @@ func TestIndexDocumentsWaitForCompletion(t *testing.T) {
 
 		var enqueued, streamDials, statusReads atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.URL.Path == "/tasks/stream":
+			switch r.URL.Path {
+			case "/tasks/stream":
 				streamDials.Add(1)
 				writeJSON(t, w, http.StatusBadRequest, map[string]any{
 					"message": "getting task changes requires enabling the tasks streaming route",
 					"code":    "feature_not_enabled",
 					"type":    "invalid_request",
 				})
-			case r.URL.Path == "/indexes/books/documents":
+			case "/indexes/books/documents":
 				enqueued.Add(1)
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 16, "status": "enqueued", "type": "documentAdditionOrUpdate"})
-			case r.URL.Path == "/tasks/16":
+			case "/tasks/16":
 				taskStatus := "processing"
 				if statusReads.Add(1) >= 3 {
 					taskStatus = "succeeded"

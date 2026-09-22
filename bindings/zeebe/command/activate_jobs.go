@@ -40,6 +40,31 @@ type activateJobsPayload struct {
 	RequestTimeout    *metadata.Duration `json:"requestTimeout,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to provide field-specific error messages for
+// duration fields. Both timeout and requestTimeout accept either a Go duration string
+// (e.g. "30s", "5m", "1h30m") or a plain integer representing nanoseconds.
+func (p *activateJobsPayload) UnmarshalJSON(data []byte) error {
+	type alias activateJobsPayload
+	shadow := struct {
+		*alias
+		Timeout        *json.RawMessage `json:"timeout,omitempty"`
+		RequestTimeout *json.RawMessage `json:"requestTimeout,omitempty"`
+	}{alias: (*alias)(p)}
+	if err := json.Unmarshal(data, &shadow); err != nil {
+		return err
+	}
+
+	var err error
+	if p.Timeout, err = parseOptionalDuration(shadow.Timeout, "timeout"); err != nil {
+		return err
+	}
+	if p.RequestTimeout, err = parseOptionalDuration(shadow.RequestTimeout, "requestTimeout"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload activateJobsPayload
 	err := json.Unmarshal(req.Data, &payload)

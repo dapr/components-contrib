@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
@@ -80,6 +81,45 @@ func (cmd3 *mockFailJobCommandStep3) ErrorMessage(errorMessage string) commands.
 
 func (cmd3 *mockFailJobCommandStep3) Send(context.Context) (*pb.FailJobResponse, error) {
 	return &pb.FailJobResponse{}, nil
+}
+
+func TestFailJobPayloadUnmarshal(t *testing.T) {
+	t.Run("invalid retryBackOff produces field-scoped error", func(t *testing.T) {
+		raw := `{"jobKey":1,"retries":3,"retryBackOff":"PT10S"}`
+		var p failJobPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "retryBackOff")
+		assert.Contains(t, err.Error(), "PT10S")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("valid Go duration string succeeds", func(t *testing.T) {
+		raw := `{"jobKey":1,"retries":3,"retryBackOff":"10s"}`
+		var p failJobPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.RetryBackOff)
+		assert.Equal(t, 10*time.Second, p.RetryBackOff.Duration)
+	})
+
+	t.Run("numeric nanosecond retryBackOff still parses correctly", func(t *testing.T) {
+		// Regression guard: numeric (nanosecond) values were accepted before and must remain valid.
+		raw := `{"jobKey":1,"retries":3,"retryBackOff":30000000000}`
+		var p failJobPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.RetryBackOff)
+		assert.Equal(t, 30*time.Second, p.RetryBackOff.Duration)
+	})
+
+	t.Run("null retryBackOff leaves pointer nil", func(t *testing.T) {
+		raw := `{"jobKey":1,"retries":3,"retryBackOff":null}`
+		var p failJobPayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		assert.Nil(t, p.RetryBackOff)
+	})
 }
 
 func TestFailJob(t *testing.T) {

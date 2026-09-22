@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 
@@ -68,7 +69,32 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 		return jwt.Marshal(), nil
 	}
 
-	return azidentity.NewClientAssertionCredential(c.TenantID, c.ClientID, tokenProvider, opts)
+	cred, err := azidentity.NewClientAssertionCredential(c.TenantID, c.ClientID, tokenProvider, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &spiffeCredential{cred: cred}, nil
+}
+
+// spiffeCredential wraps a credential that authenticates using a SPIFFE JWT SVID.
+//
+// When no JWT SVID source is present in the context, SPIFFE workload identity is not
+// configured for this application, so the credential reports itself as unavailable. This
+// allows a ChainedTokenCredential to continue to the next credential in the chain instead
+// of halting: the chain only proceeds past a credential that returns a
+// credentialUnavailableError.
+type spiffeCredential struct {
+	cred azcore.TokenCredential
+}
+
+// GetToken implements azcore.TokenCredential.
+func (c *spiffeCredential) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	if _, ok := spiffecontext.JWTFrom(ctx); !ok {
+		return azcore.AccessToken{}, azidentity.NewCredentialUnavailableError("SPIFFE workload identity: no JWT SVID source in the context")
+	}
+
+	return c.cred.GetToken(ctx, opts)
 }
 
 // GetSpiffeWorkloadIdentity creates a config object from the available SPIFFE workload identity credentials.

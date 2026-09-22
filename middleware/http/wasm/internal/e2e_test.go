@@ -55,11 +55,6 @@ func TestMain(m *testing.M) {
 }
 
 func Test_EndToEnd(t *testing.T) {
-	l := logger.NewLogger(t.Name())
-	var buf bytes.Buffer
-	l.SetOutputLevel(logger.DebugLevel)
-	l.SetOutput(&buf)
-
 	type testCase struct {
 		name     string
 		guest    []byte
@@ -169,7 +164,10 @@ func Test_EndToEnd(t *testing.T) {
 		for _, tt := range tests {
 			tc := tt
 			t.Run(tc.name, func(t *testing.T) {
-				defer buf.Reset()
+				var buf bytes.Buffer
+				l := logger.NewLogger(t.Name())
+				l.SetOutputLevel(logger.DebugLevel)
+				l.SetOutput(&buf)
 
 				wasmPath := path.Join(t.TempDir(), "guest.wasm")
 				require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
@@ -218,7 +216,11 @@ func Test_EndToEnd(t *testing.T) {
 			for _, tt := range tests {
 				tc := tt
 				t.Run(tc.name, func(t *testing.T) {
-					defer buf.Reset()
+					var buf bytes.Buffer
+					l := logger.NewLogger(t.Name())
+					l.SetOutputLevel(logger.DebugLevel)
+					l.SetOutput(&buf)
+
 					ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						ht.handler(w, r, tc.guest)
 					}))

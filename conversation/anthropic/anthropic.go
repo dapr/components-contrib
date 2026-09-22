@@ -42,6 +42,7 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 		logger: logger,
 		LLM:    langchaingokit.New(logger),
 	}
+	a.SetProvider(langchaingokit.ProviderAnthropic)
 
 	return a
 }

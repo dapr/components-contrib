@@ -279,10 +279,103 @@ func TestExtractUsageFromLangchainGenerationInfo(t *testing.T) {
 	}
 }
 
+// resolveCallOptions applies the built options so assertions can inspect the resolved values.
+func resolveCallOptions(opts []llms.CallOption) llms.CallOptions {
+	var resolved llms.CallOptions
+	for _, opt := range opts {
+		opt(&resolved)
+	}
+	return resolved
+}
+
+func TestTranslateToolChoice(t *testing.T) {
+	tests := map[string]struct {
+		toolChoice string
+		provider   Provider
+		hasTools   bool
+		expected   any
+	}{
+		"non-anthropic provider passes the bare string through": {
+			toolChoice: "required",
+			hasTools:   true,
+			expected:   "required",
+		},
+		"non-anthropic provider passes a named tool through": {
+			toolChoice: "get_weather",
+			hasTools:   true,
+			expected:   "get_weather",
+		},
+		"non-anthropic provider passes through without tools": {
+			toolChoice: "required",
+			expected:   "required",
+		},
+		"anthropic auto is omitted": {
+			toolChoice: "auto",
+			provider:   ProviderAnthropic,
+			hasTools:   true,
+			expected:   nil,
+		},
+		"anthropic required maps to any": {
+			toolChoice: "required",
+			provider:   ProviderAnthropic,
+			hasTools:   true,
+			expected:   map[string]any{"type": "any"},
+		},
+		"anthropic any maps to any": {
+			toolChoice: "any",
+			provider:   ProviderAnthropic,
+			hasTools:   true,
+			expected:   map[string]any{"type": "any"},
+		},
+		"anthropic none maps to none": {
+			toolChoice: "none",
+			provider:   ProviderAnthropic,
+			hasTools:   true,
+			expected:   map[string]any{"type": "none"},
+		},
+		"anthropic named tool maps to tool": {
+			toolChoice: "get_weather",
+			provider:   ProviderAnthropic,
+			hasTools:   true,
+			expected:   map[string]any{"type": "tool", "name": "get_weather"},
+		},
+		"anthropic omits required without tools": {
+			toolChoice: "required",
+			provider:   ProviderAnthropic,
+			expected:   nil,
+		},
+		"anthropic omits a named tool without tools": {
+			toolChoice: "get_weather",
+			provider:   ProviderAnthropic,
+			expected:   nil,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, translateToolChoice(tt.toolChoice, tt.provider, tt.hasTools))
+		})
+	}
+}
+
+// TestTranslateToolChoiceIsDeterministic guards the caching contract: Anthropic invalidates
+// cached message blocks when tool_choice changes, so repeated calls must not vary.
+func TestTranslateToolChoiceIsDeterministic(t *testing.T) {
+	for _, toolChoice := range []string{"auto", "required", "any", "none", "get_weather"} {
+		t.Run(toolChoice, func(t *testing.T) {
+			first := translateToolChoice(toolChoice, ProviderAnthropic, true)
+			for range 3 {
+				assert.Equal(t, first, translateToolChoice(toolChoice, ProviderAnthropic, true))
+			}
+		})
+	}
+}
+
 func TestGetOptionsFromRequest(t *testing.T) {
 	log := logger.NewLogger("test")
 
 	toolChoice := "auto"
+	requiredToolChoice := "required"
 	tools := []llms.Tool{
 		{
 			Type: "function",
@@ -296,6 +389,7 @@ func TestGetOptionsFromRequest(t *testing.T) {
 
 	tests := map[string]struct {
 		request      *conversation.Request
+		provider     Provider
 		existingOpts []llms.CallOption
 		validate     func(t *testing.T, r *conversation.Request, opts []llms.CallOption)
 	}{
@@ -346,6 +440,38 @@ func TestGetOptionsFromRequest(t *testing.T) {
 			},
 			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
 				assert.Len(t, opts, 2)
+				assert.Equal(t, "auto", resolveCallOptions(opts).ToolChoice)
+			},
+		},
+		"anthropic auto tool choice omits the option": {
+			request: &conversation.Request{
+				Tools:      &tools,
+				ToolChoice: &toolChoice,
+			},
+			provider: ProviderAnthropic,
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Len(t, opts, 1)
+				assert.Nil(t, resolveCallOptions(opts).ToolChoice)
+			},
+		},
+		"anthropic required tool choice sets the object form": {
+			request: &conversation.Request{
+				Tools:      &tools,
+				ToolChoice: &requiredToolChoice,
+			},
+			provider: ProviderAnthropic,
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Len(t, opts, 2)
+				assert.Equal(t, map[string]any{"type": "any"}, resolveCallOptions(opts).ToolChoice)
+			},
+		},
+		"anthropic tool choice without tools omits the option": {
+			request: &conversation.Request{
+				ToolChoice: &requiredToolChoice,
+			},
+			provider: ProviderAnthropic,
+			validate: func(t *testing.T, r *conversation.Request, opts []llms.CallOption) {
+				assert.Empty(t, opts)
 			},
 		},
 		"metadata sets option": {
@@ -382,7 +508,7 @@ func TestGetOptionsFromRequest(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				opts := getOptionsFromRequest(tt.request, log, tt.existingOpts...)
+				opts := getOptionsFromRequest(tt.request, tt.provider, log, tt.existingOpts...)
 				tt.validate(t, tt.request, opts)
 			})
 		})

@@ -99,6 +99,56 @@ func (cmd3 *mockPublishMessageCommandStep3) Send(context.Context) (*pb.PublishMe
 	return &pb.PublishMessageResponse{}, nil
 }
 
+func TestPublishMessagePayloadUnmarshal(t *testing.T) {
+	t.Run("invalid timeToLive produces field-scoped error", func(t *testing.T) {
+		// ISO-8601 durations are not valid; Go duration strings like "1m30s" are required.
+		raw := `{"messageName":"msg","timeToLive":"PT1M"}`
+		var p publishMessagePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeToLive")
+		assert.Contains(t, err.Error(), "PT1M")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("unknown unit in timeToLive produces field-scoped error", func(t *testing.T) {
+		raw := `{"messageName":"msg","timeToLive":"1minute"}`
+		var p publishMessagePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeToLive")
+		assert.Contains(t, err.Error(), "1minute")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("valid Go duration string succeeds", func(t *testing.T) {
+		raw := `{"messageName":"msg","timeToLive":"1m30s"}`
+		var p publishMessagePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.TimeToLive)
+		assert.Equal(t, 90*time.Second, p.TimeToLive.Duration)
+	})
+
+	t.Run("numeric nanosecond timeToLive still parses correctly", func(t *testing.T) {
+		// Regression guard: numeric (nanosecond) values were accepted before and must remain valid.
+		raw := `{"messageName":"msg","timeToLive":30000000000}`
+		var p publishMessagePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.TimeToLive)
+		assert.Equal(t, 30*time.Second, p.TimeToLive.Duration)
+	})
+
+	t.Run("null timeToLive leaves pointer nil", func(t *testing.T) {
+		raw := `{"messageName":"msg","timeToLive":null}`
+		var p publishMessagePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		assert.Nil(t, p.TimeToLive)
+	})
+}
+
 func TestPublishMessage(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 

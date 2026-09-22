@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
@@ -96,6 +97,45 @@ func (cmd3 *mockCreateInstanceCommandStep3) VariablesFromObject(variables interf
 
 func (cmd3 *mockCreateInstanceCommandStep3) Send(context.Context) (*pb.CreateProcessInstanceResponse, error) {
 	return &pb.CreateProcessInstanceResponse{}, nil
+}
+
+func TestCreateInstancePayloadUnmarshal(t *testing.T) {
+	t.Run("invalid requestTimeout produces field-scoped error", func(t *testing.T) {
+		raw := `{"bpmnProcessId":"order-process","requestTimeout":"PT5M"}`
+		var p createInstancePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requestTimeout")
+		assert.Contains(t, err.Error(), "PT5M")
+		assert.Contains(t, err.Error(), "duration string")
+	})
+
+	t.Run("valid Go duration string succeeds", func(t *testing.T) {
+		raw := `{"bpmnProcessId":"order-process","requestTimeout":"5m"}`
+		var p createInstancePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.RequestTimeout)
+		assert.Equal(t, 5*time.Minute, p.RequestTimeout.Duration)
+	})
+
+	t.Run("numeric nanosecond requestTimeout still parses correctly", func(t *testing.T) {
+		// Regression guard: numeric (nanosecond) values were accepted before and must remain valid.
+		raw := `{"bpmnProcessId":"order-process","requestTimeout":300000000000}`
+		var p createInstancePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		require.NotNil(t, p.RequestTimeout)
+		assert.Equal(t, 5*time.Minute, p.RequestTimeout.Duration)
+	})
+
+	t.Run("null requestTimeout leaves pointer nil", func(t *testing.T) {
+		raw := `{"bpmnProcessId":"order-process","requestTimeout":null}`
+		var p createInstancePayload
+		err := p.UnmarshalJSON([]byte(raw))
+		require.NoError(t, err)
+		assert.Nil(t, p.RequestTimeout)
+	})
 }
 
 func TestCreateInstance(t *testing.T) {

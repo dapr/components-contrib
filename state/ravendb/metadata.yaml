@@ -46,6 +46,8 @@ metadata:
     default: "true"
   - name: TTLFrequency
     description: |
-      Sets RavenDB frequency on running the background expiration task and deleting records
+      Sets RavenDB frequency on running the background expiration task and deleting records.
+      Some RavenDB licenses enforce a minimum frequency and reject lower values; when that
+      happens expired records are still hidden from reads, but they are not removed from storage.
     example: "15"
     default: "60"

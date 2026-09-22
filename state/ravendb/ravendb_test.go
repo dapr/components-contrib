@@ -2,7 +2,9 @@ package ravendb
 
 import (
 	"testing"
+	"time"
 
+	ravendb "github.com/ravendb/ravendb-go-client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -126,4 +128,47 @@ func TestGetRavenDBMetadata(t *testing.T) {
 		assert.Equal(t, properties[certPath], metadata.CertPath)
 		assert.Equal(t, properties[keyPath], metadata.KeyPath)
 	})
+}
+
+func TestExpiryFromMetadata(t *testing.T) {
+	expiry := time.Date(2024, 7, 23, 12, 34, 56, 123456700, time.UTC)
+
+	tests := map[string]struct {
+		source   map[string]any
+		expected time.Time
+		found    bool
+	}{
+		"no expiration": {
+			source: map[string]any{changeVector: "A:1-abc"},
+		},
+		"round trip of a written expiration": {
+			source:   map[string]any{expires: expiry.Format(expiresLayout)},
+			expected: expiry,
+			found:    true,
+		},
+		"expiration without sub-second precision": {
+			source:   map[string]any{expires: "2024-07-23T12:34:56Z"},
+			expected: time.Date(2024, 7, 23, 12, 34, 56, 0, time.UTC),
+			found:    true,
+		},
+		"unparseable expiration": {
+			source: map[string]any{expires: "not a timestamp"},
+		},
+		"expiration that is not a string": {
+			source: map[string]any{expires: float64(1721738096)},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := expiryFromMetadata(ravendb.NewMetadataAsDictionaryWithSource(tt.source))
+			assert.Equal(t, tt.found, ok)
+			assert.True(t, tt.expected.Equal(got), "expected %s, got %s", tt.expected, got)
+		})
+	}
+}
+
+func TestIsExpired(t *testing.T) {
+	assert.True(t, isExpired(time.Now().UTC().Add(-time.Second)))
+	assert.False(t, isExpired(time.Now().UTC().Add(time.Minute)))
 }

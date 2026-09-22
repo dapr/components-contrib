@@ -100,20 +100,20 @@ jobs:
           fi
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.CHECKOUT_REPO }}
           ref: ${{ env.CHECKOUT_REF }}
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: 'false'
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
@@ -123,7 +123,7 @@ jobs:
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (Windows)
         if: matrix.target_os == 'windows'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~\AppData\Local\go-build
@@ -133,7 +133,7 @@ jobs:
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (macOS)
         if: matrix.target_os == 'darwin'
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/go-build
@@ -146,7 +146,7 @@ jobs:
         run: make check-component-metadata-schema-diff
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true
@@ -168,4 +168,4 @@ jobs:
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7

@@ -110,11 +110,6 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "workflows":
-			method, methodFinderErr = getConstructorMethod("workflows.Workflow", parsedFile)
-			if methodFinderErr == nil {
-				methodFound = true
-			}
 		case "configuration":
 			method, methodFinderErr = getConstructorMethod("configuration.Store", parsedFile)
 			if methodFinderErr == nil {

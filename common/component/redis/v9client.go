@@ -269,6 +269,25 @@ func (c v9Client) XPendingExtResult(ctx context.Context, stream string, group st
 	return redisXPendingExts, nil
 }
 
+func (c v9Client) XClaimJustIDResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]string, error) {
+	var readCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		readCtx = timeoutCtx
+	} else {
+		readCtx = ctx
+	}
+
+	return c.client.XClaimJustID(readCtx, &v9.XClaimArgs{
+		Stream:   stream,
+		Group:    group,
+		Consumer: consumer,
+		MinIdle:  minIdleTime,
+		Messages: messageIDs,
+	}).Result()
+}
+
 func (c v9Client) XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error) {
 	var readCtx context.Context
 	if c.readTimeout > 0 {
@@ -292,7 +311,10 @@ func (c v9Client) XClaimResult(ctx context.Context, stream string, group string,
 	// convert res to []RedisXMessage
 	redisXMessages := make([]RedisXMessage, len(res))
 	for i, xMessage := range res {
-		redisXMessages[i] = RedisXMessage(xMessage)
+		redisXMessages[i] = RedisXMessage{
+			ID:     xMessage.ID,
+			Values: xMessage.Values,
+		}
 	}
 
 	return redisXMessages, nil

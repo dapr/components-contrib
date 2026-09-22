@@ -37,16 +37,16 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: 'false'
       - name: Cache Go modules (Linux)
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
@@ -62,7 +62,7 @@ jobs:
         run: make check-component-metadata
       - name: Run golangci-lint
         if: steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v6.0.1
+        uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true
@@ -84,7 +84,7 @@ jobs:
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
 
   check-metadata-bundle-changes:
     name: Detect metadata file changes
@@ -92,8 +92,8 @@ jobs:
     outputs:
       metadata: ${{ steps.filter.outputs.metadata }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -108,9 +108,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: 'false'

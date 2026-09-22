@@ -11,3 +11,14 @@ services:
       MYSQL_PASSWORD: example
       MYSQL_DATABASE: dapr_test
       MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mysql --protocol=TCP --host=127.0.0.1
+          --user="$${MYSQL_USER}" --password="$${MYSQL_PASSWORD}"
+          --database="$${MYSQL_DATABASE}" --execute="SELECT 1" >/dev/null 2>&1
+      interval: 1s
+      timeout: 5s
+      retries: 60
+      start_period: 5s

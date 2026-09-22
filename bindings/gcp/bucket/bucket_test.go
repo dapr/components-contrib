@@ -327,9 +327,79 @@ func TestBulkGetOption(t *testing.T) {
 	})
 }
 
+func TestResolveCopyDestination(t *testing.T) {
+	const configuredBucket = "my_configured_bucket"
+	const srcKey = "source/file.txt"
+
+	tests := []struct {
+		name            string
+		destBucket      string
+		destKey         string
+		wantBucket      string
+		wantKey         string
+		wantErrContains string
+	}{
+		{
+			name:            "neither provided — error",
+			destBucket:      "",
+			destKey:         "",
+			wantErrContains: "copy/move requires at least one of destinationBucket or destinationKey",
+		},
+		{
+			name:       "only destinationBucket provided — destKey defaults to srcKey",
+			destBucket: "other_bucket",
+			destKey:    "",
+			wantBucket: "other_bucket",
+			wantKey:    srcKey,
+		},
+		{
+			name:       "only destinationKey provided — destBucket defaults to configuredBucket",
+			destBucket: "",
+			destKey:    "adhoc/file.xlsx",
+			wantBucket: configuredBucket,
+			wantKey:    "adhoc/file.xlsx",
+		},
+		{
+			name:       "both provided — used as-is",
+			destBucket: "other_bucket",
+			destKey:    "new/key.txt",
+			wantBucket: "other_bucket",
+			wantKey:    "new/key.txt",
+		},
+		{
+			name:       "both provided and equal to source — allowed (GCS permits same-object copy)",
+			destBucket: configuredBucket,
+			destKey:    srcKey,
+			wantBucket: configuredBucket,
+			wantKey:    srcKey,
+		},
+		{
+			name:       "only destBucket provided and equals configuredBucket — not an error",
+			destBucket: configuredBucket,
+			destKey:    "",
+			wantBucket: configuredBucket,
+			wantKey:    srcKey,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bucket, key, err := resolveCopyDestination(tc.destBucket, tc.destKey, srcKey, configuredBucket)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantBucket, bucket)
+			assert.Equal(t, tc.wantKey, key)
+		})
+	}
+}
+
 func TestCopyOption(t *testing.T) {
 	gs := GCPStorage{logger: logger.NewLogger("test")}
-	gs.metadata = &gcpMetadata{}
+	gs.metadata = &gcpMetadata{Bucket: "my_configured_bucket"}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
@@ -346,10 +416,10 @@ func TestCopyOption(t *testing.T) {
 		}
 		_, err := gs.copy(t.Context(), &r)
 		require.Error(t, err)
-		assert.Equal(t, "gcp bucket binding error: invalid copy payload", err.Error())
+		assert.Contains(t, err.Error(), "gcp bucket binding error: invalid copy payload")
 	})
 
-	t.Run("return error if destinationBucket is missing", func(t *testing.T) {
+	t.Run("return error if both destinationBucket and destinationKey are omitted", func(t *testing.T) {
 		r := bindings.InvokeRequest{
 			Data: []byte(`{}`),
 			Metadata: map[string]string{
@@ -358,7 +428,18 @@ func TestCopyOption(t *testing.T) {
 		}
 		_, err := gs.copy(t.Context(), &r)
 		require.Error(t, err)
-		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+		assert.Contains(t, err.Error(), "copy/move requires at least one of destinationBucket or destinationKey")
+	})
+
+	// Verify that explicitly passing destinationBucket == configuredBucket with no destinationKey
+	// is NOT rejected (the old equality-based check would have wrongly rejected this).
+	t.Run("explicit destinationBucket equal to configured bucket with no destinationKey — not rejected at validation", func(t *testing.T) {
+		// resolveCopyDestination should succeed; the subsequent GCS call will fail
+		// because there is no real client, but the error must NOT be the validation error.
+		bucket, key, err := resolveCopyDestination("my_configured_bucket", "", "my_key", "my_configured_bucket")
+		require.NoError(t, err)
+		assert.Equal(t, "my_configured_bucket", bucket)
+		assert.Equal(t, "my_key", key)
 	})
 }
 
@@ -401,7 +482,7 @@ func TestRenameOption(t *testing.T) {
 
 func TestMoveOption(t *testing.T) {
 	gs := GCPStorage{logger: logger.NewLogger("test")}
-	gs.metadata = &gcpMetadata{}
+	gs.metadata = &gcpMetadata{Bucket: "my_configured_bucket"}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{
@@ -420,10 +501,10 @@ func TestMoveOption(t *testing.T) {
 		}
 		_, err := gs.move(t.Context(), &r)
 		require.Error(t, err)
-		assert.Equal(t, "gcp bucket binding error: invalid move payload", err.Error())
+		assert.Contains(t, err.Error(), "gcp bucket binding error: invalid move payload")
 	})
 
-	t.Run("return error if destinationBucket is missing", func(t *testing.T) {
+	t.Run("return error if both destinationBucket and destinationKey are omitted", func(t *testing.T) {
 		r := bindings.InvokeRequest{
 			Data: []byte(`{}`),
 			Metadata: map[string]string{
@@ -432,6 +513,29 @@ func TestMoveOption(t *testing.T) {
 		}
 		_, err := gs.move(t.Context(), &r)
 		require.Error(t, err)
-		assert.Equal(t, "gcp bucket binding error: required 'destinationBucket' missing", err.Error())
+		assert.Contains(t, err.Error(), "copy/move requires at least one of destinationBucket or destinationKey")
+	})
+
+	// Verify that explicitly passing destinationBucket == configuredBucket with no destinationKey
+	// is NOT rejected (the old equality-based check would have wrongly rejected this).
+	t.Run("explicit destinationBucket equal to configured bucket with no destinationKey — not rejected at validation", func(t *testing.T) {
+		bucket, key, err := resolveCopyDestination("my_configured_bucket", "", "my_key", "my_configured_bucket")
+		require.NoError(t, err)
+		assert.Equal(t, "my_configured_bucket", bucket)
+		assert.Equal(t, "my_key", key)
+	})
+
+	// Move onto self must be rejected before any GCS call to prevent data loss
+	// (copy-then-delete where source == destination deletes the only copy of the object).
+	t.Run("move onto self is rejected", func(t *testing.T) {
+		r := bindings.InvokeRequest{
+			Data: []byte(`{"destinationBucket":"my_configured_bucket","destinationKey":"my_key"}`),
+			Metadata: map[string]string{
+				"key": "my_key",
+			},
+		}
+		_, err := gs.move(t.Context(), &r)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "move destination my_configured_bucket/my_key is the same as the source")
 	})
 }

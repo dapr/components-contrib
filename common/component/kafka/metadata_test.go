@@ -543,6 +543,35 @@ func TestMetadataSessionTimeout(t *testing.T) {
 	})
 }
 
+func TestMetadataMaxPollInterval(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default max poll interval", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 60*time.Second, meta.MaxPollInterval)
+	})
+
+	t.Run("with max poll interval set", func(t *testing.T) {
+		// arrange
+		m := getBaseMetadata()
+		m["maxPollInterval"] = "5m"
+
+		// act
+		meta, err := k.getKafkaMetadata(m)
+
+		// assert
+		require.NoError(t, err)
+		require.Equal(t, 5*time.Minute, meta.MaxPollInterval)
+	})
+}
+
 func TestGetEventMetadata(t *testing.T) {
 	ts := time.Now()
 

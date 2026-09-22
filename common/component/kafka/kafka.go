@@ -161,6 +161,7 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	config.Consumer.Fetch.Default = meta.consumerFetchDefault
 	config.Consumer.Group.Heartbeat.Interval = meta.HeartbeatInterval
 	config.Consumer.Group.Session.Timeout = meta.SessionTimeout
+	config.Consumer.Group.Rebalance.Timeout = meta.MaxPollInterval
 	k.initConsumerGroupRebalanceStrategy(config, metadata)
 	config.ChannelBufferSize = meta.channelBufferSize
 

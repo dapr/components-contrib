@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func TestResolveHost(t *testing.T) {
@@ -287,4 +290,124 @@ func TestSettings(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestPubSubDurationSettings covers the parsing of the pub/sub timing settings. redeliverInterval
+// previously had no mapstructure tag, so the duration form documented in metadata.yaml was
+// silently discarded and the value fell back to the default.
+func TestPubSubDurationSettings(t *testing.T) {
+	tests := map[string]struct {
+		properties             map[string]string
+		expectedRedeliver      time.Duration
+		expectedProcessing     time.Duration
+		expectedEntryKeepAlive time.Duration
+	}{
+		"defaults": {
+			properties:             map[string]string{},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 30 * time.Second,
+		},
+		"duration strings": {
+			properties:             map[string]string{"redeliverInterval": "30s", "processingTimeout": "15m"},
+			expectedRedeliver:      30 * time.Second,
+			expectedProcessing:     15 * time.Minute,
+			expectedEntryKeepAlive: 7*time.Minute + 30*time.Second,
+		},
+		"legacy bare milliseconds": {
+			properties:             map[string]string{"redeliverInterval": "30000", "processingTimeout": "20000"},
+			expectedRedeliver:      30 * time.Second,
+			expectedProcessing:     20 * time.Second,
+			expectedEntryKeepAlive: 10 * time.Second,
+		},
+		"explicit keep-alive wins over the derived default": {
+			properties:             map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "5s"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 5 * time.Second,
+		},
+		"keep-alive can be disabled": {
+			properties:             map[string]string{"entryKeepAliveInterval": "0"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 0,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, settings, err := ParseClientFromProperties(props, metadata.PubSubType, t.Context(), &log)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedRedeliver, settings.RedeliverInterval, "redeliverInterval")
+			require.Equal(t, tc.expectedProcessing, settings.ProcessingTimeout, "processingTimeout")
+			require.Equal(t, tc.expectedEntryKeepAlive, settings.EntryKeepAliveInterval, "entryKeepAliveInterval")
+		})
+	}
+}
+
+// TestKeepAliveIntervalMustBeShorterThanProcessingTimeout rejects a keep-alive that cannot renew an
+// entry before it becomes reclaimable, which would silently reintroduce the duplicate delivery the
+// setting exists to prevent.
+func TestKeepAliveIntervalMustBeShorterThanProcessingTimeout(t *testing.T) {
+	tests := map[string]struct {
+		properties map[string]string
+		wantErr    bool
+	}{
+		"shorter than the timeout is fine": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "30s"},
+		},
+		"equal to the timeout races the reclaim": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "60s"},
+			wantErr:    true,
+		},
+		"longer than the timeout renews too late": {
+			properties: map[string]string{"processingTimeout": "20m", "entryKeepAliveInterval": "30m"},
+			wantErr:    true,
+		},
+		"disabled keep-alive is fine": {
+			properties: map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "0"},
+		},
+		"irrelevant when redelivery is disabled": {
+			properties: map[string]string{"processingTimeout": "60s", "redeliverInterval": "0", "entryKeepAliveInterval": "90s"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, _, err := ParseClientFromProperties(props, metadata.PubSubType, t.Context(), &log)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "must be shorter than")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestNegativeDurationsRejected covers the values that reach time.NewTicker or a context deadline.
+// redeliverInterval in particular used to be unreachable through Decode, so a negative could not be
+// configured; now that it maps, a negative would panic the reclaim ticker.
+func TestNegativeDurationsRejected(t *testing.T) {
+	for _, key := range []string{"processingTimeout", "redeliverInterval", "entryKeepAliveInterval"} {
+		t.Run(key+" as a duration string", func(t *testing.T) {
+			log := logger.NewLogger("test")
+			_, _, err := ParseClientFromProperties(map[string]string{
+				"redisHost": "localhost:6379", key: "-1000s",
+			}, metadata.PubSubType, t.Context(), &log)
+			require.ErrorContains(t, err, key+" cannot be negative")
+		})
+	}
 }

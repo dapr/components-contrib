@@ -22,6 +22,7 @@ import (
 
 	"github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/components/configuration"
+	"github.com/dapr/dapr/pkg/components/conversation"
 	"github.com/dapr/dapr/pkg/components/middleware/http"
 	"github.com/dapr/dapr/pkg/components/pubsub"
 	"github.com/dapr/dapr/pkg/components/secretstores"
@@ -157,6 +158,12 @@ func WithPubSubs(reg *pubsub.Registry) Option {
 func WithConfigurations(reg *configuration.Registry) Option {
 	return func(config *runtime.Config) {
 		config.Registry = config.Registry.WithConfigurations(reg)
+	}
+}
+
+func WithConversations(reg *conversation.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithConversations(reg)
 	}
 }
 

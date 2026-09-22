@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: ollama
+spec:
+  type: conversation.ollama
+  version: v1
+  metadata:
+    - name: model
+      value: qwen2.5:0.5b
+    - name: endpoint
+      value: http://127.0.0.1:11434/v1

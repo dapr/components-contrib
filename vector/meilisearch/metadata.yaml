@@ -9,9 +9,32 @@ urls:
   - title: Reference
     url: https://www.meilisearch.com/docs/learn/ai_powered_search/getting_started_with_ai_search
 capabilities:
+  # Dense, user-provided embeddings stored in the `default` embedder of a
+  # Meilisearch index. Cosine is the only metric Meilisearch offers for them:
+  # DISTANCE_METRIC_UNSPECIFIED selects it and any other metric is rejected.
   - vectorSearch
+  - denseVectors
+  - cosineMetric
+  - queryById
+  - scoreThreshold
+  # Record metadata is stored as the `daprMetadata` object, declared
+  # filterable when the collection is created, so portable filter paths
+  # address it directly (`make`, `dealer.city`).
   - filtering
-  - durableWrites
+  # Meilisearch's asynchronous task API provides a native queued
+  # acknowledgement, so INDEX_ACK_QUEUED is a real acknowledgement boundary and
+  # INDEXING_WAIT_TIMEOUT_ACTION_CONTINUE_ASYNC is accepted. Deletes are
+  # writes too: Delete takes the same IndexingOptions and reports an IndexAck.
+  - queuedAck
+  # INDEXING_MODE_WAIT_FOR_COMPLETION works against every supported
+  # Meilisearch version by polling the task status API with exponential
+  # backoff. When the experimental `tasksStreamingRoute` feature is enabled and
+  # the API key carries the `tasks.get` permission, one shared task-change
+  # stream per component is used instead; the choice is invisible to callers.
+  - waitForCompletion
+  # BatchQuery evaluates every query independently and reports per-query
+  # errors in request order.
+  - batchQuery
 authenticationProfiles:
   - title: "API Key"
     description: "Authenticate using a Meilisearch API key"

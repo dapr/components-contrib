@@ -21,3 +21,42 @@ Start Meilisearch from `.github/infrastructure/docker-compose-meilisearch.yml`, 
 docker compose -f .github/infrastructure/docker-compose-meilisearch.yml -p meilisearch up -d
 MEILISEARCH_HOST=http://localhost:7700 MEILISEARCH_API_KEY=masterKey go test -tags conftests -run TestVectorConformance ./tests/conformance/...
 ```
+
+## Declaring component capabilities
+
+`tests.yml` drives the suite. Each component lists the optional capabilities it
+supports under `operations` (`queued-ack`, `score-threshold`, `filter`,
+`query-by-id`, and one `metric-*` entry per supported distance metric).
+Capabilities that are not listed are asserted to be reported as
+`UNIMPLEMENTED`/`INVALID_ARGUMENT` rather than silently ignored. The alpha
+contract is dense-vector only: there are no sparse, hybrid or named-vector
+opt-ins.
+
+`config.dimensions` is passed as the typed `CreateCollectionRequest.Dimensions`
+and drives the generated test vectors. The shared collection is created with
+`DISTANCE_METRIC_UNSPECIFIED`, so the component's default metric applies and
+must be one of the declared `metric-*` entries. Provider-specific collection
+settings such as index parameters travel through
+`config.createCollectionMetadata`, which is passed verbatim to
+`CreateCollection`; `config.upsertMetadata` and `config.queryMetadata` do the
+same for writes (`Upsert`, `Delete`) and reads (`Query`, `BatchQuery`, `Get`).
+
+## What the suite asserts
+
+- `CreateCollection` on an existing collection returns `ALREADY_EXISTS`; a
+  metric that is not declared is `INVALID_ARGUMENT`; `GetCollection` reports
+  the configured `Dimensions` and a concrete `Metric`.
+- `Upsert` and `Delete` share the `IndexingOptions` matrix: option validation,
+  every indexing mode, and an `IndexAck` that is always `QUEUED` or
+  `COMPLETED`. Deleting IDs that do not exist succeeds.
+- `Record.Metadata` is structured (`map[string]any`) and round-trips with its
+  JSON types; `Payload` is opaque. `Get` returns found records in request
+  order.
+- With `filter`, the portable DSL is exercised against typed metadata (`make`
+  string, `price` number, `inStock` bool, `notes` for `$exists`) including
+  `$in`/`$nin` and `$and`/`$or`/`$not`; an unsupported operator is
+  `INVALID_ARGUMENT`.
+- `BatchQuery` returns one result per query in request order. A query that
+  fails validation (for example neither `vector` nor `by_id`) or is rejected
+  by the provider yields an `Error` result with a canonical code while the
+  other queries succeed; only request-wide failures fail the RPC.

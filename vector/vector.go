@@ -14,8 +14,8 @@ limitations under the License.
 */
 
 // Package vector defines the Vector building-block contract used by Dapr's
-// vector.proto runtime API. Components implement Vector to expose dense
-// vector backends (Meilisearch, Pinecone, Qdrant, Milvus, pgvector, ...).
+// vector.proto runtime API. Components implement Vector to store, retrieve and
+// query pre-embedded dense vectors.
 package vector
 
 import (
@@ -30,6 +30,9 @@ import (
 // mirror the alpha1 RPCs in dapr/proto/runtime/v1/vector.proto using
 // Go-native types.
 //
+// Errors returned by components SHOULD be gRPC status errors carrying a
+// canonical code. Other errors are reported to callers as INTERNAL.
+//
 //nolint:interfacebloat // Vector store API surface intentionally exposes data and collection lifecycle methods.
 type Vector interface {
 	metadata.ComponentWithMetadata
@@ -38,10 +41,10 @@ type Vector interface {
 	Init(ctx context.Context, meta Metadata) error
 
 	// Collection lifecycle.
-	CreateCollection(ctx context.Context, req *CreateCollectionRequest) (*CreateCollectionResponse, error)
-	DropCollection(ctx context.Context, req *DropCollectionRequest) error
-	DescribeCollection(ctx context.Context, req *DescribeCollectionRequest) (*DescribeCollectionResponse, error)
+	CreateCollection(ctx context.Context, req *CreateCollectionRequest) error
+	GetCollection(ctx context.Context, req *GetCollectionRequest) (*GetCollectionResponse, error)
 	ListCollections(ctx context.Context, req *ListCollectionsRequest) (*ListCollectionsResponse, error)
+	DeleteCollection(ctx context.Context, req *DeleteCollectionRequest) error
 
 	// Vector data operations.
 	Upsert(ctx context.Context, req *UpsertRequest) (*UpsertResponse, error)
@@ -55,64 +58,79 @@ type Vector interface {
 	io.Closer
 }
 
-// DistanceMetric is the portable similarity / distance function.
+// DistanceMetric determines how scores and score thresholds are interpreted.
+// Mirrors vector.proto DistanceMetric.
 type DistanceMetric int32
 
 const (
+	// DistanceMetricUnspecified selects the component's default metric on
+	// CreateCollection and the collection's configured metric on Query.
 	DistanceMetricUnspecified DistanceMetric = 0
-	DistanceMetricCosine      DistanceMetric = 1
-	DistanceMetricDotProduct  DistanceMetric = 2
-	DistanceMetricEuclidean   DistanceMetric = 3
-	DistanceMetricManhattan   DistanceMetric = 4
-	DistanceMetricHamming     DistanceMetric = 5
+	// DistanceMetricCosine is cosine similarity in [-1, 1]. Higher is better.
+	DistanceMetricCosine DistanceMetric = 1
+	// DistanceMetricDotProduct is unbounded dot-product similarity. Higher is
+	// better.
+	DistanceMetricDotProduct DistanceMetric = 2
+	// DistanceMetricEuclidean is Euclidean distance in [0, +inf). Lower is
+	// better.
+	DistanceMetricEuclidean DistanceMetric = 3
 )
 
-// Vec is a single dense vector record.
-type Vec struct {
-	ID        string
-	Values    []float32
-	Metadata  map[string]any
-	Namespace string
+// HigherIsBetter reports whether higher scores indicate closer matches for
+// the metric.
+func (m DistanceMetric) HigherIsBetter() bool {
+	return m != DistanceMetricEuclidean
 }
 
-// Hit is a single match returned from a vector query.
-type Hit struct {
-	Vector   Vec
-	Distance float64
+// Record is a single dense vector record.
+type Record struct {
+	ID string
+	// Values is the dense vector. Its length must equal the collection's
+	// dimensions.
+	Values []float32
+	// Payload is opaque caller data stored with the record and returned
+	// unchanged. It is not filterable.
+	Payload []byte
+	// Metadata holds structured, filterable attributes addressed by the
+	// portable filter DSL.
+	Metadata map[string]any
+}
+
+// Match is a single match returned from a vector query.
+type Match struct {
+	Record Record
+	// Score is the unnormalized value of the effective metric.
+	Score float64
 }
 
 // CreateCollectionRequest creates a new vector collection.
 type CreateCollectionRequest struct {
-	Collection     string
-	Dimension      uint32
-	Metric         DistanceMetric
-	MetadataSchema []search.IndexFieldSchema
-	Metadata       map[string]string
+	Collection string
+	// Component-specific settings such as index parameters.
+	Metadata map[string]string
+	// Dimensions is the required length of every stored vector.
+	Dimensions uint32
+	// Metric is the collection's distance metric. Unspecified selects the
+	// component's documented default.
+	Metric DistanceMetric
 }
 
-// CreateCollectionResponse is the output of Vector.CreateCollection.
-type CreateCollectionResponse struct{}
-
-// DropCollectionRequest drops an existing collection.
-type DropCollectionRequest struct {
+// GetCollectionRequest gets an existing collection.
+type GetCollectionRequest struct {
 	Collection string
 	Metadata   map[string]string
 }
 
-// DescribeCollectionRequest describes an existing collection.
-type DescribeCollectionRequest struct {
+// GetCollectionResponse describes an existing collection.
+type GetCollectionResponse struct {
 	Collection string
-	Metadata   map[string]string
-}
-
-// DescribeCollectionResponse describes an existing collection.
-type DescribeCollectionResponse struct {
-	Collection     string
-	Dimension      uint32
-	Metric         DistanceMetric
-	MetadataSchema []search.IndexFieldSchema
-	VectorCount    uint64
-	Properties     map[string]string
+	// Approximate number of records. Providers that cannot supply this value
+	// efficiently may return 0.
+	RecordCount uint64
+	Properties  map[string]string
+	Dimensions  uint32
+	// Metric is the effective metric and is always concrete.
+	Metric DistanceMetric
 }
 
 // ListCollectionsRequest lists collections in the store.
@@ -125,95 +143,100 @@ type ListCollectionsResponse struct {
 	Collections []string
 }
 
-// UpsertRequest inserts or updates a batch of vectors.
+// DeleteCollectionRequest deletes an existing collection.
+type DeleteCollectionRequest struct {
+	Collection string
+	Metadata   map[string]string
+}
+
+// UpsertRequest is a keyed upsert of vector records. Every record has a
+// non-empty ID that is unique within the request.
 type UpsertRequest struct {
-	Collection     string
-	Vectors        []Vec
-	Ack            search.IndexAck
-	IdempotencyKey string
-	Metadata       map[string]string
+	Collection string
+	Records    []Record
+	Metadata   map[string]string
+	Options    search.IndexingOptions
 }
 
 // UpsertResponse is the result of an Upsert call.
 type UpsertResponse struct {
-	Results []search.OperationResult
-	Ack     search.IndexAck
+	// Item-specific failures known at the acknowledgement boundary.
+	FailedItems []search.FailedItem
+	// Always IndexAckQueued or IndexAckCompleted on success.
+	Ack search.IndexAck
 }
 
 // GetRequest fetches vectors by id.
 type GetRequest struct {
-	Collection      string
-	IDs             []string
-	Namespace       string
-	IncludeValues   bool
-	IncludeMetadata bool
-	Metadata        map[string]string
+	Collection    string
+	IDs           []string
+	IncludeValues bool
+	Metadata      map[string]string
 }
 
-// GetResponse is the result of a Get call.
+// GetResponse is the result of a Get call. Records are returned in request
+// order; records that are not found are omitted.
 type GetResponse struct {
-	Vectors []Vec
+	Records []Record
 }
 
-// DeleteSelector selects vectors to delete – exactly one of IDs or Filter must be set.
-type DeleteSelector struct {
-	IDs    []string
-	Filter map[string]any
-}
-
-// DeleteRequest deletes vectors by id list or filter.
+// DeleteRequest deletes vectors by id. IDs that do not exist are not an
+// error.
 type DeleteRequest struct {
 	Collection string
-	Namespace  string
-	Selector   DeleteSelector
-	Ack        search.IndexAck
+	IDs        []string
 	Metadata   map[string]string
+	Options    search.IndexingOptions
 }
 
 // DeleteResponse is the result of a Delete call.
 type DeleteResponse struct {
-	Results      []search.OperationResult
-	DeletedCount uint64
-	Ack          search.IndexAck
+	// Always IndexAckQueued or IndexAckCompleted on success.
+	Ack search.IndexAck
 }
 
-// QueryRequest is a single nearest-neighbour query.
+// QueryRequest is a single vector query. Exactly one of Vector or ByID is
+// set.
 type QueryRequest struct {
-	Collection        string
-	Namespace         string
-	QueryVector       []float32 // exactly one of QueryVector / QueryByID must be set
-	QueryByID         string
-	Filter            map[string]any
-	TopK              uint32
-	ScoreThreshold    *float64
-	IncludeValues     bool
-	IncludeMetadata   bool
-	ContinuationToken string
-	Metadata          map[string]string
+	Collection string
+	// Vector is the query vector. Only its Values are read.
+	Vector         *Record
+	ByID           string
+	TopK           uint32
+	Filter         map[string]any
+	IncludeValues  bool
+	IncludePayload bool
+	// Metric selects how scores are interpreted. Unspecified uses the
+	// collection's configured metric.
+	Metric DistanceMetric
+	// ScoreThreshold is an inclusive, unnormalized cutoff.
+	ScoreThreshold *float64
+	Metadata       map[string]string
 }
 
 // QueryResponse is the result of a single Query call.
 type QueryResponse struct {
-	Hits              []Hit
-	ContinuationToken string
+	Matches []Match
+	// Effective metric used for scores. Always concrete.
+	Metric DistanceMetric
 }
 
-// BatchQueryRequest issues N parallel queries against the same collection.
+// BatchQueryRequest issues multiple queries against the same collection.
 type BatchQueryRequest struct {
 	Collection string
 	Queries    []QueryRequest
 	Metadata   map[string]string
 }
 
-// BatchQueryResult is the per-query result inside a batch.
+// BatchQueryResult is the outcome of one query in a batch. Exactly one of
+// Response or Error is set.
 type BatchQueryResult struct {
-	QueryIndex   uint32
-	Hits         []Hit
-	ErrorCode    string
-	ErrorMessage string
+	Response *QueryResponse
+	// Error is a gRPC status error carrying a canonical, non-OK code.
+	Error error
 }
 
-// BatchQueryResponse is the result of a BatchQuery call.
+// BatchQueryResponse holds one result per query, in request order.
 type BatchQueryResponse struct {
 	Results []BatchQueryResult
 }

@@ -23,19 +23,30 @@ import (
 	"strings"
 )
 
-// TranslateFilter converts a Dapr filter expression into a Meilisearch filter string.
+// TranslateFilter converts a Dapr filter expression into a Meilisearch filter
+// string. Field paths address document attributes directly, as search filters
+// address the keys of a document's content.
 func TranslateFilter(filter map[string]any) (string, error) {
-	return translateExpression(filter)
+	return TranslateFilterWithPrefix(filter, "")
 }
 
-func translateExpression(expr any) (string, error) {
+// TranslateFilterWithPrefix converts a Dapr filter expression into a
+// Meilisearch filter string, prefixing every field path with prefix. Vector
+// filters address record metadata, which is stored under MetadataField, so
+// they pass MetadataField + "." and a portable path `a.b` becomes
+// `daprMetadata.a.b`.
+func TranslateFilterWithPrefix(filter map[string]any, prefix string) (string, error) {
+	return translateExpression(filter, prefix)
+}
+
+func translateExpression(expr any, prefix string) (string, error) {
 	switch v := expr.(type) {
 	case map[string]any:
-		return translateMap(v)
+		return translateMap(v, prefix)
 	case []any:
 		parts := make([]string, 0, len(v))
 		for _, item := range v {
-			part, err := translateExpression(item)
+			part, err := translateExpression(item, prefix)
 			if err != nil {
 				return "", err
 			}
@@ -47,7 +58,7 @@ func translateExpression(expr any) (string, error) {
 	}
 }
 
-func translateMap(m map[string]any) (string, error) {
+func translateMap(m map[string]any, prefix string) (string, error) {
 	parts := make([]string, 0, len(m))
 	for key, value := range m {
 		switch key {
@@ -62,7 +73,7 @@ func translateMap(m map[string]any) (string, error) {
 			}
 			compound := make([]string, 0, len(items))
 			for _, item := range items {
-				part, err := translateExpression(item)
+				part, err := translateExpression(item, prefix)
 				if err != nil {
 					return "", err
 				}
@@ -70,13 +81,16 @@ func translateMap(m map[string]any) (string, error) {
 			}
 			parts = append(parts, strings.Join(compound, op))
 		case "$not":
-			part, err := translateExpression(value)
+			part, err := translateExpression(value, prefix)
 			if err != nil {
 				return "", err
 			}
 			parts = append(parts, "NOT ("+part+")")
 		default:
-			part, err := translateField(key, value)
+			if strings.HasPrefix(key, "$") {
+				return "", fmt.Errorf("unsupported filter operator %q", key)
+			}
+			part, err := translateField(prefix+key, value)
 			if err != nil {
 				return "", err
 			}
@@ -88,9 +102,6 @@ func translateMap(m map[string]any) (string, error) {
 }
 
 func translateField(field string, value any) (string, error) {
-	if strings.HasPrefix(field, "$") {
-		return "", fmt.Errorf("unsupported filter operator %q", field)
-	}
 	ops, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Sprintf("%s = %s", field, FormatFilterValue(value)), nil

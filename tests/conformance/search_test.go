@@ -47,9 +47,11 @@ func TestSearchConformance(t *testing.T) {
 			ParseConfigurationMap(t, comp.Config)
 			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, convertComponentNameToPath(comp.Component, comp.Profile)))
 			require.NoErrorf(t, err, "error running search conformance test for component %s", comp.Component)
+			searchConfig, err := confsearch.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+			require.NoErrorf(t, err, "error running search conformance test for component %s", comp.Component)
 			searchComponent := loadSearchComponent(comp.Component)
 			require.NotNil(t, searchComponent, "error running search conformance test for component %s", comp.Component)
-			confsearch.ConformanceTests(t, props, searchComponent, comp.Component)
+			confsearch.ConformanceTests(t, props, searchComponent, searchConfig)
 		}
 	}
 

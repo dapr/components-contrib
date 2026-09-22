@@ -12,6 +12,41 @@
 # limitations under the License.
 
 componentType: search
+# `operations` declares the optional capabilities a component supports. A
+# capability that is not listed must be reported as UNIMPLEMENTED (or
+# INVALID_ARGUMENT where the contract says so) rather than silently ignored:
+#   queued-ack          native durable queued acknowledgement (INDEX_ACK_QUEUED
+#                       and INDEXING_WAIT_TIMEOUT_ACTION_CONTINUE_ASYNC) for
+#                       every write, including DeleteDocuments
+#   total-hits          best-effort total_hits + total_hits_relation
+#   continuation-token  opaque continuation-token pagination
+#   highlights          highlight_fields
+#   native-query        provider-native query passthrough
+#   filter              portable filters over content fields (typed: string,
+#                       number and bool operands, $in/$nin, $exists and the
+#                       $and/$or/$not logical operators)
+#   sort                sort clauses
+#   return-fields       return_fields projection
+#   search-fields       search_fields restriction
 components:
   - component: meilisearch
-    operations: []
+    operations:
+      - queued-ack
+      - total-hits
+      - continuation-token
+      - highlights
+      - filter
+      - sort
+      - return-fields
+      - search-fields
+    config:
+      # Component-specific index settings are passed through verbatim. The
+      # suite filters on the content fields category (string), price (number),
+      # inStock (bool) and notes ($exists), and sorts on price; the component
+      # itself declares the document id sortable so that the pagination
+      # tie-breaker is always available.
+      createIndexMetadata:
+        filterableAttributes: "category,price,inStock,notes"
+        sortableAttributes: "title,price"
+        searchableAttributes: "title,body,category"
+      waitTimeout: 20s

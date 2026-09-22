@@ -16,19 +16,12 @@ limitations under the License.
 package meilisearch
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	meilisearchgo "github.com/meilisearch/meilisearch-go"
-)
-
-const (
-	// PrimaryKey is the Meilisearch primary key field used by Dapr search and vector components.
-	PrimaryKey = "id"
-	// WaitInterval is the polling interval used while waiting for Meilisearch tasks.
-	WaitInterval = 50 * time.Millisecond
 )
 
 // NewClient creates a Meilisearch service manager from component metadata.
@@ -46,4 +39,23 @@ func NewClient(md MeilisearchMetadata) (meilisearchgo.ServiceManager, error) {
 	}
 
 	return meilisearchgo.New(md.Host, opts...), nil
+}
+
+// WaitForTask waits for one of the Meilisearch tasks backing a synchronous
+// index or collection lifecycle operation and converts a non-successful task
+// into a gRPC status error. Document and vector writes go through the
+// TaskDispatcher instead so they honour IndexingOptions.
+func WaitForTask(ctx context.Context, tasks meilisearchgo.TaskReader, taskUID int64, msg string) error {
+	task, err := tasks.WaitForTaskWithContext(ctx, taskUID, WaitInterval)
+	if err != nil {
+		return StatusError(err, msg)
+	}
+	change := TaskChange{UID: taskUID, Status: task.Status, Type: task.Type, IndexUID: task.IndexUID}
+	if task.Status == meilisearchgo.TaskStatusFailed {
+		change.Error = taskAPIError(task)
+	}
+	if statusErr := change.TaskStatusError(); statusErr != nil {
+		return statusErr
+	}
+	return nil
 }

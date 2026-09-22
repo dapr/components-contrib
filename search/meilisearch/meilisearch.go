@@ -18,13 +18,15 @@ package meilisearch
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
 	meilisearchgo "github.com/meilisearch/meilisearch-go"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	commonmeilisearch "github.com/dapr/components-contrib/common/component/meilisearch"
 	"github.com/dapr/components-contrib/metadata"
@@ -33,16 +35,29 @@ import (
 	kmeta "github.com/dapr/kit/metadata"
 )
 
-const defaultSearchLim = int64(20)
+const (
+	// defaultTopK is the page size used when a request does not set TopK.
+	defaultTopK = int64(20)
+
+	// supportsQueuedAck reports that Meilisearch offers a native durable
+	// queued acknowledgement through its asynchronous task API.
+	supportsQueuedAck = true
+
+	// Index settings accepted in CreateIndex metadata.
+	mdFilterableAttributes = "filterableAttributes"
+	mdSortableAttributes   = "sortableAttributes"
+	mdSearchableAttributes = "searchableAttributes"
+)
 
 // Meilisearch implements the Dapr Search building block with Meilisearch.
 type Meilisearch struct {
 	logger logger.Logger
 
-	mu     sync.RWMutex
-	client meilisearchgo.ServiceManager
-	md     commonmeilisearch.MeilisearchMetadata
-	closed bool
+	mu         sync.RWMutex
+	client     meilisearchgo.ServiceManager
+	dispatcher *commonmeilisearch.TaskDispatcher
+	md         commonmeilisearch.MeilisearchMetadata
+	closed     bool
 }
 
 // NewMeilisearch creates a Meilisearch search component.
@@ -60,94 +75,97 @@ func (m *Meilisearch) Init(ctx context.Context, meta search.Metadata) error {
 	if err != nil {
 		return err
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.client = client
 	m.md = md
+	m.dispatcher = commonmeilisearch.NewTaskDispatcher(md, client, m.logger)
 	m.closed = false
-	_ = ctx
 	return nil
 }
 
-// CreateIndex creates a Meilisearch index and applies searchable, filterable and sortable fields as settings.
-func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRequest) (*search.CreateIndexResponse, error) {
+// CreateIndex creates a Meilisearch index. Component-specific settings travel
+// in the request metadata. The document ID is always declared sortable so the
+// pagination tie-breaker is available. An existing index is ALREADY_EXISTS.
+func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRequest) error {
 	if req == nil || req.Index == "" {
-		return nil, errors.New("index is required")
+		return status.Error(codes.InvalidArgument, "index is required")
 	}
-	client, err := m.getClient()
-	if err != nil {
-		return nil, err
-	}
-	if _, err := client.CreateIndexWithContext(ctx, &meilisearchgo.IndexConfig{Uid: req.Index, PrimaryKey: commonmeilisearch.PrimaryKey}); err != nil {
-		if _, getErr := client.GetIndexWithContext(ctx, req.Index); getErr != nil {
-			return nil, fmt.Errorf("create meilisearch index %q: %w", req.Index, err)
-		}
-	}
-	if len(req.Fields) > 0 {
-		if _, err := client.Index(req.Index).UpdateSettingsWithContext(ctx, commonmeilisearch.SettingsFromFields(req.Fields)); err != nil {
-			return nil, fmt.Errorf("update meilisearch settings for index %q: %w", req.Index, err)
-		}
-	}
-	return &search.CreateIndexResponse{}, nil
-}
-
-// DropIndex deletes a Meilisearch index.
-func (m *Meilisearch) DropIndex(ctx context.Context, req *search.DropIndexRequest) error {
-	if req == nil || req.Index == "" {
-		return errors.New("index is required")
-	}
-	client, err := m.getClient()
+	client, _, err := m.ready()
 	if err != nil {
 		return err
 	}
-	if _, err := client.DeleteIndexWithContext(ctx, req.Index); err != nil {
-		return fmt.Errorf("delete meilisearch index %q: %w", req.Index, err)
+
+	task, err := client.CreateIndexWithContext(ctx, &meilisearchgo.IndexConfig{Uid: req.Index, PrimaryKey: commonmeilisearch.PrimaryKey})
+	if err != nil {
+		return commonmeilisearch.StatusError(err, fmt.Sprintf("create meilisearch index %q", req.Index))
 	}
-	return nil
+	// Meilisearch reports an existing index as a failed creation task with
+	// the `index_already_exists` code, which maps to ALREADY_EXISTS.
+	if err := commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("create meilisearch index %q", req.Index)); err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			return status.Errorf(codes.AlreadyExists, "meilisearch index %q already exists", req.Index)
+		}
+		return err
+	}
+
+	settings := settingsFromMetadata(req.Metadata)
+	settingsTask, err := client.Index(req.Index).UpdateSettingsWithContext(ctx, settings)
+	if err != nil {
+		return commonmeilisearch.StatusError(err, fmt.Sprintf("update settings of meilisearch index %q", req.Index))
+	}
+	return commonmeilisearch.WaitForTask(ctx, client, settingsTask.TaskUID, fmt.Sprintf("update settings of meilisearch index %q", req.Index))
 }
 
-// DescribeIndex returns Meilisearch index settings and document count.
-func (m *Meilisearch) DescribeIndex(ctx context.Context, req *search.DescribeIndexRequest) (*search.DescribeIndexResponse, error) {
+// GetIndex returns the document count and settings of a Meilisearch index.
+func (m *Meilisearch) GetIndex(ctx context.Context, req *search.GetIndexRequest) (*search.GetIndexResponse, error) {
 	if req == nil || req.Index == "" {
-		return nil, errors.New("index is required")
+		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
-	client, err := m.getClient()
+	client, _, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
+
 	idx, err := client.GetIndexWithContext(ctx, req.Index)
 	if err != nil {
-		return nil, fmt.Errorf("get meilisearch index %q: %w", req.Index, err)
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch index %q", req.Index))
 	}
 	stats, err := idx.GetStatsWithContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get meilisearch stats for index %q: %w", req.Index, err)
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get stats of meilisearch index %q", req.Index))
 	}
 	settings, err := idx.GetSettingsWithContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get meilisearch settings for index %q: %w", req.Index, err)
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get settings of meilisearch index %q", req.Index))
 	}
 	if stats.NumberOfDocuments < 0 {
-		return nil, fmt.Errorf("get meilisearch stats for index %q: negative document count %d", req.Index, stats.NumberOfDocuments)
+		return nil, status.Errorf(codes.Internal, "meilisearch index %q reported a negative document count", req.Index)
 	}
-	return &search.DescribeIndexResponse{
+
+	properties := map[string]string{"primaryKey": idx.PrimaryKey}
+	addListProperty(properties, mdFilterableAttributes, settings.FilterableAttributes)
+	addListProperty(properties, mdSortableAttributes, settings.SortableAttributes)
+	addListProperty(properties, mdSearchableAttributes, settings.SearchableAttributes)
+
+	return &search.GetIndexResponse{
 		Index:         idx.UID,
-		Fields:        commonmeilisearch.FieldsFromSettings(settings),
 		DocumentCount: uint64(stats.NumberOfDocuments),
-		Properties:    map[string]string{"primaryKey": idx.PrimaryKey},
+		Properties:    properties,
 	}, nil
 }
 
-// ListIndexes lists Meilisearch indexes.
+// ListIndexes lists the Meilisearch indexes of the store.
 func (m *Meilisearch) ListIndexes(ctx context.Context, req *search.ListIndexesRequest) (*search.ListIndexesResponse, error) {
-	_ = req
-	client, err := m.getClient()
+	client, _, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
+	_ = req
 	res, err := client.ListIndexesWithContext(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("list meilisearch indexes: %w", err)
+		return nil, commonmeilisearch.StatusError(err, "list meilisearch indexes")
 	}
 	out := &search.ListIndexesResponse{Indexes: make([]string, 0, len(res.Results))}
 	for _, idx := range res.Results {
@@ -156,83 +174,167 @@ func (m *Meilisearch) ListIndexes(ctx context.Context, req *search.ListIndexesRe
 	return out, nil
 }
 
-// IndexDocuments adds or replaces documents in a Meilisearch index.
+// DeleteIndex deletes a Meilisearch index.
+func (m *Meilisearch) DeleteIndex(ctx context.Context, req *search.DeleteIndexRequest) error {
+	if req == nil || req.Index == "" {
+		return status.Error(codes.InvalidArgument, "index is required")
+	}
+	client, _, err := m.ready()
+	if err != nil {
+		return err
+	}
+	if _, err := client.DeleteIndexWithContext(ctx, req.Index); err != nil {
+		return commonmeilisearch.StatusError(err, fmt.Sprintf("delete meilisearch index %q", req.Index))
+	}
+	return nil
+}
+
+// IndexDocuments is a keyed upsert of documents into a Meilisearch index.
 func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRequest) (*search.IndexDocumentsResponse, error) {
 	if req == nil || req.Index == "" {
-		return nil, errors.New("index is required")
+		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
-	client, err := m.getClient()
+	client, dispatcher, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
-	docs := make([]map[string]any, len(req.Documents))
-	results := make([]search.OperationResult, len(req.Documents))
+
+	ids := make([]string, len(req.Documents))
 	for i, doc := range req.Documents {
-		content := commonmeilisearch.CloneMap(doc.Content)
-		content[commonmeilisearch.PrimaryKey] = doc.ID
-		for k, v := range doc.Metadata {
-			content[k] = v
-		}
-		docs[i] = content
-		results[i] = search.OperationResult{ID: doc.ID, Success: true}
+		ids[i] = doc.ID
 	}
-	task, err := client.Index(req.Index).AddDocumentsWithContext(ctx, docs, &meilisearchgo.DocumentOptions{PrimaryKey: meilisearchgo.StringPtr(commonmeilisearch.PrimaryKey), TaskCustomMetadata: req.IdempotencyKey})
+	if err := search.ValidateWriteIDs(ids); err != nil {
+		return nil, err
+	}
+	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+		return nil, err
+	}
+
+	// Item failures identified before the task is enqueued. A Meilisearch task
+	// is atomic, so these are the only item failures the component can report.
+	// The runtime already rejects non-object content; this is a defensive
+	// check producing the same INVALID_ARGUMENT item failure.
+	failed := make([]search.FailedItem, 0)
+	docs := make([]map[string]any, 0, len(req.Documents))
+	for _, doc := range req.Documents {
+		content, contentErr := commonmeilisearch.DecodeContent(doc.Content)
+		if contentErr != nil {
+			failed = append(failed, search.FailedItem{ID: doc.ID, Error: status.Convert(contentErr)})
+			continue
+		}
+		body := commonmeilisearch.CloneMap(content)
+		body[commonmeilisearch.PrimaryKey] = doc.ID
+		if meta := commonmeilisearch.EncodeMetadata(doc.Metadata); meta != nil {
+			body[commonmeilisearch.MetadataField] = meta
+		}
+		docs = append(docs, body)
+	}
+	if len(docs) == 0 {
+		return &search.IndexDocumentsResponse{FailedItems: failed, Ack: search.IndexAckCompleted}, nil
+	}
+
+	ack, err := commonmeilisearch.EnqueueWrite(ctx, dispatcher, req.Options, fmt.Sprintf("index documents into meilisearch index %q", req.Index),
+		func(ctx context.Context) (*meilisearchgo.TaskInfo, error) {
+			return client.Index(req.Index).AddDocumentsWithContext(ctx, docs,
+				&meilisearchgo.DocumentOptions{PrimaryKey: meilisearchgo.StringPtr(commonmeilisearch.PrimaryKey)})
+		})
 	if err != nil {
-		return nil, fmt.Errorf("add meilisearch documents to index %q: %w", req.Index, err)
+		return nil, err
 	}
-	ack := commonmeilisearch.NormalizeAck(req.Ack)
-	if ack == search.IndexAckDurable {
-		if err := commonmeilisearch.WaitForTask(ctx, client, task.TaskUID); err != nil {
-			commonmeilisearch.MarkFailed(results, err)
-		}
-	}
-	return &search.IndexDocumentsResponse{Results: results, Ack: ack}, nil
+	return &search.IndexDocumentsResponse{FailedItems: failed, Ack: ack}, nil
 }
 
-// DeleteDocuments deletes documents by ID from a Meilisearch index.
+// GetDocuments fetches documents by ID. Found documents are returned in
+// request order; documents that are not found are omitted.
+func (m *Meilisearch) GetDocuments(ctx context.Context, req *search.GetDocumentsRequest) (*search.GetDocumentsResponse, error) {
+	if req == nil || req.Index == "" {
+		return nil, status.Error(codes.InvalidArgument, "index is required")
+	}
+	client, _, err := m.ready()
+	if err != nil {
+		return nil, err
+	}
+	if len(req.IDs) == 0 {
+		return &search.GetDocumentsResponse{Documents: []search.Document{}}, nil
+	}
+
+	query := &meilisearchgo.DocumentsQuery{Ids: req.IDs, Limit: int64(len(req.IDs))}
+	if !req.IncludeContent {
+		query.Fields = []string{commonmeilisearch.PrimaryKey, commonmeilisearch.MetadataField}
+	}
+	var res meilisearchgo.DocumentsResult
+	if err := client.Index(req.Index).GetDocumentsWithContext(ctx, query, &res); err != nil {
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get documents of meilisearch index %q", req.Index))
+	}
+
+	byID := make(map[string]search.Document, len(res.Results))
+	for _, hit := range res.Results {
+		doc, _, _, err := documentFromHit(hit, req.IncludeContent)
+		if err != nil {
+			return nil, err
+		}
+		byID[doc.ID] = doc
+	}
+	out := &search.GetDocumentsResponse{Documents: make([]search.Document, 0, len(byID))}
+	for _, id := range req.IDs {
+		if doc, ok := byID[id]; ok {
+			out.Documents = append(out.Documents, doc)
+			delete(byID, id)
+		}
+	}
+	return out, nil
+}
+
+// DeleteDocuments deletes documents by ID. It is a write: the deletion task
+// is acknowledged with the same mode and wait semantics as IndexDocuments.
+// IDs that do not exist are not an error.
 func (m *Meilisearch) DeleteDocuments(ctx context.Context, req *search.DeleteDocumentsRequest) (*search.DeleteDocumentsResponse, error) {
 	if req == nil || req.Index == "" {
-		return nil, errors.New("index is required")
+		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
-	client, err := m.getClient()
+	client, dispatcher, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
-	results := make([]search.OperationResult, len(req.IDs))
-	for i, id := range req.IDs {
-		results[i] = search.OperationResult{ID: id, Success: true}
+	if err := search.ValidateIndexingOptions(ctx, req.Options, supportsQueuedAck); err != nil {
+		return nil, err
 	}
-	task, err := client.Index(req.Index).DeleteDocumentsWithContext(ctx, req.IDs, nil)
+	if len(req.IDs) == 0 {
+		return &search.DeleteDocumentsResponse{Ack: search.IndexAckCompleted}, nil
+	}
+
+	ack, err := commonmeilisearch.EnqueueWrite(ctx, dispatcher, req.Options, fmt.Sprintf("delete documents of meilisearch index %q", req.Index),
+		func(ctx context.Context) (*meilisearchgo.TaskInfo, error) {
+			return client.Index(req.Index).DeleteDocumentsWithContext(ctx, req.IDs, nil)
+		})
 	if err != nil {
-		return nil, fmt.Errorf("delete meilisearch documents from index %q: %w", req.Index, err)
+		return nil, err
 	}
-	ack := commonmeilisearch.NormalizeAck(req.Ack)
-	if ack == search.IndexAckDurable {
-		if err := commonmeilisearch.WaitForTask(ctx, client, task.TaskUID); err != nil {
-			commonmeilisearch.MarkFailed(results, err)
-		}
-	}
-	return &search.DeleteDocumentsResponse{Results: results, Ack: ack}, nil
+	return &search.DeleteDocumentsResponse{Ack: ack}, nil
 }
 
-// Search searches a Meilisearch index.
+// Search queries a Meilisearch index.
 func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*search.SearchResponse, error) {
 	if req == nil || req.Index == "" {
-		return nil, errors.New("index is required")
+		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
-	client, err := m.getClient()
+	client, _, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
-	msReq, err := buildSearchRequest(req)
+	if req.Text != "" && len(req.Native) > 0 {
+		return nil, status.Error(codes.InvalidArgument, "text and native are mutually exclusive")
+	}
+
+	msReq, fingerprint, err := buildSearchRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.Index(req.Index).SearchWithContext(ctx, req.Text, msReq)
+	res, err := client.Index(req.Index).SearchWithContext(ctx, msReq.Query, msReq)
 	if err != nil {
-		return nil, fmt.Errorf("search meilisearch index %q: %w", req.Index, err)
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("search meilisearch index %q", req.Index))
 	}
-	return searchResponseFromMeilisearch(res, req.IncludeContent)
+	return searchResponseFromMeilisearch(res, req.IncludeContent, fingerprint)
 }
 
 // GetComponentMetadata returns the metadata of the component.
@@ -241,37 +343,67 @@ func (m *Meilisearch) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	return metadataInfo
 }
 
-// Close closes the component.
+// Close closes the component and stops its shared task-change stream.
 func (m *Meilisearch) Close() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	dispatcher := m.dispatcher
 	m.closed = true
+	m.mu.Unlock()
+	if dispatcher != nil {
+		return dispatcher.Close()
+	}
 	return nil
 }
 
-func (m *Meilisearch) getClient() (meilisearchgo.ServiceManager, error) {
+func (m *Meilisearch) ready() (meilisearchgo.ServiceManager, *commonmeilisearch.TaskDispatcher, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
-		return nil, errors.New("meilisearch search component is closed")
+		return nil, nil, status.Error(codes.FailedPrecondition, "the meilisearch search component is closed")
 	}
 	if m.client == nil {
-		return nil, errors.New("meilisearch search component is not initialized")
+		return nil, nil, status.Error(codes.FailedPrecondition, "the meilisearch search component is not initialized")
 	}
-	return m.client, nil
+	return m.client, m.dispatcher, nil
 }
 
-func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest, error) {
+// settingsFromMetadata builds the index settings applied after creation. The
+// document ID is always sortable: Meilisearch only sorts on declared
+// attributes and the ID is the pagination tie-breaker appended to every sort.
+func settingsFromMetadata(md map[string]string) *meilisearchgo.Settings {
+	sortable := commonmeilisearch.SplitList(md[mdSortableAttributes])
+	if !slicesContains(sortable, commonmeilisearch.PrimaryKey) {
+		sortable = append(sortable, commonmeilisearch.PrimaryKey)
+	}
+	settings := &meilisearchgo.Settings{SortableAttributes: sortable}
+	if filterable := commonmeilisearch.SplitList(md[mdFilterableAttributes]); len(filterable) > 0 {
+		settings.FilterableAttributes = filterable
+	}
+	if searchable := commonmeilisearch.SplitList(md[mdSearchableAttributes]); len(searchable) > 0 {
+		settings.SearchableAttributes = searchable
+	}
+	return settings
+}
+
+func addListProperty(properties map[string]string, key string, values []string) {
+	if len(values) > 0 {
+		properties[key] = strings.Join(values, ",")
+	}
+}
+
+// buildSearchRequest translates a Dapr search request and returns the
+// fingerprint a continuation token is bound to.
+func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest, string, error) {
 	msReq := &meilisearchgo.SearchRequest{Query: req.Text, ShowRankingScore: true}
 	if req.TopK > 0 {
 		msReq.Limit = int64(req.TopK)
 	} else {
-		msReq.Limit = defaultSearchLim
+		msReq.Limit = defaultTopK
 	}
 	if len(req.ReturnFields) > 0 {
-		msReq.AttributesToRetrieve = req.ReturnFields
+		msReq.AttributesToRetrieve = withReservedFields(req.ReturnFields)
 	} else if !req.IncludeContent {
-		msReq.AttributesToRetrieve = []string{commonmeilisearch.PrimaryKey}
+		msReq.AttributesToRetrieve = []string{commonmeilisearch.PrimaryKey, commonmeilisearch.MetadataField}
 	}
 	if len(req.SearchFields) > 0 {
 		msReq.AttributesToSearchOn = req.SearchFields
@@ -283,102 +415,197 @@ func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest
 		msReq.Sort = sortClauses(req.Sort)
 	}
 	if len(req.Filter) > 0 {
+		// Search filters address the keys of a document's content, which are
+		// stored as top-level attributes.
 		filter, err := commonmeilisearch.TranslateFilter(req.Filter)
 		if err != nil {
-			return nil, err
+			return nil, "", status.Errorf(codes.InvalidArgument, "translate filter: %v", err)
 		}
 		msReq.Filter = filter
 	}
+	if len(req.Native) > 0 {
+		if err := applyNative(msReq, req.Native); err != nil {
+			return nil, "", err
+		}
+	}
+
+	// The token is bound to the index and every result-affecting element of
+	// the request. Transport metadata is not bound, and neither is the
+	// continuation token itself.
+	fingerprint := commonmeilisearch.QueryFingerprint(
+		"search", req.Index, req.Text, req.Native, req.Filter, msReq.Limit,
+		req.ReturnFields, req.IncludeContent, req.SearchFields, sortClauses(req.Sort), req.HighlightFields,
+	)
+
 	if req.ContinuationToken != "" {
-		offset, err := commonmeilisearch.DecodeContinuationToken(req.ContinuationToken)
+		offset, err := commonmeilisearch.DecodeContinuationToken(req.ContinuationToken, fingerprint)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		msReq.Offset = offset
 	}
-	if len(req.Native) > 0 {
-		data, err := json.Marshal(req.Native)
-		if err != nil {
-			return nil, fmt.Errorf("marshal native meilisearch options: %w", err)
-		}
-		if err := json.Unmarshal(data, msReq); err != nil {
-			return nil, fmt.Errorf("decode native meilisearch options: %w", err)
-		}
-	}
-	return msReq, nil
+	return msReq, fingerprint, nil
 }
 
+// applyNative merges a provider-native query into the request. A native query
+// must not embed its own pagination or a conflicting sort.
+func applyNative(msReq *meilisearchgo.SearchRequest, native map[string]any) error {
+	for _, reserved := range []string{"offset", "limit", "page", "hitsPerPage", "sort"} {
+		if _, ok := native[reserved]; ok {
+			return status.Errorf(codes.InvalidArgument, "a native query must not set %q: pagination and sorting are portable request fields", reserved)
+		}
+	}
+	data, err := json.Marshal(native)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "encode the native meilisearch query: %v", err)
+	}
+	if err := json.Unmarshal(data, msReq); err != nil {
+		return status.Errorf(codes.InvalidArgument, "decode the native meilisearch query: %v", err)
+	}
+	return nil
+}
+
+func withReservedFields(fields []string) []string {
+	out := make([]string, 0, len(fields)+2)
+	out = append(out, fields...)
+	for _, reserved := range []string{commonmeilisearch.PrimaryKey, commonmeilisearch.MetadataField} {
+		if !slicesContains(out, reserved) {
+			out = append(out, reserved)
+		}
+	}
+	return out
+}
+
+func slicesContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+// sortClauses translates the portable sort clauses and appends the document ID
+// as a stable tie-breaker so pagination is deterministic.
 func sortClauses(clauses []search.SortClause) []string {
-	out := make([]string, 0, len(clauses))
+	if len(clauses) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(clauses)+1)
+	tieBreaker := true
 	for _, clause := range clauses {
 		order := "asc"
 		if clause.Order == search.SortOrderDesc {
 			order = "desc"
 		}
+		if clause.Field == commonmeilisearch.PrimaryKey {
+			tieBreaker = false
+		}
 		out = append(out, clause.Field+":"+order)
+	}
+	if tieBreaker {
+		out = append(out, commonmeilisearch.PrimaryKey+":asc")
 	}
 	return out
 }
 
-func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool) (*search.SearchResponse, error) {
+func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool, fingerprint string) (*search.SearchResponse, error) {
 	out := &search.SearchResponse{Hits: make([]search.Hit, 0, len(res.Hits))}
-	if res.TotalHits > 0 {
-		out.TotalHits = uint64(res.TotalHits)
-	} else if res.EstimatedTotalHits > 0 {
-		out.TotalHits = uint64(res.EstimatedTotalHits)
+
+	var total int64
+	switch {
+	case res.TotalHits > 0:
+		total = res.TotalHits
+		totalHits := uint64(res.TotalHits)
+		out.TotalHits = &totalHits
+		out.TotalHitsRelation = search.TotalHitsRelationExact
+	case res.EstimatedTotalHits > 0:
+		total = res.EstimatedTotalHits
+		totalHits := uint64(res.EstimatedTotalHits)
+		out.TotalHits = &totalHits
+		out.TotalHitsRelation = search.TotalHitsRelationEstimate
 	}
-	if res.Offset+int64(len(res.Hits)) < outTotalInt64(out.TotalHits) {
-		out.ContinuationToken = commonmeilisearch.EncodeContinuationToken(res.Offset + int64(len(res.Hits)))
-	}
+
 	for _, hit := range res.Hits {
-		mapped, err := hitFromMeilisearch(hit, includeContent)
+		doc, score, highlights, err := documentFromHit(hit, includeContent)
 		if err != nil {
 			return nil, err
 		}
-		out.Hits = append(out.Hits, mapped)
+		out.Hits = append(out.Hits, search.Hit{Document: doc, Score: score, Highlights: highlights})
+	}
+
+	next := res.Offset + int64(len(res.Hits))
+	if len(res.Hits) > 0 && next < total {
+		out.ContinuationToken = commonmeilisearch.EncodeContinuationToken(fingerprint, next)
 	}
 	return out, nil
 }
 
-func outTotalInt64(total uint64) int64 {
-	if total > uint64(^uint(0)>>1) {
-		return int64(^uint(0) >> 1)
-	}
-	return int64(total)
-}
-
-func hitFromMeilisearch(hit meilisearchgo.Hit, includeContent bool) (search.Hit, error) {
+// documentFromHit maps a Meilisearch hit into a Dapr document, its relevance
+// score and its highlights. Meilisearch `_rankingScore` is already
+// higher-is-better, so it is reported unchanged.
+func documentFromHit(hit meilisearchgo.Hit, includeContent bool) (search.Document, float64, map[string]string, error) {
+	doc := search.Document{}
 	content := map[string]any{}
-	formatted := map[string]any{}
-	out := search.Hit{Highlights: map[string]search.FieldHighlight{}}
+	var score float64
+	var highlights map[string]string
+
 	for key, raw := range hit {
 		var value any
 		if err := json.Unmarshal(raw, &value); err != nil {
-			return out, fmt.Errorf("decode meilisearch hit field %q: %w", key, err)
+			return doc, 0, nil, status.Errorf(codes.Internal, "decode meilisearch hit attribute %q", key)
 		}
 		switch key {
 		case commonmeilisearch.PrimaryKey:
-			out.Document.ID = fmt.Sprint(value)
-		case "_rankingScore":
-			out.Score = commonmeilisearch.NumberAsFloat(value)
-		case "_formatted":
-			if fm, ok := value.(map[string]any); ok {
-				formatted = fm
-			}
+			doc.ID = fmt.Sprint(value)
+		case commonmeilisearch.MetadataField:
+			doc.Metadata = commonmeilisearch.DecodeMetadata(value)
+		case commonmeilisearch.RankingScoreField:
+			score = commonmeilisearch.NumberAsFloat(value)
+		case commonmeilisearch.FormattedField:
+			highlights = highlightsFromFormatted(value)
 		default:
-			if includeContent && !strings.HasPrefix(key, "_") {
+			if includeContent && !commonmeilisearch.IsReservedField(key) {
 				content[key] = value
 			}
 		}
 	}
+
 	if includeContent {
-		out.Document.Content = content
+		encoded, err := commonmeilisearch.EncodeContent(content)
+		if err != nil {
+			return doc, 0, nil, err
+		}
+		doc.Content = encoded
 	}
-	for field, value := range formatted {
-		out.Highlights[field] = search.FieldHighlight{Snippets: []search.Snippet{{Text: fmt.Sprint(value)}}}
+	return doc, score, highlights, nil
+}
+
+func highlightsFromFormatted(value any) map[string]string {
+	formatted, ok := value.(map[string]any)
+	if !ok || len(formatted) == 0 {
+		return nil
 	}
-	if len(out.Highlights) == 0 {
-		out.Highlights = nil
+	out := make(map[string]string, len(formatted))
+	for field, snippet := range formatted {
+		if commonmeilisearch.IsReservedField(field) {
+			continue
+		}
+		switch typed := snippet.(type) {
+		case string:
+			out[field] = typed
+		case float64:
+			out[field] = strconv.FormatFloat(typed, 'f', -1, 64)
+		default:
+			encoded, err := json.Marshal(typed)
+			if err != nil {
+				continue
+			}
+			out[field] = string(encoded)
+		}
 	}
-	return out, nil
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

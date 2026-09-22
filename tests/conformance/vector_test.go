@@ -47,9 +47,11 @@ func TestVectorConformance(t *testing.T) {
 			ParseConfigurationMap(t, comp.Config)
 			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, convertComponentNameToPath(comp.Component, comp.Profile)))
 			require.NoErrorf(t, err, "error running vector conformance test for component %s", comp.Component)
+			vectorConfig, err := confvector.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+			require.NoErrorf(t, err, "error running vector conformance test for component %s", comp.Component)
 			vectorComponent := loadVectorComponent(comp.Component)
 			require.NotNil(t, vectorComponent, "error running vector conformance test for component %s", comp.Component)
-			confvector.ConformanceTests(t, props, vectorComponent, comp.Component)
+			confvector.ConformanceTests(t, props, vectorComponent, vectorConfig)
 		}
 	}
 

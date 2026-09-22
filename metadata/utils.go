@@ -150,6 +150,8 @@ const (
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	ConversationType       ComponentType = "conversation"
+	SearchType             ComponentType = "search"
+	VectorType             ComponentType = "vector"
 )
 
 // IsValid returns true if the component type is valid.

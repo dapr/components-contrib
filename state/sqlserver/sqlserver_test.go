@@ -557,3 +557,13 @@ func TestKeysLikeThroughInterface(t *testing.T) {
 	_, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: ""})
 	require.ErrorIs(t, err, state.ErrKeysLikeEmptyPattern)
 }
+
+func TestKeysLikeFeatureAdvertised(t *testing.T) {
+	// New() built the real feature list without state.FeatureKeysLike even after the interface
+	// signature fix above - the method was reachable but the store never told callers it supported
+	// it. Every other KeysLike implementer (mongodb, mysql, postgresql/v2) advertises this feature
+	// from its own New()/features list; sqlserver's is what actually gets registered with Dapr, so
+	// asserting on it directly (not a hand-built features slice) is what would have caught this.
+	s := New(logger.NewLogger("test"))
+	assert.True(t, state.FeatureKeysLike.IsPresent(s.Features()), "SQLServer should advertise FeatureKeysLike")
+}

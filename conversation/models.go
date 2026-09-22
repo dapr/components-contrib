@@ -36,7 +36,7 @@ const (
 const (
 	DefaultOpenAIModel      = "gpt-5-nano"   // Enable GPT-5 (Preview) for all clients
 	DefaultAzureOpenAIModel = "gpt-4.1-nano" // Default Azure OpenAI model
-	// Newer Anthropic models reject the temperature parameter that langchaingo always sends.
+	// Fable 5, Opus 4.7+ and Sonnet 5 reject a 'non-default' temperature, which langchaingo always sends.
 	DefaultAnthropicModel   = "claude-sonnet-4-6"
 	DefaultGoogleAIModel    = "gemini-2.5-flash-lite"
 	DefaultMistralModel     = "open-mistral-7b"

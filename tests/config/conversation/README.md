@@ -54,8 +54,8 @@ You can override the default models used by each component by setting these envi
 ```bash
 export OPENAI_MODEL="gpt-5-nano"           # Default: gpt-5-nano
 export AZURE_OPENAI_MODEL="gpt-4.1-nano"   # Default: gpt-4.1-nano
-export ANTHROPIC_MODEL="claude-sonnet-4-6"           # Default: claude-sonnet-4-6
-export GOOGLEAI_MODEL="gemini-1.5-flash"   # Default: gemini-1.5-flash
+export ANTHROPIC_MODEL="claude-sonnet-4-6"   # Default: claude-sonnet-4-6
+export GOOGLEAI_MODEL="gemini-2.5-flash-lite"   # Default: gemini-2.5-flash-lite
 export MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
 export HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 export OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2:latest

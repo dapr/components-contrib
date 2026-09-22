@@ -111,7 +111,16 @@ func readTopicRecords(topic string, isolation sarama.IsolationLevel, window time
 			defer timer.Stop()
 			for {
 				select {
-				case msg := <-pc.Messages():
+				case msg, ok := <-pc.Messages():
+					if !ok {
+						// sarama closes this channel when it tears the
+						// partition consumer down, which it does on its own
+						// for a non-retriable fetch error as well as on
+						// Close. The zero value is a nil *ConsumerMessage, so
+						// reading msg.Value here would panic and take the
+						// test binary with it.
+						return
+					}
 					mu.Lock()
 					records = append(records, string(msg.Value))
 					mu.Unlock()

@@ -12,6 +12,9 @@ componentFolders:
   - binarystore
 
 excludeFolders:
+  # Test-only binary store used by the runtime's tests; it is not a
+  # user-facing component and so it ships no metadata.yaml.
+  - binarystore/fake
   - bindings/alicloud
   - bindings/aws
   - bindings/azure

@@ -39,12 +39,13 @@ const (
 	ClusterType = "cluster"
 	NodeType    = "node"
 
-	processingTimeoutKey     = "processingTimeout"
-	redeliverIntervalKey     = "redeliverInterval"
-	redisMinRetryIntervalKey = "redisMinRetryInterval"
-	maxRetryBackoffKey       = "maxRetryBackoff"
-	redisMaxRetriesKey       = "redisMaxRetries"
-	maxRetriesKey            = "maxRetries"
+	processingTimeoutKey      = "processingTimeout"
+	redeliverIntervalKey      = "redeliverInterval"
+	entryKeepAliveIntervalKey = "entryKeepAliveInterval"
+	redisMinRetryIntervalKey  = "redisMinRetryInterval"
+	maxRetryBackoffKey        = "maxRetryBackoff"
+	redisMaxRetriesKey        = "redisMaxRetries"
+	maxRetriesKey             = "maxRetries"
 )
 
 type RedisXMessage struct {
@@ -89,6 +90,7 @@ type RedisClient interface {
 	XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error)
 	XPendingExtResult(ctx context.Context, stream string, group string, start string, end string, count int64) ([]RedisXPendingExt, error)
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
+	XClaimJustIDResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]string, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 	AuthACL(ctx context.Context, username, password string) error
@@ -164,6 +166,41 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond //nolint:gosec
 			}
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
+
+		// Unless the operator set it explicitly, keep the held entries alive at half the
+		// reclaim threshold, which is frequent enough to stay well clear of it.
+		if _, ok := properties[entryKeepAliveIntervalKey]; !ok {
+			settings.EntryKeepAliveInterval = settings.ProcessingTimeout / 2
+		}
+
+		// Decode accepts negative durations, and a negative redeliverInterval reaches
+		// time.NewTicker, which panics. The gates downstream only test for zero, so reject
+		// negatives here rather than let them through.
+		for _, d := range []struct {
+			key   string
+			value time.Duration
+		}{
+			{processingTimeoutKey, settings.ProcessingTimeout},
+			{redeliverIntervalKey, settings.RedeliverInterval},
+			{entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval},
+		} {
+			if d.value < 0 {
+				return nil, nil, fmt.Errorf(
+					"redis client configuration error: %s cannot be negative, got %s", d.key, d.value)
+			}
+		}
+
+		// A keep-alive that is not comfortably shorter than the reclaim threshold cannot do
+		// its job: the entry becomes reclaimable before the first renewal, and an interval
+		// equal to the threshold races the reclaim ticker. Either reproduces the duplicate
+		// delivery this setting exists to prevent, so reject it rather than appear to work.
+		if settings.RedeliverInterval > 0 && settings.ProcessingTimeout > 0 &&
+			settings.EntryKeepAliveInterval >= settings.ProcessingTimeout {
+			return nil, nil, fmt.Errorf(
+				"redis client configuration error: %s (%s) must be shorter than %s (%s), otherwise held messages are reclaimed before the first keep-alive",
+				entryKeepAliveIntervalKey, settings.EntryKeepAliveInterval,
+				processingTimeoutKey, settings.ProcessingTimeout)
 		}
 	}
 	var oidcTokenSource *OAuthTokenSourcePrivateKeyJWT
@@ -426,6 +463,36 @@ func StartOIDCTokenRefreshBackgroundRoutine(client RedisClient, username string,
 	})
 }
 
+const (
+	// maxRefreshGracePeriod is the longest a refresh is brought forward ahead of
+	// token expiry. Long-lived tokens refresh exactly this far in advance.
+	maxRefreshGracePeriod = 5 * time.Minute
+	// minTokenRefreshInterval floors the wait between refreshes so a token that
+	// is already expired, or so short-lived that even a halved grace period
+	// leaves no room, cannot drive the loop into a tight refresh+AUTH spin
+	// against the IdP and Redis.
+	minTokenRefreshInterval = 5 * time.Second
+)
+
+// nextTokenRefreshInterval returns how long to wait before refreshing a token
+// with the given remaining lifetime.
+//
+// The grace period scales with the lifetime rather than being fixed: a token is
+// refreshed maxRefreshGracePeriod early, but never earlier than its own
+// midpoint. A fixed grace period would collapse to the floor for every IdP
+// issuing tokens at or under that period -- a 5 minute token would refresh
+// every minTokenRefreshInterval forever, hammering the token endpoint.
+func nextTokenRefreshInterval(lifetime time.Duration) time.Duration {
+	grace := maxRefreshGracePeriod
+	if half := lifetime / 2; half < grace {
+		grace = half
+	}
+	if d := lifetime - grace; d > minTokenRefreshInterval {
+		return d
+	}
+	return minTokenRefreshInterval
+}
+
 // runTokenRefreshLoop periodically refreshes an authentication token before it
 // expires and re-authenticates the existing Redis connection pool via the AUTH
 // command. fetch must return a fresh token and its expiry. On definitive failure
@@ -439,18 +506,7 @@ func runTokenRefreshLoop(client RedisClient, username string, nextExpiration tim
 	backoffConfig.Policy = kitretry.PolicyExponential
 
 	var backoffManager backoff.BackOff
-	const refreshGracePeriod = 5 * time.Minute
-	// minTokenRefreshInterval floors the wait between refreshes so a short-lived
-	// or near-expiry token (remaining lifetime <= refreshGracePeriod) cannot
-	// drive the loop into a tight refresh+AUTH spin against the IdP and Redis.
-	const minTokenRefreshInterval = 5 * time.Second
-	nextRefresh := func(expiry time.Time) time.Duration {
-		if d := time.Until(expiry.Add(-refreshGracePeriod)); d > minTokenRefreshInterval {
-			return d
-		}
-		return minTokenRefreshInterval
-	}
-	tokenRefreshDuration := nextRefresh(nextExpiration)
+	tokenRefreshDuration := nextTokenRefreshInterval(time.Until(nextExpiration))
 
 	(*logger).Debugf("redis client: starting %s token refresh loop", label)
 
@@ -515,7 +571,7 @@ func runTokenRefreshLoop(client RedisClient, username string, nextExpiration tim
 			(*logger).Debugf("redis client: %s auth token successfully refreshed with the server", label)
 
 			// Schedule the next refresh based on the new token's expiry
-			tokenRefreshDuration = nextRefresh(newExpiry)
+			tokenRefreshDuration = nextTokenRefreshInterval(time.Until(newExpiry))
 		}
 	}
 }

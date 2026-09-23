@@ -115,7 +115,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		nil,
 	)
 	if err != nil {
-		a.logger.Errorf("Unable to create link to %s: %v", address, err)
+		a.logger.Errorf("Unable to create link to %s (topic %q): %v", address, req.Topic, err)
 		return pubsub.NewRetriableError(err)
 	}
 
@@ -145,7 +145,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		select {
 		case <-time.After(publishRetryWaitSeconds * time.Second):
 		case <-ctx.Done():
-			return pubsub.NewRetriableError(ctx.Err())
+			return ctx.Err()
 		}
 	}
 

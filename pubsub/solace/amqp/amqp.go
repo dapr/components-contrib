@@ -50,13 +50,17 @@ type amqpPubSub struct {
 	wg          sync.WaitGroup
 	closed      atomic.Bool
 	closeCh     chan struct{}
+
+	// retryWait is the pause between two attempts to publish one message.
+	retryWait time.Duration
 }
 
 // NewAMQPPubsub returns a new AMQPPubSub instance
 func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
 	return &amqpPubSub{
-		logger:  logger,
-		closeCh: make(chan struct{}),
+		logger:    logger,
+		closeCh:   make(chan struct{}),
+		retryWait: publishRetryWaitSeconds * time.Second,
 	}
 }
 
@@ -130,8 +134,19 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	}()
 
 	// Publish the message, retrying a bounded number of times before giving up.
+	return a.sendWithRetry(ctx, address, req.Topic, func(ctx context.Context) error {
+		return sender.Send(ctx, m, nil)
+	})
+}
+
+// sendWithRetry runs send until it succeeds, until the retry budget is spent
+// or until the caller's context ends. A success stops it at once: the loop it
+// replaces kept sending after a success, so one publish could deliver a
+// message up to four times.
+func (a *amqpPubSub) sendWithRetry(ctx context.Context, address, topic string, send func(context.Context) error) error {
+	var err error
 	for attempt := 0; ; attempt++ {
-		err = sender.Send(ctx, m, nil)
+		err = send(ctx)
 		if err == nil {
 			return nil
 		}
@@ -140,11 +155,13 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 			break
 		}
 
-		a.logger.Warnf("Failed to publish a message to %s, retrying: %v", address, err)
+		a.logger.Warnf("Failed to publish a message to %s (topic %q), retrying: %v", address, topic, err)
 
 		select {
-		case <-time.After(publishRetryWaitSeconds * time.Second):
+		case <-time.After(a.retryWait):
 		case <-ctx.Done():
+			// The caller gave up. Its error goes back as is, because this is
+			// not a broker failure.
 			return ctx.Err()
 		}
 	}
@@ -184,6 +201,14 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}()
 	go func() {
 		defer a.wg.Done()
+		// Cancel on the way out. The subscription ends on its own when the
+		// receiver link fails, and without this the goroutine above stays
+		// blocked on subCtx, holding its wait-group slot, until the component
+		// closes.
+		//
+		// Not unit tested: reaching it needs a live receiver link, and a
+		// hand-built amqp.Session panics inside go-amqp.
+		defer cancel()
 		a.subscribeForever(subCtx, receiver, handler, req.Topic, address)
 	}()
 

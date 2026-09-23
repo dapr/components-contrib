@@ -116,13 +116,18 @@ type Settings struct {
 	// The consumer identifier
 	ConsumerID string `mapstructure:"consumerID" mdonly:"pubsub"`
 	// The interval between checking for pending messages to redelivery (0 disables redelivery)
-	RedeliverInterval time.Duration `mapstructure:"-" mdonly:"pubsub"`
+	RedeliverInterval time.Duration `mapstructure:"redeliverInterval" mdonly:"pubsub"`
 	// The amount time a message must be pending before attempting to redeliver it (0 disables redelivery)
 	ProcessingTimeout time.Duration `mapstructure:"processingTimeout" mdonly:"pubsub"`
 	// The size of the message queue for processing
 	QueueDepth uint `mapstructure:"queueDepth" mdonly:"pubsub"`
 	// The number of concurrent workers that are processing messages
 	Concurrency uint `mapstructure:"concurrency" mdonly:"pubsub"`
+
+	// The interval at which the component resets the idle time of the pending entries it
+	// currently holds, so that they are not reclaimed while this consumer is still working on
+	// them. Defaults to half of ProcessingTimeout; 0 disables the keep-alive.
+	EntryKeepAliveInterval time.Duration `mapstructure:"entryKeepAliveInterval" mdonly:"pubsub"`
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`

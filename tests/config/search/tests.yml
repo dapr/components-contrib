@@ -35,6 +35,7 @@ components:
       - total-hits
       - continuation-token
       - highlights
+      - native-query
       - filter
       - sort
       - return-fields

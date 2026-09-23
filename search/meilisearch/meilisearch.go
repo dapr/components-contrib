@@ -193,6 +193,9 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, req *search.DeleteIndexRe
 
 // IndexDocuments is a keyed upsert of documents into a Meilisearch index.
 func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRequest) (*search.IndexDocumentsResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Index == "" {
 		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
@@ -249,6 +252,9 @@ func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocum
 // GetDocuments fetches documents by ID. Found documents are returned in
 // request order; documents that are not found are omitted.
 func (m *Meilisearch) GetDocuments(ctx context.Context, req *search.GetDocumentsRequest) (*search.GetDocumentsResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Index == "" {
 		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
@@ -291,6 +297,9 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, req *search.GetDocuments
 // is acknowledged with the same mode and wait semantics as IndexDocuments.
 // IDs that do not exist are not an error.
 func (m *Meilisearch) DeleteDocuments(ctx context.Context, req *search.DeleteDocumentsRequest) (*search.DeleteDocumentsResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Index == "" {
 		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}
@@ -317,6 +326,9 @@ func (m *Meilisearch) DeleteDocuments(ctx context.Context, req *search.DeleteDoc
 
 // Search queries a Meilisearch index.
 func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*search.SearchResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Index == "" {
 		return nil, status.Error(codes.InvalidArgument, "index is required")
 	}

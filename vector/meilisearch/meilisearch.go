@@ -237,6 +237,9 @@ func (m *Meilisearch) DeleteCollection(ctx context.Context, req *vector.DeleteCo
 
 // Upsert is a keyed upsert of dense vector records into a collection.
 func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*vector.UpsertResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "collection is required")
 	}
@@ -334,6 +337,9 @@ func (m *Meilisearch) Get(ctx context.Context, req *vector.GetRequest) (*vector.
 // acknowledged with the same mode and wait semantics as Upsert. IDs that do
 // not exist are not an error.
 func (m *Meilisearch) Delete(ctx context.Context, req *vector.DeleteRequest) (*vector.DeleteResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "collection is required")
 	}
@@ -360,6 +366,9 @@ func (m *Meilisearch) Delete(ctx context.Context, req *vector.DeleteRequest) (*v
 
 // Query runs a single nearest-neighbour query.
 func (m *Meilisearch) Query(ctx context.Context, req *vector.QueryRequest) (*vector.QueryResponse, error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, commonmeilisearch.ContextStatusError(ctx)
+	}
 	if req == nil || req.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "collection is required")
 	}

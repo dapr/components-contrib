@@ -177,7 +177,7 @@ func (m *Meilisearch) GetCollection(ctx context.Context, req *vector.GetCollecti
 
 	var dimensions uint32
 	if embedder, ok := settings.Embedders[DefaultEmbedder]; ok && embedder.Dimensions > 0 {
-		if embedder.Dimensions > math.MaxUint32 {
+		if uint64(embedder.Dimensions) > math.MaxUint32 {
 			return nil, status.Errorf(codes.Internal, "meilisearch collection %q reported dimensions outside the uint32 range", req.Collection)
 		}
 		dimensions = uint32(embedder.Dimensions)

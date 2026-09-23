@@ -447,6 +447,9 @@ func EnqueueWrite(ctx context.Context, dispatcher *TaskDispatcher, opts search.I
 	}
 	task, err := enqueue(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			return search.IndexAckUnspecified, ContextStatusError(ctx)
+		}
 		return search.IndexAckUnspecified, EnqueueError(err, msg)
 	}
 	if task == nil {

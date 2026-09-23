@@ -762,6 +762,7 @@ func TestEnqueueWrite(t *testing.T) {
 		taskStatus    string
 		opts          search.IndexingOptions
 		enqueueErr    error
+		canceled      bool
 		wantAck       search.IndexAck
 		wantCode      codes.Code
 		wantReason    string
@@ -803,6 +804,14 @@ func TestEnqueueWrite(t *testing.T) {
 			wantEnqueued: true,
 		},
 		{
+			name:         "a canceled enqueue keeps the context cancellation code",
+			opts:         search.IndexingOptions{},
+			enqueueErr:   context.Canceled,
+			canceled:     true,
+			wantCode:     codes.Canceled,
+			wantEnqueued: true,
+		},
+		{
 			name:         "an enqueue without a response has an unknown outcome",
 			opts:         search.IndexingOptions{},
 			enqueueErr:   errors.New("connection reset by peer"),
@@ -821,7 +830,13 @@ func TestEnqueueWrite(t *testing.T) {
 			ts.setTaskStatus(33, tt.taskStatus)
 
 			var enqueued atomic.Int32
-			ack, err := EnqueueWrite(t.Context(), dispatcher, tt.opts, "write to books", func(ctx context.Context) (*meilisearchgo.TaskInfo, error) {
+			ctx := t.Context()
+			if tt.canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			ack, err := EnqueueWrite(ctx, dispatcher, tt.opts, "write to books", func(ctx context.Context) (*meilisearchgo.TaskInfo, error) {
 				enqueued.Add(1)
 				if tt.enqueueErr != nil {
 					return nil, tt.enqueueErr

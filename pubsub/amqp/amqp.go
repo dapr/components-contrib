@@ -347,12 +347,12 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 			break
 		}
 
-		a.logger.Warnf("Failed to publish a message to %s, retrying: %v", address, err)
+		a.logger.Warnf("Failed to publish a message to %s (topic %q), retrying: %v", address, req.Topic, err)
 
 		select {
 		case <-time.After(publishRetryWaitSeconds * time.Second):
 		case <-ctx.Done():
-			return pubsub.NewRetriableError(ctx.Err())
+			return ctx.Err()
 		}
 	}
 
@@ -525,7 +525,7 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	// rejects fails the Subscribe call rather than retrying in the background.
 	receiver, err := a.newReceiver(ctx, address)
 	if err != nil {
-		a.logger.Errorf("Unable to create a receiver for %s: %v", address, err)
+		a.logger.Errorf("Unable to create a receiver for %s (topic %q): %v", address, req.Topic, err)
 		return err
 	}
 

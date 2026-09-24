@@ -352,18 +352,21 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 }
 
 func (r *RabbitMQ) declareQueue(channel *amqp.Channel) (amqp.Queue, error) {
+	return channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, r.queueArguments())
+}
+
+func (r *RabbitMQ) queueArguments() amqp.Table {
 	args := amqp.Table{}
 	if r.metadata.DefaultQueueTTL != nil {
-		// Value in ms
-		ttl := *r.metadata.DefaultQueueTTL / time.Millisecond
-		args[rabbitMQQueueMessageTTLKey] = int(ttl)
+		// AMQP encodes Go int as 32-bit, so keep milliseconds as int64.
+		args[rabbitMQQueueMessageTTLKey] = r.metadata.DefaultQueueTTL.Milliseconds()
 	}
 
 	if r.metadata.MaxPriority != nil {
 		args[rabbitMQMaxPriorityKey] = *r.metadata.MaxPriority
 	}
 
-	return channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
+	return args
 }
 
 func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {

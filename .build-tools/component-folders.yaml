@@ -9,6 +9,8 @@ componentFolders:
   - secretstores
   - state
   - conversation
+  - search
+  - vector
 
 excludeFolders:
   - bindings/alicloud
@@ -41,6 +43,7 @@ excludeFolders:
   - secretstores/huaweicloud
   - secretstores/local
   - secretstores/tencentcloud
+  - search/aws
   - state/alicloud
   - state/aws
   - state/azure
@@ -52,3 +55,4 @@ excludeFolders:
   - state/postgresql
   - state/query
   - state/utils
+  - vector/aws

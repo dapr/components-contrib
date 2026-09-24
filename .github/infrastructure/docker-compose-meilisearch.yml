@@ -1,0 +1,15 @@
+version: '3'
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.43
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_MASTER_KEY: masterKey
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_EXPERIMENTAL_VECTOR_STORE: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

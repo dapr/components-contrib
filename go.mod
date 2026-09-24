@@ -100,6 +100,7 @@ require (
 	github.com/linkedin/goavro/v2 v2.14.1
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.1.0
+	github.com/meilisearch/meilisearch-go v0.36.2
 	github.com/microsoft/go-mssqldb v1.6.0
 	github.com/mikeee/aws_credential_helper v0.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -144,6 +145,7 @@ require (
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
 	google.golang.org/api v0.231.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260727163830-6c54dddc4772
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/couchbase/gocb.v1 v1.6.7
@@ -194,7 +196,7 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
-	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/apache/thrift v0.19.0 // indirect
@@ -295,7 +297,7 @@ require (
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -459,7 +461,6 @@ require (
 	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/genproto v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260727163830-6c54dddc4772 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect

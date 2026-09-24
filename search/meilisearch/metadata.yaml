@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: search
+name: meilisearch
+version: v1
+status: alpha
+title: "Meilisearch"
+urls:
+  - title: Reference
+    url: https://www.meilisearch.com/docs/
+capabilities:
+  # Portable search capabilities backed by this component.
+  - fullTextSearch
+  - filtering
+  - sorting
+  - highlighting
+  - pagination
+  - nativeQuery
+  # Meilisearch's asynchronous task API provides a native queued
+  # acknowledgement, so INDEX_ACK_QUEUED is a real acknowledgement boundary and
+  # INDEXING_WAIT_TIMEOUT_ACTION_CONTINUE_ASYNC is accepted. Deletes are
+  # writes too: DeleteDocuments takes the same IndexingOptions and reports an
+  # IndexAck.
+  - queuedAck
+  # INDEXING_MODE_WAIT_FOR_COMPLETION works against every supported
+  # Meilisearch version by polling the task status API with exponential
+  # backoff. When the experimental `tasksStreamingRoute` feature is enabled and
+  # the API key carries the `tasks.get` permission, one shared task-change
+  # stream per component is used instead; the choice is invisible to callers.
+  - waitForCompletion
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using a Meilisearch API key"
+    metadata:
+      - name: apiKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          API key for Meilisearch.
+        example: "**********"
+        default: ""
+metadata:
+  - name: host
+    required: true
+    description: |
+      Meilisearch host URL.
+    type: string
+    example: "http://localhost:7700"
+  - name: apiKey
+    required: false
+    sensitive: true
+    description: |
+      API key for Meilisearch.
+    type: string
+    example: "masterKey"
+    default: ""
+  - name: timeout
+    required: false
+    description: |
+      HTTP client timeout as a Go duration.
+    type: string
+    example: "10s"

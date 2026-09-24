@@ -43,6 +43,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.7
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
+	google.golang.org/grpc v1.82.1
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	modernc.org/sqlite v1.55.0
 )
@@ -84,6 +85,7 @@ require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/alphadose/haxmap v1.4.0 // indirect
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/anshal21/go-worker v1.1.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
@@ -248,6 +250,7 @@ require (
 	github.com/matoous/go-nanoid/v2 v2.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/meilisearch/meilisearch-go v0.36.2 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0 // indirect
 	github.com/miekg/dns v1.1.57 // indirect
 	github.com/mikeee/aws_credential_helper v0.0.1 // indirect
@@ -353,7 +356,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260727163830-6c54dddc4772 // indirect
-	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

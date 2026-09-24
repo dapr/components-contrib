@@ -7,25 +7,25 @@ import { writeFileSync } from 'node:fs'
  */
 const components = {
     // requireDocker excludes cloud-scheduled runs.
-    'bindings.aws.s3': {
-        certification: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        certificationSetup: 'certification-bindings.aws.s3-setup.sh',
-        certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
-    },
+    // 'bindings.aws.s3': {
+    //     certification: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     certificationSetup: 'certification-bindings.aws.s3-setup.sh',
+    //     certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
+    // },
     // 'bindings.aws.s3.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh s3',
     // },
-    'bindings.aws.s3.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
-        conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
-    },
+    // 'bindings.aws.s3.terraform': {
+    //     conformance: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
+    //     conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
+    // },
     'bindings.aws-floci.s3': {
         conformance: true,
         certification: true,
@@ -356,28 +356,28 @@ const components = {
     'middleware.http.ratelimit': {
         certification: true,
     },
-    'pubsub.aws.snssqs': {
-        certification: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
-        certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
-    },
+    // 'pubsub.aws.snssqs': {
+    //     certification: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
+    //     certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
+    // },
     // 'pubsub.aws.snssqs.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh snssqs',
     //     sourcePkg: 'pubsub/aws/snssqs',
     // },
-    'pubsub.aws.snssqs.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
-        conformanceDestroy:
-            'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
-        sourcePkg: 'pubsub/aws/snssqs',
-    },
+    // 'pubsub.aws.snssqs.terraform': {
+    //     conformance: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
+    //     conformanceDestroy:
+    //         'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
+    //     sourcePkg: 'pubsub/aws/snssqs',
+    // },
     'pubsub.aws-floci.snssqs': {
         conformance: true,
         certification: true,
@@ -533,13 +533,13 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh secrets-manager',
     },
-    'secretstores.aws.secretsmanager.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
-        conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
-    },
+    // 'secretstores.aws.secretsmanager.terraform': {
+    //     conformance: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
+    //     conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
+    // },
     'secretstores.aws-floci.secretsmanager': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh floci floci up-wait secretstores-secretsmanager',
@@ -598,26 +598,26 @@ const components = {
         conformance: true,
         certification: true,
     },
-    'state.aws.dynamodb': {
-        certification: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
-        certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
-    },
+    // 'state.aws.dynamodb': {
+    //     certification: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
+    //     certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
+    // },
     // 'state.aws.dynamodb.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh dynamodb',
     // },
-    'state.aws.dynamodb.terraform': {
-        conformance: true,
-        requireAWSCredentials: true,
-        requireTerraform: true,
-        conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
-        conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
-        sourcePkg: 'state/aws/dynamodb',
-    },
+    // 'state.aws.dynamodb.terraform': {
+    //     conformance: true,
+    //     requireAWSCredentials: true,
+    //     requireTerraform: true,
+    //     conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
+    //     conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
+    //     sourcePkg: 'state/aws/dynamodb',
+    // },
     'state.aws-floci.dynamodb': {
         conformance: true,
         certification: true,
@@ -963,7 +963,7 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
- * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials
+ * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials (license) and makes the test "cloud-only"
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
@@ -1020,7 +1020,8 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 comp.requiredCerts?.length ||
                 comp.requireAWSCredentials ||
                 comp.requireGCPCredentials ||
-                comp.requireCloudflareCredentials,
+                comp.requireCloudflareCredentials ||
+                comp.requireRavenDBCredentials,
         )
 
         // Skip cloud-only tests if enableCloudTests is false

@@ -201,7 +201,7 @@ metadata:
     description: |
       The interval between checking for pending messages to redelivery. "0" disables redelivery.
     example: "30s"
-    default: "60s"
+    default: "15s"
     type: duration
   - name: processingTimeout
     required: false
@@ -209,7 +209,20 @@ metadata:
       The amount time a message must be pending before attempting to redeliver it. "0" disables redelivery.
     example: "30s"
     type: duration
-    default: "15s"
+    default: "60s"
+  - name: entryKeepAliveInterval
+    required: false
+    description: |
+      The interval at which the component resets the idle time of the pending messages it is
+      holding, so that messages still buffered or being processed are not redelivered before
+      "processingTimeout" elapses. Must be shorter than "processingTimeout" while redelivery
+      is enabled, otherwise a held message becomes reclaimable before it is renewed; the
+      component fails to initialise if it is not. Defaults to half of "processingTimeout".
+      "0" disables the keep-alive, restoring the previous behaviour where queueing time
+      counts towards "processingTimeout".
+    example: "30s"
+    default: "processingTimeout / 2"
+    type: duration
   - name: queueDepth
     required: false
     description: |

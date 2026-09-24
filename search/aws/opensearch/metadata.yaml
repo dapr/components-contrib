@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: search
+name: aws.opensearch
+version: v1
+status: alpha
+title: "AWS OpenSearch"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-search/aws-opensearch/
+  - title: AWS OpenSearch
+    url: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html
+capabilities:
+  - fullTextSearch
+  - filtering
+  - sorting
+  - highlighting
+  - pagination
+  - nativeQuery
+  - waitForCompletion
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: endpoint
+    required: true
+    type: string
+    description: |
+      OpenSearch domain endpoint, including the HTTP or HTTPS scheme. Requests
+      are signed with AWS SigV4. HTTP endpoints are intended for local testing.
+      Only indexes created by this search component are accessible; indexes
+      marked for vector search or without a Dapr search marker are rejected.
+    example: '"https://search-example.us-east-1.es.amazonaws.com"'
+  - name: timeout
+    required: false
+    type: duration
+    description: |
+      HTTP request timeout. Writes wait for refresh and return completed
+      acknowledgements; continue-async indexing timeout behavior is unsupported.
+      Index creation accepts a settings metadata entry containing an OpenSearch
+      settings JSON object. Native searches accept a query object in OpenSearch
+      Query DSL, addressing envelope fields such as content.title. Other native
+      body options are unsupported; sorting, projection, highlighting and
+      pagination use the portable request fields. Portable paths address content
+      without the content. prefix. TopK is limited to 9999.
+    example: '"30s"'
+    default: "30s"

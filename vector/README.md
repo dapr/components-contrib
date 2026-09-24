@@ -47,3 +47,21 @@ and `FailedItem` types (see `../search/indexing.go`).
 - Wait-for-completion writes and deletes use the shared task dispatcher of the
   search component: task status polling by default, the experimental
   task-change stream when available (see `../search/README.md`).
+
+## AWS OpenSearch (`aws/opensearch/`)
+
+- Uses an AWS OpenSearch Service domain with the k-NN plugin and the shared AWS
+  authentication mechanism. See the [configuration and provider notes](../common/component/aws/opensearch/README.md).
+- Supports dense vectors with cosine (the default), dot-product and Euclidean
+  metrics, metadata filters, query-by-ID, inclusive score thresholds and batch
+  queries. Provider scores are converted to the contract's unnormalized scale.
+- Queries use exact, prefiltered server-side scoring rather than approximate
+  nearest-neighbor search. This preserves metric overrides and score thresholds,
+  but query cost grows with the number of records matching the filter. Cosine
+  uses an explicit Painless similarity expression to avoid version-dependent
+  normalization in OpenSearch's `knn_score` script.
+- Collections are component-owned OpenSearch indexes; vector values, opaque
+  payload bytes and structured metadata are stored separately.
+- Writes use the completed bulk acknowledgement, not an asynchronous queue.
+  Run the [Floci-backed conformance suite](../tests/config/vector/README.md)
+  against a real OpenSearch data plane.

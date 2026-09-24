@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"testing"
@@ -93,6 +94,8 @@ type TestConfig struct {
 	IndexMetadata map[string]string `mapstructure:"indexMetadata"`
 	// SearchMetadata is passed verbatim to Search and GetDocuments.
 	SearchMetadata map[string]string `mapstructure:"searchMetadata"`
+	// NativeQuery overrides the default Meilisearch query for native passthrough.
+	NativeQuery map[string]any `mapstructure:"nativeQuery"`
 	// WaitTimeout is used with INDEXING_MODE_WAIT_FOR_COMPLETION.
 	WaitTimeout time.Duration `mapstructure:"waitTimeout"`
 }
@@ -821,7 +824,11 @@ func ConformanceTests(t *testing.T, props map[string]string, s search.Search, cf
 	t.Run("native query passthrough", func(t *testing.T) {
 		c, cancel := context.WithTimeout(ctx, defaultCallTimeout)
 		defer cancel()
-		_, err := s.Search(c, &search.SearchRequest{Index: indexName, Native: map[string]any{"q": "hyundai"}, TopK: 5, Metadata: cfg.SearchMetadata})
+		native := cfg.NativeQuery
+		if len(native) == 0 {
+			native = map[string]any{"q": "hyundai"}
+		}
+		_, err := s.Search(c, &search.SearchRequest{Index: indexName, Native: native, TopK: 5, Metadata: cfg.SearchMetadata})
 		if !cfg.HasOperation(OperationNativeQuery) {
 			requireStatusCode(t, err, codes.Unimplemented, codes.InvalidArgument)
 			return
@@ -829,7 +836,9 @@ func ConformanceTests(t *testing.T, props map[string]string, s search.Search, cf
 		require.NoError(t, err)
 
 		t.Run("a native query must not embed its own pagination", func(t *testing.T) {
-			_, nativeErr := s.Search(c, &search.SearchRequest{Index: indexName, Native: map[string]any{"q": "hyundai", "offset": 10, "limit": 5}, TopK: 5, Metadata: cfg.SearchMetadata})
+			paginated := maps.Clone(native)
+			paginated["offset"], paginated["limit"] = 10, 5
+			_, nativeErr := s.Search(c, &search.SearchRequest{Index: indexName, Native: paginated, TopK: 5, Metadata: cfg.SearchMetadata})
 			requireStatusCode(t, nativeErr, codes.InvalidArgument)
 		})
 	})

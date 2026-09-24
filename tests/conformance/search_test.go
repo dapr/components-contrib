@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/search"
+	searchopensearch "github.com/dapr/components-contrib/search/aws/opensearch"
 	searchmeilisearch "github.com/dapr/components-contrib/search/meilisearch"
 	confsearch "github.com/dapr/components-contrib/tests/conformance/search"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
@@ -60,6 +61,11 @@ func TestSearchConformance(t *testing.T) {
 
 func searchShouldSkipComponent(t *testing.T, componentName string) bool {
 	switch componentName {
+	case "aws.opensearch":
+		if os.Getenv("OPENSEARCH_ENDPOINT") == "" {
+			t.Skip("Skipping OpenSearch search conformance test: OPENSEARCH_ENDPOINT environment variable not set")
+			return true
+		}
 	case "meilisearch":
 		if os.Getenv("MEILISEARCH_HOST") == "" {
 			t.Skip("Skipping Meilisearch search conformance test: MEILISEARCH_HOST environment variable not set")
@@ -71,6 +77,8 @@ func searchShouldSkipComponent(t *testing.T, componentName string) bool {
 
 func loadSearchComponent(name string) search.Search {
 	switch name {
+	case "aws.opensearch":
+		return searchopensearch.NewOpenSearch(testLogger)
 	case "meilisearch":
 		return searchmeilisearch.NewMeilisearch(testLogger)
 	default:

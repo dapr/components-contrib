@@ -11,8 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MEILISEARCH_HOST=http://localhost:7700
-MEILISEARCH_API_KEY=masterKey
-
-# Populated with the real managed backend port by opensearch-floci-setup.sh.
-# OPENSEARCH_ENDPOINT=http://127.0.0.1:9400
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: aws-opensearch
+spec:
+  type: search.aws.opensearch
+  version: v1
+  metadata:
+    - name: endpoint
+      value: "${{OPENSEARCH_ENDPOINT}}"
+    - name: region
+      value: us-east-1
+    - name: accessKey
+      value: test
+    - name: secretKey
+      value: test

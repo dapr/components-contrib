@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: v1
 type: vector
 name: meilisearch
@@ -7,6 +7,8 @@ status: alpha
 title: "Meilisearch"
 urls:
   - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-vector/meilisearch/
+  - title: Meilisearch documentation
     url: https://www.meilisearch.com/docs/learn/ai_powered_search/getting_started_with_ai_search
 capabilities:
   # Dense, user-provided embeddings stored in the `default` embedder of a

@@ -42,3 +42,24 @@ building block reuses them.
   task-change stream, filtered to document addition/update and deletion tasks,
   and falls back to polling for that and every later wait if the route reports
   itself unavailable.
+
+## AWS OpenSearch (`aws/opensearch/`)
+
+- Uses an AWS OpenSearch Service domain and the shared AWS authentication
+  mechanism. See the [configuration and provider notes](../common/component/aws/opensearch/README.md).
+- Supports lexical search, OpenSearch native queries, portable content filters,
+  projections, sorting, highlights and continuation-token pagination.
+- Native queries use OpenSearch's data-plane query DSL and address indexed
+  content using the `content.` prefix, for example
+  `{"query":{"match":{"content.title":"dapr"}}}`. Portable `SearchFields`,
+  `ReturnFields`, filters, sorting and highlights use the caller's original
+  content paths without that prefix. Other native request options are rejected;
+  pagination and result shaping remain controlled by the portable request.
+- `TopK` defaults to 20 and is limited to 9999. Pagination uses a query-bound
+  `search_after` token and an ID tie-breaker, not a point-in-time snapshot;
+  concurrent writes can change results between pages.
+- Document content and opaque metadata are stored separately; provider fields
+  do not overwrite caller content. Writes complete through the bulk API with
+  `refresh=wait_for`; there is no queued acknowledgement or continue-async mode.
+- Run the [Floci-backed conformance suite](../tests/config/search/README.md)
+  against a real OpenSearch data plane.

@@ -141,4 +141,6 @@ func TestConvertComponentNameToPath(t *testing.T) {
 	assert.Equal(t, "a/b/c", val)
 	val = convertComponentNameToPath("redis", "")
 	assert.Equal(t, "redis", val)
+	val = convertComponentNameToPath("aws-floci.secretsmanager", "")
+	assert.Equal(t, "aws-floci/secretsmanager", val)
 }

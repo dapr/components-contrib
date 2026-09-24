@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/require"
 
 	kitlogger "github.com/dapr/kit/logger"
@@ -32,10 +34,16 @@ import (
 type fakeRedisClient struct {
 	RedisClient
 	doWriteCalls chan []interface{}
+	authACLCalls chan [2]string
 }
 
 func (f *fakeRedisClient) DoWrite(_ context.Context, args ...interface{}) error {
 	f.doWriteCalls <- args
+	return nil
+}
+
+func (f *fakeRedisClient) AuthACL(_ context.Context, username, password string) error {
+	f.authACLCalls <- [2]string{username, password}
 	return nil
 }
 
@@ -196,4 +204,55 @@ func TestNextTokenRefreshIntervalInvariants(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeTokenCredential hands out a token with a fixed lifetime and counts calls.
+type fakeTokenCredential struct {
+	calls  atomic.Int32
+	expiry time.Time
+}
+
+func (f *fakeTokenCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	n := f.calls.Add(1)
+	return azcore.AccessToken{
+		Token:     fmt.Sprintf("entra-token-%d", n),
+		ExpiresOn: f.expiry,
+	}, nil
+}
+
+// TestStartEntraIDTokenRefreshBackgroundRoutine covers the Entra ID loop's
+// scheduling: a token too short-lived to refresh early is floored rather than
+// producing a non-positive delay, and the refreshed token reschedules far out
+// so the goroutine goes dormant instead of spinning.
+func TestStartEntraIDTokenRefreshBackgroundRoutine(t *testing.T) {
+	logger := kitlogger.NewLogger("test")
+	fake := &fakeRedisClient{authACLCalls: make(chan [2]string, 10)}
+
+	cred := &fakeTokenCredential{expiry: time.Now().Add(24 * time.Hour)}
+	var asInterface azcore.TokenCredential = cred
+
+	// Already expired: the fixed grace period would make this negative and fire
+	// time.After immediately, so the floor is what keeps the loop off the IdP.
+	start := time.Now()
+	StartEntraIDTokenRefreshBackgroundRoutine(fake, "user", time.Now().Add(-time.Hour), &asInterface, &logger)
+
+	select {
+	case call := <-fake.authACLCalls:
+		require.Equal(t, [2]string{"user", "entra-token-1"}, call)
+		// The regression: a fixed grace period hands time.After a negative
+		// duration here, so it fires at once and the loop spins. The floor must
+		// hold the first refresh back instead.
+		require.GreaterOrEqual(t, time.Since(start), minTokenRefreshInterval,
+			"expired token must not refresh immediately, or the loop spins against the IdP")
+	case <-time.After(minTokenRefreshInterval + 10*time.Second):
+		t.Fatal("timed out waiting for AUTH after entraID token refresh")
+	}
+
+	// The 24h token reschedules a full grace period out, so no second refresh.
+	select {
+	case call := <-fake.authACLCalls:
+		t.Fatalf("unexpected second refresh scheduled: %v", call)
+	case <-time.After(2 * time.Second):
+	}
+	require.Equal(t, int32(1), cred.calls.Load())
 }

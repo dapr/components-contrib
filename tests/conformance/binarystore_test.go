@@ -81,8 +81,8 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 			return true
 		}
 	case "aws.s3":
-		if os.Getenv("AWSS3Bucket") == "" {
-			t.Skipf("Skipping AWS S3 conformance test: AWSS3Bucket environment variable must be set")
+		if os.Getenv("AWSS3Bucket") == "" || os.Getenv("AWS_REGION") == "" {
+			t.Skipf("Skipping AWS S3 conformance test: AWSS3Bucket and AWS_REGION environment variables must be set")
 			return true
 		}
 	case "gcp.bucket":
@@ -92,9 +92,10 @@ func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
 		}
 	case "oci.objectstorage":
 		if os.Getenv("OCIConfigFile") == "" ||
+			os.Getenv("OCIConfigProfile") == "" ||
 			os.Getenv("OCICompartmentOCID") == "" ||
 			os.Getenv("OCIBucketName") == "" {
-			t.Skipf("Skipping OCI Object Storage conformance test: OCIConfigFile, OCICompartmentOCID, and OCIBucketName environment variables must be set")
+			t.Skipf("Skipping OCI Object Storage conformance test: OCIConfigFile, OCIConfigProfile, OCICompartmentOCID, and OCIBucketName environment variables must be set")
 			return true
 		}
 	}

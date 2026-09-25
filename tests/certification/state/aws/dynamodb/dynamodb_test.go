@@ -143,11 +143,9 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				{
 					Type: client.StateOperationTypeUpsert,
 					Item: &client.SetStateItem{
-						Key:   ktx1,
-						Value: []byte("reqValTx1"),
-						Etag: &client.ETag{
-							Value: "test",
-						},
+						Key:      ktx1,
+						Value:    []byte("reqValTx1"),
+						Etag:     nil,
 						Metadata: map[string]string{},
 					},
 				},
@@ -161,11 +159,9 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				{
 					Type: client.StateOperationTypeUpsert,
 					Item: &client.SetStateItem{
-						Key:   ktx2,
-						Value: []byte("reqValTx2"),
-						Etag: &client.ETag{
-							Value: "test",
-						},
+						Key:      ktx2,
+						Value:    []byte("reqValTx2"),
+						Etag:     nil,
 						Metadata: map[string]string{},
 					},
 				},

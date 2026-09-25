@@ -334,7 +334,9 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				Metadata:   config.PublishMetadata,
 			})
 			if err == nil {
+				mu.Lock()
 				awaitingMessages[string(data)] = struct{}{}
+				mu.Unlock()
 			}
 			require.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
 		}
@@ -352,7 +354,9 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					Metadata:   config.PublishMetadata,
 				})
 				if err == nil {
+					muBulk.Lock()
 					awaitingMessagesBulk[string(data)] = struct{}{}
+					muBulk.Unlock()
 				}
 				require.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
 			}
@@ -398,6 +402,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			res, err := bP.BulkPublish(t.Context(), &req)
 			faileEntries := convertBulkPublishResponseToStringSlice(res)
 			if err == nil {
+				mu.Lock()
 				for k := range entryMap {
 					if !slices.Contains(faileEntries, k) {
 						data := entryMap[k]
@@ -405,6 +410,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						awaitingMessages[string(data)] = struct{}{}
 					}
 				}
+				mu.Unlock()
 			}
 			// here only the success case is tested for bulkPublish similar to publish.
 			// For scenarios on partial failures, those will be tested as part of certification tests if possible.
@@ -421,15 +427,19 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			select {
 			case processed := <-processedC:
 				t.Logf("deleting %s processed message", processed)
+				mu.Lock()
 				delete(awaitingMessages, processed)
 				waiting = len(awaitingMessages) > 0
+				mu.Unlock()
 			case <-timeout:
 				// Break out after the mamimum read duration has elapsed
 				waiting = false
 			}
 		}
 		assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
+		mu.Lock()
 		assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
+		mu.Unlock()
 	})
 
 	// Verify read on bulk subscription
@@ -445,15 +455,19 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			for waiting {
 				select {
 				case processed := <-processedCBulk:
+					muBulk.Lock()
 					delete(awaitingMessagesBulk, processed)
 					waiting = len(awaitingMessagesBulk) > 0
+					muBulk.Unlock()
 				case <-timeout:
 					// Break out after the mamimum read duration has elapsed
 					waiting = false
 				}
 			}
 			assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
+			muBulk.Lock()
 			assert.Empty(t, awaitingMessagesBulk, "expected to read %v messages", config.MessageCount)
+			muBulk.Unlock()
 		})
 	}
 

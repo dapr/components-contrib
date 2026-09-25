@@ -184,10 +184,15 @@ func (c *azureDataLakeClient) putObject(ctx context.Context, name string, data i
 	}
 
 	uploadOpts := &file.UploadStreamOptions{
-		// Chunk size and concurrency are set explicitly so buffering matches
-		// the other binary store providers rather than the SDK defaults.
-		ChunkSize:   binarystore.DefaultUploadPartSize,
-		Concurrency: binarystore.DefaultUploadConcurrency,
+		// Chunk size is set explicitly so buffering matches the other binary
+		// store providers rather than the SDK default.
+		ChunkSize: binarystore.DefaultUploadPartSize,
+		// Concurrency is deliberately pinned to 1 rather than
+		// binarystore.DefaultUploadConcurrency: azdatalake's copyFromReader
+		// increments the flush length from inside each chunk goroutine
+		// without synchronisation (see file/chunkwriting.go), so any value
+		// above 1 races and can commit a truncated file.
+		Concurrency: 1,
 	}
 	if err := tempClient.UploadStream(ctx, data, uploadOpts); err != nil {
 		c.cleanupFile(ctx, tempClient, tempPath)

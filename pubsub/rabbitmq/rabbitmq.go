@@ -638,7 +638,9 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 				go func(d amqp.Delivery) {
 					defer r.wg.Done()
 					if err := r.handleMessage(ctx, d, topic, handler); err != nil {
-						r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+							r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+						}
 					}
 				}(d)
 			}
@@ -660,6 +662,11 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 	err := handler(ctx, pubsubMsg)
 
 	if err != nil {
+		if ctx.Err() != nil {
+			r.logger.Debugf("%s context done while handling message from topic '%s'; skipping ack/nack to allow redelivery", logMessagePrefix, topic)
+			return err
+		}
+
 		r.logger.Errorf("%s handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 
 		if !r.metadata.AutoAck {

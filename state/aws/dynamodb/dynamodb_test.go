@@ -627,6 +627,7 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
+		var before int64
 		mockedDB := &awsMock.DynamoDBClient{
 			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 				assert.Len(t, params.Item, 4)
@@ -636,8 +637,9 @@ func TestSet(t *testing.T) {
 
 				assert.Equal(t, "someKey", result.Key)
 				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
-				assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
-				assert.Less(t, result.TestAttributeName, time.Now().Unix())
+				after := time.Now().Unix()
+				assert.GreaterOrEqual(t, result.TestAttributeName, before-1)
+				assert.LessOrEqual(t, result.TestAttributeName, after-1)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]types.AttributeValue{
@@ -664,11 +666,13 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "-1",
 			},
 		}
+		before = time.Now().Unix()
 		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})
 
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
+		var before int64
 		mockedDB := &awsMock.DynamoDBClient{
 			PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 				assert.Len(t, params.Item, 4)
@@ -678,8 +682,9 @@ func TestSet(t *testing.T) {
 
 				assert.Equal(t, "someKey", result.Key)
 				assert.JSONEq(t, "{\"Value\":\"someValue\"}", result.Value)
-				assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
-				assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
+				after := time.Now().Unix()
+				assert.GreaterOrEqual(t, result.TestAttributeName, before+180)
+				assert.LessOrEqual(t, result.TestAttributeName, after+180)
 
 				return &dynamodb.PutItemOutput{
 					Attributes: map[string]types.AttributeValue{
@@ -707,6 +712,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
+		before = time.Now().Unix()
 		err := s.Set(t.Context(), req)
 		require.NoError(t, err)
 	})

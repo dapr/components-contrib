@@ -113,6 +113,18 @@ const components = {
         conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
         conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
     },
+    'bindings.aws-floci.s3': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait bindings-s3',
+        conformanceDestroy: 'docker-compose.sh floci floci down bindings-s3',
+        conformanceLogs: 'docker-compose.sh floci floci logs bindings-s3',
+        certificationSetup: 'docker-compose.sh floci floci up-wait bindings-s3',
+        certificationDestroy: 'docker-compose.sh floci floci down bindings-s3',
+        certificationLogs: 'docker-compose.sh floci floci logs bindings-s3',
+        certificationTestPath: 'bindings/aws/s3',
+        sourcePkg: ['bindings/aws/s3'],
+    },
     'bindings.cron': {
         conformance: true,
         certification: true,
@@ -323,6 +335,18 @@ const components = {
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
         sourcePkg: 'pubsub/aws/snssqs',
     },
+    'pubsub.aws-floci.snssqs': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait pubsub-snssqs',
+        conformanceDestroy: 'docker-compose.sh floci floci down pubsub-snssqs',
+        conformanceLogs: 'docker-compose.sh floci floci logs pubsub-snssqs',
+        certificationSetup: 'docker-compose.sh floci floci up-wait pubsub-snssqs-certification',
+        certificationDestroy: 'docker-compose.sh floci floci down pubsub-snssqs-certification',
+        certificationLogs: 'docker-compose.sh floci floci logs pubsub-snssqs-certification',
+        certificationTestPath: 'pubsub/aws/snssqs',
+        sourcePkg: ['pubsub/aws/snssqs'],
+    },
     'pubsub.gcp.pubsub': {
         certification: true,
         requireTerraform: true,
@@ -514,6 +538,13 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh secrets-manager',
     },
+    'secretstores.aws-floci.secretsmanager': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait secretstores-secretsmanager',
+        conformanceDestroy: 'docker-compose.sh floci floci down secretstores-secretsmanager',
+        conformanceLogs: 'docker-compose.sh floci floci logs secretstores-secretsmanager',
+        sourcePkg: ['secretstores/aws/secretmanager'],
+    },
     'state.aws.dynamodb': {
         certification: true,
         requireAWSCredentials: true,
@@ -533,6 +564,18 @@ const components = {
         conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
         sourcePkg: 'state/aws/dynamodb',
+    },
+    'state.aws-floci.dynamodb': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'docker-compose.sh floci floci up-wait state-dynamodb',
+        conformanceDestroy: 'docker-compose.sh floci floci down state-dynamodb',
+        conformanceLogs: 'docker-compose.sh floci floci logs state-dynamodb',
+        certificationSetup: 'docker-compose.sh floci floci up-wait state-dynamodb-certification',
+        certificationDestroy: 'docker-compose.sh floci floci down state-dynamodb-certification',
+        certificationLogs: 'docker-compose.sh floci floci logs state-dynamodb-certification',
+        certificationTestPath: 'state/aws/dynamodb',
+        sourcePkg: ['state/aws/dynamodb'],
     },
     'state.azure.blobstorage.v2': {
         conformance: true,
@@ -863,6 +906,8 @@ const components = {
  * @property {string?} conformanceDestroy Destroy script for conformance tests
  * @property {string?} certificationSetup Setup script for certification tests
  * @property {string?} certificationDestroy Destroy script for certification tests
+ * @property {string?} certificationLogs Logs script for certification tests
+ * @property {string?} certificationTestPath Path under tests/certification (default: component path)
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
  * @property {string|string[]?} sourcePkg If set, sets the specified source package
@@ -884,6 +929,7 @@ const components = {
  * @property {string?} setup-script Setup script
  * @property {string?} destroy-script Destroy script
  * @property {string?} logs-script Logs script in case of failure
+ * @property {string?} test-path Path under tests/certification
  * @property {string?} nodejs-version Install the specified Node.js version if set
  * @property {string?} mongodb-version Install the specified MongoDB version if set
  * @property {string?} source-pkg Source package
@@ -959,6 +1005,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'setup-script': comp[testKind + 'Setup'] || undefined,
             'destroy-script': comp[testKind + 'Destroy'] || undefined,
             'logs-script': comp[testKind + 'Logs'] || undefined,
+            'test-path': testKind === 'certification'
+                ? comp.certificationTestPath || undefined
+                : undefined,
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg

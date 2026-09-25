@@ -17,8 +17,9 @@ limitations under the License.
 package conformance
 
 import (
-	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,14 +47,15 @@ func TestBinaryStoreConformance(t *testing.T) {
 
 	tc.TestFn = func(comp *TestComponent) func(t *testing.T) {
 		return func(t *testing.T) {
-			if shouldSkipBinaryStoreComponent(t, comp.Component) {
+			componentConfigPath := filepath.Join(configPath, convertComponentNameToPath(comp.Component, comp.Profile))
+
+			if skipIfEnvVarsMissing(t, comp.Component, componentConfigPath) {
 				return
 			}
 
 			ParseConfigurationMap(t, comp.Config)
 
-			componentConfigPath := convertComponentNameToPath(comp.Component, comp.Profile)
-			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, componentConfigPath))
+			props, err := loadComponentsAndProperties(t, componentConfigPath)
 			require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 
 			store := loadBinaryStoreComponent(comp.Component)
@@ -66,40 +68,56 @@ func TestBinaryStoreConformance(t *testing.T) {
 	tc.Run(t)
 }
 
-// shouldSkipBinaryStoreComponent skips tests whose required environment
-// variables are not set.
-func shouldSkipBinaryStoreComponent(t *testing.T, componentName string) bool {
-	switch componentName {
-	case "azure.blobstorage":
-		if os.Getenv("AzureBlobStorageAccount") == "" || os.Getenv("AzureBlobStorageAccessKey") == "" {
-			t.Skipf("Skipping Azure Blob Storage conformance test: AzureBlobStorageAccount and AzureBlobStorageAccessKey environment variables must be set")
-			return true
-		}
-	case "azure.datalake":
-		if os.Getenv("AzureBlobStorageAccount") == "" || os.Getenv("AzureBlobStorageAccessKey") == "" {
-			t.Skipf("Skipping Azure Data Lake Storage conformance test: AzureBlobStorageAccount and AzureBlobStorageAccessKey environment variables must be set")
-			return true
-		}
-	case "aws.s3":
-		if os.Getenv("AWSS3Bucket") == "" || os.Getenv("AWS_REGION") == "" {
-			t.Skipf("Skipping AWS S3 conformance test: AWSS3Bucket and AWS_REGION environment variables must be set")
-			return true
-		}
-	case "gcp.bucket":
-		if os.Getenv("GCPBucket") == "" {
-			t.Skipf("Skipping Google Cloud Storage conformance test: GCPBucket environment variable must be set")
-			return true
-		}
-	case "oci.objectstorage":
-		if os.Getenv("OCIConfigFile") == "" ||
-			os.Getenv("OCIConfigProfile") == "" ||
-			os.Getenv("OCICompartmentOCID") == "" ||
-			os.Getenv("OCIBucketName") == "" {
-			t.Skipf("Skipping OCI Object Storage conformance test: OCIConfigFile, OCIConfigProfile, OCICompartmentOCID, and OCIBucketName environment variables must be set")
-			return true
+// skipIfEnvVarsMissing skips the test if any environment variable interpolated
+// by the component's YAML definition is unset. The list of required variables is
+// derived from the YAML itself so it can never drift from the component configs.
+func skipIfEnvVarsMissing(t *testing.T, componentName, componentConfigPath string) bool {
+	missing := missingEnvVarsForComponent(t, componentConfigPath)
+	if len(missing) == 0 {
+		return false
+	}
+
+	t.Skipf("Skipping %s conformance test: the following environment variables must be set: %s", componentName, strings.Join(missing, ", "))
+	return true
+}
+
+// missingEnvVarsForComponent returns the sorted, de-duplicated names of the
+// environment variables referenced as ${{VAR}} by the component definitions at
+// componentConfigPath which are unset or empty.
+func missingEnvVarsForComponent(t *testing.T, componentConfigPath string) []string {
+	comps, err := LoadComponents(componentConfigPath)
+	require.NoErrorf(t, err, "error loading components from %s", componentConfigPath)
+
+	missing := make(map[string]struct{})
+	for _, c := range comps {
+		for _, item := range c.Spec.Metadata {
+			name, ok := envVarReference(item.Value.String())
+			if !ok {
+				continue
+			}
+			if LookUpEnv(name) == "" {
+				missing[name] = struct{}{}
+			}
 		}
 	}
-	return false
+
+	names := make([]string, 0, len(missing))
+	for name := range missing {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	return names
+}
+
+// envVarReference extracts the environment variable name from a ${{VAR}}
+// metadata value, matching the interpolation performed by parseMetadataProperty.
+func envVarReference(val string) (string, bool) {
+	if !strings.HasPrefix(val, "${{") || !strings.HasSuffix(val, "}}") {
+		return "", false
+	}
+
+	return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}")), true
 }
 
 func loadBinaryStoreComponent(name string) binarystore.BinaryStore {

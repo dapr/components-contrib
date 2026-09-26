@@ -14,13 +14,21 @@ limitations under the License.
 package vault
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
-	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
@@ -108,12 +116,46 @@ func TestVaultTLSConfig(t *testing.T) {
 		err := kitmd.DecodeMetadata(m.Properties, &meta)
 		require.NoError(t, err)
 
-		tlsConfig := metadataToTLSConfig(&meta)
-		skipVerify, err := strconv.ParseBool(properties["skipVerify"])
-		require.NoError(t, err)
-		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)
-		assert.Equal(t, skipVerify, tlsConfig.vaultSkipVerify)
-		assert.Equal(t, properties["tlsServerName"], tlsConfig.vaultServerName)
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, properties["caCert"], tlsConf.CACert)
+		assert.False(t, tlsConf.Insecure)
+		assert.Equal(t, properties["tlsServerName"], tlsConf.TLSServerName)
+	})
+
+	t.Run("skipVerify true sets Insecure", func(t *testing.T) {
+		meta := VaultMetadata{SkipVerify: "true"}
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.True(t, tlsConf.Insecure)
+	})
+
+	// Regression test: go-rootcerts (used internally by the SDK's
+	// ConfigureTLS) applies precedence CACert > CACertBytes > CAPath, the
+	// opposite of the order documented in metadata.yaml (caPem > caPath >
+	// caCert). metadataToTLSConfig must only ever populate one of the three
+	// CA fields to avoid silently inverting the documented contract.
+	t.Run("caPem takes precedence over caPath and caCert", func(t *testing.T) {
+		meta := VaultMetadata{
+			CaPem:  "pem-contents",
+			CaPath: "/some/path",
+			CaCert: "/some/cert",
+		}
+
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, []byte("pem-contents"), tlsConf.CACertBytes)
+		assert.Empty(t, tlsConf.CACert)
+		assert.Empty(t, tlsConf.CAPath)
+	})
+
+	t.Run("caPath takes precedence over caCert when caPem is not set", func(t *testing.T) {
+		meta := VaultMetadata{
+			CaPath: "/some/path",
+			CaCert: "/some/cert",
+		}
+
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.Equal(t, "/some/path", tlsConf.CAPath)
+		assert.Empty(t, tlsConf.CACert)
+		assert.Empty(t, tlsConf.CACertBytes)
 	})
 }
 
@@ -323,6 +365,136 @@ func TestDefaultVaultAddress(t *testing.T) {
 	})
 }
 
+func TestVaultAddressIgnoresAgentAddrEnvVar(t *testing.T) {
+	// api.DefaultConfig() picks up VAULT_AGENT_ADDR from the environment, and
+	// api.NewClient() prefers it over the configured Address whenever it's
+	// set. This env var is also what the Vault Agent Injector sidecar sets
+	// on a pod, so it can easily still be present after switching a
+	// deployment from sidecar-based auth to vaultAuthMethod: kubernetes.
+	// The metadata-configured vaultAddr must win regardless.
+	t.Setenv("VAULT_AGENT_ADDR", "http://stale-agent-from-old-sidecar:8200")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultAddr":           "https://vault.example.com:8200",
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	assert.Equal(t, "https://vault.example.com:8200", target.client.Address())
+}
+
+func TestVaultTLSIgnoresSkipVerifyEnvVar(t *testing.T) {
+	// api.DefaultConfig() picks up VAULT_SKIP_VERIFY from the environment and
+	// applies it additively -- it can only ever turn InsecureSkipVerify on,
+	// never back off, so without an explicit reset a stray VAULT_SKIP_VERIFY=true
+	// in the environment would silently disable certificate verification even
+	// though skipVerify isn't set in the component's metadata at all.
+	t.Setenv("VAULT_SKIP_VERIFY", "true")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	transport, ok := target.client.CloneConfig().HttpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
+	// Guard against a naive fix that wipes the whole TLS config instead of
+	// resetting individual fields: that would also drop the "h2" ALPN
+	// protocol that api.DefaultConfig() registers, silently downgrading
+	// every connection to HTTP/1.1.
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2")
+}
+
+func TestVaultSkipVerifyLogsWarning(t *testing.T) {
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	t.Run("skipVerify true logs a warning", func(t *testing.T) {
+		var buf bytes.Buffer
+		testLogger := logger.NewLogger("test")
+		testLogger.SetOutput(&buf)
+
+		target := &vaultSecretStore{logger: testLogger}
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+			"skipVerify":          "true",
+		}
+		require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+		assert.Contains(t, buf.String(), "skipVerify")
+	})
+
+	t.Run("skipVerify unset logs no warning", func(t *testing.T) {
+		var buf bytes.Buffer
+		testLogger := logger.NewLogger("test")
+		testLogger.SetOutput(&buf)
+
+		target := &vaultSecretStore{logger: testLogger}
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+		require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+		assert.NotContains(t, buf.String(), "skipVerify")
+	})
+}
+
+func TestVaultIgnoresNamespaceEnvVar(t *testing.T) {
+	// api.NewClient() picks up VAULT_NAMESPACE from the environment and scopes
+	// every request to it via the X-Vault-Namespace header. This component
+	// has no metadata field for namespace, so a stray VAULT_NAMESPACE in the
+	// environment must not silently redirect requests to a namespace nothing
+	// in the metadata asked for.
+	t.Setenv("VAULT_NAMESPACE", "some-other-namespace")
+
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
+	properties := map[string]string{
+		"vaultTokenMountPath": expectedTokMountPath,
+	}
+
+	m := secretstores.Metadata{
+		Base: metadata.Base{Properties: properties},
+	}
+
+	target := &vaultSecretStore{
+		client: nil,
+		logger: nil,
+	}
+
+	require.NoError(t, target.Init(t.Context(), m))
+
+	assert.Empty(t, target.client.Headers().Get("X-Vault-Namespace"))
+}
+
 func TestVaultValueType(t *testing.T) {
 	t.Run("valid vault value type map", func(t *testing.T) {
 		properties := map[string]string{
@@ -430,10 +602,6 @@ func TestGetFeatures(t *testing.T) {
 			logger: logger.NewLogger("test"),
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
 		_ = target.Init(t.Context(), m)
 
 		return target
@@ -459,4 +627,686 @@ func TestGetFeatures(t *testing.T) {
 		f := s.Features()
 		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
 	})
+}
+
+// writeJSON is a small helper for mock Vault server handlers below.
+func writeJSON(t *testing.T, w http.ResponseWriter, v interface{}) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	require.NoError(t, json.NewEncoder(w).Encode(v))
+}
+
+func TestKubernetesAuthMissingRole(t *testing.T) {
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAuthMethod": "kubernetes",
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "vaultKubernetesRole")
+}
+
+func TestVaultInvalidAuthMethod(t *testing.T) {
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAuthMethod": "bogus",
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "accepted values are token or kubernetes")
+}
+
+func TestKubernetesAuthConflictsWithToken(t *testing.T) {
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAuthMethod":     "kubernetes",
+		"vaultKubernetesRole": "my-role",
+		"vaultToken":          "sometoken",
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.Error(t, err)
+}
+
+func TestKubernetesAuthLoginFailure(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]interface{}{"errors": []string{"permission denied"}})
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.Error(t, err)
+}
+
+func TestKubernetesAuthSuccessAndGetSecret(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	var loginRequests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login":
+			atomic.AddInt32(&loginRequests, 1)
+
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.Equal(t, "test-jwt", body["jwt"])
+			assert.Equal(t, "my-role", body["role"])
+
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-vault-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/secret/data/dapr/mysecret":
+			assert.Equal(t, "test-vault-token", r.Header.Get("X-Vault-Token"))
+			writeJSON(t, w, map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{"key1": "value1"},
+				},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/token/renew-self":
+			// The renewal loop's LifetimeWatcher renews a renewable token
+			// immediately after login; keep it renewed so it doesn't churn
+			// through re-logins during the test.
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-vault-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.NoError(t, err)
+	defer target.Close()
+
+	resp, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.NoError(t, err)
+	assert.Equal(t, "value1", resp.Data["key1"])
+	assert.EqualValues(t, 1, atomic.LoadInt32(&loginRequests))
+}
+
+// TestKubernetesAuthReauthenticatesWithFreshToken is a regression test: the
+// renewal loop must build a brand-new KubernetesAuth on every (re-)login
+// attempt, since KubernetesAuth caches the JWT it read at construction time
+// and never re-reads it. Reusing a cached instance across retries would
+// silently re-authenticate with a stale/expired token.
+func TestKubernetesAuthReauthenticatesWithFreshToken(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, "token-v1")
+	defer cleanup()
+
+	var mu sync.Mutex
+	var receivedJWTs []string
+	secondLoginDone := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/v1/auth/kubernetes/login" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var body map[string]string
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
+		mu.Lock()
+		receivedJWTs = append(receivedJWTs, body["jwt"])
+		n := len(receivedJWTs)
+		mu.Unlock()
+
+		writeJSON(t, w, map[string]interface{}{
+			"auth": map[string]interface{}{
+				"client_token": fmt.Sprintf("token-%d", n),
+				// Short and non-renewable so the LifetimeWatcher's DoneCh
+				// fires almost immediately, driving a fast re-login.
+				"lease_duration": 1,
+				"renewable":      false,
+			},
+		})
+
+		if n == 2 {
+			close(secondLoginDone)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.NoError(t, err)
+	defer target.Close()
+
+	// Rewrite the JWT file before the renewal loop re-reads it for the
+	// second login attempt.
+	require.NoError(t, os.WriteFile(tokenFile, []byte("token-v2"), 0o600))
+
+	select {
+	case <-secondLoginDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for second login")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, receivedJWTs, 2)
+	assert.Equal(t, "token-v1", receivedJWTs[0])
+	assert.Equal(t, "token-v2", receivedJWTs[1])
+}
+
+func TestKubernetesAuthCloseStopsRenewal(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	var loginCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login" {
+			atomic.AddInt32(&loginCount, 1)
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		_ = target.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close() did not return in time")
+	}
+
+	countAfterClose := atomic.LoadInt32(&loginCount)
+	time.Sleep(200 * time.Millisecond)
+	assert.Equal(t, countAfterClose, atomic.LoadInt32(&loginCount), "no further requests should occur after Close()")
+}
+
+func TestGetSecretVersionQueryParam(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	var gotVersion string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/secret/data/dapr/mysecret" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		gotVersion = r.URL.Query().Get("version")
+		writeJSON(t, w, map[string]interface{}{
+			"data": map[string]interface{}{
+				"data": map[string]interface{}{"k": "v"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.NoError(t, err)
+	assert.Equal(t, "0", gotVersion)
+
+	_, err = target.GetSecret(t.Context(), secretstores.GetSecretRequest{
+		Name:     "mysecret",
+		Metadata: map[string]string{"version_id": "3"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "3", gotVersion)
+}
+
+// TestGetSecretMapTypeNullValueBecomesEmptyString is a regression test: the
+// pre-migration implementation decoded a map-type secret straight into a
+// map[string]string via encoding/json, under which a JSON null value for a
+// key silently becomes an empty string rather than an error. The
+// interface{}-based decoding this component now uses must preserve that
+// behavior instead of failing with "is not a string".
+func TestGetSecretMapTypeNullValueBecomesEmptyString(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, map[string]interface{}{
+			"data": map[string]interface{}{
+				"data": map[string]interface{}{"a": "x", "b": nil},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	resp, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.NoError(t, err)
+	assert.Equal(t, "x", resp.Data["a"])
+	assert.Empty(t, resp.Data["b"])
+}
+
+// TestGetSecretDeletedVersionIsNotFound is a regression test: a soft-deleted
+// (or destroyed) KV v2 version comes back from Vault as a 404 whose body
+// still carries {"data": {"data": null, "metadata": {...}}}, and the SDK
+// surfaces that as a regular secret rather than an error. The component must
+// map it to ErrNotFound, so that GetSecret reports "not found" and
+// BulkGetSecret skips the entry instead of failing the whole bulk read.
+func TestGetSecretDeletedVersionIsNotFound(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		// Note: the SDK normalizes the request path, dropping the trailing
+		// slash of the "secret/metadata/dapr/" list path.
+		case r.URL.Path == "/v1/secret/metadata/dapr" && r.URL.Query().Get("list") == "true":
+			writeJSON(t, w, map[string]interface{}{
+				"data": map[string]interface{}{
+					"keys": []string{"alive", "deleted"},
+				},
+			})
+		case r.URL.Path == "/v1/secret/data/dapr/alive":
+			writeJSON(t, w, map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{"k": "v"},
+				},
+			})
+		case r.URL.Path == "/v1/secret/data/dapr/deleted":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"data":{"data":null,"metadata":{"created_time":"2026-01-01T00:00:00Z","deletion_time":"2026-01-02T00:00:00Z","destroyed":false,"version":1}}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "deleted"})
+	require.ErrorIs(t, err, ErrNotFound)
+
+	resp, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k": "v"}, resp.Data["alive"])
+	assert.NotContains(t, resp.Data, "deleted")
+}
+
+// TestBulkGetSecretEmptyStoreErrors locks in a deliberate behavior decision:
+// unlike the SDK's own List helpers (which treat a 404/empty list as "no
+// keys, no error"), this component treats an empty/missing store as an
+// error.
+func TestBulkGetSecretEmptyStoreErrors(t *testing.T) {
+	tokenFile, cleanup := createTokenMountPathFile(t)
+	defer cleanup()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":           srv.URL,
+		"vaultTokenMountPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	_, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.Error(t, err)
+}
+
+// TestBulkGetSecretKeysFieldEdgeCases is a regression test: a 200 OK LIST
+// response with a missing or null "keys" field represents a path with no
+// children, matching the pre-migration behavior of decoding straight into a
+// typed struct (where a missing/null "keys" field just left an empty
+// slice), and must not error. Only a "keys" field present with an
+// unexpected (non-array) type is a genuine malformed-response error.
+func TestBulkGetSecretKeysFieldEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		expectErr bool
+	}{
+		{name: "keys field absent", data: map[string]interface{}{}, expectErr: false},
+		{name: "keys field null", data: map[string]interface{}{"keys": nil}, expectErr: false},
+		{name: "keys field wrong type", data: map[string]interface{}{"keys": "not-an-array"}, expectErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenFile, cleanup := createTokenMountPathFile(t)
+			defer cleanup()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/secret/metadata/dapr" && r.URL.Query().Get("list") == "true" {
+					writeJSON(t, w, map[string]interface{}{"data": tt.data})
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			defer srv.Close()
+
+			target := &vaultSecretStore{logger: logger.NewLogger("test")}
+			properties := map[string]string{
+				"vaultAddr":           srv.URL,
+				"vaultTokenMountPath": tokenFile,
+			}
+			require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+			resp, err := target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Empty(t, resp.Data)
+		})
+	}
+}
+
+// TestGetSecretBeforeInitReturnsError is a regression test: calling
+// GetSecret/BulkGetSecret before Init() has completed successfully must
+// return an error, not panic. The pre-migration client was always non-nil
+// from construction (&http.Client{}), so this misuse previously degraded to
+// a normal connection error instead of a nil-pointer dereference.
+func TestGetSecretBeforeInitReturnsError(t *testing.T) {
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "mysecret"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+
+	_, err = target.BulkGetSecret(t.Context(), secretstores.BulkGetSecretRequest{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+}
+
+// TestKubernetesAuthPacesReloginsForShortLivedSecrets is a regression test:
+// without a floor between watch cycles, a Vault role issuing short-lived or
+// non-renewable secrets would drive the renewal loop into a tight loop of
+// real login requests with no delay between them. Each cycle must be paced
+// to at least reauthInitialInterval.
+func TestKubernetesAuthPacesReloginsForShortLivedSecrets(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	var mu sync.Mutex
+	var loginTimes []time.Time
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login" {
+			mu.Lock()
+			loginTimes = append(loginTimes, time.Now())
+			n := len(loginTimes)
+			mu.Unlock()
+
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token": fmt.Sprintf("token-%d", n),
+					// Short and non-renewable so the LifetimeWatcher's
+					// DoneCh fires almost immediately, driving a fast
+					// re-login on every cycle absent pacing.
+					"lease_duration": 1,
+					"renewable":      false,
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+	defer target.Close()
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(loginTimes) >= 2
+	}, reauthInitialInterval+5*time.Second, 50*time.Millisecond, "expected a second login")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(loginTimes), 2)
+	elapsed := loginTimes[1].Sub(loginTimes[0])
+	assert.GreaterOrEqual(t, elapsed, reauthInitialInterval, "second login happened too soon after the first; renewal loop is not paced")
+}
+
+// TestKubernetesAuthCloseDuringBlockingInitDoesNotLeakGoroutine is a
+// regression test: if Close() is called while Init() is still blocked in
+// the initial (blocking) Kubernetes login, initKubernetesAuth must not
+// start the background renewal goroutine once that login finally
+// completes -- Close() has already reported "done" via its wg.Wait(), and a
+// goroutine started afterward would never be waited for again.
+func TestKubernetesAuthCloseDuringBlockingInitDoesNotLeakGoroutine(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	loginReceived := make(chan struct{})
+	releaseLogin := make(chan struct{})
+	var loginCount int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login" {
+			atomic.AddInt32(&loginCount, 1)
+			close(loginReceived)
+			<-releaseLogin
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+
+	initErrCh := make(chan error, 1)
+	go func() {
+		initErrCh <- target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	}()
+
+	select {
+	case <-loginReceived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the blocking login request")
+	}
+
+	// Close() races in while Init() is still blocked inside the login call.
+	closeDone := make(chan struct{})
+	go func() {
+		_ = target.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close() did not return while Init() was still blocked on the login call")
+	}
+
+	close(releaseLogin)
+
+	select {
+	case err := <-initErrCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Init() did not return after the login unblocked")
+	}
+
+	// No renewal goroutine should have been started: no second login should
+	// ever occur.
+	time.Sleep(200 * time.Millisecond)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&loginCount), "no renewal goroutine should start once Close() already ran")
+}
+
+// TestKubernetesAuthCloseWaitsForInFlightRenewal is a regression test:
+// Close() must wait for the LifetimeWatcher's own goroutine (watcher.Start())
+// to fully return, not just the outer renewal-loop goroutine -- otherwise
+// Close() can report "done" while a renew-self HTTP call the watcher started
+// is still in flight.
+func TestKubernetesAuthCloseWaitsForInFlightRenewal(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	tokenFile, cleanup := createTempFileWithContent(t, "test-jwt")
+	defer cleanup()
+
+	renewReceived := make(chan struct{})
+	releaseRenew := make(chan struct{})
+	var renewReceivedOnce sync.Once
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/kubernetes/login":
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/auth/token/renew-self":
+			// The renewal loop's LifetimeWatcher renews a renewable token
+			// immediately after login; block that first renewal so we can
+			// assert Close() waits for it instead of returning early.
+			renewReceivedOnce.Do(func() { close(renewReceived) })
+			<-releaseRenew
+			writeJSON(t, w, map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+					"renewable":      true,
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	target := &vaultSecretStore{logger: logger.NewLogger("test")}
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
+
+	select {
+	case <-renewReceived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the renewal loop's first renew-self call")
+	}
+
+	closeDone := make(chan struct{})
+	go func() {
+		_ = target.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+		t.Fatal("Close() returned before the in-flight renewal finished")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(releaseRenew)
+
+	select {
+	case <-closeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close() did not return after the in-flight renewal finished")
+	}
 }

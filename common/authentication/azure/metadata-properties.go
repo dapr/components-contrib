@@ -38,6 +38,8 @@ var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// Identifier for the Azure authentication methods to try (in order), comma-separated
 	// Allowed values (case-insensitive): ClientCredentials, creds, ClientCertificate, cert, WorkloadIdentity, wi, ManagedIdentity, mi, CommandLineInterface, cli, None
 	"AzureAuthMethods": {"azureAuthMethods", "azureADAuthMethods", "entraIDAuthMethods", "microsoftEntraIDAuthMethods"},
+	// Disable Microsoft Entra instance discovery for workload identity
+	"DisableInstanceDiscovery": {"azureDisableInstanceDiscovery"},
 
 	// Metadata keys for storage components
 

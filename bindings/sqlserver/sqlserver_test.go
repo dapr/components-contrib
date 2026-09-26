@@ -37,7 +37,8 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("cannot re-init a closed component", func(t *testing.T) {
-		m, _, _ := mockDatabase(t)
+		m, mock, _ := mockDatabase(t)
+		mock.ExpectClose()
 		require.NoError(t, m.Close())
 
 		md := bindings.Metadata{}

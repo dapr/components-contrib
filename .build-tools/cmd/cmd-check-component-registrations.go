@@ -76,7 +76,11 @@ func checkConversationComponents() {
 
 func checkBinaryStoreComponents() {
 	fmt.Println("\nChecking binarystore components...")
-	checkComponents("binarystore", []string{}, []string{})
+	// binarystore/fake is a test helper rather than a real component: it ships no metadata.yaml
+	// and has no registration file, so it must be filtered out of both the contrib and runtime lists.
+	ignoreDaprComponents := []string{"fake"}
+	ignoreContribComponents := []string{"fake"}
+	checkComponents("binarystore", ignoreDaprComponents, ignoreContribComponents)
 }
 
 func checkStateComponents() {

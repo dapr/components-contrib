@@ -246,7 +246,6 @@ const components = {
         certification: true,
         sourcePkg: ['bindings/sqlserver', 'common/authentication/sqlserver'],
     },
-    'configuration.postgres': {
     'bindings.zeebe.command': {
         certification: true,
     },

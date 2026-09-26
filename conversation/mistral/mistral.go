@@ -72,6 +72,7 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	m.Model = llm
 	m.SetModel(model)
+	m.SetDefaultMaxTokens(md.MaxTokens)
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, m.Model)

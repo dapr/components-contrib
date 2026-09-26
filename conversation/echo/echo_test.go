@@ -8,7 +8,9 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/dapr/components-contrib/conversation"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestConverse(t *testing.T) {
@@ -119,6 +121,147 @@ func TestConverse(t *testing.T) {
 			assert.Equal(t, tt.expected.Outputs, r.Outputs)
 		})
 	}
+}
+
+func TestConverseMaxTokens(t *testing.T) {
+	fiveWords := []llms.MessageContent{
+		{
+			Role: llms.ChatMessageTypeHuman,
+			Parts: []llms.ContentPart{
+				llms.TextContent{Text: "one two three four five"},
+			},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		properties       map[string]string
+		requestMaxTokens *int64
+		tools            []llms.Tool
+		wantContent      string
+		wantStopReason   string
+		wantPrompt       uint64
+		wantCompletion   uint64
+	}{
+		{
+			name:             "request max tokens truncates content",
+			requestMaxTokens: ptr.Of(int64(2)),
+			wantContent:      "one two",
+			wantStopReason:   "length",
+			wantPrompt:       5,
+			wantCompletion:   2,
+		},
+		{
+			name:             "max tokens equal to word count does not truncate",
+			requestMaxTokens: ptr.Of(int64(5)),
+			wantContent:      "one two three four five",
+			wantStopReason:   "stop",
+			wantPrompt:       5,
+			wantCompletion:   5,
+		},
+		{
+			name:           "metadata max tokens is the default",
+			properties:     map[string]string{"maxTokens": "2"},
+			wantContent:    "one two",
+			wantStopReason: "length",
+			wantPrompt:     5,
+			wantCompletion: 2,
+		},
+		{
+			name:             "request max tokens overrides metadata default",
+			properties:       map[string]string{"maxTokens": "2"},
+			requestMaxTokens: ptr.Of(int64(100)),
+			wantContent:      "one two three four five",
+			wantStopReason:   "stop",
+			wantPrompt:       5,
+			wantCompletion:   5,
+		},
+		{
+			name:             "truncation takes precedence over tool_calls stop reason",
+			requestMaxTokens: ptr.Of(int64(2)),
+			tools: []llms.Tool{
+				{
+					Type:     "function",
+					Function: &llms.FunctionDefinition{Name: "myfunc"},
+				},
+			},
+			wantContent:    "one two",
+			wantStopReason: "length",
+			wantPrompt:     5,
+			wantCompletion: 2,
+		},
+		{
+			name:             "zero request max tokens without default does not truncate",
+			requestMaxTokens: ptr.Of(int64(0)),
+			wantContent:      "one two three four five",
+			wantStopReason:   "stop",
+			wantPrompt:       5,
+			wantCompletion:   5,
+		},
+		{
+			name:             "zero request max tokens falls back to metadata default",
+			properties:       map[string]string{"maxTokens": "2"},
+			requestMaxTokens: ptr.Of(int64(0)),
+			wantContent:      "one two",
+			wantStopReason:   "length",
+			wantPrompt:       5,
+			wantCompletion:   2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewEcho(logger.NewLogger("echo test"))
+			require.NoError(t, e.Init(t.Context(), conversation.Metadata{
+				Base: metadata.Base{Properties: tt.properties},
+			}))
+
+			req := &conversation.Request{
+				Message:   &fiveWords,
+				MaxTokens: tt.requestMaxTokens,
+			}
+			if len(tt.tools) > 0 {
+				req.Tools = &tt.tools
+			}
+
+			resp, err := e.Converse(t.Context(), req)
+			require.NoError(t, err)
+			require.Len(t, resp.Outputs, 1)
+
+			output := resp.Outputs[0]
+			assert.Equal(t, tt.wantStopReason, output.StopReason)
+			require.Len(t, output.Choices, 1)
+			assert.Equal(t, tt.wantStopReason, output.Choices[0].FinishReason)
+			assert.Equal(t, tt.wantContent, output.Choices[0].Message.Content)
+
+			require.NotNil(t, resp.Usage)
+			assert.Equal(t, tt.wantPrompt, resp.Usage.PromptTokens)
+			assert.Equal(t, tt.wantCompletion, resp.Usage.CompletionTokens)
+			assert.Equal(t, tt.wantPrompt+tt.wantCompletion, resp.Usage.TotalTokens)
+
+			if len(tt.tools) > 0 {
+				require.NotNil(t, output.Choices[0].Message.ToolCallRequest,
+					"tool calls must be retained when truncation changes the stop reason")
+				assert.Len(t, *output.Choices[0].Message.ToolCallRequest, len(tt.tools))
+			}
+		})
+	}
+}
+
+func TestInitInvalidMaxTokens(t *testing.T) {
+	e := NewEcho(logger.NewLogger("echo test"))
+	err := e.Init(t.Context(), conversation.Metadata{
+		Base: metadata.Base{Properties: map[string]string{"maxTokens": "not-a-number"}},
+	})
+	require.Error(t, err)
+}
+
+func TestGetComponentMetadata(t *testing.T) {
+	e, ok := NewEcho(logger.NewLogger("echo test")).(*Echo)
+	require.True(t, ok)
+
+	info := e.GetComponentMetadata()
+	assert.Contains(t, info, "maxTokens")
 }
 
 func TestConverseAlpha2(t *testing.T) {

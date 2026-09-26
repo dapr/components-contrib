@@ -17,6 +17,7 @@ package echo
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,11 +27,21 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kmeta "github.com/dapr/kit/metadata"
 )
 
 // Echo implement is only for test.
 type Echo struct {
+	md     EchoMetadata
 	logger logger.Logger
+}
+
+// EchoMetadata is the metadata for the echo component.
+type EchoMetadata struct {
+	// MaxTokens is a component-level default cap on the number of "tokens"
+	// (whitespace-delimited words) echoed back for every request; a
+	// request-level MaxTokens greater than zero overrides it.
+	MaxTokens *int64 `json:"maxTokens,omitempty" mapstructure:"maxTokens"`
 }
 
 func NewEcho(logger logger.Logger) conversation.Conversation {
@@ -42,24 +53,18 @@ func NewEcho(logger logger.Logger) conversation.Conversation {
 }
 
 func (e *Echo) Init(ctx context.Context, meta conversation.Metadata) error {
-	// Echo component has no metadata
+	md := EchoMetadata{}
+	if err := kmeta.DecodeMetadata(meta.Properties, &md); err != nil {
+		return err
+	}
+	e.md = md
 	return nil
 }
 
 func (e *Echo) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	// Echo component has no metadata
+	metadataStruct := EchoMetadata{}
+	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
-}
-
-// approximateTokensFromWords estimates the number of tokens based on word count.
-// ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-func approximateTokensFromWords(text string) uint64 {
-	if text == "" {
-		return 0
-	}
-
-	// split on whitespace to count words
-	return uint64(len(strings.Fields(text)))
 }
 
 // Converse returns one output per input message.
@@ -144,11 +149,37 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 	}
 
 	responseContent := strings.Join(contentFromMessaged, "\n")
+	words := strings.Fields(responseContent)
+	promptTokens := uint64(len(words))
+
 	stopReason := "stop"
 	if len(toolCalls) > 0 {
 		stopReason = "tool_calls"
 		// follows openai spec for tool_calls finish reason https://platform.openai.com/docs/api-reference/chat/object
 	}
+
+	// A request-level MaxTokens greater than zero overrides the component
+	// metadata default; zero or negative request values are treated as unset,
+	// matching langchaingokit's precedence for the real providers. One echo
+	// "token" is one whitespace-delimited word, approximating tokens by word
+	// count (ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them);
+	// truncation joins the kept words with single spaces.
+	var maxTokens int64
+	switch {
+	case r.MaxTokens != nil && *r.MaxTokens > 0:
+		maxTokens = *r.MaxTokens
+	case e.md.MaxTokens != nil:
+		maxTokens = *e.md.MaxTokens
+	}
+
+	completionTokens := promptTokens
+	if maxTokens > 0 && int64(len(words)) > maxTokens {
+		responseContent = strings.Join(words[:maxTokens], " ")
+		completionTokens = uint64(maxTokens)
+		// follows openai spec for length finish reason on truncation
+		stopReason = "length"
+	}
+
 	choice := conversation.Choice{
 		FinishReason: stopReason,
 		Index:        0,
@@ -166,11 +197,10 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		Choices:    []conversation.Choice{choice},
 	}
 
-	tokenCount := approximateTokensFromWords(responseContent)
 	usage := &conversation.Usage{
-		CompletionTokens: tokenCount,
-		PromptTokens:     tokenCount,
-		TotalTokens:      tokenCount + tokenCount,
+		CompletionTokens: completionTokens,
+		PromptTokens:     promptTokens,
+		TotalTokens:      promptTokens + completionTokens,
 	}
 
 	res = &conversation.Response{

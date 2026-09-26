@@ -263,6 +263,21 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
 
+    - name: Set RavenDB env vars
+      if: matrix.require-ravendb-credentials == 'true'
+      env:
+        RAVENDBLICENSE: ${{ secrets.RAVENDBLICENSE }}
+      run: |
+        if [ -z "$RAVENDBLICENSE" ]; then
+          echo "::error::RAVENDBLICENSE secret is not set"
+          exit 1
+        fi
+        {
+          echo "RAVENDBLICENSE<<EOF_RAVENDBLICENSE"
+          echo "$RAVENDBLICENSE"
+          echo "EOF_RAVENDBLICENSE"
+        } >> "$GITHUB_ENV"
+
     - name: Start MongoDB
       if: matrix.mongodb-version != ''
       uses: supercharge/mongodb-github-action@1.12.1
@@ -302,7 +317,7 @@ jobs:
         echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Run tests
-      continue-on-error: true
+      continue-on-error: ${{ !contains(matrix.component, '.aws-floci.') }}
       run: |
         set -e
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -317,13 +332,18 @@ jobs:
           KIND_UPPER=BinaryStore
         fi
 
+        TEST_SELECTOR="Test${KIND_UPPER}Conformance/${NAME}"
+        if [[ "$NAME" == aws-floci.* ]]; then
+          TEST_SELECTOR="^Test${KIND_UPPER}Conformance$/^${NAME//./\\.}$"
+        fi
+
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
         echo "Source Package: " ${{ matrix.source-pkg }}
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
-          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out \
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="$TEST_SELECTOR" -coverprofile=cover.out \
           -covermode=set -coverpkg=${{ matrix.source-pkg }}
 
         status=$?
@@ -339,6 +359,10 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
+
+    - name: Catch Floci test failures
+      if: failure() && contains(matrix.component, '.aws-floci.')
+      run: echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Delete downloaded up certs
       if: always() && matrix.required-certs != ''

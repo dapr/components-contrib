@@ -112,6 +112,8 @@ func loadOutputBindings(name string) bindings.OutputBinding {
 		return b_aws_s3.NewAWSS3(testLogger)
 	case "aws.s3.terraform":
 		return b_aws_s3.NewAWSS3(testLogger)
+	case "aws-floci.s3":
+		return b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}

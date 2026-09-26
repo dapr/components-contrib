@@ -128,7 +128,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.732
 	github.com/testcontainers/testcontainers-go v0.40.0
-	github.com/tetratelabs/wazero v1.8.0
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/tmc/langchaingo v0.1.15-0.20251029190607-e35755df7084
 	github.com/valyala/fasthttp v1.53.0
 	github.com/vmware/vmware-go-kcl-v2 v1.0.0

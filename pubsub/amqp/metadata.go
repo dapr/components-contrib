@@ -16,6 +16,7 @@ package amqp
 import (
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,9 +39,10 @@ type metadata struct {
 
 	// TopicAddressPrefix and QueueAddressPrefix are prepended to the AMQP
 	// address of every link opened by this component, for topics and queues
-	// respectively. They default to the Solace addressing convention and can be
-	// set to an empty value for brokers that address topics and queues by name,
-	// or to the prefixes the broker is configured with.
+	// respectively. Their defaults depend on the component type: pubsub.amqp
+	// applies no prefix, and pubsub.solace.amqp applies the Solace convention.
+	// Set them to the prefixes the broker is configured with, for example the
+	// anycastPrefix and multicastPrefix of an ActiveMQ Artemis acceptor.
 	TopicAddressPrefix string
 	QueueAddressPrefix string
 }
@@ -62,14 +64,23 @@ const (
 	amqpClientKey  = "clientKey"
 	defaultWait    = 30 * time.Second
 
-	// Address prefixes of the Solace addressing convention, kept as the
-	// defaults so that existing Solace configurations are unaffected.
-	defaultTopicAddressPrefix = "topic://"
-	defaultQueueAddressPrefix = "queue://"
+	// Address prefixes of the Solace addressing convention. They are the
+	// defaults of pubsub.solace.amqp only, so that existing Solace
+	// configurations are unaffected. pubsub.amqp defaults to no prefix.
+	solaceTopicAddressPrefix = "topic://"
+	solaceQueueAddressPrefix = "queue://"
+
+	// genericAddressPrefix is the default of pubsub.amqp: the Dapr topic name
+	// is used as the AMQP address unchanged, which is what brokers that
+	// address destinations by name expect.
+	genericAddressPrefix = ""
 
 	// Optional scheme of a topic name, selecting which prefix is applied.
 	topicScheme = "topic:"
 	queueScheme = "queue:"
+
+	// amqpsScheme is the URL scheme that turns on TLS.
+	amqpsScheme = "amqps"
 )
 
 // addressFor returns the AMQP address a link is opened on for the given Dapr
@@ -80,6 +91,13 @@ const (
 // addressed as a topic. A topic name that already carries one of the configured
 // prefixes is used as the address as-is.
 func (m *metadata) addressFor(topic string) string {
+	// An empty topic has no address. Without this, a configured prefix would
+	// make the result the bare prefix, which is not empty and so passes the
+	// callers' emptiness check.
+	if topic == "" {
+		return ""
+	}
+
 	if hasPrefix(topic, m.TopicAddressPrefix) || hasPrefix(topic, m.QueueAddressPrefix) {
 		return topic
 	}
@@ -112,11 +130,16 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
+// parseAMQPMetaData builds the component metadata. defaultTopicPrefix and
+// defaultQueuePrefix are supplied by the constructor rather than read from a
+// package constant, because the two registered component types start from
+// different addressing conventions: pubsub.amqp addresses destinations by name,
+// while pubsub.solace.amqp keeps the Solace prefixes.
+func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger, defaultTopicPrefix, defaultQueuePrefix string) (*metadata, error) {
 	m := metadata{
 		Anonymous:          false,
-		TopicAddressPrefix: defaultTopicAddressPrefix,
-		QueueAddressPrefix: defaultQueueAddressPrefix,
+		TopicAddressPrefix: defaultTopicPrefix,
+		QueueAddressPrefix: defaultQueuePrefix,
 	}
 
 	err := kitmd.DecodeMetadata(md.Properties, &m)
@@ -127,6 +150,18 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	// required configuration settings
 	if m.URL == "" {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
+	}
+
+	uri, err := url.Parse(m.URL)
+	if err != nil {
+		return &m, fmt.Errorf("%s invalid url: %w", errorMsgPrefix, err)
+	}
+
+	// TLS material is only applied to an amqps:// connection. Accepting it on a
+	// plaintext url would report success and then connect in the clear.
+	if uri.Scheme != amqpsScheme && (m.CaCert != "" || m.ClientCert != "" || m.ClientKey != "") {
+		return &m, fmt.Errorf("%s caCert, clientCert and clientKey require the %q url scheme, but the url uses %q",
+			errorMsgPrefix, amqpsScheme, uri.Scheme)
 	}
 
 	// optional configuration settings

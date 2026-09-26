@@ -90,7 +90,8 @@ func checkPubSubComponents() {
 	// mqtt3 = mqtt, so ignore mqtt (keep mqtt3 since it exists in contrib)
 	// azure.servicebusqueues is an alias for azure.servicebus.queues (keep azure.servicebus.queues) so ignore it
 	// azure.servicebus is an alias for azure.servicebus.topics (keep azure.servicebus.topics) so ignore it
-	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus"}
+	// solace.amqp is the back-compat name for amqp (keep amqp, which owns the metadata.yaml) so ignore it
+	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus", "solace.amqp"}
 	ignoreContribComponents := []string{}
 	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
 }

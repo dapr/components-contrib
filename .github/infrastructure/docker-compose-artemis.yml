@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  artemis:
+    container_name: artemis
+    image: apache/activemq-artemis:2.42.0-alpine
+    environment:
+      # The conformance component authenticates with these credentials.
+      - ARTEMIS_USER=artemis
+      - ARTEMIS_PASSWORD=artemis
+      # Bind the acceptors to every interface inside the container.
+      - EXTRA_ARGS=--no-autotune --relax-jolokia --http-host 0.0.0.0
+    ports:
+      # AMQP 1.0
+      - '5672:5672'
+      # Web console and Jolokia
+      - '8161:8161'
+    healthcheck:
+      test: ['CMD-SHELL', '/var/lib/artemis-instance/bin/artemis check node --up --url tcp://localhost:61616 --user artemis --password artemis || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s

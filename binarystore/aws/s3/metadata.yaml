@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: aws.s3
+version: v1
+status: alpha
+title: "AWS S3"
+description: "Store and retrieve large binary files using Amazon S3 or any S3-compatible object storage service."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/s3/
+
+builtinAuthenticationProfiles:
+  - name: "aws"
+
+metadata:
+  - name: bucket
+    required: true
+    description: |
+      The name of the S3 bucket to use. The component requires the
+      `s3:PutObject` and `s3:DeleteObject` permissions on the bucket, plus
+      `s3:GetObject` for `Get` and for the existence check performed by
+      `Delete`. Without `s3:GetObject`, `Delete` cannot report whether the
+      object existed and always reports success.
+    example: '"my-binary-store-bucket"'
+
+  - name: prefix
+    required: false
+    description: |
+      An optional prefix prepended to all file names stored by this component.
+    example: '"myprefix"'
+
+  - name: endpoint
+    required: false
+    description: |
+      Custom endpoint for the component to use, to connect to S3-compatible
+      services or emulators (e.g. MinIO, Ceph, Cloudflare R2). Do not use this
+      when running against production AWS. Note: the `Set` operation's
+      overwrite=false semantics rely on the endpoint honouring conditional
+      writes (`If-None-Match`). Older or non-conforming S3-compatible
+      providers may silently ignore this header and overwrite existing
+      objects instead of failing; verify your provider supports conditional
+      writes before relying on overwrite=false to prevent data loss.
+    example: '"http://localhost:9000"'
+
+  - name: forcePathStyle
+    type: bool
+    default: 'false'
+    description: |
+      Currently Amazon S3 SDK supports virtual-hosted-style and path-style
+      access. When false (the default), uses virtual-hosted-style format, i.e.:
+      `https://<your bucket>.<endpoint>/<key>`. When true, uses path-style
+      format, i.e.: `https://<endpoint>/<your bucket>/<key>`. Most
+      S3-compatible providers require this to be set to true.
+    example: '"true", "false"'
+
+  - name: disableSSL
+    type: bool
+    default: 'false'
+    description: |
+      Allows connecting to non-`https://` endpoints.
+    example: '"true", "false"'
+
+  - name: insecureSSL
+    type: bool
+    default: 'false'
+    description: |
+      When connecting to `https://` endpoints, accepts self-signed or invalid
+      certificates.
+    example: '"true", "false"'

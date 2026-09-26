@@ -49,6 +49,7 @@ This is a required step before an official Dapr release.`,
 		fmt.Println("========================================================================================")
 
 		checkConversationComponents()
+		checkBinaryStoreComponents()
 		checkStateComponents()
 		checkPubSubComponents()
 		checkSecretStoreComponents()
@@ -71,6 +72,15 @@ func init() {
 func checkConversationComponents() {
 	fmt.Println("\nChecking conversation components...")
 	checkComponents("conversation", []string{}, []string{})
+}
+
+func checkBinaryStoreComponents() {
+	fmt.Println("\nChecking binarystore components...")
+	// binarystore/fake is a test helper rather than a real component: it ships no metadata.yaml
+	// and has no registration file, so it must be filtered out of both the contrib and runtime lists.
+	ignoreDaprComponents := []string{"fake"}
+	ignoreContribComponents := []string{"fake"}
+	checkComponents("binarystore", ignoreDaprComponents, ignoreContribComponents)
 }
 
 func checkStateComponents() {

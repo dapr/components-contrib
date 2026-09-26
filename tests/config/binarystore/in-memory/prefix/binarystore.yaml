@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-in-memory-prefix
+spec:
+  type: binarystore.in-memory
+  version: v1
+  metadata:
+  - name: prefix
+    value: conf-prefix/nested

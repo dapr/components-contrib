@@ -49,8 +49,10 @@ type sendGridMetadata struct {
 	EmailBcc            string `mapstructure:"emailBcc"`
 	DynamicTemplateData string `mapstructure:"dynamicTemplateData"`
 	DynamicTemplateID   string `mapstructure:"dynamicTemplateId"`
+	TrackingSettings    string `mapstructure:"trackingSettings"`
 
-	dynamicTemplateDataCache map[string]any // Cache the unmarshalled dynamic template data
+	dynamicTemplateDataCache map[string]any         // Cache the unmarshalled dynamic template data
+	trackingSettingsCache    *mail.TrackingSettings // Cache the unmarshalled tracking settings
 }
 
 // Wrapper to help decode SendGrid API errors.
@@ -87,6 +89,15 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 		if templateError != nil {
 			return sgMeta, templateError
 		}
+	}
+
+	// Cache the unmarshalled tracking settings if present
+	if sgMeta.TrackingSettings != "" {
+		trackingSettings, trackingError := UnmarshalTrackingSettings(sgMeta.TrackingSettings)
+		if trackingError != nil {
+			return sgMeta, trackingError
+		}
+		sgMeta.trackingSettingsCache = trackingSettings
 	}
 
 	return sgMeta, nil
@@ -212,6 +223,18 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		templateData = sg.metadata.dynamicTemplateDataCache
 	}
 
+	// Build email tracking settings, this is optional
+	var trackingSettings *mail.TrackingSettings
+	if req.Metadata["trackingSettings"] != "" {
+		var trackingError error
+		trackingSettings, trackingError = UnmarshalTrackingSettings(req.Metadata["trackingSettings"])
+		if trackingError != nil {
+			return nil, trackingError
+		}
+	} else if sg.metadata.trackingSettingsCache != nil {
+		trackingSettings = sg.metadata.trackingSettingsCache
+	}
+
 	// Email body is held in req.Data, after we tidy it up a bit
 	emailBody, err := strconv.Unquote(string(req.Data))
 	if err != nil {
@@ -239,6 +262,9 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 	if templateData != nil {
 		personalization.DynamicTemplateData = templateData
+	}
+	if trackingSettings != nil {
+		email.SetTrackingSettings(trackingSettings)
 	}
 
 	email.AddPersonalizations(personalization)
@@ -282,6 +308,17 @@ func UnmarshalDynamicTemplateData(jsonString string, result *map[string]any) err
 		return fmt.Errorf("error from SendGrid binding, dynamic template data is not valid JSON: %w", err)
 	}
 	return nil
+}
+
+// Function that unmarshals a tracking settings JSON string, using the SendGrid API field names
+// (click_tracking, open_tracking, subscription_tracking, ganalytics).
+func UnmarshalTrackingSettings(jsonString string) (*mail.TrackingSettings, error) {
+	trackingSettings := &mail.TrackingSettings{}
+	err := json.Unmarshal([]byte(jsonString), trackingSettings)
+	if err != nil {
+		return nil, fmt.Errorf("error from SendGrid binding, tracking settings are not valid JSON: %w", err)
+	}
+	return trackingSettings, nil
 }
 
 func Close() error {

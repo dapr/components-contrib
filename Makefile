@@ -183,9 +183,11 @@ check-mod-diff:
 # Target: compile-build-tools                                                  #
 ################################################################################
 .PHONY: compile-build-tools
+# The build tools binary is executed locally by this Makefile, so it is always
+# built for the host rather than the (possibly cross-compiled) GOOS/GOARCH.
 compile-build-tools:
 ifeq (,$(wildcard $(BUILD_TOOLS)))
-	cd .build-tools; CGO_ENABLED=$(CGO) GOOS=$(TARGET_OS_LOCAL) GOARCH=$(TARGET_ARCH_LOCAL) go build -o $(BUILD_TOOLS_BIN) .
+	cd .build-tools; CGO_ENABLED=$(CGO) GOOS=$(HOST_GOOS) GOARCH=$(HOST_GOARCH) go build -o $(BUILD_TOOLS_BIN) .
 endif
 
 ################################################################################

@@ -14,7 +14,6 @@ limitations under the License.
 package binarystore
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -47,7 +46,7 @@ func TestSentinelErrorsAreDistinct(t *testing.T) {
 				continue
 			}
 			assert.NotEqual(t, outer, inner)
-			assert.False(t, errors.Is(outer, inner))
+			assert.NotErrorIs(t, outer, inner)
 		}
 	}
 }
@@ -65,8 +64,8 @@ func TestDefaultUploadTuning(t *testing.T) {
 	// every component's buffering behaviour at once. The part size must stay
 	// at or above OCI Object Storage's 10 MiB minimum for non-final multipart
 	// parts, otherwise uploads larger than one part fail on that provider.
-	assert.Equal(t, int64(16*1024*1024), DefaultUploadPartSize)
-	assert.Equal(t, 2, DefaultUploadConcurrency)
+	assert.Equal(t, DefaultUploadPartSize, int64(16*1024*1024))
+	assert.Equal(t, DefaultUploadConcurrency, 2)
 	assert.GreaterOrEqual(t, DefaultUploadPartSize, int64(10*1024*1024),
 		"part size must satisfy the largest provider minimum part size (OCI, 10 MiB)")
 }

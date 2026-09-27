@@ -75,8 +75,12 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - After some time, consumer is ready to consume message succesfully
 ### Running the tests
 
-This must be run in the GitHub Actions Workflow configured for test infrastructure setup.
+The GitHub Actions certification workflow configures the required test infrastructure.
 
-The runtime execution assumes that the appropriate AWS Profile or AWS environment variables (**AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY**) are configured.
+For Floci, the same certification suite loads `components/floci/` when
+`DAPR_TEST_COMPONENT_PROFILE=floci` is set by the local setup hook. The existing
+AWS defaults and scenario assertions are unchanged.
 
-Also, the AWS IAM Permissions need to be configured as indicated by this document [`Create an SNS/SQS instance`](https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-aws-snssqs/#create-an-snssqs-instance)
+For live AWS, runtime execution assumes that the appropriate AWS Profile or AWS environment variables (**AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY**) are configured.
+
+In addition, IAM permissions also need to be configured as indicated by [`Create an SNS/SQS instance`](https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-aws-snssqs/#create-an-snssqs-instance).

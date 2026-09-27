@@ -16,6 +16,7 @@ package cfqueues
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,22 +33,50 @@ var cfAPIBaseURL = "https://api.cloudflare.com/client/v4"
 
 // Message as returned by the messages/pull endpoint.
 type pullMessage struct {
-	Body        json.RawMessage `json:"body"`
-	ID          string          `json:"id"`
-	TimestampMs int64           `json:"timestamp_ms"`
-	Attempts    int             `json:"attempts"`
-	LeaseID     string          `json:"lease_id"`
+	Body        string            `json:"body"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	ID          string            `json:"id"`
+	TimestampMs int64             `json:"timestamp_ms"`
+	Attempts    int               `json:"attempts"`
+	LeaseID     string            `json:"lease_id"`
 }
 
+// Metadata key holding the content type the message was published with.
+const contentTypeMetadataKey = "CF-Content-Type"
+
 // Data returns the message body as it was published.
-// Messages published as strings (including those sent by the output binding) are unwrapped,
-// while structured bodies are passed through as JSON.
-func (m pullMessage) Data() []byte {
-	var str string
-	if json.Unmarshal(m.Body, &str) == nil {
-		return []byte(str)
+// The pull API returns the body as a string that is base64-encoded for messages published with the
+// "json" (the default) or "bytes" content types, and as-is for "text".
+// JSON messages that contain a string (including those sent by the output binding) are unwrapped,
+// while structured JSON bodies are passed through.
+func (m pullMessage) Data() ([]byte, error) {
+	switch contentType := m.Metadata[contentTypeMetadataKey]; contentType {
+	case "text":
+		return []byte(m.Body), nil
+	case "bytes":
+		return decodeBase64Body(m.Body)
+	case "json", "":
+		data, err := decodeBase64Body(m.Body)
+		if err != nil {
+			return nil, err
+		}
+		var str string
+		if json.Unmarshal(data, &str) == nil {
+			return []byte(str), nil
+		}
+		return data, nil
+	default:
+		// This includes "v8", which pull consumers cannot decode
+		return nil, fmt.Errorf("unsupported message content type '%s'", contentType)
 	}
-	return m.Body
+}
+
+func decodeBase64Body(body string) ([]byte, error) {
+	data, err := base64.StdEncoding.DecodeString(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the base64-encoded message body: %w", err)
+	}
+	return data, nil
 }
 
 type leaseRef struct {
@@ -134,8 +163,15 @@ func (q *CFQueues) pollOnce(ctx context.Context, queueID string, handler binding
 		if ctx.Err() != nil {
 			break
 		}
+		data, dErr := msg.Data()
+		if dErr != nil {
+			// Retried messages are moved to the dead-letter queue, if any, once they exceed the max retries
+			q.logger.Errorf("Error decoding message '%s' from queue '%s': %v", msg.ID, q.metadata.QueueName, dErr)
+			ack.Retries = append(ack.Retries, leaseRef{LeaseID: msg.LeaseID})
+			continue
+		}
 		_, hErr := handler(ctx, &bindings.ReadResponse{
-			Data: msg.Data(),
+			Data: data,
 			Metadata: map[string]string{
 				"id":        msg.ID,
 				"attempts":  strconv.Itoa(msg.Attempts),

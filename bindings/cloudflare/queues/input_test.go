@@ -18,6 +18,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -119,13 +120,98 @@ func initComponent(t *testing.T, ts *testServer, extraProps map[string]string) *
 	return q
 }
 
+// Returns a message as the pull API returns it when it was published with the "json" content type,
+// which is the default (and what the output binding's worker uses).
+func jsonMessage(t *testing.T, body any, id string, leaseID string) pullMessage {
+	t.Helper()
+	enc, err := json.Marshal(body)
+	require.NoError(t, err)
+	return pullMessage{
+		Body:     base64.StdEncoding.EncodeToString(enc),
+		Metadata: map[string]string{contentTypeMetadataKey: "json"},
+		ID:       id,
+		LeaseID:  leaseID,
+	}
+}
+
+func TestPullMessageData(t *testing.T) {
+	binary := []byte{0x00, 0xff, 0x10, 0x80}
+	tests := []struct {
+		name    string
+		msg     pullMessage
+		want    []byte
+		wantErr string
+	}{
+		{
+			name: "json string is unwrapped",
+			msg:  pullMessage{Body: base64.StdEncoding.EncodeToString([]byte(`"hello"`)), Metadata: map[string]string{contentTypeMetadataKey: "json"}},
+			want: []byte("hello"),
+		},
+		{
+			name: "structured json is passed through",
+			msg:  pullMessage{Body: base64.StdEncoding.EncodeToString([]byte(`{"key":"value"}`)), Metadata: map[string]string{contentTypeMetadataKey: "json"}},
+			want: []byte(`{"key":"value"}`),
+		},
+		{
+			name: "missing content type defaults to json",
+			msg:  pullMessage{Body: base64.StdEncoding.EncodeToString([]byte(`"hello"`))},
+			want: []byte("hello"),
+		},
+		{
+			name: "bytes are decoded",
+			msg:  pullMessage{Body: base64.StdEncoding.EncodeToString(binary), Metadata: map[string]string{contentTypeMetadataKey: "bytes"}},
+			want: binary,
+		},
+		{
+			name: "text is returned as-is",
+			msg:  pullMessage{Body: `"quoted" text`, Metadata: map[string]string{contentTypeMetadataKey: "text"}},
+			want: []byte(`"quoted" text`),
+		},
+		{
+			name:    "invalid base64",
+			msg:     pullMessage{Body: "not base64!", Metadata: map[string]string{contentTypeMetadataKey: "json"}},
+			wantErr: "base64",
+		},
+		{
+			name:    "v8 is not supported",
+			msg:     pullMessage{Body: "AAAA", Metadata: map[string]string{contentTypeMetadataKey: "v8"}},
+			wantErr: "unsupported message content type 'v8'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.msg.Data()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, data)
+		})
+	}
+}
+
+func TestPullResponseFormat(t *testing.T) {
+	// Example message from the Cloudflare pull consumer documentation, with a string-valued body
+	res := `{"body":"ImhlbGxvIg==","id":"1","timestamp_ms":1689615013586,"attempts":2,"metadata":{"CF-sourceMessageSource":"dash","CF-Content-Type":"json"},"lease_id":"lease"}`
+	msg := pullMessage{}
+	require.NoError(t, json.Unmarshal([]byte(res), &msg))
+	data, err := msg.Data()
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(data))
+	assert.Equal(t, 2, msg.Attempts)
+	assert.Equal(t, "lease", msg.LeaseID)
+}
+
 func TestPollOnceAcknowledgesAndRetries(t *testing.T) {
 	ts := newTestServer(t)
-	ts.messages = []pullMessage{
-		{Body: json.RawMessage(`"hello"`), ID: "msg1", LeaseID: "lease1", Attempts: 1, TimestampMs: 1689615013586},
-		{Body: json.RawMessage(`{"key":"value"}`), ID: "msg2", LeaseID: "lease2", Attempts: 2},
-		{Body: json.RawMessage(`"fails"`), ID: "msg3", LeaseID: "lease3", Attempts: 1},
-	}
+	msg1 := jsonMessage(t, "hello", "msg1", "lease1")
+	msg1.Attempts = 1
+	msg1.TimestampMs = 1689615013586
+	msg2 := jsonMessage(t, map[string]string{"key": "value"}, "msg2", "lease2")
+	msg2.Attempts = 2
+	undecodable := pullMessage{Body: "AAAA", Metadata: map[string]string{contentTypeMetadataKey: "v8"}, ID: "msg4", LeaseID: "lease4"}
+	ts.messages = []pullMessage{msg1, msg2, jsonMessage(t, "fails", "msg3", "lease3"), undecodable}
 	q := initComponent(t, ts, nil)
 
 	received := []*bindings.ReadResponse{}
@@ -139,8 +225,9 @@ func TestPollOnceAcknowledgesAndRetries(t *testing.T) {
 
 	count, err := q.pollOnce(t.Context(), testQueueID, handler)
 	require.NoError(t, err)
-	assert.Equal(t, 3, count)
+	assert.Equal(t, 4, count)
 
+	// The message that can't be decoded is not delivered to the app
 	require.Len(t, received, 3)
 	// Bodies published as strings are unwrapped, structured bodies are passed through as JSON
 	assert.Equal(t, "hello", string(received[0].Data))
@@ -149,10 +236,10 @@ func TestPollOnceAcknowledgesAndRetries(t *testing.T) {
 	assert.Equal(t, "1", received[0].Metadata["attempts"])
 	assert.Equal(t, "1689615013586", received[0].Metadata["timestamp"])
 
-	// Only the messages the app processed are acknowledged; the failed one is retried
+	// Only the messages the app processed are acknowledged; the failed and undecodable ones are retried
 	require.Len(t, ts.acks, 1)
 	assert.Equal(t, []leaseRef{{LeaseID: "lease1"}, {LeaseID: "lease2"}}, ts.acks[0].Acks)
-	assert.Equal(t, []leaseRef{{LeaseID: "lease3"}}, ts.acks[0].Retries)
+	assert.Equal(t, []leaseRef{{LeaseID: "lease3"}, {LeaseID: "lease4"}}, ts.acks[0].Retries)
 }
 
 func TestPollOnceWithEmptyQueue(t *testing.T) {
@@ -202,7 +289,7 @@ func TestResolveQueueID(t *testing.T) {
 
 func TestReadDeliversMessages(t *testing.T) {
 	ts := newTestServer(t)
-	ts.messages = []pullMessage{{Body: json.RawMessage(`"hello"`), ID: "msg1", LeaseID: "lease1"}}
+	ts.messages = []pullMessage{jsonMessage(t, "hello", "msg1", "lease1")}
 	q := initComponent(t, ts, map[string]string{"pollingInterval": "1s"})
 
 	ctx, cancel := context.WithCancel(t.Context())

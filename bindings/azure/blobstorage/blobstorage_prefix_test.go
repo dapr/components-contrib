@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -126,7 +127,7 @@ func newFakeBlobServer(t *testing.T, recorder *requestRecorder, blobNames []stri
 		case req.Method == http.MethodGet:
 			// Plain blob download.
 			body := "abc"
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 			w.Header().Set("ETag", `"0x1"`)
 			w.Header().Set("Last-Modified", "Wed, 09 Sep 2009 09:20:02 GMT")
 			w.Header().Set("x-ms-blob-type", "BlockBlob")

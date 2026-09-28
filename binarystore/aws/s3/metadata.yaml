@@ -20,8 +20,12 @@ metadata:
       The name of the S3 bucket to use. The component requires the
       `s3:PutObject` and `s3:DeleteObject` permissions on the bucket, plus
       `s3:GetObject` for `Get` and for the existence check performed by
-      `Delete`. Without `s3:GetObject`, `Delete` cannot report whether the
-      object existed and always reports success.
+      `Delete`. For `Delete` to report `ErrFileNotFound` for a missing
+      object, the principal also needs `s3:ListBucket` on the bucket:
+      without it S3 answers the existence check with `403 AccessDenied`
+      instead of `404 Not Found` so that key existence is not disclosed. If
+      either permission is missing, `Delete` cannot determine whether the
+      object existed and reports success.
     example: '"my-binary-store-bucket"'
 
   - name: prefix

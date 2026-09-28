@@ -186,11 +186,12 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 // binarystore.ErrFileNotFound is returned.
 //
 // Because S3's DeleteObject is idempotent and succeeds for missing keys, an
-// existence check is issued first, which requires the s3:GetObject permission.
-// When that permission is absent S3 answers HeadObject for a missing key with
-// 403 AccessDenied rather than 404 so that key existence is not leaked; in
-// that case the delete proceeds without the existence guarantee rather than
-// failing outright.
+// existence check is issued first, which requires the s3:GetObject permission
+// and, for a missing key to be reported as 404 rather than 403, s3:ListBucket
+// on the bucket. When either permission is absent S3 answers HeadObject for a
+// missing key with 403 AccessDenied rather than 404 so that key existence is
+// not leaked; in that case the delete proceeds without the existence guarantee
+// rather than failing outright.
 func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) error {
 	if req.FileName == "" {
 		return binarystore.ErrMissingFileName
@@ -206,8 +207,9 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 		case isNotFound(err):
 			return binarystore.ErrFileNotFound
 		case isAccessDenied(err):
-			// Existence cannot be determined without s3:GetObject; fall
-			// through to the delete so a delete-only policy still works.
+			// Existence cannot be determined without s3:GetObject and
+			// s3:ListBucket; fall through to the delete so a delete-only
+			// policy still works.
 		default:
 			return fmt.Errorf("error checking object %q: %w", req.FileName, err)
 		}

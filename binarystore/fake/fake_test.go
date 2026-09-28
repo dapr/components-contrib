@@ -33,9 +33,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewFake(t *testing.T) {
-	var ctor func(logger.Logger) binarystore.BinaryStore = NewFake
-
-	store := ctor(logger.NewLogger("test"))
+	store := NewFake(logger.NewLogger("test"))
 	require.NotNil(t, store)
 	t.Cleanup(func() {
 		_ = store.Close()

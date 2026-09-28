@@ -213,6 +213,11 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		opt(runtimeConfig)
 	}
 
+	runtimeConfig.ResourcesPath, err = componentProfilePaths(runtimeConfig.ResourcesPath, os.Getenv("DAPR_TEST_COMPONENT_PROFILE"))
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if runtimeConfig.DaprInternalGRPCPort == "0" {
 		port, err := freeport.GetFreePort()
 		if err != nil {

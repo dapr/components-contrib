@@ -27,6 +27,10 @@ limitations under the License.
 // nothing behaves like a real store while holding all data in process memory.
 // That makes it usable both for wiring tests that just need a working store and
 // for exercising a consumer's error handling.
+//
+// NewFake is the registry-shaped constructor, taking a logger and returning
+// binarystore.BinaryStore, so the fake can be registered as a component in the
+// same way as a real binary store.
 package fake
 
 import (
@@ -54,7 +58,19 @@ var _ binarystore.BinaryStore = (*Fake)(nil)
 // New returns a Fake whose operations are all backed by the in-memory binary
 // store. Use the WithXxx builders to override individual operations.
 func New() *Fake {
-	backing := inmemory.NewInMemoryBinaryStore(logger.NewLogger("fake.binarystore"))
+	return newFake(logger.NewLogger("fake.binarystore"))
+}
+
+// NewFake returns a Fake backed by the in-memory binary store, using the given
+// logger. It has the constructor shape expected by the component registry
+// (func(logger.Logger) binarystore.BinaryStore) so it can be registered
+// directly; use New for the fluent WithXxx builder API.
+func NewFake(log logger.Logger) binarystore.BinaryStore {
+	return newFake(log)
+}
+
+func newFake(log logger.Logger) *Fake {
+	backing := inmemory.NewInMemoryBinaryStore(log)
 
 	f := &Fake{
 		fnInit:     backing.Init,

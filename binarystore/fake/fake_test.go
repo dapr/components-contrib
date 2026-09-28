@@ -24,11 +24,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/binarystore"
+	"github.com/dapr/kit/logger"
 )
 
 func TestNew(t *testing.T) {
 	store := New()
 	require.NotNil(t, store)
+}
+
+func TestNewFake(t *testing.T) {
+	var ctor func(logger.Logger) binarystore.BinaryStore = NewFake
+
+	store := ctor(logger.NewLogger("test"))
+	require.NotNil(t, store)
+	t.Cleanup(func() {
+		_ = store.Close()
+	})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "file.bin",
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
+
+	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "file.bin"})
+	require.NoError(t, err)
+	defer resp.Data.Close()
+	data, err := io.ReadAll(resp.Data)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("payload"), data)
 }
 
 func TestFakeRoundTrip(t *testing.T) {

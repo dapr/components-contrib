@@ -20,6 +20,17 @@
 2. If the component is tested locally within a docker container requiring no secrets, then add the component to the `pr-components` step in conformance test workflow `.github/conformance.yml`. `pr-components` step generates the component matrix for which the conformance tests will be run on each PR.
 3. If the component is tested against a service and requires secrets, then add the component to the `cron-components` step in conformance test workflow `.github/conformance.yml`. `cron-components` defines the components for which the conformance test will be run against the main code in a scheduled manner.
 
+## Local AWS backend
+
+The Floci profiles run parallel versions of existing AWS component tests (manually implemented).
+Component definitions live in `tests/config/<component-type>/aws-floci/`,
+with dots in the remaining profile name mapped to subdirectories.
+They are local backend rows in the existing `test-info.mjs` matrix, including
+scheduled runs; the component `spec.type` remains the original AWS implementation.
+The local Secrets Manager resources are seeded by
+[Floci Compose fixtures](../../.github/infrastructure/docker-compose-floci.yml),
+not by the cloud Terraform setup.
+
 ## Integrating a new component with conformance tests
 
 1. Add the component specific YAML to `tests/config/<COMPONENT-TYPE>/<COMPONENT>/<FILE>.yaml`.

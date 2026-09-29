@@ -99,6 +99,8 @@ func loadPubSub(name string) pubsub.PubSub {
 		return p_snssqs.NewSnsSqs(testLogger)
 	case "aws.snssqs.docker":
 		return p_snssqs.NewSnsSqs(testLogger)
+	case "aws-floci.snssqs":
+		return p_snssqs.NewSnsSqs(testLogger)
 	case "gcp.pubsub.terraform":
 		return p_gcppubsub.NewGCPPubSub(testLogger)
 	case "gcp.pubsub.docker":

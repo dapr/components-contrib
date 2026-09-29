@@ -20,4 +20,6 @@ import "github.com/dapr/components-contrib/conversation"
 // SparkMetadata is the metadata for the iFlytek Spark conversation component.
 type SparkMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
+	// Thinking controls the deep thinking mode of Spark X models: enabled, disabled or auto.
+	Thinking string `json:"thinking,omitempty" mapstructure:"thinking"`
 }

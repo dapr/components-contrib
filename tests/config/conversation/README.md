@@ -131,7 +131,7 @@ Requires a local Ollama server running with the `llama3.2:latest` model availabl
 #### IFLYTEK Spark
 
 ```bash
-export IFLYTEK_API_KEY="your_iflytek_spark_api_key"
+export IFLYTEK_API_KEY="your_iflytek_maas_api_key"
 ```
 
 ## Test Configuration
@@ -146,7 +146,7 @@ Each component has its own configuration file in this directory:
 - `huggingface/huggingface.yml` - HuggingFace configuration (uses OpenAI compatibility layer)
 - `ollama/ollama.yml` - Ollama configuration with llama3.2:latest
 - `bedrock/bedrock.yml` - AWS Bedrock configuration with Claude 3 Haiku
-- `iflytek/spark/spark.yml` - IFLYTEK Spark configuration with Spark 4.0 Ultra
+- `iflytek/spark/spark.yml` - IFLYTEK Spark configuration with spark-x2.5 on iFlytek MaaS
 
 The configurations use cost-effective models where possible to minimize testing costs.
 

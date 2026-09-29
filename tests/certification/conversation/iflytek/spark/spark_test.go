@@ -57,7 +57,7 @@ func TestSparkConversation(t *testing.T) {
 	response, err := component.Converse(ctx, &conversation.Request{Message: &messages})
 	require.NoError(t, err)
 	require.NotNil(t, response)
-	require.Equal(t, "4.0Ultra", response.Model)
+	require.Equal(t, "spark-x2.5", response.Model)
 	require.NotEmpty(t, response.Outputs)
 	require.NotEmpty(t, response.Outputs[0].Choices)
 	require.NotEmpty(t, response.Outputs[0].Choices[0].Message.Content)

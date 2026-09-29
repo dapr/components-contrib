@@ -16,9 +16,15 @@ limitations under the License.
 package spark
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
@@ -36,9 +42,14 @@ type Spark struct {
 	logger logger.Logger
 }
 
+// Defaults target the iFlytek MaaS OpenAI-compatible API, which issues the keys new users get.
+// Keys for the legacy Spark HTTP API need endpoint https://spark-api-open.xf-yun.com/v1 and a model such as 4.0Ultra.
 const (
-	defaultModel    = "4.0Ultra"
-	defaultEndpoint = "https://spark-api-open.xf-yun.com/v1"
+	defaultModel    = "spark-x2.5"
+	defaultEndpoint = "https://maas-api.cn-huabei-1.xf-yun.com/v2"
+	// With thinking enabled (the API default), Spark X models regularly return only reasoning
+	// content, which surfaces as an empty response with no tool calls.
+	defaultThinking = "disabled"
 )
 
 func NewSpark(logger logger.Logger) conversation.Conversation {
@@ -69,7 +80,19 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 		md.Endpoint = defaultEndpoint
 	}
 
+	thinking, err := resolveThinking(md.Thinking, md.Endpoint)
+	if err != nil {
+		return err
+	}
+	md.Thinking = thinking
+
 	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
+	if thinking != "" {
+		options = append(options, openai.WithHTTPClient(&thinkingClient{
+			doer:     conversation.BuildHTTPClient(),
+			thinking: thinking,
+		}))
+	}
 	llm, err := openai.New(options...)
 	if err != nil {
 		return err
@@ -88,6 +111,64 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 		s.Model = cachedModel
 	}
 	return nil
+}
+
+// resolveThinking returns the thinking mode to send, or "" to leave requests unchanged.
+// The default applies to the default endpoint only, since other Spark APIs may not accept the field.
+func resolveThinking(configured, endpoint string) (string, error) {
+	if configured == "" {
+		if endpoint == defaultEndpoint {
+			return defaultThinking, nil
+		}
+		return "", nil
+	}
+	thinking := strings.ToLower(strings.TrimSpace(configured))
+	switch thinking {
+	case "enabled", "disabled", "auto":
+		return thinking, nil
+	default:
+		return "", fmt.Errorf("invalid thinking mode %q: must be enabled, disabled or auto", configured)
+	}
+}
+
+type doer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// thinkingClient adds the thinking mode to chat completion requests, as the OpenAI client
+// used by langchaingo has no way to send extra request fields.
+type thinkingClient struct {
+	doer     doer
+	thinking string
+}
+
+func (c *thinkingClient) Do(req *http.Request) (*http.Response, error) {
+	if req.Method != http.MethodPost || req.Body == nil || !strings.HasSuffix(req.URL.Path, "/chat/completions") {
+		return c.doer.Do(req)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload map[string]json.RawMessage
+	if json.Unmarshal(body, &payload) == nil {
+		if _, ok := payload["thinking"]; !ok {
+			payload["thinking"], _ = json.Marshal(map[string]string{"type": c.thinking})
+			if patched, marshalErr := json.Marshal(payload); marshalErr == nil {
+				body = patched
+			}
+		}
+	}
+
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	return c.doer.Do(req)
 }
 
 func (s *Spark) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

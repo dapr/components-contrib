@@ -17,26 +17,44 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          API key (the HTTP API password) for iFlytek Spark, obtained from the
-          iFlytek open platform console.
+          API key for iFlytek Spark. By default this is an API key from the
+          iFlytek MaaS console. A legacy Spark HTTP API password also works when
+          endpoint and model point to the legacy API.
         example:  "**********"
         default: ""
 metadata:
   - name: model
     required: false
     description: |
-      The iFlytek Spark LLM to use.
+      The iFlytek Spark LLM to use. Use a model offered by the configured
+      endpoint, for example 4.0Ultra with the legacy Spark HTTP API.
     type: string
-    example: '4.0Ultra'
-    default: '4.0Ultra'
+    example: 'spark-x2.5'
+    default: 'spark-x2.5'
   - name: endpoint
     required: false
     description: |
       Custom API endpoint URL for the iFlytek Spark OpenAI-compatible API.
-      If not specified, the default endpoint will be used.
+      If not specified, the iFlytek MaaS endpoint is used. Set it to
+      https://spark-api-open.xf-yun.com/v1 for legacy Spark HTTP API passwords;
+      keys from one API are not accepted by the other.
     type: string
-    example: 'https://spark-api-open.xf-yun.com/v1'
-    default: 'https://spark-api-open.xf-yun.com/v1'
+    example: 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
+    default: 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
+  - name: thinking
+    required: false
+    description: |
+      Deep thinking mode of Spark X models. With thinking enabled, the model
+      can return only reasoning content, which surfaces as an empty response,
+      so it is disabled by default on the default endpoint. With a custom
+      endpoint, the mode is only sent when this is set.
+    type: string
+    allowedValues:
+      - "disabled"
+      - "enabled"
+      - "auto"
+    example: 'disabled'
+    default: 'disabled'
   - name: cacheTTL
     required: false
     description: |

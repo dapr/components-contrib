@@ -9,4 +9,4 @@ spec:
     - name: key
       value: "${{IFLYTEK_API_KEY}}"
     - name: model
-      value: "4.0Ultra"
+      value: "spark-x2.5"

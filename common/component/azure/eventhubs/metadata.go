@@ -39,6 +39,7 @@ type AzureEventHubsMetadata struct {
 	SubscriptionID               string `json:"subscriptionID" mapstructure:"subscriptionID"`
 	ResourceGroupName            string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 	EnableInOrderMessageDelivery bool   `json:"enableInOrderMessageDelivery,string" mapstructure:"enableInOrderMessageDelivery"`
+	MaxConcurrentHandlers        int    `json:"maxConcurrentHandlers,string" mapstructure:"maxConcurrentHandlers"`
 	GetAllMessageProperties      bool   `json:"getAllMessageProperties,string" mapstructure:"getAllMessageProperties"`
 
 	// Binding only
@@ -53,10 +54,15 @@ type AzureEventHubsMetadata struct {
 }
 
 func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*AzureEventHubsMetadata, error) {
-	var m AzureEventHubsMetadata
+	m := AzureEventHubsMetadata{
+		MaxConcurrentHandlers: DefaultMaxConcurrentHandlers,
+	}
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode metada: %w", err)
+	}
+	if m.MaxConcurrentHandlers < 1 {
+		return nil, errors.New("maxConcurrentHandlers must be greater than 0")
 	}
 
 	// Store the raw properties in the object

@@ -17,21 +17,11 @@ limitations under the License.
 package objectstorage
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"reflect"
 	"strings"
-	"time"
-
-	"github.com/oracle/oci-go-sdk/v54/common"
-	"github.com/oracle/oci-go-sdk/v54/common/auth"
-	ociobjectstorage "github.com/oracle/oci-go-sdk/v54/objectstorage"
-	"github.com/oracle/oci-go-sdk/v54/objectstorage/transfer"
 
 	"github.com/dapr/components-contrib/binarystore"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -75,19 +65,6 @@ type objectStoreMetadata struct {
 	ConfigFileAuthentication        bool   `json:"configFileAuthentication,string" mapstructure:"configFileAuthentication"`
 }
 
-type objectStoreClient interface {
-	putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error
-	getObject(ctx context.Context, name string) (io.ReadCloser, error)
-	deleteObject(ctx context.Context, name string) error
-	close() error
-}
-
-type ociObjectStoreClient struct {
-	metadata     *objectStoreMetadata
-	objectClient *ociobjectstorage.ObjectStorageClient
-	logger       logger.Logger
-}
-
 // NewOCIObjectStorage returns a new OCI Object Storage binary store.
 func NewOCIObjectStorage(log logger.Logger) binarystore.BinaryStore {
 	return &ObjectStorage{logger: log}
@@ -100,11 +77,8 @@ func (o *ObjectStorage) Init(ctx context.Context, md binarystore.Metadata) error
 		return err
 	}
 
-	client := &ociObjectStoreClient{
-		metadata: m,
-		logger:   o.logger,
-	}
-	if err = client.init(ctx); err != nil {
+	client, err := newOCIObjectStoreClient(ctx, m, o.logger)
+	if err != nil {
 		return fmt.Errorf("failed to initialize OCI Object Storage binary store: %w", err)
 	}
 
@@ -248,214 +222,4 @@ func (o *ObjectStorage) Close() error {
 		return nil
 	}
 	return o.client.close()
-}
-
-func (c *ociObjectStoreClient) init(ctx context.Context) error {
-	var provider common.ConfigurationProvider
-	if c.metadata.InstancePrincipalAuthentication {
-		var err error
-		provider, err = auth.InstancePrincipalConfigurationProvider()
-		if err != nil {
-			return fmt.Errorf("failed to get OCI instance principal configuration provider: %w", err)
-		}
-	} else if c.metadata.ConfigFileAuthentication {
-		provider = common.CustomProfileConfigProvider(c.metadata.ConfigFilePath, c.metadata.ConfigFileProfile)
-	} else {
-		provider = common.NewRawConfigurationProvider(
-			c.metadata.TenancyOCID,
-			c.metadata.UserOCID,
-			c.metadata.Region,
-			c.metadata.FingerPrint,
-			c.metadata.PrivateKey,
-			nil,
-		)
-	}
-
-	client, err := ociobjectstorage.NewObjectStorageClientWithConfigurationProvider(provider)
-	if err != nil {
-		return fmt.Errorf("failed to create ObjectStorageClient: %w", err)
-	}
-	c.objectClient = &client
-
-	if c.metadata.Namespace == "" {
-		c.metadata.Namespace, err = c.getNamespace(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return c.ensureBucketExists(ctx)
-}
-
-func (c *ociObjectStoreClient) getNamespace(ctx context.Context) (string, error) {
-	resp, err := c.objectClient.GetNamespace(ctx, ociobjectstorage.GetNamespaceRequest{})
-	if err != nil {
-		return "", fmt.Errorf("failed to retrieve tenancy namespace: %w", err)
-	}
-	if resp.Value == nil || *resp.Value == "" {
-		return "", errors.New("failed to retrieve tenancy namespace: empty namespace")
-	}
-	return *resp.Value, nil
-}
-
-func (c *ociObjectStoreClient) ensureBucketExists(ctx context.Context) error {
-	_, err := c.objectClient.GetBucket(ctx, ociobjectstorage.GetBucketRequest{
-		NamespaceName: &c.metadata.Namespace,
-		BucketName:    &c.metadata.BucketName,
-	})
-	if err == nil {
-		return nil
-	}
-	if !isNotFound(err) {
-		return fmt.Errorf("failed to retrieve bucket details: %w", err)
-	}
-
-	_, err = c.objectClient.CreateBucket(ctx, ociobjectstorage.CreateBucketRequest{
-		NamespaceName: &c.metadata.Namespace,
-		CreateBucketDetails: ociobjectstorage.CreateBucketDetails{
-			CompartmentId:    &c.metadata.CompartmentOCID,
-			Name:             &c.metadata.BucketName,
-			Metadata:         map[string]string{},
-			PublicAccessType: ociobjectstorage.CreateBucketDetailsPublicAccessTypeNopublicaccess,
-		},
-	})
-	if err != nil {
-		if isAlreadyExists(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to create bucket: %w", err)
-	}
-	c.logger.Debugf("Created OCI Object Storage bucket %s for BinaryStore", c.metadata.BucketName)
-	return nil
-}
-
-func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data io.Reader, overwrite bool) error {
-	// transfer.UploadManager.UploadStream only short-circuits a zero-length
-	// body to a single PutObject when the reader is one of a fixed set of
-	// concrete types (*bytes.Buffer, *bytes.Reader, *strings.Reader,
-	// *os.File); anything else - including the streaming reader supplied by
-	// the runtime for req.Data - falls through to the multipart path, which
-	// emits zero parts for an empty stream and fails when the commit is
-	// attempted. Peek the first byte ourselves so an empty payload is always
-	// represented as a *bytes.Reader that the SDK recognises as zero-length.
-	peek := make([]byte, 1)
-	n, err := io.ReadFull(data, peek)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return fmt.Errorf("failed to read object data: %w", err)
-	}
-
-	var streamReader io.Reader
-	if n == 0 {
-		streamReader = bytes.NewReader(nil)
-	} else {
-		streamReader = io.MultiReader(bytes.NewReader(peek[:n]), data)
-	}
-
-	req := transfer.UploadStreamRequest{
-		UploadRequest: transfer.UploadRequest{
-			NamespaceName:       &c.metadata.Namespace,
-			BucketName:          &c.metadata.BucketName,
-			ObjectName:          &name,
-			ObjectStorageClient: c.objectClient,
-			// Set explicitly so buffering matches the other binary store
-			// providers rather than the SDK defaults (10 MiB parts, 5
-			// goroutines). The shared part size is deliberately at or above
-			// OCI's 10 MiB minimum for non-final multipart parts.
-			PartSize:           common.Int64(binarystore.DefaultUploadPartSize),
-			NumberOfGoroutines: common.Int(binarystore.DefaultUploadConcurrency),
-		},
-		StreamReader: streamReader,
-	}
-	if !overwrite {
-		req.IfNoneMatch = common.String("*")
-	}
-
-	resp, err := transfer.NewUploadManager().UploadStream(ctx, req)
-	if err != nil && resp.MultipartUploadResponse != nil && resp.UploadID != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-
-		_, abortErr := c.objectClient.AbortMultipartUpload(cleanupCtx, ociobjectstorage.AbortMultipartUploadRequest{
-			NamespaceName: &c.metadata.Namespace,
-			BucketName:    &c.metadata.BucketName,
-			ObjectName:    &name,
-			UploadId:      resp.UploadID,
-		})
-		if abortErr != nil {
-			c.logger.Warnf("failed to abort OCI multipart upload for object %q: %v", name, abortErr)
-		}
-	}
-	return err
-}
-
-func (c *ociObjectStoreClient) getObject(ctx context.Context, name string) (io.ReadCloser, error) {
-	resp, err := c.objectClient.GetObject(ctx, ociobjectstorage.GetObjectRequest{
-		NamespaceName: &c.metadata.Namespace,
-		BucketName:    &c.metadata.BucketName,
-		ObjectName:    &name,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.Content, nil
-}
-
-func (c *ociObjectStoreClient) deleteObject(ctx context.Context, name string) error {
-	// OCI Object Storage returns 404 ObjectNotFound from DeleteObject for a
-	// missing key, so no existence pre-check is required; the caller maps the
-	// error through isNotFound to produce binarystore.ErrFileNotFound.
-	_, err := c.objectClient.DeleteObject(ctx, ociobjectstorage.DeleteObjectRequest{
-		NamespaceName: &c.metadata.Namespace,
-		BucketName:    &c.metadata.BucketName,
-		ObjectName:    &name,
-	})
-	return err
-}
-
-// close releases the transport resources held by the underlying client. The
-// OCI SDK does not expose a Close method on ObjectStorageClient, but its
-// request dispatcher is an *http.Client, so closing its idle keep-alive
-// connections is the closest equivalent to shutting the connection down.
-func (c *ociObjectStoreClient) close() error {
-	if c.objectClient == nil {
-		return nil
-	}
-	if closer, ok := c.objectClient.HTTPClient.(interface{ CloseIdleConnections() }); ok {
-		closer.CloseIdleConnections()
-	}
-	return nil
-}
-
-type serviceError interface {
-	GetHTTPStatusCode() int
-	GetCode() string
-}
-
-func isNotFound(err error) bool {
-	var se serviceError
-	if errors.As(err, &se) {
-		return se.GetHTTPStatusCode() == http.StatusNotFound
-	}
-	return false
-}
-
-func isPreconditionFailed(err error) bool {
-	var se serviceError
-	if errors.As(err, &se) {
-		return se.GetHTTPStatusCode() == http.StatusPreconditionFailed ||
-			strings.EqualFold(se.GetCode(), "PreconditionFailed") ||
-			strings.EqualFold(se.GetCode(), "ConditionNotMet") ||
-			(se.GetHTTPStatusCode() == http.StatusConflict &&
-				strings.Contains(strings.ToLower(se.GetCode()), "alreadyexists"))
-	}
-	return false
-}
-
-func isAlreadyExists(err error) bool {
-	var se serviceError
-	if errors.As(err, &se) {
-		code := strings.ToLower(se.GetCode())
-		return se.GetHTTPStatusCode() == http.StatusConflict &&
-			(strings.Contains(code, "alreadyexists") || strings.Contains(code, "bucketalreadyexists"))
-	}
-	return false
 }

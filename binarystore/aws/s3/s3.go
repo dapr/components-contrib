@@ -148,7 +148,11 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := s.client.putObject(ctx, binarystore.ObjectPath(s.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+	name, err := binarystore.ObjectPath(s.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = s.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a conflict signals an unrelated
 		// condition (e.g. OperationAborted from racing writers) that must be
@@ -171,7 +175,11 @@ func (s *AWSS3) Get(ctx context.Context, req *binarystore.GetRequest) (*binaryst
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := s.client.getObject(ctx, binarystore.ObjectPath(s.metadata.Prefix, req.FileName))
+	name, err := binarystore.ObjectPath(s.metadata.Prefix, req.FileName)
+	if err != nil {
+		return nil, err
+	}
+	body, err := s.client.getObject(ctx, name)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -197,7 +205,10 @@ func (s *AWSS3) Delete(ctx context.Context, req *binarystore.DeleteRequest) erro
 		return binarystore.ErrMissingFileName
 	}
 
-	name := binarystore.ObjectPath(s.metadata.Prefix, req.FileName)
+	name, err := binarystore.ObjectPath(s.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
 
 	// Unlike the other providers, S3's DeleteObject is idempotent and does not
 	// error when the key is missing, so an existence check is needed to return

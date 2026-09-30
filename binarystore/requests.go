@@ -31,6 +31,13 @@ var (
 	// ErrMissingFileName is returned when a required FileName field is empty.
 	ErrMissingFileName = errors.New("file name is required")
 
+	// ErrInvalidFileName is returned when FileName starts or ends with a slash.
+	ErrInvalidFileName = errors.New("file name must not start or end with a slash")
+
+	// ErrInvalidPrefix is returned when a configured prefix starts or ends with
+	// a slash.
+	ErrInvalidPrefix = errors.New("prefix must not start or end with a slash")
+
 	// ErrReaderNotResettable is returned when a Set request cannot be rewound
 	// for a retry.
 	ErrReaderNotResettable = errors.New("data reader cannot be reset")
@@ -38,7 +45,8 @@ var (
 
 // SetRequest is the request object for the Set operation.
 type SetRequest struct {
-	// FileName is the identifier of the file to store. Must not be empty.
+	// FileName is the identifier of the file to store. Must not be empty or
+	// start or end with a slash.
 	FileName string
 
 	// Data is the binary content to store. It is consumed as a stream; the
@@ -77,7 +85,8 @@ func (r *SetRequest) ResetReader() error {
 
 // GetRequest is the request object for the Get operation.
 type GetRequest struct {
-	// FileName is the identifier of the file to retrieve. Must not be empty.
+	// FileName is the identifier of the file to retrieve. Must not be empty or
+	// start or end with a slash.
 	FileName string
 }
 
@@ -90,6 +99,7 @@ type GetResponse struct {
 
 // DeleteRequest is the request object for the Delete operation.
 type DeleteRequest struct {
-	// FileName is the identifier of the file to delete. Must not be empty.
+	// FileName is the identifier of the file to delete. Must not be empty or
+	// start or end with a slash.
 	FileName string
 }

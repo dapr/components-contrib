@@ -105,6 +105,25 @@ func runCases(t *testing.T, newHarness Factory, prefix string) {
 		require.ErrorIs(t, err, binarystore.ErrMissingFileName)
 	})
 
+	t.Run("operations reject file names with boundary slashes", func(t *testing.T) {
+		h := newHarness(t, prefix)
+
+		for _, fileName := range []string{"/file.bin", "file.bin/"} {
+			err := h.Store.Set(t.Context(), &binarystore.SetRequest{
+				FileName:  fileName,
+				Data:      strings.NewReader("payload"),
+				Overwrite: true,
+			})
+			require.ErrorIs(t, err, binarystore.ErrInvalidFileName)
+
+			_, err = h.Store.Get(t.Context(), &binarystore.GetRequest{FileName: fileName})
+			require.ErrorIs(t, err, binarystore.ErrInvalidFileName)
+
+			err = h.Store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: fileName})
+			require.ErrorIs(t, err, binarystore.ErrInvalidFileName)
+		}
+	})
+
 	t.Run("set then get round-trips payload", func(t *testing.T) {
 		h := newHarness(t, prefix)
 
@@ -304,7 +323,9 @@ func runCases(t *testing.T, newHarness Factory, prefix string) {
 
 		names := h.Names()
 		sort.Strings(names)
-		require.Equal(t, []string{binarystore.ObjectPath(h.Prefix, "file.bin")}, names)
+		expectedName, err := binarystore.ObjectPath(h.Prefix, "file.bin")
+		require.NoError(t, err)
+		require.Equal(t, []string{expectedName}, names)
 
 		// The prefix is an implementation detail of the backend layout: the
 		// caller always refers to the file by its unprefixed name.

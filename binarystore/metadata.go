@@ -24,10 +24,19 @@ type Metadata struct {
 	metadata.Base `json:",inline"`
 }
 
-// ObjectPath applies an optional object prefix to a file name.
-func ObjectPath(prefix, fileName string) string {
-	if prefix == "" {
-		return fileName
+// ObjectPath validates and applies an optional object prefix to a file name.
+func ObjectPath(prefix, fileName string) (string, error) {
+	if fileName == "" {
+		return "", ErrMissingFileName
 	}
-	return strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(fileName, "/")
+	if strings.HasPrefix(fileName, "/") || strings.HasSuffix(fileName, "/") {
+		return "", ErrInvalidFileName
+	}
+	if strings.HasPrefix(prefix, "/") || strings.HasSuffix(prefix, "/") {
+		return "", ErrInvalidPrefix
+	}
+	if prefix == "" {
+		return fileName, nil
+	}
+	return prefix + "/" + fileName, nil
 }

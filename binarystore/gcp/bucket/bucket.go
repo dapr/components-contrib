@@ -129,7 +129,11 @@ func (g *GCPBucket) Set(ctx context.Context, req *binarystore.SetRequest) error 
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := g.client.putObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+	name, err := binarystore.ObjectPath(g.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = g.client.putObject(ctx, g.metadata.Bucket, name, req.Data, req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a precondition failure signals an
 		// unrelated condition that must be surfaced to the caller.
@@ -147,7 +151,11 @@ func (g *GCPBucket) Get(ctx context.Context, req *binarystore.GetRequest) (*bina
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := g.client.getObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName))
+	name, err := binarystore.ObjectPath(g.metadata.Prefix, req.FileName)
+	if err != nil {
+		return nil, err
+	}
+	body, err := g.client.getObject(ctx, g.metadata.Bucket, name)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -164,7 +172,11 @@ func (g *GCPBucket) Delete(ctx context.Context, req *binarystore.DeleteRequest) 
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := g.client.deleteObject(ctx, g.metadata.Bucket, binarystore.ObjectPath(g.metadata.Prefix, req.FileName)); err != nil {
+	name, err := binarystore.ObjectPath(g.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = g.client.deleteObject(ctx, g.metadata.Bucket, name); err != nil {
 		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}

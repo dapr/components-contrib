@@ -30,6 +30,8 @@ func TestSentinelErrorsWrap(t *testing.T) {
 		"ErrFileAlreadyExists":   ErrFileAlreadyExists,
 		"ErrFileNotFound":        ErrFileNotFound,
 		"ErrMissingFileName":     ErrMissingFileName,
+		"ErrInvalidFileName":     ErrInvalidFileName,
+		"ErrInvalidPrefix":       ErrInvalidPrefix,
 		"ErrReaderNotResettable": ErrReaderNotResettable,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -39,7 +41,14 @@ func TestSentinelErrorsWrap(t *testing.T) {
 }
 
 func TestSentinelErrorsAreDistinct(t *testing.T) {
-	all := []error{ErrFileAlreadyExists, ErrFileNotFound, ErrMissingFileName, ErrReaderNotResettable}
+	all := []error{
+		ErrFileAlreadyExists,
+		ErrFileNotFound,
+		ErrMissingFileName,
+		ErrInvalidFileName,
+		ErrInvalidPrefix,
+		ErrReaderNotResettable,
+	}
 	for i, outer := range all {
 		for j, inner := range all {
 			if i == j {

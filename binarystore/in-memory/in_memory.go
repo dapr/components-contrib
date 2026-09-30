@@ -81,7 +81,10 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	fileName := binarystore.ObjectPath(s.prefix, req.FileName)
+	fileName, err := binarystore.ObjectPath(s.prefix, req.FileName)
+	if err != nil {
+		return err
+	}
 	if !req.Overwrite {
 		if _, ok := s.files[fileName]; ok {
 			return binarystore.ErrFileAlreadyExists
@@ -99,7 +102,11 @@ func (s *InMemoryBinaryStore) Get(_ context.Context, req *binarystore.GetRequest
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	data, ok := s.files[binarystore.ObjectPath(s.prefix, req.FileName)]
+	fileName, err := binarystore.ObjectPath(s.prefix, req.FileName)
+	if err != nil {
+		return nil, err
+	}
+	data, ok := s.files[fileName]
 	if !ok {
 		return nil, binarystore.ErrFileNotFound
 	}
@@ -114,7 +121,10 @@ func (s *InMemoryBinaryStore) Delete(_ context.Context, req *binarystore.DeleteR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	fileName := binarystore.ObjectPath(s.prefix, req.FileName)
+	fileName, err := binarystore.ObjectPath(s.prefix, req.FileName)
+	if err != nil {
+		return err
+	}
 	if _, ok := s.files[fileName]; !ok {
 		return binarystore.ErrFileNotFound
 	}

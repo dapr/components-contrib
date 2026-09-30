@@ -88,7 +88,11 @@ func (a *AzureBlobStorage) Set(ctx context.Context, req *binarystore.SetRequest)
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := a.client.putObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+	name, err := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = a.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
 		// Only a create-only write can fail because the blob already exists;
 		// when overwriting, a condition failure signals an unrelated
 		// condition that must be surfaced to the caller.
@@ -110,7 +114,11 @@ func (a *AzureBlobStorage) Get(ctx context.Context, req *binarystore.GetRequest)
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := a.client.getObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName))
+	name, err := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
+	if err != nil {
+		return nil, err
+	}
+	body, err := a.client.getObject(ctx, name)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -128,7 +136,11 @@ func (a *AzureBlobStorage) Delete(ctx context.Context, req *binarystore.DeleteRe
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := a.client.deleteObject(ctx, binarystore.ObjectPath(a.metadata.Prefix, req.FileName)); err != nil {
+	name, err := binarystore.ObjectPath(a.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = a.client.deleteObject(ctx, name); err != nil {
 		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}

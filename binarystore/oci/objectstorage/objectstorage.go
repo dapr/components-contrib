@@ -165,7 +165,11 @@ func (o *ObjectStorage) Set(ctx context.Context, req *binarystore.SetRequest) er
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := o.client.putObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName), req.Data, req.Overwrite); err != nil {
+	name, err := binarystore.ObjectPath(o.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = o.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a precondition failure signals an
 		// unrelated condition that must be surfaced to the caller.
@@ -183,7 +187,11 @@ func (o *ObjectStorage) Get(ctx context.Context, req *binarystore.GetRequest) (*
 		return nil, binarystore.ErrMissingFileName
 	}
 
-	body, err := o.client.getObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName))
+	name, err := binarystore.ObjectPath(o.metadata.Prefix, req.FileName)
+	if err != nil {
+		return nil, err
+	}
+	body, err := o.client.getObject(ctx, name)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
@@ -200,7 +208,11 @@ func (o *ObjectStorage) Delete(ctx context.Context, req *binarystore.DeleteReque
 		return binarystore.ErrMissingFileName
 	}
 
-	if err := o.client.deleteObject(ctx, binarystore.ObjectPath(o.metadata.Prefix, req.FileName)); err != nil {
+	name, err := binarystore.ObjectPath(o.metadata.Prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+	if err = o.client.deleteObject(ctx, name); err != nil {
 		if isNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}

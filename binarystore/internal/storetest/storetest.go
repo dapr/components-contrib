@@ -26,6 +26,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,6 +148,54 @@ func runCases(t *testing.T, newHarness Factory, prefix string) {
 		require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 
 		assert.Equal(t, "first", string(mustGet(t, h, "file.bin")), "a rejected create-only write must not modify the file")
+	})
+
+	t.Run("concurrent set without overwrite yields exactly one winner", func(t *testing.T) {
+		h := newHarness(t, prefix)
+
+		// Two writers race to create the same new name. The create-only
+		// precondition is enforced by the backend, so exactly one must win
+		// and the other must observe ErrFileAlreadyExists - neither a
+		// silent overwrite nor two successes are acceptable.
+		var (
+			start   = make(chan struct{})
+			wg      sync.WaitGroup
+			results = make([]error, 2)
+			bodies  = [2]string{"writer-a", "writer-b"}
+		)
+
+		wg.Add(len(results))
+		for i := range results {
+			go func() {
+				defer wg.Done()
+				<-start
+				results[i] = h.Store.Set(t.Context(), &binarystore.SetRequest{
+					FileName:  "race.bin",
+					Data:      strings.NewReader(bodies[i]),
+					Overwrite: false,
+				})
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		var winner int
+		switch {
+		case results[0] == nil && results[1] != nil:
+			winner = 0
+		case results[1] == nil && results[0] != nil:
+			winner = 1
+		default:
+			require.Failf(t, "exactly one create-only write must succeed",
+				"first writer: %v, second writer: %v", results[0], results[1])
+		}
+
+		loser := 1 - winner
+		require.NoError(t, results[winner])
+		require.ErrorIs(t, results[loser], binarystore.ErrFileAlreadyExists)
+
+		assert.Equal(t, bodies[winner], string(mustGet(t, h, "race.bin")),
+			"the stored payload must belong to the writer that won the race")
 	})
 
 	t.Run("set with overwrite replaces content", func(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -194,6 +195,9 @@ func TestErrorClassification(t *testing.T) {
 // --- fakes ---
 
 type fakeS3Client struct {
+	// mu makes the fake backend atomic, mirroring the server-side
+	// precondition the real service applies to create-only writes.
+	mu      sync.Mutex
 	objects map[string][]byte
 	putErr  error
 	headErr error
@@ -205,6 +209,9 @@ func newFakeS3Client() *fakeS3Client {
 }
 
 func (f *fakeS3Client) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	names := make([]string, 0, len(f.objects))
 	for name := range f.objects {
 		names = append(names, name)
@@ -214,6 +221,9 @@ func (f *fakeS3Client) names() []string {
 }
 
 func (f *fakeS3Client) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.putErr != nil {
 		return f.putErr
 	}
@@ -229,6 +239,9 @@ func (f *fakeS3Client) putObject(_ context.Context, name string, data io.Reader,
 }
 
 func (f *fakeS3Client) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	data, ok := f.objects[name]
 	if !ok {
 		return nil, &types.NoSuchKey{}
@@ -237,6 +250,9 @@ func (f *fakeS3Client) getObject(_ context.Context, name string) (io.ReadCloser,
 }
 
 func (f *fakeS3Client) headObject(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.headErr != nil {
 		return f.headErr
 	}
@@ -247,11 +263,17 @@ func (f *fakeS3Client) headObject(_ context.Context, name string) error {
 }
 
 func (f *fakeS3Client) deleteObject(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	delete(f.objects, name)
 	return nil
 }
 
 func (f *fakeS3Client) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.closed = true
 	return nil
 }

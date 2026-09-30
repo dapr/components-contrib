@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -218,6 +219,9 @@ func TestErrorClassification(t *testing.T) {
 // --- fakes ---
 
 type fakeDataLakeClient struct {
+	// mu makes the fake backend atomic, mirroring the server-side
+	// precondition the real service applies to create-only writes.
+	mu      sync.Mutex
 	objects map[string][]byte
 	putErr  error
 	closed  bool
@@ -228,6 +232,9 @@ func newFakeDataLakeClient() *fakeDataLakeClient {
 }
 
 func (f *fakeDataLakeClient) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	names := make([]string, 0, len(f.objects))
 	for name := range f.objects {
 		names = append(names, name)
@@ -237,6 +244,9 @@ func (f *fakeDataLakeClient) names() []string {
 }
 
 func (f *fakeDataLakeClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.putErr != nil {
 		return f.putErr
 	}
@@ -252,6 +262,9 @@ func (f *fakeDataLakeClient) putObject(_ context.Context, name string, data io.R
 }
 
 func (f *fakeDataLakeClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	data, ok := f.objects[name]
 	if !ok {
 		return nil, &azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}
@@ -260,6 +273,9 @@ func (f *fakeDataLakeClient) getObject(_ context.Context, name string) (io.ReadC
 }
 
 func (f *fakeDataLakeClient) deleteObject(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if _, ok := f.objects[name]; !ok {
 		return &azcore.ResponseError{ErrorCode: string(datalakeerror.PathNotFound)}
 	}
@@ -268,6 +284,9 @@ func (f *fakeDataLakeClient) deleteObject(_ context.Context, name string) error 
 }
 
 func (f *fakeDataLakeClient) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.closed = true
 	return nil
 }

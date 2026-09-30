@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -39,8 +40,8 @@ func newTestStore(client blobStoreClient, prefix string) *AzureBlobStorage {
 			ContainerClientOpts: storagecommon.ContainerClientOpts{ContainerName: "test-container"},
 			Prefix:              prefix,
 		},
-		client:   client,
-		logger:   logger.NewLogger("test"),
+		client: client,
+		logger: logger.NewLogger("test"),
 	}
 }
 
@@ -148,6 +149,9 @@ func TestErrorClassification(t *testing.T) {
 // --- fakes ---
 
 type fakeBlobClient struct {
+	// mu makes the fake backend atomic, mirroring the server-side
+	// precondition the real service applies to create-only writes.
+	mu      sync.Mutex
 	objects map[string][]byte
 	putErr  error
 	closed  bool
@@ -158,6 +162,9 @@ func newFakeBlobClient() *fakeBlobClient {
 }
 
 func (f *fakeBlobClient) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	names := make([]string, 0, len(f.objects))
 	for name := range f.objects {
 		names = append(names, name)
@@ -167,6 +174,9 @@ func (f *fakeBlobClient) names() []string {
 }
 
 func (f *fakeBlobClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.putErr != nil {
 		return f.putErr
 	}
@@ -182,6 +192,9 @@ func (f *fakeBlobClient) putObject(_ context.Context, name string, data io.Reade
 }
 
 func (f *fakeBlobClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	data, ok := f.objects[name]
 	if !ok {
 		return nil, &azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}
@@ -190,6 +203,9 @@ func (f *fakeBlobClient) getObject(_ context.Context, name string) (io.ReadClose
 }
 
 func (f *fakeBlobClient) deleteObject(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if _, ok := f.objects[name]; !ok {
 		return &azcore.ResponseError{ErrorCode: string(bloberror.BlobNotFound)}
 	}
@@ -198,6 +214,9 @@ func (f *fakeBlobClient) deleteObject(_ context.Context, name string) error {
 }
 
 func (f *fakeBlobClient) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.closed = true
 	return nil
 }

@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -212,6 +213,9 @@ func TestErrorClassification(t *testing.T) {
 // --- fakes ---
 
 type fakeOCIClient struct {
+	// mu makes the fake backend atomic, mirroring the server-side
+	// precondition the real service applies to create-only writes.
+	mu            sync.Mutex
 	objects       map[string][]byte
 	lastOverwrite bool
 	putErr        error
@@ -223,6 +227,9 @@ func newFakeOCIClient() *fakeOCIClient {
 }
 
 func (f *fakeOCIClient) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	names := make([]string, 0, len(f.objects))
 	for name := range f.objects {
 		names = append(names, name)
@@ -232,6 +239,9 @@ func (f *fakeOCIClient) names() []string {
 }
 
 func (f *fakeOCIClient) putObject(_ context.Context, name string, data io.Reader, overwrite bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.lastOverwrite = overwrite
 	if f.putErr != nil {
 		return f.putErr
@@ -248,6 +258,9 @@ func (f *fakeOCIClient) putObject(_ context.Context, name string, data io.Reader
 }
 
 func (f *fakeOCIClient) getObject(_ context.Context, name string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	data, ok := f.objects[name]
 	if !ok {
 		return nil, testServiceError{status: http.StatusNotFound, code: "ObjectNotFound"}
@@ -256,6 +269,9 @@ func (f *fakeOCIClient) getObject(_ context.Context, name string) (io.ReadCloser
 }
 
 func (f *fakeOCIClient) deleteObject(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if _, ok := f.objects[name]; !ok {
 		return testServiceError{status: http.StatusNotFound, code: "ObjectNotFound"}
 	}
@@ -264,6 +280,9 @@ func (f *fakeOCIClient) deleteObject(_ context.Context, name string) error {
 }
 
 func (f *fakeOCIClient) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.closed = true
 	return nil
 }

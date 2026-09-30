@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"testing"
 
 	"cloud.google.com/go/storage"
@@ -172,6 +173,9 @@ func TestErrorClassification(t *testing.T) {
 // --- fakes ---
 
 type fakeGCSClient struct {
+	// mu makes the fake backend atomic, mirroring the server-side
+	// precondition the real service applies to create-only writes.
+	mu            sync.Mutex
 	objects       map[string][]byte
 	lastOverwrite bool
 	putErr        error
@@ -183,6 +187,9 @@ func newFakeGCSClient() *fakeGCSClient {
 }
 
 func (f *fakeGCSClient) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	names := make([]string, 0, len(f.objects))
 	for name := range f.objects {
 		names = append(names, name)
@@ -192,6 +199,9 @@ func (f *fakeGCSClient) names() []string {
 }
 
 func (f *fakeGCSClient) putObject(_ context.Context, _, name string, data io.Reader, overwrite bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.lastOverwrite = overwrite
 	if f.putErr != nil {
 		return f.putErr
@@ -208,6 +218,9 @@ func (f *fakeGCSClient) putObject(_ context.Context, _, name string, data io.Rea
 }
 
 func (f *fakeGCSClient) getObject(_ context.Context, _, name string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	data, ok := f.objects[name]
 	if !ok {
 		return nil, &googleapi.Error{Code: http.StatusNotFound, Message: "not found"}
@@ -216,6 +229,9 @@ func (f *fakeGCSClient) getObject(_ context.Context, _, name string) (io.ReadClo
 }
 
 func (f *fakeGCSClient) deleteObject(_ context.Context, _, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if _, ok := f.objects[name]; !ok {
 		return &googleapi.Error{Code: http.StatusNotFound, Message: "not found"}
 	}
@@ -224,6 +240,9 @@ func (f *fakeGCSClient) deleteObject(_ context.Context, _, name string) error {
 }
 
 func (f *fakeGCSClient) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.closed = true
 	return nil
 }

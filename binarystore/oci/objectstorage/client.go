@@ -72,12 +72,16 @@ func newOCIObjectStoreClient(ctx context.Context, meta *objectStoreMetadata, log
 
 	if c.metadata.Namespace == "" {
 		if c.metadata.Namespace, err = c.getNamespace(ctx); err != nil {
-			c.close() //nolint:errcheck
+			if closeErr := c.close(); closeErr != nil {
+				c.logger.Warnf("failed to close OCI object storage client after namespace lookup failed: %v", closeErr)
+			}
 			return nil, err
 		}
 	}
 	if err = c.ensureBucketExists(ctx); err != nil {
-		c.close() //nolint:errcheck
+		if closeErr := c.close(); closeErr != nil {
+			c.logger.Warnf("failed to close OCI object storage client after bucket check failed: %v", closeErr)
+		}
 		return nil, err
 	}
 	return c, nil

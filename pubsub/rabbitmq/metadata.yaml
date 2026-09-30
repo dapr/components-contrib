@@ -148,6 +148,18 @@ metadata:
       - "direct"
       - "headers"
     example: '"fanout","topic","direct","headers"'
+  - name: queueType
+    type: string
+    description: |
+      Default queue type for all queues declared by the component, including
+      dead letter queues. A `queueType` set on subscription metadata takes
+      precedence for that subscription's queue. Quorum queues require
+      `durable` to be "true" and `deletedWhenUnused` to be "false".
+    default: '"classic"'
+    allowedValues:
+      - "classic"
+      - "quorum"
+    example: '"classic", "quorum"'
   - name: deliveryMode
     type: number
     description: |

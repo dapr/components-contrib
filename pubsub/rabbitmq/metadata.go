@@ -46,6 +46,7 @@ type rabbitmqMetadata struct {
 	MaxLen                             int64                  `mapstructure:"maxLen"`
 	MaxLenBytes                        int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind                       string                 `mapstructure:"exchangeKind"`
+	QueueType                          string                 `mapstructure:"queueType"`
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
@@ -77,6 +78,7 @@ const (
 	metadataMaxLenKey                             = "maxLen"
 	metadataMaxLenBytesKey                        = "maxLenBytes"
 	metadataExchangeKindKey                       = "exchangeKind"
+	metadataQueueTypeKey                          = "queueType"
 	metadataPublisherConfirmKey                   = "publisherConfirm"
 	metadataSaslExternal                          = "saslExternal"
 	metadataMaxPriority                           = "maxPriority"
@@ -101,6 +103,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		AutoAck:                            false,
 		ReconnectWait:                      time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		ExchangeKind:                       fanoutExchangeKind,
+		QueueType:                          amqp.QueueTypeClassic,
 		PublisherConfirm:                   false,
 		SaslExternal:                       false,
 		HeartBeat:                          defaultHeartbeat,
@@ -141,6 +144,20 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 
 	if !exchangeKindValid(result.ExchangeKind) {
 		return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, result.ExchangeKind)
+	}
+
+	if !queueTypeValid(result.QueueType) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ queue type %s, accepted values are %s and %s", errorMessagePrefix, result.QueueType, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
+	}
+
+	if result.QueueType == amqp.QueueTypeQuorum {
+		// quorum queues must be durable and cannot be auto-deleted
+		if !result.Durable {
+			return &result, fmt.Errorf("%s quorum queues require %s to be true", errorMessagePrefix, metadataDurableKey)
+		}
+		if result.DeleteWhenUnused {
+			return &result, fmt.Errorf("%s quorum queues require %s to be false", errorMessagePrefix, metadataDeleteWhenUnusedKey)
+		}
 	}
 
 	ttl, ok, err := metadata.TryGetTTL(pubSubMetadata.Properties)

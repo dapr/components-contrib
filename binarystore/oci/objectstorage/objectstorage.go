@@ -242,7 +242,7 @@ func (o *ObjectStorage) GetComponentMetadata() (metadataInfo contribMetadata.Met
 	return
 }
 
-// Close is a no-op; the OCI SDK manages connection lifecycle internally.
+// Close releases the resources held by the underlying OCI client.
 func (o *ObjectStorage) Close() error {
 	if o.client == nil {
 		return nil
@@ -411,7 +411,17 @@ func (c *ociObjectStoreClient) deleteObject(ctx context.Context, name string) er
 	return err
 }
 
+// close releases the transport resources held by the underlying client. The
+// OCI SDK does not expose a Close method on ObjectStorageClient, but its
+// request dispatcher is an *http.Client, so closing its idle keep-alive
+// connections is the closest equivalent to shutting the connection down.
 func (c *ociObjectStoreClient) close() error {
+	if c.objectClient == nil {
+		return nil
+	}
+	if closer, ok := c.objectClient.HTTPClient.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
 	return nil
 }
 

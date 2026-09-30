@@ -163,6 +163,81 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	assert.Equal(t, "dummy data", lastMessage)
 }
 
+func TestComponentQueueType(t *testing.T) {
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	}
+
+	subscribe := func(t *testing.T, componentProperties, subscribeMetadata map[string]string) *rabbitMQInMemoryBroker {
+		t.Helper()
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{Base: mdata.Base{Properties: componentProperties}}
+		err := pubsubRabbitMQ.Init(t.Context(), metadata)
+		require.NoError(t, err)
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic", Metadata: subscribeMetadata}, handler)
+		require.NoError(t, err)
+		return broker
+	}
+
+	t.Run("default is classic and dead letter queue keeps lazy mode", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+		}, nil)
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeClassic, mainArgs[amqp.QueueTypeArg])
+
+		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
+		require.NotNil(t, dlqArgs)
+		assert.NotContains(t, dlqArgs, amqp.QueueTypeArg)
+		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
+	})
+
+	t.Run("component-level quorum applies to main queue and dead letter queue", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+			metadataQueueTypeKey:        "quorum",
+			metadataDeleteWhenUnusedKey: "false",
+		}, nil)
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, mainArgs[amqp.QueueTypeArg])
+
+		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
+		require.NotNil(t, dlqArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, dlqArgs[amqp.QueueTypeArg])
+		assert.NotContains(t, dlqArgs, argQueueMode)
+	})
+
+	t.Run("subscription metadata overrides component-level queue type", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+			metadataQueueTypeKey:        "quorum",
+			metadataDeleteWhenUnusedKey: "false",
+		}, map[string]string{
+			reqMetadataQueueTypeKey: "classic",
+		})
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeClassic, mainArgs[amqp.QueueTypeArg])
+
+		// dead letter queue is not tied to a subscription, so it follows the component-level type
+		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
+		require.NotNil(t, dlqArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, dlqArgs[amqp.QueueTypeArg])
+	})
+}
+
 func TestConcurrencyMode(t *testing.T) {
 	t.Run("parallel", func(t *testing.T) {
 		broker := newBroker()
@@ -573,6 +648,7 @@ type declaredExchange struct {
 type rabbitMQInMemoryBroker struct {
 	buffer               chan amqp.Delivery
 	declaredQueues       []string
+	declaredQueueArgs    map[string]amqp.Table
 	declaredExchanges    []declaredExchange
 	boundRoutingKeys     []string
 	connectCount         atomic.Int32
@@ -624,6 +700,10 @@ func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx conte
 
 func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
 	r.declaredQueues = append(r.declaredQueues, name)
+	if r.declaredQueueArgs == nil {
+		r.declaredQueueArgs = make(map[string]amqp.Table)
+	}
+	r.declaredQueueArgs[name] = args
 	return amqp.Queue{Name: name}, r.queueDeclareErr
 }
 

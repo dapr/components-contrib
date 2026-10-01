@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-gcp-bucket
+spec:
+  type: binarystore.gcp.bucket
+  version: v1
+  metadata:
+  - name: bucket
+    value: ${{GCPBucket}}

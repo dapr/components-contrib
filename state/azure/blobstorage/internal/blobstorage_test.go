@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	blobstoragecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -37,5 +38,51 @@ func TestInit(t *testing.T) {
 		err := s.Init(t.Context(), m)
 		require.Error(t, err)
 		assert.Equal(t, err, errors.New("missing or empty accountName field from metadata"))
+	})
+}
+
+func TestGetBlobName(t *testing.T) {
+	passthrough := func(key string) string { return key }
+
+	t.Run("No prefix configured", func(t *testing.T) {
+		s := &StateStore{
+			getFileNameFn: passthrough,
+		}
+		assert.Equal(t, "mykey", s.getBlobName("mykey"))
+	})
+
+	t.Run("Prefix without trailing slash", func(t *testing.T) {
+		s := &StateStore{
+			getFileNameFn: passthrough,
+			metadata:      &blobstoragecommon.BlobStorageMetadata{Prefix: "myprefix"},
+		}
+		assert.Equal(t, "myprefix/mykey", s.getBlobName("mykey"))
+	})
+
+	t.Run("Prefix with trailing slash", func(t *testing.T) {
+		s := &StateStore{
+			getFileNameFn: passthrough,
+			metadata:      &blobstoragecommon.BlobStorageMetadata{Prefix: "myprefix/"},
+		}
+		assert.Equal(t, "myprefix/mykey", s.getBlobName("mykey"))
+	})
+
+	t.Run("Prefix with leading slash on key", func(t *testing.T) {
+		s := &StateStore{
+			getFileNameFn: passthrough,
+			metadata:      &blobstoragecommon.BlobStorageMetadata{Prefix: "myprefix"},
+		}
+		assert.Equal(t, "myprefix/mykey", s.getBlobName("/mykey"))
+	})
+
+	t.Run("Prefix combined with custom getFileNameFn", func(t *testing.T) {
+		stripAppId := func(key string) string {
+			return "stripped-" + key
+		}
+		s := &StateStore{
+			getFileNameFn: stripAppId,
+			metadata:      &blobstoragecommon.BlobStorageMetadata{Prefix: "nested/path"},
+		}
+		assert.Equal(t, "nested/path/stripped-key", s.getBlobName("key"))
 	})
 }

@@ -459,3 +459,144 @@ func TestConsistentHashExchangePartitionsByRoutingKey(t *testing.T) {
 	// hashing on the routing key at all.
 	assert.Len(t, received, numPartitions, "keys should be spread across every bound partition")
 }
+
+// TestPassiveMissingObjectDoesNotKeepEvictingHealthySubscriptions: one component, one shared connection. A subscription to a
+// MISSING externally managed exchange must fail fast and leave a healthy
+// subscription on the same component untouched. Before the terminal-error fix
+// the failing topic cycled reconnect(), and reset() closed the shared
+// connection, kicking the healthy topic off the broker every ReconnectWait.
+func TestPassiveMissingObjectDoesNotKeepEvictingHealthySubscriptions(t *testing.T) {
+	const good = "evict-good-topic"
+
+	conn, err := amqp.Dial(testRabbitMQURL)
+	require.NoError(t, err)
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+	require.NoError(t, ch.ExchangeDeclare(good, amqp.ExchangeTopic, true, false, false, false, nil))
+	_, err = ch.QueueDeclare("evict-good-queue", true, false, false, false, nil)
+	require.NoError(t, err)
+	require.NoError(t, ch.QueueBind("evict-good-queue", "#", good, false, nil))
+	t.Cleanup(func() {
+		_ = ch.ExchangeDelete(good, false, false)
+		_, _ = ch.QueueDelete("evict-good-queue", false, false, false)
+		_ = ch.Close()
+		_ = conn.Close()
+	})
+
+	r := NewRabbitMQ(logger.NewLogger("test")).(*rabbitMQ)
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataConnectionStringKey:     testRabbitMQURL,
+			metadataConsumerIDKey:           "manual",
+			metadataExchangeDeclareModeKey:  exchangeDeclareModePassive,
+			metadataQueueDeclareModeKey:     queueDeclareModePassive,
+			metadataExchangeKindKey:         amqp.ExchangeTopic,
+			metadataReconnectWaitSecondsKey: "1",
+		},
+	}}))
+	defer r.Close()
+
+	var got atomic.Int32
+	require.NoError(t, r.Subscribe(t.Context(), pubsub.SubscribeRequest{
+		Topic:    good,
+		Metadata: map[string]string{metadataQueueNameKey: "evict-good-queue"},
+	}, func(context.Context, *pubsub.NewMessage) error {
+		got.Add(1)
+		return nil
+	}))
+
+	// Healthy before the bad subscription.
+	require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: good, Data: []byte("before")}))
+	require.Eventually(t, func() bool { return got.Load() >= 1 }, 10*time.Second, 50*time.Millisecond)
+
+	// Subscribe to an exchange nobody created. Must fail fast, not after 60s.
+	start := time.Now()
+	err = r.Subscribe(t.Context(), pubsub.SubscribeRequest{
+		Topic:    "evict-missing-topic",
+		Metadata: map[string]string{metadataQueueNameKey: "evict-missing-queue"},
+	}, func(context.Context, *pubsub.NewMessage) error { return nil })
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	t.Logf("bad subscribe returned in %s: %v", elapsed.Round(time.Millisecond), err)
+	assert.Less(t, elapsed, 15*time.Second, "must fail fast, not sit in the retry loop")
+	assert.Contains(t, err.Error(), "does not exist")
+
+	// The 404 is a channel exception, so the shared channel dies once and
+	// everyone on it reconnects. What must NOT happen is that cycle repeating:
+	// the failing subscription has given up, so the count has to settle.
+	time.Sleep(3 * time.Second)
+	r.channelMutex.RLock()
+	settled := r.connectionCount
+	r.channelMutex.RUnlock()
+
+	before := got.Load()
+	for i := range 8 {
+		require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: good, Data: []byte(fmt.Sprintf("after-%d", i))}))
+		time.Sleep(900 * time.Millisecond)
+	}
+	assert.Eventually(t, func() bool { return got.Load() >= before+8 }, 20*time.Second, 100*time.Millisecond,
+		"the healthy subscription stopped delivering")
+
+	r.channelMutex.RLock()
+	final := r.connectionCount
+	r.channelMutex.RUnlock()
+	t.Logf("delivered=%d  connectionCount settled=%d final=%d (over ~10s and 8 publishes)", got.Load(), settled, final)
+	assert.Equal(t, settled, final,
+		"the connection kept cycling: one missing object is still evicting healthy subscriptions repeatedly")
+}
+
+// TestPassiveExchangeWithDeadLetter covers the gap called out in review. Operator
+// owns the topic exchange; the component still owns the queue, so it must
+// create the dead letter objects itself (their names are only known at runtime).
+func TestPassiveExchangeWithDeadLetter(t *testing.T) {
+	const topic = "dlxcheck-dlx-topic"
+
+	conn, err := amqp.Dial(testRabbitMQURL)
+	require.NoError(t, err)
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+	require.NoError(t, ch.ExchangeDeclare(topic, amqp.ExchangeTopic, true, false, false, false, nil))
+	t.Cleanup(func() {
+		_ = ch.ExchangeDelete(topic, false, false)
+		_ = ch.ExchangeDelete("dlx-dlxcheck-dlx-queue", false, false)
+		_, _ = ch.QueueDelete("dlxcheck-dlx-queue", false, false, false)
+		_, _ = ch.QueueDelete("dlq-dlxcheck-dlx-queue", false, false, false)
+		_ = ch.Close()
+		_ = conn.Close()
+	})
+
+	r := NewRabbitMQ(logger.NewLogger("test")).(*rabbitMQ)
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataConnectionStringKey:    testRabbitMQURL,
+			metadataConsumerIDKey:          "manual",
+			metadataExchangeDeclareModeKey: exchangeDeclareModePassive,
+			metadataExchangeKindKey:        amqp.ExchangeTopic,
+			metadataEnableDeadLetterKey:    "true",
+			metadataDurableKey:             "true",
+			metadataDeleteWhenUnusedKey:    "false",
+		},
+	}}))
+	defer r.Close()
+
+	var got atomic.Int32
+	require.NoError(t, r.Subscribe(t.Context(), pubsub.SubscribeRequest{
+		Topic:    topic,
+		Metadata: map[string]string{metadataQueueNameKey: "dlxcheck-dlx-queue", reqMetadataRoutingKey: "#"},
+	}, func(context.Context, *pubsub.NewMessage) error {
+		got.Add(1)
+		return nil
+	}))
+
+	require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello")}))
+	require.Eventually(t, func() bool { return got.Load() >= 1 }, 10*time.Second, 50*time.Millisecond)
+
+	// The component created the DLX itself: a passive declare of it succeeds.
+	verify, err := conn.Channel()
+	require.NoError(t, err)
+	defer verify.Close()
+	require.NoError(t, verify.ExchangeDeclarePassive("dlx-dlxcheck-dlx-queue", fanoutExchangeKind, true, false, false, false, nil),
+		"the dead letter exchange should have been declared by the component, not required from the operator")
+	t.Log("passive topic exchange + component-declared dead letter objects: OK")
+}

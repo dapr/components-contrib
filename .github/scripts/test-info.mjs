@@ -6,6 +6,11 @@ import { writeFileSync } from 'node:fs'
  * @type {Record<string,ComponentTestProperties>}
  */
 const components = {
+    'conversation.iflytek.spark': {
+        conformance: true,
+        certification: true,
+        requireIFLYTEKCredentials: true,
+    },
     // requireDocker excludes cloud-scheduled runs.
     'bindings.aws.s3': {
         certification: true,
@@ -967,6 +972,7 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
+ * @property {boolean?} requireIFLYTEKCredentials If true, requires IFLYTEK credentials and makes the test "cloud-only"
  * @property {boolean?} requireRavenDBCredentials If true, requires RavenDB credentials (license) and makes the test "cloud-only"
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
@@ -992,6 +998,7 @@ const components = {
  * @property {boolean?} require-aws-credentials Requires AWS credentials
  * @property {boolean?} require-gcp-credentials Requires GCP credentials
  * @property {boolean?} require-cloudflare-credentials Requires Cloudflare credentials
+ * @property {boolean?} require-iflytek-credentials Requires IFLYTEK credentials
  * @property {boolean?} require-ravendb-credentials Requires RavenDB credentials
  * @property {boolean?} require-terraform Requires Terraform
  * @property {boolean?} require-kind Requires KinD
@@ -1025,6 +1032,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 comp.requireAWSCredentials ||
                 comp.requireGCPCredentials ||
                 comp.requireCloudflareCredentials ||
+                comp.requireIFLYTEKCredentials ||
                 comp.requireRavenDBCredentials,
         )
 
@@ -1065,6 +1073,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 ? 'true'
                 : undefined,
             'require-cloudflare-credentials': comp.requireCloudflareCredentials
+                ? 'true'
+                : undefined,
+            'require-iflytek-credentials': comp.requireIFLYTEKCredentials
                 ? 'true'
                 : undefined,
             'require-ravendb-credentials': comp.requireRavenDBCredentials

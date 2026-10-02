@@ -95,6 +95,44 @@ func ConformanceTests(t *testing.T, props map[string]string, conv conversation.C
 			assert.Len(t, resp.Outputs, 1)
 			assert.NotEmpty(t, resp.Outputs[0].Choices[0].Message.Content)
 		})
+		t.Run("respects max tokens", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+			defer cancel()
+
+			const maxTokensLimit = 30
+			maxTokens := int64(maxTokensLimit)
+			req := &conversation.Request{
+				Message: &[]llms.MessageContent{
+					{
+						Role: llms.ChatMessageTypeHuman,
+						Parts: []llms.ContentPart{
+							llms.TextContent{Text: "Write a long essay about the history of distributed systems, covering as many milestones as you can."},
+						},
+					},
+				},
+				MaxTokens: &maxTokens,
+			}
+			if component == "openai" {
+				req.Temperature = 1
+			}
+
+			resp, err := conv.Converse(ctx, req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Outputs, 1)
+			assert.True(t, slices.Contains(providerStopReasons, resp.Outputs[0].StopReason), resp.Outputs[0].StopReason)
+
+			// The cap must be observable in the reported usage. Content may
+			// legitimately be empty when a reasoning model spends the whole
+			// budget thinking, so the assertion is on usage rather than on the
+			// returned text. A provider that reports no usage at all cannot
+			// demonstrate that it honoured the cap, so that is a failure here
+			// rather than something to log and move past.
+			require.NotNil(t, resp.Usage,
+				"no usage data returned; the requested max_tokens cannot be verified")
+			assert.LessOrEqual(t, resp.Usage.CompletionTokens, uint64(maxTokensLimit),
+				"completion tokens must not exceed the requested max_tokens")
+		})
 		t.Run("test user message type", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()

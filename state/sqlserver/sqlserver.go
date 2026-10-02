@@ -70,6 +70,7 @@ func New(logger logger.Logger) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		logger:          logger,
 		migratorFactory: newMigration,
@@ -389,7 +390,7 @@ func (s *SQLServer) CleanupExpired() error {
 	return nil
 }
 
-func (s *SQLServer) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+func (s *SQLServer) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
 	if len(req.Pattern) == 0 {
 		return nil, state.ErrKeysLikeEmptyPattern
 	}

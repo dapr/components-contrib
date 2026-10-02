@@ -47,6 +47,10 @@ const (
 	imdsEndpoint     = "http://169.254.169.254/metadata/identity/oauth2/token"
 )
 
+var newWorkloadIdentityCredential = func(options *azidentity.WorkloadIdentityCredentialOptions) (azcore.TokenCredential, error) { //nolint:gochecknoglobals
+	return azidentity.NewWorkloadIdentityCredential(options)
+}
+
 // timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
 type timeoutWrapper struct {
 	cred azcore.TokenCredential
@@ -82,6 +86,10 @@ func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	es := EnvironmentSettings{
 		Metadata: md,
 	}
+	if _, err := es.GetDisableInstanceDiscovery(); err != nil {
+		return es, err
+	}
+
 	azureCloud, err := es.GetAzureEnvironment()
 	if err != nil {
 		return es, err
@@ -102,6 +110,23 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 		return &cloud.AzureGovernment, nil
 	default:
 		return nil, fmt.Errorf("invalid Azure cloud: %v", envName)
+	}
+}
+
+// GetDisableInstanceDiscovery returns whether Microsoft Entra instance discovery should be disabled for workload identity.
+func (s EnvironmentSettings) GetDisableInstanceDiscovery() (bool, error) {
+	value, ok := s.GetEnvironment("DisableInstanceDiscovery")
+	if !ok || strings.TrimSpace(value) == "" {
+		return false, nil
+	}
+
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid azureDisableInstanceDiscovery value %q: expected true or false", value)
 	}
 }
 
@@ -130,8 +155,16 @@ func (s EnvironmentSettings) addClientCertificateProvider(creds *[]azcore.TokenC
 func (s EnvironmentSettings) addWorkloadIdentityProvider(creds *[]azcore.TokenCredential, errs *[]error) {
 	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
 	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
-	// These environment variables are read using the default WorkloadIdentityCredentialOptions
-	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	// These environment variables are read when their corresponding WorkloadIdentityCredentialOptions fields are unset.
+	disableInstanceDiscovery, err := s.GetDisableInstanceDiscovery()
+	if err != nil {
+		*errs = append(*errs, err)
+		return
+	}
+
+	workloadCred, err := newWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+		DisableInstanceDiscovery: disableInstanceDiscovery,
+	})
 	if err == nil {
 		*creds = append(*creds, workloadCred)
 	} else {
@@ -211,6 +244,10 @@ func getAzureAuthMethods() []string {
 // 5. MSI (we use a timeout of 1 second when no compatible managed identity implementation is available)
 // 6. Azure CLI
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
+	if _, err := s.GetDisableInstanceDiscovery(); err != nil {
+		return nil, err
+	}
+
 	// Create a chain
 	var creds []azcore.TokenCredential
 	errs := make([]error, 0, 3)

@@ -19,6 +19,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"testing"
+	"time"
 
 	amqp "github.com/Azure/go-amqp"
 	"google.golang.org/grpc/codes"
@@ -243,6 +244,34 @@ func TestSubscribeEmptyAddress(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty AMQP address")
 }
 
+// TestInitUnreachableBroker verifies that a broker which cannot be reached is
+// reported as an error from Init. A failed dial used to be passed to
+// logger.Fatal, which terminated the process, so this case could not be
+// exercised at all before.
+func TestInitUnreachableBroker(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := a.Init(ctx, pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+		// Port 1 is reserved, so nothing is listening on it.
+		amqpURL:   "amqp://127.0.0.1:1",
+		anonymous: "true",
+	}}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dialing AMQP server")
+}
+
+// TestCloseWithoutSession verifies that a component whose Init never
+// established a session can still be closed.
+func TestCloseWithoutSession(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test"))
+
+	require.NoError(t, a.Close())
+}
+
 func TestParseMetadata(t *testing.T) {
 	log := logger.NewLogger("test")
 	t.Run("metadata is correct", func(t *testing.T) {
@@ -384,5 +413,81 @@ func TestParseMetadata(t *testing.T) {
 		// assert
 		require.NoError(t, err)
 		assert.NotNil(t, m.ClientKey, "failed to parse valid client certificate key")
+	})
+}
+
+// TestSendWithRetry pins the publish retry loop. The loop it replaced kept
+// sending after a success, so one publish could deliver a message up to four
+// times, and its cancellation branch was a no-op.
+func TestSendWithRetry(t *testing.T) {
+	newComponent := func(wait time.Duration) *amqpPubSub {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		a.retryWait = wait
+
+		return a
+	}
+
+	t.Run("a success after a failure stops the retries", func(t *testing.T) {
+		a := newComponent(time.Millisecond)
+		sends := 0
+
+		err := a.sendWithRetry(t.Context(), "orders", "orders", func(context.Context) error {
+			sends++
+			if sends == 1 {
+				return errors.New("transient")
+			}
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, sends, "the message must go out exactly twice: the failure and the success")
+	})
+
+	t.Run("an exhausted budget is the first attempt plus the retries, reported as retriable", func(t *testing.T) {
+		a := newComponent(time.Millisecond)
+		sends := 0
+		last := errors.New("still down")
+
+		err := a.sendWithRetry(t.Context(), "orders", "orders", func(context.Context) error {
+			sends++
+
+			return last
+		})
+
+		require.ErrorIs(t, err, last)
+		assert.Equal(t, 1+publishMaxRetries, sends)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.Unavailable, st.Code())
+	})
+
+	t.Run("a cancelled caller ends the wait and gets its own error back", func(t *testing.T) {
+		// A wait long enough that the case only passes if the cancellation
+		// interrupts it.
+		a := newComponent(time.Hour)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		sends := 0
+
+		done := make(chan error, 1)
+		go func() {
+			done <- a.sendWithRetry(ctx, "orders", "orders", func(context.Context) error {
+				sends++
+				cancel()
+
+				return errors.New("transient")
+			})
+		}()
+
+		select {
+		case err := <-done:
+			require.ErrorIs(t, err, context.Canceled)
+			_, ok := status.FromError(err)
+			assert.False(t, ok, "a cancellation is the caller's, not the broker's, and must not carry a publish code")
+			assert.Equal(t, 1, sends)
+		case <-time.After(5 * time.Second):
+			t.Fatal("sendWithRetry did not return after the caller cancelled")
+		}
 	})
 }

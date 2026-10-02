@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,7 @@ import (
 	// Blank import for the SQL Server driver
 	_ "github.com/microsoft/go-mssqldb"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -237,4 +239,93 @@ func assertMigrationsLevel(t *testing.T, db *sql.DB, schema, table, key, expectL
 	).Scan(&foundLevel)
 	require.NoError(t, err, "Failed to load migrations level")
 	require.Equal(t, expectLevel, foundLevel, "Migration level does not match")
+}
+
+// logRecorder is a logger that records errors, and records fatals instead of exiting the process.
+type logRecorder struct {
+	logger.Logger
+	errors []string
+	fatals []string
+}
+
+func (r *logRecorder) Error(args ...any) {
+	r.errors = append(r.errors, fmt.Sprint(args...))
+}
+
+func (r *logRecorder) Errorf(format string, args ...any) {
+	r.errors = append(r.errors, fmt.Sprintf(format, args...))
+}
+
+func (r *logRecorder) Fatal(args ...any) {
+	r.fatals = append(r.fatals, fmt.Sprint(args...))
+}
+
+func (r *logRecorder) Fatalf(format string, args ...any) {
+	r.fatals = append(r.fatals, fmt.Sprintf(format, args...))
+}
+
+func newMockMigrations(t *testing.T) (*Migrations, *sql.DB, sqlmock.Sqlmock, *logRecorder) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	rec := &logRecorder{Logger: logger.NewLogger("test")}
+	return &Migrations{
+		DB:                db,
+		Logger:            rec,
+		Schema:            "dbo",
+		MetadataTableName: "metadata",
+		MetadataKey:       "migrations",
+	}, db, mock, rec
+}
+
+// expectLockedMigration sets up the expectations of Perform up to and including reading the migration level.
+func expectLockedMigration(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(`IF OBJECT_ID\('\[dbo\]\.\[metadata\]', 'U'\) IS NULL`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO \[dbo\]\.\[metadata\]`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectBegin()
+	mock.ExpectQuery(`WITH \(XLOCK, ROWLOCK\)`).WillReturnRows(sqlmock.NewRows([]string{"Value"}).AddRow("lock"))
+	mock.ExpectQuery(`SELECT \[Value\] FROM \[dbo\]\.\[metadata\] WHERE \[Key\] = 'migrations'`).WillReturnError(sql.ErrNoRows)
+}
+
+func TestPerformReleasesLockWithoutExiting(t *testing.T) {
+	t.Run("context cancelled mid-migration: the lock is still released", func(t *testing.T) {
+		m, _, mock, rec := newMockMigrations(t)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		// Shutdown arrives while the first migration runs.
+		fns := []commonsql.MigrationFn{func(ctx context.Context) error {
+			cancel()
+			return ctx.Err()
+		}}
+
+		expectLockedMigration(mock)
+		mock.ExpectRollback()
+
+		err := m.Perform(ctx, fns)
+		require.ErrorIs(t, err, context.Canceled)
+		require.NoError(t, mock.ExpectationsWereMet())
+		assert.Empty(t, rec.errors, "the rollback must succeed despite the cancelled context")
+		assert.Empty(t, rec.fatals)
+	})
+
+	t.Run("rollback fails: logged, not fatal, and the lock connection is discarded", func(t *testing.T) {
+		m, db, mock, rec := newMockMigrations(t)
+		fns := []commonsql.MigrationFn{func(context.Context) error {
+			return errors.New("migration failed")
+		}}
+
+		expectLockedMigration(mock)
+		mock.ExpectRollback().WillReturnError(errors.New("connection reset"))
+
+		err := m.Perform(t.Context(), fns)
+		require.ErrorContains(t, err, "migration failed")
+		require.NoError(t, mock.ExpectationsWereMet())
+		assert.Len(t, rec.errors, 1)
+		assert.Empty(t, rec.fatals)
+		// The only connection left is the idle one that ran the other queries; the lock connection was closed.
+		assert.Equal(t, 1, db.Stats().OpenConnections)
+	})
 }

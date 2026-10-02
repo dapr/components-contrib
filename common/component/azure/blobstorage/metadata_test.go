@@ -67,6 +67,29 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, azblob.PublicAccessTypeContainer, meta.PublicAccessLevel)
 	})
 
+	t.Run("parse metadata with prefix", func(t *testing.T) {
+		m = map[string]string{
+			"storageAccount":   "account",
+			"storageAccessKey": "key",
+			"container":        "test",
+			"prefix":           "myprefix",
+		}
+		meta, err := parseMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, "myprefix", meta.Prefix)
+	})
+
+	t.Run("prefix defaults to empty", func(t *testing.T) {
+		m = map[string]string{
+			"storageAccount":   "account",
+			"storageAccessKey": "key",
+			"container":        "test",
+		}
+		meta, err := parseMetadata(m)
+		require.NoError(t, err)
+		assert.Empty(t, meta.Prefix)
+	})
+
 	t.Run("parse metadata with invalid publicAccessLevel", func(t *testing.T) {
 		m = map[string]string{
 			"storageAccount":    "account",

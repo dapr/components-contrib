@@ -183,3 +183,30 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 	case <-time.After(10 * time.Millisecond):
 	}
 }
+
+// TestNewJetStream_InfiniteReconnects asserts that Init configures the NATS
+// connection to retry reconnecting indefinitely. Without this, the nats.go
+// client gives up after its default of 60 reconnect attempts (~2 minutes)
+// and permanently closes the connection, so Publish keeps failing with
+// "nats: connection closed" for any outage longer than that, even once NATS
+// is healthy again, until the process is restarted.
+func TestNewJetStream_InfiniteReconnects(t *testing.T) {
+	ns, nc := setupServerAndStream(t)
+	defer ns.Shutdown()
+	defer nc.Drain()
+
+	bus, ok := NewJetStream(logger.NewLogger("test")).(*jetstreamPubSub)
+	require.True(t, ok)
+	defer bus.Close()
+
+	err := bus.Init(t.Context(), pubsub.Metadata{
+		Base: mdata.Base{
+			Properties: map[string]string{
+				"natsURL": ns.ClientURL(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, -1, bus.nc.Opts.MaxReconnect)
+}

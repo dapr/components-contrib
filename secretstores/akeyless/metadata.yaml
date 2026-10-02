@@ -1,0 +1,135 @@
+
+# Copyright 2026 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+# 	http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: akeyless
+version: v1
+status: alpha
+title: "Akeyless Secret Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/akeyless/
+authenticationProfiles:
+  - title: "API Key Authentication"
+    description: |
+      Authenticate using an Akeyless API key access ID and access key.
+    metadata:
+      - name: accessId
+        required: true
+        description: |
+          The Akeyless access ID for API key authentication.
+        example: "p-123456780am"
+        type: string
+      - name: accessKey
+        required: true
+        description: |
+          The API key paired with the access ID.
+        example: "ABCD1233...="
+        type: string
+        sensitive: true
+  - title: "JWT Authentication"
+    description: |
+      Authenticate using an Akeyless JWT access ID and a JSON Web Token.
+    metadata:
+      - name: accessId
+        required: true
+        description: |
+          The Akeyless access ID for JWT authentication.
+        example: "p-123456780om"
+        type: string
+      - name: jwt
+        required: true
+        description: |
+          The JSON Web Token to authenticate with.
+        example: "eyJ..."
+        type: string
+        sensitive: true
+  - title: "AWS IAM Authentication"
+    description: |
+      Authenticate using an Akeyless AWS IAM access ID. The component obtains
+      AWS credentials from the runtime environment.
+    metadata:
+      - name: accessId
+        required: true
+        description: |
+          The Akeyless access ID for AWS IAM authentication.
+        example: "p-123456780wm"
+        type: string
+  - title: "Kubernetes Authentication"
+    description: |
+      Authenticate using an Akeyless Kubernetes access ID and a Kubernetes
+      service account token.
+    metadata:
+      - name: accessId
+        required: true
+        description: |
+          The Akeyless access ID for Kubernetes authentication.
+        example: "p-123456780km"
+        type: string
+      - name: k8sAuthConfigName
+        required: true
+        description: |
+          Name of the Kubernetes Auth Method configured in the Akeyless Gateway
+          (via the Akeyless Console or API). This is the Akeyless-side auth
+          method that maps your Kubernetes cluster to the access ID — not a
+          kubeconfig path or Kubernetes ConfigMap.
+        example: "k8s-auth-config"
+        type: string
+      - name: k8sGatewayUrl
+        required: false
+        description: |
+          Gateway URL where the Kubernetes auth method is configured. Defaults
+          to `gatewayUrl` when not specified.
+        example: "http://gw.akeyless.svc.cluster.local:8000"
+        type: string
+      - name: k8sServiceAccountToken
+        required: false
+        description: |
+          Kubernetes service account token. When not specified, the component
+          reads from `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+        example: "eyJ..."
+        type: string
+        sensitive: true
+metadata:
+  - name: gatewayUrl
+    required: false
+    description: |
+      The URL to the Akeyless Gateway API. Default is https://api.akeyless.io.
+    default: "https://api.akeyless.io"
+    example: "https://your.akeyless.gw"
+    type: string
+  - name: gatewayTlsCa
+    required: false
+    description: |
+      base64-encoded PEM certificate of the Akeyless Gateway. Use this when connecting to a gateway
+      with a self-signed or custom CA certificate.
+    example: "LS0tLS1CRUdJTi..."
+    type: string
+    sensitive: true
+  - name: path
+    required: false
+    description: |
+      Path prefix for BulkGetSecret. Defaults to `/` when not specified.
+    example: "/my/org"
+    type: string
+  - name: secrets_type
+    required: false
+    description: |
+      Comma-separated secret types to include in BulkGetSecret: `static`,
+      `dynamic`, `rotated`, or `all`. Defaults to `all` when not specified.
+    example: "static,dynamic"
+    type: string

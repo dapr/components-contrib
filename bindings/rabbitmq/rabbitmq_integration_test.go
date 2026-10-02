@@ -60,6 +60,99 @@ func getMessageWithRetries(ch *amqp.Channel, queueName string, maxDuration time.
 	return amqp.Delivery{}, false, nil
 }
 
+func TestQueueTTLDeclaration(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	require.NotEmpty(t, rabbitmqHost)
+
+	testCases := []struct {
+		name       string
+		properties map[string]string
+		args       amqp.Table
+	}{
+		{
+			name: "unset",
+		},
+		{
+			name:       "legacy one second",
+			properties: map[string]string{"ttlInSeconds": "1"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int32(1000)},
+		},
+		{
+			name:       "below signed 32-bit milliseconds",
+			properties: map[string]string{"ttl": "2147483646ms"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int64(2147483646)},
+		},
+		{
+			name:       "at signed 32-bit milliseconds",
+			properties: map[string]string{"ttl": "2147483647ms"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int64(2147483647)},
+		},
+		{
+			name:       "above signed 32-bit milliseconds",
+			properties: map[string]string{"ttl": "2147483648ms"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int64(2147483648)},
+		},
+		{
+			name:       "thirty days alias with priority",
+			properties: map[string]string{"ttlInSeconds": "2592000", "maxPriority": "10"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int64(2592000000), rabbitMQMaxPriorityKey: uint8(10)},
+		},
+		{
+			name:       "thirty days duration",
+			properties: map[string]string{"ttl": "720h"},
+			args:       amqp.Table{rabbitMQQueueMessageTTLKey: int64(2592000000)},
+		},
+	}
+	for _, tt := range testCases {
+		for _, predeclare := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/predeclare=%t", tt.name, predeclare), func(t *testing.T) {
+				conn, err := amqp.Dial(rabbitmqHost)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, conn.Close()) })
+				ch, err := conn.Channel()
+				require.NoError(t, err)
+
+				queueName := uuid.New().String()
+				created := false
+				t.Cleanup(func() {
+					if created {
+						cleanupCh, cleanupErr := conn.Channel()
+						require.NoError(t, cleanupErr)
+						_, cleanupErr = cleanupCh.QueueDelete(queueName, false, false, false)
+						require.NoError(t, cleanupErr)
+					}
+				})
+				if predeclare {
+					_, err = ch.QueueDeclare(queueName, true, false, false, false, tt.args)
+					require.NoError(t, err)
+					created = true
+				}
+
+				properties := map[string]string{"queueName": queueName, "host": rabbitmqHost, "durable": "true"}
+				for key, value := range tt.properties {
+					properties[key] = value
+				}
+				r := NewRabbitMQ(logger.NewLogger("test"))
+				t.Cleanup(func() { require.NoError(t, r.Close()) })
+				require.NoError(t, r.Init(t.Context(), bindings.Metadata{
+					Base: contribMetadata.Base{Properties: properties},
+				}))
+				created = true
+
+				// RabbitMQ rejects a redeclaration if the stored TTL differs from these exact arguments.
+				_, err = ch.QueueDeclare(queueName, true, false, false, false, tt.args)
+				require.NoError(t, err)
+				_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte("test-message")})
+				require.NoError(t, err)
+				msg, ok, err := getMessageWithRetries(ch, queueName, time.Second)
+				require.NoError(t, err)
+				require.True(t, ok)
+				assert.Equal(t, "test-message", string(msg.Body))
+			})
+		}
+	}
+}
+
 func TestQueuesWithTTL(t *testing.T) {
 	rabbitmqHost := getTestRabbitMQHost()
 	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
@@ -83,21 +176,28 @@ func TestQueuesWithTTL(t *testing.T) {
 		},
 	}
 
-	logger := logger.NewLogger("test")
-
-	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(t.Context(), metadata)
-	require.NoError(t, err)
-
-	// Assert that if waited too long, we won't see any message
 	conn, err := amqp.Dial(rabbitmqHost)
 	require.NoError(t, err)
-	defer conn.Close()
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 
 	ch, err := conn.Channel()
 	require.NoError(t, err)
-	defer ch.Close()
 
+	// Queues created by older bindings used a 32-bit TTL argument.
+	_, err = ch.QueueDeclare(queueName, durable, false, exclusive, false, amqp.Table{
+		rabbitMQQueueMessageTTLKey: int32(ttlInSeconds * 1000),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, cleanupErr := ch.QueueDelete(queueName, false, false, false)
+		require.NoError(t, cleanupErr)
+	})
+
+	r := NewRabbitMQ(logger.NewLogger("test"))
+	t.Cleanup(func() { require.NoError(t, r.Close()) })
+	require.NoError(t, r.Init(t.Context(), metadata))
+
+	// Assert that if waited too long, we won't see any message
 	const tooLateMsgContent = "too_late_msg"
 	_, err = r.Invoke(t.Context(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	require.NoError(t, err)
@@ -118,7 +218,6 @@ func TestQueuesWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
-	require.NoError(t, r.Close())
 }
 
 func TestQueuesReconnect(t *testing.T) {

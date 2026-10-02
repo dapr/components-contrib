@@ -1,0 +1,12 @@
+services:
+  artemis:
+    image: apache/activemq-artemis:2.42.0-alpine
+    hostname: artemis
+    container_name: artemis-certification
+    environment:
+      - ARTEMIS_USER=artemis
+      - ARTEMIS_PASSWORD=artemis
+      - EXTRA_ARGS=--no-autotune --relax-jolokia --http-host 0.0.0.0
+    ports:
+      # Offset from the conformance broker, so both can run on one machine.
+      - "5673:5672"

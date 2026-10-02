@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.amqp
+  version: v1
+  metadata:
+  - name: url
+    value: "amqp://localhost:5673"
+  - name: username
+    value: "artemis"
+  - name: password
+    value: "artemis"
+  # Reconnect quickly, so that the broker-restart case does not dominate
+  # the runtime of the suite.
+  - name: backOffDuration
+    value: "1s"

@@ -240,21 +240,40 @@ func TestKafka_with_retry(t *testing.T) {
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			config := sarama.NewConfig()
-			config.ClientID = "test-consumer"
-			config.Consumer.Return.Errors = true
+			config.ClientID = "test-readiness"
+			config.Metadata.Full = true
 
-			// Create new consumer
-			client, err := sarama.NewConsumer(brokers, config)
+			client, err := sarama.NewClient(brokers, config)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
+			// Every broker must be registered before __consumer_offsets can be
+			// created at KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3, and before
+			// topic creation can spread partitions across the whole cluster.
+			if n := len(client.Brokers()); n < len(brokers) {
+				return fmt.Errorf("only %d/%d brokers registered", n, len(brokers))
+			}
 
-			return err
+			// The topic under test must have a leader for every partition.
+			parts, err := client.Partitions(topicName)
+			if err != nil {
+				return err
+			}
+			for _, part := range parts {
+				if _, err := client.Leader(topicName, part); err != nil {
+					return fmt.Errorf("no leader for %s/%d: %w", topicName, part, err)
+				}
+			}
+
+			// The group coordinator is the real precondition for the consumers:
+			// resolving it requires __consumer_offsets to exist.
+			if _, err := client.Coordinator("readiness-probe"); err != nil {
+				return fmt.Errorf("group coordinator unavailable: %w", err)
+			}
+
+			return nil
 		})).
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),

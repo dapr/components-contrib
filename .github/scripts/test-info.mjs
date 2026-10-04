@@ -11,26 +11,67 @@ const components = {
         certification: true,
         requireIFLYTEKCredentials: true,
     },
+    'binarystore.in-memory': {
+        conformance: true,
+        sourcePkg: ['binarystore/in-memory'],
+    },
+    'binarystore.azure.blobstorage': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+        ],
+        sourcePkg: ['binarystore/azure/blobstorage', 'common/component/azure/blobstorage'],
+    },
+    'binarystore.azure.datalake': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+        ],
+        sourcePkg: ['binarystore/azure/datalake', 'common/component/azure/datalake'],
+    },
+    'binarystore.aws.s3': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requiredSecrets: ['AWSS3Bucket'],
+        sourcePkg: ['binarystore/aws/s3', 'common/aws'],
+    },
+    'binarystore.gcp.bucket': {
+        conformance: true,
+        requireGCPCredentials: true,
+        requiredSecrets: ['GCPBucket'],
+        sourcePkg: ['binarystore/gcp/bucket'],
+    },
+    'binarystore.oci.objectstorage': {
+        conformance: true,
+        requiredSecrets: [
+            'OCIConfigFile',
+            'OCICompartmentOCID',
+            'OCIBucketName',
+        ],
+        sourcePkg: ['binarystore/oci/objectstorage'],
+    },
     // requireDocker excludes cloud-scheduled runs.
-    // 'bindings.aws.s3': {
-    //     certification: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     certificationSetup: 'certification-bindings.aws.s3-setup.sh',
-    //     certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
-    // },
+    'bindings.aws.s3': {
+        certification: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-bindings.aws.s3-setup.sh',
+        certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
+    },
     // 'bindings.aws.s3.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh s3',
     // },
-    // 'bindings.aws.s3.terraform': {
-    //     conformance: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
-    //     conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
-    // },
+    'bindings.aws.s3.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
+        conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
+    },
     'bindings.aws-floci.s3': {
         conformance: true,
         certification: true,
@@ -247,6 +288,10 @@ const components = {
         conformanceSetup: 'docker-compose.sh valkey9 redis',
         sourcePkg: ['bindings/redis', 'common/component/redis'],
     },
+    'bindings.sqlserver': {
+        certification: true,
+        sourcePkg: ['bindings/sqlserver', 'common/authentication/sqlserver'],
+    },
     'bindings.zeebe.command': {
         certification: true,
     },
@@ -361,28 +406,28 @@ const components = {
     'middleware.http.ratelimit': {
         certification: true,
     },
-    // 'pubsub.aws.snssqs': {
-    //     certification: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
-    //     certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
-    // },
+    'pubsub.aws.snssqs': {
+        certification: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
+        certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
+    },
     // 'pubsub.aws.snssqs.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh snssqs',
     //     sourcePkg: 'pubsub/aws/snssqs',
     // },
-    // 'pubsub.aws.snssqs.terraform': {
-    //     conformance: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
-    //     conformanceDestroy:
-    //         'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
-    //     sourcePkg: 'pubsub/aws/snssqs',
-    // },
+    'pubsub.aws.snssqs.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
+        conformanceDestroy:
+            'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
+        sourcePkg: 'pubsub/aws/snssqs',
+    },
     'pubsub.aws-floci.snssqs': {
         conformance: true,
         certification: true,
@@ -538,13 +583,13 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh secrets-manager',
     },
-    // 'secretstores.aws.secretsmanager.terraform': {
-    //     conformance: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
-    //     conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
-    // },
+    'secretstores.aws.secretsmanager.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-secretstores.aws.secretsmanager.secretsmanager-setup.sh',
+        conformanceDestroy: 'conformance-secretstores.aws.secretsmanager.secretsmanager-destroy.sh',
+    },
     'secretstores.aws-floci.secretsmanager': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh floci floci up-wait secretstores-secretsmanager',
@@ -603,26 +648,26 @@ const components = {
         conformance: true,
         certification: true,
     },
-    // 'state.aws.dynamodb': {
-    //     certification: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
-    //     certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
-    // },
+    'state.aws.dynamodb': {
+        certification: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
+        certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
+    },
     // 'state.aws.dynamodb.docker': {
     //     conformance: true,
     //     requireDocker: true,
     //     conformanceSetup: 'docker-compose.sh dynamodb',
     // },
-    // 'state.aws.dynamodb.terraform': {
-    //     conformance: true,
-    //     requireAWSCredentials: true,
-    //     requireTerraform: true,
-    //     conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
-    //     conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
-    //     sourcePkg: 'state/aws/dynamodb',
-    // },
+    'state.aws.dynamodb.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
+        conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
+        sourcePkg: 'state/aws/dynamodb',
+    },
     'state.aws-floci.dynamodb': {
         conformance: true,
         certification: true,

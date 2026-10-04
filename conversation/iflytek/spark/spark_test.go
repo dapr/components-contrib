@@ -149,12 +149,29 @@ func TestThinkingMode(t *testing.T) {
 	})
 }
 
+func TestMaxTokens(t *testing.T) {
+	t.Run("default is sent as max_tokens", func(t *testing.T) {
+		server, bodies := captureServer(t)
+		converse(t, map[string]string{"key": "test-key", "endpoint": server.URL, "maxTokens": "50"})
+		require.Len(t, *bodies, 1)
+		assert.InDelta(t, 50, (*bodies)[0]["max_tokens"], 0)
+		assert.NotContains(t, (*bodies)[0], "max_completion_tokens")
+	})
+
+	t.Run("not sent when unset", func(t *testing.T) {
+		server, bodies := captureServer(t)
+		converse(t, map[string]string{"key": "test-key", "endpoint": server.URL})
+		require.Len(t, *bodies, 1)
+		assert.NotContains(t, (*bodies)[0], "max_tokens")
+		assert.NotContains(t, (*bodies)[0], "max_completion_tokens")
+	})
+}
+
 func TestGetComponentMetadata(t *testing.T) {
 	md := NewSpark(logger.NewLogger("test")).(*Spark).GetComponentMetadata()
-	for _, name := range []string{"key", "model", "endpoint", "responseCacheTTL", "thinking"} {
+	for _, name := range []string{"key", "model", "endpoint", "responseCacheTTL", "thinking", "maxTokens"} {
 		assert.Contains(t, md, name)
 	}
 	assert.NotContains(t, md, "Key")
 	assert.NotContains(t, md, "MaxTokens")
-	assert.NotContains(t, md, "maxTokens")
 }

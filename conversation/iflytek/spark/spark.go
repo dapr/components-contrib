@@ -100,6 +100,9 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	s.Model = llm
 	s.SetModel(model)
+	s.SetDefaultMaxTokens(md.MaxTokens)
+	// The legacy Spark HTTP API documents only max_tokens; the MaaS API accepts it too.
+	s.SetPostCallOptions(openai.WithLegacyMaxTokensField())
 	s.md = md
 
 	if md.ResponseCacheTTL != nil {

@@ -4,6 +4,7 @@ This project aims to test the RavenDB State Store component under various condit
 
 ## Test plan
 Run:
+export RAVENDBLICENSE="$(cat /path/to/license.json)"
 go test -v -tags "unit certtests" -count=1 .
 
 ## Basic Test for CRUD operations:

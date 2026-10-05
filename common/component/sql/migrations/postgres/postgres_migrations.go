@@ -68,12 +68,13 @@ func (m Migrations) Perform(ctx context.Context, migrationFns []commonsql.Migrat
 	// Always rollback the transaction at the end to release the lock, since the value doesn't really matter
 	defer func() {
 		m.Logger.Debug("Releasing migration lock")
-		queryCtx, cancel = context.WithTimeout(ctx, 15*time.Second)
-		rollbackErr := tx.Rollback(queryCtx)
-		cancel()
+		// Detach from ctx: on shutdown it is already cancelled, and the lock must still be released
+		rollbackCtx, rollbackCancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		rollbackErr := tx.Rollback(rollbackCtx)
+		rollbackCancel()
 		if rollbackErr != nil {
-			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
-			m.Logger.Fatalf("Failed to roll back transaction: %v", rollbackErr)
+			// pgx closes the connection when a rollback fails, which ends the session and releases the lock
+			m.Logger.Errorf("Failed to roll back migration lock transaction: %v", rollbackErr)
 		}
 	}()
 

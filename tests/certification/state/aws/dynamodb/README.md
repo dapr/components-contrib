@@ -14,6 +14,10 @@ This project aims to test the AWS DynamoDB State Store component under various c
 
 ### Run tests locally
 
+The existing certification workflow can run this same suite against Floci using
+`components/floci/` and `DAPR_TEST_COMPONENT_PROFILE=floci`. The DynamoDB Local
+instructions below and the live-AWS defaults remain available.
+
 1. Run `docker run -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -sharedDb -inMemory`
 2. Create the table with
 ```

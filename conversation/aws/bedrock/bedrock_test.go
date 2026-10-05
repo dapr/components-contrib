@@ -78,6 +78,24 @@ func TestInit(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "with maxTokens",
+			metadata: map[string]string{
+				"region":    "us-east-1",
+				"model":     "amazon.titan-text-lite-v1",
+				"maxTokens": "256",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid maxTokens",
+			metadata: map[string]string{
+				"region":    "us-east-1",
+				"model":     "amazon.titan-text-lite-v1",
+				"maxTokens": "not-a-number",
+			},
+			expectError: true,
+		},
+		{
 			name: "invalid responseCacheTTL",
 			metadata: map[string]string{
 				"region":           "us-east-1",
@@ -120,7 +138,7 @@ func TestGetComponentMetadata(t *testing.T) {
 	md := b.GetComponentMetadata()
 	assert.NotEmpty(t, md)
 
-	expectedFields := []string{"Region", "Endpoint", "AccessKey", "SecretKey", "SessionToken", "Model", "responseCacheTTL", "AssumeRoleArn", "TrustAnchorArn", "TrustProfileArn"}
+	expectedFields := []string{"Region", "Endpoint", "AccessKey", "SecretKey", "SessionToken", "Model", "responseCacheTTL", "maxTokens", "AssumeRoleArn", "TrustAnchorArn", "TrustProfileArn"}
 	for _, field := range expectedFields {
 		_, exists := md[field]
 		assert.True(t, exists, "Field %s should exist in metadata", field)

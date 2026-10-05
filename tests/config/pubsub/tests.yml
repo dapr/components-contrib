@@ -113,3 +113,11 @@ components:
     config:
       pubsubName: gcp-pubsub
       checkInOrderProcessing: false
+  - component: aws-floci.snssqs
+    operations: []
+    config:
+      pubsubName: aws-snssqs
+      testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+      testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
+      checkInOrderProcessing: false

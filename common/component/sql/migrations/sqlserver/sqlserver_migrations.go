@@ -16,6 +16,7 @@ package sqlservermigrations
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"time"
 
@@ -66,8 +67,19 @@ WHERE NOT EXISTS (
 	}
 
 	// Now, let's use a transaction on a row in the metadata table as a lock
+	// It gets a dedicated connection, so that connection can be discarded if the rollback fails
 	m.Logger.Debug("Starting transaction pre-migration")
-	tx, err := m.DB.Begin()
+	queryCtx, cancel = context.WithTimeout(ctx, 15*time.Second)
+	conn, err := m.DB.Conn(queryCtx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("failed to get a connection from the pool: %w", err)
+	}
+	defer conn.Close()
+
+	// database/sql rolls a transaction back as soon as its context ends, so detach from ctx to hold the lock until the
+	// deferred rollback below, which then runs even when ctx is cancelled
+	tx, err := conn.BeginTx(context.WithoutCancel(ctx), nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -77,8 +89,10 @@ WHERE NOT EXISTS (
 		m.Logger.Debug("Releasing migration lock")
 		rollbackErr := tx.Rollback()
 		if rollbackErr != nil {
-			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
-			m.Logger.Fatalf("Failed to roll back transaction: %v", rollbackErr)
+			m.Logger.Errorf("Failed to roll back migration lock transaction: %v", rollbackErr)
+			// The lock may still be held on this connection. Returning ErrBadConn from Raw makes database/sql close
+			// the connection instead of returning it to the pool; the error Raw returns is that same ErrBadConn.
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
 	}()
 

@@ -26,9 +26,10 @@ import (
 
 type BlobStorageMetadata struct {
 	ContainerClientOpts     `json:",inline" mapstructure:",squash"`
-	DecodeBase64            bool `json:"decodeBase64,string" mapstructure:"decodeBase64" mdonly:"bindings"`
-	PublicAccessLevel       azblob.PublicAccessType
-	DisableEntityManagement bool `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
+	Prefix                  string                  `json:"prefix" mapstructure:"prefix" mdonly:"state,binarystore,bindings"`
+	DecodeBase64            bool                    `json:"decodeBase64,string" mapstructure:"decodeBase64" mdonly:"bindings"`
+	PublicAccessLevel       azblob.PublicAccessType `json:"publicAccessLevel" mapstructure:"publicAccessLevel"`
+	DisableEntityManagement bool                    `json:"disableEntityManagement,string" mapstructure:"disableEntityManagement"`
 }
 
 type ContainerClientOpts struct {

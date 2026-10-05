@@ -52,6 +52,18 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, "test-key", s.md.Key)
 	})
 
+	t.Run("default endpoint with trailing slash", func(t *testing.T) {
+		s := NewSpark(logger.NewLogger("test")).(*Spark)
+		err := s.Init(t.Context(), conversation.Metadata{Base: metadata.Base{
+			Properties: map[string]string{
+				"key":      "test-key",
+				"endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v2/",
+			},
+		}})
+		require.NoError(t, err)
+		assert.Equal(t, "disabled", s.md.Thinking)
+	})
+
 	t.Run("legacy spark http api", func(t *testing.T) {
 		s := NewSpark(logger.NewLogger("test")).(*Spark)
 		err := s.Init(t.Context(), conversation.Metadata{Base: metadata.Base{

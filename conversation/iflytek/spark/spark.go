@@ -120,7 +120,8 @@ func (s *Spark) Init(ctx context.Context, meta conversation.Metadata) error {
 // The default applies to the default endpoint only, since other Spark APIs may not accept the field.
 func resolveThinking(configured, endpoint string) (string, error) {
 	if configured == "" {
-		if endpoint == defaultEndpoint {
+		// The OpenAI client drops a trailing slash from the base URL, so match it the same way.
+		if strings.TrimSuffix(endpoint, "/") == defaultEndpoint {
 			return defaultThinking, nil
 		}
 		return "", nil

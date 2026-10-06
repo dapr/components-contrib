@@ -302,8 +302,30 @@ func TestConsumerTransactions(t *testing.T) {
 
 		err := c.doCallbackTxn(session, newMessage(42), ct)
 
-		require.ErrorIs(t, err, pubsub.ErrRetriesExhausted)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, pubsub.ErrRetriesExhausted,
+			"the offset did not move, so the delivery must stay retriable rather than be made permanent")
 		require.Empty(t, committedOffsets, "no offset may be committed through a producer that was dropped")
+	})
+
+	t.Run("exhausted retries stay retriable when the offset commit fails", func(t *testing.T) {
+		// The sentinel is what makes ConsumeClaim stop retrying. Carrying it
+		// out of a failed commit would stop the retries with the offset still
+		// where it was, which is the replay this PR is fixing.
+		fake := &fakeTxnProducer{status: sarama.ProducerTxnFlagInTransaction}
+		handler := func(context.Context, *NewEvent) error {
+			return fmt.Errorf("app kept failing: %w", pubsub.ErrRetriesExhausted)
+		}
+		k, c, ct, session := arrange(t, SubscriptionHandlerConfig{Handler: handler}, func(ProducerConfig) (sarama.SyncProducer, error) { return fake, nil })
+		k.offsetCommitter = func(sarama.SyncProducer, string, int32, string, *sarama.ConsumerMessage) error {
+			return errors.New("coordinator unavailable")
+		}
+
+		err := c.doCallbackTxn(session, newMessage(42), ct)
+
+		require.ErrorContains(t, err, "coordinator unavailable")
+		require.NotErrorIs(t, err, pubsub.ErrRetriesExhausted,
+			"a failed commit must leave the delivery retriable")
 	})
 
 	t.Run("begin error on the bulk claim producer drops it for recreation", func(t *testing.T) {

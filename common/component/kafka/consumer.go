@@ -360,16 +360,22 @@ func (consumer *consumer) doCallbackTxn(session sarama.ConsumerGroupSession, mes
 		// it on the session; transactional mode leaves the session's offset
 		// manager unused, so commit this partition on its own.
 		//
+		// Both failure paths below deliberately drop the sentinel from the
+		// error they return. ConsumeClaim treats the sentinel as permanent
+		// and stops retrying; doing that with the offset still where it was
+		// would park the partition behind the message exactly as before.
+		// Without it the delivery stays retriable, and the retry that
+		// follows gets a fresh producer and another chance to commit.
+		//
 		// A producer that did not come back Ready was dropped by the cleanup
 		// above and no longer carries a client to reach the coordinator with.
-		// Leave the offset alone rather than commit through a dead producer:
-		// the message is redelivered and exhausts again, which is what
-		// happened before this branch existed.
 		if producer.TxnStatus()&sarama.ProducerTxnFlagReady == 0 {
-			return cleanupErr
+			return fmt.Errorf("kafka: retries exhausted for %s/%d/%d, but its producer was dropped before the offset could be committed: %v",
+				message.Topic, message.Partition, message.Offset, cleanupErr)
 		}
 		if commitErr := consumer.commitOffset(session, producer, message); commitErr != nil {
-			return errors.Join(cleanupErr, commitErr)
+			return fmt.Errorf("kafka: retries exhausted for %s/%d/%d, but committing the offset failed: %w (cause: %v)",
+				message.Topic, message.Partition, message.Offset, commitErr, cleanupErr)
 		}
 		return cleanupErr
 	}

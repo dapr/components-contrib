@@ -348,7 +348,30 @@ func (consumer *consumer) doCallbackTxn(session sarama.ConsumerGroupSession, mes
 	k.deregisterTxnSession(token)
 
 	if handlerErr != nil {
-		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+		cleanupErr := k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+		if !errors.Is(handlerErr, pubsub.ErrRetriesExhausted) {
+			return cleanupErr
+		}
+		// The caller has permanently given up on this message. Anything the
+		// handler published went into the transaction aborted above, so no
+		// output escapes, but the offset still has to move: leaving it parks
+		// the partition behind a message that is replayed on the next
+		// reconnect and only exhausts again. The non-transactional path marks
+		// it on the session; transactional mode leaves the session's offset
+		// manager unused, so commit this partition on its own.
+		//
+		// A producer that did not come back Ready was dropped by the cleanup
+		// above and no longer carries a client to reach the coordinator with.
+		// Leave the offset alone rather than commit through a dead producer:
+		// the message is redelivered and exhausts again, which is what
+		// happened before this branch existed.
+		if producer.TxnStatus()&sarama.ProducerTxnFlagReady == 0 {
+			return cleanupErr
+		}
+		if commitErr := consumer.commitOffset(session, producer, message); commitErr != nil {
+			return errors.Join(cleanupErr, commitErr)
+		}
+		return cleanupErr
 	}
 
 	return consumer.commitTxnWithOffset(session, producer, message, ct, sess.hasSent())

@@ -41,7 +41,8 @@ func ExecuteInTransaction[T any](ctx context.Context, log logger.Logger, db pgin
 		if success {
 			return
 		}
-		rollbackCtx, rollbackCancel := context.WithTimeout(ctx, timeout)
+		// Detach from ctx: when it is cancelled mid-transaction, the rollback must still run
+		rollbackCtx, rollbackCancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer rollbackCancel()
 		rollbackErr := tx.Rollback(rollbackCtx)
 		if rollbackErr != nil {

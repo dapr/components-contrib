@@ -101,23 +101,9 @@ func (c *AwsClients) getSyncProducer() (sarama.SyncProducer, error) {
 	// Apply SyncProducer-specific properties to a COPY of the shared config so
 	// the consumer-group's view of the config is not mutated.
 	cfg := *c.config
-	cfg.Producer.RequiredAcks = c.producerConfig.RequiredAcks
-	cfg.Producer.Retry.Max = c.producerConfig.RetryMax
-	cfg.Producer.Return.Successes = true
+	applySyncProducerConfig(&cfg, c.producerConfig)
 
-	if c.producerConfig.MaxMessageBytes > 0 {
-		cfg.Producer.MaxMessageBytes = c.producerConfig.MaxMessageBytes
-	}
-
-	saramaClient, err := sarama.NewClient(*c.brokers, &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	producer, err := sarama.NewSyncProducerFromClient(saramaClient)
-	if err != nil {
-		return nil, err
-	}
-
-	return producer, nil
+	// The producer must own its sarama client (see newOwnedSyncProducer): a
+	// caller-supplied client would never be closed and leak on recreation.
+	return newOwnedSyncProducer(*c.brokers, &cfg)
 }

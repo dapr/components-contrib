@@ -49,6 +49,7 @@ This is a required step before an official Dapr release.`,
 		fmt.Println("========================================================================================")
 
 		checkConversationComponents()
+		checkBinaryStoreComponents()
 		checkStateComponents()
 		checkPubSubComponents()
 		checkSecretStoreComponents()
@@ -73,6 +74,15 @@ func checkConversationComponents() {
 	checkComponents("conversation", []string{}, []string{})
 }
 
+func checkBinaryStoreComponents() {
+	fmt.Println("\nChecking binarystore components...")
+	// binarystore/fake is a test helper rather than a real component: it ships no metadata.yaml
+	// and has no registration file, so it must be filtered out of both the contrib and runtime lists.
+	ignoreDaprComponents := []string{"fake"}
+	ignoreContribComponents := []string{"fake"}
+	checkComponents("binarystore", ignoreDaprComponents, ignoreContribComponents)
+}
+
 func checkStateComponents() {
 	fmt.Println("\nChecking state components...")
 
@@ -90,7 +100,8 @@ func checkPubSubComponents() {
 	// mqtt3 = mqtt, so ignore mqtt (keep mqtt3 since it exists in contrib)
 	// azure.servicebusqueues is an alias for azure.servicebus.queues (keep azure.servicebus.queues) so ignore it
 	// azure.servicebus is an alias for azure.servicebus.topics (keep azure.servicebus.topics) so ignore it
-	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus"}
+	// solace.amqp is the back-compat name for amqp (keep amqp, which owns the metadata.yaml) so ignore it
+	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus", "solace.amqp"}
 	ignoreContribComponents := []string{}
 	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
 }

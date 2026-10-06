@@ -5,9 +5,10 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - "RAVEN_LICENSE=${RAVENDBLICENSE:?RAVENDBLICENSE must be set to a RavenDB license JSON}"
       - RAVEN_DATABASE=testdapr
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true
       - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
-      - RAVEN_License_ThrowOnInvalidOrMissingLicense=false
+      - RAVEN_License_ThrowOnInvalidOrMissingLicense=true
     restart: unless-stopped

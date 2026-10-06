@@ -35,6 +35,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
+	github.com/microsoft/go-mssqldb v1.6.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/riferrei/srclient v0.7.3
@@ -45,6 +46,7 @@ require (
 	go.uber.org/ratelimit v0.3.0
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	modernc.org/sqlite v1.55.0
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -256,7 +258,6 @@ require (
 	github.com/matoous/go-nanoid/v2 v2.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/microsoft/go-mssqldb v1.6.0 // indirect
 	github.com/miekg/dns v1.1.57 // indirect
 	github.com/mikeee/aws_credential_helper v0.0.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -384,7 +385,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 replace github.com/dapr/components-contrib => ../../

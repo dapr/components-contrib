@@ -14,40 +14,36 @@ limitations under the License.
 package vault
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/vault/api"
 	kubernetesauth "github.com/hashicorp/vault/api/auth/kubernetes"
+
+	"github.com/dapr/kit/retry"
 )
 
 const (
 	reauthInitialInterval = 5 * time.Second
 	reauthMaxInterval     = 60 * time.Second
+
+	defaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec
 )
 
-// initKubernetesAuth performs a blocking first login using the Kubernetes
-// auth method, then starts a background goroutine that keeps the token
-// renewed/re-authenticated for the lifetime of the component.
+// initKubernetesAuth logs in and starts the background renewal loop.
 func (v *vaultSecretStore) initKubernetesAuth(ctx context.Context, client *api.Client, m *VaultMetadata) error {
 	secret, err := v.kubernetesLogin(ctx, client, m)
 	if err != nil {
 		return fmt.Errorf("couldn't log in to vault using kubernetes auth: %w", err)
 	}
 
-	// Check closed and start the renewal goroutine as a single critical
-	// section, under the same lock Close() uses. Doing this as two separate
-	// steps (check, then Add/go) would leave a window where Close() runs in
-	// between: it would see the goroutine not started yet and return, and
-	// the goroutine would then start immediately after, racing wg.Add
-	// against Close()'s already-returned wg.Wait().
+	// Under mu, so Close can't run wg.Wait between the check and wg.Go.
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if v.closed {
-		// Close() already ran while the blocking first login was in
-		// flight; don't start a renewal goroutine Close() won't wait for.
+	if v.bgCtx.Err() != nil {
 		return nil
 	}
 	v.wg.Go(func() {
@@ -57,18 +53,22 @@ func (v *vaultSecretStore) initKubernetesAuth(ctx context.Context, client *api.C
 	return nil
 }
 
-// kubernetesLogin builds a fresh KubernetesAuth instance (which re-reads the
-// service account token file) and performs a single login. Must be called
-// fresh on every (re-)authentication attempt: KubernetesAuth caches the JWT
-// read at construction time and never re-reads it, so reusing an instance
-// across retries would authenticate with a stale/expired token.
+// kubernetesLogin re-reads the token file on every call: kubelet rotates it.
 func (v *vaultSecretStore) kubernetesLogin(ctx context.Context, client *api.Client, m *VaultMetadata) (*api.Secret, error) {
-	var opts []kubernetesauth.LoginOption
+	tokenPath := m.VaultServiceAccountTokenPath
+	if tokenPath == "" {
+		tokenPath = defaultServiceAccountTokenPath
+	}
+	jwt, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't read service account token from %s: %w", tokenPath, err)
+	}
+
+	opts := []kubernetesauth.LoginOption{
+		kubernetesauth.WithServiceAccountToken(string(bytes.TrimSpace(jwt))),
+	}
 	if m.VaultKubernetesMountPath != "" {
 		opts = append(opts, kubernetesauth.WithMountPath(m.VaultKubernetesMountPath))
-	}
-	if m.VaultServiceAccountTokenPath != "" {
-		opts = append(opts, kubernetesauth.WithServiceAccountTokenPath(m.VaultServiceAccountTokenPath))
 	}
 
 	auth, err := kubernetesauth.NewKubernetesAuth(m.VaultKubernetesRole, opts...)
@@ -79,10 +79,8 @@ func (v *vaultSecretStore) kubernetesLogin(ctx context.Context, client *api.Clie
 	return client.Auth().Login(ctx, auth)
 }
 
-// renewalLoop keeps the Vault token alive for as long as the component is
-// running: it watches the current login's lease via a LifetimeWatcher, and
-// once that lease can no longer be renewed, re-authenticates from scratch
-// and starts watching the new lease. It returns once Close() is called.
+// renewalLoop renews the token while it can and logs in again once it can't,
+// until Close.
 func (v *vaultSecretStore) renewalLoop(client *api.Client, m *VaultMetadata, secret *api.Secret) {
 	for {
 		cycleStart := time.Now()
@@ -91,78 +89,78 @@ func (v *vaultSecretStore) renewalLoop(client *api.Client, m *VaultMetadata, sec
 		if err != nil {
 			v.logger.Errorf("hashicorp vault: couldn't create lifetime watcher: %v", err)
 		} else {
-			v.wg.Go(watcher.Start)
+			// An in-flight renew-self can't be canceled, so Close doesn't wait
+			// for Start; it returns on its own after Stop.
+			go watcher.Start()
 			v.watchOnce(watcher)
 			watcher.Stop()
 		}
 
-		select {
-		case <-v.closeCh:
+		if v.bgCtx.Err() != nil {
 			return
-		default:
 		}
 
-		// A Vault role can legitimately issue short-lived or non-renewable
-		// secrets, in which case the watcher above returns almost
-		// immediately on every cycle. Without a floor here, that turns into
-		// a tight loop of real login requests against Vault. Reuse the
-		// re-auth backoff's initial interval as a minimum pause between
-		// cycles that complete faster than it.
-		if elapsed := time.Since(cycleStart); elapsed < reauthInitialInterval {
+		// Without a pause, a role issuing non-renewable or zero-TTL tokens
+		// turns this into a tight login loop.
+		if wait := reloginFloor(secret) - time.Since(cycleStart); wait > 0 {
 			select {
-			case <-v.closeCh:
+			case <-v.bgCtx.Done():
 				return
-			case <-time.After(reauthInitialInterval - elapsed):
+			case <-time.After(wait):
 			}
 		}
 
-		var loginErr error
-		secret, loginErr = v.reauthenticate(client, m)
-		if loginErr != nil {
-			// closeCh fired while backoff.Retry was in progress.
+		secret, err = v.reauthenticate(client, m)
+		if err != nil {
 			return
 		}
 	}
 }
 
-// watchOnce blocks until the watcher signals it's done renewing (lease
-// expired or renewal failed) or the component is closing.
+// reloginFloor never exceeds half the lease, so a short-lived token is
+// replaced before it expires.
+func reloginFloor(secret *api.Secret) time.Duration {
+	if secret == nil || secret.Auth == nil || secret.Auth.LeaseDuration <= 0 {
+		return reauthInitialInterval
+	}
+	return min(reauthInitialInterval, time.Duration(secret.Auth.LeaseDuration)*time.Second/2)
+}
+
 func (v *vaultSecretStore) watchOnce(watcher *api.LifetimeWatcher) {
 	for {
 		select {
-		case <-v.closeCh:
+		case <-v.bgCtx.Done():
 			return
 		case renewal := <-watcher.RenewCh():
-			v.logger.Debugf("hashicorp vault: successfully renewed token, lease duration %d", renewal.Secret.LeaseDuration)
-		case <-watcher.DoneCh():
+			if renewal.Secret != nil && renewal.Secret.Auth != nil {
+				v.logger.Debugf("hashicorp vault: renewed token, lease duration %ds", renewal.Secret.Auth.LeaseDuration)
+			}
+		case err := <-watcher.DoneCh():
+			if err != nil {
+				v.logger.Warnf("hashicorp vault: token renewal stopped, re-authenticating: %v", err)
+			}
 			return
 		}
 	}
 }
 
-// reauthenticate retries the Kubernetes login with exponential backoff until
-// it succeeds or the component is closed.
 func (v *vaultSecretStore) reauthenticate(client *api.Client, m *VaultMetadata) (*api.Secret, error) {
-	exp := backoff.NewExponentialBackOff()
-	exp.InitialInterval = reauthInitialInterval
-	exp.MaxInterval = reauthMaxInterval
-	exp.MaxElapsedTime = 0 // retry indefinitely until Close()
-	ctxBackoff := backoff.WithContext(exp, v.bgCtx)
+	cfg := retry.DefaultConfig()
+	cfg.Policy = retry.PolicyExponential
+	cfg.InitialInterval = reauthInitialInterval
+	cfg.MaxInterval = reauthMaxInterval
+	cfg.MaxElapsedTime = 0
 
-	var secret *api.Secret
-	op := func() error {
-		s, err := v.kubernetesLogin(v.bgCtx, client, m)
-		if err != nil {
-			v.logger.Warnf("hashicorp vault: kubernetes re-authentication failed, retrying: %v", err)
-			return err
-		}
-		secret = s
-		return nil
-	}
-
-	if err := backoff.Retry(op, ctxBackoff); err != nil {
-		return nil, err
-	}
-
-	return secret, nil
+	return retry.NotifyRecoverWithData(
+		func() (*api.Secret, error) {
+			return v.kubernetesLogin(v.bgCtx, client, m)
+		},
+		cfg.NewBackOffWithContext(v.bgCtx),
+		func(err error, d time.Duration) {
+			v.logger.Warnf("hashicorp vault: kubernetes re-authentication failed, retrying in %s: %v", d, err)
+		},
+		func() {
+			v.logger.Info("hashicorp vault: kubernetes re-authentication succeeded")
+		},
+	)
 }

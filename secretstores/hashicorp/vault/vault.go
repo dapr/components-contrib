@@ -16,6 +16,7 @@ package vault
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,8 +25,10 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/vault/api"
+	"golang.org/x/net/http2"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
@@ -55,6 +58,9 @@ const (
 
 	authMethodToken      string = "token"
 	authMethodKubernetes string = "kubernetes"
+
+	vaultClientTimeout    = 60 * time.Second
+	vaultClientMaxRetries = 2
 )
 
 type valueType string
@@ -74,12 +80,6 @@ var ErrNotFound = errors.New("secret key or version not exist")
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
-	// client is written once, at the end of a successful Init(), and read
-	// by every GetSecret/BulkGetSecret call. Both can happen concurrently
-	// if a caller invokes those before Init() has returned (against the
-	// component contract, but not otherwise prevented), so reads/writes go
-	// through the mu-guarded getClient/Init assignment below rather than
-	// accessing this field directly.
 	client              *api.Client
 	vaultAddress        string
 	vaultToken          string
@@ -90,18 +90,10 @@ type vaultSecretStore struct {
 
 	logger logger.Logger
 
-	// mu guards closed and the compound "check closed, then either start
-	// the renewal goroutine or cancel bgCtx/closeCh" sequences in Init()
-	// and Close() against each other. A plain atomic bool isn't enough
-	// here: checking it and then acting on the result (e.g. starting the
-	// renewal goroutine) has to be atomic with Close()'s own check-and-act,
-	// otherwise Close() can observe "not started yet" and return while the
-	// goroutine starts immediately after -- see initKubernetesAuth.
+	// mu guards client and orders the renewal loop's wg.Go against Close.
 	mu       sync.Mutex
-	closed   bool
 	bgCtx    context.Context
 	bgCancel context.CancelFunc
-	closeCh  chan struct{}
 	wg       sync.WaitGroup
 }
 
@@ -128,8 +120,15 @@ type VaultMetadata struct {
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store.
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
+	return newVaultSecretStore(logger)
+}
+
+func newVaultSecretStore(logger logger.Logger) *vaultSecretStore {
+	bgCtx, bgCancel := context.WithCancel(context.Background())
 	return &vaultSecretStore{
-		logger: logger,
+		logger:   logger,
+		bgCtx:    bgCtx,
+		bgCancel: bgCancel,
 	}
 }
 
@@ -176,63 +175,23 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 	}
 	v.vaultKVPrefix = vaultKVPrefix
 
-	v.mu.Lock()
-	v.bgCtx, v.bgCancel = context.WithCancel(context.Background())
-	v.closeCh = make(chan struct{})
-	if v.closed {
-		// Close() already ran concurrently with this Init() call, before
-		// these fields existed for it to cancel/close. Cancel them right
-		// away, still under the same lock Close() uses, so any renewal
-		// goroutine started below sees a closed component immediately
-		// instead of running with a bgCtx/closeCh that no future Close()
-		// call can ever cancel (closed is already latched true, so
-		// Close()'s guard won't fire again).
-		v.bgCancel()
-		close(v.closeCh)
-	}
-	v.mu.Unlock()
-
-	config := api.DefaultConfig()
-	if config.Error != nil {
-		return fmt.Errorf("couldn't build vault client config: %w", config.Error)
-	}
-
-	// api.DefaultConfig() calls ReadEnvironment() internally, which lets a
-	// handful of VAULT_* environment variables silently take effect:
-	// VAULT_AGENT_ADDR reroutes all traffic through a local Vault Agent,
-	// VAULT_SKIP_VERIFY can disable certificate verification even when
-	// skipVerify isn't set, and VAULT_CACERT/VAULT_CAPATH/VAULT_CLIENT_CERT
-	// can replace the trusted CA pool or enable client-cert auth. This
-	// component's metadata must be the sole source of truth for how it
-	// connects to Vault, so undo all of that before applying it below.
-	config.AgentAddress = ""
-	if transport, ok := config.HttpClient.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
-		transport.TLSClientConfig.InsecureSkipVerify = false
-		transport.TLSClientConfig.RootCAs = nil
-		transport.TLSClientConfig.Certificates = nil
-		transport.TLSClientConfig.GetClientCertificate = nil
-		transport.TLSClientConfig.ServerName = ""
-	}
-
 	if m.SkipVerify == "true" {
 		v.logger.Warnf("hashicorp vault: you are using 'skipVerify' to skip server config verification, which is unsafe")
 	}
 
-	config.Address = v.vaultAddress
-	if tlsErr := config.ConfigureTLS(metadataToTLSConfig(&m)); tlsErr != nil {
-		return fmt.Errorf("couldn't configure tls: %w", tlsErr)
+	config, err := v.newClientConfig(&m)
+	if err != nil {
+		return err
 	}
 
 	client, err := api.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("couldn't create vault client: %w", err)
 	}
-	// api.NewClient() also picks up VAULT_NAMESPACE from the environment and
-	// scopes every request (including the kubernetes-auth login below) to it.
-	// This component has no metadata field for namespace, so a stray
-	// VAULT_NAMESPACE in the environment must not silently redirect requests
-	// to a Vault Enterprise namespace nothing in the metadata asked for.
+	// NewClient applies VAULT_TOKEN, VAULT_NAMESPACE and VAULT_HEADERS.
+	client.ClearToken()
 	client.ClearNamespace()
+	client.SetHeaders(http.Header{api.RequestHeaderName: []string{"true"}})
 
 	switch m.VaultAuthMethod {
 	case "", authMethodToken:
@@ -249,10 +208,6 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		if m.VaultToken != "" || m.VaultTokenMountPath != "" {
 			return errors.New("vaultToken and vaultTokenMountPath must not be set when vaultAuthMethod is kubernetes")
 		}
-		// Use the caller's ctx (which the Dapr runtime may bound with a
-		// component-init timeout) for the blocking first login only. The
-		// background renewal loop that initKubernetesAuth starts outlives
-		// this Init() call and uses v.bgCtx instead.
 		if err := v.initKubernetesAuth(ctx, client, &m); err != nil {
 			return err
 		}
@@ -267,11 +222,39 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 	return nil
 }
 
-// getClient returns the current Vault client, or nil if Init() hasn't
-// assigned one yet (e.g. GetSecret/BulkGetSecret called before Init() has
-// returned). Goes through mu since Init() assigns v.client under the same
-// lock, to avoid a data race between that assignment and concurrent reads
-// here.
+// newClientConfig builds the config from metadata only. api.DefaultConfig()
+// would also apply VAULT_* and HTTP(S)_PROXY environment variables.
+func (v *vaultSecretStore) newClientConfig(m *VaultMetadata) (*api.Config, error) {
+	transport := &http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+	if err := http2.ConfigureTransport(transport); err != nil {
+		return nil, fmt.Errorf("couldn't configure http2: %w", err)
+	}
+
+	config := &api.Config{
+		Address: v.vaultAddress,
+		HttpClient: &http.Client{
+			Transport: transport,
+			// The SDK follows redirects itself.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Timeout:    vaultClientTimeout,
+		MaxRetries: vaultClientMaxRetries,
+	}
+
+	if err := config.ConfigureTLS(metadataToTLSConfig(m)); err != nil {
+		return nil, fmt.Errorf("couldn't configure tls: %w", err)
+	}
+
+	return config, nil
+}
+
 func (v *vaultSecretStore) getClient() *api.Client {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -284,11 +267,8 @@ func metadataToTLSConfig(meta *VaultMetadata) *api.TLSConfig {
 		TLSServerName: meta.TLSServerName,
 	}
 
-	// Preserve the documented precedence: caPem > caPath > caCert.
-	// Only ever set one of the CA fields -- go-rootcerts (used internally by
-	// the SDK's ConfigureTLS) applies precedence CACert > CACertBytes > CAPath,
-	// the opposite order, so passing more than one through would silently
-	// invert the documented contract.
+	// Set only one CA field: go-rootcerts applies CACert > CACertBytes > CAPath,
+	// the reverse of the documented caPem > caPath > caCert.
 	switch {
 	case meta.CaPem != "":
 		tlsConf.CACertBytes = []byte(meta.CaPem)
@@ -302,11 +282,8 @@ func metadataToTLSConfig(meta *VaultMetadata) *api.TLSConfig {
 }
 
 // getSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-//
-// This uses the Logical() API directly rather than the SDK's higher-level
-// KVv2 helper: KVv2.Get/GetVersion require the secret's "data" field to be a
-// JSON object, which breaks text-mode secrets, where the "data" field's raw
-// JSON value (object, string, or otherwise) is stringified as-is.
+// KVv2.Get isn't used because it requires "data" to be an object, which
+// breaks text mode.
 func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string) (map[string]string, error) {
 	path := v.vaultEnginePath + "/data/"
 	if v.vaultKVPrefix != "" {
@@ -328,11 +305,7 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 		return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
 	}
 
-	// A nil "data" field is how a soft-deleted or destroyed KV v2 version
-	// comes back: Vault responds 404 with a body that still carries
-	// {"data": {"data": null, "metadata": {...}}}, and the SDK surfaces that
-	// as a regular secret rather than an error. Treat it as ErrNotFound so
-	// BulkGetSecret can skip such entries instead of failing the whole read.
+	// Soft-deleted and destroyed versions come back with "data": null.
 	dataRaw, ok := resp.Data[DataStr]
 	if !ok || dataRaw == nil {
 		return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
@@ -346,9 +319,7 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 		data := make(map[string]string, len(dataMap))
 		for k, val := range dataMap {
 			if val == nil {
-				// Matches the previous jsoniter/encoding-json-based implementation,
-				// which decoded straight into a map[string]string: a JSON null
-				// value silently becomes an empty string rather than an error.
+				// null is read as "" for compatibility.
 				data[k] = ""
 				continue
 			}
@@ -361,10 +332,7 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 		return data, nil
 	}
 
-	// Text mode: stringify the "data" field the same way the previous
-	// jsoniter-based implementation did -- objects/arrays/numbers are
-	// re-serialized to their compact JSON form, plain JSON strings are used
-	// as-is.
+	// Strings as-is, anything else as JSON.
 	switch d := dataRaw.(type) {
 	case string:
 		return map[string]string{secret: d}, nil
@@ -447,10 +415,7 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 		return nil, fmt.Errorf("list keys couldn't get successful response at %s", listPath)
 	}
 
-	// A missing or null "keys" field is how Vault represents a path with no
-	// children -- treat it as zero results, not an error. Only a "keys"
-	// field present with an unexpected (non-array) type is a genuine
-	// malformed-response error.
+	// A missing or null "keys" field means an empty directory.
 	keysField, hasKeys := secret.Data["keys"]
 	if !hasKeys || keysField == nil {
 		return []string{}, nil
@@ -527,15 +492,7 @@ func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 
 func (v *vaultSecretStore) Close() error {
 	v.mu.Lock()
-	if !v.closed {
-		v.closed = true
-		if v.bgCancel != nil {
-			v.bgCancel()
-		}
-		if v.closeCh != nil {
-			close(v.closeCh)
-		}
-	}
+	v.bgCancel()
 	v.mu.Unlock()
 
 	v.wg.Wait()

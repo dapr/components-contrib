@@ -24,9 +24,81 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
+
+func TestBlobNamePrefix(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+
+	t.Run("no prefix configured", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{}
+		assert.Equal(t, "myfile.bin", blobStorage.blobName("myfile.bin"))
+	})
+
+	t.Run("prefix without trailing slash", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix"}
+		assert.Equal(t, "myprefix/myfile.bin", blobStorage.blobName("myfile.bin"))
+	})
+
+	t.Run("prefix with trailing slash", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix/"}
+		assert.Equal(t, "myprefix/myfile.bin", blobStorage.blobName("myfile.bin"))
+	})
+
+	t.Run("blob name with leading slash", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix"}
+		assert.Equal(t, "myprefix/myfile.bin", blobStorage.blobName("/myfile.bin"))
+	})
+
+	t.Run("nil metadata", func(t *testing.T) {
+		blobStorage.metadata = nil
+		assert.Equal(t, "myfile.bin", blobStorage.blobName("myfile.bin"))
+	})
+}
+
+func TestStripPrefix(t *testing.T) {
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
+
+	t.Run("no prefix configured", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{}
+		assert.Equal(t, "myfile.bin", blobStorage.stripPrefix("myfile.bin"))
+	})
+
+	t.Run("prefix without trailing slash", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix"}
+		assert.Equal(t, "myfile.bin", blobStorage.stripPrefix("myprefix/myfile.bin"))
+	})
+
+	t.Run("prefix with trailing slash", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix/"}
+		assert.Equal(t, "myfile.bin", blobStorage.stripPrefix("myprefix/myfile.bin"))
+	})
+
+	t.Run("nested path under prefix", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix"}
+		assert.Equal(t, "nested/myfile.bin", blobStorage.stripPrefix("myprefix/nested/myfile.bin"))
+	})
+
+	t.Run("name without the configured prefix is left untouched", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "myprefix"}
+		assert.Equal(t, "otherprefix/myfile.bin", blobStorage.stripPrefix("otherprefix/myfile.bin"))
+	})
+
+	t.Run("nil metadata", func(t *testing.T) {
+		blobStorage.metadata = nil
+		assert.Equal(t, "myfile.bin", blobStorage.stripPrefix("myfile.bin"))
+	})
+
+	t.Run("round-trips with blobName", func(t *testing.T) {
+		blobStorage.metadata = &storagecommon.BlobStorageMetadata{Prefix: "tenantA"}
+		original := "report.pdf"
+		full := blobStorage.blobName(original)
+		assert.Equal(t, "tenantA/report.pdf", full)
+		assert.Equal(t, original, blobStorage.stripPrefix(full))
+	})
+}
 
 func TestGetOption(t *testing.T) {
 	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)

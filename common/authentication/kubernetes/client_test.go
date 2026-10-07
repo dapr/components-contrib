@@ -44,6 +44,8 @@ func TestGetKubeconfigPath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Ensure the process environment does not leak in a stale kubeconfig path.
+			t.Setenv(envVarName, "")
 			if tt.env != "" {
 				parts := strings.SplitN(tt.env, "=", 2)
 				t.Setenv(parts[0], parts[1])

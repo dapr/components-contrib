@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: amqp
+version: v1
+status: beta
+title: "AMQP 1.0"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-amqp/
+capabilities:
+  - ttl
+description: |
+  Publish and subscribe over AMQP 1.0. Verified against Apache ActiveMQ Artemis and Solace PubSub+.
+  Note that this is AMQP 1.0, which is a different protocol from the AMQP 0-9-1 spoken by
+  `pubsub.rabbitmq`.
+authenticationProfiles:
+  - title: "Username and password"
+    description: "Authenticate with broker credentials"
+    metadata:
+      - name: username
+        required: true
+        sensitive: false
+        description: "The username to connect to the broker"
+        example: '"default"'
+        type: string
+      - name: password
+        required: true
+        sensitive: true
+        description: "The password to connect to the broker"
+        example: '"default"'  
+        type: string
+  - title: "No authentication"
+    description: "Connect to the broker without credential validation"
+    metadata:
+      - name: anonymous
+        required: true
+        description: |
+          Connect to the broker without credential validation; only works if enabled on the broker.
+        example: '"true"'
+        type: bool
+metadata:
+  - name: url
+    required: true
+    description: |
+      Address of the AMQP broker.
+      Use the `amqp://`` URI scheme for non-TLS communication, and the `amqps://` URI scheme for TLS communication.
+    example: '"amqp://host.domain[:port]"'
+    sensitive: true
+    type: string   
+  - name: caCert
+    required: false
+    description: |
+      Certificate Authority (CA) certificate in PEM format for verifying server TLS certificates.
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+    type: string
+  - name: clientCert
+    required: false
+    description: |
+      TLS client certificate in PEM format, for using TLS.
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+    type: string
+  - name: clientKey
+    required: false
+    sensitive: true
+    description: |
+      TLS client key in PEM format, for using TLS.
+    example: '"-----BEGIN PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"'
+    type: string
+  - name: topicAddressPrefix
+    required: false
+    description: |
+      Prefix prepended to the AMQP address of a topic, which is used for a bare topic name and for
+      topics named `topic:<name>`.
+      Defaults to no prefix, which addresses the topic by name. Set it to the multicast prefix the
+      broker is configured with, for example the `multicastPrefix` of an Apache ActiveMQ Artemis
+      acceptor. Solace brokers use `topic://`.
+    default: '""'
+    example: '"multicast://"'
+    type: string
+  - name: queueAddressPrefix
+    required: false
+    description: |
+      Prefix prepended to the AMQP address of a queue, which is used for topics named `queue:<name>`.
+      Defaults to no prefix, which addresses the queue by name. Set it to the anycast prefix the
+      broker is configured with, for example the `anycastPrefix` of an Apache ActiveMQ Artemis
+      acceptor. Solace brokers use `queue://`.
+      If both prefixes are empty, `queue:<name>` addresses the same destination as `<name>`, so
+      configure both on a broker that distinguishes queue and topic semantics.
+    default: '""'
+    example: '"anycast://"'
+    type: string
+  - name: backOffPolicy
+    required: false
+    description: |
+      Retry policy used between attempts to re-open a subscription after the broker connection drops.
+      Either `constant` or `exponential`.
+    default: '"constant"'
+    example: '"constant"'
+    type: string
+  - name: backOffDuration
+    required: false
+    description: |
+      Delay between attempts to re-open a subscription, when `backOffPolicy` is `constant`.
+      The component retries for as long as the subscription exists, so this sets the pace, not a limit.
+    default: '"5s"'
+    example: '"1s"'
+    type: duration
+  - name: backOffInitialInterval
+    required: false
+    description: |
+      First delay between attempts to re-open a subscription, when `backOffPolicy` is `exponential`.
+    default: '"500ms"'
+    example: '"100ms"'
+    type: duration
+  - name: backOffMaxInterval
+    required: false
+    description: |
+      Longest delay between attempts to re-open a subscription, when `backOffPolicy` is `exponential`.
+    default: '"60s"'
+    example: '"30s"'
+    type: duration

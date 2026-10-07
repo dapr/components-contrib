@@ -24,4 +24,7 @@ type OpenAILangchainMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
 	APIType                        string `json:"apiType" mapstructure:"apiType"`
 	APIVersion                     string `json:"apiVersion" mapstructure:"apiVersion"`
+	// UseLegacyMaxTokensField sends the cap as max_tokens instead of
+	// max_completion_tokens, for OpenAI-compatible endpoints that predate it.
+	UseLegacyMaxTokensField bool `json:"useLegacyMaxTokensField" mapstructure:"useLegacyMaxTokensField"`
 }

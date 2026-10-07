@@ -113,6 +113,8 @@ type Settings struct {
 	QueueDepth uint `mapstructure:"queueDepth" mdonly:"pubsub"`
 	// The number of concurrent workers that are processing messages
 	Concurrency uint `mapstructure:"concurrency" mdonly:"pubsub"`
+	// The stream entry ID a new consumer group starts reading from
+	StreamStartID string `mapstructure:"streamStartID" mdonly:"pubsub"`
 
 	// The interval at which the component resets the idle time of the pending entries it
 	// currently holds, so that they are not reclaimed while this consumer is still working on

@@ -25,6 +25,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff/v4"
 
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/retry"
 )
 
@@ -115,7 +116,15 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 				if consumer.k.consumeRetryEnabled {
 					if err := retry.NotifyRecover(func() error {
-						return consumer.dispatchCallback(session, message, ct)
+						cbErr := consumer.dispatchCallback(session, message, ct)
+						if errors.Is(cbErr, pubsub.ErrRetriesExhausted) {
+							// The caller has permanently given up on this
+							// message and the callback has already committed
+							// its offset. Retrying here would redeliver a
+							// message that is never going to succeed.
+							return backoff.Permanent(cbErr)
+						}
+						return cbErr
 					}, b, func(err error, d time.Duration) {
 						consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}, func() {
@@ -128,15 +137,23 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 						// redelivered to whichever consumer takes over the
 						// partition, so this is not a processing failure —
 						// just shutdown noise. Demote the log accordingly.
-						if errors.Is(session.Context().Err(), context.Canceled) || errors.Is(err, context.Canceled) {
+						switch {
+						case errors.Is(session.Context().Err(), context.Canceled) || errors.Is(err, context.Canceled):
 							consumer.k.logger.Debugf("Kafka message processing aborted due to shutdown; will be redelivered: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 							return nil
+						case errors.Is(err, pubsub.ErrRetriesExhausted):
+							consumer.k.logger.Warnf("Giving up on Kafka message after its retry policy was exhausted: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+						default:
+							consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 						}
-						consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
 				} else {
 					err := consumer.dispatchCallback(session, message, ct)
-					if err != nil {
+					switch {
+					case err == nil:
+					case errors.Is(err, pubsub.ErrRetriesExhausted):
+						consumer.k.logger.Warnf("Giving up on Kafka message after its retry policy was exhausted: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+					default:
 						consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 					}
 				}
@@ -267,7 +284,11 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	event.Metadata = GetEventMetadata(message, consumer.k)
 
 	err = handlerConfig.Handler(session.Context(), &event)
-	if err == nil {
+	// A caller that has exhausted its retry policy with nowhere to divert the
+	// message to is never going to accept it. Commit the offset so that
+	// decision survives a rebalance or a restart, instead of leaving the
+	// partition parked behind a message that will only exhaust again.
+	if err == nil || errors.Is(err, pubsub.ErrRetriesExhausted) {
 		session.MarkMessage(message, "")
 	}
 	return err
@@ -327,7 +348,36 @@ func (consumer *consumer) doCallbackTxn(session sarama.ConsumerGroupSession, mes
 	k.deregisterTxnSession(token)
 
 	if handlerErr != nil {
-		return k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+		cleanupErr := k.endProducerTxnWithError(producer, handlerErr, ct.invalidate)
+		if !errors.Is(handlerErr, pubsub.ErrRetriesExhausted) {
+			return cleanupErr
+		}
+		// The caller has permanently given up on this message. Anything the
+		// handler published went into the transaction aborted above, so no
+		// output escapes, but the offset still has to move: leaving it parks
+		// the partition behind a message that is replayed on the next
+		// reconnect and only exhausts again. The non-transactional path marks
+		// it on the session; transactional mode leaves the session's offset
+		// manager unused, so commit this partition on its own.
+		//
+		// Both failure paths below deliberately drop the sentinel from the
+		// error they return. ConsumeClaim treats the sentinel as permanent
+		// and stops retrying; doing that with the offset still where it was
+		// would park the partition behind the message exactly as before.
+		// Without it the delivery stays retriable, and the retry that
+		// follows gets a fresh producer and another chance to commit.
+		//
+		// A producer that did not come back Ready was dropped by the cleanup
+		// above and no longer carries a client to reach the coordinator with.
+		if producer.TxnStatus()&sarama.ProducerTxnFlagReady == 0 {
+			return fmt.Errorf("kafka: retries exhausted for %s/%d/%d, but its producer was dropped before the offset could be committed: %v",
+				message.Topic, message.Partition, message.Offset, cleanupErr)
+		}
+		if commitErr := consumer.commitOffset(session, producer, message); commitErr != nil {
+			return fmt.Errorf("kafka: retries exhausted for %s/%d/%d, but committing the offset failed: %w (cause: %v)",
+				message.Topic, message.Partition, message.Offset, commitErr, cleanupErr)
+		}
+		return cleanupErr
 	}
 
 	return consumer.commitTxnWithOffset(session, producer, message, ct, sess.hasSent())

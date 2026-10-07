@@ -8,6 +8,73 @@ title: "Hashicorp Vault"
 urls:
   - title: Reference
     url: "https://docs.dapr.io/reference/components-reference/supported-secret-stores/hashicorp-vault/"
+authenticationProfiles:
+  - title: "Token"
+    description: "Authenticate using a static Vault token."
+    metadata:
+      - name: vaultAuthMethod
+        type: string
+        required: false
+        description: |
+          Authentication method.
+          Defaults to "token" for this authentication profile.
+        example: "token"
+        default: "token"
+        allowedValues:
+          - "token"
+      - name: vaultToken
+        type: string
+        required: true
+        sensitive: true
+        description: Token for authentication within Vault.
+        example: "tokenValue"
+  - title: "Token file"
+    description: "Authenticate using a Vault token read from a file."
+    metadata:
+      - name: vaultAuthMethod
+        type: string
+        required: false
+        description: |
+          Authentication method.
+          Defaults to "token" for this authentication profile.
+        example: "token"
+        default: "token"
+        allowedValues:
+          - "token"
+      - name: vaultTokenMountPath
+        type: string
+        required: true
+        description: Path to file containing token.
+        example: "path/to/file"
+  - title: "Kubernetes"
+    description: "Authenticate using the Vault Kubernetes auth method and the pod's service account token."
+    metadata:
+      - name: vaultAuthMethod
+        type: string
+        required: true
+        description: |
+          Authentication method.
+          This must be set to "kubernetes" for this authentication profile.
+        example: "kubernetes"
+        allowedValues:
+          - "kubernetes"
+      - name: vaultKubernetesRole
+        type: string
+        required: true
+        description: The Vault role to authenticate as.
+        example: "my-app-role"
+      - name: vaultKubernetesMountPath
+        type: string
+        required: false
+        description: The mount path of the Kubernetes auth method in Vault.
+        example: "kubernetes"
+        default: "kubernetes"
+      - name: vaultServiceAccountTokenPath
+        type: string
+        required: false
+        description: Path to the Kubernetes service account token.
+        example: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        default: "/var/run/secrets/kubernetes.io/serviceaccount/token"
 metadata:
   - name: vaultAddr
     required: false
@@ -43,16 +110,6 @@ metadata:
     required: false
     description: The name of the server requested during TLS handshake in order to support virtual hosting. This value is also used to verify the TLS certificate presented by Vault server.
     example: "tls-server"
-    type: string
-  - name: vaultTokenMountPath
-    required: true
-    description: Path to file containing token
-    example: "path/to/file"
-    type: string
-  - name: vaultToken
-    required: true
-    description: Token for authentication within Vault.
-    example: "tokenValue"
     type: string
   - name: vaultKVPrefix
     required: false

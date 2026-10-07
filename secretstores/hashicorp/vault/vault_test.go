@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -70,34 +71,21 @@ func TestReadVaultToken(t *testing.T) {
 	defer cleanUpFunc()
 
 	t.Run("read correct token", func(t *testing.T) {
-		v := vaultSecretStore{
-			vaultTokenMountPath: tmpFileName,
-		}
-
-		err := v.initVaultToken()
+		token, err := readVaultToken(&VaultMetadata{VaultTokenMountPath: tmpFileName})
 		require.NoError(t, err)
-		assert.Equal(t, tokenString, v.vaultToken)
+		assert.Equal(t, tokenString, token)
 	})
 
 	t.Run("read incorrect token", func(t *testing.T) {
-		v := vaultSecretStore{
-			vaultTokenMountPath: tmpFileName,
-		}
-
-		err := v.initVaultToken()
+		token, err := readVaultToken(&VaultMetadata{VaultTokenMountPath: tmpFileName})
 		require.NoError(t, err)
-		assert.NotEqual(t, "ThisIs-NOT-TheRootToken", v.vaultToken)
+		assert.NotEqual(t, "ThisIs-NOT-TheRootToken", token)
 	})
 
 	t.Run("read token from vaultToken", func(t *testing.T) {
-		v := vaultSecretStore{
-			vaultToken: expectedTok,
-		}
-
-		err := v.initVaultToken()
-
+		token, err := readVaultToken(&VaultMetadata{VaultToken: expectedTok})
 		require.NoError(t, err)
-		assert.Equal(t, expectedTok, v.vaultToken)
+		assert.Equal(t, expectedTok, token)
 	})
 }
 
@@ -128,6 +116,31 @@ func TestVaultTLSConfig(t *testing.T) {
 		meta := VaultMetadata{SkipVerify: "true"}
 		tlsConf := metadataToTLSConfig(&meta)
 		assert.True(t, tlsConf.Insecure)
+	})
+
+	t.Run("skipVerify true ignores CA fields", func(t *testing.T) {
+		meta := VaultMetadata{
+			SkipVerify: "true",
+			CaPem:      "pem-contents",
+			CaPath:     "/some/path",
+			CaCert:     "/some/cert",
+		}
+
+		tlsConf := metadataToTLSConfig(&meta)
+		assert.True(t, tlsConf.Insecure)
+		assert.Empty(t, tlsConf.CACertBytes)
+		assert.Empty(t, tlsConf.CAPath)
+		assert.Empty(t, tlsConf.CACert)
+	})
+
+	t.Run("skipVerify true with a missing caCert file still initializes", func(t *testing.T) {
+		v := newVaultSecretStore(logger.NewLogger("test"))
+		err := v.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{
+			componentVaultToken: expectedTok,
+			"skipVerify":        "true",
+			"caCert":            filepath.Join(t.TempDir(), "missing.pem"),
+		}}})
+		require.NoError(t, err)
 	})
 
 	t.Run("caPem takes precedence over caPath and caCert", func(t *testing.T) {
@@ -262,8 +275,6 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 
 		err := target.Init(t.Context(), m)
 
-		assert.Empty(t, target.vaultToken)
-		assert.Empty(t, target.vaultTokenMountPath)
 		require.Error(t, err)
 		assert.Equal(t, "token mount path and token not set", err.Error())
 	})
@@ -286,8 +297,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Equal(t, expectedTokenMountFileContents, target.vaultToken)
-		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
+		assert.Equal(t, expectedTokenMountFileContents, target.client.Token())
 	})
 
 	t.Run("with vaultToken", func(t *testing.T) {
@@ -308,8 +318,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Empty(t, target.vaultTokenMountPath)
-		assert.Equal(t, expectedTok, target.vaultToken)
+		assert.Equal(t, expectedTok, target.client.Token())
 	})
 
 	t.Run("with vaultTokenMount and vaultToken", func(t *testing.T) {
@@ -329,8 +338,6 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 
 		err := target.Init(t.Context(), m)
 
-		assert.Equal(t, expectedTok, target.vaultToken)
-		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
 		require.Error(t, err)
 		assert.Equal(t, "token mount path and token both set", err.Error())
 	})
@@ -358,7 +365,7 @@ func TestDefaultVaultAddress(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+		assert.Equal(t, defaultVaultAddress, target.client.Address(), "default was not set")
 	})
 }
 
@@ -507,11 +514,42 @@ func TestVaultIgnoresClientEnvVars(t *testing.T) {
 	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}}))
 
 	config := target.client.CloneConfig()
-	assert.Equal(t, vaultClientMaxRetries, config.MaxRetries)
+	assert.Equal(t, 0, config.MaxRetries)
 	assert.Equal(t, vaultClientTimeout, config.Timeout)
 	assert.Nil(t, config.Limiter)
 	assert.Empty(t, target.client.Headers().Get("X-Stray-Header"))
 	assert.Equal(t, "true", target.client.Headers().Get("X-Vault-Request"))
+}
+
+// There is no SDK option to skip this: api.NewClient always runs
+// api.DefaultConfig() and returns its error.
+func TestVaultInitFailsOnUnparsableEnvVar(t *testing.T) {
+	t.Setenv("VAULT_CACERT", filepath.Join(t.TempDir(), "missing.pem"))
+
+	target := newVaultSecretStore(logger.NewLogger("test"))
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{
+		componentVaultToken: expectedTok,
+	}}})
+	require.ErrorContains(t, err, "couldn't create vault client")
+}
+
+func TestVaultDoesNotRetryServerErrors(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	target := newVaultSecretStore(logger.NewLogger("test"))
+	require.NoError(t, target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{
+		"vaultAddr":         srv.URL,
+		componentVaultToken: expectedTok,
+	}}}))
+
+	_, err := target.GetSecret(t.Context(), secretstores.GetSecretRequest{Name: "secret"})
+	require.Error(t, err)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&requests))
 }
 
 func TestVaultValueType(t *testing.T) {
@@ -1226,7 +1264,7 @@ func TestKubernetesAuthCloseDuringBlockingInitDoesNotLeakGoroutine(t *testing.T)
 
 	select {
 	case err := <-initErrCh:
-		require.NoError(t, err)
+		require.EqualError(t, err, "hashicorp vault: secret store closed")
 	case <-time.After(5 * time.Second):
 		t.Fatal("Init() did not return after the login unblocked")
 	}
@@ -1351,6 +1389,29 @@ func TestKubernetesAuthReloginsBeforeShortLeaseExpires(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	assert.Less(t, loginTimes[1].Sub(loginTimes[0]), 4*time.Second, "second login happened after the first token expired")
+}
+
+func TestKubernetesAuthRejectsEmptyServiceAccountToken(t *testing.T) {
+	tokenFile, cleanup := createTempFileWithContent(t, " \n")
+	defer cleanup()
+
+	var loginCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&loginCount, 1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	target := newVaultSecretStore(logger.NewLogger("test"))
+	properties := map[string]string{
+		"vaultAddr":                    srv.URL,
+		"vaultAuthMethod":              "kubernetes",
+		"vaultKubernetesRole":          "my-role",
+		"vaultServiceAccountTokenPath": tokenFile,
+	}
+	err := target.Init(t.Context(), secretstores.Metadata{Base: metadata.Base{Properties: properties}})
+	require.ErrorContains(t, err, "is empty")
+	assert.EqualValues(t, 0, atomic.LoadInt32(&loginCount))
 }
 
 func TestKubernetesAuthTrimsServiceAccountToken(t *testing.T) {

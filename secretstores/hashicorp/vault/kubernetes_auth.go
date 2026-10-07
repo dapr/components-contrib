@@ -16,6 +16,7 @@ package vault
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -29,8 +30,6 @@ import (
 const (
 	reauthInitialInterval = 5 * time.Second
 	reauthMaxInterval     = 60 * time.Second
-
-	defaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec
 )
 
 // initKubernetesAuth logs in and starts the background renewal loop.
@@ -43,8 +42,9 @@ func (v *vaultSecretStore) initKubernetesAuth(ctx context.Context, client *api.C
 	// Under mu, so Close can't run wg.Wait between the check and wg.Go.
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	// Without the renewal loop the token would expire and never be replaced.
 	if v.bgCtx.Err() != nil {
-		return nil
+		return errors.New("hashicorp vault: secret store closed")
 	}
 	v.wg.Go(func() {
 		v.renewalLoop(client, m, secret)
@@ -54,18 +54,22 @@ func (v *vaultSecretStore) initKubernetesAuth(ctx context.Context, client *api.C
 }
 
 // kubernetesLogin re-reads the token file on every call: kubelet rotates it.
+// Without a custom path, NewKubernetesAuth reads the pod's default token.
 func (v *vaultSecretStore) kubernetesLogin(ctx context.Context, client *api.Client, m *VaultMetadata) (*api.Secret, error) {
-	tokenPath := m.VaultServiceAccountTokenPath
-	if tokenPath == "" {
-		tokenPath = defaultServiceAccountTokenPath
-	}
-	jwt, err := os.ReadFile(tokenPath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read service account token from %s: %w", tokenPath, err)
-	}
-
-	opts := []kubernetesauth.LoginOption{
-		kubernetesauth.WithServiceAccountToken(string(bytes.TrimSpace(jwt))),
+	var opts []kubernetesauth.LoginOption
+	if tokenPath := m.VaultServiceAccountTokenPath; tokenPath != "" {
+		// Read here rather than via WithServiceAccountTokenPath to trim a
+		// trailing newline, and to reject an empty file: the SDK would treat
+		// it as unset and log in with the pod's default token instead.
+		jwt, err := os.ReadFile(tokenPath)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't read service account token from %s: %w", tokenPath, err)
+		}
+		jwt = bytes.TrimSpace(jwt)
+		if len(jwt) == 0 {
+			return nil, fmt.Errorf("service account token at %s is empty", tokenPath)
+		}
+		opts = append(opts, kubernetesauth.WithServiceAccountToken(string(jwt)))
 	}
 	if m.VaultKubernetesMountPath != "" {
 		opts = append(opts, kubernetesauth.WithMountPath(m.VaultKubernetesMountPath))

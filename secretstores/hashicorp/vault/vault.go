@@ -59,8 +59,7 @@ const (
 	authMethodToken      string = "token"
 	authMethodKubernetes string = "kubernetes"
 
-	vaultClientTimeout    = 60 * time.Second
-	vaultClientMaxRetries = 2
+	vaultClientTimeout = 60 * time.Second
 )
 
 type valueType string
@@ -80,13 +79,10 @@ var ErrNotFound = errors.New("secret key or version not exist")
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
-	client              *api.Client
-	vaultAddress        string
-	vaultToken          string
-	vaultTokenMountPath string
-	vaultKVPrefix       string
-	vaultEnginePath     string
-	vaultValueType      valueType
+	client          *api.Client
+	vaultKVPrefix   string
+	vaultEnginePath string
+	vaultValueType  valueType
 
 	logger logger.Logger
 
@@ -143,13 +139,9 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		return err
 	}
 
-	// Get Vault address
-	address := m.VaultAddr
-	if address == "" {
-		address = defaultVaultAddress
+	if m.VaultAddr == "" {
+		m.VaultAddr = defaultVaultAddress
 	}
-
-	v.vaultAddress = address
 
 	v.vaultEnginePath = defaultVaultEnginePath
 	if m.EnginePath != "" {
@@ -179,11 +171,13 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 		v.logger.Warnf("hashicorp vault: you are using 'skipVerify' to skip server config verification, which is unsafe")
 	}
 
-	config, err := v.newClientConfig(&m)
+	config, err := newClientConfig(&m)
 	if err != nil {
 		return err
 	}
 
+	// Known limitation: fails on an unparsable VAULT_* variable even though the
+	// values are ignored, since NewClient always runs api.DefaultConfig().
 	client, err := api.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("couldn't create vault client: %w", err)
@@ -195,12 +189,11 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 
 	switch m.VaultAuthMethod {
 	case "", authMethodToken:
-		v.vaultToken = m.VaultToken
-		v.vaultTokenMountPath = m.VaultTokenMountPath
-		if err := v.initVaultToken(); err != nil {
+		token, err := readVaultToken(&m)
+		if err != nil {
 			return err
 		}
-		client.SetToken(v.vaultToken)
+		client.SetToken(token)
 	case authMethodKubernetes:
 		if m.VaultKubernetesRole == "" {
 			return errors.New("vaultKubernetesRole is required when vaultAuthMethod is kubernetes")
@@ -224,7 +217,7 @@ func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata)
 
 // newClientConfig builds the config from metadata only. api.DefaultConfig()
 // would also apply VAULT_* and HTTP(S)_PROXY environment variables.
-func (v *vaultSecretStore) newClientConfig(m *VaultMetadata) (*api.Config, error) {
+func newClientConfig(m *VaultMetadata) (*api.Config, error) {
 	transport := &http.Transport{
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig: &tls.Config{
@@ -236,7 +229,7 @@ func (v *vaultSecretStore) newClientConfig(m *VaultMetadata) (*api.Config, error
 	}
 
 	config := &api.Config{
-		Address: v.vaultAddress,
+		Address: m.VaultAddr,
 		HttpClient: &http.Client{
 			Transport: transport,
 			// The SDK follows redirects itself.
@@ -245,7 +238,7 @@ func (v *vaultSecretStore) newClientConfig(m *VaultMetadata) (*api.Config, error
 			},
 		},
 		Timeout:    vaultClientTimeout,
-		MaxRetries: vaultClientMaxRetries,
+		MaxRetries: 0, // backward compatibility: the store never retried before it used the SDK
 	}
 
 	if err := config.ConfigureTLS(metadataToTLSConfig(m)); err != nil {
@@ -265,6 +258,11 @@ func metadataToTLSConfig(meta *VaultMetadata) *api.TLSConfig {
 	tlsConf := &api.TLSConfig{
 		Insecure:      meta.SkipVerify == "true",
 		TLSServerName: meta.TLSServerName,
+	}
+	// ConfigureTLS loads the CA before applying Insecure, so a stale CA setting
+	// would fail Init even though skipVerify never uses it.
+	if tlsConf.Insecure {
+		return tlsConf
 	}
 
 	// Set only one CA field: go-rootcerts applies CACert > CACertBytes > CAPath,
@@ -450,29 +448,28 @@ func (v *vaultSecretStore) isSecretPath(key string) bool {
 	return !strings.HasSuffix(key, "/")
 }
 
-// initVaultToken reads the vault token from the file if token is defined by mount path.
-func (v *vaultSecretStore) initVaultToken() error {
+// readVaultToken returns vaultToken, or the token read from vaultTokenMountPath.
+func readVaultToken(m *VaultMetadata) (string, error) {
 	// Test that at least one of them are set if not return error
-	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
-		return errors.New("token mount path and token not set")
+	if m.VaultToken == "" && m.VaultTokenMountPath == "" {
+		return "", errors.New("token mount path and token not set")
 	}
 
 	// Test that both are not set. If so return error
-	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
-		return errors.New("token mount path and token both set")
+	if m.VaultToken != "" && m.VaultTokenMountPath != "" {
+		return "", errors.New("token mount path and token both set")
 	}
 
-	if v.vaultToken != "" {
-		return nil
+	if m.VaultToken != "" {
+		return m.VaultToken, nil
 	}
 
-	data, err := os.ReadFile(v.vaultTokenMountPath)
+	data, err := os.ReadFile(m.VaultTokenMountPath)
 	if err != nil {
-		return fmt.Errorf("couldn't read vault token from mount path %s err: %s", v.vaultTokenMountPath, err)
+		return "", fmt.Errorf("couldn't read vault token from mount path %s err: %s", m.VaultTokenMountPath, err)
 	}
-	v.vaultToken = string(bytes.TrimSpace(data))
 
-	return nil
+	return string(bytes.TrimSpace(data)), nil
 }
 
 // Features returns the features available in this secret store.

@@ -472,6 +472,88 @@ func TestCreateMetadata(t *testing.T) {
 		// assert
 		require.Error(t, err)
 	})
+
+	t.Run("queueType defaults to classic", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, amqp.QueueTypeClassic, m.QueueType)
+	})
+
+	t.Run("queueType quorum with deletedWhenUnused false", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, amqp.QueueTypeQuorum, m.QueueType)
+	})
+
+	t.Run("queueType is invalid", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataQueueTypeKey] = "invalid"
+
+		// act
+		_, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid RabbitMQ queue type")
+	})
+
+	t.Run("queueType quorum requires deletedWhenUnused false", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+
+		// act
+		_, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "quorum queues require deletedWhenUnused to be false")
+	})
+
+	t.Run("queueType quorum requires durable true", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
+		fakeMetaData.Properties[metadataDurableKey] = "false"
+
+		// act
+		_, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "quorum queues require durable to be true")
+	})
 }
 
 func TestConnectionURI(t *testing.T) {

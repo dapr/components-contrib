@@ -20,3 +20,5 @@ components:
     operations: []
   - component: deepseek
     operations: []
+  - component: iflytek.spark
+    operations: []

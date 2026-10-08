@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: iflytek.spark
+version: v1
+status: alpha
+title: "iFlytek Spark"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/setup-spark/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key for iFlytek Spark. By default this is an API key from the
+          iFlytek MaaS console. A legacy Spark HTTP API password also works when
+          endpoint and model point to the legacy API.
+        example:  "**********"
+        default: ""
+metadata:
+  - name: model
+    required: false
+    description: |
+      The iFlytek Spark LLM to use. Use a model offered by the configured
+      endpoint, for example 4.0Ultra with the legacy Spark HTTP API.
+    type: string
+    example: 'spark-x2.5'
+    default: 'spark-x2.5'
+  - name: endpoint
+    required: false
+    description: |
+      Custom API endpoint URL for the iFlytek Spark OpenAI-compatible API.
+      If not specified, the iFlytek MaaS endpoint is used. Set it to
+      https://spark-api-open.xf-yun.com/v1 for legacy Spark HTTP API passwords;
+      keys from one API are not accepted by the other.
+    type: string
+    example: 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
+    default: 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
+  - name: thinking
+    required: false
+    description: |
+      Deep thinking mode of Spark X models. With thinking enabled, the model
+      can return only reasoning content, which surfaces as an empty response,
+      so it is disabled by default on the default endpoint. With a custom
+      endpoint, the mode is only sent when this is set.
+    type: string
+    allowedValues:
+      - "disabled"
+      - "enabled"
+      - "auto"
+    example: 'disabled'
+    default: 'disabled'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+      When unset, no cap is sent and the provider's own default applies.
+    type: number
+    example: "2048"
+    default: ''
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'

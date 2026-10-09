@@ -102,6 +102,10 @@ components:
       checkInOrderProcessing: false
   - component: kubemq
     operations: []
+  - component: daprmq.topics
+    operations: ['bulkpublish']
+  - component: daprmq.queues
+    operations: ['bulkpublish']
   - component: gcp.pubsub.terraform
     operations: []
     config:

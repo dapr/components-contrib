@@ -388,6 +388,7 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
+	github.com/olitomlinson/dapr-mq/sdks/go v0.0.0
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -517,3 +518,5 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
 // Don't commit with this uncommented!
 //
 // replace github.com/dapr/kit => ../kit
+
+replace github.com/olitomlinson/dapr-mq/sdks/go => ../../dapr-mq/sdks/go

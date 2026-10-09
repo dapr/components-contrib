@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messages
+spec:
+  type: pubsub.daprmq.queues
+  version: v1
+  metadata:
+    - name: httpEndpoint
+      value: http://localhost:8002
+    - name: grpcEndpoint
+      value: localhost:8102
+    - name: pollInterval
+      value: 100ms

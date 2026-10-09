@@ -36,6 +36,7 @@ excludeFolders:
   - pubsub/aws
   - pubsub/azure
   - pubsub/azure/servicebus
+  - pubsub/daprmq
   - pubsub/gcp
   - secretstores/alicloud
   - secretstores/aws

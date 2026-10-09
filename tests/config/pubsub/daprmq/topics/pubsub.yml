@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messages
+spec:
+  type: pubsub.daprmq.topics
+  version: v1
+  metadata:
+    - name: httpEndpoint
+      value: http://localhost:8002
+    - name: grpcEndpoint
+      value: localhost:8102
+    - name: consumerID
+      value: conformance
+    - name: pollInterval
+      value: 100ms

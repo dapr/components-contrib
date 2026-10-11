@@ -65,14 +65,14 @@ func (d sdkDelivery) DeadLetter() error     { return d.d.DeadLetter() }
 
 // consume receives over a Consume stream until ctx ends, reopening the stream with backoff
 // whenever it breaks. The server keeps up to maxActiveMessages delivered and renews their locks.
-func (d *PubSub) consume(ctx context.Context, topic, queueID string, handler pubsub.Handler) {
+func (d *PubSub) consume(ctx context.Context, sub *subscription, topic, queueID string, handler pubsub.Handler) {
 	// Strict order needs one message in flight: a later message held while an earlier one is
 	// nacked back into place would overtake it.
-	strict := !d.md.AllowCompetingConsumers || d.md.ConcurrencyMode == pubsub.Single
+	strict := !sub.AllowCompetingConsumers || sub.ConcurrencyMode == pubsub.Single
 	options := &mq.ConsumeOptions{
-		PrefetchCount:           d.md.MaxActiveMessages,
-		LockTTL:                 d.md.LockTTL,
-		AllowCompetingConsumers: d.md.AllowCompetingConsumers,
+		PrefetchCount:           sub.MaxActiveMessages,
+		LockTTL:                 sub.LockTTL,
+		AllowCompetingConsumers: sub.AllowCompetingConsumers,
 		OnSettleFailed: func(lockID string, err error) {
 			d.logger.Warnf("daprmq: settling %s on %s failed: %v", lockID, queueID, err)
 		},
@@ -91,7 +91,7 @@ func (d *PubSub) consume(ctx context.Context, topic, queueID string, handler pub
 			continue
 		}
 
-		delivered, err := d.serveStream(ctx, topic, queueID, stream, handler, strict)
+		delivered, err := d.serveStream(ctx, sub, topic, queueID, stream, handler, strict)
 		if ctx.Err() != nil {
 			return
 		}
@@ -107,7 +107,7 @@ func (d *PubSub) consume(ctx context.Context, topic, queueID string, handler pub
 // handlers already running settle first, then the stream is closed and the server returns every
 // delivery that was never handled. It reports whether anything was delivered, and why the stream
 // ended if it ended on its own.
-func (d *PubSub) serveStream(ctx context.Context, topic, queueID string, stream queueStream, handler pubsub.Handler, strict bool) (bool, error) {
+func (d *PubSub) serveStream(ctx context.Context, sub *subscription, topic, queueID string, stream queueStream, handler pubsub.Handler, strict bool) (bool, error) {
 	received := make(chan streamDelivery)
 	ended := make(chan error, 1)
 	go func() {
@@ -123,8 +123,8 @@ func (d *PubSub) serveStream(ctx context.Context, topic, queueID string, stream 
 	}()
 
 	var sem chan struct{}
-	if !strict && d.md.MaxConcurrentHandlers > 0 {
-		sem = make(chan struct{}, d.md.MaxConcurrentHandlers)
+	if !strict && sub.MaxConcurrentHandlers > 0 {
+		sem = make(chan struct{}, sub.MaxConcurrentHandlers)
 	}
 	var handlers sync.WaitGroup
 	delivered := false
@@ -141,7 +141,7 @@ func (d *PubSub) serveStream(ctx context.Context, topic, queueID string, stream 
 				continue // left unsettled: the server returns it when the stream closes
 			}
 			if strict {
-				d.handleStreamDelivery(ctx, topic, queueID, delivery, handler)
+				d.handleStreamDelivery(ctx, sub, topic, queueID, delivery, handler)
 				continue
 			}
 			if sem != nil {
@@ -157,7 +157,7 @@ func (d *PubSub) serveStream(ctx context.Context, topic, queueID string, stream 
 				if sem != nil {
 					defer func() { <-sem }()
 				}
-				d.handleStreamDelivery(ctx, topic, queueID, delivery, handler)
+				d.handleStreamDelivery(ctx, sub, topic, queueID, delivery, handler)
 			}()
 
 		case <-ctx.Done():
@@ -172,7 +172,7 @@ func (d *PubSub) serveStream(ctx context.Context, topic, queueID string, stream 
 }
 
 // handleStreamDelivery calls the handler and settles the delivery on its stream.
-func (d *PubSub) handleStreamDelivery(ctx context.Context, topic, queueID string, delivery streamDelivery, handler pubsub.Handler) {
+func (d *PubSub) handleStreamDelivery(ctx context.Context, sub *subscription, topic, queueID string, delivery streamDelivery, handler pubsub.Handler) {
 	msg, err := unwrap(delivery.Item(), topic)
 	if err != nil {
 		d.logger.Errorf("daprmq: dead-lettering undecodable message from %s: %v", queueID, err)
@@ -194,7 +194,7 @@ func (d *PubSub) handleStreamDelivery(ctx context.Context, topic, queueID string
 	if handlerErr == nil {
 		err = delivery.Ack()
 	} else {
-		d.paceRetry(ctx)
+		sub.paceRetry(ctx)
 		err = delivery.Nack()
 	}
 	if err != nil {

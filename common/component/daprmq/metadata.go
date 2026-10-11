@@ -38,6 +38,13 @@ type Metadata struct {
 	GRPCEndpoint string `mapstructure:"grpcEndpoint"`
 	// The subscriber's consumer ID. Provided by the runtime.
 	ConsumerID string `mapstructure:"consumerID" mdignore:"true"`
+	// The defaults for every subscription; a subscription's metadata overrides them.
+	SubscriptionOptions `mapstructure:",squash"`
+}
+
+// SubscriptionOptions is how a subscription consumes its queue. The component's metadata sets the
+// defaults and each subscription's metadata may override them.
+type SubscriptionOptions struct {
 	// How messages are received: "stream" or "poll".
 	ReceiveMode string `mapstructure:"receiveMode"`
 	// How long a delivered message stays locked to this subscriber before it is redelivered.
@@ -62,7 +69,7 @@ type Metadata struct {
 
 // ParseMetadata parses and validates the metadata; requireConsumerID makes consumerID required.
 func ParseMetadata(props map[string]string, requireConsumerID bool) (Metadata, error) {
-	md := Metadata{
+	md := Metadata{SubscriptionOptions: SubscriptionOptions{
 		ReceiveMode:              ReceiveModeStream,
 		LockTTL:                  30 * time.Second,
 		MaxActiveMessages:        100,
@@ -70,17 +77,12 @@ func ParseMetadata(props map[string]string, requireConsumerID bool) (Metadata, e
 		DequeueCount:             10,
 		PollInterval:             time.Second,
 		AllowCompetingConsumers:  true,
+		ConcurrencyMode:          pubsub.Parallel,
 		MaxRetriableErrorsPerSec: 10,
-	}
+	}}
 	if err := kitmd.DecodeMetadata(props, &md); err != nil {
 		return md, err
 	}
-
-	mode, err := pubsub.Concurrency(props)
-	if err != nil {
-		return md, err
-	}
-	md.ConcurrencyMode = mode
 
 	switch {
 	case md.HTTPEndpoint == "":
@@ -89,22 +91,46 @@ func ParseMetadata(props map[string]string, requireConsumerID bool) (Metadata, e
 		return md, errors.New("grpcEndpoint is required")
 	case requireConsumerID && md.ConsumerID == "":
 		return md, errors.New("consumerID is required")
-	case md.ReceiveMode != ReceiveModeStream && md.ReceiveMode != ReceiveModePoll:
-		return md, errors.New(`receiveMode must be "stream" or "poll"`)
-	case md.MaxActiveMessages < 1 || md.MaxActiveMessages > 1000:
-		return md, errors.New("maxActiveMessages must be between 1 and 1000")
-	case md.MaxRetriableErrorsPerSec < 0:
-		return md, errors.New("maxRetriableErrorsPerSec must be 0 (unlimited) or more")
-	case md.LockTTL < time.Second:
-		return md, errors.New("lockTTL must be at least 1s")
-	case md.LockRenewalInterval != 0 && (md.LockRenewalInterval < time.Second || md.LockRenewalInterval >= md.LockTTL):
-		return md, errors.New("lockRenewalInterval must be 0 (disabled), or at least 1s and less than lockTTL")
-	case md.DequeueCount < 1 || md.DequeueCount > 1000:
-		return md, errors.New("dequeueCount must be between 1 and 1000")
-	case md.PollInterval <= 0:
-		return md, errors.New("pollInterval must be greater than 0")
-	case md.MaxConcurrentHandlers < 0:
-		return md, errors.New("maxConcurrentHandlers must be 0 (unlimited) or more")
 	}
-	return md, nil
+	return md, md.SubscriptionOptions.parse(props)
+}
+
+// ParseSubscription returns the defaults overridden by a subscription's metadata, validated.
+func ParseSubscription(defaults SubscriptionOptions, props map[string]string) (SubscriptionOptions, error) {
+	opts := defaults
+	if err := kitmd.DecodeMetadata(props, &opts); err != nil {
+		return opts, err
+	}
+	return opts, opts.parse(props)
+}
+
+// parse sets the concurrency mode when props has one, then validates the options.
+func (o *SubscriptionOptions) parse(props map[string]string) error {
+	if _, ok := props[pubsub.ConcurrencyKey]; ok {
+		mode, err := pubsub.Concurrency(props)
+		if err != nil {
+			return err
+		}
+		o.ConcurrencyMode = mode
+	}
+
+	switch {
+	case o.ReceiveMode != ReceiveModeStream && o.ReceiveMode != ReceiveModePoll:
+		return errors.New(`receiveMode must be "stream" or "poll"`)
+	case o.MaxActiveMessages < 1 || o.MaxActiveMessages > 1000:
+		return errors.New("maxActiveMessages must be between 1 and 1000")
+	case o.MaxRetriableErrorsPerSec < 0:
+		return errors.New("maxRetriableErrorsPerSec must be 0 (unlimited) or more")
+	case o.LockTTL < time.Second:
+		return errors.New("lockTTL must be at least 1s")
+	case o.LockRenewalInterval != 0 && (o.LockRenewalInterval < time.Second || o.LockRenewalInterval >= o.LockTTL):
+		return errors.New("lockRenewalInterval must be 0 (disabled), or at least 1s and less than lockTTL")
+	case o.DequeueCount < 1 || o.DequeueCount > 1000:
+		return errors.New("dequeueCount must be between 1 and 1000")
+	case o.PollInterval <= 0:
+		return errors.New("pollInterval must be greater than 0")
+	case o.MaxConcurrentHandlers < 0:
+		return errors.New("maxConcurrentHandlers must be 0 (unlimited) or more")
+	}
+	return nil
 }

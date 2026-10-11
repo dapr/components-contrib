@@ -125,3 +125,58 @@ func TestParseMetadataConsumerIDIsOptionalWhenNotRequired(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestParseSubscriptionInheritsTheComponentDefaults(t *testing.T) {
+	md, err := ParseMetadata(requiredProps(), true)
+	require.NoError(t, err)
+
+	opts, err := ParseSubscription(md.SubscriptionOptions, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, md.SubscriptionOptions, opts)
+}
+
+func TestParseSubscriptionOverridesTheComponentDefaults(t *testing.T) {
+	props := requiredProps()
+	props["concurrencyMode"] = "single"
+	props["lockTTL"] = "2m"
+	md, err := ParseMetadata(props, true)
+	require.NoError(t, err)
+
+	opts, err := ParseSubscription(md.SubscriptionOptions, map[string]string{
+		"allowCompetingConsumers":  "false",
+		"maxActiveMessages":        "5",
+		"receiveMode":              "poll",
+		"maxRetriableErrorsPerSec": "0",
+		"httpEndpoint":             "http://elsewhere", // component-only: ignored
+		"rawPayload":               "true",             // not ours: ignored
+	})
+	require.NoError(t, err)
+
+	assert.False(t, opts.AllowCompetingConsumers)
+	assert.Equal(t, 5, opts.MaxActiveMessages)
+	assert.Equal(t, ReceiveModePoll, opts.ReceiveMode)
+	assert.Equal(t, 0, opts.MaxRetriableErrorsPerSec)
+	// Not overridden: inherited.
+	assert.Equal(t, pubsub.Single, opts.ConcurrencyMode)
+	assert.Equal(t, 2*time.Minute, opts.LockTTL)
+	assert.Equal(t, 10*time.Second, opts.LockRenewalInterval)
+}
+
+func TestParseSubscriptionRejectsInvalidValues(t *testing.T) {
+	md, err := ParseMetadata(requiredProps(), true)
+	require.NoError(t, err)
+
+	cases := map[string]map[string]string{
+		"lockTTL under 1s":                       {"lockTTL": "500ms"},
+		"unknown concurrencyMode":                {"concurrencyMode": "sometimes"},
+		"maxActiveMessages 0":                    {"maxActiveMessages": "0"},
+		"lockTTL not over the inherited renewal": {"lockTTL": "10s"},
+	}
+	for name, props := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := ParseSubscription(md.SubscriptionOptions, props)
+			require.Error(t, err)
+		})
+	}
+}

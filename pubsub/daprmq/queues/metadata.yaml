@@ -26,6 +26,7 @@ metadata:
       How messages are received. "stream" holds a gRPC stream open: the server keeps up to
       "maxActiveMessages" delivered, refills as they are settled and renews their locks. "poll"
       polls the queue in batches of "dequeueCount" and renews locks from the component.
+      Set in a subscription's metadata to override it for that subscription.
     type: string
     default: '"stream"'
     example: '"stream", "poll"'
@@ -37,6 +38,7 @@ metadata:
       How long a delivered message stays locked to this instance. Locks are renewed until the
       message is settled; if this instance goes away without settling, the message is redelivered
       once its lock runs out.
+      Set in a subscription's metadata to override it for that subscription.
     type: duration
     default: '"30s"'
     example: '"2m"'
@@ -44,6 +46,7 @@ metadata:
     description: |
       Stream mode: the most messages delivered to this instance and not yet settled (1-1000). Forced
       to 1 when "allowCompetingConsumers" is false or "concurrencyMode" is "single", to keep order.
+      Set in a subscription's metadata to override it for that subscription.
     type: number
     default: '100'
     example: '20'
@@ -52,18 +55,21 @@ metadata:
       Poll mode: how often the locks of messages taken but not yet settled are extended. Must be
       less than "lockTTL"; set to "0s" to disable renewal, in which case "lockTTL" must exceed the
       time a message waits for and spends in its handler.
+      Set in a subscription's metadata to override it for that subscription.
     type: duration
     default: '"10s"'
     example: '"20s"'
   - name: dequeueCount
     description: |
       Poll mode: the most messages taken from the queue per poll (1-1000).
+      Set in a subscription's metadata to override it for that subscription.
     type: number
     default: '10'
     example: '100'
   - name: pollInterval
     description: |
       Poll mode: how long to wait before polling again when the queue is empty or locked.
+      Set in a subscription's metadata to override it for that subscription.
     type: duration
     default: '"1s"'
     example: '"250ms"'
@@ -71,13 +77,16 @@ metadata:
     description: |
       Let each subscriber hold its own locks, so every subscriber to the queue consumes
       concurrently. When false, one subscriber at a time holds locks on the queue, which keeps
-      delivery strictly in order.
+      delivery strictly in order. Every subscriber to a queue should use the same value: one that
+      doesn't allow competing consumers waits while any other holds a lock.
+      Set in a subscription's metadata to override it for that subscription.
     type: bool
     default: 'true'
     example: '"true", "false"'
   - name: concurrencyMode
     description: |
       Call the subscriber for one message at a time ("single") or several at once ("parallel").
+      Set in a subscription's metadata to override it for that subscription.
     type: string
     default: '"parallel"'
     example: '"single", "parallel"'
@@ -88,6 +97,7 @@ metadata:
     description: |
       The most messages handled at once when "concurrencyMode" is "parallel"; 0 is unlimited,
       which in stream mode means up to "maxActiveMessages".
+      Set in a subscription's metadata to override it for that subscription.
     type: number
     default: '0'
     example: '20'
@@ -95,6 +105,7 @@ metadata:
     description: |
       The most failed messages returned for redelivery per second, so a message that keeps failing
       can't be redelivered in a tight loop; 0 is unlimited.
+      Set in a subscription's metadata to override it for that subscription.
     type: number
     default: '10'
     example: '5'

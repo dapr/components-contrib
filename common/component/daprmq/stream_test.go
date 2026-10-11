@@ -331,3 +331,39 @@ func TestFailedMessagesArePacedByMaxRetriableErrorsPerSec(t *testing.T) {
 	// Five failures at four per second take at least a second.
 	assert.GreaterOrEqual(t, time.Since(start), 900*time.Millisecond)
 }
+
+func TestSubscriptionMetadataOverridesTheComponentPerSubscription(t *testing.T) {
+	ps, opens := newStreamComponent(t, map[string]string{"maxActiveMessages": "250"}, newFakeStream(), newFakeStream())
+	handler := func(context.Context, *pubsub.NewMessage) error { return nil }
+
+	require.NoError(t, ps.Subscribe(t.Context(), pubsub.SubscribeRequest{
+		Topic:    "strict",
+		Metadata: map[string]string{"allowCompetingConsumers": "false", "lockTTL": "45s"},
+	}, handler))
+	require.NoError(t, ps.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "competing"}, handler))
+
+	require.Eventually(t, func() bool { return opens.count() == 2 }, 5*time.Second, 10*time.Millisecond)
+	opens.mu.Lock()
+	defer opens.mu.Unlock()
+	byQueue := map[string]*mq.ConsumeOptions{}
+	for i, q := range opens.queues {
+		byQueue[q] = opens.options[i]
+	}
+	assert.False(t, byQueue["strict"].AllowCompetingConsumers)
+	assert.Equal(t, 1, byQueue["strict"].PrefetchCount)
+	assert.Equal(t, 45*time.Second, byQueue["strict"].LockTTL)
+	assert.True(t, byQueue["competing"].AllowCompetingConsumers)
+	assert.Equal(t, 250, byQueue["competing"].PrefetchCount)
+	assert.Equal(t, 30*time.Second, byQueue["competing"].LockTTL)
+}
+
+func TestSubscribeRejectsInvalidSubscriptionMetadata(t *testing.T) {
+	ps, _ := newStreamComponent(t, nil)
+
+	err := ps.Subscribe(t.Context(), pubsub.SubscribeRequest{
+		Topic:    "orders",
+		Metadata: map[string]string{"lockTTL": "500ms"},
+	}, func(context.Context, *pubsub.NewMessage) error { return nil })
+
+	require.Error(t, err)
+}

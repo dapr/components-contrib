@@ -67,6 +67,11 @@ type PubSub struct {
 
 	// openStream opens a Consume stream in stream mode; tests replace it with a fake.
 	openStream func(ctx context.Context, queueID string, options *mq.ConsumeOptions) (queueStream, error)
+}
+
+// subscription is one subscription's options, from the component's defaults and its own metadata.
+type subscription struct {
+	SubscriptionOptions
 	// retryLimiter paces failed messages back to the queue, as Service Bus does.
 	retryLimiter ratelimit.Limiter
 }
@@ -92,10 +97,6 @@ func (d *PubSub) Init(_ context.Context, meta pubsub.Metadata) error {
 			return nil, err
 		}
 		return sdkStream{stream}, nil
-	}
-	d.retryLimiter = ratelimit.NewUnlimited()
-	if md.MaxRetriableErrorsPerSec > 0 {
-		d.retryLimiter = ratelimit.New(md.MaxRetriableErrorsPerSec)
 	}
 	return nil
 }
@@ -143,6 +144,15 @@ func (d *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return errClosed
 	}
 
+	opts, err := ParseSubscription(d.md.SubscriptionOptions, req.Metadata)
+	if err != nil {
+		return fmt.Errorf("daprmq: subscription to %s: %w", req.Topic, err)
+	}
+	sub := &subscription{SubscriptionOptions: opts, retryLimiter: ratelimit.NewUnlimited()}
+	if opts.MaxRetriableErrorsPerSec > 0 {
+		sub.retryLimiter = ratelimit.New(opts.MaxRetriableErrorsPerSec)
+	}
+
 	queueID, err := d.entity.SubscriberQueue(ctx, d.client, d.md.ConsumerID, req.Topic)
 	if err != nil {
 		return err
@@ -161,10 +171,10 @@ func (d *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	go func() {
 		defer d.wg.Done()
 		defer cancel()
-		if d.md.ReceiveMode == ReceiveModePoll {
-			d.poll(subscribeCtx, req.Topic, queueID, handler)
+		if sub.ReceiveMode == ReceiveModePoll {
+			d.poll(subscribeCtx, sub, req.Topic, queueID, handler)
 		} else {
-			d.consume(subscribeCtx, req.Topic, queueID, handler)
+			d.consume(subscribeCtx, sub, req.Topic, queueID, handler)
 		}
 	}()
 	return nil
@@ -183,24 +193,24 @@ func newBackOff() backoff.BackOff {
 	return config.NewBackOff()
 }
 
-func (d *PubSub) poll(ctx context.Context, topic, queueID string, handler pubsub.Handler) {
+func (d *PubSub) poll(ctx context.Context, sub *subscription, topic, queueID string, handler pubsub.Handler) {
 	bo := newBackOff()
 	options := &mq.DequeueLockedOptions{
-		Count:                   d.md.DequeueCount,
-		TTL:                     d.md.LockTTL,
-		AllowCompetingConsumers: d.md.AllowCompetingConsumers,
+		Count:                   sub.DequeueCount,
+		TTL:                     sub.LockTTL,
+		AllowCompetingConsumers: sub.AllowCompetingConsumers,
 	}
 
 	// Renewal outlives the subscription's context until this loop returns, so the locks of messages
 	// still being handled during shutdown stay held until they're settled.
 	locks := newActiveLocks()
-	if d.md.LockRenewalInterval > 0 {
+	if sub.LockRenewalInterval > 0 {
 		renewCtx, stopRenewing := context.WithCancel(context.WithoutCancel(ctx))
 		defer stopRenewing()
 		d.wg.Add(1)
 		go func() {
 			defer d.wg.Done()
-			d.renewLocks(renewCtx, queueID, locks)
+			d.renewLocks(renewCtx, sub, queueID, locks)
 		}()
 	}
 
@@ -217,26 +227,26 @@ func (d *PubSub) poll(ctx context.Context, topic, queueID string, handler pubsub
 		bo.Reset()
 
 		if len(result.Items) == 0 {
-			wait(ctx, d.md.PollInterval)
+			wait(ctx, sub.PollInterval)
 			continue
 		}
 		// Every lock is renewed from the moment it's taken, including while it waits for a handler.
 		for _, item := range result.Items {
 			locks.add(item.LockID, item.LockExpiresAt)
 		}
-		d.handleBatch(ctx, topic, queueID, result.Items, handler, locks)
+		d.handleBatch(ctx, sub, topic, queueID, result.Items, handler, locks)
 	}
 }
 
-func (d *PubSub) handleBatch(ctx context.Context, topic, queueID string, items []mq.DequeueLockedItem, handler pubsub.Handler, locks *activeLocks) {
-	if d.md.ConcurrencyMode == pubsub.Single {
+func (d *PubSub) handleBatch(ctx context.Context, sub *subscription, topic, queueID string, items []mq.DequeueLockedItem, handler pubsub.Handler, locks *activeLocks) {
+	if sub.ConcurrencyMode == pubsub.Single {
 		for _, item := range items {
-			d.handle(ctx, topic, queueID, item, handler, locks)
+			d.handle(ctx, sub, topic, queueID, item, handler, locks)
 		}
 		return
 	}
 
-	limit := d.md.MaxConcurrentHandlers
+	limit := sub.MaxConcurrentHandlers
 	if limit == 0 {
 		limit = len(items)
 	}
@@ -248,7 +258,7 @@ func (d *PubSub) handleBatch(ctx context.Context, topic, queueID string, items [
 		go func() {
 			defer batch.Done()
 			defer func() { <-sem }()
-			d.handle(ctx, topic, queueID, item, handler, locks)
+			d.handle(ctx, sub, topic, queueID, item, handler, locks)
 		}()
 	}
 	batch.Wait()
@@ -256,7 +266,7 @@ func (d *PubSub) handleBatch(ctx context.Context, topic, queueID string, items [
 
 // handle delivers one item and settles its lock. Settling outlives the subscription's context, so
 // a message handled during shutdown is still acknowledged; one not yet handled is nacked.
-func (d *PubSub) handle(ctx context.Context, topic, queueID string, item mq.DequeueLockedItem, handler pubsub.Handler, locks *activeLocks) {
+func (d *PubSub) handle(ctx context.Context, sub *subscription, topic, queueID string, item mq.DequeueLockedItem, handler pubsub.Handler, locks *activeLocks) {
 	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
 	defer cancel()
 
@@ -280,7 +290,7 @@ func (d *PubSub) handle(ctx context.Context, topic, queueID string, item mq.Dequ
 	if handlerErr == nil {
 		err = d.client.Acknowledge(settleCtx, queueID, item.LockID, nil)
 	} else {
-		d.paceRetry(ctx)
+		sub.paceRetry(ctx)
 		_, err = d.client.Nack(settleCtx, queueID, item.LockID, nil)
 	}
 	if err != nil {
@@ -290,20 +300,20 @@ func (d *PubSub) handle(ctx context.Context, topic, queueID string, item mq.Dequ
 
 // renewLocks extends every active lock each interval until ctx ends, back up to about lockTTL
 // ahead of now (see renewalExtension).
-func (d *PubSub) renewLocks(ctx context.Context, queueID string, locks *activeLocks) {
-	t := time.NewTicker(d.md.LockRenewalInterval)
+func (d *PubSub) renewLocks(ctx context.Context, sub *subscription, queueID string, locks *activeLocks) {
+	t := time.NewTicker(sub.LockRenewalInterval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			d.renewOnce(ctx, queueID, locks)
+			d.renewOnce(ctx, sub, queueID, locks)
 		}
 	}
 }
 
-func (d *PubSub) renewOnce(ctx context.Context, queueID string, locks *activeLocks) {
+func (d *PubSub) renewOnce(ctx context.Context, sub *subscription, queueID string, locks *activeLocks) {
 	expiries := locks.snapshot()
 	if len(expiries) == 0 {
 		return
@@ -328,7 +338,7 @@ func (d *PubSub) renewOnce(ctx context.Context, queueID string, locks *activeLoc
 
 			callCtx, cancel := context.WithTimeout(ctx, settleTimeout)
 			defer cancel()
-			extension := renewalExtension(time.Now(), expiresAt, d.md.LockTTL)
+			extension := renewalExtension(time.Now(), expiresAt, sub.LockTTL)
 			err := d.client.ExtendLock(callCtx, queueID, lockID, extension, nil)
 			if err == nil {
 				locks.extended(lockID, expiresAt.Add(extension))
@@ -483,8 +493,8 @@ func (a *activeLocks) snapshot() map[string]time.Time {
 // paceRetry takes a token before a failed message goes back to the queue, so a message that keeps
 // failing is redelivered at most maxRetriableErrorsPerSec times a second. Messages returned only
 // because the subscription is ending are not paced.
-func (d *PubSub) paceRetry(ctx context.Context) {
+func (s *subscription) paceRetry(ctx context.Context) {
 	if ctx.Err() == nil {
-		d.retryLimiter.Take()
+		s.retryLimiter.Take()
 	}
 }

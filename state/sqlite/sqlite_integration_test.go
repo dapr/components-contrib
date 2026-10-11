@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -101,6 +102,10 @@ func TestSqliteIntegration(t *testing.T) {
 
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
 		testBulkSetAndBulkDelete(t, s)
+	})
+
+	t.Run("Bulk get with more keys than SQLite allows bind variables", func(t *testing.T) {
+		bulkGetManyKeys(t, s)
 	})
 
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
@@ -509,6 +514,65 @@ func getExpireTime(t *testing.T, s state.Store) {
 	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
 	require.NoError(t, err)
 	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 10)
+}
+
+// bulkGetManyKeys reads more keys in one BulkGet than SQLite allows bind
+// variables in one statement (SQLITE_MAX_VARIABLE_NUMBER is 32766 in the
+// bundled driver). The Dapr workflow engine loads a workflow history with one
+// BulkGet that has one key for each history event.
+func bulkGetManyKeys(t *testing.T, s state.Store) {
+	const n = 33_000 // more than SQLITE_MAX_VARIABLE_NUMBER (32766)
+	prefix := randomKey() + "-"
+	keys := make([]string, n)
+	ops := make([]state.TransactionalStateOperation, 0, 1000)
+	for i := range n {
+		keys[i] = prefix + strconv.Itoa(i)
+		ops = append(ops, state.SetRequest{Key: keys[i], Value: []byte(strconv.Itoa(i))})
+		if len(ops) == cap(ops) || i == n-1 {
+			require.NoError(t, s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+			ops = ops[:0]
+		}
+	}
+
+	// Each request has count keys that exist and 3 keys that do not exist:
+	// one query, two queries, and more keys than SQLite allows bind variables.
+	for _, count := range []int{bulkGetMaxKeysPerQuery - 3, bulkGetMaxKeysPerQuery - 2, n} {
+		t.Run(strconv.Itoa(count+3)+" keys", func(t *testing.T) {
+			req := make([]state.GetRequest, 0, count+3)
+			for _, k := range keys[:count] {
+				req = append(req, state.GetRequest{Key: k})
+			}
+			for i := range 3 {
+				req = append(req, state.GetRequest{Key: prefix + "missing-" + strconv.Itoa(i)})
+			}
+
+			res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+			require.NoError(t, err)
+			require.Len(t, res, count+3)
+
+			got := make(map[string]state.BulkGetResponse, len(res))
+			for _, r := range res {
+				got[r.Key] = r
+			}
+			require.Len(t, got, count+3)
+
+			var wrong int
+			for i, k := range keys[:count] {
+				r := got[k]
+				if r.Error != "" || r.ETag == nil || string(r.Data) != strconv.Itoa(i) {
+					wrong++
+				}
+			}
+			assert.Zero(t, wrong, "keys with a wrong value, an error, or no ETag")
+
+			for i := range 3 {
+				r, ok := got[prefix+"missing-"+strconv.Itoa(i)]
+				assert.True(t, ok)
+				assert.Empty(t, r.Data)
+				assert.Empty(t, r.Error)
+			}
+		})
+	}
 }
 
 func getBulkExpireTime(t *testing.T, s state.Store) {

@@ -38,6 +38,13 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
+// bulkGetMaxKeysPerQuery is the maximum number of keys in one BulkGet query.
+// Each key is one bind variable, and SQLite limits the number of bind
+// variables in one statement (SQLITE_MAX_VARIABLE_NUMBER: 32766 in the
+// bundled driver, 999 in SQLite builds before 3.32.0). A larger request is
+// split into queries of this size.
+const bulkGetMaxKeysPerQuery = 500
+
 // DBAccess is a private interface which enables unit testing of SQLite.
 type DBAccess interface {
 	Init(ctx context.Context, metadata state.Metadata) error
@@ -196,6 +203,40 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		return []state.BulkGetResponse{}, nil
 	}
 
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
+	defer cancel()
+
+	if len(req) <= bulkGetMaxKeysPerQuery {
+		return a.bulkGetChunk(ctx, a.db, req)
+	}
+
+	// SQLite limits the number of bind variables in one statement, so a large
+	// request is split into chunks. All chunks run in one read-only
+	// transaction, so they read the same snapshot, like a single query.
+	// A read-only transaction starts with a deferred BEGIN, so it does not
+	// lock out writers in WAL mode.
+	tx, err := a.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	res := make([]state.BulkGetResponse, 0, len(req))
+	for start := 0; start < len(req); start += bulkGetMaxKeysPerQuery {
+		end := min(start+bulkGetMaxKeysPerQuery, len(req))
+		chunk, err := a.bulkGetChunk(ctx, tx, req[start:end])
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, chunk...)
+	}
+
+	return res, nil
+}
+
+// bulkGetChunk reads the keys in req with one query. The number of keys must
+// not be more than bulkGetMaxKeysPerQuery.
+func (a *sqliteDBAccess) bulkGetChunk(ctx context.Context, db querier, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
 	inClause := strings.Repeat("?,", len(req))
 	inClause = inClause[:(len(inClause) - 1)]
@@ -205,17 +246,15 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
-	defer cancel()
-	rows, err := a.db.QueryContext(ctx, stmt, params...)
+	rows, err := db.QueryContext(ctx, stmt, params...)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var n int
 	res := make([]state.BulkGetResponse, len(req))
@@ -239,6 +278,9 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 		res[n] = r
 		foundKeys[r.Key] = struct{}{}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 
 	// Populate missing keys with empty values

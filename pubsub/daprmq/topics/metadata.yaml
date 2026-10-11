@@ -7,7 +7,7 @@ status: alpha
 title: "DaprMQ Topics"
 urls:
   - title: Reference
-    url: https://github.com/olitomlinson/dapr-mq
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-daprmq-topics
 metadata:
   - name: httpEndpoint
     required: true

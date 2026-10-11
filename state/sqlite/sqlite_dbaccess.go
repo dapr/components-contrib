@@ -206,43 +206,77 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 
-	if len(req) <= bulkGetMaxKeysPerQuery {
-		return a.bulkGetChunk(ctx, a.db, req)
+	// A key can occur more than one time in req. The query reads each key one
+	// time, so a key that exists has one response, also when the request is
+	// split into chunks. This is the same result as one query with an IN clause.
+	keys := make([]string, 0, len(req))
+	seen := make(map[string]struct{}, len(req))
+	for _, r := range req {
+		if _, ok := seen[r.Key]; !ok {
+			seen[r.Key] = struct{}{}
+			keys = append(keys, r.Key)
+		}
 	}
-
-	// SQLite limits the number of bind variables in one statement, so a large
-	// request is split into chunks. All chunks run in one read-only
-	// transaction, so they read the same snapshot, like a single query.
-	// A read-only transaction starts with a deferred BEGIN, so it does not
-	// lock out writers in WAL mode.
-	tx, err := a.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck
 
 	res := make([]state.BulkGetResponse, 0, len(req))
-	for start := 0; start < len(req); start += bulkGetMaxKeysPerQuery {
-		end := min(start+bulkGetMaxKeysPerQuery, len(req))
-		chunk, err := a.bulkGetChunk(ctx, tx, req[start:end])
+	if len(keys) <= bulkGetMaxKeysPerQuery {
+		rows, err := a.bulkGetRows(ctx, a.db, keys)
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, chunk...)
+		res = append(res, rows...)
+	} else {
+		// SQLite limits the number of bind variables in one statement, so a
+		// large request is split into chunks. All chunks run in one read-only
+		// transaction, so they read the same snapshot, like a single query.
+		// A read-only transaction starts with a deferred BEGIN, so it does not
+		// lock out writers in WAL mode.
+		tx, err := a.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback() //nolint:errcheck
+
+		for start := 0; start < len(keys); start += bulkGetMaxKeysPerQuery {
+			end := min(start+bulkGetMaxKeysPerQuery, len(keys))
+			rows, err := a.bulkGetRows(ctx, tx, keys[start:end])
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, rows...)
+		}
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	// A key that does not exist has one empty response each time it occurs in req.
+	foundKeys := make(map[string]struct{}, len(res))
+	for _, r := range res {
+		foundKeys[r.Key] = struct{}{}
+	}
+	if len(foundKeys) < len(req) {
+		for _, r := range req {
+			if _, ok := foundKeys[r.Key]; !ok {
+				res = append(res, state.BulkGetResponse{
+					Key: r.Key,
+				})
+			}
+		}
 	}
 
 	return res, nil
 }
 
-// bulkGetChunk reads the keys in req with one query. The number of keys must
-// not be more than bulkGetMaxKeysPerQuery.
-func (a *sqliteDBAccess) bulkGetChunk(ctx context.Context, db querier, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+// bulkGetRows reads keys with one query. It returns one response for each key
+// that exists and is not expired. The keys must be unique, and there must not
+// be more than bulkGetMaxKeysPerQuery keys.
+func (a *sqliteDBAccess) bulkGetRows(ctx context.Context, db querier, keys []string) ([]state.BulkGetResponse, error) {
 	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
-	inClause := strings.Repeat("?,", len(req))
+	inClause := strings.Repeat("?,", len(keys))
 	inClause = inClause[:(len(inClause) - 1)]
-	params := make([]any, len(req))
-	for i, r := range req {
-		params[i] = r.Key
+	params := make([]any, len(keys))
+	for i, k := range keys {
+		params[i] = k
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
@@ -256,13 +290,11 @@ func (a *sqliteDBAccess) bulkGetChunk(ctx context.Context, db querier, req []sta
 	}
 	defer rows.Close()
 
-	var n int
-	res := make([]state.BulkGetResponse, len(req))
-	foundKeys := make(map[string]struct{}, len(req))
-	for ; rows.Next(); n++ {
-		if n >= len(req) {
-			// Sanity check to prevent panics, which should never happen
-			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+	res := make([]state.BulkGetResponse, 0, len(keys))
+	for rows.Next() {
+		if len(res) >= len(keys) {
+			// Sanity check, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(keys))
 		}
 
 		r := state.BulkGetResponse{}
@@ -276,33 +308,13 @@ func (a *sqliteDBAccess) bulkGetChunk(ctx context.Context, db querier, req []sta
 				state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 			}
 		}
-		res[n] = r
-		foundKeys[r.Key] = struct{}{}
+		res = append(res, r)
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	// Populate missing keys with empty values
-	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
-	if len(foundKeys) < len(req) {
-		var ok bool
-		for _, r := range req {
-			_, ok = foundKeys[r.Key]
-			if !ok {
-				if n >= len(req) {
-					// Sanity check to prevent panics, which should never happen
-					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
-				}
-				res[n] = state.BulkGetResponse{
-					Key: r.Key,
-				}
-				n++
-			}
-		}
-	}
-
-	return res[:n], nil
+	return res, nil
 }
 
 func readRow(row interface{ Scan(dest ...any) error }) (string, []byte, *string, *time.Time, error) {

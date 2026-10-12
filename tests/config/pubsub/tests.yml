@@ -72,6 +72,9 @@ components:
     operations: []
   - component: solace.amqp
     operations: []
+  - component: amqp
+    profile: artemis
+    operations: []
   - component: mqtt3
     profile: emqx
     operations: []

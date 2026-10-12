@@ -54,7 +54,6 @@ metadata:
       - "enabled"
       - "auto"
     example: 'disabled'
-    default: 'disabled'
   - name: maxTokens
     required: false
     description: |

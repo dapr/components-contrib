@@ -45,7 +45,9 @@ func TestSparkConversation(t *testing.T) {
 	err := component.Init(ctx, conversation.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"key": key,
+				"key":      key,
+				"endpoint": "https://maas-token-api.cn-huabei-1.xf-yun.com/v2",
+				"thinking": "disabled",
 			},
 		},
 	})

@@ -37,6 +37,9 @@ which is passed verbatim to `CreateIndex`; `config.indexMetadata` and
 sets the `INDEXING_MODE_WAIT_FOR_COMPLETION` wait used when the suite needs a
 final provider result before reading back.
 
+`config.nativeQuery` overrides the provider-native query used by the suite
+(the default remains Meilisearch's `q`).
+
 ## What the suite asserts
 
 - `CreateIndex` on an existing index returns `ALREADY_EXISTS`; `GetIndex` and

@@ -141,15 +141,44 @@ func (m *Meilisearch) CreateCollection(ctx context.Context, req *vector.CreateCo
 	if sortable := commonmeilisearch.SplitList(req.Metadata[mdSortableAttributes]); len(sortable) > 0 {
 		settings.SortableAttributes = sortable
 	}
-	settingsTask, err := client.Index(req.Collection).UpdateSettingsWithContext(ctx, settings)
-	if err != nil {
-		return commonmeilisearch.StatusError(err, fmt.Sprintf("configure meilisearch collection %q", req.Collection))
+	if err = configureCollection(ctx, client, req.Collection, settings); err != nil {
+		// The index was created by this request but has no embedder. Left
+		// behind, it would make every retry fail with ALREADY_EXISTS without
+		// ever becoming a usable collection, so the creation is undone.
+		commonmeilisearch.RollbackIndex(ctx, client, req.Collection, m.logger)
+		return err
 	}
-	return commonmeilisearch.WaitForTask(ctx, client, settingsTask.TaskUID, fmt.Sprintf("configure meilisearch collection %q", req.Collection))
+	return nil
+}
+
+// configureCollection applies the settings of a newly created collection and
+// waits for them to take effect.
+func configureCollection(ctx context.Context, client meilisearchgo.ServiceManager, collection string, settings *meilisearchgo.Settings) error {
+	msg := fmt.Sprintf("configure meilisearch collection %q", collection)
+	task, err := client.Index(collection).UpdateSettingsWithContext(ctx, settings)
+	if err != nil {
+		return commonmeilisearch.StatusError(err, msg)
+	}
+	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, msg)
+}
+
+// collectionDimensions returns the dimensions of a vector collection from the
+// embedders of its index. Collections share the instance with plain indexes:
+// the search component creates them, and so does Meilisearch itself on a
+// document addition to a missing index. An index without the `default`
+// embedder can neither store nor query vectors and is not a collection.
+func collectionDimensions(collection string, embedders map[string]meilisearchgo.Embedder) (int, error) {
+	embedder, ok := embedders[DefaultEmbedder]
+	if !ok || embedder.Dimensions <= 0 {
+		return 0, status.Errorf(codes.FailedPrecondition,
+			"meilisearch index %q is not a vector collection: it has no %q embedder with fixed dimensions", collection, DefaultEmbedder)
+	}
+	return embedder.Dimensions, nil
 }
 
 // GetCollection returns the record count, dimensions, metric and settings of
-// a collection.
+// a collection. An index that is not configured for vectors is
+// FAILED_PRECONDITION.
 func (m *Meilisearch) GetCollection(ctx context.Context, req *vector.GetCollectionRequest) (*vector.GetCollectionResponse, error) {
 	if req == nil || req.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "collection is required")
@@ -175,12 +204,16 @@ func (m *Meilisearch) GetCollection(ctx context.Context, req *vector.GetCollecti
 		return nil, status.Errorf(codes.Internal, "meilisearch collection %q reported a negative record count", req.Collection)
 	}
 
+	embedderDimensions, err := collectionDimensions(req.Collection, settings.Embedders)
+	if err != nil {
+		return nil, err
+	}
 	var dimensions uint32
-	if embedder, ok := settings.Embedders[DefaultEmbedder]; ok && embedder.Dimensions > 0 {
-		if uint64(embedder.Dimensions) > math.MaxUint32 {
+	if embedderDimensions > 0 {
+		if uint64(embedderDimensions) > math.MaxUint32 {
 			return nil, status.Errorf(codes.Internal, "meilisearch collection %q reported dimensions outside the uint32 range", req.Collection)
 		}
-		dimensions = uint32(embedder.Dimensions)
+		dimensions = uint32(embedderDimensions)
 	}
 	properties := map[string]string{"primaryKey": idx.PrimaryKey}
 	if len(settings.FilterableAttributes) > 0 {
@@ -201,20 +234,33 @@ func (m *Meilisearch) GetCollection(ctx context.Context, req *vector.GetCollecti
 	}, nil
 }
 
-// ListCollections lists the collections of the store.
+// ListCollections lists the collections of the store: the indexes of the
+// instance that are configured for vectors.
 func (m *Meilisearch) ListCollections(ctx context.Context, req *vector.ListCollectionsRequest) (*vector.ListCollectionsResponse, error) {
 	client, _, err := m.ready()
 	if err != nil {
 		return nil, err
 	}
 	_ = req
-	res, err := client.ListIndexesWithContext(ctx, nil)
+	uids, err := commonmeilisearch.ListIndexUIDs(ctx, client)
 	if err != nil {
 		return nil, commonmeilisearch.StatusError(err, "list meilisearch collections")
 	}
-	out := &vector.ListCollectionsResponse{Collections: make([]string, 0, len(res.Results))}
-	for _, idx := range res.Results {
-		out.Collections = append(out.Collections, idx.UID)
+	// The index list does not carry the embedders, so they are read per index.
+	out := &vector.ListCollectionsResponse{Collections: make([]string, 0, len(uids))}
+	for _, uid := range uids {
+		embedders, embeddersErr := client.Index(uid).GetEmbeddersWithContext(ctx)
+		if embeddersErr != nil {
+			statusErr := commonmeilisearch.StatusError(embeddersErr, fmt.Sprintf("get the embedders of meilisearch index %q", uid))
+			if status.Code(statusErr) == codes.NotFound {
+				// Deleted since it was listed.
+				continue
+			}
+			return nil, statusErr
+		}
+		if _, notCollection := collectionDimensions(uid, embedders); notCollection == nil {
+			out.Collections = append(out.Collections, uid)
+		}
 	}
 	return out, nil
 }
@@ -235,7 +281,8 @@ func (m *Meilisearch) DeleteCollection(ctx context.Context, req *vector.DeleteCo
 	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("delete meilisearch collection %q", req.Collection))
 }
 
-// Upsert is a keyed upsert of dense vector records into a collection.
+// Upsert is a keyed upsert of dense vector records into an existing
+// collection. A missing collection is NOT_FOUND.
 func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*vector.UpsertResponse, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, commonmeilisearch.ContextStatusError(ctx)
@@ -259,13 +306,39 @@ func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*v
 		return nil, err
 	}
 
+	// Meilisearch creates a missing index on the first document addition, and
+	// stores `_vectors` in an index that has no embedder. Either way the
+	// records would land where no query can reach them and CreateCollection
+	// could no longer repair it, and a write to a missing collection is a
+	// request-wide error, so the collection is looked up before anything is
+	// enqueued.
+	embedders, err := client.Index(req.Collection).GetEmbeddersWithContext(ctx)
+	if err != nil {
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch collection %q", req.Collection))
+	}
+	dimensions, err := collectionDimensions(req.Collection, embedders)
+	if err != nil {
+		return nil, err
+	}
+
 	// Item failures identified before the task is enqueued. A Meilisearch task
-	// is atomic, so these are the only item failures the component can report.
+	// is atomic: one record it rejects fails every record of the batch. These
+	// are therefore the only item failures the component can report, and what
+	// Meilisearch would reject per record is checked here.
 	failed := make([]search.FailedItem, 0)
 	docs := make([]map[string]any, 0, len(req.Records))
 	for _, record := range req.Records {
+		if !commonmeilisearch.ValidDocumentID(record.ID) {
+			failed = append(failed, commonmeilisearch.InvalidDocumentIDItem(record.ID))
+			continue
+		}
 		if len(record.Values) == 0 {
 			failed = append(failed, commonmeilisearch.NewFailedItem(record.ID, codes.InvalidArgument, "the record has no vector values"))
+			continue
+		}
+		if len(record.Values) != dimensions {
+			failed = append(failed, commonmeilisearch.NewFailedItem(record.ID, codes.InvalidArgument,
+				"the record has %d vector values but the collection has %d dimensions", len(record.Values), dimensions))
 			continue
 		}
 		doc := map[string]any{
@@ -305,11 +378,14 @@ func (m *Meilisearch) Get(ctx context.Context, req *vector.GetRequest) (*vector.
 	if err != nil {
 		return nil, err
 	}
-	if len(req.IDs) == 0 {
+	// An ID Meilisearch cannot store names no record. Passing it on would fail
+	// the whole read instead of omitting that record.
+	ids := commonmeilisearch.ValidDocumentIDs(req.IDs)
+	if len(ids) == 0 {
 		return &vector.GetResponse{Records: []vector.Record{}}, nil
 	}
 
-	query := &meilisearchgo.DocumentsQuery{Ids: req.IDs, Limit: int64(len(req.IDs)), RetrieveVectors: req.IncludeValues}
+	query := &meilisearchgo.DocumentsQuery{Ids: ids, Limit: int64(len(ids)), RetrieveVectors: req.IncludeValues}
 	var res meilisearchgo.DocumentsResult
 	if err := client.Index(req.Collection).GetDocumentsWithContext(ctx, query, &res); err != nil {
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get vectors of meilisearch collection %q", req.Collection))
@@ -324,7 +400,7 @@ func (m *Meilisearch) Get(ctx context.Context, req *vector.GetRequest) (*vector.
 		byID[record.ID] = record
 	}
 	out := &vector.GetResponse{Records: make([]vector.Record, 0, len(byID))}
-	for _, id := range req.IDs {
+	for _, id := range ids {
 		if record, ok := byID[id]; ok {
 			out.Records = append(out.Records, record)
 			delete(byID, id)
@@ -381,9 +457,10 @@ func (m *Meilisearch) Query(ctx context.Context, req *vector.QueryRequest) (*vec
 
 // BatchQuery evaluates each query independently against the same collection
 // and returns one result per query in request order. A query that fails
-// validation or is rejected by Meilisearch produces an error result; only
-// request-wide failures (a closed component, a missing collection, invalid
-// credentials, transport) fail the call.
+// validation or is rejected by Meilisearch produces an error result; a
+// request-wide failure (a closed component, a missing collection, invalid
+// credentials, transport, a provider outage) fails the call, whichever query
+// meets it.
 func (m *Meilisearch) BatchQuery(ctx context.Context, req *vector.BatchQueryRequest) (*vector.BatchQueryResponse, error) {
 	if req == nil || req.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "collection is required")
@@ -410,6 +487,9 @@ func (m *Meilisearch) BatchQuery(ctx context.Context, req *vector.BatchQueryRequ
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, commonmeilisearch.ContextStatusError(ctx)
+			}
+			if requestWideQueryError(err) {
+				return nil, err
 			}
 			out.Results[i] = vector.BatchQueryResult{Error: err}
 			continue
@@ -449,6 +529,16 @@ func (m *Meilisearch) ready() (meilisearchgo.ServiceManager, *commonmeilisearch.
 	return m.client, m.dispatcher, nil
 }
 
+// requestWideQueryError reports whether a failed query would fail every other
+// query of its batch the same way. Only a rejection of the query itself is
+// specific to it: INVALID_ARGUMENT, from the component's validation or from a
+// Meilisearch `invalid_request` such as a vector of the wrong size or an
+// unknown by_id. Credentials, a collection that disappeared, transport and
+// provider failures are not.
+func requestWideQueryError(err error) bool {
+	return status.Code(err) != codes.InvalidArgument
+}
+
 func (m *Meilisearch) query(ctx context.Context, client meilisearchgo.ServiceManager, req *vector.QueryRequest) (*vector.QueryResponse, error) {
 	if err := validateMetric(req.Metric); err != nil {
 		return nil, err
@@ -477,7 +567,14 @@ func (m *Meilisearch) query(ctx context.Context, client meilisearchgo.ServiceMan
 
 	var threshold float64
 	if req.ScoreThreshold != nil {
-		threshold = rankingScoreThreshold(*req.ScoreThreshold)
+		// A cosine similarity lies in [-1, 1]. A cutoff outside that range is
+		// rejected rather than clamped: clamping 1.5 to 1 would return exact
+		// matches that the requested cutoff excludes.
+		cosine := *req.ScoreThreshold
+		if math.IsNaN(cosine) || cosine < -1 || cosine > 1 {
+			return nil, status.Error(codes.InvalidArgument, "score_threshold must be a cosine similarity between -1 and 1")
+		}
+		threshold = rankingScoreThreshold(cosine)
 	}
 
 	if hasID {
@@ -559,7 +656,7 @@ func cosineFromRankingScore(score float64) float64 {
 }
 
 func rankingScoreThreshold(cosine float64) float64 {
-	return math.Min(1, math.Max(0, (1+cosine)/2))
+	return (1 + cosine) / 2
 }
 
 func queryResponseFromHits(hits meilisearchgo.Hits, includeValues, includePayload bool) (*vector.QueryResponse, error) {

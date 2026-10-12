@@ -247,6 +247,9 @@ func TestValidateDocumentContent(t *testing.T) {
 		{name: "null", content: []byte(`null`), wantErr: true},
 		{name: "truncated object", content: []byte(`{"title":`), wantErr: true},
 		{name: "trailing garbage", content: []byte(`{} {}`), wantErr: true},
+		{name: "valid multi-byte UTF-8", content: []byte(`{"title":"책 🚗"}`)},
+		{name: "invalid UTF-8 in a string", content: []byte("{\"a\":\"\x80\x80\"}"), wantErr: true},
+		{name: "invalid UTF-8 in a key", content: []byte("{\"\xff\":1}"), wantErr: true},
 	}
 
 	for _, tt := range tests {

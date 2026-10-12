@@ -62,6 +62,10 @@ const (
 	// operations. Document and vector writes go through the TaskDispatcher,
 	// which uses the task-change stream or exponential-backoff polling.
 	WaitInterval = 50 * time.Millisecond
+
+	// maxDocumentIDBytes is the longest document identifier Meilisearch
+	// accepts.
+	maxDocumentIDBytes = 511
 )
 
 // ReservedFields are the attributes the components own inside a Meilisearch
@@ -77,6 +81,60 @@ func IsReservedField(name string) bool {
 		return true
 	}
 	return name == PrimaryKey || name == MetadataField || name == PayloadField
+}
+
+// ReservedContentField returns the first attribute, in lexical order, of a
+// document's content that the component cannot store on the caller's behalf:
+// the attributes it owns and Meilisearch's underscore-prefixed namespace. Such
+// an attribute would be overwritten on write or dropped on read, so a document
+// using one is rejected instead of silently losing data.
+func ReservedContentField(content map[string]any) (string, bool) {
+	var found string
+	for key := range content {
+		if IsReservedField(key) && (found == "" || key < found) {
+			found = key
+		}
+	}
+	return found, found != ""
+}
+
+// ValidDocumentID reports whether id can be a Meilisearch document
+// identifier: 1 to 511 bytes of ASCII letters, digits, hyphens and
+// underscores. Meilisearch fails the whole task, or the whole read, on any
+// other identifier, so the components check IDs themselves.
+func ValidDocumentID(id string) bool {
+	if id == "" || len(id) > maxDocumentIDBytes {
+		return false
+	}
+	for i := range len(id) {
+		c := id[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '-', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// ValidDocumentIDs returns the IDs that can name a stored document, in request
+// order. An invalid identifier cannot have been written, so reads treat it as
+// not found rather than letting Meilisearch fail the whole request.
+func ValidDocumentIDs(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if ValidDocumentID(id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// InvalidDocumentIDItem builds the item failure of a write whose ID Meilisearch
+// cannot store.
+func InvalidDocumentIDItem(id string) search.FailedItem {
+	return NewFailedItem(id, codes.InvalidArgument,
+		"the id is not a valid Meilisearch document identifier: only ASCII letters, digits, hyphens and underscores are allowed, up to %d bytes", maxDocumentIDBytes)
 }
 
 // NewFailedItem builds an item-specific write failure. code must not be OK.

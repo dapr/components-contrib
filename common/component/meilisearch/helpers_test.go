@@ -16,6 +16,7 @@ limitations under the License.
 package meilisearch
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -209,7 +210,7 @@ func TestContinuationTokenIsBoundToTheQueryShape(t *testing.T) {
 		},
 		{
 			name:         "rejects a token of another query",
-			token:       EncodeContinuationToken(QueryFingerprint("search", "books", "mary-shelley"), 20),
+			token:        EncodeContinuationToken(QueryFingerprint("search", "books", "mary-shelley"), 20),
 			fingerprint:  fingerprint,
 			wantCode:     codes.InvalidArgument,
 			wantContains: "does not match the request",
@@ -306,6 +307,69 @@ func TestIsReservedField(t *testing.T) {
 			assert.Equal(t, tt.want, IsReservedField(tt.field))
 		})
 	}
+}
+
+func TestReservedContentField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content map[string]any
+		want    string
+	}{
+		{name: "plain content", content: map[string]any{"title": "Emma", "identifier": 1, "dapr": true}},
+		{name: "empty content", content: map[string]any{}},
+		{name: "the primary key", content: map[string]any{"title": "Emma", "id": "other"}, want: "id"},
+		{name: "the metadata attribute", content: map[string]any{"daprMetadata": map[string]any{}}, want: "daprMetadata"},
+		{name: "the payload attribute", content: map[string]any{"daprPayload": "AA=="}, want: "daprPayload"},
+		{name: "a Meilisearch attribute", content: map[string]any{"_geo": map[string]any{"lat": 1.0, "lng": 2.0}}, want: "_geo"},
+		{name: "any underscore-prefixed attribute", content: map[string]any{"_foo": "x"}, want: "_foo"},
+		{name: "the first of several, in lexical order", content: map[string]any{"id": "x", "_vectors": 1, "daprMetadata": 1}, want: "_vectors"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, reserved := ReservedContentField(tt.content)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want != "", reserved)
+		})
+	}
+}
+
+func TestValidDocumentID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{name: "letters digits hyphens and underscores", id: "Car-1_a", want: true},
+		{name: "a numeric id", id: "42", want: true},
+		{name: "the longest id", id: strings.Repeat("x", 511), want: true},
+		{name: "empty", id: ""},
+		{name: "one byte too long", id: strings.Repeat("x", 512)},
+		{name: "a colon", id: "user:42"},
+		{name: "a slash", id: "a/b"},
+		{name: "a dot", id: "a.b"},
+		{name: "a space", id: "a b"},
+		{name: "non-ASCII letters", id: "책"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, ValidDocumentID(tt.id))
+		})
+	}
+
+	assert.Equal(t, []string{"a", "c-1"}, ValidDocumentIDs([]string{"a", "b:1", "", "c-1"}))
+	assert.Empty(t, ValidDocumentIDs([]string{"b:1"}))
+
+	item := InvalidDocumentIDItem("user:42")
+	assert.Equal(t, "user:42", item.ID)
+	assert.Equal(t, codes.InvalidArgument, item.Error.Code())
 }
 
 func TestSplitList(t *testing.T) {

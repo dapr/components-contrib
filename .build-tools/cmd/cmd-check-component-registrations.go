@@ -58,6 +58,8 @@ This is a required step before an official Dapr release.`,
 		checkCryptographyComponents()
 		checkNameResolutionComponents()
 		checkMiddlewareComponents()
+		checkSearchComponents()
+		checkVectorComponents()
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -144,6 +146,16 @@ func checkMiddlewareComponents() {
 	ignoreDaprComponents := []string{"uppercase"}
 	ignoreContribComponents := []string{}
 	checkComponents("middleware", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkSearchComponents() {
+	fmt.Println("\nChecking search components...")
+	checkComponents("search", []string{}, []string{})
+}
+
+func checkVectorComponents() {
+	fmt.Println("\nChecking vector components...")
+	checkComponents("vector", []string{}, []string{})
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.

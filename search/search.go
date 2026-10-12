@@ -193,8 +193,9 @@ type DeleteDocumentsResponse struct {
 	Ack IndexAck
 }
 
-// SearchRequest is the input to Search.Search. Exactly one of Text or Native
-// is set.
+// SearchRequest is the input to Search.Search. Text and Native are mutually
+// exclusive: at most one of them is set. A request with neither matches every
+// document, subject to Filter.
 type SearchRequest struct {
 	Index             string
 	Text              string

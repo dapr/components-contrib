@@ -169,11 +169,20 @@ func TestMeilisearchSearchCertification(t *testing.T) {
 		// invoked; the Meilisearch component keeps the same defensive check
 		// (search.ValidateDocumentContent semantics) and attributes the
 		// failure to the document rather than failing the request.
+		//
+		// Meilisearch fails the whole task for one identifier it cannot store,
+		// and the component cannot round-trip an attribute it or Meilisearch
+		// owns, so those documents are identified the same way.
+		goodContent := map[string]any{"title": "Pride and Prejudice", "body": "good", "category": "fiction", "price": float64(1), "available": true}
 		resp, err := component.IndexDocuments(ctx, &search.IndexDocumentsRequest{Index: failIndex, Documents: []search.Document{
-			{ID: "good-1", Content: certContent(t, map[string]any{"title": "Pride and Prejudice", "body": "good", "category": "fiction", "price": float64(1), "available": true})},
+			{ID: "good-1", Content: certContent(t, goodContent)},
 			{ID: "bad-json", Content: []byte("not json at all")},
 			{ID: "bad-scalar", Content: []byte(`"a json string is not an object"`)},
 			{ID: "bad-array", Content: []byte(`[{"title":"an array is not an object"}]`)},
+			{ID: "user:42", Content: certContent(t, map[string]any{"title": "an id meilisearch rejects"})},
+			{ID: "reserved-id", Content: certContent(t, map[string]any{"title": "content with its own id", "id": "other"})},
+			{ID: "reserved-metadata", Content: certContent(t, map[string]any{"title": "content with the metadata attribute", "daprMetadata": map[string]any{"a": "b"}})},
+			{ID: "reserved-underscore", Content: certContent(t, map[string]any{"title": "content with a meilisearch attribute", "_geo": map[string]any{"lat": 1.0, "lng": 2.0}})},
 		}, Options: certWaitOptions()})
 		require.NoError(t, err)
 		require.Equal(t, search.IndexAckCompleted, resp.Ack)
@@ -183,14 +192,135 @@ func TestMeilisearchSearchCertification(t *testing.T) {
 			require.NotNil(t, item.Error)
 			require.Equal(t, codes.InvalidArgument, item.Error.Code())
 		}
-		require.ElementsMatch(t, []string{"bad-json", "bad-scalar", "bad-array"}, failedIDs)
+		require.ElementsMatch(t, []string{"bad-json", "bad-scalar", "bad-array", "user:42", "reserved-id", "reserved-metadata", "reserved-underscore"}, failedIDs)
 
 		// A Meilisearch task that succeeds has no eventual failures, so the
-		// valid document is queryable.
-		got, err := component.GetDocuments(ctx, &search.GetDocumentsRequest{Index: failIndex, IDs: []string{"good-1", "bad-json"}, IncludeContent: true})
+		// valid document is queryable and comes back exactly as written. An
+		// identifier that cannot be stored is omitted like any other missing
+		// document instead of failing the read.
+		got, err := component.GetDocuments(ctx, &search.GetDocumentsRequest{Index: failIndex, IDs: []string{"good-1", "bad-json", "user:42", "reserved-id"}, IncludeContent: true})
 		require.NoError(t, err)
 		require.Len(t, got.Documents, 1)
 		require.Equal(t, "good-1", got.Documents[0].ID)
+		require.JSONEq(t, string(certContent(t, goodContent)), string(got.Documents[0].Content))
+	})
+
+	t.Run("index_documents_requires_an_existing_index", func(t *testing.T) {
+		missing := "cert-search-missing-" + uuid.NewString()[:8]
+		t.Cleanup(func() { _ = component.DeleteIndex(context.Background(), &search.DeleteIndexRequest{Index: missing}) })
+
+		for _, options := range []search.IndexingOptions{{}, certWaitOptions()} {
+			_, err := component.IndexDocuments(ctx, &search.IndexDocumentsRequest{Index: missing, Documents: []search.Document{
+				{ID: "doc-1", Content: certContent(t, map[string]any{"title": "no index"})},
+			}, Options: options})
+			requireStatusCode(t, err, codes.NotFound)
+		}
+
+		// Meilisearch creates a missing index on a document addition; the
+		// component must not let a write leave one behind.
+		_, err := component.GetIndex(ctx, &search.GetIndexRequest{Index: missing})
+		requireStatusCode(t, err, codes.NotFound)
+	})
+
+	t.Run("filters_and_native_queries_never_widen_a_request", func(t *testing.T) {
+		edgeIndex := "cert-search-edge-" + uuid.NewString()[:8]
+		t.Cleanup(func() { _ = component.DeleteIndex(context.Background(), &search.DeleteIndexRequest{Index: edgeIndex}) })
+		require.NoError(t, component.CreateIndex(ctx, &search.CreateIndexRequest{Index: edgeIndex, Metadata: map[string]string{
+			"filterableAttributes": "author,shelf,price",
+		}}))
+		resp, err := component.IndexDocuments(ctx, &search.IndexDocumentsRequest{Index: edgeIndex, Documents: []search.Document{
+			{ID: "austen", Content: certContent(t, map[string]any{"title": "Emma", "author": "jane-austen", "shelf": "a", "price": float64(1500000), "character": map[string]any{"name": "Emma Woodhouse"}})},
+			{ID: "vaughan", Content: certContent(t, map[string]any{"title": "Saga", "author": "brian-vaughan", "shelf": "a", "price": float64(2500000)})},
+			{ID: "shelley", Content: certContent(t, map[string]any{"title": "Frankenstein", "author": "mary-shelley", "shelf": "b", "price": float64(5)})},
+		}, Options: certWaitOptions()})
+		require.NoError(t, err)
+		require.Empty(t, resp.FailedItems)
+
+		hitIDs := func(t *testing.T, req *search.SearchRequest) []string {
+			t.Helper()
+			req.Index = edgeIndex
+			req.TopK = 10
+			res, searchErr := component.Search(ctx, req)
+			require.NoError(t, searchErr)
+			ids := make([]string, 0, len(res.Hits))
+			for _, hit := range res.Hits {
+				ids = append(ids, hit.Document.ID)
+			}
+			return ids
+		}
+
+		// Numbers reach the component as float64: a value of a million or more
+		// must not be written in exponent form, which Meilisearch rejects.
+		assert.ElementsMatch(t, []string{"austen", "vaughan"}, hitIDs(t, &search.SearchRequest{Filter: map[string]any{"price": map[string]any{"$gte": float64(1000000)}}}))
+		assert.ElementsMatch(t, []string{"vaughan", "shelley"}, hitIDs(t, &search.SearchRequest{Filter: map[string]any{"price": map[string]any{"$in": []any{float64(5), float64(2500000)}}}}))
+
+		// A condition beside an $or applies to every branch of it.
+		assert.ElementsMatch(t, []string{"shelley"}, hitIDs(t, &search.SearchRequest{Filter: map[string]any{
+			"shelf": "b",
+			"$or":   []any{map[string]any{"author": "jane-austen"}, map[string]any{"author": "mary-shelley"}},
+		}}))
+
+		// A field name is data, not filter syntax: it cannot add a branch.
+		_, err = component.Search(ctx, &search.SearchRequest{Index: edgeIndex, Filter: map[string]any{`author = "jane-austen" OR author`: "brian-vaughan"}})
+		requireStatusCode(t, err, codes.InvalidArgument)
+
+		// A native filter narrows the portable filter instead of replacing it.
+		assert.Empty(t, hitIDs(t, &search.SearchRequest{
+			Filter: map[string]any{"author": "jane-austen"},
+			Native: map[string]any{"filter": "author = 'brian-vaughan'"},
+		}))
+		assert.ElementsMatch(t, []string{"austen"}, hitIDs(t, &search.SearchRequest{
+			Filter: map[string]any{"author": "jane-austen"},
+			Native: map[string]any{"filter": []any{[]any{"shelf = a", "shelf = b"}}},
+		}))
+
+		// A native projection cannot hide the document ID or the score.
+		native, err := component.Search(ctx, &search.SearchRequest{Index: edgeIndex, Native: map[string]any{"q": "emma", "attributesToRetrieve": []any{"title"}, "showRankingScore": false}, IncludeContent: true})
+		require.NoError(t, err)
+		require.Len(t, native.Hits, 1)
+		assert.Equal(t, "austen", native.Hits[0].Document.ID)
+		assert.Positive(t, native.Hits[0].Score)
+		assert.JSONEq(t, `{"title":"Emma"}`, string(native.Hits[0].Document.Content))
+
+		// Highlights hold the requested fields only, a nested one under its path.
+		highlighted, err := component.Search(ctx, &search.SearchRequest{Index: edgeIndex, Text: "emma", HighlightFields: []string{"title", "character.name"}, IncludeContent: true})
+		require.NoError(t, err)
+		require.Len(t, highlighted.Hits, 1)
+		require.Len(t, highlighted.Hits[0].Highlights, 2, "unexpected highlights: %v", highlighted.Hits[0].Highlights)
+		assert.Equal(t, "<em>Emma</em>", highlighted.Hits[0].Highlights["title"])
+		assert.Equal(t, "<em>Emma</em> Woodhouse", highlighted.Hits[0].Highlights["character.name"])
+
+		// A search without matches still reports its total.
+		empty, err := component.Search(ctx, &search.SearchRequest{Index: edgeIndex, Text: "zzzunmatchedzzz"})
+		require.NoError(t, err)
+		assert.Empty(t, empty.Hits)
+		require.NotNil(t, empty.TotalHits)
+		assert.Zero(t, *empty.TotalHits)
+		assert.NotEqual(t, search.TotalHitsRelationUnspecified, empty.TotalHitsRelation)
+	})
+
+	t.Run("list_indexes_reads_every_page", func(t *testing.T) {
+		// Meilisearch serves 20 indexes per page by default.
+		const count = 23
+		prefix := "cert-search-page-" + uuid.NewString()[:8] + "-"
+		names := make([]string, count)
+		for i := range names {
+			names[i] = fmt.Sprintf("%s%02d", prefix, i)
+		}
+		t.Cleanup(func() {
+			for _, name := range names {
+				_ = component.DeleteIndex(context.Background(), &search.DeleteIndexRequest{Index: name})
+			}
+		})
+		for _, name := range names {
+			require.NoError(t, component.CreateIndex(ctx, &search.CreateIndexRequest{Index: name}))
+		}
+
+		listed, err := component.ListIndexes(ctx, &search.ListIndexesRequest{})
+		require.NoError(t, err)
+		for _, name := range names {
+			require.Contains(t, listed.Indexes, name)
+		}
 	})
 
 	t.Run("indexing_modes", func(t *testing.T) {

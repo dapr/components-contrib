@@ -41,9 +41,21 @@ and `FailedItem` types (see `../search/indexing.go`).
   Values are stored in `_vectors.default`, the payload base64-encoded under
   `daprPayload` and metadata as the `daprMetadata` object, which is declared
   filterable so filter paths translate to `daprMetadata.<path>`.
+- Collections share the instance with plain indexes, such as those of the
+  search component. `ListCollections` returns only the indexes that have the
+  `default` embedder, and `GetCollection` and `Upsert` return
+  `FAILED_PRECONDITION` for an index without it.
+- `Upsert` requires an existing collection and returns `NOT_FOUND` otherwise:
+  Meilisearch would create the index on the first document addition, without
+  an embedder. A Meilisearch task is atomic, so a record whose `Values` do not
+  match the collection's dimensions, or whose ID is not 1 to 511 bytes of
+  ASCII letters, digits, `-` and `_`, is identified before the task is
+  enqueued and reported in `FailedItems` (`INVALID_ARGUMENT`). `Get` omits
+  such an ID like any other missing record.
 - Meilisearch's `_rankingScore` for a pure-semantic query is `(1 + cos) / 2`;
   the component reports `2 * rankingScore - 1` and translates a cosine
-  threshold `t` to `rankingScoreThreshold = (1 + t) / 2`.
+  threshold `t` to `rankingScoreThreshold = (1 + t) / 2`. A `ScoreThreshold`
+  outside `[-1, 1]` is `INVALID_ARGUMENT`.
 - Wait-for-completion writes and deletes use the shared task dispatcher of the
   search component: task status polling by default, the experimental
   task-change stream when available (see `../search/README.md`).

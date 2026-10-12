@@ -50,14 +50,26 @@ type taskServer struct {
 	taskError   *streamFailure
 	streamTypes string
 
-	// dials counts every stream request, connections the accepted ones and
-	// taskReads the task status reads.
-	dials       atomic.Int32
-	connections atomic.Int32
-	taskReads   atomic.Int32
+	// streamGate, when set, holds every stream request until it is closed.
+	streamGate chan struct{}
+
+	// dials counts every stream request, connections the accepted ones,
+	// activeStreams the accepted ones that are still open and taskReads the
+	// task status reads.
+	dials         atomic.Int32
+	connections   atomic.Int32
+	activeStreams atomic.Int32
+	taskReads     atomic.Int32
+	// taskAnswers counts the task status reads whose answer has been decided:
+	// a status set after that point is not seen by them.
+	taskAnswers atomic.Int32
 	// dropTaskReads makes that many task status reads fail without an HTTP
 	// response.
 	dropTaskReads atomic.Int32
+	// slowTaskReads makes that many task status reads answer only after
+	// taskReadDelay nanoseconds, or not at all if the client gives up first.
+	slowTaskReads atomic.Int32
+	taskReadDelay atomic.Int64
 
 	events chan string
 }
@@ -90,7 +102,13 @@ func newTaskServer(t *testing.T, failure *streamFailure) *taskServer {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Cleanup(ts.server.Close)
+	t.Cleanup(func() {
+		// Closing the server waits for its handlers, and a stream handler only
+		// returns when its client goes away: a dispatcher that leaked its
+		// stream must fail its test, not hang the suite.
+		ts.server.CloseClientConnections()
+		ts.server.Close()
+	})
 	return ts
 }
 
@@ -98,8 +116,16 @@ func (ts *taskServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	ts.dials.Add(1)
 	ts.mu.Lock()
 	failure := ts.streamError
+	gate := ts.streamGate
 	ts.streamTypes = r.URL.Query().Get("types")
 	ts.mu.Unlock()
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-r.Context().Done():
+			return
+		}
+	}
 	if failure != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(failure.statusCode)
@@ -107,6 +133,8 @@ func (ts *taskServer) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ts.connections.Add(1)
+	ts.activeStreams.Add(1)
+	defer ts.activeStreams.Add(-1)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 	flusher, ok := w.(http.Flusher)
@@ -135,6 +163,14 @@ func (ts *taskServer) handleTask(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if ts.slowTaskReads.Load() > 0 {
+		ts.slowTaskReads.Add(-1)
+		select {
+		case <-time.After(time.Duration(ts.taskReadDelay.Load())):
+		case <-r.Context().Done():
+			return
+		}
+	}
 	if ts.dropTaskReads.Load() > 0 {
 		ts.dropTaskReads.Add(-1)
 		if hijacker, ok := w.(http.Hijacker); ok {
@@ -148,6 +184,7 @@ func (ts *taskServer) handleTask(w http.ResponseWriter, r *http.Request) {
 	taskStatus, ok := ts.taskStatus[uid]
 	failure := ts.taskError
 	ts.mu.Unlock()
+	ts.taskAnswers.Add(1)
 	if failure != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(failure.statusCode)
@@ -183,6 +220,56 @@ func (ts *taskServer) setTaskFailure(failure *streamFailure) {
 	ts.taskError = failure
 }
 
+// slowDownTaskReads delays the next count task status reads by delay.
+func (ts *taskServer) slowDownTaskReads(count int32, delay time.Duration) {
+	ts.taskReadDelay.Store(int64(delay))
+	ts.slowTaskReads.Store(count)
+}
+
+// holdStreamRequests makes stream requests wait until the returned function is
+// called.
+func (ts *taskServer) holdStreamRequests() (release func()) {
+	gate := make(chan struct{})
+	ts.mu.Lock()
+	ts.streamGate = gate
+	ts.mu.Unlock()
+	return sync.OnceFunc(func() { close(gate) })
+}
+
+// awaitTaskReads blocks until at least count task status reads were received.
+func (ts *taskServer) awaitTaskReads(t *testing.T, count int32) {
+	t.Helper()
+	require.Eventually(t, func() bool { return ts.taskReads.Load() >= count }, 2*time.Second, time.Millisecond)
+}
+
+// awaitTaskAnswers blocks until the answer of at least count task status reads
+// has been decided, so that a status set afterwards cannot reach them.
+func (ts *taskServer) awaitTaskAnswers(t *testing.T, count int32) {
+	t.Helper()
+	require.Eventually(t, func() bool { return ts.taskAnswers.Load() >= count }, 2*time.Second, time.Millisecond)
+}
+
+// dropStream closes the dispatcher's current stream connection.
+func dropStream(dispatcher *TaskDispatcher) {
+	dispatcher.mu.Lock()
+	body := dispatcher.body
+	dispatcher.mu.Unlock()
+	if body != nil {
+		_ = body.Close()
+	}
+}
+
+// waitWithin waits for a task with a wait timeout far beyond limit and a
+// request deadline of limit. The reconciliation that precedes a timeout action
+// can therefore never be what completes the wait: a test using it fails unless
+// the recovery path it exercises delivers the terminal change.
+func waitWithin(t *testing.T, dispatcher *TaskDispatcher, taskUID int64, limit time.Duration) (TaskChange, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), limit)
+	defer cancel()
+	return dispatcher.Wait(ctx, taskUID, time.Hour)
+}
+
 func (ts *taskServer) requestedTypes() string {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -204,7 +291,9 @@ func newTestDispatcher(t *testing.T, ts *taskServer) *TaskDispatcher {
 	dispatcher := NewTaskDispatcher(md, client, kitlogger.NewLogger("test"))
 	dispatcher.InitialBackoff = 10 * time.Millisecond
 	dispatcher.MaxBackoff = 50 * time.Millisecond
-	dispatcher.LivenessTimeout = 200 * time.Millisecond
+	// Periodic reconciliation is off by default so that each test exercises
+	// exactly the recovery path it names.
+	dispatcher.ReconcileInterval = 0
 	dispatcher.PollInitialInterval = 10 * time.Millisecond
 	dispatcher.PollMaxInterval = 50 * time.Millisecond
 	t.Cleanup(func() { require.NoError(t, dispatcher.Close()) })
@@ -359,48 +448,278 @@ func TestWaitUsesTheTerminalCacheForTheRegistrationRace(t *testing.T) {
 func TestWaitReconcilesWithTheTaskStatusAPI(t *testing.T) {
 	t.Parallel()
 
+	// No stream event is ever emitted for the task in any of these cases.
+
+	t.Run("reconciles right after registration", func(t *testing.T) {
+		t.Parallel()
+
+		ts := newTaskServer(t, nil)
+		dispatcher := newTestDispatcher(t, ts)
+		require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+		ts.setTaskStatus(11, "succeeded")
+
+		change, err := waitWithin(t, dispatcher, 11, 3*time.Second)
+
+		require.NoError(t, err)
+		assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+		assert.Equal(t, int32(1), ts.taskReads.Load(), "the read that follows registration finds the task")
+	})
+
+	t.Run("reconciles before applying the timeout action", func(t *testing.T) {
+		t.Parallel()
+
+		ts := newTaskServer(t, nil)
+		dispatcher := newTestDispatcher(t, ts)
+		require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+		go func() {
+			// The task becomes terminal after the read that follows
+			// registration, so only the read at the timeout can find it.
+			ts.awaitTaskAnswers(t, 1)
+			ts.setTaskStatus(11, "succeeded")
+		}()
+
+		change, err := dispatcher.Wait(t.Context(), 11, 150*time.Millisecond)
+
+		require.NoError(t, err)
+		assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+		assert.Equal(t, int32(2), ts.taskReads.Load(), "the status is read after registration and at the timeout")
+	})
+
+	t.Run("reconciles periodically without reconnecting a silent stream", func(t *testing.T) {
+		t.Parallel()
+
+		ts := newTaskServer(t, nil)
+		dispatcher := newTestDispatcher(t, ts)
+		dispatcher.ReconcileInterval = 20 * time.Millisecond
+		require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+		go func() {
+			// The stream stays connected and silent across several intervals
+			// before the task becomes terminal.
+			ts.awaitTaskAnswers(t, 4)
+			ts.setTaskStatus(11, "succeeded")
+		}()
+
+		change, err := waitWithin(t, dispatcher, 11, 3*time.Second)
+
+		require.NoError(t, err)
+		assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+		assert.Equal(t, int32(1), ts.connections.Load(), "a stream that is merely silent is not reconnected")
+	})
+}
+
+func TestEnsureStreamingReleasesTheStreamWhenClosedDuringTheDial(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	release := ts.holdStreamRequests()
+	t.Cleanup(release)
+	dispatcher := newTestDispatcher(t, ts)
+
+	started := make(chan error, 1)
+	go func() { started <- dispatcher.EnsureStreaming(t.Context()) }()
+
+	// Close lands while the dial is in flight and finds no stream to stop.
+	require.Eventually(t, func() bool { return ts.dials.Load() == 1 }, 2*time.Second, time.Millisecond)
+	require.NoError(t, dispatcher.Close())
+	release()
+
+	select {
+	case err := <-started:
+		require.Error(t, err)
+		assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+	case <-time.After(3 * time.Second):
+		t.Fatal("EnsureStreaming did not return")
+	}
+	assert.Equal(t, int32(1), ts.connections.Load(), "the dial was answered after Close")
+	require.Eventually(t, func() bool { return ts.activeStreams.Load() == 0 }, 2*time.Second, 5*time.Millisecond,
+		"the connection opened by the interrupted dial must be released")
+
+	dispatcher.mu.Lock()
+	defer dispatcher.mu.Unlock()
+	assert.False(t, dispatcher.running, "a closed dispatcher must not start its stream loop")
+}
+
+func TestEnsureStreamingStopsWhenTheRequestEndsDuringTheDial(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	release := ts.holdStreamRequests()
+	t.Cleanup(release)
+	dispatcher := newTestDispatcher(t, ts)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
+	defer cancel()
+	err := dispatcher.EnsureStreaming(ctx)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.DeadlineExceeded, status.Code(err), "the request's own deadline is reported, not the stream's cancellation")
+
+	// Nothing was settled: the next request opens the stream.
+	release()
+	require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+	assert.False(t, dispatcher.PollingOnly())
+	require.Eventually(t, func() bool { return ts.activeStreams.Load() == 1 }, 2*time.Second, 5*time.Millisecond)
+}
+
+func TestStreamOutlivesTheRequestThatOpensIt(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	dispatcher := newTestDispatcher(t, ts)
+
+	// The first wait-for-completion write opens the stream, then completes.
+	ctx, cancel := context.WithCancel(t.Context())
+	require.NoError(t, dispatcher.EnsureStreaming(ctx))
+	cancel()
+
+	assert.Never(t, func() bool { return ts.dials.Load() > 1 }, 150*time.Millisecond, 5*time.Millisecond,
+		"the stream must not be reconnected when the request that opened it ends")
+
+	go func() {
+		ts.awaitTaskReads(t, 1)
+		ts.emit(t, map[string]any{"uid": 53, "status": "succeeded", "type": "documentAdditionOrUpdate"})
+	}()
+	change, err := waitWithin(t, dispatcher, 53, 3*time.Second)
+
+	require.NoError(t, err)
+	assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+	assert.Equal(t, int32(1), ts.connections.Load())
+}
+
+func TestCloseReleasesRequestsThatAreStillWaiting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name string
-		// when the task becomes terminal in the task status API.
-		terminalAfter time.Duration
-		waitTimeout   time.Duration
+		name    string
+		failure *streamFailure
 	}{
-		{
-			name:          "reconciles right after registration",
-			terminalAfter: 0,
-			waitTimeout:   5 * time.Second,
-		},
-		{
-			name:          "reconciles before applying the timeout action",
-			terminalAfter: 30 * time.Millisecond,
-			waitTimeout:   80 * time.Millisecond,
-		},
+		{name: "stream waiter"},
+		{name: "polling waiter", failure: &featureNotEnabled},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ts := newTaskServer(t, nil)
+			ts := newTaskServer(t, tt.failure)
 			dispatcher := newTestDispatcher(t, ts)
 			require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+			ts.setTaskStatus(37, "processing")
 
-			if tt.terminalAfter == 0 {
-				ts.setTaskStatus(11, "succeeded")
-			} else {
-				go func() {
-					time.Sleep(tt.terminalAfter)
-					ts.setTaskStatus(11, "succeeded")
-				}()
+			waited := make(chan error, 1)
+			go func() {
+				// No wait timeout and no request deadline: only Close can end
+				// this wait.
+				_, err := dispatcher.Wait(t.Context(), 37, 0)
+				waited <- err
+			}()
+			ts.awaitTaskReads(t, 1)
+			require.NoError(t, dispatcher.Close())
+
+			select {
+			case err := <-waited:
+				require.Error(t, err)
+				assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+			case <-time.After(3 * time.Second):
+				t.Fatal("Close did not release the waiting request")
 			}
-
-			// No stream event is ever emitted for this task.
-			change, err := dispatcher.Wait(t.Context(), 11, tt.waitTimeout)
-
-			require.NoError(t, err)
-			assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
 		})
 	}
+}
+
+func TestWaitTimeoutCountsFromTheStartOfTheWait(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	dispatcher := newTestDispatcher(t, ts)
+	require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+	ts.setTaskStatus(41, "processing")
+	// The read that follows registration uses most of the wait timeout.
+	ts.slowDownTaskReads(1, 300*time.Millisecond)
+
+	started := time.Now()
+	_, err := dispatcher.Wait(t.Context(), 41, 400*time.Millisecond)
+	elapsed := time.Since(started)
+
+	require.ErrorIs(t, err, ErrWaitTimeout)
+	assert.GreaterOrEqual(t, elapsed, 400*time.Millisecond, "the wait timeout is honoured")
+	assert.Less(t, elapsed, 600*time.Millisecond, "the time spent reconciling counts towards the wait timeout")
+}
+
+func TestWaitIsNotHeldByASlowStatusRead(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	dispatcher := newTestDispatcher(t, ts)
+	dispatcher.StatusReadTimeout = 50 * time.Millisecond
+	require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+	// The read that follows registration hangs far longer than the wait
+	// should take; the terminal change arrives on the stream meanwhile.
+	ts.slowDownTaskReads(1, 10*time.Second)
+	go func() {
+		ts.awaitTaskReads(t, 1)
+		ts.emit(t, map[string]any{"uid": 43, "status": "succeeded", "type": "documentAdditionOrUpdate"})
+	}()
+
+	started := time.Now()
+	change, err := dispatcher.Wait(t.Context(), 43, time.Hour)
+
+	require.NoError(t, err)
+	assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+	assert.Less(t, time.Since(started), 2*time.Second, "a status read is bounded so the stream event is not held back")
+}
+
+func TestTerminalCacheSweepsExpiredChanges(t *testing.T) {
+	t.Parallel()
+
+	succeeded := func(uid int64) TaskChange {
+		return TaskChange{UID: uid, Status: meilisearchgo.TaskStatusSucceeded}
+	}
+
+	t.Run("expired changes are neither served nor kept", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, newTaskServer(t, nil))
+		dispatcher.TerminalCacheTTL = 30 * time.Millisecond
+		dispatcher.publish(succeeded(1))
+		dispatcher.publish(succeeded(2))
+		time.Sleep(50 * time.Millisecond)
+
+		// An expired change is never handed to a waiter, swept or not.
+		w, cached, _, _, err := dispatcher.register(1)
+		require.NoError(t, err)
+		assert.Nil(t, cached)
+		dispatcher.unregister(1, w)
+
+		// The first publish after the TTL removes what expired.
+		dispatcher.publish(succeeded(3))
+
+		dispatcher.mu.Lock()
+		defer dispatcher.mu.Unlock()
+		assert.Len(t, dispatcher.cache, 1)
+		assert.Contains(t, dispatcher.cache, int64(3))
+	})
+
+	t.Run("the cache is swept at most once per TTL", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, newTaskServer(t, nil))
+		dispatcher.TerminalCacheTTL = time.Hour
+		dispatcher.publish(succeeded(1))
+		dispatcher.mu.Lock()
+		swept := dispatcher.cacheSwept
+		dispatcher.mu.Unlock()
+		require.False(t, swept.IsZero())
+
+		for uid := int64(2); uid <= 50; uid++ {
+			dispatcher.publish(succeeded(uid))
+		}
+
+		dispatcher.mu.Lock()
+		defer dispatcher.mu.Unlock()
+		assert.Equal(t, swept, dispatcher.cacheSwept, "publishing within the TTL does not walk the cache again")
+		assert.Len(t, dispatcher.cache, 50)
+	})
 }
 
 func TestWaitTimesOutWhenTheTaskStaysPending(t *testing.T) {
@@ -474,23 +793,19 @@ func TestWaitReconnectsAndReconcilesAfterTheStreamDrops(t *testing.T) {
 	require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
 
 	go func() {
-		// Drop the connection without emitting a change for the task, then
-		// author the task terminal so reconciliation after the reconnect finds it.
-		time.Sleep(20 * time.Millisecond)
+		// Once the read that follows registration has found the task pending,
+		// make it terminal and drop the connection without emitting a change
+		// for it: only the reconciliation after the reconnect can find it.
+		ts.awaitTaskAnswers(t, 1)
 		ts.setTaskStatus(9, "succeeded")
-		dispatcher.mu.Lock()
-		body := dispatcher.body
-		dispatcher.mu.Unlock()
-		if body != nil {
-			_ = body.Close()
-		}
+		dropStream(dispatcher)
 	}()
 
-	change, err := dispatcher.Wait(t.Context(), 9, 5*time.Second)
+	change, err := waitWithin(t, dispatcher, 9, 3*time.Second)
 
 	require.NoError(t, err)
 	assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
-	assert.GreaterOrEqual(t, ts.connections.Load(), int32(1))
+	assert.GreaterOrEqual(t, ts.connections.Load(), int32(2), "the dropped stream is reconnected")
 }
 
 func TestWaitSwitchesToPollingWhenTheStreamDisappears(t *testing.T) {
@@ -505,19 +820,15 @@ func TestWaitSwitchesToPollingWhenTheStreamDisappears(t *testing.T) {
 		// The route is disabled under the running stream: the reconnect is
 		// refused, the dispatcher settles on polling and the waiter that was
 		// registered on the stream finishes by polling.
-		time.Sleep(20 * time.Millisecond)
+		ts.awaitTaskAnswers(t, 1)
 		ts.setStreamFailure(&featureNotEnabled)
-		dispatcher.mu.Lock()
-		body := dispatcher.body
-		dispatcher.mu.Unlock()
-		if body != nil {
-			_ = body.Close()
-		}
-		time.Sleep(60 * time.Millisecond)
+		dropStream(dispatcher)
+		// The task only becomes terminal once the waiter is polling.
+		ts.awaitTaskAnswers(t, 3)
 		ts.setTaskStatus(13, "succeeded")
 	}()
 
-	change, err := dispatcher.Wait(t.Context(), 13, 5*time.Second)
+	change, err := waitWithin(t, dispatcher, 13, 3*time.Second)
 
 	require.NoError(t, err)
 	assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
@@ -649,6 +960,57 @@ func TestWaitPollingSurfacesTaskStatusFailures(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 	assert.Equal(t, int32(1), ts.taskReads.Load(), "a rejected status read is not retried")
+}
+
+func TestWaitPollingRetriesTransientResponses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		failure streamFailure
+	}{
+		{name: "internal error", failure: streamFailure{statusCode: http.StatusInternalServerError, body: `{"message":"boom","code":"internal","type":"internal"}`}},
+		{name: "too many requests", failure: streamFailure{statusCode: http.StatusTooManyRequests, body: `{"message":"slow down","code":"too_many_search_requests","type":"system"}`}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+" is retried until the task is observed", func(t *testing.T) {
+			t.Parallel()
+
+			ts := newTaskServer(t, &featureNotEnabled)
+			dispatcher := newTestDispatcher(t, ts)
+			require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+			// The queued task is unaffected by the failing reads and completes
+			// normally.
+			ts.setTaskStatus(47, "succeeded")
+			failure := tt.failure
+			ts.setTaskFailure(&failure)
+			go func() {
+				ts.awaitTaskReads(t, 3)
+				ts.setTaskFailure(nil)
+			}()
+
+			change, err := waitWithin(t, dispatcher, 47, 3*time.Second)
+
+			require.NoError(t, err)
+			assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
+		})
+
+		t.Run(tt.name+" until the deadline is a wait timeout", func(t *testing.T) {
+			t.Parallel()
+
+			ts := newTaskServer(t, &featureNotEnabled)
+			dispatcher := newTestDispatcher(t, ts)
+			require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+			failure := tt.failure
+			ts.setTaskFailure(&failure)
+
+			_, err := dispatcher.Wait(t.Context(), 47, 100*time.Millisecond)
+
+			require.ErrorIs(t, err, ErrWaitTimeout, "the outcome of the queued task is unknown, not failed")
+			assert.GreaterOrEqual(t, ts.taskReads.Load(), int32(2))
+		})
+	}
 }
 
 func TestWaitPollingRetriesReadsWithoutAResponse(t *testing.T) {

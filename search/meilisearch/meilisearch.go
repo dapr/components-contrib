@@ -16,11 +16,11 @@ limitations under the License.
 package meilisearch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -111,12 +111,25 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRe
 		return err
 	}
 
-	settings := settingsFromMetadata(req.Metadata)
-	settingsTask, err := client.Index(req.Index).UpdateSettingsWithContext(ctx, settings)
-	if err != nil {
-		return commonmeilisearch.StatusError(err, fmt.Sprintf("update settings of meilisearch index %q", req.Index))
+	if err = configureIndex(ctx, client, req.Index, settingsFromMetadata(req.Metadata)); err != nil {
+		// The index was created by this request but never configured. Left
+		// behind, it would make every retry fail with ALREADY_EXISTS without
+		// applying the settings, so the creation is undone.
+		commonmeilisearch.RollbackIndex(ctx, client, req.Index, m.logger)
+		return err
 	}
-	return commonmeilisearch.WaitForTask(ctx, client, settingsTask.TaskUID, fmt.Sprintf("update settings of meilisearch index %q", req.Index))
+	return nil
+}
+
+// configureIndex applies the settings of a newly created index and waits for
+// them to take effect.
+func configureIndex(ctx context.Context, client meilisearchgo.ServiceManager, index string, settings *meilisearchgo.Settings) error {
+	msg := fmt.Sprintf("update settings of meilisearch index %q", index)
+	task, err := client.Index(index).UpdateSettingsWithContext(ctx, settings)
+	if err != nil {
+		return commonmeilisearch.StatusError(err, msg)
+	}
+	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, msg)
 }
 
 // GetIndex returns the document count and settings of a Meilisearch index.
@@ -164,15 +177,11 @@ func (m *Meilisearch) ListIndexes(ctx context.Context, req *search.ListIndexesRe
 		return nil, err
 	}
 	_ = req
-	res, err := client.ListIndexesWithContext(ctx, nil)
+	uids, err := commonmeilisearch.ListIndexUIDs(ctx, client)
 	if err != nil {
 		return nil, commonmeilisearch.StatusError(err, "list meilisearch indexes")
 	}
-	out := &search.ListIndexesResponse{Indexes: make([]string, 0, len(res.Results))}
-	for _, idx := range res.Results {
-		out.Indexes = append(out.Indexes, idx.UID)
-	}
-	return out, nil
+	return &search.ListIndexesResponse{Indexes: uids}, nil
 }
 
 // DeleteIndex deletes a Meilisearch index.
@@ -191,7 +200,8 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, req *search.DeleteIndexRe
 	return commonmeilisearch.WaitForTask(ctx, client, task.TaskUID, fmt.Sprintf("delete meilisearch index %q", req.Index))
 }
 
-// IndexDocuments is a keyed upsert of documents into a Meilisearch index.
+// IndexDocuments is a keyed upsert of documents into an existing Meilisearch
+// index. A missing index is NOT_FOUND.
 func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRequest) (*search.IndexDocumentsResponse, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, commonmeilisearch.ContextStatusError(ctx)
@@ -215,16 +225,39 @@ func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocum
 		return nil, err
 	}
 
+	// Meilisearch creates a missing index on the first document addition. Such
+	// an index has none of the settings CreateIndex applies (the document ID
+	// would not be sortable, so sorted and paginated searches would fail), and
+	// a write to a missing index is a request-wide error, so the index is
+	// looked up before anything is enqueued.
+	if _, err = client.GetIndexWithContext(ctx, req.Index); err != nil {
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch index %q", req.Index))
+	}
+
 	// Item failures identified before the task is enqueued. A Meilisearch task
-	// is atomic, so these are the only item failures the component can report.
-	// The runtime already rejects non-object content; this is a defensive
-	// check producing the same INVALID_ARGUMENT item failure.
+	// is atomic: one document it rejects fails every document of the batch.
+	// These are therefore the only item failures the component can report, and
+	// what Meilisearch would reject per document is checked here. The runtime
+	// already rejects non-object content; that check is defensive and produces
+	// the same INVALID_ARGUMENT item failure.
 	failed := make([]search.FailedItem, 0)
 	docs := make([]map[string]any, 0, len(req.Documents))
 	for _, doc := range req.Documents {
+		if !commonmeilisearch.ValidDocumentID(doc.ID) {
+			failed = append(failed, commonmeilisearch.InvalidDocumentIDItem(doc.ID))
+			continue
+		}
 		content, contentErr := commonmeilisearch.DecodeContent(doc.Content)
 		if contentErr != nil {
 			failed = append(failed, search.FailedItem{ID: doc.ID, Error: status.Convert(contentErr)})
+			continue
+		}
+		// A reserved attribute would be overwritten below or dropped when the
+		// document is read back, so it is rejected rather than silently lost.
+		if field, reserved := commonmeilisearch.ReservedContentField(content); reserved {
+			failed = append(failed, commonmeilisearch.NewFailedItem(doc.ID, codes.InvalidArgument,
+				"content must not use the attribute %q: %q, %q, %q and attributes starting with an underscore are reserved",
+				field, commonmeilisearch.PrimaryKey, commonmeilisearch.MetadataField, commonmeilisearch.PayloadField))
 			continue
 		}
 		body := commonmeilisearch.CloneMap(content)
@@ -262,11 +295,14 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, req *search.GetDocuments
 	if err != nil {
 		return nil, err
 	}
-	if len(req.IDs) == 0 {
+	// An ID Meilisearch cannot store names no document. Passing it on would
+	// fail the whole read instead of omitting that document.
+	ids := commonmeilisearch.ValidDocumentIDs(req.IDs)
+	if len(ids) == 0 {
 		return &search.GetDocumentsResponse{Documents: []search.Document{}}, nil
 	}
 
-	query := &meilisearchgo.DocumentsQuery{Ids: req.IDs, Limit: int64(len(req.IDs))}
+	query := &meilisearchgo.DocumentsQuery{Ids: ids, Limit: int64(len(ids))}
 	if !req.IncludeContent {
 		query.Fields = []string{commonmeilisearch.PrimaryKey, commonmeilisearch.MetadataField}
 	}
@@ -277,14 +313,14 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, req *search.GetDocuments
 
 	byID := make(map[string]search.Document, len(res.Results))
 	for _, hit := range res.Results {
-		doc, _, _, err := documentFromHit(hit, req.IncludeContent)
+		doc, _, _, err := documentFromHit(hit, req.IncludeContent, nil)
 		if err != nil {
 			return nil, err
 		}
 		byID[doc.ID] = doc
 	}
 	out := &search.GetDocumentsResponse{Documents: make([]search.Document, 0, len(byID))}
-	for _, id := range req.IDs {
+	for _, id := range ids {
 		if doc, ok := byID[id]; ok {
 			out.Documents = append(out.Documents, doc)
 			delete(byID, id)
@@ -348,7 +384,7 @@ func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*s
 	if err != nil {
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("search meilisearch index %q", req.Index))
 	}
-	return searchResponseFromMeilisearch(res, req.IncludeContent, fingerprint)
+	return searchResponseFromMeilisearch(res, req.IncludeContent, formattedFields(msReq), fingerprint)
 }
 
 // GetComponentMetadata returns the metadata of the component.
@@ -462,13 +498,18 @@ func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest
 }
 
 // applyNative merges a provider-native query into the request. A native query
-// must not embed its own pagination or a conflicting sort.
+// must not embed its own pagination or a conflicting sort, and it cannot undo
+// what the portable request guarantees: the portable filter still applies and
+// the attributes a hit is built from are always returned.
 func applyNative(msReq *meilisearchgo.SearchRequest, native map[string]any) error {
 	for _, reserved := range []string{"offset", "limit", "page", "hitsPerPage", "sort"} {
 		if _, ok := native[reserved]; ok {
 			return status.Errorf(codes.InvalidArgument, "a native query must not set %q: pagination and sorting are portable request fields", reserved)
 		}
 	}
+	portableFilter, _ := msReq.Filter.(string)
+	_, nativeFilter := native["filter"]
+
 	data, err := json.Marshal(native)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "encode the native meilisearch query: %v", err)
@@ -476,7 +517,57 @@ func applyNative(msReq *meilisearchgo.SearchRequest, native map[string]any) erro
 	if err := json.Unmarshal(data, msReq); err != nil {
 		return status.Errorf(codes.InvalidArgument, "decode the native meilisearch query: %v", err)
 	}
+
+	// A hit is mapped from its document ID, metadata and ranking score,
+	// whatever the native query selects.
+	msReq.ShowRankingScore = true
+	if len(msReq.AttributesToRetrieve) > 0 && !slicesContains(msReq.AttributesToRetrieve, "*") {
+		msReq.AttributesToRetrieve = withReservedFields(msReq.AttributesToRetrieve)
+	}
+	// A native filter narrows the portable one instead of replacing it: a
+	// native query must never widen a filtered request.
+	if portableFilter != "" && nativeFilter {
+		msReq.Filter = andFilters(portableFilter, msReq.Filter)
+	}
 	return nil
+}
+
+// andFilters combines the portable filter with the filter of a native query.
+// In the array form of a Meilisearch filter every element must match, and an
+// element is either a complete filter expression or an array of alternatives.
+func andFilters(portable string, native any) any {
+	switch typed := native.(type) {
+	case nil:
+		return portable
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return portable
+		}
+		return []any{portable, typed}
+	case []any:
+		return append([]any{portable}, typed...)
+	default:
+		// Not a filter Meilisearch accepts; it rejects the request.
+		return []any{portable, typed}
+	}
+}
+
+// formattedFields returns the attributes whose formatted value was requested:
+// the highlighted ones and, for a native query, the cropped ones.
+func formattedFields(msReq *meilisearchgo.SearchRequest) []string {
+	if len(msReq.AttributesToCrop) == 0 {
+		return msReq.AttributesToHighlight
+	}
+	fields := make([]string, 0, len(msReq.AttributesToHighlight)+len(msReq.AttributesToCrop))
+	fields = append(fields, msReq.AttributesToHighlight...)
+	for _, field := range msReq.AttributesToCrop {
+		// A cropped attribute may carry its own length (`body:20`).
+		name, _, _ := strings.Cut(field, ":")
+		if !slicesContains(fields, name) {
+			fields = append(fields, name)
+		}
+	}
+	return fields
 }
 
 func withReservedFields(fields []string) []string {
@@ -523,25 +614,27 @@ func sortClauses(clauses []search.SortClause) []string {
 	return out
 }
 
-func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool, fingerprint string) (*search.SearchResponse, error) {
+func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool, highlightFields []string, fingerprint string) (*search.SearchResponse, error) {
 	out := &search.SearchResponse{Hits: make([]search.Hit, 0, len(res.Hits))}
 
-	var total int64
-	switch {
-	case res.TotalHits > 0:
-		total = res.TotalHits
-		totalHits := uint64(res.TotalHits)
-		out.TotalHits = &totalHits
-		out.TotalHitsRelation = search.TotalHitsRelationExact
-	case res.EstimatedTotalHits > 0:
-		total = res.EstimatedTotalHits
-		totalHits := uint64(res.EstimatedTotalHits)
-		out.TotalHits = &totalHits
-		out.TotalHitsRelation = search.TotalHitsRelationEstimate
+	// Requests are always paginated with offset and limit (a native query
+	// cannot set page or hitsPerPage), for which Meilisearch reports
+	// estimatedTotalHits; totalHits only comes with page-based pagination. A
+	// total is therefore always reported: an estimate of zero is a real count,
+	// not a missing one.
+	total, relation := res.EstimatedTotalHits, search.TotalHitsRelationEstimate
+	if res.TotalHits > 0 {
+		total, relation = res.TotalHits, search.TotalHitsRelationExact
 	}
+	if total < 0 {
+		return nil, status.Error(codes.Internal, "meilisearch reported a negative number of hits")
+	}
+	totalHits := uint64(total)
+	out.TotalHits = &totalHits
+	out.TotalHitsRelation = relation
 
 	for _, hit := range res.Hits {
-		doc, score, highlights, err := documentFromHit(hit, includeContent)
+		doc, score, highlights, err := documentFromHit(hit, includeContent, highlightFields)
 		if err != nil {
 			return nil, err
 		}
@@ -558,7 +651,7 @@ func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeCon
 // documentFromHit maps a Meilisearch hit into a Dapr document, its relevance
 // score and its highlights. Meilisearch `_rankingScore` is already
 // higher-is-better, so it is reported unchanged.
-func documentFromHit(hit meilisearchgo.Hit, includeContent bool) (search.Document, float64, map[string]string, error) {
+func documentFromHit(hit meilisearchgo.Hit, includeContent bool, highlightFields []string) (search.Document, float64, map[string]string, error) {
 	doc := search.Document{}
 	content := map[string]any{}
 	var score float64
@@ -577,7 +670,7 @@ func documentFromHit(hit meilisearchgo.Hit, includeContent bool) (search.Documen
 		case commonmeilisearch.RankingScoreField:
 			score = commonmeilisearch.NumberAsFloat(value)
 		case commonmeilisearch.FormattedField:
-			highlights = highlightsFromFormatted(value)
+			highlights = highlightsFromFormatted(value, highlightFields)
 		default:
 			if includeContent && !commonmeilisearch.IsReservedField(key) {
 				content[key] = value
@@ -595,31 +688,88 @@ func documentFromHit(hit meilisearchgo.Hit, includeContent bool) (search.Documen
 	return doc, score, highlights, nil
 }
 
-func highlightsFromFormatted(value any) map[string]string {
+// highlightsFromFormatted extracts the requested fields from the `_formatted`
+// attribute of a hit. Meilisearch puts every retrieved attribute in it,
+// highlighted or not, with nested objects kept as objects, so each requested
+// field is looked up by its path and reported under that path. `*` requests
+// every top-level attribute.
+func highlightsFromFormatted(value any, fields []string) map[string]string {
 	formatted, ok := value.(map[string]any)
-	if !ok || len(formatted) == 0 {
+	if !ok || len(formatted) == 0 || len(fields) == 0 {
 		return nil
 	}
-	out := make(map[string]string, len(formatted))
-	for field, snippet := range formatted {
+	out := make(map[string]string, len(fields))
+	for _, field := range fields {
+		if field == "*" {
+			for key, snippet := range formatted {
+				if !commonmeilisearch.IsReservedField(key) {
+					addHighlight(out, key, snippet)
+				}
+			}
+			continue
+		}
 		if commonmeilisearch.IsReservedField(field) {
 			continue
 		}
-		switch typed := snippet.(type) {
-		case string:
-			out[field] = typed
-		case float64:
-			out[field] = strconv.FormatFloat(typed, 'f', -1, 64)
-		default:
-			encoded, err := json.Marshal(typed)
-			if err != nil {
-				continue
-			}
-			out[field] = string(encoded)
+		if snippet, found := lookupPath(formatted, field); found {
+			addHighlight(out, field, snippet)
 		}
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+// lookupPath resolves a dot-separated attribute path in a formatted hit. An
+// attribute whose own name contains a dot is matched before the path is split,
+// and a path through an array addresses that attribute of every element.
+func lookupPath(value any, path string) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if leaf, ok := typed[path]; ok {
+			return leaf, true
+		}
+		for i := range len(path) {
+			if path[i] != '.' {
+				continue
+			}
+			child, ok := typed[path[:i]]
+			if !ok {
+				continue
+			}
+			if leaf, found := lookupPath(child, path[i+1:]); found {
+				return leaf, true
+			}
+		}
+	case []any:
+		leaves := make([]any, 0, len(typed))
+		for _, item := range typed {
+			if leaf, found := lookupPath(item, path); found {
+				leaves = append(leaves, leaf)
+			}
+		}
+		if len(leaves) > 0 {
+			return leaves, true
+		}
+	}
+	return nil, false
+}
+
+// addHighlight records the formatted value of a field. A highlighted array or
+// object keeps its structure as JSON, without escaping the highlight tags.
+func addHighlight(out map[string]string, field string, snippet any) {
+	switch typed := snippet.(type) {
+	case nil:
+	case string:
+		out[field] = typed
+	default:
+		var encoded bytes.Buffer
+		encoder := json.NewEncoder(&encoded)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(typed); err != nil {
+			return
+		}
+		out[field] = strings.TrimSuffix(encoded.String(), "\n")
+	}
 }

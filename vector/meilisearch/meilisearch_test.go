@@ -16,9 +16,11 @@ limitations under the License.
 package meilisearch
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +37,7 @@ import (
 	"github.com/dapr/components-contrib/search"
 	"github.com/dapr/components-contrib/vector"
 	kitlogger "github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 var waitForCompletion = search.IndexingOptions{
@@ -172,7 +175,20 @@ func TestCollectionLifecycle(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/indexes":
-			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{{"uid": "books", "primaryKey": "id"}}, "limit": 20, "total": 1})
+			// The instance also holds an index that is not a collection, such
+			// as one created by the search component, and one that is deleted
+			// while the collections are listed.
+			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{
+				{"uid": "articles", "primaryKey": "id"},
+				{"uid": "books", "primaryKey": "id"},
+				{"uid": "gone", "primaryKey": "id"},
+			}, "limit": 100, "total": 3})
+		case "/indexes/articles/settings/embedders":
+			writeJSON(t, w, http.StatusOK, map[string]any{})
+		case "/indexes/gone/settings/embedders":
+			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Index `gone` not found.", "code": "index_not_found", "type": "invalid_request"})
+		case "/indexes/books/settings/embedders":
+			serveEmbedders(t, w, r, 3)
 		case "/indexes/books":
 			if r.Method == http.MethodDelete {
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexDeletion"})
@@ -198,7 +214,7 @@ func TestCollectionLifecycle(t *testing.T) {
 
 	list, err := component.ListCollections(t.Context(), &vector.ListCollectionsRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"books"}, list.Collections)
+	assert.Equal(t, []string{"books"}, list.Collections, "only indexes configured for vectors are collections")
 
 	got, err := component.GetCollection(t.Context(), &vector.GetCollectionRequest{Collection: "books"})
 	require.NoError(t, err)
@@ -209,6 +225,136 @@ func TestCollectionLifecycle(t *testing.T) {
 	assert.Equal(t, map[string]string{"primaryKey": "id", "filterableAttributes": "daprMetadata"}, got.Properties)
 
 	require.NoError(t, component.DeleteCollection(t.Context(), &vector.DeleteCollectionRequest{Collection: "books"}))
+}
+
+func TestGetCollectionRejectsAnIndexThatIsNotACollection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		embedders map[string]any
+	}{
+		{name: "no embedder", embedders: map[string]any{}},
+		{name: "another embedder", embedders: map[string]any{"text": map[string]any{"source": "userProvided", "dimensions": 3}}},
+		{name: "an embedder without fixed dimensions", embedders: map[string]any{"default": map[string]any{"source": "rest"}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/indexes/articles":
+					writeJSON(t, w, http.StatusOK, map[string]any{"uid": "articles", "primaryKey": "id"})
+				case "/indexes/articles/stats":
+					writeJSON(t, w, http.StatusOK, map[string]any{"numberOfDocuments": 7})
+				case "/indexes/articles/settings":
+					writeJSON(t, w, http.StatusOK, map[string]any{"embedders": tt.embedders})
+				default:
+					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			component := initializedVector(t, server.URL)
+			got, err := component.GetCollection(t.Context(), &vector.GetCollectionRequest{Collection: "articles"})
+
+			require.Error(t, err, "an index without dimensions must not be reported as a collection")
+			assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+			assert.Contains(t, status.Convert(err).Message(), "not a vector collection")
+			assert.Nil(t, got)
+		})
+	}
+}
+
+func TestCreateCollectionRollsBackWhenItCannotBeConfigured(t *testing.T) {
+	t.Parallel()
+
+	enqueued := func(t *testing.T, w http.ResponseWriter) {
+		t.Helper()
+		writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 2, "status": "enqueued", "type": "settingsUpdate"})
+	}
+	tests := []struct {
+		name string
+		// settings answers the settings update of the new index.
+		settings func(*testing.T, http.ResponseWriter)
+		// settingsTask is the settings task as the task status API reports it.
+		settingsTask map[string]any
+		// timeout, when set, ends the request while the settings are applied.
+		timeout  time.Duration
+		wantCode codes.Code
+	}{
+		{
+			name: "the embedder is rejected",
+			settings: func(t *testing.T, w http.ResponseWriter) {
+				t.Helper()
+				writeJSON(t, w, http.StatusBadRequest, map[string]any{"message": "invalid embedder", "code": "invalid_settings_embedders", "type": "invalid_request"})
+			},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "the settings task fails",
+			settings: enqueued,
+			settingsTask: map[string]any{
+				"uid": 2, "status": "failed", "type": "settingsUpdate", "indexUid": "books",
+				"error": map[string]any{"message": "boom", "code": "internal", "type": "internal"},
+			},
+			wantCode: codes.Internal,
+		},
+		{
+			name:         "the request ends while the settings are applied",
+			settings:     enqueued,
+			settingsTask: map[string]any{"uid": 2, "status": "processing", "type": "settingsUpdate", "indexUid": "books"},
+			timeout:      150 * time.Millisecond,
+			wantCode:     codes.DeadlineExceeded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var deleted atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/indexes":
+					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
+				case "/tasks/1":
+					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
+				case "/indexes/books/settings":
+					tt.settings(t, w)
+				case "/tasks/2":
+					writeJSON(t, w, http.StatusOK, tt.settingsTask)
+				case "/indexes/books":
+					if r.Method != http.MethodDelete {
+						t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+						return
+					}
+					deleted.Add(1)
+					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 3, "status": "enqueued", "type": "indexDeletion"})
+				case "/tasks/3":
+					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 3, "status": "succeeded", "type": "indexDeletion"})
+				default:
+					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			ctx := t.Context()
+			if tt.timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+			}
+			component := initializedVector(t, server.URL)
+			err := component.CreateCollection(ctx, &vector.CreateCollectionRequest{Collection: "books", Dimensions: 3})
+
+			require.Error(t, err)
+			assert.Equal(t, tt.wantCode, status.Code(err), "the failure that caused the rollback is reported")
+			assert.Equal(t, int32(1), deleted.Load(), "an index without its embedder must not be left behind")
+		})
+	}
 }
 
 func TestDeleteCollectionReportsMissingCollection(t *testing.T) {
@@ -242,6 +388,10 @@ func TestUpsert(t *testing.T) {
 
 	var posted []map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/indexes/books/settings/embedders" {
+			serveEmbedders(t, w, r, 3)
+			return
+		}
 		require.Equal(t, "/indexes/books/documents", r.URL.Path)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&posted))
 		writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 10, "status": "enqueued", "type": "documentAdditionOrUpdate"})
@@ -305,14 +455,18 @@ func TestUpsertRejectsInvalidRequests(t *testing.T) {
 	}
 }
 
-func TestUpsertReportsRecordsWithoutVectorsBeforeEnqueue(t *testing.T) {
+func TestUpsertReportsItemFailuresBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
 	t.Run("every record fails", func(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("the provider must not be invoked: %s %s", r.Method, r.URL.Path)
+			if r.URL.Path == "/indexes/books/settings/embedders" {
+				serveEmbedders(t, w, r, 3)
+				return
+			}
+			t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
 		}))
 		defer server.Close()
 
@@ -331,24 +485,105 @@ func TestUpsertReportsRecordsWithoutVectorsBeforeEnqueue(t *testing.T) {
 
 		var posted []map[string]any
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/indexes/books/settings/embedders" {
+				serveEmbedders(t, w, r, 3)
+				return
+			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&posted))
 			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 10, "status": "enqueued", "type": "documentAdditionOrUpdate"})
 		}))
 		defer server.Close()
 
+		// Meilisearch fails the whole batch for any one of these records, so
+		// the component identifies them itself.
+		tests := []struct {
+			record       vector.Record
+			wantContains string
+		}{
+			{record: vector.Record{ID: "no-values"}, wantContains: "no vector values"},
+			{record: vector.Record{ID: "too-short", Values: []float32{1, 2}}, wantContains: "2 vector values but the collection has 3 dimensions"},
+			{record: vector.Record{ID: "too-long", Values: []float32{1, 2, 3, 4}}, wantContains: "4 vector values but the collection has 3 dimensions"},
+			{record: vector.Record{ID: "user:42", Values: []float32{1, 2, 3}}, wantContains: "not a valid Meilisearch document identifier"},
+		}
+		records := make([]vector.Record, 0, 1+len(tests))
+		records = append(records, vector.Record{ID: "good-1", Values: []float32{1, 2, 3}})
+		for _, tt := range tests {
+			records = append(records, tt.record)
+		}
+
 		component := initializedVector(t, server.URL)
-		res, err := component.Upsert(t.Context(), &vector.UpsertRequest{Collection: "books", Records: []vector.Record{
-			{ID: "1"},
-			{ID: "2", Values: []float32{1}},
-		}})
+		res, err := component.Upsert(t.Context(), &vector.UpsertRequest{Collection: "books", Records: records})
 
 		require.NoError(t, err)
 		assert.Equal(t, search.IndexAckQueued, res.Ack)
-		require.Len(t, res.FailedItems, 1)
-		assert.Equal(t, "1", res.FailedItems[0].ID)
-		require.Len(t, posted, 1)
-		assert.Equal(t, "2", posted[0]["id"])
+		require.Len(t, res.FailedItems, len(tests), "failed items are reported in request order")
+		for i, tt := range tests {
+			assert.Equal(t, tt.record.ID, res.FailedItems[i].ID)
+			assert.Equal(t, codes.InvalidArgument, res.FailedItems[i].Error.Code())
+			assert.Contains(t, res.FailedItems[i].Error.Message(), tt.wantContains)
+		}
+		require.Len(t, posted, 1, "only valid records are enqueued")
+		assert.Equal(t, "good-1", posted[0]["id"])
 	})
+}
+
+func TestUpsertRequiresAnExistingCollection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// embedders answers the lookup Upsert makes before it enqueues.
+		embedders func(*testing.T, http.ResponseWriter)
+		wantCode  codes.Code
+	}{
+		{
+			// Meilisearch would create the index on the first document
+			// addition, without an embedder.
+			name: "a missing collection",
+			embedders: func(t *testing.T, w http.ResponseWriter) {
+				t.Helper()
+				writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"})
+			},
+			wantCode: codes.NotFound,
+		},
+		{
+			// Meilisearch would store the vectors where no query finds them.
+			name: "an index that is not a collection",
+			embedders: func(t *testing.T, w http.ResponseWriter) {
+				t.Helper()
+				writeJSON(t, w, http.StatusOK, map[string]any{})
+			},
+			wantCode: codes.FailedPrecondition,
+		},
+	}
+
+	for _, tt := range tests {
+		for _, options := range []search.IndexingOptions{{}, waitForCompletion} {
+			t.Run(fmt.Sprintf("%s (mode %d)", tt.name, options.Mode), func(t *testing.T) {
+				t.Parallel()
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != http.MethodGet || r.URL.Path != "/indexes/books/settings/embedders" {
+						t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
+						return
+					}
+					tt.embedders(t, w)
+				}))
+				defer server.Close()
+
+				component := initializedVector(t, server.URL)
+				res, err := component.Upsert(t.Context(), &vector.UpsertRequest{
+					Collection: "books",
+					Records:    []vector.Record{{ID: "1", Values: []float32{1, 2, 3}}, {ID: "2"}},
+					Options:    options,
+				})
+
+				require.Error(t, err)
+				assert.Equal(t, tt.wantCode, status.Code(err))
+				assert.Nil(t, res, "a request-wide failure is not reported per item")
+			})
+		}
+	}
 }
 
 func TestUpsertWaitForCompletion(t *testing.T) {
@@ -367,6 +602,8 @@ func TestUpsertWaitForCompletion(t *testing.T) {
 					"code":    "feature_not_enabled",
 					"type":    "invalid_request",
 				})
+			case "/indexes/books/settings/embedders":
+				serveEmbedders(t, w, r, 3)
 			case "/indexes/books/documents":
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 12, "status": "enqueued", "type": "documentAdditionOrUpdate"})
 			case "/tasks/12":
@@ -406,6 +643,8 @@ func TestUpsertWaitForCompletion(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.(http.Flusher).Flush()
 				<-r.Context().Done()
+			case r.URL.Path == "/indexes/books/settings/embedders":
+				serveEmbedders(t, w, r, 3)
 			case r.URL.Path == "/indexes/books/documents":
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 13, "status": "enqueued", "type": "documentAdditionOrUpdate"})
 			case strings.HasPrefix(r.URL.Path, "/tasks/"):
@@ -431,11 +670,14 @@ func TestUpsertWaitForCompletion(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/tasks/stream" {
+			switch r.URL.Path {
+			case "/indexes/books/settings/embedders":
+				serveEmbedders(t, w, r, 3)
+			case "/tasks/stream":
+				writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "the provided API key is invalid", "code": "invalid_api_key", "type": "auth"})
+			default:
 				t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
-				return
 			}
-			writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "the provided API key is invalid", "code": "invalid_api_key", "type": "auth"})
 		}))
 		defer server.Close()
 
@@ -483,6 +725,46 @@ func TestGetReturnsFoundRecordsInRequestOrder(t *testing.T) {
 	assert.Equal(t, []float32{1, 2, 3}, got.Records[1].Values)
 	assert.Equal(t, []byte("payload"), got.Records[1].Payload)
 	assert.Equal(t, map[string]any{"author": "pride-and-prejudice", "publisher": map[string]any{"city": "london"}}, got.Records[1].Metadata)
+}
+
+func TestGetOmitsIDsThatCannotBeStored(t *testing.T) {
+	t.Parallel()
+
+	t.Run("an invalid id is not sent to the provider", func(t *testing.T) {
+		t.Parallel()
+
+		var fetch map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/indexes/books/documents/fetch", r.URL.Path)
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&fetch))
+			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{{"id": "1"}}, "total": 1})
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		got, err := component.Get(t.Context(), &vector.GetRequest{Collection: "books", IDs: []string{"user:42", "1", ""}})
+
+		require.NoError(t, err, "Meilisearch fails the whole read for an identifier it cannot store")
+		assert.Equal(t, []any{"1"}, fetch["ids"])
+		assert.InDelta(t, 1, fetch["limit"], 0)
+		require.Len(t, got.Records, 1)
+		assert.Equal(t, "1", got.Records[0].ID)
+	})
+
+	t.Run("only invalid ids never invoke the provider", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("the provider must not be invoked: %s %s", r.Method, r.URL.Path)
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		got, err := component.Get(t.Context(), &vector.GetRequest{Collection: "books", IDs: []string{"user:42", "a b"}})
+
+		require.NoError(t, err)
+		assert.Empty(t, got.Records)
+	})
 }
 
 func TestDelete(t *testing.T) {
@@ -628,7 +910,7 @@ func TestQueryTranslatesScoresAndThresholds(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []any{1.0, 2.0, 3.0}, sent["vector"])
 	assert.Equal(t, map[string]any{"embedder": "default", "semanticRatio": 1.0}, sent["hybrid"])
-	assert.Equal(t, `daprMetadata.author = "pride-and-prejudice" AND daprMetadata.year >= 2020`, sent["filter"], "vector filters address record metadata")
+	assert.Equal(t, `"daprMetadata.author" = "pride-and-prejudice" AND "daprMetadata.year" >= 2020`, sent["filter"], "vector filters address record metadata")
 	// A cosine threshold of 0.5 is (1 + 0.5) / 2 on Meilisearch's normalized
 	// ranking score scale.
 	assert.InDelta(t, 0.75, sent["rankingScoreThreshold"], 0.0001)
@@ -690,7 +972,7 @@ func TestQueryByIDUsesSimilarDocuments(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "1", sent["id"])
 	assert.Equal(t, "default", sent["embedder"])
-	assert.Equal(t, `daprMetadata.author = "pride-and-prejudice"`, sent["filter"])
+	assert.Equal(t, `"daprMetadata.author" = "pride-and-prejudice"`, sent["filter"])
 	assert.Equal(t, vector.DistanceMetricCosine, res.Metric)
 	require.Len(t, res.Matches, 1)
 	assert.Equal(t, "2", res.Matches[0].Record.ID)
@@ -739,6 +1021,23 @@ func TestQueryRejectsInvalidRequests(t *testing.T) {
 			name:         "missing collection",
 			req:          &vector.QueryRequest{},
 			wantContains: "collection is required",
+		},
+		// No cosine similarity lies outside [-1, 1]: clamping a cutoff of 1.5
+		// to 1 would return exact matches the caller excluded.
+		{
+			name:         "score threshold above the cosine range",
+			req:          &vector.QueryRequest{Collection: "books", Vector: &vector.Record{Values: []float32{1}}, ScoreThreshold: ptr.Of(1.5)},
+			wantContains: "score_threshold must be a cosine similarity",
+		},
+		{
+			name:         "score threshold below the cosine range",
+			req:          &vector.QueryRequest{Collection: "books", ByID: "1", ScoreThreshold: ptr.Of(-1.01)},
+			wantContains: "score_threshold must be a cosine similarity",
+		},
+		{
+			name:         "score threshold that is not a number",
+			req:          &vector.QueryRequest{Collection: "books", Vector: &vector.Record{Values: []float32{1}}, ScoreThreshold: ptr.Of(math.NaN())},
+			wantContains: "score_threshold must be a cosine similarity",
 		},
 	}
 
@@ -840,6 +1139,73 @@ func TestBatchQuery(t *testing.T) {
 		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
 
+	t.Run("a request-wide failure met by a query fails the call", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			statusCode int
+			body       map[string]any
+			wantCode   codes.Code
+		}{
+			{
+				name:       "the credentials are rejected",
+				statusCode: http.StatusForbidden,
+				body:       map[string]any{"message": "the provided API key is invalid", "code": "invalid_api_key", "type": "auth"},
+				wantCode:   codes.Unauthenticated,
+			},
+			{
+				name:       "the collection disappears",
+				statusCode: http.StatusNotFound,
+				body:       map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"},
+				wantCode:   codes.NotFound,
+			},
+			{
+				name:       "the provider fails",
+				statusCode: http.StatusInternalServerError,
+				body:       map[string]any{"message": "boom", "code": "internal", "type": "internal"},
+				wantCode:   codes.Internal,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var searches atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/indexes/books":
+						writeJSON(t, w, http.StatusOK, map[string]any{"uid": "books", "primaryKey": "id"})
+					case "/indexes/books/search":
+						// The first query succeeds; the failure appears after
+						// the collection was looked up.
+						if searches.Add(1) == 1 {
+							writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{{"id": "1", "_rankingScore": 1.0}}})
+							return
+						}
+						writeJSON(t, w, tt.statusCode, tt.body)
+					default:
+						t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+					}
+				}))
+				defer server.Close()
+
+				component := initializedVector(t, server.URL)
+				res, err := component.BatchQuery(t.Context(), &vector.BatchQueryRequest{Collection: "books", Queries: []vector.QueryRequest{
+					{Vector: &vector.Record{Values: []float32{1}}},
+					{Vector: &vector.Record{Values: []float32{2}}},
+					{Vector: &vector.Record{Values: []float32{3}}},
+				}})
+
+				require.Error(t, err, "a failure that every query would meet is not a per-query result")
+				assert.Equal(t, tt.wantCode, status.Code(err))
+				assert.Nil(t, res)
+				assert.Equal(t, int32(2), searches.Load(), "the remaining queries are not sent")
+			})
+		}
+	})
+
 	t.Run("an empty batch never invokes the provider", func(t *testing.T) {
 		t.Parallel()
 
@@ -931,8 +1297,7 @@ func TestScoreTranslationRoundTrip(t *testing.T) {
 		{name: "perfect match", cosine: 1, wantRankingScore: 1, rankingScore: 1, wantCosineFromRank: 1},
 		{name: "orthogonal", cosine: 0, wantRankingScore: 0.5, rankingScore: 0.5, wantCosineFromRank: 0},
 		{name: "opposite", cosine: -1, wantRankingScore: 0, rankingScore: 0, wantCosineFromRank: -1},
-		{name: "clamps above the range", cosine: 2, wantRankingScore: 1, rankingScore: 1, wantCosineFromRank: 1},
-		{name: "clamps below the range", cosine: -2, wantRankingScore: 0, rankingScore: 0, wantCosineFromRank: -1},
+		{name: "partial match", cosine: 0.5, wantRankingScore: 0.75, rankingScore: 0.75, wantCosineFromRank: 0.5},
 	}
 
 	for _, tt := range tests {
@@ -951,6 +1316,17 @@ func initializedVector(t *testing.T, host string) vector.Vector {
 	require.NoError(t, component.Init(t.Context(), vector.Metadata{Base: contribmetadata.Base{Properties: map[string]string{"host": host}}}))
 	t.Cleanup(func() { require.NoError(t, component.Close()) })
 	return component
+}
+
+// serveEmbedders answers the lookup Upsert makes before it enqueues anything,
+// for a collection of the given dimensions.
+func serveEmbedders(t *testing.T, w http.ResponseWriter, r *http.Request, dimensions int) {
+	t.Helper()
+	if r.Method != http.MethodGet {
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		return
+	}
+	writeJSON(t, w, http.StatusOK, map[string]any{"default": map[string]any{"source": "userProvided", "dimensions": dimensions}})
 }
 
 func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {

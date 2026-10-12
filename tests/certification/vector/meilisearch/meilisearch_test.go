@@ -35,6 +35,7 @@ import (
 	commonmeilisearch "github.com/dapr/components-contrib/common/component/meilisearch"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/search"
+	searchmeilisearch "github.com/dapr/components-contrib/search/meilisearch"
 	"github.com/dapr/components-contrib/vector"
 	vectormeilisearch "github.com/dapr/components-contrib/vector/meilisearch"
 	"github.com/dapr/kit/logger"
@@ -220,15 +221,16 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 		})
 		require.NoError(t, component.CreateCollection(ctx, certCreateRequest(failCollection, 4)))
 
+		// Meilisearch fails the whole task for one record of the wrong size or
+		// with an identifier it cannot store, so the component must identify
+		// these records itself and still write the valid one.
 		resp, err := component.Upsert(ctx, &vector.UpsertRequest{Collection: failCollection, Records: []vector.Record{
 			{ID: "good-1", Values: []float32{1, 0, 0, 0}},
 			{ID: "bad-dim", Values: []float32{1, 0, 0}},
 			{ID: "no-values"},
+			{ID: "user:42", Values: []float32{0, 1, 0, 0}},
 		}, Options: certWaitOptions()})
-		if err != nil {
-			requireStatusCode(t, err, codes.InvalidArgument)
-			return
-		}
+		require.NoError(t, err)
 		require.Equal(t, search.IndexAckCompleted, resp.Ack)
 		failedIDs := make([]string, 0, len(resp.FailedItems))
 		for _, item := range resp.FailedItems {
@@ -236,12 +238,61 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 			require.NotNil(t, item.Error)
 			require.Equal(t, codes.InvalidArgument, item.Error.Code())
 		}
-		require.ElementsMatch(t, []string{"bad-dim", "no-values"}, failedIDs)
+		require.ElementsMatch(t, []string{"bad-dim", "no-values", "user:42"}, failedIDs)
 
-		got, err := component.Get(ctx, &vector.GetRequest{Collection: failCollection, IDs: []string{"good-1", "bad-dim", "no-values"}})
+		// An identifier that cannot be stored is omitted like any other
+		// missing record instead of failing the read.
+		got, err := component.Get(ctx, &vector.GetRequest{Collection: failCollection, IDs: []string{"good-1", "bad-dim", "no-values", "user:42"}})
 		require.NoError(t, err)
 		require.Len(t, got.Records, 1)
 		require.Equal(t, "good-1", got.Records[0].ID)
+	})
+
+	t.Run("upsert_requires_an_existing_collection", func(t *testing.T) {
+		missing := "cert-vector-missing-" + uuid.NewString()[:8]
+		t.Cleanup(func() {
+			_ = component.DeleteCollection(context.Background(), &vector.DeleteCollectionRequest{Collection: missing})
+		})
+
+		for _, options := range []search.IndexingOptions{{}, certWaitOptions()} {
+			_, err := component.Upsert(ctx, &vector.UpsertRequest{Collection: missing, Records: []vector.Record{{ID: "vec-1", Values: []float32{1, 0, 0, 0}}}, Options: options})
+			requireStatusCode(t, err, codes.NotFound)
+		}
+
+		// Meilisearch creates a missing index on a document addition; the
+		// component must not let a write leave one behind.
+		_, err := component.GetCollection(ctx, &vector.GetCollectionRequest{Collection: missing})
+		requireStatusCode(t, err, codes.NotFound)
+		require.NoError(t, component.CreateCollection(ctx, certCreateRequest(missing, 4)), "the name is still free for a collection")
+	})
+
+	t.Run("an_index_without_an_embedder_is_not_a_collection", func(t *testing.T) {
+		// The search component creates its indexes in the same instance as
+		// the collections.
+		plain := "cert-vector-plain-" + uuid.NewString()[:8]
+		searchComponent := searchmeilisearch.NewMeilisearch(logger.NewLogger("cert.search"))
+		require.NoError(t, searchComponent.Init(ctx, search.Metadata{Base: metadata.Base{Properties: map[string]string{"host": host, "apiKey": os.Getenv("MEILISEARCH_API_KEY")}}}))
+		t.Cleanup(func() { _ = searchComponent.Close() })
+		require.NoError(t, searchComponent.CreateIndex(ctx, &search.CreateIndexRequest{Index: plain}))
+		t.Cleanup(func() {
+			_ = component.DeleteCollection(context.Background(), &vector.DeleteCollectionRequest{Collection: plain})
+		})
+		vectorCollection := "cert-vector-listed-" + uuid.NewString()[:8]
+		t.Cleanup(func() {
+			_ = component.DeleteCollection(context.Background(), &vector.DeleteCollectionRequest{Collection: vectorCollection})
+		})
+		require.NoError(t, component.CreateCollection(ctx, certCreateRequest(vectorCollection, 4)))
+
+		_, err := component.GetCollection(ctx, &vector.GetCollectionRequest{Collection: plain})
+		requireStatusCode(t, err, codes.FailedPrecondition)
+
+		_, err = component.Upsert(ctx, &vector.UpsertRequest{Collection: plain, Records: []vector.Record{{ID: "vec-1", Values: []float32{1, 0, 0, 0}}}, Options: certWaitOptions()})
+		requireStatusCode(t, err, codes.FailedPrecondition)
+
+		listed, err := component.ListCollections(ctx, &vector.ListCollectionsRequest{})
+		require.NoError(t, err)
+		require.Contains(t, listed.Collections, vectorCollection)
+		require.NotContains(t, listed.Collections, plain)
 	})
 
 	t.Run("indexing_modes", func(t *testing.T) {
@@ -525,6 +576,13 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 
 		_, err = component.Query(ctx, &vector.QueryRequest{Collection: collection, Vector: &vector.Record{Values: certVectorValues(0)}, ByID: "vec-000", TopK: 5})
 		requireStatusCode(t, err, codes.InvalidArgument)
+	})
+
+	t.Run("score_threshold outside the cosine range is INVALID_ARGUMENT", func(t *testing.T) {
+		for _, threshold := range []float64{1.5, -1.5} {
+			_, err := component.Query(ctx, &vector.QueryRequest{Collection: collection, Vector: &vector.Record{Values: certVectorValues(0)}, TopK: 5, ScoreThreshold: &threshold})
+			requireStatusCode(t, err, codes.InvalidArgument)
+		}
 	})
 
 	t.Run("score_threshold is inclusive", func(t *testing.T) {

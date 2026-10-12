@@ -128,7 +128,15 @@ func StatusError(err error, msg string) error {
 			return status.Errorf(code, "%s: meilisearch returned HTTP %d", msg, msErr.StatusCode)
 		}
 		// No HTTP response was received: the request never reached a
-		// conclusive provider outcome.
+		// conclusive provider outcome. The client's error type does not
+		// unwrap, so the transport error it carries is inspected directly: a
+		// request the caller canceled or let expire is not a provider outage.
+		switch {
+		case errors.Is(msErr.OriginError, context.Canceled):
+			return status.Errorf(codes.Canceled, "%s: %v", msg, err)
+		case errors.Is(msErr.OriginError, context.DeadlineExceeded):
+			return status.Errorf(codes.DeadlineExceeded, "%s: %v", msg, err)
+		}
 		return status.Errorf(codes.Unavailable, "%s: %v", msg, err)
 	}
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)

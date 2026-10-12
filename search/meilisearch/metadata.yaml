@@ -6,6 +6,8 @@ version: v1
 status: alpha
 title: "Meilisearch"
 urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-search/meilisearch/
   - title: Meilisearch documentation
     url: https://www.meilisearch.com/docs/
 capabilities:
@@ -47,14 +49,6 @@ metadata:
       Meilisearch host URL.
     type: string
     example: "http://localhost:7700"
-  - name: apiKey
-    required: false
-    sensitive: true
-    description: |
-      API key for Meilisearch.
-    type: string
-    example: "masterKey"
-    default: ""
   - name: timeout
     required: false
     description: |

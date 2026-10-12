@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -146,7 +147,10 @@ func ValidateWriteIDs(ids []string) error {
 // INVALID_ARGUMENT status suitable for a FailedItem.
 func ValidateDocumentContent(content []byte) error {
 	trimmed := bytes.TrimSpace(content)
-	if len(trimmed) == 0 || trimmed[0] != '{' || !json.Valid(trimmed) {
+	// json.Valid accepts invalid UTF-8 inside strings, and decoding would then
+	// replace those bytes with U+FFFD instead of failing, so the encoding is
+	// checked separately.
+	if len(trimmed) == 0 || trimmed[0] != '{' || !json.Valid(trimmed) || !utf8.Valid(trimmed) {
 		return status.Error(codes.InvalidArgument, "content must be a JSON object")
 	}
 	return nil

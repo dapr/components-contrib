@@ -36,6 +36,23 @@ building block reuses them.
   always added to `sortableAttributes`; `filterableAttributes`,
   `sortableAttributes` and `searchableAttributes` can be set in `CreateIndex`
   metadata.
+- A Meilisearch task is atomic, so everything Meilisearch would reject per
+  document is identified before the task is enqueued and reported in
+  `FailedItems` (`INVALID_ARGUMENT`): content that uses `id`, `daprMetadata`,
+  `daprPayload` or an attribute starting with `_` (Meilisearch's own
+  namespace), which could not be read back as written, and an ID that is not
+  1 to 511 bytes of ASCII letters, digits, `-` and `_`. `GetDocuments` omits
+  such an ID like any other missing document.
+- `IndexDocuments` requires an existing index and returns `NOT_FOUND`
+  otherwise: Meilisearch would create the index on the first document
+  addition, without the settings `CreateIndex` applies. `ListIndexes` reads
+  every page of the index list.
+- Filter field names are quoted, so a filter key is never read as filter
+  syntax. A native query cannot set pagination or sorting, its `filter` is
+  ANDed with the portable filter, and the document ID, its metadata and the
+  ranking score are returned whatever it projects.
+- `Highlights` holds the requested `HighlightFields` only, a nested field
+  under the path it was requested with.
 - `INDEXING_MODE_WAIT_FOR_COMPLETION` polls the task status API with
   exponential backoff by default. When the experimental `tasksStreamingRoute`
   feature is enabled (and the API key has `tasks.get`) the component shares one

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -79,7 +80,14 @@ func translateMap(m map[string]any, prefix string) (string, error) {
 				}
 				compound = append(compound, "("+part+")")
 			}
-			parts = append(parts, strings.Join(compound, op))
+			part := strings.Join(compound, op)
+			// AND binds tighter than OR in a Meilisearch filter, so a compound
+			// that shares its object with other conditions is parenthesized
+			// before it is ANDed with them.
+			if len(m) > 1 {
+				part = "(" + part + ")"
+			}
+			parts = append(parts, part)
 		case "$not":
 			part, err := translateExpression(value, prefix)
 			if err != nil {
@@ -101,7 +109,11 @@ func translateMap(m map[string]any, prefix string) (string, error) {
 	return strings.Join(parts, " AND "), nil
 }
 
-func translateField(field string, value any) (string, error) {
+// translateField translates the conditions on one field. path is caller data
+// (a filter key, optionally prefixed), so it is quoted: unquoted, a key
+// containing filter syntax would rewrite the boolean structure of the filter.
+func translateField(path string, value any) (string, error) {
+	field := quoteString(path)
 	ops, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Sprintf("%s = %s", field, FormatFilterValue(value)), nil
@@ -150,9 +162,9 @@ func translateField(field string, value any) (string, error) {
 			if !ok {
 				return "", errors.New("$regex requires a string")
 			}
-			return "", fmt.Errorf("unsupported filter operator $regex for field %q: Meilisearch filters do not support regular expressions (pattern %q)", field, pattern)
+			return "", fmt.Errorf("unsupported filter operator $regex for field %q: Meilisearch filters do not support regular expressions (pattern %q)", path, pattern)
 		default:
-			return "", fmt.Errorf("unsupported filter operator %q for field %q", op, field)
+			return "", fmt.Errorf("unsupported filter operator %q for field %q", op, path)
 		}
 	}
 	sort.Strings(parts)
@@ -184,8 +196,7 @@ func arrayValues(value any) ([]any, error) {
 func FormatFilterValue(value any) string {
 	switch v := value.(type) {
 	case string:
-		b, _ := json.Marshal(v)
-		return string(b)
+		return quoteString(v)
 	case bool:
 		if v {
 			return "true"
@@ -193,7 +204,27 @@ func FormatFilterValue(value any) string {
 		return "false"
 	case nil:
 		return "NULL"
+	case float64:
+		// Numbers decoded from JSON arrive as float64. Meilisearch does not
+		// parse the exponent form Go prints for large values (1e+06), so
+		// floats are always written in decimal notation.
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case json.Number:
+		f, err := v.Float64()
+		if err != nil {
+			return quoteString(v.String())
+		}
+		return strconv.FormatFloat(f, 'f', -1, 64)
 	default:
 		return fmt.Sprint(v)
 	}
+}
+
+// quoteString renders s as a double-quoted filter token, which Meilisearch
+// reads as a single attribute name or string value whatever it contains.
+func quoteString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

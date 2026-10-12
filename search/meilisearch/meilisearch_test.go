@@ -16,12 +16,16 @@ limitations under the License.
 package meilisearch
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	meilisearchgo "github.com/meilisearch/meilisearch-go"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -230,12 +234,105 @@ func TestCreateIndexReportsAnExistingIndex(t *testing.T) {
 	assert.Zero(t, settingsUpdated.Load(), "the settings of an existing index are not reconciled")
 }
 
+func TestCreateIndexRollsBackWhenTheSettingsCannotBeApplied(t *testing.T) {
+	t.Parallel()
+
+	enqueued := func(taskUID int) func(*testing.T, http.ResponseWriter) {
+		return func(t *testing.T, w http.ResponseWriter) {
+			t.Helper()
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": taskUID, "status": "enqueued", "type": "settingsUpdate"})
+		}
+	}
+	tests := []struct {
+		name string
+		// settings answers the settings update of the new index.
+		settings func(*testing.T, http.ResponseWriter)
+		// settingsTask is the settings task as the task status API reports it.
+		settingsTask map[string]any
+		// timeout, when set, ends the request while the settings are applied.
+		timeout  time.Duration
+		wantCode codes.Code
+	}{
+		{
+			name: "the settings are rejected",
+			settings: func(t *testing.T, w http.ResponseWriter) {
+				t.Helper()
+				writeJSON(t, w, http.StatusBadRequest, map[string]any{"message": "invalid settings", "code": "invalid_settings_sortable_attributes", "type": "invalid_request"})
+			},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "the settings task fails",
+			settings: enqueued(2),
+			settingsTask: map[string]any{
+				"uid": 2, "status": "failed", "type": "settingsUpdate", "indexUid": "books",
+				"error": map[string]any{"message": "boom", "code": "internal", "type": "internal"},
+			},
+			wantCode: codes.Internal,
+		},
+		{
+			name:         "the request ends while the settings are applied",
+			settings:     enqueued(2),
+			settingsTask: map[string]any{"uid": 2, "status": "processing", "type": "settingsUpdate", "indexUid": "books"},
+			timeout:      150 * time.Millisecond,
+			wantCode:     codes.DeadlineExceeded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var deleted atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/indexes":
+					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
+				case "/tasks/1":
+					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
+				case "/indexes/books/settings":
+					tt.settings(t, w)
+				case "/tasks/2":
+					writeJSON(t, w, http.StatusOK, tt.settingsTask)
+				case "/indexes/books":
+					if r.Method != http.MethodDelete {
+						t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+						return
+					}
+					deleted.Add(1)
+					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 3, "status": "enqueued", "type": "indexDeletion"})
+				case "/tasks/3":
+					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 3, "status": "succeeded", "type": "indexDeletion"})
+				default:
+					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			ctx := t.Context()
+			if tt.timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+			}
+			component := initializedSearch(t, server.URL)
+			err := component.CreateIndex(ctx, &search.CreateIndexRequest{Index: "books", Metadata: map[string]string{"sortableAttributes": "year"}})
+
+			require.Error(t, err)
+			assert.Equal(t, tt.wantCode, status.Code(err), "the failure that caused the rollback is reported")
+			assert.Equal(t, int32(1), deleted.Load(), "an index that could not be configured must not be left behind")
+		})
+	}
+}
+
 func TestIndexDocumentsReturnsQueuedWithoutWaiting(t *testing.T) {
 	t.Parallel()
 
 	var posted []map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/indexes/books":
+			serveIndexLookup(t, w, r)
 		case "/indexes/books/documents":
 			require.Equal(t, http.MethodPost, r.Method)
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&posted))
@@ -324,12 +421,16 @@ func TestIndexDocumentsRejectsInvalidRequests(t *testing.T) {
 	}
 }
 
-func TestIndexDocumentsReportsContentFailuresBeforeEnqueue(t *testing.T) {
+func TestIndexDocumentsReportsItemFailuresBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
 	var posted []map[string]any
 	var enqueued atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/indexes/books" {
+			serveIndexLookup(t, w, r)
+			return
+		}
 		require.Equal(t, "/indexes/books/documents", r.URL.Path)
 		enqueued.Add(1)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&posted))
@@ -337,34 +438,61 @@ func TestIndexDocumentsReportsContentFailuresBeforeEnqueue(t *testing.T) {
 	}))
 	defer server.Close()
 
+	contentMessage := status.Convert(search.ValidateDocumentContent(nil)).Message()
+	tests := []struct {
+		doc          search.Document
+		wantContains string
+	}{
+		// Content that is not a JSON object has the shape of the shared
+		// validator wherever it is identified.
+		{doc: search.Document{ID: "array", Content: []byte(`["not an object"]`)}, wantContains: contentMessage},
+		{doc: search.Document{ID: "truncated", Content: []byte(`{`)}, wantContains: contentMessage},
+		{doc: search.Document{ID: "empty"}, wantContains: contentMessage},
+		{doc: search.Document{ID: "bad-utf8", Content: []byte("{\"a\":\"\x80\"}")}, wantContains: contentMessage},
+		// Meilisearch rejects the whole batch for one identifier it cannot
+		// store.
+		{doc: search.Document{ID: "user:42", Content: []byte(`{"title":"a"}`)}, wantContains: "not a valid Meilisearch document identifier"},
+		{doc: search.Document{ID: strings.Repeat("x", 512), Content: []byte(`{"title":"a"}`)}, wantContains: "not a valid Meilisearch document identifier"},
+		// Attributes the component or Meilisearch own would be overwritten on
+		// write or dropped on read.
+		{doc: search.Document{ID: "own-id", Content: []byte(`{"title":"a","id":"other"}`)}, wantContains: `must not use the attribute "id"`},
+		{doc: search.Document{ID: "own-metadata", Content: []byte(`{"daprMetadata":{"tenant":"x"}}`)}, wantContains: `must not use the attribute "daprMetadata"`},
+		{doc: search.Document{ID: "geo", Content: []byte(`{"title":"a","_geo":{"lat":1,"lng":2}}`)}, wantContains: `must not use the attribute "_geo"`},
+		{doc: search.Document{ID: "underscore", Content: []byte(`{"_foo":"x"}`)}, wantContains: `must not use the attribute "_foo"`},
+	}
+	docs := make([]search.Document, 0, 1+len(tests))
+	docs = append(docs, search.Document{ID: "ok-1", Content: []byte(`{"title":"a","identifier":"kept"}`)})
+	for _, tt := range tests {
+		docs = append(docs, tt.doc)
+	}
+
 	component := initializedSearch(t, server.URL)
-	res, err := component.IndexDocuments(t.Context(), &search.IndexDocumentsRequest{Index: "books", Documents: []search.Document{
-		{ID: "1", Content: []byte(`{"title":"a"}`)},
-		{ID: "2", Content: []byte(`["not an object"]`)},
-		{ID: "3", Content: []byte(`{`)},
-		{ID: "4"},
-	}})
+	res, err := component.IndexDocuments(t.Context(), &search.IndexDocumentsRequest{Index: "books", Documents: docs})
 
 	require.NoError(t, err)
 	assert.Equal(t, search.IndexAckQueued, res.Ack)
-	require.Len(t, res.FailedItems, 3)
-	wantMessage := status.Convert(search.ValidateDocumentContent(nil)).Message()
-	for i, id := range []string{"2", "3", "4"} {
-		assert.Equal(t, id, res.FailedItems[i].ID)
+	require.Len(t, res.FailedItems, len(tests), "failed items are reported in request order")
+	for i, tt := range tests {
+		assert.Equal(t, tt.doc.ID, res.FailedItems[i].ID)
 		assert.Equal(t, codes.InvalidArgument, res.FailedItems[i].Error.Code())
-		assert.Equal(t, wantMessage, res.FailedItems[i].Error.Message(), "the item failure has the shape of the shared validator")
+		assert.Contains(t, res.FailedItems[i].Error.Message(), tt.wantContains)
 	}
 
 	assert.Equal(t, int32(1), enqueued.Load())
 	require.Len(t, posted, 1, "only valid documents are enqueued")
-	assert.Equal(t, "1", posted[0]["id"])
+	assert.Equal(t, "ok-1", posted[0]["id"])
+	assert.Equal(t, "kept", posted[0]["identifier"])
 }
 
-func TestIndexDocumentsSkipsTheProviderWhenEveryItemFails(t *testing.T) {
+func TestIndexDocumentsEnqueuesNothingWhenEveryItemFails(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("the provider must not be invoked: %s %s", r.Method, r.URL.Path)
+		if r.URL.Path == "/indexes/books" {
+			serveIndexLookup(t, w, r)
+			return
+		}
+		t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
 	}))
 	defer server.Close()
 
@@ -376,6 +504,34 @@ func TestIndexDocumentsSkipsTheProviderWhenEveryItemFails(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, search.IndexAckCompleted, res.Ack)
 	require.Len(t, res.FailedItems, 1)
+}
+
+func TestIndexDocumentsReportsAMissingIndex(t *testing.T) {
+	t.Parallel()
+
+	for _, options := range []search.IndexingOptions{{}, waitForCompletion} {
+		// Meilisearch would create the index on the first document addition,
+		// so the component must not enqueue anything.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/indexes/books" {
+				t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
+				return
+			}
+			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"})
+		}))
+
+		component := initializedSearch(t, server.URL)
+		res, err := component.IndexDocuments(t.Context(), &search.IndexDocumentsRequest{
+			Index:     "books",
+			Documents: []search.Document{{ID: "1", Content: []byte(`{"title":"a"}`)}, {ID: "2", Content: []byte(`[]`)}},
+			Options:   options,
+		})
+
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+		assert.Nil(t, res, "a request-wide failure is not reported per item")
+		server.Close()
+	}
 }
 
 func TestIndexDocumentsWaitForCompletion(t *testing.T) {
@@ -392,6 +548,8 @@ func TestIndexDocumentsWaitForCompletion(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.(http.Flusher).Flush()
 				<-r.Context().Done()
+			case "/indexes/books":
+				serveIndexLookup(t, w, r)
 			case "/indexes/books/documents":
 				enqueued.Add(1)
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 15, "status": "enqueued", "type": "documentAdditionOrUpdate"})
@@ -432,6 +590,8 @@ func TestIndexDocumentsWaitForCompletion(t *testing.T) {
 					"code":    "feature_not_enabled",
 					"type":    "invalid_request",
 				})
+			case "/indexes/books":
+				serveIndexLookup(t, w, r)
 			case "/indexes/books/documents":
 				enqueued.Add(1)
 				writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 16, "status": "enqueued", "type": "documentAdditionOrUpdate"})
@@ -467,11 +627,14 @@ func TestIndexDocumentsWaitForCompletion(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/tasks/stream" {
+			switch r.URL.Path {
+			case "/indexes/books":
+				serveIndexLookup(t, w, r)
+			case "/tasks/stream":
+				writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "the provided API key is invalid", "code": "invalid_api_key", "type": "auth"})
+			default:
 				t.Errorf("nothing must be enqueued: %s %s", r.Method, r.URL.Path)
-				return
 			}
-			writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "the provided API key is invalid", "code": "invalid_api_key", "type": "auth"})
 		}))
 		defer server.Close()
 
@@ -517,6 +680,46 @@ func TestGetDocumentsReturnsFoundDocumentsInRequestOrder(t *testing.T) {
 	assert.Equal(t, "1", got.Documents[1].ID)
 	assert.JSONEq(t, `{"title":"Pride and Prejudice"}`, string(got.Documents[1].Content))
 	assert.Equal(t, map[string]string{"tenant": "acme"}, got.Documents[1].Metadata)
+}
+
+func TestGetDocumentsOmitsIDsThatCannotBeStored(t *testing.T) {
+	t.Parallel()
+
+	t.Run("an invalid id is not sent to the provider", func(t *testing.T) {
+		t.Parallel()
+
+		var fetch map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/indexes/books/documents/fetch", r.URL.Path)
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&fetch))
+			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{{"id": "1", "title": "a"}}, "total": 1})
+		}))
+		defer server.Close()
+
+		component := initializedSearch(t, server.URL)
+		got, err := component.GetDocuments(t.Context(), &search.GetDocumentsRequest{Index: "books", IDs: []string{"user:42", "1", ""}, IncludeContent: true})
+
+		require.NoError(t, err, "Meilisearch fails the whole read for an identifier it cannot store")
+		assert.Equal(t, []any{"1"}, fetch["ids"])
+		assert.InDelta(t, 1, fetch["limit"], 0)
+		require.Len(t, got.Documents, 1)
+		assert.Equal(t, "1", got.Documents[0].ID)
+	})
+
+	t.Run("only invalid ids never invoke the provider", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("the provider must not be invoked: %s %s", r.Method, r.URL.Path)
+		}))
+		defer server.Close()
+
+		component := initializedSearch(t, server.URL)
+		got, err := component.GetDocuments(t.Context(), &search.GetDocumentsRequest{Index: "books", IDs: []string{"user:42", "a b"}})
+
+		require.NoError(t, err)
+		assert.Empty(t, got.Documents)
+	})
 }
 
 func TestGetDocumentsWithoutContent(t *testing.T) {
@@ -682,9 +885,17 @@ func TestSearch(t *testing.T) {
 			"hits": []map[string]any{{
 				"id":            "1",
 				"title":         "Pride and Prejudice",
+				"year":          1813,
 				"daprMetadata":  map[string]any{"tenant": "acme"},
 				"_rankingScore": 0.87,
-				"_formatted":    map[string]any{"title": "<em>Pride</em> and Prejudice"},
+				// Meilisearch formats every retrieved attribute, highlighted
+				// or not, and renders numbers as strings.
+				"_formatted": map[string]any{
+					"id":           "1",
+					"title":        "<em>Pride</em> and Prejudice",
+					"year":         "1813",
+					"daprMetadata": map[string]any{"tenant": "acme"},
+				},
 			}},
 			"estimatedTotalHits": 5,
 			"offset":             0,
@@ -703,20 +914,207 @@ func TestSearch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Pride and Prejudice", sent["q"])
 	assert.Equal(t, []any{"title"}, sent["attributesToHighlight"])
-	assert.Equal(t, `author = "jane-austen"`, sent["filter"], "search filters address content fields directly")
+	assert.Equal(t, `"author" = "jane-austen"`, sent["filter"], "search filters address content fields directly")
 	assert.Equal(t, []any{"year:desc", "id:asc"}, sent["sort"], "the document id is appended as a stable tie-breaker")
 
 	require.Len(t, res.Hits, 1)
 	assert.Equal(t, "1", res.Hits[0].Document.ID)
-	assert.JSONEq(t, `{"title":"Pride and Prejudice"}`, string(res.Hits[0].Document.Content))
+	assert.JSONEq(t, `{"title":"Pride and Prejudice","year":1813}`, string(res.Hits[0].Document.Content))
 	assert.Equal(t, map[string]string{"tenant": "acme"}, res.Hits[0].Document.Metadata)
 	assert.InDelta(t, 0.87, res.Hits[0].Score, 0.0001)
-	assert.Equal(t, map[string]string{"title": "<em>Pride</em> and Prejudice"}, res.Hits[0].Highlights)
+	assert.Equal(t, map[string]string{"title": "<em>Pride</em> and Prejudice"}, res.Hits[0].Highlights,
+		"only the requested fields are reported as highlights")
 
 	require.NotNil(t, res.TotalHits)
 	assert.Equal(t, uint64(5), *res.TotalHits)
 	assert.Equal(t, search.TotalHitsRelationEstimate, res.TotalHitsRelation)
 	assert.NotEmpty(t, res.ContinuationToken)
+}
+
+func TestSearchReportsAZeroTotal(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{}, "estimatedTotalHits": 0, "offset": 0, "limit": 20})
+	}))
+	defer server.Close()
+
+	component := initializedSearch(t, server.URL)
+	res, err := component.Search(t.Context(), &search.SearchRequest{Index: "books", Text: "no such book"})
+
+	require.NoError(t, err)
+	assert.Empty(t, res.Hits)
+	require.NotNil(t, res.TotalHits, "an empty result still has a total")
+	assert.Zero(t, *res.TotalHits)
+	assert.Equal(t, search.TotalHitsRelationEstimate, res.TotalHitsRelation)
+	assert.Empty(t, res.ContinuationToken)
+}
+
+func TestSearchNativeQueryKeepsThePortableGuarantees(t *testing.T) {
+	t.Parallel()
+
+	tenant := map[string]any{"tenant": "acme"}
+	tests := []struct {
+		name   string
+		req    *search.SearchRequest
+		assert func(t *testing.T, sent map[string]any)
+	}{
+		{
+			name: "ranking scores cannot be disabled",
+			req:  &search.SearchRequest{Native: map[string]any{"q": "emma", "showRankingScore": false}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, "emma", sent["q"])
+				assert.Equal(t, true, sent["showRankingScore"])
+			},
+		},
+		{
+			name: "a native projection still returns the id and metadata",
+			req:  &search.SearchRequest{Native: map[string]any{"attributesToRetrieve": []any{"title"}}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, []any{"title", "id", "daprMetadata"}, sent["attributesToRetrieve"])
+			},
+		},
+		{
+			name: "a wildcard projection is left alone",
+			req:  &search.SearchRequest{Native: map[string]any{"attributesToRetrieve": []any{"*"}}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, []any{"*"}, sent["attributesToRetrieve"])
+			},
+		},
+		{
+			name: "a native filter narrows the portable filter",
+			req:  &search.SearchRequest{Filter: tenant, Native: map[string]any{"filter": "author = 'brian-vaughan'"}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, []any{`"tenant" = "acme"`, "author = 'brian-vaughan'"}, sent["filter"])
+			},
+		},
+		{
+			name: "a native array filter narrows the portable filter",
+			req:  &search.SearchRequest{Filter: tenant, Native: map[string]any{"filter": []any{[]any{"a = 1", "b = 2"}, "c = 3"}}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, []any{`"tenant" = "acme"`, []any{"a = 1", "b = 2"}, "c = 3"}, sent["filter"])
+			},
+		},
+		{
+			name: "an empty native filter does not drop the portable filter",
+			req:  &search.SearchRequest{Filter: tenant, Native: map[string]any{"filter": nil}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, `"tenant" = "acme"`, sent["filter"])
+			},
+		},
+		{
+			name: "a native query without a filter keeps the portable filter as is",
+			req:  &search.SearchRequest{Filter: tenant, Native: map[string]any{"q": "emma"}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, `"tenant" = "acme"`, sent["filter"])
+			},
+		},
+		{
+			name: "a native filter alone is passed through",
+			req:  &search.SearchRequest{Native: map[string]any{"filter": "year > 1800"}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, "year > 1800", sent["filter"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sent map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
+				writeJSON(t, w, http.StatusOK, map[string]any{
+					"hits":               []map[string]any{{"id": "1", "title": "Emma", "_rankingScore": 0.5}},
+					"estimatedTotalHits": 1,
+				})
+			}))
+			defer server.Close()
+
+			tt.req.Index = "books"
+			component := initializedSearch(t, server.URL)
+			res, err := component.Search(t.Context(), tt.req)
+
+			require.NoError(t, err)
+			tt.assert(t, sent)
+			require.Len(t, res.Hits, 1)
+			assert.Equal(t, "1", res.Hits[0].Document.ID)
+			assert.InDelta(t, 0.5, res.Hits[0].Score, 0.0001)
+		})
+	}
+}
+
+func TestHighlightsFromFormatted(t *testing.T) {
+	t.Parallel()
+
+	// The shape Meilisearch returns: every retrieved attribute, highlighted or
+	// not, numbers as strings and nested values kept nested.
+	formatted := map[string]any{
+		"id":           "1",
+		"title":        "<em>hello</em> world",
+		"n":            "7",
+		"meta":         map[string]any{"name": "<em>hello</em> nested", "n": "5"},
+		"tags":         []any{"<em>hello</em>", "x"},
+		"authors":      []any{map[string]any{"name": "<em>hello</em> a"}, map[string]any{"name": "b"}},
+		"a.b":          "dotted <em>hello</em>",
+		"daprMetadata": map[string]any{"tenant": "acme"},
+	}
+
+	tests := []struct {
+		name   string
+		fields []string
+		want   map[string]string
+	}{
+		{name: "nothing requested", fields: nil, want: nil},
+		{name: "a top-level field", fields: []string{"title"}, want: map[string]string{"title": "<em>hello</em> world"}},
+		{name: "a nested field is reported under its path", fields: []string{"meta.name"}, want: map[string]string{"meta.name": "<em>hello</em> nested"}},
+		{name: "an array keeps its structure and its tags", fields: []string{"tags"}, want: map[string]string{"tags": `["<em>hello</em>","x"]`}},
+		{name: "a path through an array", fields: []string{"authors.name"}, want: map[string]string{"authors.name": `["<em>hello</em> a","b"]`}},
+		{name: "an attribute named with a dot", fields: []string{"a.b"}, want: map[string]string{"a.b": "dotted <em>hello</em>"}},
+		{name: "fields the hit does not have", fields: []string{"missing", "meta.missing", "title.deeper"}, want: nil},
+		{name: "reserved attributes are never reported", fields: []string{"id", "daprMetadata", "title"}, want: map[string]string{"title": "<em>hello</em> world"}},
+		{
+			name:   "every attribute",
+			fields: []string{"*"},
+			want: map[string]string{
+				"title":   "<em>hello</em> world",
+				"n":       "7",
+				"meta":    `{"n":"5","name":"<em>hello</em> nested"}`,
+				"tags":    `["<em>hello</em>","x"]`,
+				"authors": `[{"name":"<em>hello</em> a"},{"name":"b"}]`,
+				"a.b":     "dotted <em>hello</em>",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, highlightsFromFormatted(formatted, tt.fields))
+		})
+	}
+
+	assert.Nil(t, highlightsFromFormatted("not an object", []string{"title"}))
+}
+
+func TestFormattedFields(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, formattedFields(&meilisearchgo.SearchRequest{}))
+	assert.Equal(t, []string{"title"}, formattedFields(&meilisearchgo.SearchRequest{AttributesToHighlight: []string{"title"}}))
+	assert.Equal(t, []string{"title", "body"}, formattedFields(&meilisearchgo.SearchRequest{
+		AttributesToHighlight: []string{"title"},
+		AttributesToCrop:      []string{"body:20", "title"},
+	}), "a native query can also ask for cropped attributes")
 }
 
 func TestSearchPagination(t *testing.T) {
@@ -899,6 +1297,17 @@ func initializedSearch(t *testing.T, host string) search.Search {
 	require.NoError(t, component.Init(t.Context(), search.Metadata{Base: contribmetadata.Base{Properties: map[string]string{"host": host}}}))
 	t.Cleanup(func() { require.NoError(t, component.Close()) })
 	return component
+}
+
+// serveIndexLookup answers the lookup IndexDocuments makes before it enqueues
+// anything, for an index that exists.
+func serveIndexLookup(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	if r.Method != http.MethodGet {
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		return
+	}
+	writeJSON(t, w, http.StatusOK, map[string]any{"uid": "books", "primaryKey": "id"})
 }
 
 func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {

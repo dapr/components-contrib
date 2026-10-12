@@ -49,10 +49,11 @@ import (
 //
 // The stream is a notification channel, not the source of truth. Waiters
 // reconcile their task with the task status API after registration, after a
-// reconnect and immediately before applying a wait-timeout action, so a
-// dropped or missed event can never produce a false timeout. A time-bounded
-// cache of terminal changes covers the race between the enqueue returning a
-// task ID and the waiter being registered.
+// reconnect, periodically while they wait and immediately before applying a
+// wait-timeout action, so a dropped or missed event can neither produce a
+// false timeout nor stall a request. A time-bounded cache of terminal changes
+// covers the race between the enqueue returning a task ID and the waiter
+// being registered.
 //
 // When Meilisearch reports that the stream route is unavailable, the
 // dispatcher falls back to polling for that and every subsequent wait. The
@@ -66,9 +67,16 @@ const (
 
 	defaultStreamInitialBackoff = 100 * time.Millisecond
 	defaultStreamMaxBackoff     = 5 * time.Second
-	// defaultStreamLiveness forces a reconnect and reconciliation when a
-	// connection carrying waiters goes silent or half-open.
-	defaultStreamLiveness = 30 * time.Second
+	// defaultReconcileInterval is how often a stream waiter re-reads the
+	// status of its task while it waits. Meilisearch writes nothing to the
+	// stream between task completions, so a silent connection cannot be told
+	// apart from a half-open one; this slow read bounds how long a lost event
+	// can delay a waiter without reconnecting a healthy stream.
+	defaultReconcileInterval = 30 * time.Second
+	// defaultStatusReadTimeout bounds a single task status read, so a read
+	// that hangs cannot hold a waiter past its wait timeout or keep it from
+	// seeing its stream event.
+	defaultStatusReadTimeout = 5 * time.Second
 	// defaultTerminalCacheTTL bounds how long a terminal change is kept for a
 	// waiter that has not registered yet.
 	defaultTerminalCacheTTL = time.Minute
@@ -81,6 +89,10 @@ const (
 // ErrWaitTimeout is returned by TaskDispatcher.Wait when the requested wait
 // timeout expires and reconciliation confirms the task is still not terminal.
 var ErrWaitTimeout = errors.New("timed out waiting for a terminal meilisearch task change")
+
+// errDispatcherClosed is returned to requests that reach, or are still waiting
+// on, a dispatcher whose component has been closed.
+var errDispatcherClosed = status.Error(codes.FailedPrecondition, "the meilisearch component is closed")
 
 // streamUnavailableError reports that Meilisearch does not serve the
 // task-change stream: the experimental feature is disabled or the route does
@@ -150,22 +162,29 @@ type TaskDispatcher struct {
 	log        logger.Logger
 
 	// Tunables, exposed for tests.
-	InitialBackoff      time.Duration
-	MaxBackoff          time.Duration
-	LivenessTimeout     time.Duration
+	InitialBackoff time.Duration
+	MaxBackoff     time.Duration
+	// ReconcileInterval is how often a stream waiter re-reads the status of
+	// its task while it waits. Zero disables the periodic read.
+	ReconcileInterval time.Duration
+	// StatusReadTimeout bounds a single task status read.
+	StatusReadTimeout   time.Duration
 	TerminalCacheTTL    time.Duration
 	PollInitialInterval time.Duration
 	PollMaxInterval     time.Duration
 
 	startMu sync.Mutex
 
-	mu           sync.Mutex
-	waiters      map[int64]map[*waiter]struct{}
-	cache        map[int64]cachedChange
-	reconnected  chan struct{}
-	running      bool
-	closed       bool
-	lastActivity time.Time
+	mu      sync.Mutex
+	waiters map[int64]map[*waiter]struct{}
+	cache   map[int64]cachedChange
+	// cacheSwept is when expired entries were last removed from cache.
+	cacheSwept  time.Time
+	reconnected chan struct{}
+	running     bool
+	closed      bool
+	// closedCh is closed by Close so that requests still waiting are released.
+	closedCh chan struct{}
 	// pollOnly is set once the stream is known to be unavailable; pollOnlyCh
 	// is closed at the same time so stream waiters switch to polling.
 	pollOnly   bool
@@ -193,13 +212,15 @@ func NewTaskDispatcher(md MeilisearchMetadata, tasks meilisearchgo.TaskReader, l
 		log:                 log,
 		InitialBackoff:      defaultStreamInitialBackoff,
 		MaxBackoff:          defaultStreamMaxBackoff,
-		LivenessTimeout:     defaultStreamLiveness,
+		ReconcileInterval:   defaultReconcileInterval,
+		StatusReadTimeout:   defaultStatusReadTimeout,
 		TerminalCacheTTL:    defaultTerminalCacheTTL,
 		PollInitialInterval: defaultPollInitialInterval,
 		PollMaxInterval:     defaultPollMaxInterval,
 		waiters:             map[int64]map[*waiter]struct{}{},
 		cache:               map[int64]cachedChange{},
 		reconnected:         make(chan struct{}),
+		closedCh:            make(chan struct{}),
 		pollOnlyCh:          make(chan struct{}),
 	}
 }
@@ -227,14 +248,30 @@ func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
 	settled := d.running || d.pollOnly
 	d.mu.Unlock()
 	if closed {
-		return status.Error(codes.FailedPrecondition, "the meilisearch component is closed")
+		return errDispatcherClosed
 	}
 	if settled {
 		return nil
 	}
 
-	resp, err := d.dial(ctx)
+	// The stream outlives the request that opens it, so the connection is
+	// bound to the dispatcher's own context: a response body is tied to the
+	// context of its request for as long as it is read. The request context
+	// only bounds the dial.
+	streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	stopDialBound := context.AfterFunc(ctx, cancel)
+	resp, err := d.dial(streamCtx)
+	if !stopDialBound() && err == nil {
+		// The request ended while the stream was being opened, which canceled
+		// the connection that was just established.
+		_ = resp.Body.Close()
+		err = ContextStatusError(ctx)
+	}
 	if err != nil {
+		cancel()
+		if ctx.Err() != nil {
+			return ContextStatusError(ctx)
+		}
 		var unavailable *streamUnavailableError
 		if errors.As(err, &unavailable) {
 			d.switchToPolling(unavailable.reason)
@@ -242,27 +279,29 @@ func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
 		}
 		return err
 	}
-	defer func() {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
-	}()
 
-	streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	d.mu.Lock()
+	if d.closed {
+		// Close ran while the dial was in flight and found no stream to stop,
+		// so the connection is released here instead of being started.
+		d.mu.Unlock()
+		cancel()
+		_ = resp.Body.Close()
+		return errDispatcherClosed
+	}
 	d.running = true
 	d.cancel = cancel
+	d.body = resp.Body
 	d.done = make(chan struct{})
-	d.lastActivity = time.Now()
 	done := d.done
 	d.mu.Unlock()
 
 	go d.run(streamCtx, resp, done)
-	resp = nil
 	return nil
 }
 
-// Close stops the shared stream and releases its connection.
+// Close stops the shared stream, releases its connection and fails the
+// requests that are still waiting for a task with FAILED_PRECONDITION.
 func (d *TaskDispatcher) Close() error {
 	d.mu.Lock()
 	if d.closed {
@@ -270,6 +309,7 @@ func (d *TaskDispatcher) Close() error {
 		return nil
 	}
 	d.closed = true
+	close(d.closedCh)
 	cancel := d.cancel
 	body := d.body
 	done := d.done
@@ -291,12 +331,15 @@ func (d *TaskDispatcher) Close() error {
 }
 
 // Wait blocks until the task reaches a terminal status, the wait timeout
-// expires or the request context ends. A zero timeout waits indefinitely.
+// expires, the request context ends or the dispatcher is closed. A zero
+// timeout waits indefinitely.
 //
 // When the stream is available the wait registers a waiter and is woken by
 // the dispatcher; otherwise it polls the task status API with exponential
 // backoff. A wait that times out returns ErrWaitTimeout after one final
 // reconciliation; the caller then applies the requested wait-timeout action.
+// The timeout runs from the moment Wait is called and can only be exceeded by
+// that final status read, which is bounded by StatusReadTimeout.
 // Cancellation of ctx always wins over the wait timeout and removes the
 // waiter; provider-side work may continue.
 func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.Duration) (TaskChange, error) {
@@ -319,15 +362,23 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 
 	// Reconciliation after registration: the task may already be terminal,
 	// or its change may have been delivered while the stream was down.
-	if change, ok := d.reconcile(ctx, taskUID); ok {
+	if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
 		return change, nil
 	}
 
 	var timerC <-chan time.Time
-	if timeout > 0 {
-		timer := time.NewTimer(timeout)
+	if !deadline.IsZero() {
+		// The time left until the deadline, not the full timeout: registering
+		// and reconciling above already used part of the wait.
+		timer := time.NewTimer(time.Until(deadline))
 		defer timer.Stop()
 		timerC = timer.C
+	}
+	var recheckC <-chan time.Time
+	if d.ReconcileInterval > 0 {
+		ticker := time.NewTicker(d.ReconcileInterval)
+		defer ticker.Stop()
+		recheckC = ticker.C
 	}
 
 	for {
@@ -336,6 +387,8 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 			return change, nil
 		case <-ctx.Done():
 			return TaskChange{}, ContextStatusError(ctx)
+		case <-d.closedCh:
+			return TaskChange{}, errDispatcherClosed
 		case <-pollOnly:
 			// The stream went away for good while this request was waiting
 			// on it; the remaining wait is served by polling.
@@ -343,15 +396,26 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 		case <-reconnected:
 			// Reconciliation after a reconnect: changes emitted while the
 			// connection was down are not replayed.
-			if change, ok := d.reconcile(ctx, taskUID); ok {
+			if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
 				return change, nil
 			}
 			reconnected = d.reconnectedChan()
+		case <-recheckC:
+			// Periodic reconciliation: a lost event or a half-open connection
+			// looks exactly like a task that is still running, so the status
+			// is re-read rather than inferred from a silent stream.
+			if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
+				return change, nil
+			}
 		case <-timerC:
 			// Reconciliation immediately before the timeout action, so a
-			// missed stream event cannot produce a false timeout.
-			if change, ok := d.reconcile(ctx, taskUID); ok {
+			// missed stream event cannot produce a false timeout. It runs at
+			// the deadline, so it is bounded by the read timeout alone.
+			if change, ok := d.reconcile(ctx, taskUID, time.Time{}); ok {
 				return change, nil
+			}
+			if ctx.Err() != nil {
+				return TaskChange{}, ContextStatusError(ctx)
 			}
 			return TaskChange{}, ErrWaitTimeout
 		}
@@ -359,9 +423,9 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 }
 
 // poll reads the task status with exponential backoff until the task is
-// terminal, the deadline passes or ctx ends. A zero deadline polls until the
-// task is terminal. The last read before the deadline is the reconciliation
-// performed immediately before the timeout action.
+// terminal, the deadline passes, ctx ends or the dispatcher is closed. A zero
+// deadline polls until the task is terminal. The read made at the deadline is
+// the reconciliation performed immediately before the timeout action.
 func (d *TaskDispatcher) poll(ctx context.Context, taskUID int64, deadline time.Time) (TaskChange, error) {
 	if d.tasks == nil {
 		return TaskChange{}, status.Error(codes.Internal, "the meilisearch task status reader is not configured")
@@ -371,15 +435,29 @@ func (d *TaskDispatcher) poll(ctx context.Context, taskUID int64, deadline time.
 		interval = defaultPollInitialInterval
 	}
 	for {
-		change, err := d.taskStatus(ctx, taskUID)
+		select {
+		case <-d.closedCh:
+			return TaskChange{}, errDispatcherClosed
+		default:
+		}
+
+		// A read that starts at or after the deadline is the final
+		// reconciliation: it is bounded by the read timeout alone, and the
+		// wait ends with it.
+		final := !deadline.IsZero() && !time.Now().Before(deadline)
+		readDeadline := deadline
+		if final {
+			readDeadline = time.Time{}
+		}
+		change, err := d.taskStatus(ctx, taskUID, readDeadline)
 		switch {
 		case err != nil:
 			if ctx.Err() != nil {
 				return TaskChange{}, ContextStatusError(ctx)
 			}
-			if ResponseReceived(err) {
-				// Meilisearch answered: the task cannot be observed with these
-				// credentials or does not exist. Retrying would not help.
+			if !retryableStatusRead(err) {
+				// Meilisearch gave a permanent answer: the task cannot be
+				// observed with these credentials or does not exist.
 				return TaskChange{}, StatusError(err, fmt.Sprintf("read the status of meilisearch task %d", taskUID))
 			}
 			if d.log != nil {
@@ -388,21 +466,46 @@ func (d *TaskDispatcher) poll(ctx context.Context, taskUID int64, deadline time.
 		case change.Terminal():
 			return change, nil
 		}
+		if final {
+			return TaskChange{}, ErrWaitTimeout
+		}
 
 		wait := jitter(interval)
 		if !deadline.IsZero() {
-			remaining := time.Until(deadline)
-			if remaining <= 0 {
-				return TaskChange{}, ErrWaitTimeout
-			}
-			if wait > remaining {
-				wait = remaining
-			}
+			wait = min(wait, time.Until(deadline))
 		}
-		if !sleepCtx(ctx, wait) {
-			return TaskChange{}, ContextStatusError(ctx)
+		if err := d.pause(ctx, wait); err != nil {
+			return TaskChange{}, err
 		}
 		interval = nextBackoff(interval, d.PollMaxInterval)
+	}
+}
+
+// retryableStatusRead reports whether a failed task status read may succeed
+// when repeated: the request got no response, or Meilisearch answered with a
+// transient status. The task being read is already queued and may complete
+// normally, so only a permanent answer (rejected credentials, an unknown
+// task) ends the wait.
+func retryableStatusRead(err error) bool {
+	var msErr *meilisearchgo.Error
+	if !errors.As(err, &msErr) || msErr.StatusCode == 0 {
+		return true
+	}
+	return msErr.StatusCode == http.StatusTooManyRequests || msErr.StatusCode >= http.StatusInternalServerError
+}
+
+// pause sleeps for wait unless the request ends or the dispatcher is closed
+// first.
+func (d *TaskDispatcher) pause(ctx context.Context, wait time.Duration) error {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ContextStatusError(ctx)
+	case <-d.closedCh:
+		return errDispatcherClosed
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -486,7 +589,7 @@ func (d *TaskDispatcher) register(taskUID int64) (*waiter, *TaskChange, <-chan s
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.closed {
-		return nil, nil, nil, nil, status.Error(codes.FailedPrecondition, "the meilisearch component is closed")
+		return nil, nil, nil, nil, errDispatcherClosed
 	}
 	w := &waiter{ch: make(chan TaskChange, 1)}
 	if d.waiters[taskUID] == nil {
@@ -535,9 +638,26 @@ func (d *TaskDispatcher) switchToPolling(reason string) {
 	}
 }
 
-// taskStatus performs a single task status read.
-func (d *TaskDispatcher) taskStatus(ctx context.Context, taskUID int64) (TaskChange, error) {
-	task, err := d.tasks.GetTaskWithContext(ctx, taskUID)
+// statusReadContext bounds one task status read by StatusReadTimeout and, when
+// one is given, by the wait deadline.
+func (d *TaskDispatcher) statusReadContext(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc) {
+	timeout := d.StatusReadTimeout
+	if timeout <= 0 {
+		timeout = defaultStatusReadTimeout
+	}
+	limit := time.Now().Add(timeout)
+	if !deadline.IsZero() && deadline.Before(limit) {
+		limit = deadline
+	}
+	return context.WithDeadline(ctx, limit)
+}
+
+// taskStatus performs a single, time-bounded task status read. A zero
+// deadline bounds it by StatusReadTimeout alone.
+func (d *TaskDispatcher) taskStatus(ctx context.Context, taskUID int64, deadline time.Time) (TaskChange, error) {
+	readCtx, cancel := d.statusReadContext(ctx, deadline)
+	defer cancel()
+	task, err := d.tasks.GetTaskWithContext(readCtx, taskUID)
 	if err != nil {
 		return TaskChange{}, err
 	}
@@ -551,11 +671,11 @@ func (d *TaskDispatcher) taskStatus(ctx context.Context, taskUID int64) (TaskCha
 // reconcile performs a single point-in-time task status read for a stream
 // waiter. It is a recovery check, not a polling loop, so a failed read is
 // only logged.
-func (d *TaskDispatcher) reconcile(ctx context.Context, taskUID int64) (TaskChange, bool) {
+func (d *TaskDispatcher) reconcile(ctx context.Context, taskUID int64, deadline time.Time) (TaskChange, bool) {
 	if d.tasks == nil {
 		return TaskChange{}, false
 	}
-	change, err := d.taskStatus(ctx, taskUID)
+	change, err := d.taskStatus(ctx, taskUID, deadline)
 	if err != nil {
 		if ctx.Err() == nil && d.log != nil {
 			d.log.Debugf("meilisearch: reconciling task %d failed: %v", taskUID, err)
@@ -585,18 +705,22 @@ func taskAPIError(task *meilisearchgo.Task) APIError {
 }
 
 func (d *TaskDispatcher) publish(change TaskChange) {
-	d.mu.Lock()
-	now := time.Now()
-	d.lastActivity = now
 	if !change.Terminal() {
-		d.mu.Unlock()
 		return
 	}
+	d.mu.Lock()
+	now := time.Now()
 	d.cache[change.UID] = cachedChange{change: change, at: now}
-	for uid, cached := range d.cache {
-		if now.Sub(cached.at) > d.TerminalCacheTTL {
-			delete(d.cache, uid)
+	// Expired entries are swept at most once per TTL, so the cost of a publish
+	// does not grow with the number of changes retained. An entry can outlive
+	// the TTL until the next sweep; register ignores it.
+	if now.Sub(d.cacheSwept) >= d.TerminalCacheTTL {
+		for uid, cached := range d.cache {
+			if now.Sub(cached.at) > d.TerminalCacheTTL {
+				delete(d.cache, uid)
+			}
 		}
+		d.cacheSwept = now
 	}
 	targets := make([]*waiter, 0, len(d.waiters[change.UID]))
 	for w := range d.waiters[change.UID] {
@@ -612,30 +736,16 @@ func (d *TaskDispatcher) publish(change TaskChange) {
 	}
 }
 
-func (d *TaskDispatcher) touch() {
-	d.mu.Lock()
-	d.lastActivity = time.Now()
-	d.mu.Unlock()
-}
-
-func (d *TaskDispatcher) markConnected(body io.Closer) {
+// markReconnected records the connection that replaces a dropped one and
+// tells the waiters to reconcile: changes emitted while the stream was down
+// are not replayed.
+func (d *TaskDispatcher) markReconnected(body io.Closer) {
 	d.mu.Lock()
 	previous := d.reconnected
 	d.reconnected = make(chan struct{})
-	d.lastActivity = time.Now()
 	d.body = body
 	d.mu.Unlock()
 	close(previous)
-}
-
-// stale reports whether a connection carrying waiters has gone silent.
-func (d *TaskDispatcher) stale() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if len(d.waiters) == 0 {
-		return false
-	}
-	return time.Since(d.lastActivity) > d.LivenessTimeout
 }
 
 func (d *TaskDispatcher) run(ctx context.Context, resp *http.Response, done chan struct{}) {
@@ -681,9 +791,10 @@ func (d *TaskDispatcher) run(ctx context.Context, resp *http.Response, done chan
 				continue
 			}
 			resp = next
+			d.markReconnected(resp.Body)
 		}
 		backoff = d.InitialBackoff
-		d.consume(ctx, resp)
+		d.consume(resp)
 		resp = nil
 		if ctx.Err() != nil {
 			return
@@ -694,45 +805,20 @@ func (d *TaskDispatcher) run(ctx context.Context, resp *http.Response, done chan
 	}
 }
 
-// consume reads one connection until it ends, the liveness watchdog closes it
-// or the dispatcher is stopped.
-func (d *TaskDispatcher) consume(ctx context.Context, resp *http.Response) {
-	d.markConnected(resp.Body)
+// consume reads one connection until it ends or the dispatcher is stopped:
+// every connection is bound to the dispatcher's context, so stopping the
+// dispatcher aborts the read.
+//
+// Meilisearch writes nothing to the stream between task completions, so a
+// silent connection is the normal state and is never treated as a failure. A
+// dead peer is detected by TCP keep-alive, and waiters bound the delay of a
+// lost event by re-reading their task status (ReconcileInterval).
+func (d *TaskDispatcher) consume(resp *http.Response) {
 	defer func() { _ = resp.Body.Close() }()
-
-	watchdogDone := make(chan struct{})
-	defer close(watchdogDone)
-	go func() {
-		interval := d.LivenessTimeout / 2
-		if interval <= 0 {
-			interval = time.Second
-		}
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-watchdogDone:
-				return
-			case <-ctx.Done():
-				_ = resp.Body.Close()
-				return
-			case <-ticker.C:
-				if d.stale() {
-					if d.log != nil {
-						d.log.Warnf("meilisearch: the task-change stream went silent for more than %s, reconnecting", d.LivenessTimeout)
-					}
-					_ = resp.Body.Close()
-					return
-				}
-			}
-		}
-	}()
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8<<20)
 	for scanner.Scan() {
-		// Any traffic, including keep-alive comments, proves liveness.
-		d.touch()
 		payload, ok := streamPayload(scanner.Text())
 		if !ok {
 			continue

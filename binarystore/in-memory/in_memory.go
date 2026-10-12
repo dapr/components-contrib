@@ -21,6 +21,7 @@ package inmemory
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -32,17 +33,24 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+const defaultMaxSize int64 = 4 * 1024 * 1024
+
+var errFileTooLarge = errors.New("file exceeds the configured maximum size")
+
 // inMemoryMetadata contains the parsed metadata for the in-memory store.
 type inMemoryMetadata struct {
 	Prefix string `json:"prefix" mapstructure:"prefix"`
+	// MaxSize is the maximum file size in bytes.
+	MaxSize int64 `json:"maxSize" mapstructure:"maxSize"`
 }
 
 // InMemoryBinaryStore is an in-memory BinaryStore implementation.
 type InMemoryBinaryStore struct {
-	logger logger.Logger
-	mu     sync.RWMutex
-	files  map[string][]byte
-	prefix string
+	logger  logger.Logger
+	mu      sync.RWMutex
+	files   map[string][]byte
+	prefix  string
+	maxSize int64
 }
 
 // NewInMemoryBinaryStore returns a new in-memory BinaryStore.
@@ -56,11 +64,17 @@ func NewInMemoryBinaryStore(log logger.Logger) binarystore.BinaryStore {
 func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) error {
 	// Decoded through the metadata decoder so that key matching is
 	// case-insensitive and consistent with the other binary store providers.
-	var m inMemoryMetadata
+	m := inMemoryMetadata{
+		MaxSize: defaultMaxSize,
+	}
 	if err := kitmd.DecodeMetadata(md.Properties, &m); err != nil {
 		return fmt.Errorf("failed to decode metadata: %w", err)
 	}
+	if m.MaxSize <= 0 {
+		return errors.New("maxSize must be greater than zero")
+	}
 	s.prefix = m.Prefix
+	s.maxSize = m.MaxSize
 	return nil
 }
 
@@ -73,9 +87,12 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 		return binarystore.ErrMissingFileName
 	}
 
-	data, err := io.ReadAll(req.Data)
+	data, err := io.ReadAll(io.LimitReader(req.Data, s.maxSize+1))
 	if err != nil {
 		return err
+	}
+	if int64(len(data)) > s.maxSize {
+		return fmt.Errorf("%w: %d bytes", errFileTooLarge, s.maxSize)
 	}
 
 	s.mu.Lock()

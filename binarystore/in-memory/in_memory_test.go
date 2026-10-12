@@ -34,6 +34,11 @@ func newTestStore(t *testing.T, prefix string) *InMemoryBinaryStore {
 	if prefix != "" {
 		props["prefix"] = prefix
 	}
+	return newTestStoreWithProperties(t, props)
+}
+
+func newTestStoreWithProperties(t *testing.T, props map[string]string) *InMemoryBinaryStore {
+	t.Helper()
 
 	store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 	require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
@@ -92,14 +97,27 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("no metadata", func(t *testing.T) {
 		store := newTestStore(t, "")
 		assert.Empty(t, store.prefix)
+		assert.Equal(t, defaultMaxSize, store.maxSize)
 	})
 
-	t.Run("prefix is matched case-insensitively", func(t *testing.T) {
+	t.Run("metadata is matched case-insensitively", func(t *testing.T) {
 		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 		require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
-			Base: contribMetadata.Base{Properties: map[string]string{"PREFIX": "tenant-a"}},
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"PREFIX":  "tenant-a",
+				"MAXSIZE": "1024",
+			}},
 		}))
 		assert.Equal(t, "tenant-a", store.prefix)
+		assert.Equal(t, int64(1024), store.maxSize)
+	})
+
+	t.Run("maxSize must be positive", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": "0"}},
+		})
+		require.EqualError(t, err, "maxSize must be greater than zero")
 	})
 }
 
@@ -107,6 +125,25 @@ func TestGetComponentMetadata(t *testing.T) {
 	md := newTestStore(t, "").GetComponentMetadata()
 	require.NotNil(t, md)
 	assert.Contains(t, md, "prefix")
+	assert.Contains(t, md, "maxSize")
+}
+
+func TestSetMaxSize(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{"maxSize": "7"})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewBufferString("payload"),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewBufferString("too large"),
+	})
+	require.ErrorIs(t, err, errFileTooLarge)
+
+	_, err = store.Get(t.Context(), &binarystore.GetRequest{FileName: "large.bin"})
+	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
 }
 
 // names returns the stored object names, used by the shared behaviour suite to

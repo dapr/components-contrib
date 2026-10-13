@@ -139,7 +139,16 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 		}
 	}
 
-	data, err := s.readAllReserved(req.Data)
+	// Overwrites credit the size of the file being replaced when reserving
+	// capacity, so a full store can still be updated in place. Creates pass
+	// no credit: they must not subtract a file another writer adds
+	// concurrently.
+	var replacedFile string
+	if req.Overwrite {
+		replacedFile = fileName
+	}
+
+	data, err := s.readAllReserved(req.Data, replacedFile)
 	if err != nil {
 		return err
 	}
@@ -155,9 +164,9 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 			return binarystore.ErrFileAlreadyExists
 		}
 	}
-	// The reservation invariant (totalBytes + inFlightBytes <= maxTotalSize)
-	// already guarantees the store has room for data, including the old copy
-	// of an overwritten file until it is replaced.
+	// The reservation guarantees the store has room for data; for an
+	// overwrite the replaced file's size was credited during the read, and
+	// its bytes are released here as it is replaced.
 	existing := s.files[fileName]
 	s.totalBytes += int64(len(data)) - int64(len(existing))
 	s.files[fileName] = data
@@ -169,10 +178,12 @@ const uploadChunkSize = 32 * 1024
 
 // readAllReserved reads r to completion, reading at most maxSize+1 bytes and
 // reserving capacity against maxTotalSize as the data arrives, so in-flight
-// uploads count towards the total limit. The reservation is released when
-// reading fails; on success it stays held until the caller commits or
-// discards the data under the write lock.
-func (s *InMemoryBinaryStore) readAllReserved(r io.Reader) (data []byte, err error) {
+// uploads count towards the total limit. When replacedFile is non-empty it
+// names the file an overwrite will replace, and its current size is credited
+// against the reserved capacity. The reservation is released when reading
+// fails; on success it stays held until the caller commits or discards the
+// data under the write lock.
+func (s *InMemoryBinaryStore) readAllReserved(r io.Reader, replacedFile string) (data []byte, err error) {
 	limit := s.maxSize + 1
 	tmp := make([]byte, uploadChunkSize)
 	var reserved int64
@@ -186,7 +197,7 @@ func (s *InMemoryBinaryStore) readAllReserved(r io.Reader) (data []byte, err err
 	for int64(len(data)) < limit {
 		n, readErr := r.Read(tmp[:min(int64(len(tmp)), limit-int64(len(data)))])
 		if n > 0 {
-			if !s.reserve(int64(n)) {
+			if !s.reserve(int64(n), replacedFile) {
 				return nil, fmt.Errorf("%w: maximum total size is %d bytes", binarystore.ErrStoreFull, s.maxTotalSize)
 			}
 			reserved += int64(n)
@@ -206,11 +217,15 @@ func (s *InMemoryBinaryStore) readAllReserved(r io.Reader) (data []byte, err err
 }
 
 // reserve adds n bytes to the in-flight total, provided the combined stored
-// and in-flight bytes stay within maxTotalSize.
-func (s *InMemoryBinaryStore) reserve(n int64) bool {
+// and in-flight bytes stay within maxTotalSize. When replacedFile names a
+// file an overwrite will replace, its current size is excluded from the
+// stored total so a full store can still be updated in place; the old copy
+// is dropped when the upload commits. The size is read under the same lock
+// on every call, so the credit tracks concurrent changes to that file.
+func (s *InMemoryBinaryStore) reserve(n int64, replacedFile string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.totalBytes+s.inFlightBytes+n > s.maxTotalSize {
+	if s.totalBytes-int64(len(s.files[replacedFile]))+s.inFlightBytes+n > s.maxTotalSize {
 		return false
 	}
 	s.inFlightBytes += n

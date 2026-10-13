@@ -219,26 +219,60 @@ func TestMaxTotalSize(t *testing.T) {
 	})
 	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
-	// Overwriting while the store is full is also rejected: the new content
-	// is buffered before the old copy can be released, so both would
-	// transiently exceed the capacity.
-	err = store.Set(t.Context(), &binarystore.SetRequest{
+	// Overwriting a file while the store is full succeeds in place: the
+	// reservation credits the size of the file being replaced, which is
+	// dropped when the upload commits.
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "a.bin",
+		Data:      bytes.NewBufferString("7654321"),
+		Overwrite: true,
+	}))
+
+	// Deleting frees capacity for new files.
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+}
+
+func TestMaxTotalSizeOverwriteGrowth(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "10",
+	})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "a.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "b.bin",
+		Data:     bytes.NewBufferString("abc"),
+	}))
+
+	// Replacing the 3-byte file with a 7-byte body would raise the total to
+	// 14, beyond the 10-byte capacity, so it is rejected.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
 		Data:      bytes.NewBufferString("7654321"),
 		Overwrite: true,
 	})
 	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
-	// Deleting frees capacity for new files and overwrites alike.
-	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	// The rejected overwrite leaves the original content intact.
+	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "b.bin"})
+	require.NoError(t, err)
+	defer resp.Data.Close()
+	got, err := io.ReadAll(resp.Data)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("abc"), got)
+
+	// Replacing it with a body of the same size succeeds in place.
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "b.bin",
-		Data:      bytes.NewBufferString("7654321"),
+		Data:      bytes.NewBufferString("xyz"),
 		Overwrite: true,
-	}))
-	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
-		FileName: "c.bin",
-		Data:     bytes.NewBufferString("1234567"),
 	}))
 }
 

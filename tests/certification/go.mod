@@ -72,7 +72,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0 // indirect
-	github.com/Azure/go-amqp v1.0.5 // indirect
+	github.com/Azure/go-amqp v1.7.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect

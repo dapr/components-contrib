@@ -15,6 +15,7 @@ package inmemory
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"sort"
 	"strconv"
@@ -229,6 +230,40 @@ func TestMaxTotalSize(t *testing.T) {
 		FileName: "c.bin",
 		Data:     bytes.NewBufferString("1234567"),
 	}))
+}
+
+func TestSetRejectsWithoutReadingData(t *testing.T) {
+	store := newTestStore(t, "")
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "exists.bin",
+		Data:     bytes.NewBufferString("payload"),
+	}))
+
+	t.Run("invalid file name", func(t *testing.T) {
+		err := store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "/leading-slash",
+			Data:     &unreadableReader{},
+		})
+		require.ErrorIs(t, err, binarystore.ErrInvalidFileName)
+	})
+
+	t.Run("existing file without overwrite", func(t *testing.T) {
+		err := store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "exists.bin",
+			Data:     &unreadableReader{},
+		})
+		require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
+	})
+}
+
+var errMustNotRead = errors.New("data must not be read")
+
+// unreadableReader fails on any read, proving that requests rejected before
+// the body is consumed never pay for the read.
+type unreadableReader struct{}
+
+func (*unreadableReader) Read([]byte) (int, error) {
+	return 0, errMustNotRead
 }
 
 // names returns the stored object names, used by the shared behaviour suite to

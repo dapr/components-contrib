@@ -113,6 +113,25 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 		return binarystore.ErrMissingFileName
 	}
 
+	// Validate the name before reading the body so that requests that will be
+	// rejected do not pay for the read and allocation. ObjectPath needs no
+	// lock.
+	fileName, err := binarystore.ObjectPath(s.prefix, req.FileName)
+	if err != nil {
+		return err
+	}
+
+	if !req.Overwrite {
+		// Cheap early rejection of duplicates; the authoritative check runs
+		// again below under the write lock.
+		s.mu.RLock()
+		_, ok := s.files[fileName]
+		s.mu.RUnlock()
+		if ok {
+			return binarystore.ErrFileAlreadyExists
+		}
+	}
+
 	data, err := io.ReadAll(io.LimitReader(req.Data, s.maxSize+1))
 	if err != nil {
 		return err
@@ -124,10 +143,6 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	fileName, err := binarystore.ObjectPath(s.prefix, req.FileName)
-	if err != nil {
-		return err
-	}
 	if !req.Overwrite {
 		if _, ok := s.files[fileName]; ok {
 			return binarystore.ErrFileAlreadyExists

@@ -43,26 +43,21 @@ const cleanupTimeout = 30 * time.Second
 
 const (
 	// serviceFileSizeLimit is the maximum size of a single file in Azure Data
-	// Lake Storage Gen2: 5 TB.
+	// Lake Storage Gen2: 5 TB. UploadStream appends chunks by offset rather
+	// than staging block-blob blocks, so there is no per-file block ceiling
+	// and the limit does not depend on the configured chunk size.
 	serviceFileSizeLimit int64 = 5 << 40
-	// maxFileBlocks is the maximum number of blocks per file.
-	maxFileBlocks int64 = 50_000
-	// maxBlockSize is the maximum size of a single block: 4000 MiB.
-	maxBlockSize int64 = 4000 << 20
+	// maxChunkSize is the maximum size of a single chunk appended in one
+	// request: 4000 MiB.
+	maxChunkSize int64 = 4000 << 20
 )
-
-// effectiveMaxFileSize returns the largest file uploadable with the given
-// block size: a file is limited to 50,000 blocks and 5 TB.
-func effectiveMaxFileSize(blockSize int64) int64 {
-	return min(serviceFileSizeLimit, maxFileBlocks*blockSize)
-}
 
 // uploadTuningMetadata holds binary-store-specific upload options on top of
 // the shared Azure Data Lake Storage metadata.
 type uploadTuningMetadata struct {
-	// PartSize is the upload block size, as a byte size quantity. Larger
-	// blocks raise the maximum uploadable file size (50,000 blocks per file)
-	// at the cost of more memory per in-flight upload.
+	// PartSize is the upload chunk size, as a byte size quantity. Larger
+	// chunks reduce request overhead at the cost of more memory per
+	// in-flight upload; the maximum file size stays 5 TB regardless.
 	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
 }
 
@@ -111,12 +106,12 @@ func (a *AzureDataLakeStorage) Init(ctx context.Context, md binarystore.Metadata
 	if err != nil {
 		return fmt.Errorf("invalid value for partSize: %w", err)
 	}
-	if partSize <= 0 || partSize > maxBlockSize {
-		return fmt.Errorf("partSize must be between 1 and %d bytes", maxBlockSize)
+	if partSize <= 0 || partSize > maxChunkSize {
+		return fmt.Errorf("partSize must be between 1 and %d bytes", maxChunkSize)
 	}
 
 	a.metadata = m
-	a.maxFileSize = effectiveMaxFileSize(partSize)
+	a.maxFileSize = serviceFileSizeLimit
 	a.client = &azureDataLakeClient{
 		fileSystemClient: fileSystemClient,
 		logger:           a.logger,

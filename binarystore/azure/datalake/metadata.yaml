@@ -61,10 +61,10 @@ metadata:
     required: false
     default: '"16Mi"'
     description: |
-      Upload block size, as a byte size quantity. Must be between 1 byte and
-      4000 MiB. Files are limited to 50,000 blocks and 5 TB, so larger blocks
-      raise the maximum uploadable file size at the cost of more memory per
-      in-flight upload.
+      Upload chunk size, as a byte size quantity. Must be between 1 byte and
+      4000 MiB. Larger chunks reduce request overhead at the cost of more
+      memory per in-flight upload; the maximum file size stays 5 TB
+      regardless.
     example: '"64Mi"'
 
   - name: retryCount

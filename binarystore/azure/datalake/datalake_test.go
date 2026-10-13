@@ -42,7 +42,7 @@ func newTestStore(client datalakeStoreClient, prefix string) *AzureDataLakeStora
 		},
 		client:      client,
 		logger:      logger.NewLogger("test"),
-		maxFileSize: effectiveMaxFileSize(binarystore.DefaultUploadPartSize),
+		maxFileSize: serviceFileSizeLimit,
 	}
 }
 

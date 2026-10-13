@@ -14,6 +14,7 @@ limitations under the License.
 package binarystore
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
@@ -21,8 +22,12 @@ import (
 // NewSizeLimitReader returns a reader that passes through at most max bytes
 // from r. Reading beyond max bytes fails with an error wrapping
 // ErrFileTooLarge, so streaming uploads abort as soon as the limit is
-// exceeded instead of after the whole body has been sent.
+// exceeded instead of after the whole body has been sent. A nil r is treated
+// as an empty body rather than panicking on the first read.
 func NewSizeLimitReader(r io.Reader, max int64) io.Reader {
+	if r == nil {
+		r = bytes.NewReader(nil)
+	}
 	return &sizeLimitReader{r: r, rem: max, max: max}
 }
 

@@ -16,6 +16,7 @@ package inmemory
 import (
 	"bytes"
 	"errors"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -254,6 +255,20 @@ func TestSetRejectsWithoutReadingData(t *testing.T) {
 		})
 		require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 	})
+}
+
+func TestSetNilDataStoresEmptyFile(t *testing.T) {
+	store := newTestStore(t, "")
+
+	// A request without Data must not panic; it stores an empty file.
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{FileName: "empty.bin"}))
+
+	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "empty.bin"})
+	require.NoError(t, err)
+	defer resp.Data.Close()
+	data, err := io.ReadAll(resp.Data)
+	require.NoError(t, err)
+	assert.Empty(t, data)
 }
 
 var errMustNotRead = errors.New("data must not be read")

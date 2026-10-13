@@ -112,6 +112,10 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 	if req.FileName == "" {
 		return binarystore.ErrMissingFileName
 	}
+	// A nil body is stored as an empty file rather than panicking in ReadAll.
+	if req.Data == nil {
+		req.Data = bytes.NewReader(nil)
+	}
 
 	// Validate the name before reading the body so that requests that will be
 	// rejected do not pay for the read and allocation. ObjectPath needs no

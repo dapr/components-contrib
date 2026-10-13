@@ -42,6 +42,12 @@ func TestSizeLimitReader(t *testing.T) {
 		assert.Empty(t, data)
 	})
 
+	t.Run("nil body is treated as empty", func(t *testing.T) {
+		data, err := io.ReadAll(NewSizeLimitReader(nil, 8))
+		require.NoError(t, err)
+		assert.Empty(t, data)
+	})
+
 	t.Run("body over the limit fails with ErrFileTooLarge", func(t *testing.T) {
 		data, err := io.ReadAll(NewSizeLimitReader(strings.NewReader("too large"), 8))
 		require.ErrorIs(t, err, ErrFileTooLarge)

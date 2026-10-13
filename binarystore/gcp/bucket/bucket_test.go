@@ -35,9 +35,10 @@ import (
 
 func newTestStore(client gcsClient, prefix string) *GCPBucket {
 	return &GCPBucket{
-		metadata: &gcpMetadata{Bucket: "test-bucket", Prefix: prefix},
-		client:   client,
-		logger:   logger.NewLogger("test"),
+		metadata:      &gcpMetadata{Bucket: "test-bucket", Prefix: prefix},
+		client:        client,
+		logger:        logger.NewLogger("test"),
+		maxObjectSize: serviceObjectSizeLimit,
 	}
 }
 
@@ -116,12 +117,9 @@ func TestSetOverwriteDoesNotMaskPreconditionErrors(t *testing.T) {
 }
 
 func TestSetEnforcesObjectSizeLimit(t *testing.T) {
-	original := maxObjectSize
-	maxObjectSize = 7
-	t.Cleanup(func() { maxObjectSize = original })
-
 	client := newFakeGCSClient()
 	store := newTestStore(client, "")
+	store.maxObjectSize = 7
 
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName: "allowed.bin",

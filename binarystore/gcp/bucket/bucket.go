@@ -34,16 +34,16 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
-// maxObjectSize is the maximum size of a single object in Google Cloud
-// Storage: 5 TiB. https://cloud.google.com/storage/quotas#objects
-// It is a var so tests can lower it.
-var maxObjectSize int64 = 5 << 40
+// serviceObjectSizeLimit is the maximum size of a single object in Google
+// Cloud Storage: 5 TiB. https://cloud.google.com/storage/quotas#objects
+const serviceObjectSizeLimit int64 = 5 << 40
 
 // GCPBucket implements binarystore.BinaryStore using Google Cloud Storage.
 type GCPBucket struct {
-	metadata *gcpMetadata
-	client   gcsClient
-	logger   logger.Logger
+	metadata      *gcpMetadata
+	client        gcsClient
+	logger        logger.Logger
+	maxObjectSize int64
 }
 
 type gcpMetadata struct {
@@ -99,6 +99,7 @@ func (g *GCPBucket) Init(ctx context.Context, md binarystore.Metadata) error {
 	}
 
 	g.metadata = m
+	g.maxObjectSize = serviceObjectSizeLimit
 	g.client = &storageClient{client: client, partSize: m.partSizeBytes}
 	return nil
 }
@@ -156,7 +157,7 @@ func (g *GCPBucket) Set(ctx context.Context, req *binarystore.SetRequest) error 
 	if err != nil {
 		return err
 	}
-	if err = g.client.putObject(ctx, g.metadata.Bucket, name, binarystore.NewSizeLimitReader(req.Data, maxObjectSize), req.Overwrite); err != nil {
+	if err = g.client.putObject(ctx, g.metadata.Bucket, name, binarystore.NewSizeLimitReader(req.Data, g.maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a precondition failure signals an
 		// unrelated condition that must be surfaced to the caller.

@@ -249,14 +249,15 @@ func TestMaxTotalSize(t *testing.T) {
 	})
 	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
-	// Overwriting a file while the store is full succeeds in place: the
-	// reservation credits the size of the file being replaced, which is
-	// dropped when the upload commits.
-	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+	// Overwriting a file while the store is full is rejected: the old copy
+	// stays allocated until the upload commits, so both copies count towards
+	// the total and there is no room for the replacement.
+	err = store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "a.bin",
 		Data:      bytes.NewBufferString("7654321"),
 		Overwrite: true,
-	}))
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
 	// Deleting frees capacity for new files.
 	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
@@ -298,7 +299,17 @@ func TestMaxTotalSizeOverwriteGrowth(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte("abc"), got)
 
-	// Replacing it with a body of the same size succeeds in place.
+	// Even a same-size replacement is rejected while the store is full:
+	// both copies count towards the total until the upload commits.
+	err = store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
+		Data:      bytes.NewBufferString("xyz"),
+		Overwrite: true,
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Deleting the other file frees room, and the overwrite then succeeds.
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "b.bin",
 		Data:      bytes.NewBufferString("xyz"),

@@ -32,7 +32,7 @@ metadata:
       Maximum combined size of all files held by the store, as a byte size
       quantity. Capacity is reserved as upload data is read, so this bounds
       stored files and in-flight uploads together; uploads that would exceed
-      the limit are rejected. Overwrites credit the size of the file being
-      replaced, so a full store can still be updated in place. Must be
-      greater than zero.
+      the limit are rejected. Overwrites count both the old and new copies
+      until the upload commits, so replacing a file requires free capacity
+      for the new body. Must be greater than zero.
     example: '"1073741824" (as bytes), "512Mi", "1Gi"'

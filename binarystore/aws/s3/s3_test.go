@@ -35,9 +35,10 @@ import (
 
 func newTestStore(client s3StoreClient, prefix string) *AWSS3 {
 	return &AWSS3{
-		metadata: &s3Metadata{Bucket: "test-bucket", Prefix: prefix},
-		client:   client,
-		logger:   logger.NewLogger("test"),
+		metadata:      &s3Metadata{Bucket: "test-bucket", Prefix: prefix},
+		client:        client,
+		logger:        logger.NewLogger("test"),
+		maxObjectSize: effectiveMaxObjectSize(binarystore.DefaultUploadPartSize),
 	}
 }
 
@@ -122,6 +123,24 @@ func TestSetOverwriteDoesNotMaskConflicts(t *testing.T) {
 	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
+func TestSetEnforcesObjectSizeLimit(t *testing.T) {
+	client := newFakeS3Client()
+	store := newTestStore(client, "")
+	store.maxObjectSize = 7
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewReader([]byte("too large")),
+	})
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
+	assert.NotContains(t, client.objects, "large.bin")
+}
+
 // --- metadata ---
 
 func TestParseMetadata(t *testing.T) {
@@ -135,6 +154,18 @@ func TestParseMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "my-bucket", m.Bucket)
 		assert.Equal(t, "tenant-a", m.Prefix, "metadata keys must be matched case-insensitively")
+		assert.Equal(t, binarystore.DefaultUploadPartSize, m.partSizeBytes, "partSize must default to the shared default")
+	})
+
+	t.Run("partSize accepts byte size quantities", func(t *testing.T) {
+		m, err := parseMetadata(map[string]string{"bucket": "my-bucket", "partSize": "32Mi"})
+		require.NoError(t, err)
+		assert.Equal(t, int64(32<<20), m.partSizeBytes)
+	})
+
+	t.Run("partSize below the S3 minimum is rejected", func(t *testing.T) {
+		_, err := parseMetadata(map[string]string{"bucket": "my-bucket", "partSize": "1Mi"})
+		require.ErrorContains(t, err, "partSize")
 	})
 
 	t.Run("disableSSL adds an http scheme", func(t *testing.T) {

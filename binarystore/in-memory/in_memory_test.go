@@ -15,8 +15,13 @@ package inmemory
 
 import (
 	"bytes"
+	"errors"
+	"io"
+	"math"
 	"sort"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +39,11 @@ func newTestStore(t *testing.T, prefix string) *InMemoryBinaryStore {
 	if prefix != "" {
 		props["prefix"] = prefix
 	}
+	return newTestStoreWithProperties(t, props)
+}
+
+func newTestStoreWithProperties(t *testing.T, props map[string]string) *InMemoryBinaryStore {
+	t.Helper()
 
 	store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 	require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
@@ -86,20 +96,108 @@ func TestClose(t *testing.T) {
 	})
 }
 
+// Close must not zero inFlightBytes while an upload still owns a reservation:
+// the upload subtracts its bytes when it finishes, and zeroing here would
+// drive the counter negative.
+func TestCloseWithInFlightUpload(t *testing.T) {
+	store := newTestStore(t, "")
+
+	gate := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "inflight.bin",
+			Data:     &gatedReader{chunks: [][]byte{[]byte("payload")}, gate: gate},
+		})
+	}()
+	require.Eventually(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return store.inFlightBytes == int64(len("payload"))
+	}, 5*time.Second, time.Millisecond, "upload should have reserved its bytes")
+
+	require.NoError(t, store.Close())
+
+	close(gate)
+	require.NoError(t, <-errCh)
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	assert.Zero(t, store.inFlightBytes)
+}
+
 // --- metadata ---
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("no metadata", func(t *testing.T) {
 		store := newTestStore(t, "")
 		assert.Empty(t, store.prefix)
+		assert.Equal(t, defaultMaxSize, store.maxSize)
+		assert.Equal(t, defaultMaxTotalSize, store.maxTotalSize)
 	})
 
-	t.Run("prefix is matched case-insensitively", func(t *testing.T) {
+	t.Run("metadata is matched case-insensitively", func(t *testing.T) {
 		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 		require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
-			Base: contribMetadata.Base{Properties: map[string]string{"PREFIX": "tenant-a"}},
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"PREFIX":  "tenant-a",
+				"MAXSIZE": "1024",
+			}},
 		}))
 		assert.Equal(t, "tenant-a", store.prefix)
+		assert.Equal(t, int64(1024), store.maxSize)
+	})
+
+	t.Run("sizes accept byte size quantities", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"maxSize":      "1Ki",
+				"maxTotalSize": "2Mi",
+			}},
+		}))
+		assert.Equal(t, int64(1024), store.maxSize)
+		assert.Equal(t, int64(2*1024*1024), store.maxTotalSize)
+	})
+
+	t.Run("maxSize must be positive", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": "0"}},
+		})
+		require.EqualError(t, err, "maxSize must be greater than zero")
+	})
+
+	t.Run("maxSize must not overflow when detecting oversized files", func(t *testing.T) {
+		// Set reads one byte past maxSize to detect oversized files. ByteSize
+		// is backed by resource.Quantity, which rejects values approaching
+		// math.MaxInt64, so maxSize+1 cannot overflow int64.
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": strconv.FormatInt(math.MaxInt64, 10)}},
+		})
+		require.ErrorContains(t, err, "invalid value for maxSize")
+	})
+
+	t.Run("maxTotalSize must be positive", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxTotalSize": "0"}},
+		})
+		require.EqualError(t, err, "maxTotalSize must be greater than zero")
+	})
+
+	t.Run("maxTotalSize and maxSize combined must not overflow", func(t *testing.T) {
+		// The capacity check adds up to maxSize bytes to totalBytes; values
+		// large enough to overflow that sum are rejected while parsing.
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"maxSize":      "1024",
+				"maxTotalSize": strconv.FormatInt(math.MaxInt64, 10),
+			}},
+		})
+		require.ErrorContains(t, err, "invalid value for maxTotalSize")
 	})
 }
 
@@ -107,6 +205,227 @@ func TestGetComponentMetadata(t *testing.T) {
 	md := newTestStore(t, "").GetComponentMetadata()
 	require.NotNil(t, md)
 	assert.Contains(t, md, "prefix")
+	assert.Contains(t, md, "maxSize")
+	assert.Contains(t, md, "maxTotalSize")
+}
+
+func TestSetMaxSize(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{"maxSize": "7"})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewBufferString("payload"),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewBufferString("too large"),
+	})
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
+
+	_, err = store.Get(t.Context(), &binarystore.GetRequest{FileName: "large.bin"})
+	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
+}
+
+func TestMaxTotalSize(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "14",
+	})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "a.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "b.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+
+	// A third distinct file would exceed the total capacity.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Overwriting a file while the store is full is rejected: the old copy
+	// stays allocated until the upload commits, so both copies count towards
+	// the total and there is no room for the replacement.
+	err = store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "a.bin",
+		Data:      bytes.NewBufferString("7654321"),
+		Overwrite: true,
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Deleting frees capacity for new files.
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+}
+
+func TestMaxTotalSizeOverwriteGrowth(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "10",
+	})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "a.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "b.bin",
+		Data:     bytes.NewBufferString("abc"),
+	}))
+
+	// Replacing the 3-byte file with a 7-byte body would raise the total to
+	// 14, beyond the 10-byte capacity, so it is rejected.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
+		Data:      bytes.NewBufferString("7654321"),
+		Overwrite: true,
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// The rejected overwrite leaves the original content intact.
+	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "b.bin"})
+	require.NoError(t, err)
+	defer resp.Data.Close()
+	got, err := io.ReadAll(resp.Data)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("abc"), got)
+
+	// Even a same-size replacement is rejected while the store is full:
+	// both copies count towards the total until the upload commits.
+	err = store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
+		Data:      bytes.NewBufferString("xyz"),
+		Overwrite: true,
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Deleting the other file frees room, and the overwrite then succeeds.
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
+		Data:      bytes.NewBufferString("xyz"),
+		Overwrite: true,
+	}))
+}
+
+func TestSetReservesInFlightBytes(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "14",
+	})
+
+	gate := make(chan struct{})
+	startUpload := func(name string) <-chan error {
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- store.Set(t.Context(), &binarystore.SetRequest{
+				FileName: name,
+				Data:     &gatedReader{chunks: [][]byte{[]byte("1234567")}, gate: gate},
+			})
+		}()
+		return errCh
+	}
+
+	// Two uploads together fill the store while still in flight.
+	aErr := startUpload("a.bin")
+	bErr := startUpload("b.bin")
+	require.Eventually(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return store.inFlightBytes == 14
+	}, 5*time.Second, time.Millisecond, "both in-flight uploads should have reserved their bytes")
+
+	// A third upload must be rejected even though neither has committed yet.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Releasing the gate lets both uploads commit within the cap.
+	close(gate)
+	require.NoError(t, <-aErr)
+	require.NoError(t, <-bErr)
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	assert.Equal(t, int64(14), store.totalBytes)
+	assert.Zero(t, store.inFlightBytes)
+}
+
+// gatedReader delivers its chunks and then blocks until the gate is closed,
+// so a test can hold an upload in flight.
+type gatedReader struct {
+	chunks [][]byte
+	gate   <-chan struct{}
+	i      int
+}
+
+func (g *gatedReader) Read(p []byte) (int, error) {
+	if g.i < len(g.chunks) {
+		n := copy(p, g.chunks[g.i])
+		g.i++
+		return n, nil
+	}
+	<-g.gate
+	return 0, io.EOF
+}
+
+func TestSetRejectsWithoutReadingData(t *testing.T) {
+	store := newTestStore(t, "")
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "exists.bin",
+		Data:     bytes.NewBufferString("payload"),
+	}))
+
+	t.Run("invalid file name", func(t *testing.T) {
+		err := store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "/leading-slash",
+			Data:     &unreadableReader{},
+		})
+		require.ErrorIs(t, err, binarystore.ErrInvalidFileName)
+	})
+
+	t.Run("existing file without overwrite", func(t *testing.T) {
+		err := store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "exists.bin",
+			Data:     &unreadableReader{},
+		})
+		require.ErrorIs(t, err, binarystore.ErrFileAlreadyExists)
+	})
+}
+
+func TestSetNilDataStoresEmptyFile(t *testing.T) {
+	store := newTestStore(t, "")
+
+	// A request without Data must not panic; it stores an empty file.
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{FileName: "empty.bin"}))
+
+	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "empty.bin"})
+	require.NoError(t, err)
+	defer resp.Data.Close()
+	data, err := io.ReadAll(resp.Data)
+	require.NoError(t, err)
+	assert.Empty(t, data)
+}
+
+var errMustNotRead = errors.New("data must not be read")
+
+// unreadableReader fails on any read, proving that requests rejected before
+// the body is consumed never pay for the read.
+type unreadableReader struct{}
+
+func (*unreadableReader) Read([]byte) (int, error) {
+	return 0, errMustNotRead
 }
 
 // names returns the stored object names, used by the shared behaviour suite to

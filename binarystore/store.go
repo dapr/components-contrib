@@ -45,8 +45,10 @@ type BinaryStore interface {
 	// if a file with that name already exists. When req.Overwrite is true (PUT
 	// semantics), any existing file is replaced.
 	//
-	// Set reads req.Data to completion; the caller must not close it until Set
-	// returns.
+	// Set reads req.Data to completion unless it exceeds the maximum object
+	// size supported by the provider or configured on the component, in which
+	// case Set stops reading and returns ErrFileTooLarge. The caller must not
+	// close req.Data until Set returns.
 	Set(ctx context.Context, req *SetRequest) error
 
 	// Get retrieves the binary data for the file identified by req.FileName.

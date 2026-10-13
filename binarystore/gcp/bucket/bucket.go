@@ -34,11 +34,16 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+// serviceObjectSizeLimit is the maximum size of a single object in Google
+// Cloud Storage: 5 TiB. https://cloud.google.com/storage/quotas#objects
+const serviceObjectSizeLimit int64 = 5 << 40
+
 // GCPBucket implements binarystore.BinaryStore using Google Cloud Storage.
 type GCPBucket struct {
-	metadata *gcpMetadata
-	client   gcsClient
-	logger   logger.Logger
+	metadata      *gcpMetadata
+	client        gcsClient
+	logger        logger.Logger
+	maxObjectSize int64
 }
 
 type gcpMetadata struct {
@@ -56,6 +61,12 @@ type gcpMetadata struct {
 
 	Bucket string `json:"bucket" mapstructure:"bucket"`
 	Prefix string `json:"prefix" mapstructure:"prefix"`
+	// PartSize is the resumable upload chunk size, as a byte size quantity.
+	// Larger chunks reduce request overhead at the cost of more memory per
+	// in-flight upload. Must be a multiple of 256 KiB.
+	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
+
+	partSizeBytes int64
 }
 
 type gcsClient interface {
@@ -66,7 +77,8 @@ type gcsClient interface {
 }
 
 type storageClient struct {
-	client *storage.Client
+	client   *storage.Client
+	partSize int64
 }
 
 // NewGCPBucket returns a new Google Cloud Storage binary store.
@@ -87,18 +99,30 @@ func (g *GCPBucket) Init(ctx context.Context, md binarystore.Metadata) error {
 	}
 
 	g.metadata = m
-	g.client = &storageClient{client: client}
+	g.maxObjectSize = serviceObjectSizeLimit
+	g.client = &storageClient{client: client, partSize: m.partSizeBytes}
 	return nil
 }
 
 func parseMetadata(meta map[string]string) (*gcpMetadata, error) {
-	m := gcpMetadata{}
+	m := gcpMetadata{
+		PartSize: kitmd.NewByteSize(binarystore.DefaultUploadPartSize),
+	}
 	if err := kitmd.DecodeMetadata(meta, &m); err != nil {
 		return nil, err
 	}
 	if m.Bucket == "" {
 		return nil, errors.New("missing property `bucket` in metadata")
 	}
+	partSize, err := m.PartSize.GetBytes()
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for partSize: %w", err)
+	}
+	// Resumable upload chunks must be a positive multiple of 256 KiB.
+	if partSize <= 0 || partSize%(256<<10) != 0 {
+		return nil, errors.New("partSize must be a positive multiple of 256Ki")
+	}
+	m.partSizeBytes = partSize
 	return &m, nil
 }
 
@@ -133,7 +157,7 @@ func (g *GCPBucket) Set(ctx context.Context, req *binarystore.SetRequest) error 
 	if err != nil {
 		return err
 	}
-	if err = g.client.putObject(ctx, g.metadata.Bucket, name, req.Data, req.Overwrite); err != nil {
+	if err = g.client.putObject(ctx, g.metadata.Bucket, name, binarystore.NewSizeLimitReader(req.Data, g.maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a precondition failure signals an
 		// unrelated condition that must be surfaced to the caller.
@@ -211,8 +235,8 @@ func (c *storageClient) putObject(ctx context.Context, bucket, name string, data
 
 	writer := obj.NewWriter(wctx)
 	// Set the upload chunk size explicitly so that buffering matches the
-	// other binary store providers rather than the SDK default.
-	writer.ChunkSize = int(binarystore.DefaultUploadPartSize)
+	// configured part size rather than the SDK default.
+	writer.ChunkSize = int(c.partSize)
 	if _, err := io.Copy(writer, data); err != nil {
 		cancel()
 		_ = writer.Close()

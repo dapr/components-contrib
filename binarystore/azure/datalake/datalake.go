@@ -40,6 +40,10 @@ import (
 // failed upload, which must not inherit an already-cancelled request context.
 const cleanupTimeout = 30 * time.Second
 
+// maxFileSize is the maximum size of a single file in Azure Data Lake
+// Storage Gen2: 5 TB. It is a var so tests can lower it.
+var maxFileSize int64 = 5 << 40
+
 // AzureDataLakeStorage implements binarystore.BinaryStore using Azure Data
 // Lake Storage Gen2.
 type AzureDataLakeStorage struct {
@@ -104,7 +108,7 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 	if err != nil {
 		return err
 	}
-	if err = a.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
+	if err = a.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, maxFileSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the path already exists;
 		// when overwriting, a condition failure signals an unrelated
 		// condition that must be surfaced to the caller.

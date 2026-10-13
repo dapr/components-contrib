@@ -47,6 +47,9 @@ type BinaryStore interface {
 	//
 	// Set reads req.Data to completion; the caller must not close it until Set
 	// returns.
+	//
+	// Set returns ErrFileTooLarge if the data exceeds the maximum object size
+	// supported by the provider or configured on the component.
 	Set(ctx context.Context, req *SetRequest) error
 
 	// Get retrieves the binary data for the file identified by req.FileName.

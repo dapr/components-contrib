@@ -24,3 +24,13 @@ metadata:
       than this are rejected. Must be greater than zero and less than
       9223372036854775807 (math.MaxInt64).
     example: '"8388608"'
+  - name: maxTotalSize
+    type: number
+    required: false
+    default: "536870912"
+    description: |
+      Maximum combined size in bytes of all files held by the store. Uploads
+      that would exceed this limit are rejected, bounding the total memory the
+      component can use. Must be greater than zero, and maxTotalSize and
+      maxSize combined must not exceed 9223372036854775807 (math.MaxInt64).
+    example: '"1073741824"'

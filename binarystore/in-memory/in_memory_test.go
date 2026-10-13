@@ -100,6 +100,7 @@ func TestParseMetadata(t *testing.T) {
 		store := newTestStore(t, "")
 		assert.Empty(t, store.prefix)
 		assert.Equal(t, defaultMaxSize, store.maxSize)
+		assert.Equal(t, defaultMaxTotalSize, store.maxTotalSize)
 	})
 
 	t.Run("metadata is matched case-insensitively", func(t *testing.T) {
@@ -129,6 +130,25 @@ func TestParseMetadata(t *testing.T) {
 		})
 		require.EqualError(t, err, "maxSize must be less than math.MaxInt64")
 	})
+
+	t.Run("maxTotalSize must be positive", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxTotalSize": "0"}},
+		})
+		require.EqualError(t, err, "maxTotalSize must be greater than zero")
+	})
+
+	t.Run("maxTotalSize and maxSize combined must not overflow", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"maxSize":      "1024",
+				"maxTotalSize": strconv.FormatInt(math.MaxInt64, 10),
+			}},
+		})
+		require.EqualError(t, err, "maxTotalSize and maxSize combined must not exceed math.MaxInt64")
+	})
 }
 
 func TestGetComponentMetadata(t *testing.T) {
@@ -136,6 +156,7 @@ func TestGetComponentMetadata(t *testing.T) {
 	require.NotNil(t, md)
 	assert.Contains(t, md, "prefix")
 	assert.Contains(t, md, "maxSize")
+	assert.Contains(t, md, "maxTotalSize")
 }
 
 func TestSetMaxSize(t *testing.T) {
@@ -150,10 +171,47 @@ func TestSetMaxSize(t *testing.T) {
 		FileName: "large.bin",
 		Data:     bytes.NewBufferString("too large"),
 	})
-	require.ErrorIs(t, err, errFileTooLarge)
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
 
 	_, err = store.Get(t.Context(), &binarystore.GetRequest{FileName: "large.bin"})
 	require.ErrorIs(t, err, binarystore.ErrFileNotFound)
+}
+
+func TestMaxTotalSize(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "14",
+	})
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "a.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "b.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
+
+	// A third distinct file would exceed the total capacity.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Overwriting an existing file within the cap is still allowed.
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "a.bin",
+		Data:      bytes.NewBufferString("7654321"),
+		Overwrite: true,
+	}))
+
+	// Deleting frees capacity for new files.
+	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	}))
 }
 
 // names returns the stored object names, used by the shared behaviour suite to

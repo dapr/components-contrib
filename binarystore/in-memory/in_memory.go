@@ -34,24 +34,33 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
-const defaultMaxSize int64 = 4 * 1024 * 1024
-
-var errFileTooLarge = errors.New("file exceeds the configured maximum size")
+const (
+	defaultMaxSize int64 = 4 * 1024 * 1024
+	// defaultMaxTotalSize bounds the store to 512 MiB in total. The component
+	// is intended for local development and testing, so a low ceiling is
+	// preferred over risking the sidecar running out of memory.
+	defaultMaxTotalSize int64 = 512 * 1024 * 1024
+)
 
 // inMemoryMetadata contains the parsed metadata for the in-memory store.
 type inMemoryMetadata struct {
 	Prefix string `json:"prefix" mapstructure:"prefix"`
 	// MaxSize is the maximum file size in bytes.
 	MaxSize int64 `json:"maxSize" mapstructure:"maxSize"`
+	// MaxTotalSize is the maximum combined size in bytes of all files held by
+	// the store.
+	MaxTotalSize int64 `json:"maxTotalSize" mapstructure:"maxTotalSize"`
 }
 
 // InMemoryBinaryStore is an in-memory BinaryStore implementation.
 type InMemoryBinaryStore struct {
-	logger  logger.Logger
-	mu      sync.RWMutex
-	files   map[string][]byte
-	prefix  string
-	maxSize int64
+	logger       logger.Logger
+	mu           sync.RWMutex
+	files        map[string][]byte
+	prefix       string
+	maxSize      int64
+	maxTotalSize int64
+	totalBytes   int64
 }
 
 // NewInMemoryBinaryStore returns a new in-memory BinaryStore.
@@ -66,7 +75,8 @@ func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) e
 	// Decoded through the metadata decoder so that key matching is
 	// case-insensitive and consistent with the other binary store providers.
 	m := inMemoryMetadata{
-		MaxSize: defaultMaxSize,
+		MaxSize:      defaultMaxSize,
+		MaxTotalSize: defaultMaxTotalSize,
 	}
 	if err := kitmd.DecodeMetadata(md.Properties, &m); err != nil {
 		return fmt.Errorf("failed to decode metadata: %w", err)
@@ -79,8 +89,17 @@ func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) e
 	if m.MaxSize >= math.MaxInt64 {
 		return errors.New("maxSize must be less than math.MaxInt64")
 	}
+	if m.MaxTotalSize <= 0 {
+		return errors.New("maxTotalSize must be greater than zero")
+	}
+	// The capacity check adds up to maxSize bytes to totalBytes, so the two
+	// limits combined must not be able to overflow int64.
+	if m.MaxTotalSize > math.MaxInt64-m.MaxSize {
+		return errors.New("maxTotalSize and maxSize combined must not exceed math.MaxInt64")
+	}
 	s.prefix = m.Prefix
 	s.maxSize = m.MaxSize
+	s.maxTotalSize = m.MaxTotalSize
 	return nil
 }
 
@@ -98,7 +117,7 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 		return err
 	}
 	if int64(len(data)) > s.maxSize {
-		return fmt.Errorf("%w: %d bytes", errFileTooLarge, s.maxSize)
+		return fmt.Errorf("%w: maximum size is %d bytes", binarystore.ErrFileTooLarge, s.maxSize)
 	}
 
 	s.mu.Lock()
@@ -113,6 +132,11 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 			return binarystore.ErrFileAlreadyExists
 		}
 	}
+	existing := s.files[fileName]
+	if s.totalBytes-int64(len(existing))+int64(len(data)) > s.maxTotalSize {
+		return fmt.Errorf("%w: maximum total size is %d bytes", binarystore.ErrStoreFull, s.maxTotalSize)
+	}
+	s.totalBytes += int64(len(data)) - int64(len(existing))
 	s.files[fileName] = data
 	return nil
 }
@@ -148,10 +172,12 @@ func (s *InMemoryBinaryStore) Delete(_ context.Context, req *binarystore.DeleteR
 	if err != nil {
 		return err
 	}
-	if _, ok := s.files[fileName]; !ok {
+	data, ok := s.files[fileName]
+	if !ok {
 		return binarystore.ErrFileNotFound
 	}
 	delete(s.files, fileName)
+	s.totalBytes -= int64(len(data))
 	return nil
 }
 
@@ -168,5 +194,6 @@ func (s *InMemoryBinaryStore) Close() error {
 	for k := range s.files {
 		delete(s.files, k)
 	}
+	s.totalBytes = 0
 	return nil
 }

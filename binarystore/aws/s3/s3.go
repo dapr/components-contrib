@@ -39,6 +39,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+// maxObjectSize is the maximum size of a single S3 object: 50 TB.
+// https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+// It is a var so tests can lower it.
+var maxObjectSize int64 = 50 << 40
+
 // AWSS3 implements binarystore.BinaryStore using Amazon S3 or an
 // S3-compatible object storage service.
 type AWSS3 struct {
@@ -152,7 +157,7 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	if err = s.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
+	if err = s.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a conflict signals an unrelated
 		// condition (e.g. OperationAborted from racing writers) that must be

@@ -122,6 +122,27 @@ func TestSetOverwriteDoesNotMaskConflicts(t *testing.T) {
 	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
 }
 
+func TestSetEnforcesObjectSizeLimit(t *testing.T) {
+	original := maxObjectSize
+	maxObjectSize = 7
+	t.Cleanup(func() { maxObjectSize = original })
+
+	client := newFakeS3Client()
+	store := newTestStore(client, "")
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewReader([]byte("too large")),
+	})
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
+	assert.NotContains(t, client.objects, "large.bin")
+}
+
 // --- metadata ---
 
 func TestParseMetadata(t *testing.T) {

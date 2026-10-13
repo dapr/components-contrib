@@ -15,7 +15,9 @@ package inmemory
 
 import (
 	"bytes"
+	"math"
 	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,6 +120,14 @@ func TestParseMetadata(t *testing.T) {
 			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": "0"}},
 		})
 		require.EqualError(t, err, "maxSize must be greater than zero")
+	})
+
+	t.Run("maxSize must not overflow when detecting oversized files", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		err := store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": strconv.FormatInt(math.MaxInt64, 10)}},
+		})
+		require.EqualError(t, err, "maxSize must be less than math.MaxInt64")
 	})
 }
 

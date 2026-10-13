@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"sync"
 
@@ -72,6 +73,11 @@ func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) e
 	}
 	if m.MaxSize <= 0 {
 		return errors.New("maxSize must be greater than zero")
+	}
+	// Set reads one byte past maxSize to detect oversized files, so maxSize
+	// must leave headroom for maxSize+1 without overflowing int64.
+	if m.MaxSize >= math.MaxInt64 {
+		return errors.New("maxSize must be less than math.MaxInt64")
 	}
 	s.prefix = m.Prefix
 	s.maxSize = m.MaxSize

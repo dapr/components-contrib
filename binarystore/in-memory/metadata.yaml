@@ -15,3 +15,12 @@ metadata:
     description: |
       An optional prefix prepended to all file names stored by this component.
     example: '"myprefix"'
+  - name: maxSize
+    type: number
+    required: false
+    default: "4194304"
+    description: |
+      Maximum size in bytes of a single file that can be stored. Uploads larger
+      than this are rejected. Must be greater than zero and less than
+      9223372036854775807 (math.MaxInt64).
+    example: '"8388608"'

@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 
+	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 )
 
@@ -88,7 +89,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	a.Model = llm
+	a.Model = splitParts{llm}
 	a.SetModel(model)
 	a.SetDefaultMaxTokens(md.MaxTokens)
 
@@ -102,6 +103,32 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 	}
 
 	return nil
+}
+
+// splitParts works around the pinned langchaingo Anthropic client, which
+// converts only the first part of an AI message. daprd sends an assistant turn
+// as its text, then one ToolCall part per call, so every tool_use after the
+// first part was dropped and Anthropic rejected the tool_result blocks that
+// followed. Sending each part as its own AI message keeps them all, and
+// Anthropic combines consecutive assistant turns into one.
+// TODO: remove once a langchaingo release has both structured output (which
+// the pin is on a branch for) and upstream commit f294eeec6.
+type splitParts struct {
+	*anthropic.LLM
+}
+
+func (s splitParts) GenerateContent(ctx context.Context, messages []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+	split := make([]llms.MessageContent, 0, len(messages))
+	for _, msg := range messages {
+		if msg.Role != llms.ChatMessageTypeAI || len(msg.Parts) < 2 {
+			split = append(split, msg)
+			continue
+		}
+		for _, part := range msg.Parts {
+			split = append(split, llms.MessageContent{Role: msg.Role, Parts: []llms.ContentPart{part}})
+		}
+	}
+	return s.LLM.GenerateContent(ctx, split, options...)
 }
 
 func (a *Anthropic) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

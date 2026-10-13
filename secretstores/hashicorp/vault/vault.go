@@ -17,18 +17,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
+	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/hashicorp/vault/api"
 	"golang.org/x/net/http2"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -51,13 +50,16 @@ const (
 	componentVaultKVPrefix       string = "vaultKVPrefix"
 	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
-	vaultHTTPHeader              string = "X-Vault-Token"
-	vaultHTTPRequestHeader       string = "X-Vault-Request"
 	vaultEnginePath              string = "enginePath"
 	vaultValueType               string = "vaultValueType"
 	versionID                    string = "version_id"
 
 	DataStr string = "data"
+
+	authMethodToken      string = "token"
+	authMethodKubernetes string = "kubernetes"
+
+	vaultClientTimeout = 60 * time.Second
 )
 
 type valueType string
@@ -77,83 +79,69 @@ var ErrNotFound = errors.New("secret key or version not exist")
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
-	client              *http.Client
-	vaultAddress        string
-	vaultToken          string
-	vaultTokenMountPath string
-	vaultKVPrefix       string
-	vaultEnginePath     string
-	vaultValueType      valueType
-
-	json jsoniter.API
+	client          *api.Client
+	vaultKVPrefix   string
+	vaultEnginePath string
+	vaultValueType  valueType
 
 	logger logger.Logger
+
+	// mu guards client and orders the renewal loop's wg.Go against Close.
+	mu       sync.Mutex
+	bgCtx    context.Context
+	bgCancel context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 type VaultMetadata struct {
-	CaCert              string
-	CaPath              string
-	CaPem               string
-	SkipVerify          string
-	TLSServerName       string
-	VaultAddr           string
-	VaultKVPrefix       string
-	VaultKVUsePrefix    bool
-	VaultToken          string
-	VaultTokenMountPath string
-	EnginePath          string
-	VaultValueType      string
-}
+	CaCert        string
+	CaPath        string
+	CaPem         string
+	SkipVerify    string
+	TLSServerName string
 
-// tlsConfig is TLS configuration to interact with HashiCorp Vault.
-type tlsConfig struct {
-	vaultCAPem      string
-	vaultCACert     string
-	vaultCAPath     string
-	vaultSkipVerify bool
-	vaultServerName string
-}
+	VaultAddr        string
+	VaultKVPrefix    string
+	VaultKVUsePrefix bool
+	EnginePath       string
+	VaultValueType   string
 
-// vaultKVResponse is the response data from Vault KV.
-type vaultKVResponse struct {
-	Data struct {
-		Data map[string]string `json:"data"`
-	} `json:"data"`
-}
-
-// vaultListKVResponse is the response data from Vault KV.
-type vaultListKVResponse struct {
-	Data struct {
-		Keys []string `json:"keys"`
-	} `json:"data"`
+	VaultAuthMethod              string
+	VaultToken                   string
+	VaultTokenMountPath          string
+	VaultKubernetesRole          string
+	VaultKubernetesMountPath     string
+	VaultServiceAccountTokenPath string
 }
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store.
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
+	return newVaultSecretStore(logger)
+}
+
+func newVaultSecretStore(logger logger.Logger) *vaultSecretStore {
+	bgCtx, bgCancel := context.WithCancel(context.Background())
 	return &vaultSecretStore{
-		client: &http.Client{},
-		logger: logger,
-		json:   jsoniter.ConfigFastest,
+		logger:   logger,
+		bgCtx:    bgCtx,
+		bgCancel: bgCancel,
 	}
 }
 
 // Init creates a HashiCorp Vault client.
-func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
+func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
+		VaultAuthMethod:  authMethodToken,
 	}
 	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}
 
-	// Get Vault address
-	address := m.VaultAddr
-	if address == "" {
-		address = defaultVaultAddress
+	if m.VaultAddr == "" {
+		m.VaultAddr = defaultVaultAddress
 	}
-
-	v.vaultAddress = address
 
 	v.vaultEnginePath = defaultVaultEnginePath
 	if m.EnginePath != "" {
@@ -171,13 +159,6 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 		}
 	}
 
-	v.vaultToken = m.VaultToken
-	v.vaultTokenMountPath = m.VaultTokenMountPath
-	initErr := v.initVaultToken()
-	if initErr != nil {
-		return initErr
-	}
-
 	vaultKVPrefix := m.VaultKVPrefix
 	if !m.VaultKVUsePrefix {
 		vaultKVPrefix = ""
@@ -186,96 +167,180 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 	}
 	v.vaultKVPrefix = vaultKVPrefix
 
-	// Generate TLS config
-	tlsConf := metadataToTLSConfig(&m)
-
-	client, err := v.createHTTPClient(tlsConf)
-	if err != nil {
-		return fmt.Errorf("couldn't create client using config: %w", err)
+	if m.SkipVerify == "true" {
+		v.logger.Warnf("hashicorp vault: you are using 'skipVerify' to skip server config verification, which is unsafe")
 	}
 
+	config, err := newClientConfig(&m)
+	if err != nil {
+		return err
+	}
+
+	// Known limitation: fails on an unparsable VAULT_* variable even though the
+	// values are ignored, since NewClient always runs api.DefaultConfig().
+	client, err := api.NewClient(config)
+	if err != nil {
+		return fmt.Errorf("couldn't create vault client: %w", err)
+	}
+	// NewClient applies VAULT_TOKEN, VAULT_NAMESPACE and VAULT_HEADERS.
+	client.ClearToken()
+	client.ClearNamespace()
+	client.SetHeaders(http.Header{api.RequestHeaderName: []string{"true"}})
+
+	switch m.VaultAuthMethod {
+	case "", authMethodToken:
+		token, err := readVaultToken(&m)
+		if err != nil {
+			return err
+		}
+		client.SetToken(token)
+	case authMethodKubernetes:
+		if m.VaultKubernetesRole == "" {
+			return errors.New("vaultKubernetesRole is required when vaultAuthMethod is kubernetes")
+		}
+		if m.VaultToken != "" || m.VaultTokenMountPath != "" {
+			return errors.New("vaultToken and vaultTokenMountPath must not be set when vaultAuthMethod is kubernetes")
+		}
+		if err := v.initKubernetesAuth(ctx, client, &m); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("vault init error, invalid auth method %s, accepted values are token or kubernetes", m.VaultAuthMethod)
+	}
+
+	v.mu.Lock()
 	v.client = client
+	v.mu.Unlock()
 
 	return nil
 }
 
-func metadataToTLSConfig(meta *VaultMetadata) *tlsConfig {
-	tlsConf := tlsConfig{}
-
-	// Configure TLS settings
-	skipVerify := meta.SkipVerify
-	tlsConf.vaultSkipVerify = false
-	if skipVerify == "true" {
-		tlsConf.vaultSkipVerify = true
+// newClientConfig builds the config from metadata only. api.DefaultConfig()
+// would also apply VAULT_* and HTTP(S)_PROXY environment variables.
+func newClientConfig(m *VaultMetadata) (*api.Config, error) {
+	transport := &http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+	if err := http2.ConfigureTransport(transport); err != nil {
+		return nil, fmt.Errorf("couldn't configure http2: %w", err)
 	}
 
-	tlsConf.vaultCACert = meta.CaCert
-	tlsConf.vaultCAPem = meta.CaPem
-	tlsConf.vaultCAPath = meta.CaPath
-	tlsConf.vaultServerName = meta.TLSServerName
+	config := &api.Config{
+		Address: m.VaultAddr,
+		HttpClient: &http.Client{
+			Transport: transport,
+			// The SDK follows redirects itself.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Timeout:    vaultClientTimeout,
+		MaxRetries: 0, // backward compatibility: the store never retried before it used the SDK
+	}
 
-	return &tlsConf
+	if err := config.ConfigureTLS(metadataToTLSConfig(m)); err != nil {
+		return nil, fmt.Errorf("couldn't configure tls: %w", err)
+	}
+
+	return config, nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string) (*vaultKVResponse, error) {
-	// Create get secret url
-	var vaultSecretPathAddr string
-	if v.vaultKVPrefix == "" {
-		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + secret + "?version=" + version
-	} else {
-		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + v.vaultKVPrefix + "/" + secret + "?version=" + version
+func (v *vaultSecretStore) getClient() *api.Client {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.client
+}
+
+func metadataToTLSConfig(meta *VaultMetadata) *api.TLSConfig {
+	tlsConf := &api.TLSConfig{
+		Insecure:      meta.SkipVerify == "true",
+		TLSServerName: meta.TLSServerName,
+	}
+	// ConfigureTLS loads the CA before applying Insecure, so a stale CA setting
+	// would fail Init even though skipVerify never uses it.
+	if tlsConf.Insecure {
+		return tlsConf
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, vaultSecretPathAddr, nil)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate request: %w", err)
+	// Set only one CA field: go-rootcerts applies CACert > CACertBytes > CAPath,
+	// the reverse of the documented caPem > caPath > caCert.
+	switch {
+	case meta.CaPem != "":
+		tlsConf.CACertBytes = []byte(meta.CaPem)
+	case meta.CaPath != "":
+		tlsConf.CAPath = meta.CaPath
+	case meta.CaCert != "":
+		tlsConf.CACert = meta.CaCert
 	}
-	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
-	// Set X-Vault-Request header
-	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
 
-	httpresp, err := v.client.Do(httpReq)
+	return tlsConf
+}
+
+// getSecret retrieves a secret using a key and returns a map of decrypted string/string values.
+// KVv2.Get isn't used because it requires "data" to be an object, which
+// breaks text mode.
+func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string) (map[string]string, error) {
+	path := v.vaultEnginePath + "/data/"
+	if v.vaultKVPrefix != "" {
+		path += v.vaultKVPrefix + "/"
+	}
+	path += secret
+
+	client := v.getClient()
+	if client == nil {
+		return nil, errors.New("hashicorp vault: component not initialized")
+	}
+
+	resp, err := client.Logical().ReadWithDataWithContext(ctx, path, map[string][]string{"version": {version}})
 	if err != nil {
+		v.logger.Debugf("hashicorp vault: get secret %s failed: %v", secret, err)
 		return nil, fmt.Errorf("couldn't get secret: %w", err)
 	}
-
-	defer httpresp.Body.Close()
-
-	if httpresp.StatusCode != http.StatusOK {
-		var b bytes.Buffer
-		_, _ = io.Copy(&b, httpresp.Body)
-		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
-		if httpresp.StatusCode == http.StatusNotFound {
-			// handle not found error
-			return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
-		}
-
-		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
-			httpresp.StatusCode, b.String())
+	if resp == nil || resp.Data == nil {
+		return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
 	}
 
-	var d vaultKVResponse
+	// Soft-deleted and destroyed versions come back with "data": null.
+	dataRaw, ok := resp.Data[DataStr]
+	if !ok || dataRaw == nil {
+		return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
+	}
 
 	if v.vaultValueType.isMapType() {
-		// parse the secret value to map[string]string
-		if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
-			return nil, fmt.Errorf("couldn't decode response body: %s", err)
+		dataMap, ok := dataRaw.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unexpected type for secret data at %s", secret)
 		}
-	} else {
-		// treat the secret as string
-		b, err := io.ReadAll(httpresp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't read response: %s", err)
+		data := make(map[string]string, len(dataMap))
+		for k, val := range dataMap {
+			if val == nil {
+				// null is read as "" for compatibility.
+				data[k] = ""
+				continue
+			}
+			s, ok := val.(string)
+			if !ok {
+				return nil, fmt.Errorf("value for key %s in secret %s is not a string", k, secret)
+			}
+			data[k] = s
 		}
-		res := v.json.Get(b, DataStr, DataStr).ToString()
-		d.Data.Data = map[string]string{
-			secret: res,
-		}
+		return data, nil
 	}
 
-	return &d, nil
+	// Strings as-is, anything else as JSON.
+	switch d := dataRaw.(type) {
+	case string:
+		return map[string]string{secret: d}, nil
+	default:
+		b, err := json.Marshal(d)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't encode secret %s as text: %w", secret, err)
+		}
+		return map[string]string{secret: string(b)}, nil
+	}
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -285,16 +350,12 @@ func (v *vaultSecretStore) GetSecret(ctx context.Context, req secretstores.GetSe
 	if value, ok := req.Metadata[versionID]; ok {
 		version = value
 	}
-	d, err := v.getSecret(ctx, req.Name, version)
+	data, err := v.getSecret(ctx, req.Name, version)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
 
-	resp := secretstores.GetSecretResponse{
-		Data: d.Data.Data,
-	}
-
-	return resp, nil
+	return secretstores.GetSecretResponse{Data: data}, nil
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
@@ -314,8 +375,7 @@ func (v *vaultSecretStore) BulkGetSecret(ctx context.Context, req secretstores.B
 	}
 
 	for _, key := range keys {
-		keyValues := map[string]string{}
-		secrets, err := v.getSecret(ctx, key, version)
+		secretData, err := v.getSecret(ctx, key, version)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				// version not exist skip
@@ -324,11 +384,7 @@ func (v *vaultSecretStore) BulkGetSecret(ctx context.Context, req secretstores.B
 
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
-
-		for k, v := range secrets.Data.Data {
-			keyValues[k] = v
-		}
-		resp.Data[key] = keyValues
+		resp.Data[key] = secretData
 	}
 
 	return resp, nil
@@ -337,46 +393,42 @@ func (v *vaultSecretStore) BulkGetSecret(ctx context.Context, req secretstores.B
 // listKeysUnderPath get all the keys recursively under a given path.(returned keys including path as prefix)
 // path should not has `/` prefix.
 func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) ([]string, error) {
-	var vaultSecretsPathAddr string
+	listPath := v.vaultEnginePath + "/metadata/"
+	if v.vaultKVPrefix != "" {
+		listPath += v.vaultKVPrefix + "/"
+	}
+	listPath += path
 
-	// Create list secrets url
-	if v.vaultKVPrefix == "" {
-		vaultSecretsPathAddr = fmt.Sprintf("%s/v1/%s/metadata/%s", v.vaultAddress, v.vaultEnginePath, path)
-	} else {
-		vaultSecretsPathAddr = fmt.Sprintf("%s/v1/%s/metadata/%s/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, path)
+	client := v.getClient()
+	if client == nil {
+		return nil, errors.New("hashicorp vault: component not initialized")
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "LIST", vaultSecretsPathAddr, nil)
+	secret, err := client.Logical().ListWithContext(ctx, listPath)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't generate request: %s", err)
+		v.logger.Debugf("hashicorp vault: list keys at %s failed: %v", listPath, err)
+		return nil, fmt.Errorf("couldn't list keys: %w", err)
 	}
-	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
-	// Set X-Vault-Request header
-	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
-	httpresp, err := v.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get secret: %s", err)
+	if secret == nil || secret.Data == nil {
+		return nil, fmt.Errorf("list keys couldn't get successful response at %s", listPath)
 	}
 
-	defer httpresp.Body.Close()
-
-	if httpresp.StatusCode != http.StatusOK {
-		var b bytes.Buffer
-		_, _ = io.Copy(&b, httpresp.Body)
-		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
-
-		return nil, fmt.Errorf("list keys couldn't get successful response, status code: %d, status: %s, response %s",
-			httpresp.StatusCode, httpresp.Status, b.String())
+	// A missing or null "keys" field means an empty directory.
+	keysField, hasKeys := secret.Data["keys"]
+	if !hasKeys || keysField == nil {
+		return []string{}, nil
+	}
+	keysRaw, ok := keysField.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected list response shape at %s", listPath)
 	}
 
-	var d vaultListKVResponse
-
-	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
-		return nil, fmt.Errorf("couldn't decode response body: %s", err)
-	}
-	res := make([]string, 0, len(d.Data.Keys))
-	for _, key := range d.Data.Keys {
+	res := make([]string, 0, len(keysRaw))
+	for _, kr := range keysRaw {
+		key, ok := kr.(string)
+		if !ok {
+			continue
+		}
 		if v.isSecretPath(key) {
 			res = append(res, path+key)
 		} else {
@@ -396,135 +448,28 @@ func (v *vaultSecretStore) isSecretPath(key string) bool {
 	return !strings.HasSuffix(key, "/")
 }
 
-// initVaultToken reads the vault token from the file if token is defined by mount path.
-func (v *vaultSecretStore) initVaultToken() error {
+// readVaultToken returns vaultToken, or the token read from vaultTokenMountPath.
+func readVaultToken(m *VaultMetadata) (string, error) {
 	// Test that at least one of them are set if not return error
-	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
-		return errors.New("token mount path and token not set")
+	if m.VaultToken == "" && m.VaultTokenMountPath == "" {
+		return "", errors.New("token mount path and token not set")
 	}
 
 	// Test that both are not set. If so return error
-	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
-		return errors.New("token mount path and token both set")
+	if m.VaultToken != "" && m.VaultTokenMountPath != "" {
+		return "", errors.New("token mount path and token both set")
 	}
 
-	if v.vaultToken != "" {
-		return nil
+	if m.VaultToken != "" {
+		return m.VaultToken, nil
 	}
 
-	data, err := os.ReadFile(v.vaultTokenMountPath)
+	data, err := os.ReadFile(m.VaultTokenMountPath)
 	if err != nil {
-		return fmt.Errorf("couldn't read vault token from mount path %s err: %s", v.vaultTokenMountPath, err)
-	}
-	v.vaultToken = string(bytes.TrimSpace(data))
-
-	return nil
-}
-
-func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
-	tlsClientConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-
-	if config != nil && config.vaultSkipVerify {
-		v.logger.Infof("hashicorp vault: you are using 'skipVerify' to skip server config verify which is unsafe!")
+		return "", fmt.Errorf("couldn't read vault token from mount path %s err: %s", m.VaultTokenMountPath, err)
 	}
 
-	tlsClientConfig.InsecureSkipVerify = config.vaultSkipVerify
-	if !config.vaultSkipVerify {
-		rootCAPools, err := v.getRootCAsPools(config.vaultCAPem, config.vaultCAPath, config.vaultCACert)
-		if err != nil {
-			return nil, err
-		}
-
-		tlsClientConfig.RootCAs = rootCAPools
-
-		if config.vaultServerName != "" {
-			tlsClientConfig.ServerName = config.vaultServerName
-		}
-	}
-
-	// Setup http transport
-	transport := &http.Transport{
-		TLSClientConfig: tlsClientConfig,
-	}
-
-	// Configure http2 client
-	err := http2.ConfigureTransport(transport)
-	if err != nil {
-		return nil, errors.New("failed to configure http2")
-	}
-
-	return &http.Client{
-		Transport: transport,
-	}, nil
-}
-
-// getRootCAsPools returns root CAs when you give it CA Pem file, CA path, and CA Certificate. Default is system certificates.
-func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string, vaultCACert string) (*x509.CertPool, error) {
-	if vaultCAPem != "" {
-		certPool := x509.NewCertPool()
-		cert := []byte(vaultCAPem)
-		if ok := certPool.AppendCertsFromPEM(cert); !ok {
-			return nil, errors.New("couldn't read PEM")
-		}
-
-		return certPool, nil
-	}
-
-	if vaultCAPath != "" {
-		certPool := x509.NewCertPool()
-		if err := readCertificateFolder(certPool, vaultCAPath); err != nil {
-			return nil, err
-		}
-
-		return certPool, nil
-	}
-
-	if vaultCACert != "" {
-		certPool := x509.NewCertPool()
-		if err := readCertificateFile(certPool, vaultCACert); err != nil {
-			return nil, err
-		}
-
-		return certPool, nil
-	}
-
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read system certs: %s", err)
-	}
-
-	return certPool, nil
-}
-
-// readCertificateFile reads the certificate at given path.
-func readCertificateFile(certPool *x509.CertPool, path string) error {
-	// Read certificate file
-	pemFile, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("couldn't read CA file from disk: %s", err)
-	}
-
-	if ok := certPool.AppendCertsFromPEM(pemFile); !ok {
-		return errors.New("couldn't read PEM")
-	}
-
-	return nil
-}
-
-// readCertificateFolder scans a folder for certificates.
-func readCertificateFolder(certPool *x509.CertPool, path string) error {
-	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-
-		return readCertificateFile(certPool, p)
-	})
-	if err != nil {
-		return fmt.Errorf("couldn't read certificates at %s: %s", path, err)
-	}
-
-	return nil
+	return string(bytes.TrimSpace(data)), nil
 }
 
 // Features returns the features available in this secret store.
@@ -543,5 +488,10 @@ func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.Metadat
 }
 
 func (v *vaultSecretStore) Close() error {
+	v.mu.Lock()
+	v.bgCancel()
+	v.mu.Unlock()
+
+	v.wg.Wait()
 	return nil
 }

@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+    - name: table
+      value: ${{STATE_AWS_DYNAMODB_TABLE_1}}
+    - name: ttlAttributeName
+      value: "expiresAt"
+    - name: endpoint
+      value: ${{FLOCI_ENDPOINT}}
+    - name: accessKey
+      value: "test"
+    - name: secretKey
+      value: "test"
+    - name: region
+      value: "us-east-1"

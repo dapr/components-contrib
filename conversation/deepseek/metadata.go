@@ -22,5 +22,4 @@ import "github.com/dapr/components-contrib/conversation"
 type DeepseekMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
 	Key                            string `json:"key"`
-	MaxTokens                      int    `json:"maxTokens"`
 }

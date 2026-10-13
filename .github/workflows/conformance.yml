@@ -177,10 +177,38 @@ jobs:
             --vault-name $VAULT_NAME \
             --query value \
             --output tsv)
-          echo "::add-mask::$value"
-          echo "$secretName=$value" >> $GITHUB_OUTPUT
-          echo "$secretName=$value" >> $GITHUB_ENV
+          masked_value=${value//%/%25}
+          masked_value=${masked_value//$'\r'/%0D}
+          masked_value=${masked_value//$'\n'/%0A}
+          echo "::add-mask::$masked_value"
+          delimiter=$(openssl rand -hex 16)
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "$secretName<<$delimiter"
+            printf '%s\n' "$value"
+            echo "$delimiter"
+          } >> "$GITHUB_ENV"
         done
+
+    - name: Setup OCI config file
+      if: env.OCIConfigFile != '' || env.OCIConfigProfile != ''
+      shell: bash
+      run: |
+        if [ -n "${OCIConfigFile:-}" ] && [ ! -f "${OCIConfigFile}" ]; then
+          if printf '%s' "${OCIConfigFile}" | grep -Eq '(^\[|^\s*\[|user=|tenancy=|fingerprint=)'; then
+            OCI_CONFIG_FILE=$(mktemp)
+            printf '%s' "${OCIConfigFile}" > "$OCI_CONFIG_FILE"
+            echo "OCIConfigFile=$OCI_CONFIG_FILE" >> "$GITHUB_ENV"
+          fi
+        fi
+
+        if [ -z "${OCIConfigProfile:-}" ]; then
+          echo "OCIConfigProfile=DEFAULT" >> "$GITHUB_ENV"
+        fi
 
     # Authenticate with GCP Workload Identity Pool
     # Exports GCP ENV Vars:
@@ -289,7 +317,7 @@ jobs:
         echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Run tests
-      continue-on-error: true
+      continue-on-error: ${{ !contains(matrix.component, '.aws-floci.') }}
       run: |
         set -e
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -300,13 +328,22 @@ jobs:
           KIND_UPPER=SecretStore
         fi
 
+        if [ "${KIND}" = "binarystore" ]; then
+          KIND_UPPER=BinaryStore
+        fi
+
+        TEST_SELECTOR="Test${KIND_UPPER}Conformance/${NAME}"
+        if [[ "$NAME" == aws-floci.* ]]; then
+          TEST_SELECTOR="^Test${KIND_UPPER}Conformance$/^${NAME//./\\.}$"
+        fi
+
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
         echo "Source Package: " ${{ matrix.source-pkg }}
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
-          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out \
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="$TEST_SELECTOR" -coverprofile=cover.out \
           -covermode=set -coverpkg=${{ matrix.source-pkg }}
 
         status=$?
@@ -322,6 +359,10 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
+
+    - name: Catch Floci test failures
+      if: failure() && contains(matrix.component, '.aws-floci.')
+      run: echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Delete downloaded up certs
       if: always() && matrix.required-certs != ''

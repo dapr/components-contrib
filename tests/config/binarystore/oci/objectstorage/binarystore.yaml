@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-oci-objectstorage
+spec:
+  type: binarystore.oci.objectstorage
+  version: v1
+  metadata:
+  - name: configFileAuthentication
+    value: "true"
+  - name: configFilePath
+    value: ${{OCIConfigFile}}
+  - name: configFileProfile
+    value: ${{OCIConfigProfile}}
+  - name: compartmentOCID
+    value: ${{OCICompartmentOCID}}
+  - name: bucketName
+    value: ${{OCIBucketName}}

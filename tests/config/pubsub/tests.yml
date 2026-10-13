@@ -72,6 +72,9 @@ components:
     operations: []
   - component: solace.amqp
     operations: []
+  - component: amqp
+    profile: artemis
+    operations: []
   - component: mqtt3
     profile: emqx
     operations: []
@@ -84,14 +87,14 @@ components:
       checkInOrderProcessing: false
   - component: in-memory
     operations: []
-  # - component: aws.snssqs.terraform
-  #   operations: []
-  #   config:
-  #     pubsubName: aws-snssqs
-  #     testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
-  #     testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
-  #     testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
-  #     checkInOrderProcessing: false
+  - component: aws.snssqs.terraform
+    operations: []
+    config:
+      pubsubName: aws-snssqs
+      testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+      testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
+      checkInOrderProcessing: false
   - component: aws.snssqs.docker
     operations: []
     config:
@@ -112,4 +115,12 @@ components:
     operations: []
     config:
       pubsubName: gcp-pubsub
+      checkInOrderProcessing: false
+  - component: aws-floci.snssqs
+    operations: []
+    config:
+      pubsubName: aws-snssqs
+      testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+      testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
       checkInOrderProcessing: false

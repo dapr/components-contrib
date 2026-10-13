@@ -238,8 +238,11 @@ func S3SForcePathStyle(t *testing.T) {
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
 	objectName := "filename.txt"
-	locationForcePathStyleFalse := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucketName, objectName)
-	locationForcePathStyleTrue := fmt.Sprintf("https://s3.amazonaws.com/%s/%s", bucketName, objectName)
+	endpoint := os.Getenv("AWS_ENDPOINT_URL")
+	locationForcePathStyleFalse, err := s3ExpectedLocation(endpoint, bucketName, objectName, false)
+	require.NoError(t, err)
+	locationForcePathStyleTrue, err := s3ExpectedLocation(endpoint, bucketName, objectName, true)
+	require.NoError(t, err)
 
 	testForcePathStyle := func(forcePathStyle string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {

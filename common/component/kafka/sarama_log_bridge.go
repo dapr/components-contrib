@@ -14,6 +14,9 @@ limitations under the License.
 package kafka
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -22,13 +25,24 @@ type SaramaLogBridge struct {
 }
 
 func (b SaramaLogBridge) Print(v ...interface{}) {
-	b.daprLogger.Debug(v...)
+	b.log(fmt.Sprint(v...))
 }
 
 func (b SaramaLogBridge) Printf(format string, v ...interface{}) {
-	b.daprLogger.Debugf(format, v...)
+	b.log(fmt.Sprintf(format, v...))
 }
 
 func (b SaramaLogBridge) Println(v ...interface{}) {
-	b.daprLogger.Debug(v...)
+	b.log(fmt.Sprintln(v...))
+}
+
+// log routes Sarama's log lines to Error when they report an error, since
+// Sarama's Logger interface has no level of its own and previously
+// everything was logged at Debug, hiding real connectivity/consumer errors.
+func (b SaramaLogBridge) log(msg string) {
+	if strings.Contains(strings.ToLower(msg), "error") {
+		b.daprLogger.Error(msg)
+		return
+	}
+	b.daprLogger.Debug(msg)
 }

@@ -32,13 +32,37 @@ import (
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
+
+const (
+	// maxBlobBlocks is the maximum number of blocks in a block blob.
+	maxBlobBlocks int64 = 50_000
+	// maxBlockSize is the maximum size of a single block: 4000 MiB.
+	maxBlockSize int64 = 4000 << 20
+)
+
+// effectiveMaxObjectSize returns the largest blob uploadable with the given
+// block size: a block blob is limited to 50,000 blocks.
+func effectiveMaxObjectSize(blockSize int64) int64 {
+	return maxBlobBlocks * blockSize
+}
+
+// uploadTuningMetadata holds binary-store-specific upload options on top of
+// the shared Azure Blob Storage metadata.
+type uploadTuningMetadata struct {
+	// PartSize is the upload block size, as a byte size quantity. Larger
+	// blocks raise the maximum uploadable blob size (50,000 blocks per blob)
+	// at the cost of more memory per in-flight upload.
+	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
+}
 
 // AzureBlobStorage implements binarystore.BinaryStore using Azure Blob Storage.
 type AzureBlobStorage struct {
-	metadata *storagecommon.BlobStorageMetadata
-	client   blobStoreClient
-	logger   logger.Logger
+	metadata      *storagecommon.BlobStorageMetadata
+	client        blobStoreClient
+	logger        logger.Logger
+	maxObjectSize int64
 }
 
 // blobStoreClient isolates the SDK calls the component makes, mirroring the
@@ -53,6 +77,7 @@ type blobStoreClient interface {
 
 type azureBlobClient struct {
 	containerClient *container.Client
+	partSize        int64
 }
 
 // NewAzureBlobStorage returns a new AzureBlobStorage binary store.
@@ -67,8 +92,21 @@ func (a *AzureBlobStorage) Init(ctx context.Context, md binarystore.Metadata) er
 		return err
 	}
 
+	tuning := uploadTuningMetadata{PartSize: kitmd.NewByteSize(binarystore.DefaultUploadPartSize)}
+	if err = kitmd.DecodeMetadata(md.Properties, &tuning); err != nil {
+		return fmt.Errorf("failed to decode metadata: %w", err)
+	}
+	partSize, err := tuning.PartSize.GetBytes()
+	if err != nil {
+		return fmt.Errorf("invalid value for partSize: %w", err)
+	}
+	if partSize <= 0 || partSize > maxBlockSize {
+		return fmt.Errorf("partSize must be between 1 and %d bytes", maxBlockSize)
+	}
+
 	a.metadata = m
-	a.client = &azureBlobClient{containerClient: containerClient}
+	a.maxObjectSize = effectiveMaxObjectSize(partSize)
+	a.client = &azureBlobClient{containerClient: containerClient, partSize: partSize}
 	return nil
 }
 
@@ -92,7 +130,7 @@ func (a *AzureBlobStorage) Set(ctx context.Context, req *binarystore.SetRequest)
 	if err != nil {
 		return err
 	}
-	if err = a.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
+	if err = a.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, a.maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the blob already exists;
 		// when overwriting, a condition failure signals an unrelated
 		// condition that must be surfaced to the caller.
@@ -155,6 +193,7 @@ func (a *AzureBlobStorage) Delete(ctx context.Context, req *binarystore.DeleteRe
 func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storagecommon.BlobStorageMetadata{}
 	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(uploadTuningMetadata{}), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 
@@ -172,7 +211,7 @@ func (c *azureBlobClient) putObject(ctx context.Context, name string, data io.Re
 		// the other binary store providers rather than the SDK defaults of 1
 		// MiB blocks staged one at a time, which also cap a block blob at
 		// ~48.8 GiB given the 50,000 block limit.
-		BlockSize:   binarystore.DefaultUploadPartSize,
+		BlockSize:   c.partSize,
 		Concurrency: binarystore.DefaultUploadConcurrency,
 	}
 	if !overwrite {

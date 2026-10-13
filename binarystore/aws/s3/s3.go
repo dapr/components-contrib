@@ -39,17 +39,33 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// maxObjectSize is the maximum size of a single S3 object: 50 TB.
+// maxObjectSizeLimit is the maximum size of a single S3 object: 50 TB.
 // https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
-// It is a var so tests can lower it.
-var maxObjectSize int64 = 50 << 40
+const maxObjectSizeLimit int64 = 50 << 40
+
+const (
+	// maxMultipartParts is the maximum number of parts in an S3 multipart
+	// upload.
+	maxMultipartParts int64 = 10_000
+	// minPartSize and maxPartSize bound the S3 multipart part size.
+	minPartSize int64 = 5 << 20
+	maxPartSize int64 = 5 << 30
+)
+
+// effectiveMaxObjectSize returns the largest object uploadable with the
+// given part size: an upload is limited to 10,000 parts and an object to
+// 50 TB.
+func effectiveMaxObjectSize(partSize int64) int64 {
+	return min(maxObjectSizeLimit, maxMultipartParts*partSize)
+}
 
 // AWSS3 implements binarystore.BinaryStore using Amazon S3 or an
 // S3-compatible object storage service.
 type AWSS3 struct {
-	metadata *s3Metadata
-	client   s3StoreClient
-	logger   logger.Logger
+	metadata      *s3Metadata
+	client        s3StoreClient
+	logger        logger.Logger
+	maxObjectSize int64
 }
 
 // s3StoreClient isolates the SDK calls the component makes, mirroring the
@@ -115,13 +131,14 @@ func (s *AWSS3) Init(ctx context.Context, md binarystore.Metadata) error {
 	})
 
 	s.metadata = m
+	s.maxObjectSize = effectiveMaxObjectSize(m.partSizeBytes)
 	s.client = &awsS3Client{
 		bucket:   m.Bucket,
 		s3Client: s3Client,
 		// Part size and concurrency are set explicitly so buffering matches
 		// the other binary store providers rather than the SDK defaults.
 		tmClient: transfermanager.New(s3Client, func(o *transfermanager.Options) {
-			o.PartSizeBytes = binarystore.DefaultUploadPartSize
+			o.PartSizeBytes = m.partSizeBytes
 			o.Concurrency = binarystore.DefaultUploadConcurrency
 		}),
 	}
@@ -157,7 +174,7 @@ func (s *AWSS3) Set(ctx context.Context, req *binarystore.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	if err = s.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, maxObjectSize), req.Overwrite); err != nil {
+	if err = s.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, s.maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a conflict signals an unrelated
 		// condition (e.g. OperationAborted from racing writers) that must be

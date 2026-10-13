@@ -34,22 +34,45 @@ import (
 	storagecommon "github.com/dapr/components-contrib/common/component/azure/datalake"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // cleanupTimeout bounds the best-effort removal of a temporary file after a
 // failed upload, which must not inherit an already-cancelled request context.
 const cleanupTimeout = 30 * time.Second
 
-// maxFileSize is the maximum size of a single file in Azure Data Lake
-// Storage Gen2: 5 TB. It is a var so tests can lower it.
-var maxFileSize int64 = 5 << 40
+const (
+	// serviceFileSizeLimit is the maximum size of a single file in Azure Data
+	// Lake Storage Gen2: 5 TB.
+	serviceFileSizeLimit int64 = 5 << 40
+	// maxFileBlocks is the maximum number of blocks per file.
+	maxFileBlocks int64 = 50_000
+	// maxBlockSize is the maximum size of a single block: 4000 MiB.
+	maxBlockSize int64 = 4000 << 20
+)
+
+// effectiveMaxFileSize returns the largest file uploadable with the given
+// block size: a file is limited to 50,000 blocks and 5 TB.
+func effectiveMaxFileSize(blockSize int64) int64 {
+	return min(serviceFileSizeLimit, maxFileBlocks*blockSize)
+}
+
+// uploadTuningMetadata holds binary-store-specific upload options on top of
+// the shared Azure Data Lake Storage metadata.
+type uploadTuningMetadata struct {
+	// PartSize is the upload block size, as a byte size quantity. Larger
+	// blocks raise the maximum uploadable file size (50,000 blocks per file)
+	// at the cost of more memory per in-flight upload.
+	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
+}
 
 // AzureDataLakeStorage implements binarystore.BinaryStore using Azure Data
 // Lake Storage Gen2.
 type AzureDataLakeStorage struct {
-	metadata *storagecommon.DataLakeMetadata
-	client   datalakeStoreClient
-	logger   logger.Logger
+	metadata    *storagecommon.DataLakeMetadata
+	client      datalakeStoreClient
+	logger      logger.Logger
+	maxFileSize int64
 }
 
 // datalakeStoreClient isolates the SDK calls the component makes, mirroring
@@ -65,6 +88,7 @@ type datalakeStoreClient interface {
 type azureDataLakeClient struct {
 	fileSystemClient *filesystem.Client
 	logger           logger.Logger
+	partSize         int64
 }
 
 // NewAzureDataLakeStorage returns a new AzureDataLakeStorage binary store.
@@ -79,10 +103,24 @@ func (a *AzureDataLakeStorage) Init(ctx context.Context, md binarystore.Metadata
 		return err
 	}
 
+	tuning := uploadTuningMetadata{PartSize: kitmd.NewByteSize(binarystore.DefaultUploadPartSize)}
+	if err = kitmd.DecodeMetadata(md.Properties, &tuning); err != nil {
+		return fmt.Errorf("failed to decode metadata: %w", err)
+	}
+	partSize, err := tuning.PartSize.GetBytes()
+	if err != nil {
+		return fmt.Errorf("invalid value for partSize: %w", err)
+	}
+	if partSize <= 0 || partSize > maxBlockSize {
+		return fmt.Errorf("partSize must be between 1 and %d bytes", maxBlockSize)
+	}
+
 	a.metadata = m
+	a.maxFileSize = effectiveMaxFileSize(partSize)
 	a.client = &azureDataLakeClient{
 		fileSystemClient: fileSystemClient,
 		logger:           a.logger,
+		partSize:         partSize,
 	}
 	return nil
 }
@@ -108,7 +146,7 @@ func (a *AzureDataLakeStorage) Set(ctx context.Context, req *binarystore.SetRequ
 	if err != nil {
 		return err
 	}
-	if err = a.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, maxFileSize), req.Overwrite); err != nil {
+	if err = a.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, a.maxFileSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the path already exists;
 		// when overwriting, a condition failure signals an unrelated
 		// condition that must be surfaced to the caller.
@@ -171,6 +209,7 @@ func (a *AzureDataLakeStorage) Delete(ctx context.Context, req *binarystore.Dele
 func (a *AzureDataLakeStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storagecommon.DataLakeMetadata{}
 	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BinaryStoreType)
+	_ = contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(uploadTuningMetadata{}), &metadataInfo, contribMetadata.BinaryStoreType)
 	return
 }
 
@@ -202,7 +241,7 @@ func (c *azureDataLakeClient) putObject(ctx context.Context, name string, data i
 	uploadOpts := &file.UploadStreamOptions{
 		// Chunk size is set explicitly so buffering matches the other binary
 		// store providers rather than the SDK default.
-		ChunkSize: binarystore.DefaultUploadPartSize,
+		ChunkSize: c.partSize,
 		// Concurrency is deliberately pinned to 1 rather than
 		// binarystore.DefaultUploadConcurrency: azdatalake's copyFromReader
 		// increments the flush length from inside each chunk goroutine

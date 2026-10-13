@@ -47,6 +47,7 @@ type ociObjectStoreClient struct {
 	objectClient *ociobjectstorage.ObjectStorageClient
 	httpClient   *http.Client
 	logger       logger.Logger
+	partSize     int64
 }
 
 // newOCIObjectStoreClient builds an OCI Object Storage client from the parsed
@@ -65,6 +66,7 @@ func newOCIObjectStoreClient(ctx context.Context, meta *objectStoreMetadata, log
 
 	c := &ociObjectStoreClient{
 		metadata:     meta,
+		partSize:     meta.partSizeBytes,
 		objectClient: objectClient,
 		httpClient:   httpClient,
 		logger:       log,
@@ -201,9 +203,9 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			ObjectStorageClient: c.objectClient,
 			// Set explicitly so buffering matches the other binary store
 			// providers rather than the SDK defaults (10 MiB parts, 5
-			// goroutines). The shared part size is deliberately at or above
+			// goroutines). The shared default is deliberately at or above
 			// OCI's 10 MiB minimum for non-final multipart parts.
-			PartSize:           common.Int64(binarystore.DefaultUploadPartSize),
+			PartSize:           common.Int64(c.partSize),
 			NumberOfGoroutines: common.Int(binarystore.DefaultUploadConcurrency),
 		},
 		StreamReader: streamReader,

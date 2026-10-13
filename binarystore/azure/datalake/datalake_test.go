@@ -40,8 +40,9 @@ func newTestStore(client datalakeStoreClient, prefix string) *AzureDataLakeStora
 			FileSystemClientOpts: storagecommon.FileSystemClientOpts{FileSystemName: "test-filesystem"},
 			Prefix:               prefix,
 		},
-		client: client,
-		logger: logger.NewLogger("test"),
+		client:      client,
+		logger:      logger.NewLogger("test"),
+		maxFileSize: effectiveMaxFileSize(binarystore.DefaultUploadPartSize),
 	}
 }
 
@@ -172,12 +173,9 @@ func TestSetOverwriteDoesNotMaskConditionErrors(t *testing.T) {
 }
 
 func TestSetEnforcesFileSizeLimit(t *testing.T) {
-	original := maxFileSize
-	maxFileSize = 7
-	t.Cleanup(func() { maxFileSize = original })
-
 	client := newFakeDataLakeClient()
 	store := newTestStore(client, "")
+	store.maxFileSize = 7
 
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName: "allowed.bin",

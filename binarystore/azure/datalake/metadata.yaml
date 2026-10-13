@@ -56,6 +56,17 @@ metadata:
     description: "An optional prefix prepended to all file names stored by this component."
     example: '"myprefix"'
 
+  - name: partSize
+    type: bytesize
+    required: false
+    default: '"16Mi"'
+    description: |
+      Upload block size, as a byte size quantity. Must be between 1 byte and
+      4000 MiB. Files are limited to 50,000 blocks and 5 TB, so larger blocks
+      raise the maximum uploadable file size at the cost of more memory per
+      in-flight upload.
+    example: '"64Mi"'
+
   - name: retryCount
     type: number
     default: "3"

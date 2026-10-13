@@ -60,6 +60,9 @@ type InMemoryBinaryStore struct {
 	maxSize      int64
 	maxTotalSize int64
 	totalBytes   int64
+	// inFlightBytes counts bytes reserved by uploads currently being read, so
+	// that maxTotalSize bounds stored and in-flight memory combined.
+	inFlightBytes int64
 }
 
 // NewInMemoryBinaryStore returns a new in-memory BinaryStore.
@@ -136,29 +139,82 @@ func (s *InMemoryBinaryStore) Set(_ context.Context, req *binarystore.SetRequest
 		}
 	}
 
-	data, err := io.ReadAll(io.LimitReader(req.Data, s.maxSize+1))
+	data, err := s.readAllReserved(req.Data)
 	if err != nil {
 		return err
-	}
-	if int64(len(data)) > s.maxSize {
-		return fmt.Errorf("%w: maximum size is %d bytes", binarystore.ErrFileTooLarge, s.maxSize)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// The reservation ends here, one way or another: on success the bytes
+	// become committed, on failure they are released.
+	s.inFlightBytes -= int64(len(data))
 	if !req.Overwrite {
 		if _, ok := s.files[fileName]; ok {
 			return binarystore.ErrFileAlreadyExists
 		}
 	}
+	// The reservation invariant (totalBytes + inFlightBytes <= maxTotalSize)
+	// already guarantees the store has room for data, including the old copy
+	// of an overwritten file until it is replaced.
 	existing := s.files[fileName]
-	if s.totalBytes-int64(len(existing))+int64(len(data)) > s.maxTotalSize {
-		return fmt.Errorf("%w: maximum total size is %d bytes", binarystore.ErrStoreFull, s.maxTotalSize)
-	}
 	s.totalBytes += int64(len(data)) - int64(len(existing))
 	s.files[fileName] = data
 	return nil
+}
+
+// uploadChunkSize bounds the scratch buffer used while reading an upload.
+const uploadChunkSize = 32 * 1024
+
+// readAllReserved reads r to completion, reading at most maxSize+1 bytes and
+// reserving capacity against maxTotalSize as the data arrives, so in-flight
+// uploads count towards the total limit. The reservation is released when
+// reading fails; on success it stays held until the caller commits or
+// discards the data under the write lock.
+func (s *InMemoryBinaryStore) readAllReserved(r io.Reader) (data []byte, err error) {
+	limit := s.maxSize + 1
+	tmp := make([]byte, uploadChunkSize)
+	var reserved int64
+	defer func() {
+		if err != nil && reserved > 0 {
+			s.mu.Lock()
+			s.inFlightBytes -= reserved
+			s.mu.Unlock()
+		}
+	}()
+	for int64(len(data)) < limit {
+		n, readErr := r.Read(tmp[:min(int64(len(tmp)), limit-int64(len(data)))])
+		if n > 0 {
+			if !s.reserve(int64(n)) {
+				return nil, fmt.Errorf("%w: maximum total size is %d bytes", binarystore.ErrStoreFull, s.maxTotalSize)
+			}
+			reserved += int64(n)
+			data = append(data, tmp[:n]...)
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			return nil, readErr
+		}
+	}
+	if int64(len(data)) > s.maxSize {
+		return nil, fmt.Errorf("%w: maximum size is %d bytes", binarystore.ErrFileTooLarge, s.maxSize)
+	}
+	return data, nil
+}
+
+// reserve adds n bytes to the in-flight total, provided the combined stored
+// and in-flight bytes stay within maxTotalSize.
+func (s *InMemoryBinaryStore) reserve(n int64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.totalBytes+s.inFlightBytes+n > s.maxTotalSize {
+		return false
+	}
+	s.inFlightBytes += n
+	return true
 }
 
 func (s *InMemoryBinaryStore) Get(_ context.Context, req *binarystore.GetRequest) (*binarystore.GetResponse, error) {
@@ -215,5 +271,6 @@ func (s *InMemoryBinaryStore) Close() error {
 		delete(s.files, k)
 	}
 	s.totalBytes = 0
+	s.inFlightBytes = 0
 	return nil
 }

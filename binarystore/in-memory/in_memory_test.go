@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,19 +219,90 @@ func TestMaxTotalSize(t *testing.T) {
 	})
 	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
-	// Overwriting an existing file within the cap is still allowed.
-	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+	// Overwriting while the store is full is also rejected: the new content
+	// is buffered before the old copy can be released, so both would
+	// transiently exceed the capacity.
+	err = store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "a.bin",
 		Data:      bytes.NewBufferString("7654321"),
 		Overwrite: true,
-	}))
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
 
-	// Deleting frees capacity for new files.
+	// Deleting frees capacity for new files and overwrites alike.
 	require.NoError(t, store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: "a.bin"}))
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName:  "b.bin",
+		Data:      bytes.NewBufferString("7654321"),
+		Overwrite: true,
+	}))
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName: "c.bin",
 		Data:     bytes.NewBufferString("1234567"),
 	}))
+}
+
+func TestSetReservesInFlightBytes(t *testing.T) {
+	store := newTestStoreWithProperties(t, map[string]string{
+		"maxSize":      "7",
+		"maxTotalSize": "14",
+	})
+
+	gate := make(chan struct{})
+	startUpload := func(name string) <-chan error {
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- store.Set(t.Context(), &binarystore.SetRequest{
+				FileName: name,
+				Data:     &gatedReader{chunks: [][]byte{[]byte("1234567")}, gate: gate},
+			})
+		}()
+		return errCh
+	}
+
+	// Two uploads together fill the store while still in flight.
+	aErr := startUpload("a.bin")
+	bErr := startUpload("b.bin")
+	require.Eventually(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return store.inFlightBytes == 14
+	}, 5*time.Second, time.Millisecond, "both in-flight uploads should have reserved their bytes")
+
+	// A third upload must be rejected even though neither has committed yet.
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "c.bin",
+		Data:     bytes.NewBufferString("1234567"),
+	})
+	require.ErrorIs(t, err, binarystore.ErrStoreFull)
+
+	// Releasing the gate lets both uploads commit within the cap.
+	close(gate)
+	require.NoError(t, <-aErr)
+	require.NoError(t, <-bErr)
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	assert.Equal(t, int64(14), store.totalBytes)
+	assert.Zero(t, store.inFlightBytes)
+}
+
+// gatedReader delivers its chunks and then blocks until the gate is closed,
+// so a test can hold an upload in flight.
+type gatedReader struct {
+	chunks [][]byte
+	gate   <-chan struct{}
+	i      int
+}
+
+func (g *gatedReader) Read(p []byte) (int, error) {
+	if g.i < len(g.chunks) {
+		n := copy(p, g.chunks[g.i])
+		g.i++
+		return n, nil
+	}
+	<-g.gate
+	return 0, io.EOF
 }
 
 func TestSetRejectsWithoutReadingData(t *testing.T) {

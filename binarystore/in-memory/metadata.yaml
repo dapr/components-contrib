@@ -30,6 +30,7 @@ metadata:
     default: '"512Mi"'
     description: |
       Maximum combined size of all files held by the store, as a byte size
-      quantity. Uploads that would exceed this limit are rejected, bounding
-      the total memory the component can use. Must be greater than zero.
+      quantity. Capacity is reserved as upload data is read, so this bounds
+      stored files and in-flight uploads together; uploads that would exceed
+      the limit are rejected. Must be greater than zero.
     example: '"1073741824" (as bytes), "512Mi", "1Gi"'

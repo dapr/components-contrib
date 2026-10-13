@@ -96,6 +96,36 @@ func TestClose(t *testing.T) {
 	})
 }
 
+// Close must not zero inFlightBytes while an upload still owns a reservation:
+// the upload subtracts its bytes when it finishes, and zeroing here would
+// drive the counter negative.
+func TestCloseWithInFlightUpload(t *testing.T) {
+	store := newTestStore(t, "")
+
+	gate := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- store.Set(t.Context(), &binarystore.SetRequest{
+			FileName: "inflight.bin",
+			Data:     &gatedReader{chunks: [][]byte{[]byte("payload")}, gate: gate},
+		})
+	}()
+	require.Eventually(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return store.inFlightBytes == int64(len("payload"))
+	}, 5*time.Second, time.Millisecond, "upload should have reserved its bytes")
+
+	require.NoError(t, store.Close())
+
+	close(gate)
+	require.NoError(t, <-errCh)
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	assert.Zero(t, store.inFlightBytes)
+}
+
 // --- metadata ---
 
 func TestParseMetadata(t *testing.T) {

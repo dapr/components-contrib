@@ -286,6 +286,8 @@ func (s *InMemoryBinaryStore) Close() error {
 		delete(s.files, k)
 	}
 	s.totalBytes = 0
-	s.inFlightBytes = 0
+	// inFlightBytes is deliberately not zeroed: uploads still in progress own
+	// their reservations and subtract them when they commit or fail. Zeroing
+	// it here would drive the counter negative once those uploads finish.
 	return nil
 }

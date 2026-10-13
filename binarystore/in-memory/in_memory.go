@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"reflect"
 	"sync"
 
@@ -45,11 +44,11 @@ const (
 // inMemoryMetadata contains the parsed metadata for the in-memory store.
 type inMemoryMetadata struct {
 	Prefix string `json:"prefix" mapstructure:"prefix"`
-	// MaxSize is the maximum file size in bytes.
-	MaxSize int64 `json:"maxSize" mapstructure:"maxSize"`
-	// MaxTotalSize is the maximum combined size in bytes of all files held by
-	// the store.
-	MaxTotalSize int64 `json:"maxTotalSize" mapstructure:"maxTotalSize"`
+	// MaxSize is the maximum file size, as a byte size quantity (e.g. "4Mi").
+	MaxSize kitmd.ByteSize `json:"maxSize" mapstructure:"maxSize"`
+	// MaxTotalSize is the maximum combined size of all files held by the
+	// store, as a byte size quantity (e.g. "512Mi").
+	MaxTotalSize kitmd.ByteSize `json:"maxTotalSize" mapstructure:"maxTotalSize"`
 }
 
 // InMemoryBinaryStore is an in-memory BinaryStore implementation.
@@ -75,31 +74,33 @@ func (s *InMemoryBinaryStore) Init(_ context.Context, md binarystore.Metadata) e
 	// Decoded through the metadata decoder so that key matching is
 	// case-insensitive and consistent with the other binary store providers.
 	m := inMemoryMetadata{
-		MaxSize:      defaultMaxSize,
-		MaxTotalSize: defaultMaxTotalSize,
+		MaxSize:      kitmd.NewByteSize(defaultMaxSize),
+		MaxTotalSize: kitmd.NewByteSize(defaultMaxTotalSize),
 	}
 	if err := kitmd.DecodeMetadata(md.Properties, &m); err != nil {
 		return fmt.Errorf("failed to decode metadata: %w", err)
 	}
-	if m.MaxSize <= 0 {
+	maxSize, err := m.MaxSize.GetBytes()
+	if err != nil {
+		return fmt.Errorf("invalid value for maxSize: %w", err)
+	}
+	maxTotalSize, err := m.MaxTotalSize.GetBytes()
+	if err != nil {
+		return fmt.Errorf("invalid value for maxTotalSize: %w", err)
+	}
+	// ByteSize is backed by resource.Quantity, which cannot represent values
+	// near math.MaxInt64; such inputs already failed in GetBytes above, so
+	// maxSize+1 (used to detect oversized files) and maxTotalSize+maxSize
+	// (used by the capacity check) cannot overflow int64.
+	if maxSize <= 0 {
 		return errors.New("maxSize must be greater than zero")
 	}
-	// Set reads one byte past maxSize to detect oversized files, so maxSize
-	// must leave headroom for maxSize+1 without overflowing int64.
-	if m.MaxSize >= math.MaxInt64 {
-		return errors.New("maxSize must be less than math.MaxInt64")
-	}
-	if m.MaxTotalSize <= 0 {
+	if maxTotalSize <= 0 {
 		return errors.New("maxTotalSize must be greater than zero")
 	}
-	// The capacity check adds up to maxSize bytes to totalBytes, so the two
-	// limits combined must not be able to overflow int64.
-	if m.MaxTotalSize > math.MaxInt64-m.MaxSize {
-		return errors.New("maxTotalSize and maxSize combined must not exceed math.MaxInt64")
-	}
 	s.prefix = m.Prefix
-	s.maxSize = m.MaxSize
-	s.maxTotalSize = m.MaxTotalSize
+	s.maxSize = maxSize
+	s.maxTotalSize = maxTotalSize
 	return nil
 }
 

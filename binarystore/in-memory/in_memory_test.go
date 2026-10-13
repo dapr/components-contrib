@@ -115,6 +115,18 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, int64(1024), store.maxSize)
 	})
 
+	t.Run("sizes accept byte size quantities", func(t *testing.T) {
+		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
+		require.NoError(t, store.Init(t.Context(), binarystore.Metadata{
+			Base: contribMetadata.Base{Properties: map[string]string{
+				"maxSize":      "1Ki",
+				"maxTotalSize": "2Mi",
+			}},
+		}))
+		assert.Equal(t, int64(1024), store.maxSize)
+		assert.Equal(t, int64(2*1024*1024), store.maxTotalSize)
+	})
+
 	t.Run("maxSize must be positive", func(t *testing.T) {
 		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 		err := store.Init(t.Context(), binarystore.Metadata{
@@ -124,11 +136,14 @@ func TestParseMetadata(t *testing.T) {
 	})
 
 	t.Run("maxSize must not overflow when detecting oversized files", func(t *testing.T) {
+		// Set reads one byte past maxSize to detect oversized files. ByteSize
+		// is backed by resource.Quantity, which rejects values approaching
+		// math.MaxInt64, so maxSize+1 cannot overflow int64.
 		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 		err := store.Init(t.Context(), binarystore.Metadata{
 			Base: contribMetadata.Base{Properties: map[string]string{"maxSize": strconv.FormatInt(math.MaxInt64, 10)}},
 		})
-		require.EqualError(t, err, "maxSize must be less than math.MaxInt64")
+		require.ErrorContains(t, err, "invalid value for maxSize")
 	})
 
 	t.Run("maxTotalSize must be positive", func(t *testing.T) {
@@ -140,6 +155,8 @@ func TestParseMetadata(t *testing.T) {
 	})
 
 	t.Run("maxTotalSize and maxSize combined must not overflow", func(t *testing.T) {
+		// The capacity check adds up to maxSize bytes to totalBytes; values
+		// large enough to overflow that sum are rejected while parsing.
 		store := NewInMemoryBinaryStore(logger.NewLogger("test")).(*InMemoryBinaryStore)
 		err := store.Init(t.Context(), binarystore.Metadata{
 			Base: contribMetadata.Base{Properties: map[string]string{
@@ -147,7 +164,7 @@ func TestParseMetadata(t *testing.T) {
 				"maxTotalSize": strconv.FormatInt(math.MaxInt64, 10),
 			}},
 		})
-		require.EqualError(t, err, "maxTotalSize and maxSize combined must not exceed math.MaxInt64")
+		require.ErrorContains(t, err, "invalid value for maxTotalSize")
 	})
 }
 

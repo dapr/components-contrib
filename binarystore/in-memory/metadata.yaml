@@ -16,21 +16,20 @@ metadata:
       An optional prefix prepended to all file names stored by this component.
     example: '"myprefix"'
   - name: maxSize
-    type: number
+    type: bytesize
     required: false
-    default: "4194304"
+    default: '"4Mi"'
     description: |
-      Maximum size in bytes of a single file that can be stored. Uploads larger
-      than this are rejected. Must be greater than zero and less than
-      9223372036854775807 (math.MaxInt64).
-    example: '"8388608"'
+      Maximum size of a single file that can be stored, as a byte size
+      quantity. Uploads larger than this are rejected. Must be greater than
+      zero.
+    example: '"8388608" (as bytes), "1Ki", "8Mi", "1Gi"'
   - name: maxTotalSize
-    type: number
+    type: bytesize
     required: false
-    default: "536870912"
+    default: '"512Mi"'
     description: |
-      Maximum combined size in bytes of all files held by the store. Uploads
-      that would exceed this limit are rejected, bounding the total memory the
-      component can use. Must be greater than zero, and maxTotalSize and
-      maxSize combined must not exceed 9223372036854775807 (math.MaxInt64).
-    example: '"1073741824"'
+      Maximum combined size of all files held by the store, as a byte size
+      quantity. Uploads that would exceed this limit are rejected, bounding
+      the total memory the component can use. Must be greater than zero.
+    example: '"1073741824" (as bytes), "512Mi", "1Gi"'

@@ -28,6 +28,8 @@ import (
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
+	p_daprmqqueues "github.com/dapr/components-contrib/pubsub/daprmq/queues"
+	p_daprmqtopics "github.com/dapr/components-contrib/pubsub/daprmq/topics"
 	p_gcppubsub "github.com/dapr/components-contrib/pubsub/gcp/pubsub"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
@@ -109,6 +111,10 @@ func loadPubSub(name string) pubsub.PubSub {
 		return p_kubemq.NewKubeMQ(testLogger)
 	case "amqp":
 		return p_amqp.NewAMQPPubsub(testLogger)
+	case "daprmq.topics":
+		return p_daprmqtopics.NewDaprMQTopics(testLogger)
+	case "daprmq.queues":
+		return p_daprmqqueues.NewDaprMQQueues(testLogger)
 	case "solace.amqp":
 		return p_amqp.NewSolaceAMQPPubsub(testLogger)
 	default:

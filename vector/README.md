@@ -42,16 +42,21 @@ and `FailedItem` types (see `../search/indexing.go`).
   `daprPayload` and metadata as the `daprMetadata` object, which is declared
   filterable so filter paths translate to `daprMetadata.<path>`.
 - Collections share the instance with plain indexes, such as those of the
-  search component. `ListCollections` returns only the indexes that have the
-  `default` embedder, and `GetCollection` and `Upsert` return
-  `FAILED_PRECONDITION` for an index without it.
+  search component. `ListCollections` returns only the indexes that have a
+  `userProvided` `default` embedder, and `GetCollection`, `Upsert` and
+  `DeleteCollection` return `FAILED_PRECONDITION` for an index without one,
+  including an index whose `default` embedder generates its vectors.
 - `Upsert` requires an existing collection and returns `NOT_FOUND` otherwise:
   Meilisearch would create the index on the first document addition, without
   an embedder. A Meilisearch task is atomic, so a record whose `Values` do not
-  match the collection's dimensions, or whose ID is not 1 to 511 bytes of
-  ASCII letters, digits, `-` and `_`, is identified before the task is
-  enqueued and reported in `FailedItems` (`INVALID_ARGUMENT`). `Get` omits
-  such an ID like any other missing record.
+  match the collection's dimensions, contain a NaN or infinite value or are
+  all zero, or whose ID is not 1 to 511 bytes of ASCII letters, digits, `-`
+  and `_`, is identified before the task is enqueued and reported in
+  `FailedItems` (`INVALID_ARGUMENT`). `Get` omits such an ID like any other
+  missing record.
+- A query vector with a NaN or infinite value or a zero norm is
+  `INVALID_ARGUMENT`: cosine similarity is undefined for a zero vector, which
+  Meilisearch would otherwise score as a perfect match.
 - Meilisearch's `_rankingScore` for a pure-semantic query is `(1 + cos) / 2`;
   the component reports `2 * rankingScore - 1` and translates a cosine
   threshold `t` to `rankingScoreThreshold = (1 + t) / 2`. A `ScoreThreshold`

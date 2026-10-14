@@ -37,14 +37,27 @@ func TranslateFilter(filter map[string]any) (string, error) {
 // they pass MetadataField + "." and a portable path `a.b` becomes
 // `daprMetadata.a.b`.
 func TranslateFilterWithPrefix(filter map[string]any, prefix string) (string, error) {
+	// An empty filter is no filter. Every nested expression must constrain
+	// something: an empty one would translate to nothing, and a caller that
+	// omits an empty filter would match every document where the expression
+	// was meant to narrow the query.
+	if len(filter) == 0 {
+		return "", nil
+	}
 	return translateExpression(filter, prefix)
 }
 
 func translateExpression(expr any, prefix string) (string, error) {
 	switch v := expr.(type) {
 	case map[string]any:
+		if len(v) == 0 {
+			return "", errors.New("a filter expression must not be empty")
+		}
 		return translateMap(v, prefix)
 	case []any:
+		if len(v) == 0 {
+			return "", errors.New("a filter expression must not be empty")
+		}
 		parts := make([]string, 0, len(v))
 		for _, item := range v {
 			part, err := translateExpression(item, prefix)
@@ -67,6 +80,9 @@ func translateMap(m map[string]any, prefix string) (string, error) {
 			items, ok := value.([]any)
 			if !ok {
 				return "", fmt.Errorf("%s requires an array", key)
+			}
+			if len(items) == 0 {
+				return "", fmt.Errorf("%s requires at least one expression", key)
 			}
 			op := " AND "
 			if key == "$or" {
@@ -117,6 +133,9 @@ func translateField(path string, value any) (string, error) {
 	ops, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Sprintf("%s = %s", field, FormatFilterValue(value)), nil
+	}
+	if len(ops) == 0 {
+		return "", fmt.Errorf("the condition on field %q has no operator", path)
 	}
 	parts := make([]string, 0, len(ops))
 	for op, operand := range ops {

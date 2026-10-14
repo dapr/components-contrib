@@ -89,6 +89,8 @@ func TestIndexLifecycle(t *testing.T) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"results": []map[string]any{{"uid": "books", "primaryKey": "id"}}, "limit": 20, "total": 1})
 		case "/tasks/1", "/tasks/2", "/tasks/3":
 			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
+		case "/indexes/books/settings/ranking-rules":
+			writeJSON(t, w, http.StatusOK, defaultRankingRules)
 		case "/indexes/books/settings":
 			if r.Method == http.MethodPatch {
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&settings))
@@ -186,6 +188,8 @@ func TestCreateIndexAlwaysDeclaresTheIDSortable(t *testing.T) {
 					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
 				case "/tasks/1", "/tasks/2":
 					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
+				case "/indexes/books/settings/ranking-rules":
+					writeJSON(t, w, http.StatusOK, defaultRankingRules)
 				case "/indexes/books/settings":
 					require.NoError(t, json.NewDecoder(r.Body).Decode(&settings))
 					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 2, "status": "enqueued", "type": "settingsUpdate"})
@@ -199,6 +203,8 @@ func TestCreateIndexAlwaysDeclaresTheIDSortable(t *testing.T) {
 			require.NoError(t, component.CreateIndex(t.Context(), &search.CreateIndexRequest{Index: "books", Metadata: tt.md}))
 
 			assert.Equal(t, tt.want, settings["sortableAttributes"])
+			assert.Equal(t, []any{"sort", "words", "typo", "proximity", "attributeRank", "wordPosition", "exactness"}, settings["rankingRules"],
+				"an explicit sort orders the results before relevance does")
 			_, hasFilterable := settings["filterableAttributes"]
 			assert.False(t, hasFilterable, "unset settings are not sent")
 		})
@@ -290,6 +296,8 @@ func TestCreateIndexRollsBackWhenTheSettingsCannotBeApplied(t *testing.T) {
 					writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
 				case "/tasks/1":
 					writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": "succeeded", "type": "indexCreation"})
+				case "/indexes/books/settings/ranking-rules":
+					writeJSON(t, w, http.StatusOK, defaultRankingRules)
 				case "/indexes/books/settings":
 					tt.settings(t, w)
 				case "/tasks/2":
@@ -878,7 +886,7 @@ func TestSearch(t *testing.T) {
 	t.Parallel()
 
 	var sent map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withIndexSettings(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/indexes/books/search", r.URL.Path)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
 		writeJSON(t, w, http.StatusOK, map[string]any{
@@ -916,6 +924,8 @@ func TestSearch(t *testing.T) {
 	assert.Equal(t, []any{"title"}, sent["attributesToHighlight"])
 	assert.Equal(t, `"author" = "jane-austen"`, sent["filter"], "search filters address content fields directly")
 	assert.Equal(t, []any{"year:desc", "id:asc"}, sent["sort"], "the document id is appended as a stable tie-breaker")
+	assert.Equal(t, []any{"title", "title.*", "year", "year.*"}, sent["attributesToSearchOn"],
+		"the text is matched against the content attributes, not the id or the metadata")
 
 	require.Len(t, res.Hits, 1)
 	assert.Equal(t, "1", res.Hits[0].Document.ID)
@@ -934,7 +944,7 @@ func TestSearch(t *testing.T) {
 func TestSearchReportsAZeroTotal(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(withIndexSettings(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{}, "estimatedTotalHits": 0, "offset": 0, "limit": 20})
 	}))
 	defer server.Close()
@@ -948,6 +958,139 @@ func TestSearchReportsAZeroTotal(t *testing.T) {
 	assert.Zero(t, *res.TotalHits)
 	assert.Equal(t, search.TotalHitsRelationEstimate, res.TotalHitsRelation)
 	assert.Empty(t, res.ContinuationToken)
+}
+
+func TestSearchMatchesTextAgainstContentOnly(t *testing.T) {
+	t.Parallel()
+
+	defaultSettings := map[string]any{"searchableAttributes": []string{"*"}}
+	tests := []struct {
+		name     string
+		req      *search.SearchRequest
+		settings map[string]any
+		fields   map[string]any
+		// want is the attributesToSearchOn sent, nil when none is.
+		want []any
+		// wantNoSearch is set when the component answers without searching.
+		wantNoSearch bool
+	}{
+		{
+			name:     "the default searchable attributes are narrowed to the content",
+			req:      &search.SearchRequest{Text: "acme"},
+			settings: defaultSettings,
+			fields:   map[string]any{"id": 2, "daprMetadata": 2, "title": 2, "publisher": 1},
+			want:     []any{"publisher", "publisher.*", "title", "title.*"},
+		},
+		{
+			name:     "explicit search fields are kept",
+			req:      &search.SearchRequest{Text: "acme", SearchFields: []string{"title"}},
+			settings: defaultSettings,
+			want:     []any{"title"},
+		},
+		{
+			name:     "explicit searchable attributes are left alone",
+			req:      &search.SearchRequest{Text: "acme"},
+			settings: map[string]any{"searchableAttributes": []string{"title"}},
+		},
+		{
+			name:     "a query without text searches no attribute",
+			req:      &search.SearchRequest{},
+			settings: defaultSettings,
+		},
+		{
+			name:         "no document has content to match",
+			req:          &search.SearchRequest{Text: "acme"},
+			settings:     defaultSettings,
+			fields:       map[string]any{"id": 1, "daprMetadata": 1},
+			wantNoSearch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sent map[string]any
+			var searched, statsRead atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/indexes/books/settings":
+					writeJSON(t, w, http.StatusOK, tt.settings)
+				case "/indexes/books/stats":
+					statsRead.Add(1)
+					writeJSON(t, w, http.StatusOK, map[string]any{"fieldDistribution": tt.fields})
+				case "/indexes/books/search":
+					searched.Add(1)
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
+					writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{}, "estimatedTotalHits": 0})
+				default:
+					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			tt.req.Index = "books"
+			component := initializedSearch(t, server.URL)
+			res, err := component.Search(t.Context(), tt.req)
+			require.NoError(t, err)
+
+			if tt.wantNoSearch {
+				assert.Zero(t, searched.Load())
+				assert.Empty(t, res.Hits)
+				require.NotNil(t, res.TotalHits)
+				assert.Zero(t, *res.TotalHits)
+				assert.Equal(t, search.TotalHitsRelationExact, res.TotalHitsRelation)
+				return
+			}
+			require.Equal(t, int32(1), searched.Load())
+			if tt.want == nil {
+				assert.NotContains(t, sent, "attributesToSearchOn")
+				assert.Zero(t, statsRead.Load(), "the field distribution is only read to narrow `*`")
+				return
+			}
+			assert.Equal(t, tt.want, sent["attributesToSearchOn"])
+		})
+	}
+}
+
+func TestSearchReportsACappedTotalAsALowerBound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		total        uint64
+		wantRelation search.TotalHitsRelation
+	}{
+		{name: "below maxTotalHits", total: 999, wantRelation: search.TotalHitsRelationEstimate},
+		{name: "at maxTotalHits", total: 1000, wantRelation: search.TotalHitsRelationLowerBound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The last page of what Meilisearch returns: it neither counts nor
+			// returns hits past maxTotalHits.
+			server := httptest.NewServer(withIndexSettings(t, func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, http.StatusOK, map[string]any{
+					"hits":               []map[string]any{{"id": "1", "_rankingScore": 1}},
+					"estimatedTotalHits": tt.total,
+					"offset":             tt.total - 1,
+					"limit":              20,
+				})
+			}))
+			defer server.Close()
+
+			component := initializedSearch(t, server.URL)
+			res, err := component.Search(t.Context(), &search.SearchRequest{Index: "books"})
+
+			require.NoError(t, err)
+			require.NotNil(t, res.TotalHits)
+			assert.Equal(t, tt.total, *res.TotalHits)
+			assert.Equal(t, tt.wantRelation, res.TotalHitsRelation)
+			assert.Empty(t, res.ContinuationToken)
+		})
+	}
 }
 
 func TestSearchNativeQueryKeepsThePortableGuarantees(t *testing.T) {
@@ -1031,7 +1174,7 @@ func TestSearchNativeQueryKeepsThePortableGuarantees(t *testing.T) {
 			t.Parallel()
 
 			var sent map[string]any
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(withIndexSettings(t, func(w http.ResponseWriter, r *http.Request) {
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
 				writeJSON(t, w, http.StatusOK, map[string]any{
 					"hits":               []map[string]any{{"id": "1", "title": "Emma", "_rankingScore": 0.5}},
@@ -1121,7 +1264,7 @@ func TestSearchPagination(t *testing.T) {
 	t.Parallel()
 
 	var offsets []any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withIndexSettings(t, func(w http.ResponseWriter, r *http.Request) {
 		var sent map[string]any
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
 		offsets = append(offsets, sent["offset"])
@@ -1297,6 +1440,26 @@ func initializedSearch(t *testing.T, host string) search.Search {
 	require.NoError(t, component.Init(t.Context(), search.Metadata{Base: contribmetadata.Base{Properties: map[string]string{"host": host}}}))
 	t.Cleanup(func() { require.NoError(t, component.Close()) })
 	return component
+}
+
+// defaultRankingRules are the ranking rules of a new Meilisearch v1.43 index.
+var defaultRankingRules = []string{"words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness"}
+
+// withIndexSettings answers the settings and stats lookups of a search of the
+// books index as Meilisearch does for an index with the default settings, and
+// passes every other request on to next.
+func withIndexSettings(t *testing.T, next http.HandlerFunc) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/indexes/books/settings":
+			writeJSON(t, w, http.StatusOK, map[string]any{"searchableAttributes": []string{"*"}, "pagination": map[string]any{"maxTotalHits": 1000}})
+		case "/indexes/books/stats":
+			writeJSON(t, w, http.StatusOK, map[string]any{"fieldDistribution": map[string]any{"id": 1, "daprMetadata": 1, "title": 1, "year": 1}})
+		default:
+			next(w, r)
+		}
+	}
 }
 
 // serveIndexLookup answers the lookup IndexDocuments makes before it enqueues

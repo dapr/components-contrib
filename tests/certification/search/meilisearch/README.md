@@ -21,10 +21,11 @@ These lightweight certification tests exercise the `search.Search` component int
 
 ```sh
 # from the repo root
-docker compose -f .github/infrastructure/docker-compose-meilisearch.yml -p meilisearch up -d
+docker compose -f .github/infrastructure/docker-compose-meilisearch.yml -p meilisearch up -d --wait
 export MEILISEARCH_HOST=http://localhost:7700
 export MEILISEARCH_API_KEY=masterKey
-go test -tags certtests ./tests/certification/search/meilisearch/...
+# tests/certification is a separate Go module
+go -C tests/certification test ./search/meilisearch/...
 ```
 
 The test is skipped when `MEILISEARCH_HOST` is unset.

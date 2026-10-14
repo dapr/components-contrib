@@ -35,7 +35,19 @@ building block reuses them.
   and metadata lives under the reserved `daprMetadata` attribute. `id` is
   always added to `sortableAttributes`; `filterableAttributes`,
   `sortableAttributes` and `searchableAttributes` can be set in `CreateIndex`
-  metadata.
+  metadata. `CreateIndex` moves the `sort` ranking rule first, so an explicit
+  `Sort` orders text results and relevance only breaks ties.
+- Metadata is not searched. Meilisearch cannot exclude one attribute from the
+  default `searchableAttributes` (`*`), so a text query without
+  `SearchFields` on such an index is restricted to the content attributes the
+  index holds (read from its field distribution). An explicit
+  `searchableAttributes` setting is used as configured.
+- Meilisearch neither counts nor returns hits past the index's
+  `pagination.maxTotalHits` (1000 by default). A total that reaches it is
+  reported with `TOTAL_HITS_RELATION_LOWER_BOUND`, and the page that reaches
+  it is the last.
+- Meilisearch stores JSON numbers as 64-bit floats, so an integer outside
+  ±2^53 comes back rounded. Store such values as strings.
 - A Meilisearch task is atomic, so everything Meilisearch would reject per
   document is identified before the task is enqueued and reported in
   `FailedItems` (`INVALID_ARGUMENT`): content that uses `id`, `daprMetadata`,

@@ -56,6 +56,14 @@ func TestTranslateFilter(t *testing.T) {
 		{"unknown top-level operator", map[string]any{"$near": map[string]any{"a": 1}}, "", `unsupported filter operator "$near"`},
 		{"unknown field operator", map[string]any{"title": map[string]any{"$like": "a"}}, "", `unsupported filter operator "$like"`},
 		{"in without an array", map[string]any{"tag": map[string]any{"$in": "go"}}, "", "$in requires an array"},
+		{"empty filter", map[string]any{}, "", ""},
+		// An empty nested expression would translate to nothing and widen
+		// the query to every document.
+		{"empty or", map[string]any{"$or": []any{}}, "", "$or requires at least one expression"},
+		{"empty and", map[string]any{"$and": []any{}}, "", "$and requires at least one expression"},
+		{"empty operand", map[string]any{"$or": []any{map[string]any{}}}, "", "must not be empty"},
+		{"empty not", map[string]any{"$not": map[string]any{}}, "", "must not be empty"},
+		{"empty field condition", map[string]any{"tenant": map[string]any{}}, "", `the condition on field "tenant" has no operator`},
 	}
 
 	for _, tt := range tests {

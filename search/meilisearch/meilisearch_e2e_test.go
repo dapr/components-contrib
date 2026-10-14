@@ -19,6 +19,7 @@ package meilisearch
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -106,4 +107,67 @@ func TestMeilisearchSearchE2E(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Documents, 1)
 	assert.Equal(t, "2", got.Documents[0].ID)
+}
+
+// TestMeilisearchSearchE2EDefaultSettings covers an index created without
+// searchable attributes, where Meilisearch searches every attribute.
+func TestMeilisearchSearchE2EDefaultSettings(t *testing.T) {
+	host := os.Getenv("MEILISEARCH_HOST")
+	if host == "" {
+		t.Skip("MEILISEARCH_HOST is required for e2e tests")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	component := NewMeilisearch(kitlogger.NewLogger("test"))
+	require.NoError(t, component.Init(ctx, search.Metadata{Base: contribmetadata.Base{Properties: map[string]string{
+		"host": host, "apiKey": os.Getenv("MEILISEARCH_API_KEY"),
+	}}}))
+	defer func() { require.NoError(t, component.Close()) }()
+
+	index := "dapr_defaults_e2e"
+	_ = component.DeleteIndex(ctx, &search.DeleteIndexRequest{Index: index})
+	require.NoError(t, component.CreateIndex(ctx, &search.CreateIndexRequest{Index: index, Metadata: map[string]string{"sortableAttributes": "rank"}}))
+	defer func() { _ = component.DeleteIndex(ctx, &search.DeleteIndexRequest{Index: index}) }()
+
+	// More documents match "bulk" than Meilisearch counts by default.
+	const bulk = 1001
+	docs := make([]search.Document, 0, 4+bulk)
+	docs = append(docs,
+		search.Document{ID: "metadata-only", Content: []byte(`{"title":"cherry"}`), Metadata: map[string]string{"tenant": "acme"}},
+		search.Document{ID: "nested", Content: []byte(`{"title":"plum","publisher":{"name":"acme press"}}`)},
+		search.Document{ID: "phrase", Content: []byte(`{"title":"apple pie","rank":1}`)},
+		search.Document{ID: "word", Content: []byte(`{"title":"apple","rank":2}`)},
+	)
+	for i := range bulk {
+		docs = append(docs, search.Document{ID: fmt.Sprintf("bulk-%d", i), Content: []byte(`{"title":"bulk"}`)})
+	}
+	res, err := component.IndexDocuments(ctx, &search.IndexDocumentsRequest{
+		Index: index, Documents: docs,
+		Options: search.IndexingOptions{
+			Mode:          search.IndexingModeWaitForCompletion,
+			WaitTimeout:   30 * time.Second,
+			OnWaitTimeout: search.IndexingWaitTimeoutActionFailRequest,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, res.FailedItems)
+
+	found, err := component.Search(ctx, &search.SearchRequest{Index: index, Text: "acme"})
+	require.NoError(t, err)
+	require.Len(t, found.Hits, 1, "metadata is not searched, nested content is")
+	assert.Equal(t, "nested", found.Hits[0].Document.ID)
+
+	found, err = component.Search(ctx, &search.SearchRequest{
+		Index: index, Text: "apple pie", Sort: []search.SortClause{{Field: "rank", Order: search.SortOrderDesc}},
+	})
+	require.NoError(t, err)
+	require.Len(t, found.Hits, 2)
+	assert.Equal(t, "word", found.Hits[0].Document.ID, "an explicit sort orders text results before relevance")
+
+	found, err = component.Search(ctx, &search.SearchRequest{Index: index, Text: "bulk", TopK: 1})
+	require.NoError(t, err)
+	require.NotNil(t, found.TotalHits)
+	assert.Equal(t, uint64(1000), *found.TotalHits)
+	assert.Equal(t, search.TotalHitsRelationLowerBound, found.TotalHitsRelation, "the total stops at maxTotalHits")
 }

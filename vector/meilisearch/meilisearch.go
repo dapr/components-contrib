@@ -18,6 +18,7 @@ package meilisearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -165,13 +166,16 @@ func configureCollection(ctx context.Context, client meilisearchgo.ServiceManage
 // collectionDimensions returns the dimensions of a vector collection from the
 // embedders of its index. Collections share the instance with plain indexes:
 // the search component creates them, and so does Meilisearch itself on a
-// document addition to a missing index. An index without the `default`
-// embedder can neither store nor query vectors and is not a collection.
+// document addition to a missing index. An index without a user-provided
+// `default` embedder of fixed dimensions can neither store nor query the
+// vectors of this component, whose records carry their own vectors, and is
+// not a collection. That includes an index whose `default` embedder generates
+// its vectors (OpenAI, Hugging Face, REST, Ollama).
 func collectionDimensions(collection string, embedders map[string]meilisearchgo.Embedder) (int, error) {
 	embedder, ok := embedders[DefaultEmbedder]
-	if !ok || embedder.Dimensions <= 0 {
+	if !ok || embedder.Source != meilisearchgo.UserProvidedEmbedderSource || embedder.Dimensions <= 0 {
 		return 0, status.Errorf(codes.FailedPrecondition,
-			"meilisearch index %q is not a vector collection: it has no %q embedder with fixed dimensions", collection, DefaultEmbedder)
+			"meilisearch index %q is not a vector collection: it has no user-provided %q embedder with fixed dimensions", collection, DefaultEmbedder)
 	}
 	return embedder.Dimensions, nil
 }
@@ -265,13 +269,22 @@ func (m *Meilisearch) ListCollections(ctx context.Context, req *vector.ListColle
 	return out, nil
 }
 
-// DeleteCollection deletes a collection.
+// DeleteCollection deletes a collection. An index that is not configured for
+// vectors is FAILED_PRECONDITION: plain search indexes share the instance, and
+// the vector API must not delete one it reports as not being a collection.
 func (m *Meilisearch) DeleteCollection(ctx context.Context, req *vector.DeleteCollectionRequest) error {
 	if req == nil || req.Collection == "" {
 		return status.Error(codes.InvalidArgument, "collection is required")
 	}
 	client, _, err := m.ready()
 	if err != nil {
+		return err
+	}
+	embedders, err := client.Index(req.Collection).GetEmbeddersWithContext(ctx)
+	if err != nil {
+		return commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch collection %q", req.Collection))
+	}
+	if _, err = collectionDimensions(req.Collection, embedders); err != nil {
 		return err
 	}
 	task, err := client.DeleteIndexWithContext(ctx, req.Collection)
@@ -339,6 +352,10 @@ func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*v
 		if len(record.Values) != dimensions {
 			failed = append(failed, commonmeilisearch.NewFailedItem(record.ID, codes.InvalidArgument,
 				"the record has %d vector values but the collection has %d dimensions", len(record.Values), dimensions))
+			continue
+		}
+		if valuesErr := validateCosineValues(record.Values); valuesErr != nil {
+			failed = append(failed, commonmeilisearch.NewFailedItem(record.ID, codes.InvalidArgument, "the record vector %s", valuesErr))
 			continue
 		}
 		doc := map[string]any{
@@ -548,8 +565,13 @@ func (m *Meilisearch) query(ctx context.Context, client meilisearchgo.ServiceMan
 	if hasVector == hasID {
 		return nil, status.Error(codes.InvalidArgument, "exactly one of vector or id must be set")
 	}
-	if hasVector && len(req.Vector.Values) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "the query vector has no values")
+	if hasVector {
+		if len(req.Vector.Values) == 0 {
+			return nil, status.Error(codes.InvalidArgument, "the query vector has no values")
+		}
+		if err := validateCosineValues(req.Vector.Values); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "the query vector %s", err)
+		}
 	}
 
 	limit := defaultTopK
@@ -614,6 +636,27 @@ func (m *Meilisearch) querySimilar(ctx context.Context, client meilisearchgo.Ser
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("query meilisearch collection %q by id", req.Collection))
 	}
 	return queryResponseFromHits(res.Hits, req.IncludeValues, req.IncludePayload)
+}
+
+// validateCosineValues checks that a vector has a cosine similarity with
+// other vectors. A NaN or infinite value cannot be encoded in JSON, so
+// Meilisearch never receives it. A vector whose values are all zero has no
+// direction: its cosine similarity is undefined, and Meilisearch scores it as
+// a perfect match instead of rejecting it.
+func validateCosineValues(values []float32) error {
+	zero := true
+	for i, value := range values {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return fmt.Errorf("has a value that is not a finite number at index %d", i)
+		}
+		if value != 0 {
+			zero = false
+		}
+	}
+	if zero {
+		return errors.New("has a zero norm, for which cosine similarity is undefined")
+	}
+	return nil
 }
 
 // validateMetric accepts the component default (unspecified) and cosine, the

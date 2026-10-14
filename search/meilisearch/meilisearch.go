@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -122,8 +123,17 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRe
 }
 
 // configureIndex applies the settings of a newly created index and waits for
-// them to take effect.
+// them to take effect. The ranking rules are the defaults of the new index,
+// which differ between Meilisearch versions, with sort moved first.
 func configureIndex(ctx context.Context, client meilisearchgo.ServiceManager, index string, settings *meilisearchgo.Settings) error {
+	rules, err := client.Index(index).GetRankingRulesWithContext(ctx)
+	if err != nil {
+		return commonmeilisearch.StatusError(err, fmt.Sprintf("get ranking rules of meilisearch index %q", index))
+	}
+	if rules != nil {
+		settings.RankingRules = sortFirst(*rules)
+	}
+
 	msg := fmt.Sprintf("update settings of meilisearch index %q", index)
 	task, err := client.Index(index).UpdateSettingsWithContext(ctx, settings)
 	if err != nil {
@@ -380,11 +390,100 @@ func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*s
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.Index(req.Index).SearchWithContext(ctx, msReq.Query, msReq)
+	idx := client.Index(req.Index)
+	settings := &indexSettings{index: idx, name: req.Index}
+
+	// Document metadata is stored under MetadataField, which the default
+	// searchableAttributes (`*`) makes searchable, and Meilisearch cannot
+	// exclude one attribute from `*`. A text query that does not name the
+	// attributes to search is therefore restricted to the content attributes.
+	if msReq.Query != "" && len(msReq.AttributesToSearchOn) == 0 {
+		attributes, restrict, attributesErr := contentSearchAttributes(ctx, settings)
+		if attributesErr != nil {
+			return nil, attributesErr
+		}
+		if restrict {
+			if len(attributes) == 0 {
+				// No document has a content attribute the text could match.
+				return emptySearchResponse(), nil
+			}
+			msReq.AttributesToSearchOn = attributes
+		}
+	}
+
+	res, err := idx.SearchWithContext(ctx, msReq.Query, msReq)
 	if err != nil {
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("search meilisearch index %q", req.Index))
 	}
-	return searchResponseFromMeilisearch(res, req.IncludeContent, formattedFields(msReq), fingerprint)
+
+	// Meilisearch stops counting, and paginating, at the maxTotalHits setting
+	// of the index, so a total that reaches it is reported as a lower bound.
+	var maxTotalHits int64
+	if res.EstimatedTotalHits > 0 || res.TotalHits > 0 {
+		indexSettings, settingsErr := settings.get(ctx)
+		if settingsErr != nil {
+			return nil, settingsErr
+		}
+		if indexSettings.Pagination != nil {
+			maxTotalHits = indexSettings.Pagination.MaxTotalHits
+		}
+	}
+	return searchResponseFromMeilisearch(res, req.IncludeContent, formattedFields(msReq), fingerprint, maxTotalHits)
+}
+
+// indexSettings reads the settings of the searched index at most once per
+// request.
+type indexSettings struct {
+	index    meilisearchgo.IndexManager
+	name     string
+	settings *meilisearchgo.Settings
+}
+
+func (s *indexSettings) get(ctx context.Context) (*meilisearchgo.Settings, error) {
+	if s.settings != nil {
+		return s.settings, nil
+	}
+	settings, err := s.index.GetSettingsWithContext(ctx)
+	if err != nil {
+		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get settings of meilisearch index %q", s.name))
+	}
+	s.settings = settings
+	return settings, nil
+}
+
+// contentSearchAttributes returns the attributes a text query searches so that
+// it matches document content only, and whether the query must be restricted
+// to them. An explicit searchableAttributes setting was chosen at CreateIndex
+// and is left alone. With the default (`*`) every attribute of the index is
+// searchable, and the content attributes are read from its field
+// distribution, which lists top-level attributes. Each one is passed with the
+// `.*` pattern as well, as Meilisearch only searches the nested fields of an
+// attribute named in attributesToSearchOn through that pattern.
+func contentSearchAttributes(ctx context.Context, settings *indexSettings) ([]string, bool, error) {
+	indexSettings, err := settings.get(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if !slicesContains(indexSettings.SearchableAttributes, "*") {
+		return nil, false, nil
+	}
+	stats, err := settings.index.GetStatsWithContext(ctx)
+	if err != nil {
+		return nil, false, commonmeilisearch.StatusError(err, fmt.Sprintf("get stats of meilisearch index %q", settings.name))
+	}
+	attributes := make([]string, 0, 2*len(stats.FieldDistribution))
+	for field := range stats.FieldDistribution {
+		if !commonmeilisearch.IsReservedField(field) {
+			attributes = append(attributes, field, field+".*")
+		}
+	}
+	sort.Strings(attributes)
+	return attributes, true, nil
+}
+
+func emptySearchResponse() *search.SearchResponse {
+	var total uint64
+	return &search.SearchResponse{Hits: []search.Hit{}, TotalHits: &total, TotalHitsRelation: search.TotalHitsRelationExact}
 }
 
 // GetComponentMetadata returns the metadata of the component.
@@ -590,6 +689,22 @@ func slicesContains(values []string, want string) bool {
 	return false
 }
 
+// sortFirst moves the sort ranking rule to the front of rules. Meilisearch
+// applies its relevance rules before sort by default, so a text query with an
+// explicit sort would come back in relevance order. With sort first the
+// requested order decides and relevance breaks ties; the rule has no effect on
+// a query without a sort.
+func sortFirst(rules []string) []string {
+	out := make([]string, 0, len(rules)+1)
+	out = append(out, "sort")
+	for _, rule := range rules {
+		if rule != "sort" {
+			out = append(out, rule)
+		}
+	}
+	return out
+}
+
 // sortClauses translates the portable sort clauses and appends the document ID
 // as a stable tie-breaker so pagination is deterministic.
 func sortClauses(clauses []search.SortClause) []string {
@@ -614,7 +729,9 @@ func sortClauses(clauses []search.SortClause) []string {
 	return out
 }
 
-func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool, highlightFields []string, fingerprint string) (*search.SearchResponse, error) {
+// searchResponseFromMeilisearch maps a Meilisearch search response.
+// maxTotalHits is the pagination limit of the index, or zero when unknown.
+func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeContent bool, highlightFields []string, fingerprint string, maxTotalHits int64) (*search.SearchResponse, error) {
 	out := &search.SearchResponse{Hits: make([]search.Hit, 0, len(res.Hits))}
 
 	// Requests are always paginated with offset and limit (a native query
@@ -628,6 +745,11 @@ func searchResponseFromMeilisearch(res *meilisearchgo.SearchResponse, includeCon
 	}
 	if total < 0 {
 		return nil, status.Error(codes.Internal, "meilisearch reported a negative number of hits")
+	}
+	// Meilisearch neither counts nor returns hits past maxTotalHits: a total
+	// that reached it only says that at least that many documents match.
+	if maxTotalHits > 0 && total >= maxTotalHits {
+		relation = search.TotalHitsRelationLowerBound
 	}
 	totalHits := uint64(total)
 	out.TotalHits = &totalHits

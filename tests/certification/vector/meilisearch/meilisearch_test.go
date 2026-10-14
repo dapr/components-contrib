@@ -275,7 +275,7 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 		t.Cleanup(func() { _ = searchComponent.Close() })
 		require.NoError(t, searchComponent.CreateIndex(ctx, &search.CreateIndexRequest{Index: plain}))
 		t.Cleanup(func() {
-			_ = component.DeleteCollection(context.Background(), &vector.DeleteCollectionRequest{Collection: plain})
+			_ = searchComponent.DeleteIndex(context.Background(), &search.DeleteIndexRequest{Index: plain})
 		})
 		vectorCollection := "cert-vector-listed-" + uuid.NewString()[:8]
 		t.Cleanup(func() {
@@ -293,6 +293,12 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, listed.Collections, vectorCollection)
 		require.NotContains(t, listed.Collections, plain)
+
+		// The vector API does not delete an index it does not report as a
+		// collection.
+		requireStatusCode(t, component.DeleteCollection(ctx, &vector.DeleteCollectionRequest{Collection: plain}), codes.FailedPrecondition)
+		_, err = searchComponent.GetIndex(ctx, &search.GetIndexRequest{Index: plain})
+		require.NoError(t, err, "the plain index is still there")
 	})
 
 	t.Run("indexing_modes", func(t *testing.T) {

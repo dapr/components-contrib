@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: ftp
+version: v1
+status: alpha
+title: "File Transfer Protocol (FTP/FTPS)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/ftp/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Upload file via FTP"
+    - name: get
+      description: "Download file from FTP"
+    - name: delete
+      description: "Delete file from FTP"
+    - name: list
+      description: "List files in FTP directory"
+    - name: rename
+      description: "Rename or move a file: source from fileName, destination from newFileName, both relative to rootPath"
+authenticationProfiles:
+  - title: "Password Authentication"
+    description: |
+      Authenticate using username and password.
+    metadata:
+      - name: username
+        required: true
+        description: "The FTP username"
+        example: "ftpuser"
+      - name: password
+        required: true
+        sensitive: true
+        description: "The FTP password"
+        example: "password"
+metadata:
+  - name: address
+    required: true
+    description: "The FTP server address (host:port). Port 21 for plain FTP and explicit FTPS, 990 for implicit FTPS"
+    example: "ftp.example.com:21"
+  - name: rootPath
+    required: true
+    description: "The root directory path on the FTP server"
+    example: "/home/ftpuser"
+  - name: fileName
+    required: false
+    description: "The file name, relative to rootPath (can be overridden in request metadata)"
+    example: "data.txt"
+  - name: newFileName
+    required: false
+    description: "The destination file name for the rename operation, relative to rootPath (request metadata only)"
+    example: "renamed.txt"
+  - name: tlsMode
+    required: false
+    description: "TLS mode: none (plain FTP), explicit (FTPS via AUTH TLS on the FTP port) or implicit (TLS from connection start, usually port 990)"
+    example: "explicit"
+    default: "none"
+    allowedValues:
+      - none
+      - explicit
+      - implicit
+  - name: caCert
+    required: false
+    description: "PEM-encoded CA certificate used to verify the server certificate. If empty, the system root CAs are used"
+    example: "-----BEGIN CERTIFICATE-----\n..."
+  - name: insecureSkipVerify
+    required: false
+    type: bool
+    description: "Skip server certificate verification (insecure)"
+    example: "false"
+    default: "false"
+  - name: timeout
+    required: false
+    type: duration
+    description: "Timeout for connecting to the server"
+    example: '"30s"'
+    default: '"30s"'

@@ -21,7 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
+
+	mssql "github.com/microsoft/go-mssqldb"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
@@ -211,6 +214,23 @@ func (s *SQLServer) execMultiOperation(ctx context.Context, op state.Transaction
 	}
 }
 
+func (s *SQLServer) tableFullName() string {
+	return fmt.Sprintf("[%s].[%s]", s.metadata.SchemaName, s.metadata.TableName)
+}
+
+const expireDateValue = "CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, CAST(@TTL AS INT), GETDATE()) END"
+
+// THROW 2601 is outside THROW's range, so SQL Server raises Msg 35100, not always as the last error.
+func isFirstWriteConflict(err error) bool {
+	var mErr mssql.Error
+	if !errors.As(err, &mErr) {
+		return false
+	}
+	return mErr.Number == 35100 || slices.ContainsFunc(mErr.All, func(e mssql.Error) bool {
+		return e.Number == 35100
+	})
+}
+
 // Delete removes an entity from the store.
 func (s *SQLServer) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return s.executeDelete(ctx, s.db, req)
@@ -326,15 +346,27 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 
+	key := sql.Named(keyColumnName, req.Key)
+	data := sql.Named("Data", string(bytes))
+	ttlParam := sql.Named("TTL", ttl)
+
 	var res sql.Result
-	if req.Options.Concurrency == state.FirstWrite {
-		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", string(bytes)), etag,
-			sql.Named("FirstWrite", 1), sql.Named("TTL", ttl))
-	} else {
-		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
-			sql.Named("Data", string(bytes)), etag,
-			sql.Named("FirstWrite", 0), sql.Named("TTL", ttl))
+	switch {
+	case req.HasETag():
+		res, err = db.ExecContext(ctx, `UPDATE `+s.tableFullName()+`
+			SET [Data]=@Data, [UpdateDate]=GETDATE(), [ExpireDate]=`+expireDateValue+`
+			WHERE [Key]=@Key AND [RowVersion]=@RowVersion
+				AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())`,
+			key, data, etag, ttlParam)
+	case req.Options.Concurrency == state.FirstWrite:
+		res, err = db.ExecContext(ctx, s.upsertCommand, key, data, etag,
+			sql.Named("FirstWrite", 1), ttlParam)
+		if isFirstWriteConflict(err) {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	default:
+		res, err = db.ExecContext(ctx, s.upsertCommand, key, data, etag,
+			sql.Named("FirstWrite", 0), ttlParam)
 	}
 
 	if err != nil {

@@ -20,6 +20,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   # gomod build-tools
   - package-ecosystem: "gomod"
     directory: "/build-tools"
@@ -30,6 +38,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   # gomod middleware
   - package-ecosystem: "gomod"
     directories: 
@@ -44,6 +60,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   # gomod bindings
   - package-ecosystem: "gomod"
     directories: 
@@ -58,6 +82,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   # gomod tests
   - package-ecosystem: "gomod"
     directories: 
@@ -70,4 +102,29 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
-  
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  # npm Cloudflare worker
+  - package-ecosystem: "npm"
+    directory: "/common/component/cloudflare/worker-src"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR; majors stay separate.
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      npm-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]

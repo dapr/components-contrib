@@ -585,3 +585,183 @@ func Test_KeyList(t *testing.T) {
 	_, ok := s.(state.KeysLiker)
 	require.True(t, ok)
 }
+
+func TestMultiETags(t *testing.T) {
+	newStore := func(t *testing.T) *StateStore {
+		s, c := setupMiniredis()
+		t.Cleanup(s.Close)
+		return &StateStore{
+			client:         c,
+			clientSettings: &rediscomponent.Settings{},
+			json:           jsoniter.ConfigFastest,
+			logger:         logger.NewLogger("test"),
+		}
+	}
+	get := func(t *testing.T, ss *StateStore, key string) *state.GetResponse {
+		t.Helper()
+		res, err := ss.Get(t.Context(), &state.GetRequest{Key: key})
+		require.NoError(t, err)
+		return res
+	}
+	requireKind := func(t *testing.T, err error, kind state.ETagErrorKind) {
+		t.Helper()
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, kind, etagErr.Kind())
+	}
+	multi := func(ss *StateStore, ops ...state.TransactionalStateOperation) error {
+		return ss.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops})
+	}
+	firstWrite := state.SetStateOption{Concurrency: state.FirstWrite}
+
+	t.Run("stale etag applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a2"},
+			state.DeleteRequest{Key: "b"},
+			state.SetRequest{Key: "c", Value: "c1"},
+			state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of("7"), Options: firstWrite},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
+		assert.Equal(t, "1", *get(t, ss, "a").ETag)
+		assert.JSONEq(t, `"b1"`, string(get(t, ss, "b").Data))
+		assert.Nil(t, get(t, ss, "c").Data)
+	})
+
+	t.Run("stale delete applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a2"}))
+		err := multi(ss,
+			state.SetRequest{Key: "b", Value: "b1"},
+			state.DeleteRequest{Key: "a", ETag: ptr.Of("1")},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.JSONEq(t, `"a2"`, string(get(t, ss, "a").Data))
+		assert.Nil(t, get(t, ss, "b").Data)
+	})
+
+	t.Run("etag on missing key mismatches", func(t *testing.T) {
+		ss := newStore(t)
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a1", ETag: ptr.Of("1"), Options: firstWrite}), state.ETagMismatch)
+		assert.Nil(t, get(t, ss, "a").Data)
+		requireKind(t, multi(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("1")}), state.ETagMismatch)
+
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("0"), Options: firstWrite}), state.ETagMismatch)
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
+	})
+
+	t.Run("invalid etag", func(t *testing.T) {
+		ss := newStore(t)
+		requireKind(t, multi(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("abc")}), state.ETagInvalid)
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a", ETag: ptr.Of("abc"), Options: firstWrite}), state.ETagInvalid)
+	})
+
+	t.Run("empty etag is last write wins", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
+		require.NoError(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a2"},
+			state.SetRequest{Key: "c", Value: "c1"},
+			state.DeleteRequest{Key: "b"},
+			state.DeleteRequest{Key: "missing"},
+			state.SetRequest{Key: "a", Value: "a3", ETag: ptr.Of("9"), Options: state.SetStateOption{Concurrency: state.LastWrite}},
+		))
+		assert.JSONEq(t, `"a3"`, string(get(t, ss, "a").Data))
+		assert.Equal(t, "3", *get(t, ss, "a").ETag)
+		assert.JSONEq(t, `"c1"`, string(get(t, ss, "c").Data))
+		assert.Nil(t, get(t, ss, "b").Data)
+	})
+
+	t.Run("matching etags apply", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
+		require.NoError(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("1"), Options: firstWrite},
+			state.SetRequest{Key: "a", Value: "a3", ETag: ptr.Of("2"), Options: firstWrite},
+			state.DeleteRequest{Key: "b", ETag: ptr.Of("1")},
+		))
+		assert.JSONEq(t, `"a3"`, string(get(t, ss, "a").Data))
+		assert.Equal(t, "3", *get(t, ss, "a").ETag)
+		assert.Nil(t, get(t, ss, "b").Data)
+	})
+
+	t.Run("first-write field still blocks unguarded writes", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1", Options: firstWrite}))
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a2"}), state.ETagMismatch)
+		require.NoError(t, multi(ss, state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("1")}))
+	})
+
+	t.Run("non integer version applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.client.DoWrite(t.Context(), "HSET", "b", "data", `"b1"`, "version", "5.5"))
+		require.Error(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: "b2"},
+		))
+		assert.Nil(t, get(t, ss, "a").Data)
+	})
+
+	t.Run("json content type without RedisJSON applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		jsonMD := map[string]string{"contentType": "application/json"}
+		require.ErrorIs(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: "b1", Metadata: jsonMD},
+		), errJSONUnsupported)
+		require.ErrorIs(t, multi(ss, state.DeleteRequest{Key: "a", Metadata: jsonMD}), errJSONUnsupported)
+		assert.Nil(t, get(t, ss, "a").Data)
+	})
+
+	t.Run("ttl too large applies nothing", func(t *testing.T) {
+		if strconv.IntSize < 64 {
+			t.Skip("an int ttl can't exceed maxTTLSeconds on 32-bit")
+		}
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		huge := map[string]string{"ttlInSeconds": strconv.FormatInt(maxTTLSeconds+1, 10)}
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a2"},
+			state.SetRequest{Key: "b", Value: "b1", Metadata: huge},
+		)
+		require.ErrorContains(t, err, "larger than the maximum")
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
+		assert.Nil(t, get(t, ss, "b").Data)
+	})
+
+	t.Run("cluster cross slot falls back to per key scripts", func(t *testing.T) {
+		ss := newStore(t)
+		ss.clientSettings.RedisType = rediscomponent.ClusterType
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
+		require.NotEqual(t, keySlot("a"), keySlot("b"))
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of("5")},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data), "cross slot fallback isn't atomic")
+
+		err = multi(ss,
+			state.SetRequest{Key: "{x}a", Value: "a1"},
+			state.SetRequest{Key: "{x}b", Value: "b2", ETag: ptr.Of("5")},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.Nil(t, get(t, ss, "{x}a").Data, "same slot runs as one script")
+	})
+}
+
+func TestKeySlot(t *testing.T) {
+	assert.Equal(t, uint16(12182), keySlot("foo"))
+	assert.Equal(t, uint16(5061), keySlot("bar"))
+	assert.Equal(t, uint16(12739), keySlot("123456789"))
+	assert.Equal(t, keySlot("user1000"), keySlot("{user1000}.following"))
+	assert.NotEqual(t, keySlot("x"), keySlot("{}x"))
+	assert.Equal(t, keySlot("bar"), keySlot("foo{bar}{zap}"))
+}

@@ -400,59 +400,11 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		r.logger.Warn("Redis does not support transaction rollbacks and should not be used in production as an actor state store.")
 	}
 
-	// Check if the entire transaction is using JSON based on the transactional request's metadata
-	isJSON := request.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON
-
-	pipe := r.client.TxPipeline()
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case state.SetRequest:
-			ver, err := r.parseETag(&req)
-			if err != nil {
-				return err
-			}
-			ttl, err := r.parseTTL(&req)
-			if err != nil {
-				return fmt.Errorf("failed to parse ttl from metadata: %w", err)
-			}
-			// apply global TTL
-			if ttl == nil {
-				ttl = r.clientSettings.TTLInSeconds
-			}
-			var bt []byte
-			isReqJSON := isJSON ||
-				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
-			if isReqJSON {
-				bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
-				pipe.Do(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt)
-			} else {
-				bt, _ = utils.Marshal(req.Value, r.json.Marshal)
-				pipe.Do(ctx, "EVAL", setDefaultQuery, 1, req.Key, ver, bt)
-			}
-			if ttl != nil && *ttl > 0 {
-				pipe.Do(ctx, "EXPIRE", req.Key, *ttl)
-			}
-			if ttl != nil && *ttl <= 0 {
-				pipe.Do(ctx, "PERSIST", req.Key)
-			}
-
-		case state.DeleteRequest:
-			if !req.HasETag() {
-				req.ETag = ptr.Of("0")
-			}
-			isReqJSON := isJSON ||
-				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
-			if isReqJSON {
-				pipe.Do(ctx, "EVAL", delJSONQuery, 1, req.Key, *req.ETag)
-			} else {
-				pipe.Do(ctx, "EVAL", delDefaultQuery, 1, req.Key, *req.ETag)
-			}
-		}
+	ops, err := r.buildMultiOps(request)
+	if err != nil {
+		return err
 	}
-
-	err := pipe.Exec(ctx)
-
-	return err
+	return r.execMulti(ctx, ops)
 }
 
 func (r *StateStore) registerSchemas(ctx context.Context) error {

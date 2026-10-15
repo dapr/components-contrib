@@ -27,6 +27,7 @@ import (
 
 	awsMock "github.com/dapr/components-contrib/common/aws/mock"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -997,5 +998,240 @@ func TestMultiTx(t *testing.T) {
 		}
 		err := s.Multi(t.Context(), req)
 		require.NoError(t, err)
+	})
+}
+
+func TestMultiETags(t *testing.T) {
+	newStore := func(ttlAttributeName string, fn func(*dynamodb.TransactWriteItemsInput) error) *StateStore {
+		return &StateStore{
+			logger:           log,
+			table:            tableName,
+			partitionKey:     defaultPartitionKeyName,
+			ttlAttributeName: ttlAttributeName,
+			dynamodbClient: &awsMock.DynamoDBClient{
+				TransactWriteItemsFn: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+					return &dynamodb.TransactWriteItemsOutput{}, fn(params)
+				},
+			},
+		}
+	}
+	capture := func(got **dynamodb.TransactWriteItemsInput) func(*dynamodb.TransactWriteItemsInput) error {
+		return func(in *dynamodb.TransactWriteItemsInput) error {
+			*got = in
+			return nil
+		}
+	}
+	etag := "abc"
+	ttlCond := "etag = :etag AND (attribute_not_exists(#ttl) OR #ttl > :now)"
+
+	t.Run("delete etag is sent", func(t *testing.T) {
+		var got *dynamodb.TransactWriteItemsInput
+		s := newStore("", capture(&got))
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "a", ETag: &etag},
+			state.DeleteRequest{Key: "b"},
+		}})
+		require.NoError(t, err)
+		require.Len(t, got.TransactItems, 2)
+
+		del := got.TransactItems[0].Delete
+		require.NotNil(t, del.ConditionExpression)
+		assert.Equal(t, "etag = :etag", *del.ConditionExpression)
+		assert.Equal(t, &types.AttributeValueMemberS{Value: etag}, del.ExpressionAttributeValues[":etag"])
+		assert.Nil(t, got.TransactItems[1].Delete.ConditionExpression)
+	})
+
+	t.Run("etag conditions exclude expired items", func(t *testing.T) {
+		var got *dynamodb.TransactWriteItemsInput
+		s := newStore("expiresAt", capture(&got))
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "a", ETag: &etag},
+			state.DeleteRequest{Key: "b", ETag: &etag},
+		}})
+		require.NoError(t, err)
+		require.Len(t, got.TransactItems, 2)
+
+		put := got.TransactItems[0].Put
+		require.NotNil(t, put.ConditionExpression)
+		assert.Equal(t, ttlCond, *put.ConditionExpression)
+		assert.Equal(t, map[string]string{"#ttl": "expiresAt"}, put.ExpressionAttributeNames)
+		assert.Contains(t, put.ExpressionAttributeValues, ":now")
+
+		del := got.TransactItems[1].Delete
+		require.NotNil(t, del.ConditionExpression)
+		assert.Equal(t, ttlCond, *del.ConditionExpression)
+		assert.Equal(t, map[string]string{"#ttl": "expiresAt"}, del.ExpressionAttributeNames)
+	})
+
+	condOf := func(twi types.TransactWriteItem) (*string, map[string]types.AttributeValue) {
+		if twi.Put != nil {
+			return twi.Put.ConditionExpression, twi.Put.ExpressionAttributeValues
+		}
+		return twi.Delete.ConditionExpression, twi.Delete.ExpressionAttributeValues
+	}
+	firstWrite := state.SetStateOption{Concurrency: state.FirstWrite}
+
+	t.Run("deduped key keeps the first guard", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			ops  []state.TransactionalStateOperation
+			expr string
+		}{
+			"set then delete": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "a1", ETag: &etag},
+					state.DeleteRequest{Key: "a"},
+				},
+				expr: "etag = :etag",
+			},
+			"set then set": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "a1", ETag: &etag},
+					state.SetRequest{Key: "a", Value: "a2"},
+				},
+				expr: "etag = :etag",
+			},
+			"delete then set": {
+				ops: []state.TransactionalStateOperation{
+					state.DeleteRequest{Key: "a", ETag: &etag},
+					state.SetRequest{Key: "a", Value: "a2"},
+				},
+				expr: "etag = :etag",
+			},
+			"first write then delete": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "a1", Options: firstWrite},
+					state.DeleteRequest{Key: "a"},
+				},
+				expr: "attribute_not_exists(etag)",
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				var got *dynamodb.TransactWriteItemsInput
+				s := newStore("", capture(&got))
+				err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: tc.ops})
+				require.NoError(t, err)
+				require.Len(t, got.TransactItems, 1)
+
+				expr, values := condOf(got.TransactItems[0])
+				require.NotNil(t, expr)
+				assert.Equal(t, tc.expr, *expr)
+				if tc.expr == "etag = :etag" {
+					assert.Equal(t, &types.AttributeValueMemberS{Value: etag}, values[":etag"])
+				} else {
+					assert.Nil(t, values)
+				}
+			})
+		}
+	})
+
+	t.Run("first write after delete drops its condition", func(t *testing.T) {
+		var got *dynamodb.TransactWriteItemsInput
+		s := newStore("", capture(&got))
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "a"},
+			state.SetRequest{Key: "a", Value: "a2", Options: firstWrite},
+		}})
+		require.NoError(t, err)
+		require.Len(t, got.TransactItems, 1)
+		expr, _ := condOf(got.TransactItems[0])
+		assert.Nil(t, expr)
+	})
+
+	t.Run("guard on a later op of the same key mismatches", func(t *testing.T) {
+		for name, ops := range map[string][]state.TransactionalStateOperation{
+			"etag": {
+				state.SetRequest{Key: "a", Value: "a1"},
+				state.SetRequest{Key: "a", Value: "a2", ETag: &etag},
+			},
+			"first write after set": {
+				state.SetRequest{Key: "a", Value: "a1"},
+				state.SetRequest{Key: "a", Value: "a2", Options: firstWrite},
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				s := newStore("", func(*dynamodb.TransactWriteItemsInput) error {
+					t.Fatal("transaction must not be sent")
+					return nil
+				})
+				err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops})
+				var etagErr *state.ETagError
+				require.ErrorAs(t, err, &etagErr)
+				assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+			})
+		}
+	})
+
+	t.Run("conditional check failure maps to mismatch", func(t *testing.T) {
+		s := newStore("", func(*dynamodb.TransactWriteItemsInput) error {
+			return &types.TransactionCanceledException{
+				CancellationReasons: []types.CancellationReason{
+					{Code: ptr.Of("None")},
+					{Code: ptr.Of("ConditionalCheckFailed")},
+				},
+			}
+		})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "a"},
+			state.SetRequest{Key: "b", Value: "b", ETag: &etag},
+		}})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	})
+
+	t.Run("other cancellations stay untyped", func(t *testing.T) {
+		s := newStore("", func(*dynamodb.TransactWriteItemsInput) error {
+			return &types.TransactionCanceledException{
+				CancellationReasons: []types.CancellationReason{{Code: ptr.Of("ThrottlingError")}},
+			}
+		})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "a"},
+		}})
+		var cErr *types.TransactionCanceledException
+		require.ErrorAs(t, err, &cErr)
+		var etagErr *state.ETagError
+		require.NotErrorAs(t, err, &etagErr)
+	})
+}
+
+func TestETagConditionExcludesExpired(t *testing.T) {
+	etag := "abc"
+	ttlCond := "etag = :etag AND (attribute_not_exists(#ttl) OR #ttl > :now)"
+
+	t.Run("set", func(t *testing.T) {
+		s := &StateStore{
+			logger:           log,
+			table:            tableName,
+			partitionKey:     defaultPartitionKeyName,
+			ttlAttributeName: "expiresAt",
+			dynamodbClient: &awsMock.DynamoDBClient{
+				PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+					require.NotNil(t, params.ConditionExpression)
+					assert.Equal(t, ttlCond, *params.ConditionExpression)
+					assert.Equal(t, map[string]string{"#ttl": "expiresAt"}, params.ExpressionAttributeNames)
+					return &dynamodb.PutItemOutput{}, nil
+				},
+			},
+		}
+		require.NoError(t, s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", ETag: &etag}))
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		s := &StateStore{
+			logger:           log,
+			table:            tableName,
+			partitionKey:     defaultPartitionKeyName,
+			ttlAttributeName: "expiresAt",
+			dynamodbClient: &awsMock.DynamoDBClient{
+				DeleteItemFn: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+					require.NotNil(t, params.ConditionExpression)
+					assert.Equal(t, ttlCond, *params.ConditionExpression)
+					assert.Equal(t, map[string]string{"#ttl": "expiresAt"}, params.ExpressionAttributeNames)
+					return &dynamodb.DeleteItemOutput{}, nil
+				},
+			},
+		}
+		require.NoError(t, s.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: &etag}))
 	})
 }

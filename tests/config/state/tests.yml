@@ -127,8 +127,14 @@ components:
     operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: etcd.v1
     operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: etcd.v2
     operations: [ "transaction", "etag",  "first-write", "ttl", "actorStateStore", "keyslike" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: gcp.firestore.docker
     operations: []
   - component: gcp.firestore.cloud

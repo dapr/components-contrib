@@ -178,53 +178,10 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 
 // Set saves a Etcd KV item.
 func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
-	ttlInSeconds, err := e.doSetValidateParameters(req)
-	if err != nil {
-		return err
-	}
-
-	keyWithPath := e.keyPrefixPath + "/" + req.Key
-	err = e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
-	if err != nil {
-		return err
-	}
-
-	return e.doSet(ctx, keyWithPath, req.Value, req.ETag, ttlInSeconds)
-}
-
-func (e *Etcd) doSet(ctx context.Context, key string, val any, etag *string, ttlInSeconds *int64) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	reqVal, err := e.schema.encode(val, ttlInSeconds)
-	if err != nil {
-		return err
-	}
-
-	var leaseID clientv3.LeaseID
-	if ttlInSeconds != nil {
-		var resp *clientv3.LeaseGrantResponse
-		resp, err = e.client.Grant(ctx, *ttlInSeconds)
-		if err != nil {
-			return fmt.Errorf("couldn't grant lease %s: %w", key, err)
-		}
-		leaseID = resp.ID
-	}
-
-	if etag != nil {
-		etag, _ := strconv.ParseInt(*etag, 10, 64)
-		_, err = e.client.Txn(ctx).
-			If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-			Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(leaseID))).
-			Commit()
-	} else {
-		_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(leaseID))
-	}
-	if err != nil {
-		return fmt.Errorf("couldn't set key %s: %w", key, err)
-	}
-
-	return nil
+	return e.multi(ctx, []state.TransactionalStateOperation{*req})
 }
 
 func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (*int64, error) {
@@ -243,68 +200,39 @@ func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (*int64, error) {
 
 // Delete performes a Etcd KV delete operation.
 func (e *Etcd) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	if err := state.CheckRequestOptions(req.Options); err != nil {
-		return err
-	}
-
-	keyWithPath := e.keyPrefixPath + "/" + req.Key
-
-	if err := e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency); err != nil {
-		return err
-	}
-
-	return e.doDelete(ctx, keyWithPath, req.ETag)
-}
-
-func (e *Etcd) doDelete(ctx context.Context, key string, etag *string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	var err error
-	if etag != nil {
-		etag, _ := strconv.ParseInt(*etag, 10, 64)
-		_, err = e.client.Txn(ctx).
-			If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-			Then(clientv3.OpDelete(key)).
-			Commit()
-	} else {
-		_, err = e.client.Delete(ctx, key)
-	}
-	if err != nil {
-		return fmt.Errorf("couldn't delete key %s: %w", key, err)
-	}
-	return nil
+	return e.multi(ctx, []state.TransactionalStateOperation{*req})
 }
 
-func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) error {
+func etagCompare(key string, etag *string, concurrency string, written map[string]bool) ([]clientv3.Cmp, error) {
 	hasEtag := etag != nil && *etag != ""
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if concurrency == state.FirstWrite && !hasEtag {
-		item, err := e.client.Get(ctx, key)
+	exists, inTxn := written[key]
+	switch {
+	case hasEtag:
+		rev, err := strconv.ParseInt(*etag, 10, 64)
 		if err != nil {
-			return fmt.Errorf("couldn't get key %s: %w", key, err)
-		} else if item != nil && len(item.Kvs) != 0 {
-			return state.NewETagError(state.ETagMismatch, errors.New("item already exists and no etag was passed"))
-		} else {
-			return nil
+			return nil, state.NewETagError(state.ETagInvalid, err)
 		}
-	} else if hasEtag {
-		item, err := e.client.Get(ctx, key)
-		if err != nil {
-			return fmt.Errorf("couldn't get key %s: %w", key, err)
+		if rev <= 0 {
+			return nil, state.NewETagError(state.ETagMismatch, fmt.Errorf("etag %s of key %s can't match a stored revision", *etag, key))
 		}
-		if item == nil || len(item.Kvs) == 0 {
-			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
+		if inTxn {
+			return nil, state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s was already written in this transaction", key))
 		}
-		currentEtag := strconv.Itoa(int(item.Kvs[0].ModRevision))
-		if currentEtag != *etag {
-			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
-				"state etag not match for key=%s: current=%s, expect=%s", key, currentEtag, *etag))
+		return []clientv3.Cmp{clientv3.Compare(clientv3.ModRevision(key), "=", rev)}, nil
+	case concurrency == state.FirstWrite:
+		if inTxn {
+			if exists {
+				return nil, state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists and no etag was passed", key))
+			}
+			return nil, nil
 		}
+		return []clientv3.Cmp{clientv3.Compare(clientv3.CreateRevision(key), "=", 0)}, nil
+	default:
+		return nil, nil
 	}
-	return nil
 }
 
 func (e *Etcd) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
@@ -341,13 +269,28 @@ func (e *Etcd) MultiMaxSize() int {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	if len(request.Operations) == 0 {
+	return e.multi(ctx, request.Operations)
+}
+
+type etcdOp struct {
+	key   string
+	value string
+	ttl   *int64
+	del   bool
+}
+
+func (e *Etcd) multi(ctx context.Context, operations []state.TransactionalStateOperation) error {
+	if len(operations) == 0 {
 		return nil
 	}
 
-	ops := make([]clientv3.Op, 0, len(request.Operations))
+	cmps := make([]clientv3.Cmp, 0, len(operations))
+	pending := make([]etcdOp, 0, len(operations))
+	// etcd rejects the same key twice in one txn, so only the last op per key is sent.
+	last := make(map[string]int, len(operations))
+	written := make(map[string]bool, len(operations))
 
-	for _, o := range request.Operations {
+	for _, o := range operations {
 		switch req := o.(type) {
 		case state.SetRequest:
 			ttlInSeconds, err := e.doSetValidateParameters(&req)
@@ -356,7 +299,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 			}
 
 			keyWithPath := e.keyPrefixPath + "/" + req.Key
-			err = e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
+			guards, err := etagCompare(keyWithPath, req.ETag, req.Options.Concurrency, written)
 			if err != nil {
 				return err
 			}
@@ -365,55 +308,55 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 			if err != nil {
 				return err
 			}
-			var cmp clientv3.Cmp
-			if req.HasETag() {
-				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
-				cmp = clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
-			}
-			if ttlInSeconds != nil {
-				resp, err := e.client.Grant(ctx, *ttlInSeconds)
-				if err != nil {
-					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
-				}
-				put := clientv3.OpPut(keyWithPath, reqVal, clientv3.WithLease(resp.ID))
-				if req.HasETag() {
-					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
-				} else {
-					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
-				}
-			} else {
-				put := clientv3.OpPut(keyWithPath, reqVal)
-				if req.HasETag() {
-					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
-				} else {
-					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
-				}
-			}
+
+			cmps = append(cmps, guards...)
+			last[keyWithPath] = len(pending)
+			pending = append(pending, etcdOp{key: keyWithPath, value: reqVal, ttl: ttlInSeconds})
+			written[keyWithPath] = true
 		case state.DeleteRequest:
 			if err := state.CheckRequestOptions(req.Options); err != nil {
 				return err
 			}
 
 			keyWithPath := e.keyPrefixPath + "/" + req.Key
-			err := e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
+			guards, err := etagCompare(keyWithPath, req.ETag, req.Options.Concurrency, written)
 			if err != nil {
 				return err
 			}
 
-			del := clientv3.OpDelete(keyWithPath)
-			if req.HasETag() {
-				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
-				cmp := clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
-				ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{del}, nil))
-			} else {
-				ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{del}, nil))
-			}
+			cmps = append(cmps, guards...)
+			last[keyWithPath] = len(pending)
+			pending = append(pending, etcdOp{key: keyWithPath, del: true})
+			written[keyWithPath] = false
 		}
 	}
 
-	_, err := e.client.Txn(ctx).Then(ops...).Commit()
+	ops := make([]clientv3.Op, 0, len(last))
+	for i, op := range pending {
+		if last[op.key] != i {
+			continue
+		}
+		if op.del {
+			ops = append(ops, clientv3.OpDelete(op.key))
+			continue
+		}
+		var opts []clientv3.OpOption
+		if op.ttl != nil {
+			resp, err := e.client.Grant(ctx, *op.ttl)
+			if err != nil {
+				return fmt.Errorf("couldn't grant lease %s: %w", op.key, err)
+			}
+			opts = append(opts, clientv3.WithLease(resp.ID))
+		}
+		ops = append(ops, clientv3.OpPut(op.key, op.value, opts...))
+	}
+
+	resp, err := e.client.Txn(ctx).If(cmps...).Then(ops...).Commit()
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't commit transaction: %w", err)
+	}
+	if !resp.Succeeded {
+		return state.NewETagError(state.ETagMismatch, errors.New("etag mismatch or key state changed"))
 	}
 
 	return nil

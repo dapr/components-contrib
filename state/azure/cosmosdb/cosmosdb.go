@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -500,108 +501,152 @@ func (c *StateStore) MultiMaxSize() int {
 
 // Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
 // Note that all operations must be in the same partition.
-func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {
+// A no-etag delete of a missing item fails the batch, so it's re-sent without it. Rounds aren't atomic with each other.
+func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	if len(request.Operations) == 0 {
 		c.logger.Debugf("No operations provided")
 		return nil
 	}
 
 	partitionKey := request.Metadata[metadataPartitionKey]
-	batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
-
-	numOperations := 0
-	// Loop through the list of operations. Create and add the operation to the batch
-	for _, o := range request.Operations {
-		options := &azcosmos.TransactionalBatchItemOptions{}
-
-		switch req := o.(type) {
-		case state.SetRequest:
-			var doc CosmosItem
-			doc, err = createUpsertItem(c.contentType, req, partitionKey)
-			if err != nil {
-				return err
-			}
-			doc.PartitionKey = partitionKey
-
-			if req.HasETag() {
-				etag := azcore.ETag(*req.ETag)
-				options.IfMatchETag = &etag
-			} else if req.Options.Concurrency == state.FirstWrite {
-				var u uuid.UUID
-				u, err = uuid.NewRandom()
-				if err != nil {
-					return err
-				}
-				options.IfMatchETag = ptr.Of(azcore.ETag(u.String()))
-			}
-
-			var marsh []byte
-			marsh, err = json.Marshal(doc)
-			if err != nil {
-				return err
-			}
-			batch.UpsertItem(marsh, options)
-			numOperations++
-		case state.DeleteRequest:
-			if req.HasETag() {
-				etag := azcore.ETag(*req.ETag)
-				options.IfMatchETag = &etag
-			} else if req.Options.Concurrency == state.FirstWrite {
-				var u uuid.UUID
-				u, err = uuid.NewRandom()
-				if err != nil {
-					return err
-				}
-				options.IfMatchETag = ptr.Of(azcore.ETag(u.String()))
-			}
-
-			batch.DeleteItem(req.Key, options)
-			numOperations++
-		}
-	}
-
-	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
-
-	execCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	batchResponse, err := c.client.ExecuteTransactionalBatch(execCtx, batch, nil)
+	ops, err := buildBatchOps(c.contentType, partitionKey, request.Operations)
 	if err != nil {
 		return err
 	}
 
-	if !batchResponse.Success {
-		var transactionError error
-
-		for index, operation := range batchResponse.OperationResults {
-			// delete operations with no etag check are allowed to fail with a 404
-			deleteReq, isDelete := request.Operations[index].(state.DeleteRequest)
-			if isDelete && operation.StatusCode == http.StatusNotFound && !deleteReq.HasETag() {
-				continue
+	for len(ops) > 0 {
+		batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
+		for _, op := range ops {
+			options := &azcosmos.TransactionalBatchItemOptions{IfMatchETag: op.ifMatch}
+			switch op.kind {
+			case batchUpsert:
+				batch.UpsertItem(op.body, options)
+			case batchReplace:
+				batch.ReplaceItem(op.id, op.body, options)
+			case batchDelete:
+				batch.DeleteItem(op.id, options)
 			}
+		}
 
-			if operation.StatusCode != http.StatusFailedDependency {
-				c.logger.Errorf("Transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
-				return fmt.Errorf("transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
+		c.logger.Debugf("#operations=%d,partitionkey=%s", len(ops), partitionKey)
+
+		batchResponse, err := c.executeBatch(ctx, batch)
+		if err != nil {
+			return err
+		}
+
+		if batchResponse.Success {
+			if c.logger.IsOutputLevelEnabled(logger.DebugLevel) {
+				for index, operation := range batchResponse.OperationResults {
+					c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+				}
 			}
-			transactionError = errors.New("transaction failed")
+			return nil
 		}
 
-		// If all errors are from delete operations with a 404 (and no etag check), we end up here with a nil error.
-		// This is expected, as we allow delete operations to fail with a 404.
-		if transactionError != nil {
-			return transactionError
+		drop, err := batchResultError(ops, batchResponse.OperationResults)
+		if err != nil {
+			c.logger.Errorf("Transaction failed: %v", err)
+			return err
 		}
-	}
-
-	// Transaction succeeded
-	// We can inspect the individual operation results
-	if c.logger.IsOutputLevelEnabled(logger.DebugLevel) {
-		for index, operation := range batchResponse.OperationResults {
-			c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
-		}
+		ops = slices.Delete(ops, drop, drop+1)
 	}
 
 	return nil
+}
+
+func (c *StateStore) executeBatch(ctx context.Context, batch azcosmos.TransactionalBatch) (azcosmos.TransactionalBatchResponse, error) {
+	execCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	return c.client.ExecuteTransactionalBatch(execCtx, batch, nil)
+}
+
+type batchOpKind int
+
+const (
+	batchUpsert batchOpKind = iota
+	batchReplace
+	batchDelete
+)
+
+type batchOp struct {
+	kind    batchOpKind
+	id      string
+	body    []byte
+	ifMatch *azcore.ETag
+	guarded bool
+}
+
+func buildBatchOps(contentType string, partitionKey string, operations []state.TransactionalStateOperation) ([]batchOp, error) {
+	ops := make([]batchOp, 0, len(operations))
+	for _, o := range operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			doc, err := createUpsertItem(contentType, req, partitionKey)
+			if err != nil {
+				return nil, err
+			}
+			doc.PartitionKey = partitionKey
+			body, err := json.Marshal(doc)
+			if err != nil {
+				return nil, err
+			}
+
+			op := batchOp{kind: batchUpsert, id: req.Key, body: body}
+			if req.HasETag() {
+				// Replace so an etag on a missing item fails instead of creating it.
+				op.kind = batchReplace
+				op.ifMatch = ptr.Of(azcore.ETag(*req.ETag))
+				op.guarded = true
+			} else if req.Options.Concurrency == state.FirstWrite {
+				op.ifMatch, err = randomETag()
+				if err != nil {
+					return nil, err
+				}
+			}
+			ops = append(ops, op)
+		case state.DeleteRequest:
+			op := batchOp{kind: batchDelete, id: req.Key}
+			if req.HasETag() {
+				op.ifMatch = ptr.Of(azcore.ETag(*req.ETag))
+				op.guarded = true
+			} else if req.Options.Concurrency == state.FirstWrite {
+				var err error
+				op.ifMatch, err = randomETag()
+				if err != nil {
+					return nil, err
+				}
+			}
+			ops = append(ops, op)
+		}
+	}
+	return ops, nil
+}
+
+func randomETag() (*azcore.ETag, error) {
+	u, err := uuid.NewRandom()
+	if err != nil {
+		return nil, err
+	}
+	return ptr.Of(azcore.ETag(u.String())), nil
+}
+
+// A failed batch applies nothing and reports only its first failed op, so dropping that op and retrying is safe.
+func batchResultError(ops []batchOp, results []azcosmos.TransactionalBatchResult) (drop int, err error) {
+	for i := range min(len(ops), len(results)) {
+		code := results[i].StatusCode
+		switch {
+		case code == http.StatusFailedDependency:
+			continue
+		case code == http.StatusPreconditionFailed, code == http.StatusNotFound && ops[i].guarded:
+			return -1, state.NewETagError(state.ETagMismatch, fmt.Errorf("operation %d on key %s failed with status code %d", i, ops[i].id, code))
+		case code == http.StatusNotFound && ops[i].kind == batchDelete:
+			return i, nil
+		default:
+			return -1, fmt.Errorf("transaction failed due to operation %v which failed with status code %d", i, code)
+		}
+	}
+	return -1, errors.New("transaction failed")
 }
 
 func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {

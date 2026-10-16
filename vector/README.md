@@ -43,17 +43,20 @@ and `FailedItem` types (see `../search/indexing.go`).
   filterable so filter paths translate to `daprMetadata.<path>`.
 - Collections share the instance with plain indexes, such as those of the
   search component. `ListCollections` returns only the indexes that have a
-  `userProvided` `default` embedder, and `GetCollection`, `Upsert` and
-  `DeleteCollection` return `FAILED_PRECONDITION` for an index without one,
-  including an index whose `default` embedder generates its vectors.
-- `Upsert` requires an existing collection and returns `NOT_FOUND` otherwise:
-  Meilisearch would create the index on the first document addition, without
-  an embedder. A Meilisearch task is atomic, so a record whose `Values` do not
-  match the collection's dimensions, contain a NaN or infinite value or are
-  all zero, or whose ID is not 1 to 511 bytes of ASCII letters, digits, `-`
-  and `_`, is identified before the task is enqueued and reported in
-  `FailedItems` (`INVALID_ARGUMENT`). `Get` omits such an ID like any other
-  missing record.
+  `userProvided` `default` embedder, and `GetCollection`, `Upsert`, `Delete`
+  and `DeleteCollection` return `FAILED_PRECONDITION` for an index without
+  one, including an index whose `default` embedder generates its vectors.
+- `Upsert` and `Delete` require an existing collection and return `NOT_FOUND`
+  otherwise. `Upsert` checks first because Meilisearch would create a missing
+  index on the first document addition, without an embedder. The check cannot
+  cover a collection deleted while an upsert is queued, which Meilisearch then
+  recreates without an embedder; as it is no longer a collection, delete it
+  through the search component (`DeleteIndex`) and call `CreateCollection`
+  again. A Meilisearch task is atomic, so a record whose `Values` do not match the collection's
+  dimensions, contain a NaN or infinite value or are all zero, or whose ID is
+  not 1 to 511 bytes of ASCII letters, digits, `-` and `_`, is identified
+  before the task is enqueued and reported in `FailedItems`
+  (`INVALID_ARGUMENT`). `Get` omits such an ID like any other missing record.
 - A query vector with a NaN or infinite value or a zero norm is
   `INVALID_ARGUMENT`: cosine similarity is undefined for a zero vector, which
   Meilisearch would otherwise score as a perfect match.

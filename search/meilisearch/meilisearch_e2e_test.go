@@ -158,6 +158,16 @@ func TestMeilisearchSearchE2EDefaultSettings(t *testing.T) {
 	require.Len(t, found.Hits, 1, "metadata is not searched, nested content is")
 	assert.Equal(t, "nested", found.Hits[0].Document.ID)
 
+	found, err = component.Search(ctx, &search.SearchRequest{Index: index, Text: "acme", SearchFields: []string{"*"}})
+	require.NoError(t, err)
+	require.Len(t, found.Hits, 1, "a wildcard selection does not search metadata either")
+	assert.Equal(t, "nested", found.Hits[0].Document.ID)
+
+	for _, field := range []string{"daprMetadata.*", "dapr*", "*.tenant"} {
+		_, err = component.Search(ctx, &search.SearchRequest{Index: index, Text: "acme", SearchFields: []string{field}})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "%q would search the metadata", field)
+	}
+
 	found, err = component.Search(ctx, &search.SearchRequest{
 		Index: index, Text: "apple pie", Sort: []search.SortClause{{Field: "rank", Order: search.SortOrderDesc}},
 	})

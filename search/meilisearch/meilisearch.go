@@ -109,6 +109,8 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, req *search.CreateIndexRe
 		if status.Code(err) == codes.AlreadyExists {
 			return status.Errorf(codes.AlreadyExists, "meilisearch index %q already exists", req.Index)
 		}
+		// The task may still create the index after the wait gave up.
+		commonmeilisearch.ReconcileIndexCreation(ctx, client, task.TaskUID, req.Index, m.logger)
 		return err
 	}
 
@@ -239,7 +241,10 @@ func (m *Meilisearch) IndexDocuments(ctx context.Context, req *search.IndexDocum
 	// an index has none of the settings CreateIndex applies (the document ID
 	// would not be sortable, so sorted and paginated searches would fail), and
 	// a write to a missing index is a request-wide error, so the index is
-	// looked up before anything is enqueued.
+	// looked up before anything is enqueued. That narrows but cannot close the
+	// window: Meilisearch has no option to refuse a write to a missing index
+	// (`skipCreation` skips missing documents, not indexes), so an index
+	// deleted concurrently is recreated without its settings.
 	if _, err = client.GetIndexWithContext(ctx, req.Index); err != nil {
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch index %q", req.Index))
 	}
@@ -396,8 +401,9 @@ func (m *Meilisearch) Search(ctx context.Context, req *search.SearchRequest) (*s
 	// Document metadata is stored under MetadataField, which the default
 	// searchableAttributes (`*`) makes searchable, and Meilisearch cannot
 	// exclude one attribute from `*`. A text query that does not name the
-	// attributes to search is therefore restricted to the content attributes.
-	if msReq.Query != "" && len(msReq.AttributesToSearchOn) == 0 {
+	// attributes to search, or names `*`, is therefore restricted to the
+	// content attributes.
+	if msReq.Query != "" && (len(msReq.AttributesToSearchOn) == 0 || slicesContains(msReq.AttributesToSearchOn, "*")) {
 		attributes, restrict, attributesErr := contentSearchAttributes(ctx, settings)
 		if attributesErr != nil {
 			return nil, attributesErr
@@ -577,6 +583,10 @@ func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest
 			return nil, "", err
 		}
 	}
+	// Checked after the native query is merged, so it cannot name them either.
+	if err := validateSearchFields(msReq.AttributesToSearchOn); err != nil {
+		return nil, "", err
+	}
 
 	// The token is bound to the index and every result-affecting element of
 	// the request. Transport metadata is not bound, and neither is the
@@ -596,18 +606,50 @@ func buildSearchRequest(req *search.SearchRequest) (*meilisearchgo.SearchRequest
 	return msReq, fingerprint, nil
 }
 
+// validateSearchFields rejects attributes to search on that could reach the
+// document metadata, which is never searched. `*` is narrowed to the content
+// attributes in Search, but Meilisearch also matches a path under
+// MetadataField and a wildcard in the top-level attribute (`dapr*`,
+// `*.tenant`) against the metadata.
+func validateSearchFields(fields []string) error {
+	for _, field := range fields {
+		if field == "*" {
+			continue
+		}
+		top, _, _ := strings.Cut(field, ".")
+		if top == commonmeilisearch.MetadataField || strings.Contains(top, "*") {
+			return status.Errorf(codes.InvalidArgument,
+				"cannot search on %q: search fields name content attributes, and only %q stands for all of them", field, "*")
+		}
+	}
+	return nil
+}
+
 // applyNative merges a provider-native query into the request. A native query
 // must not embed its own pagination or a conflicting sort, and it cannot undo
 // what the portable request guarantees: the portable filter still applies and
 // the attributes a hit is built from are always returned.
 func applyNative(msReq *meilisearchgo.SearchRequest, native map[string]any) error {
-	for _, reserved := range []string{"offset", "limit", "page", "hitsPerPage", "sort"} {
-		if _, ok := native[reserved]; ok {
-			return status.Errorf(codes.InvalidArgument, "a native query must not set %q: pagination and sorting are portable request fields", reserved)
+	// json.Unmarshal matches field names case-insensitively, so the keys are
+	// compared the same way: "Filter" or "LIMIT" must not slip past the checks.
+	seen := make(map[string]string, len(native))
+	nativeFilter := false
+	for key := range native {
+		folded := strings.ToLower(key)
+		if other, ok := seen[folded]; ok {
+			return status.Errorf(codes.InvalidArgument, "a native query must not set both %q and %q", other, key)
+		}
+		seen[folded] = key
+		for _, reserved := range []string{"offset", "limit", "page", "hitsPerPage", "sort"} {
+			if strings.EqualFold(key, reserved) {
+				return status.Errorf(codes.InvalidArgument, "a native query must not set %q: pagination and sorting are portable request fields", key)
+			}
+		}
+		if strings.EqualFold(key, "filter") {
+			nativeFilter = true
 		}
 	}
 	portableFilter, _ := msReq.Filter.(string)
-	_, nativeFilter := native["filter"]
 
 	data, err := json.Marshal(native)
 	if err != nil {

@@ -93,6 +93,28 @@ func ListIndexUIDs(ctx context.Context, client meilisearchgo.ServiceManager) ([]
 	}
 }
 
+// ReconcileIndexCreation settles an index creation whose wait ended before the
+// task did, on cancellation, a deadline or a polling error. The task may still
+// create the index, which would then be left unconfigured, so it is awaited on
+// a detached, time-bounded context. The index is rolled back only if this task
+// created it: an index that already existed is left alone. It blocks the
+// caller, so a retry cannot race the rollback.
+func ReconcileIndexCreation(ctx context.Context, client meilisearchgo.ServiceManager, taskUID int64, uid string, log logger.Logger) {
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+
+	task, err := client.WaitForTaskWithContext(waitCtx, taskUID, WaitInterval)
+	if err != nil {
+		if log != nil {
+			log.Warnf("meilisearch: the outcome of creating index %q (task %d) is unknown, and it may be left unconfigured: %v", uid, taskUID, err)
+		}
+		return
+	}
+	if task.Status == meilisearchgo.TaskStatusSucceeded {
+		RollbackIndex(ctx, client, uid, log)
+	}
+}
+
 // RollbackIndex deletes an index that the current request created but could
 // not finish configuring. Left behind, the index would make every retry fail
 // with ALREADY_EXISTS without ever applying the requested settings. The

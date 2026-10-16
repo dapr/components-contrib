@@ -271,6 +271,50 @@ func TestGetCollectionRejectsAnIndexThatIsNotACollection(t *testing.T) {
 	}
 }
 
+func TestCreateCollectionRollsBackACreationThatOutlivesTheRequest(t *testing.T) {
+	t.Parallel()
+
+	var deleted, configured atomic.Int32
+	// The request ends on the first poll of the creation task, which only
+	// completes once it has.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/indexes":
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
+		case "/tasks/1":
+			taskStatus := "succeeded"
+			if ctx.Err() == nil {
+				cancel()
+				taskStatus = "processing"
+			}
+			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": taskStatus, "type": "indexCreation", "indexUid": "books"})
+		case "/indexes/books":
+			if r.Method != http.MethodDelete {
+				t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				return
+			}
+			deleted.Add(1)
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 3, "status": "enqueued", "type": "indexDeletion"})
+		case "/tasks/3":
+			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 3, "status": "succeeded", "type": "indexDeletion"})
+		default:
+			configured.Add(1)
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	component := initializedVector(t, server.URL)
+	err := component.CreateCollection(ctx, &vector.CreateCollectionRequest{Collection: "books", Dimensions: 3})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Canceled, status.Code(err))
+	assert.Equal(t, int32(1), deleted.Load(), "an unconfigured collection must not be left behind")
+	assert.Zero(t, configured.Load())
+}
+
 func TestCreateCollectionRollsBackWhenItCannotBeConfigured(t *testing.T) {
 	t.Parallel()
 
@@ -830,6 +874,10 @@ func TestDelete(t *testing.T) {
 
 		var deleted []string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/indexes/books/settings/embedders" {
+				serveEmbedders(t, w, r, 3)
+				return
+			}
 			require.Equal(t, "/indexes/books/documents/delete-batch", r.URL.Path)
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&deleted))
 			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 11, "status": "enqueued", "type": "documentDeletion"})
@@ -877,6 +925,8 @@ func TestDelete(t *testing.T) {
 					switch r.URL.Path {
 					case "/tasks/stream":
 						writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "not found", "code": "not_found", "type": "invalid_request"})
+					case "/indexes/books/settings/embedders":
+						serveEmbedders(t, w, r, 3)
 					case "/indexes/books/documents/delete-batch":
 						writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 14, "status": "enqueued", "type": "documentDeletion"})
 					case "/tasks/14":
@@ -899,6 +949,44 @@ func TestDelete(t *testing.T) {
 				assert.Equal(t, tt.wantAck, res.Ack)
 			})
 		}
+	})
+
+	t.Run("rejects an index that is not a collection", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/indexes/articles/settings/embedders" {
+				t.Errorf("no deletion may be submitted for a plain index: %s %s", r.Method, r.URL.Path)
+				return
+			}
+			writeJSON(t, w, http.StatusOK, map[string]any{})
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		_, err := component.Delete(t.Context(), &vector.DeleteRequest{Collection: "articles", IDs: []string{"1"}})
+
+		require.Error(t, err)
+		assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+	})
+
+	t.Run("reports a missing collection", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/indexes/gone/settings/embedders" {
+				t.Errorf("no deletion may be submitted for a missing collection: %s %s", r.Method, r.URL.Path)
+				return
+			}
+			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Index `gone` not found.", "code": "index_not_found", "type": "invalid_request"})
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		_, err := component.Delete(t.Context(), &vector.DeleteRequest{Collection: "gone", IDs: []string{"1"}})
+
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
 
 	t.Run("nothing to delete completes without the provider", func(t *testing.T) {
@@ -1392,8 +1480,8 @@ func initializedVector(t *testing.T, host string) vector.Vector {
 	return component
 }
 
-// serveEmbedders answers the lookup Upsert makes before it enqueues anything,
-// for a collection of the given dimensions.
+// serveEmbedders answers the lookup Upsert and Delete make before they enqueue
+// anything, for a collection of the given dimensions.
 func serveEmbedders(t *testing.T, w http.ResponseWriter, r *http.Request, dimensions int) {
 	t.Helper()
 	if r.Method != http.MethodGet {

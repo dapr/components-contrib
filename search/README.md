@@ -40,7 +40,10 @@ building block reuses them.
 - Metadata is not searched. Meilisearch cannot exclude one attribute from the
   default `searchableAttributes` (`*`), so a text query without
   `SearchFields` on such an index is restricted to the content attributes the
-  index holds (read from its field distribution). An explicit
+  index holds (read from its field distribution); `SearchFields` of `*` is
+  narrowed the same way. A search field under `daprMetadata`, or with a
+  wildcard in its top-level attribute (`dapr*`, `*.tenant`), is
+  `INVALID_ARGUMENT`, also in a native query. An explicit
   `searchableAttributes` setting is used as configured.
 - Meilisearch neither counts nor returns hits past the index's
   `pagination.maxTotalHits` (1000 by default). A total that reaches it is
@@ -58,8 +61,10 @@ building block reuses them.
   such an ID like any other missing document.
 - `IndexDocuments` requires an existing index and returns `NOT_FOUND`
   otherwise: Meilisearch would create the index on the first document
-  addition, without the settings `CreateIndex` applies. `ListIndexes` reads
-  every page of the index list.
+  addition, without the settings `CreateIndex` applies. The check cannot
+  cover an index deleted while the write is queued, which Meilisearch then
+  recreates without those settings; delete it and call `CreateIndex` again.
+  `ListIndexes` reads every page of the index list.
 - Filter field names are quoted, so a filter key is never read as filter
   syntax. A native query cannot set pagination or sorting, its `filter` is
   ANDed with the portable filter, and the document ID, its metadata and the

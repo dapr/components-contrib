@@ -240,6 +240,50 @@ func TestCreateIndexReportsAnExistingIndex(t *testing.T) {
 	assert.Zero(t, settingsUpdated.Load(), "the settings of an existing index are not reconciled")
 }
 
+func TestCreateIndexRollsBackACreationThatOutlivesTheRequest(t *testing.T) {
+	t.Parallel()
+
+	var deleted, configured atomic.Int32
+	// The request ends on the first poll of the creation task, which only
+	// completes once it has.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/indexes":
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 1, "status": "enqueued", "type": "indexCreation"})
+		case "/tasks/1":
+			taskStatus := "succeeded"
+			if ctx.Err() == nil {
+				cancel()
+				taskStatus = "processing"
+			}
+			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 1, "status": taskStatus, "type": "indexCreation", "indexUid": "books"})
+		case "/indexes/books":
+			if r.Method != http.MethodDelete {
+				t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				return
+			}
+			deleted.Add(1)
+			writeJSON(t, w, http.StatusAccepted, map[string]any{"taskUid": 3, "status": "enqueued", "type": "indexDeletion"})
+		case "/tasks/3":
+			writeJSON(t, w, http.StatusOK, map[string]any{"uid": 3, "status": "succeeded", "type": "indexDeletion"})
+		default:
+			configured.Add(1)
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	component := initializedSearch(t, server.URL)
+	err := component.CreateIndex(ctx, &search.CreateIndexRequest{Index: "books"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Canceled, status.Code(err))
+	assert.Equal(t, int32(1), deleted.Load(), "an unconfigured index must not be left behind")
+	assert.Zero(t, configured.Load())
+}
+
 func TestCreateIndexRollsBackWhenTheSettingsCannotBeApplied(t *testing.T) {
 	t.Parallel()
 
@@ -982,6 +1026,19 @@ func TestSearchMatchesTextAgainstContentOnly(t *testing.T) {
 			want:     []any{"publisher", "publisher.*", "title", "title.*"},
 		},
 		{
+			name:     "wildcard search fields are narrowed to the content",
+			req:      &search.SearchRequest{Text: "acme", SearchFields: []string{"*"}},
+			settings: defaultSettings,
+			fields:   map[string]any{"id": 2, "daprMetadata": 2, "title": 2},
+			want:     []any{"title", "title.*"},
+		},
+		{
+			name:     "nested search fields of a content attribute are kept",
+			req:      &search.SearchRequest{Text: "acme", SearchFields: []string{"publisher.*"}},
+			settings: defaultSettings,
+			want:     []any{"publisher.*"},
+		},
+		{
 			name:     "explicit search fields are kept",
 			req:      &search.SearchRequest{Text: "acme", SearchFields: []string{"title"}},
 			settings: defaultSettings,
@@ -1160,6 +1217,14 @@ func TestSearchNativeQueryKeepsThePortableGuarantees(t *testing.T) {
 			},
 		},
 		{
+			name: "a native filter in another case still narrows the portable filter",
+			req:  &search.SearchRequest{Filter: tenant, Native: map[string]any{"Filter": "tenant = 'other'"}},
+			assert: func(t *testing.T, sent map[string]any) {
+				t.Helper()
+				assert.Equal(t, []any{`"tenant" = "acme"`, "tenant = 'other'"}, sent["filter"])
+			},
+		},
+		{
 			name: "a native filter alone is passed through",
 			req:  &search.SearchRequest{Native: map[string]any{"filter": "year > 1800"}},
 			assert: func(t *testing.T, sent map[string]any) {
@@ -1326,6 +1391,54 @@ func TestSearchRejectsInvalidRequests(t *testing.T) {
 			req:          &search.SearchRequest{Index: "books", Native: map[string]any{"sort": []any{"year:asc"}}},
 			wantCode:     codes.InvalidArgument,
 			wantContains: "must not set",
+		},
+		{
+			name:         "native query with its own pagination in another case",
+			req:          &search.SearchRequest{Index: "books", Native: map[string]any{"LIMIT": 1000}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "must not set",
+		},
+		{
+			name:         "native query with its own sort in another case",
+			req:          &search.SearchRequest{Index: "books", Native: map[string]any{"SORT": []any{"year:asc"}}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "must not set",
+		},
+		{
+			name:         "native query with a key in two cases",
+			req:          &search.SearchRequest{Index: "books", Native: map[string]any{"filter": "a = 1", "Filter": "b = 2"}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "must not set both",
+		},
+		{
+			name:         "search field under the metadata",
+			req:          &search.SearchRequest{Index: "books", Text: "acme", SearchFields: []string{"daprMetadata.*"}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "cannot search on",
+		},
+		{
+			name:         "search field naming a metadata key",
+			req:          &search.SearchRequest{Index: "books", Text: "acme", SearchFields: []string{"title", "daprMetadata.tenant"}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "cannot search on",
+		},
+		{
+			name:         "search field with a top-level prefix pattern",
+			req:          &search.SearchRequest{Index: "books", Text: "acme", SearchFields: []string{"dapr*"}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "cannot search on",
+		},
+		{
+			name:         "search field with a top-level wildcard path",
+			req:          &search.SearchRequest{Index: "books", Text: "acme", SearchFields: []string{"*.tenant"}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "cannot search on",
+		},
+		{
+			name:         "native query searching the metadata",
+			req:          &search.SearchRequest{Index: "books", Native: map[string]any{"q": "acme", "AttributesToSearchOn": []any{"daprMetadata.*"}}},
+			wantCode:     codes.InvalidArgument,
+			wantContains: "cannot search on",
 		},
 		{
 			name:         "malformed continuation token",

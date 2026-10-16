@@ -130,6 +130,8 @@ func (m *Meilisearch) CreateCollection(ctx context.Context, req *vector.CreateCo
 		if status.Code(err) == codes.AlreadyExists {
 			return status.Errorf(codes.AlreadyExists, "meilisearch collection %q already exists", req.Collection)
 		}
+		// The task may still create the collection after the wait gave up.
+		commonmeilisearch.ReconcileIndexCreation(ctx, client, task.TaskUID, req.Collection, m.logger)
 		return err
 	}
 
@@ -178,6 +180,17 @@ func collectionDimensions(collection string, embedders map[string]meilisearchgo.
 			"meilisearch index %q is not a vector collection: it has no user-provided %q embedder with fixed dimensions", collection, DefaultEmbedder)
 	}
 	return embedder.Dimensions, nil
+}
+
+// lookupCollection returns the dimensions of a collection, reading its
+// embedders. A missing index is NOT_FOUND and an index that is not a
+// collection is FAILED_PRECONDITION.
+func lookupCollection(ctx context.Context, client meilisearchgo.ServiceManager, collection string) (int, error) {
+	embedders, err := client.Index(collection).GetEmbeddersWithContext(ctx)
+	if err != nil {
+		return 0, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch collection %q", collection))
+	}
+	return collectionDimensions(collection, embedders)
 }
 
 // GetCollection returns the record count, dimensions, metric and settings of
@@ -280,11 +293,7 @@ func (m *Meilisearch) DeleteCollection(ctx context.Context, req *vector.DeleteCo
 	if err != nil {
 		return err
 	}
-	embedders, err := client.Index(req.Collection).GetEmbeddersWithContext(ctx)
-	if err != nil {
-		return commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch collection %q", req.Collection))
-	}
-	if _, err = collectionDimensions(req.Collection, embedders); err != nil {
+	if _, err = lookupCollection(ctx, client, req.Collection); err != nil {
 		return err
 	}
 	task, err := client.DeleteIndexWithContext(ctx, req.Collection)
@@ -324,12 +333,11 @@ func (m *Meilisearch) Upsert(ctx context.Context, req *vector.UpsertRequest) (*v
 	// records would land where no query can reach them and CreateCollection
 	// could no longer repair it, and a write to a missing collection is a
 	// request-wide error, so the collection is looked up before anything is
-	// enqueued.
-	embedders, err := client.Index(req.Collection).GetEmbeddersWithContext(ctx)
-	if err != nil {
-		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("get meilisearch collection %q", req.Collection))
-	}
-	dimensions, err := collectionDimensions(req.Collection, embedders)
+	// enqueued. That narrows but cannot close the window: Meilisearch has no
+	// option to refuse a write to a missing index (`skipCreation` skips missing
+	// documents, not indexes), so a collection deleted concurrently is
+	// recreated without an embedder.
+	dimensions, err := lookupCollection(ctx, client, req.Collection)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +436,7 @@ func (m *Meilisearch) Get(ctx context.Context, req *vector.GetRequest) (*vector.
 
 // Delete deletes records by ID. It is a write: the deletion task is
 // acknowledged with the same mode and wait semantics as Upsert. IDs that do
-// not exist are not an error.
+// not exist are not an error; a missing collection is NOT_FOUND.
 func (m *Meilisearch) Delete(ctx context.Context, req *vector.DeleteRequest) (*vector.DeleteResponse, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, commonmeilisearch.ContextStatusError(ctx)
@@ -445,6 +453,12 @@ func (m *Meilisearch) Delete(ctx context.Context, req *vector.DeleteRequest) (*v
 	}
 	if len(req.IDs) == 0 {
 		return &vector.DeleteResponse{Ack: search.IndexAckCompleted}, nil
+	}
+	// As for Upsert, the target is checked before anything is enqueued: a
+	// plain search index sharing the instance is not a collection, and its
+	// documents must not be deleted through the vector API.
+	if _, err = lookupCollection(ctx, client, req.Collection); err != nil {
+		return nil, err
 	}
 
 	ack, err := commonmeilisearch.EnqueueWrite(ctx, dispatcher, req.Options, fmt.Sprintf("delete vectors of meilisearch collection %q", req.Collection),

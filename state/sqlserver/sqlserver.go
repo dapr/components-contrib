@@ -455,7 +455,9 @@ FROM %s
 
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(keys)) > pageSize {
-		next := keys[pageSize]
+		// The next page seeks with [Key] > @token, so the token must be the
+		// last key returned on this page, not the first one held back.
+		next := keys[pageSize-1]
 		resp.ContinuationToken = &next
 		keys = keys[:pageSize]
 	}

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -566,4 +568,39 @@ func TestKeysLikeFeatureAdvertised(t *testing.T) {
 	// asserting on it directly (not a hand-built features slice) is what would have caught this.
 	s := New(logger.NewLogger("test"))
 	assert.True(t, state.FeatureKeysLike.IsPresent(s.Features()), "SQLServer should advertise FeatureKeysLike")
+}
+
+func TestKeysLikeContinuationTokenIsLastReturnedKey(t *testing.T) {
+	// The next page seeks with [Key] > @token, so the token has to be the last key on this page.
+	// Using the first held-back key instead silently skipped one key at every page boundary.
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	s := &SQLServer{db: db, metadata: sqlServerMetadata{
+		SQLServerAuthMetadata: sqlserver.SQLServerAuthMetadata{SchemaName: defaultSchema},
+		TableName:             "state",
+	}}
+
+	// PageSize 2 over-fetches 3 rows to detect whether another page exists.
+	mock.ExpectQuery(`SELECT TOP \(@take\) \[Key\]`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"Key"}).AddRow("a").AddRow("b").AddRow("c"))
+
+	got, err := s.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "%", PageSize: ptr.Of(uint32(2))})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, got.Keys)
+	require.NotNil(t, got.ContinuationToken)
+	assert.Equal(t, "b", *got.ContinuationToken)
+
+	// The follow-up page must seek from "b", so "c" is the first key it returns.
+	mock.ExpectQuery(`AND \[Key\] > @token`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"Key"}).AddRow("c"))
+
+	got, err = s.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "%", PageSize: ptr.Of(uint32(2)), ContinuationToken: got.ContinuationToken})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"c"}, got.Keys)
+	assert.Nil(t, got.ContinuationToken)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

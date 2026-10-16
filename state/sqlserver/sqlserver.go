@@ -70,6 +70,7 @@ func New(logger logger.Logger) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		logger:          logger,
 		migratorFactory: newMigration,
@@ -389,7 +390,7 @@ func (s *SQLServer) CleanupExpired() error {
 	return nil
 }
 
-func (s *SQLServer) KeysLike(ctx context.Context, req state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+func (s *SQLServer) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
 	if len(req.Pattern) == 0 {
 		return nil, state.ErrKeysLikeEmptyPattern
 	}
@@ -454,7 +455,9 @@ FROM %s
 
 	//nolint:gosec
 	if pageSize > 0 && uint32(len(keys)) > pageSize {
-		next := keys[pageSize]
+		// The next page seeks with [Key] > @token, so the token must be the
+		// last key returned on this page, not the first one held back.
+		next := keys[pageSize-1]
 		resp.ContinuationToken = &next
 		keys = keys[:pageSize]
 	}

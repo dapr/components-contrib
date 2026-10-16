@@ -16,6 +16,7 @@ limitations under the License.
 package meilisearch_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -139,6 +140,52 @@ func TestMeilisearchSearchCertification(t *testing.T) {
 		searchResp, err := component.Search(ctx, &search.SearchRequest{Index: unicodeIndex, Text: "Pride", TopK: 5, IncludeContent: true})
 		require.NoError(t, err)
 		require.NotEmpty(t, searchResp.Hits)
+	})
+
+	// Meilisearch stores JSON numbers as 64-bit floats, so integers beyond
+	// ±2^53 are rounded by the server however the component encodes them.
+	t.Run("integers_beyond_2_53_are_rounded", func(t *testing.T) {
+		numbersIndex := "cert-search-numbers-" + uuid.NewString()[:8]
+		t.Cleanup(func() {
+			_ = component.DeleteIndex(context.Background(), &search.DeleteIndexRequest{Index: numbersIndex})
+		})
+		require.NoError(t, component.CreateIndex(ctx, &search.CreateIndexRequest{Index: numbersIndex, Metadata: map[string]string{
+			"searchableAttributes": "title",
+			"filterableAttributes": "big",
+		}}))
+
+		// The content is written as raw JSON so that the literals reach the
+		// component unrounded.
+		docs := []search.Document{
+			{ID: "num-1", Content: []byte(`{"title":"number one","big":9007199254740993,"negative":-9007199254740993,"maxSafe":9007199254740991,"asString":"9007199254740993"}`)},
+			{ID: "num-2", Content: []byte(`{"title":"number two","big":9007199254740992}`)},
+		}
+		resp, err := component.IndexDocuments(ctx, &search.IndexDocumentsRequest{Index: numbersIndex, Documents: docs, Options: certWaitOptions()})
+		require.NoError(t, err)
+		require.Empty(t, resp.FailedItems)
+
+		got, err := component.GetDocuments(ctx, &search.GetDocumentsRequest{Index: numbersIndex, IDs: []string{"num-1"}, IncludeContent: true})
+		require.NoError(t, err)
+		require.Len(t, got.Documents, 1)
+		content := certDecodeNumbers(t, got.Documents[0].Content)
+		assert.Equal(t, json.Number("9007199254740992"), content["big"], "an integer above 2^53 is rounded")
+		assert.Equal(t, json.Number("-9007199254740992"), content["negative"], "an integer below -2^53 is rounded")
+		assert.Equal(t, json.Number("9007199254740991"), content["maxSafe"], "an integer within ±2^53 is exact")
+		assert.Equal(t, "9007199254740993", content["asString"], "a string keeps every digit")
+
+		searchResp, err := component.Search(ctx, &search.SearchRequest{Index: numbersIndex, Text: "one", TopK: 5, IncludeContent: true})
+		require.NoError(t, err)
+		require.Len(t, searchResp.Hits, 1)
+		assert.Equal(t, json.Number("9007199254740992"), certDecodeNumbers(t, searchResp.Hits[0].Document.Content)["big"], "search hits carry the rounded value")
+
+		// Values that differ only beyond 2^53 are indistinguishable to a filter.
+		filtered, err := component.Search(ctx, &search.SearchRequest{Index: numbersIndex, Filter: map[string]any{"big": 9007199254740993}, TopK: 5})
+		require.NoError(t, err)
+		ids := make([]string, 0, len(filtered.Hits))
+		for _, hit := range filtered.Hits {
+			ids = append(ids, hit.Document.ID)
+		}
+		assert.ElementsMatch(t, []string{"num-1", "num-2"}, ids)
 	})
 
 	t.Run("keyed_upsert_validation", func(t *testing.T) {
@@ -793,6 +840,17 @@ func certDecode(t *testing.T, hit search.Hit) map[string]any {
 	t.Helper()
 	decoded := map[string]any{}
 	require.NoError(t, json.Unmarshal(hit.Document.Content, &decoded))
+	return decoded
+}
+
+// certDecodeNumbers decodes content keeping each number's literal, so a test
+// can see exactly what the server returned.
+func certDecodeNumbers(t *testing.T, content []byte) map[string]any {
+	t.Helper()
+	decoder := json.NewDecoder(bytes.NewReader(content))
+	decoder.UseNumber()
+	decoded := map[string]any{}
+	require.NoError(t, decoder.Decode(&decoded))
 	return decoded
 }
 

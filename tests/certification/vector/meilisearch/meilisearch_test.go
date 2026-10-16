@@ -197,6 +197,47 @@ func TestMeilisearchVectorCertification(t *testing.T) {
 		require.Equal(t, record.ID, queryResp.Matches[0].Record.ID)
 	})
 
+	// Meilisearch stores JSON numbers as 64-bit floats, so integer metadata
+	// beyond ±2^53 is rounded by the server.
+	t.Run("integer_metadata_beyond_2_53_is_rounded", func(t *testing.T) {
+		numbersCollection := "cert-vector-numbers-" + uuid.NewString()[:8]
+		t.Cleanup(func() {
+			_ = component.DeleteCollection(context.Background(), &vector.DeleteCollectionRequest{Collection: numbersCollection})
+		})
+		require.NoError(t, component.CreateCollection(ctx, certCreateRequest(numbersCollection, 4)))
+
+		records := []vector.Record{
+			{ID: "num-1", Values: []float32{1, 0, 0, 0}, Metadata: map[string]any{
+				"big":      int64(9007199254740993),
+				"negative": int64(-9007199254740993),
+				"maxSafe":  int64(9007199254740991),
+				"asString": "9007199254740993",
+			}},
+			{ID: "num-2", Values: []float32{0, 1, 0, 0}, Metadata: map[string]any{"big": int64(9007199254740992)}},
+		}
+		upsertResp, err := component.Upsert(ctx, &vector.UpsertRequest{Collection: numbersCollection, Records: records, Options: certWaitOptions()})
+		require.NoError(t, err)
+		require.Empty(t, upsertResp.FailedItems)
+
+		getResp, err := component.Get(ctx, &vector.GetRequest{Collection: numbersCollection, IDs: []string{"num-1"}})
+		require.NoError(t, err)
+		require.Len(t, getResp.Records, 1)
+		meta := getResp.Records[0].Metadata
+		assert.InDelta(t, 9007199254740992.0, meta["big"], 0, "an integer above 2^53 is rounded")
+		assert.InDelta(t, -9007199254740992.0, meta["negative"], 0, "an integer below -2^53 is rounded")
+		assert.InDelta(t, 9007199254740991.0, meta["maxSafe"], 0, "an integer within ±2^53 is exact")
+		assert.Equal(t, "9007199254740993", meta["asString"], "a string keeps every digit")
+
+		// Values that differ only beyond 2^53 are indistinguishable to a filter.
+		queryResp, err := component.Query(ctx, &vector.QueryRequest{Collection: numbersCollection, Vector: &vector.Record{Values: []float32{1, 1, 0, 0}}, Filter: map[string]any{"big": int64(9007199254740993)}, TopK: 5})
+		require.NoError(t, err)
+		ids := make([]string, 0, len(queryResp.Matches))
+		for _, match := range queryResp.Matches {
+			ids = append(ids, match.Record.ID)
+		}
+		assert.ElementsMatch(t, []string{"num-1", "num-2"}, ids)
+	})
+
 	t.Run("keyed_upsert_validation", func(t *testing.T) {
 		validationCollection := "cert-vector-keys-" + uuid.NewString()[:8]
 		t.Cleanup(func() {

@@ -47,7 +47,8 @@ building block reuses them.
   reported with `TOTAL_HITS_RELATION_LOWER_BOUND`, and the page that reaches
   it is the last.
 - Meilisearch stores JSON numbers as 64-bit floats, so an integer outside
-  ±2^53 comes back rounded. Store such values as strings.
+  ±2^53 comes back rounded, and a filter cannot tell apart values that differ
+  only beyond it. Store such values as strings.
 - A Meilisearch task is atomic, so everything Meilisearch would reject per
   document is identified before the task is enqueued and reported in
   `FailedItems` (`INVALID_ARGUMENT`): content that uses `id`, `daprMetadata`,

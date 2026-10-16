@@ -61,6 +61,9 @@ and `FailedItem` types (see `../search/indexing.go`).
   the component reports `2 * rankingScore - 1` and translates a cosine
   threshold `t` to `rankingScoreThreshold = (1 + t) / 2`. A `ScoreThreshold`
   outside `[-1, 1]` is `INVALID_ARGUMENT`.
+- Meilisearch stores JSON numbers as 64-bit floats, so an integer in record
+  metadata outside ±2^53 comes back rounded, and a filter cannot tell apart
+  values that differ only beyond it. Store such values as strings.
 - Wait-for-completion writes and deletes use the shared task dispatcher of the
   search component: task status polling by default, the experimental
   task-change stream when available (see `../search/README.md`).

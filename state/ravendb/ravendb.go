@@ -222,6 +222,10 @@ func (r *RavenDB) Ping(ctx context.Context) error {
 }
 
 func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	if err := checkRepeatedETags(request.Operations); err != nil {
+		return err
+	}
+
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return fmt.Errorf("opening session while sending transaction failed with error %s", err)
@@ -248,6 +252,28 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 		return fmt.Errorf("error during transaction, aborting the transaction: %w", err)
 	}
 
+	return nil
+}
+
+// The session would reject these with an untyped error.
+func checkRepeatedETags(ops []state.TransactionalStateOperation) error {
+	seen := make(map[string]struct{}, len(ops))
+	for _, o := range ops {
+		var key string
+		var hasETag bool
+		switch req := o.(type) {
+		case state.SetRequest:
+			key, hasETag = req.Key, req.HasETag()
+		case state.DeleteRequest:
+			key, hasETag = req.Key, req.HasETag()
+		default:
+			continue
+		}
+		if _, ok := seen[key]; ok && hasETag {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s was already written earlier in the transaction", key))
+		}
+		seen[key] = struct{}{}
+	}
 	return nil
 }
 
@@ -374,7 +400,14 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 	// loaded rather than item, and metadata can only be set on a tracked entity.
 	stored := any(item)
 
-	if req.Options.Concurrency == state.FirstWrite {
+	switch {
+	case req.HasETag():
+		// The server also rejects a missing document.
+		err = session.StoreWithChangeVectorAndID(item, *req.ETag, req.Key)
+		if err != nil {
+			return fmt.Errorf("error storing data: %w", err)
+		}
+	case req.Options.Concurrency == state.FirstWrite:
 		// First write wins, we send empty change vector to check if exists
 
 		// current version of the go ravendb SDK doesn't let us check concurrency violation on items that are not in the database.
@@ -385,35 +418,18 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		if newItem == nil {
 			err = session.Store(item)
 		} else {
-			var eTag string
-			if req.HasETag() {
-				eTag = *req.ETag
-			} else {
-				eTag = RandStringRunes(5)
-			}
-
 			if newItem.Value == item.Value {
 				return fmt.Errorf("error storing data: %s", err)
 			}
 			newItem.Value = item.Value
-			err = session.StoreWithChangeVectorAndID(newItem, eTag, req.Key)
+			err = session.StoreWithChangeVectorAndID(newItem, RandStringRunes(5), req.Key)
 			stored = newItem
 		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}
-	} else {
-		// Last write wins
-		if req.HasETag() {
-			eTag := *req.ETag
-			err = session.StoreWithChangeVectorAndID(item, eTag, req.Key)
-			if err != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-		} else {
-			err = session.Store(item)
-		}
-
+	default:
+		err = session.Store(item)
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}
@@ -453,7 +469,7 @@ func (r *RavenDB) applyTTL(session *ravendb.DocumentSession, entity any, reqMeta
 
 func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, session *ravendb.DocumentSession, fromTransaction bool) error {
 	var err error
-	if fromTransaction {
+	if fromTransaction && !req.HasETag() {
 		var itemToDelete *Item
 		err = session.Load(&itemToDelete, req.Key)
 		if err == nil && itemToDelete != nil {

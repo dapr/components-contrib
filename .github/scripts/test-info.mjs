@@ -586,6 +586,13 @@ const components = {
         // longer follows from the component name.
         sourcePkg: ['pubsub/amqp'],
     },
+    'search.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['search/meilisearch', 'search'],
+    },
     'secretstores.aws.secretsmanager.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh secrets-manager',
@@ -1007,6 +1014,13 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
+    },
+    'vector.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['vector/meilisearch', 'vector'],
     },
 }
 

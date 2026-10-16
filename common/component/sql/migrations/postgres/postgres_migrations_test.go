@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/kit/logger"
 )
@@ -156,12 +157,25 @@ func TestEnsureMetadataTableConcurrentCreate(t *testing.T) {
 	})
 }
 
+// cancelAfterExec cancels the context once an Exec returns. pgxmock answers
+// an Exec on an already-cancelled context with either its expectation or
+// ErrCancelled at random, so the test cancels between attempts instead.
+type cancelAfterExec struct {
+	pginterfaces.PGXPoolConn
+	cancel context.CancelFunc
+}
+
+func (c cancelAfterExec) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	defer c.cancel()
+	return c.PGXPoolConn.Exec(ctx, sql, args...)
+}
+
 func TestEnsureMetadataTableCancelledRetry(t *testing.T) {
 	m, db, _ := newTestMigrations(t)
 	db.ExpectExec("CREATE TABLE IF NOT EXISTS " + testMetadataTable).WillReturnError(&pgconn.PgError{Code: pgerrcode.DuplicateTable})
 
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	m.DB = cancelAfterExec{PGXPoolConn: db, cancel: cancel}
 	require.ErrorIs(t, m.EnsureMetadataTable(ctx), context.Canceled)
 	require.NoError(t, db.ExpectationsWereMet(), "a cancelled retry must not issue another create")
 }

@@ -156,8 +156,17 @@ func StatusError(err error, msg string) error {
 // front of Meilisearch, has an indeterminate outcome and callers report it
 // with the INDEXING_OUTCOME_UNKNOWN reason.
 func Rejected(err error) bool {
+	return APIErrorCode(err) != ""
+}
+
+// APIErrorCode returns the code of the Meilisearch error that rejected the
+// request, such as `task_not_found`, or "" when Meilisearch did not reject it.
+func APIErrorCode(err error) string {
 	var msErr *meilisearchgo.Error
-	return errors.As(err, &msErr) && msErr.ErrCode == meilisearchgo.MeilisearchApiError
+	if errors.As(err, &msErr) && msErr.ErrCode == meilisearchgo.MeilisearchApiError {
+		return msErr.MeilisearchApiError.Code
+	}
+	return ""
 }
 
 // TaskError converts the error of a failed Meilisearch task into a gRPC status

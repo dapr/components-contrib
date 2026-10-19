@@ -114,12 +114,14 @@ func TestMeilisearchVectorE2E(t *testing.T) {
 	batch, err := component.BatchQuery(ctx, &vector.BatchQueryRequest{Collection: collection, Queries: []vector.QueryRequest{
 		{Vector: &vector.Record{Values: []float32{0, 1, 0}}, TopK: 1},
 		{Vector: &vector.Record{Values: []float32{0, 1, 0}}, ByID: "1"},
+		{ByID: "missing"},
 	}})
 	require.NoError(t, err)
-	require.Len(t, batch.Results, 2)
+	require.Len(t, batch.Results, 3)
 	require.NotNil(t, batch.Results[0].Response)
 	assert.Equal(t, "2", batch.Results[0].Response.Matches[0].Record.ID)
 	assert.Equal(t, codes.InvalidArgument, status.Code(batch.Results[1].Error), "an invalid query is an error result")
+	assert.Equal(t, codes.NotFound, status.Code(batch.Results[2].Error), "a missing record fails only its query")
 
 	deleted, err := component.Delete(ctx, &vector.DeleteRequest{Collection: collection, IDs: []string{"1", "missing"}, Options: waitForCompletion})
 	require.NoError(t, err)

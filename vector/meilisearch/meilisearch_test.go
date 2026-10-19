@@ -1122,6 +1122,22 @@ func TestQueryByIDUsesSimilarDocuments(t *testing.T) {
 	assert.InDelta(t, 1.0, res.Matches[0].Score, 0.0001)
 }
 
+func TestQueryByIDReportsAMissingRecord(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/indexes/books/similar", r.URL.Path)
+		writeJSON(t, w, http.StatusBadRequest, map[string]any{"message": "Document `missing` not found.", "code": "not_found_similar_id", "type": "invalid_request"})
+	}))
+	defer server.Close()
+
+	component := initializedVector(t, server.URL)
+	_, err := component.Query(t.Context(), &vector.QueryRequest{Collection: "books", ByID: "missing"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
 func TestQueryRejectsInvalidRequests(t *testing.T) {
 	t.Parallel()
 
@@ -1278,6 +1294,72 @@ func TestBatchQuery(t *testing.T) {
 		assert.Nil(t, res.Results[4].Response)
 		assert.Equal(t, codes.InvalidArgument, status.Code(res.Results[4].Error))
 		assert.Equal(t, int32(3), searches.Load(), "an invalid query never reaches the provider")
+	})
+
+	t.Run("a by_id record that does not exist fails only its query", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/indexes/books":
+				writeJSON(t, w, http.StatusOK, map[string]any{"uid": "books", "primaryKey": "id"})
+			case "/indexes/books/similar":
+				var sent map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
+				if sent["id"] == "missing" {
+					writeJSON(t, w, http.StatusBadRequest, map[string]any{"message": "Document `missing` not found.", "code": "not_found_similar_id", "type": "invalid_request"})
+					return
+				}
+				writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{{"id": "2", "_rankingScore": 1.0}}, "id": sent["id"]})
+			case "/indexes/books/search":
+				writeJSON(t, w, http.StatusOK, map[string]any{"hits": []map[string]any{{"id": "3", "_rankingScore": 1.0}}})
+			default:
+				t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		res, err := component.BatchQuery(t.Context(), &vector.BatchQueryRequest{Collection: "books", Queries: []vector.QueryRequest{
+			{ByID: "missing"},
+			{ByID: "1"},
+			{Vector: &vector.Record{Values: []float32{1}}},
+		}})
+
+		require.NoError(t, err)
+		require.Len(t, res.Results, 3)
+		assert.Nil(t, res.Results[0].Response)
+		assert.Equal(t, codes.NotFound, status.Code(res.Results[0].Error))
+		assert.Contains(t, status.Convert(res.Results[0].Error).Message(), `record "missing" not found`)
+		require.NotNil(t, res.Results[1].Response, "the remaining queries still run")
+		assert.Equal(t, "2", res.Results[1].Response.Matches[0].Record.ID)
+		require.NotNil(t, res.Results[2].Response)
+		assert.Equal(t, "3", res.Results[2].Response.Matches[0].Record.ID)
+	})
+
+	t.Run("a collection that disappears during a by_id query fails the call", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/indexes/books":
+				writeJSON(t, w, http.StatusOK, map[string]any{"uid": "books", "primaryKey": "id"})
+			case "/indexes/books/similar":
+				writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Index `books` not found.", "code": "index_not_found", "type": "invalid_request"})
+			default:
+				t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		defer server.Close()
+
+		component := initializedVector(t, server.URL)
+		_, err := component.BatchQuery(t.Context(), &vector.BatchQueryRequest{Collection: "books", Queries: []vector.QueryRequest{
+			{ByID: "1"},
+			{ByID: "2"},
+		}})
+
+		require.Error(t, err, "only a missing record is specific to its query")
+		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
 
 	t.Run("a missing collection fails the call", func(t *testing.T) {

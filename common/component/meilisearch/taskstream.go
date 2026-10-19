@@ -389,8 +389,8 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 
 	// Reconciliation after registration: the task may already be terminal,
 	// or its change may have been delivered while the stream was down.
-	if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
-		return change, nil
+	if change, ok, err := d.reconcile(ctx, taskUID, deadline); ok || err != nil {
+		return change, err
 	}
 
 	var timerC <-chan time.Time
@@ -423,23 +423,23 @@ func (d *TaskDispatcher) Wait(ctx context.Context, taskUID int64, timeout time.D
 		case <-reconnected:
 			// Reconciliation after a reconnect: changes emitted while the
 			// connection was down are not replayed.
-			if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
-				return change, nil
+			if change, ok, err := d.reconcile(ctx, taskUID, deadline); ok || err != nil {
+				return change, err
 			}
 			reconnected = d.reconnectedChan()
 		case <-recheckC:
 			// Periodic reconciliation: a lost event or a half-open connection
 			// looks exactly like a task that is still running, so the status
 			// is re-read rather than inferred from a silent stream.
-			if change, ok := d.reconcile(ctx, taskUID, deadline); ok {
-				return change, nil
+			if change, ok, err := d.reconcile(ctx, taskUID, deadline); ok || err != nil {
+				return change, err
 			}
 		case <-timerC:
 			// Reconciliation immediately before the timeout action, so a
 			// missed stream event cannot produce a false timeout. It runs at
 			// the deadline, so it is bounded by the read timeout alone.
-			if change, ok := d.reconcile(ctx, taskUID, time.Time{}); ok {
-				return change, nil
+			if change, ok, err := d.reconcile(ctx, taskUID, time.Time{}); ok || err != nil {
+				return change, err
 			}
 			if ctx.Err() != nil {
 				return TaskChange{}, ContextStatusError(ctx)
@@ -697,22 +697,27 @@ func (d *TaskDispatcher) taskStatus(ctx context.Context, taskUID int64, deadline
 
 // reconcile performs a single point-in-time task status read for a stream
 // waiter. It is a recovery check, not a polling loop, so a failed read is
-// only logged.
-func (d *TaskDispatcher) reconcile(ctx context.Context, taskUID int64, deadline time.Time) (TaskChange, bool) {
+// only logged: the stream may still deliver the change, even when the read
+// itself is rejected. The exception is a task that Meilisearch no longer
+// knows, whose change can never arrive, so the wait ends with the error.
+func (d *TaskDispatcher) reconcile(ctx context.Context, taskUID int64, deadline time.Time) (TaskChange, bool, error) {
 	if d.tasks == nil {
-		return TaskChange{}, false
+		return TaskChange{}, false, nil
 	}
 	change, err := d.taskStatus(ctx, taskUID, deadline)
 	if err != nil {
+		if APIErrorCode(err) == "task_not_found" {
+			return TaskChange{}, false, StatusError(err, fmt.Sprintf("read the status of meilisearch task %d", taskUID))
+		}
 		if ctx.Err() == nil && d.log != nil {
 			d.log.Debugf("meilisearch: reconciling task %d failed: %v", taskUID, err)
 		}
-		return TaskChange{}, false
+		return TaskChange{}, false, nil
 	}
 	if !change.Terminal() {
-		return TaskChange{}, false
+		return TaskChange{}, false, nil
 	}
-	return change, true
+	return change, true, nil
 }
 
 // taskAPIError extracts the provider error of a failed task. The client's

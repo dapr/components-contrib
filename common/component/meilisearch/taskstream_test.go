@@ -80,6 +80,7 @@ type streamFailure struct {
 }
 
 var (
+	taskNotFoundError = streamFailure{statusCode: http.StatusNotFound, body: `{"message":"Task ` + "`29`" + ` not found.","code":"task_not_found","type":"invalid_request"}`}
 	featureNotEnabled = streamFailure{statusCode: http.StatusBadRequest, body: `{"message":"getting task changes requires enabling the tasks streaming route","code":"feature_not_enabled","type":"invalid_request"}`}
 	routeMissing      = streamFailure{statusCode: http.StatusNotFound, body: `{"message":"not found","code":"not_found","type":"invalid_request"}`}
 	invalidAPIKey     = streamFailure{statusCode: http.StatusForbidden, body: `{"message":"the provided API key is invalid","code":"invalid_api_key","type":"auth"}`}
@@ -1031,6 +1032,61 @@ func TestWaitPollingSurfacesTaskStatusFailures(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 	assert.Equal(t, int32(1), ts.taskReads.Load(), "a rejected status read is not retried")
+}
+
+func TestWaitOnTheStreamEndsWhenTheTaskIsNotFound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("right after registration", func(t *testing.T) {
+		t.Parallel()
+
+		ts := newTaskServer(t, nil)
+		dispatcher := newTestDispatcher(t, ts)
+		require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+		ts.setTaskFailure(&taskNotFoundError)
+
+		_, err := waitWithin(t, dispatcher, 29, 3*time.Second)
+
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+		assert.Equal(t, int32(1), ts.taskReads.Load())
+	})
+
+	t.Run("before applying the timeout action", func(t *testing.T) {
+		t.Parallel()
+
+		ts := newTaskServer(t, nil)
+		dispatcher := newTestDispatcher(t, ts)
+		require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+		go func() {
+			ts.awaitTaskAnswers(t, 1)
+			ts.setTaskFailure(&taskNotFoundError)
+		}()
+
+		_, err := dispatcher.Wait(t.Context(), 29, 100*time.Millisecond)
+
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err), "a task that no longer exists is not reported as a timeout")
+	})
+}
+
+func TestWaitOnTheStreamOutlastsARejectedStatusRead(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	dispatcher := newTestDispatcher(t, ts)
+	require.NoError(t, dispatcher.EnsureStreaming(t.Context()))
+	ts.setTaskFailure(&invalidAPIKey)
+
+	// The open stream still delivers the change after the read is rejected.
+	go func() {
+		ts.awaitTaskReads(t, 1)
+		ts.emit(t, map[string]any{"uid": 29, "status": "succeeded", "type": "documentAdditionOrUpdate"})
+	}()
+	change, err := waitWithin(t, dispatcher, 29, 3*time.Second)
+
+	require.NoError(t, err)
+	assert.Equal(t, meilisearchgo.TaskStatusSucceeded, change.Status)
 }
 
 func TestWaitPollingRetriesTransientResponses(t *testing.T) {

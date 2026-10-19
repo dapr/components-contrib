@@ -488,7 +488,8 @@ func (m *Meilisearch) Query(ctx context.Context, req *vector.QueryRequest) (*vec
 
 // BatchQuery evaluates each query independently against the same collection
 // and returns one result per query in request order. A query that fails
-// validation or is rejected by Meilisearch produces an error result; a
+// validation, is rejected by Meilisearch or names a record that does not
+// exist produces an error result; a
 // request-wide failure (a closed component, a missing collection, invalid
 // credentials, transport, a provider outage) fails the call, whichever query
 // meets it.
@@ -561,13 +562,29 @@ func (m *Meilisearch) ready() (meilisearchgo.ServiceManager, *commonmeilisearch.
 }
 
 // requestWideQueryError reports whether a failed query would fail every other
-// query of its batch the same way. Only a rejection of the query itself is
+// query of its batch the same way. Only a failure of the query itself is
 // specific to it: INVALID_ARGUMENT, from the component's validation or from a
-// Meilisearch `invalid_request` such as a vector of the wrong size or an
-// unknown by_id. Credentials, a collection that disappeared, transport and
-// provider failures are not.
+// Meilisearch `invalid_request` such as a vector of the wrong size, and the
+// NOT_FOUND of a by_id record that does not exist. Credentials, a collection
+// that disappeared, transport and provider failures are not.
 func requestWideQueryError(err error) bool {
-	return status.Code(err) != codes.InvalidArgument
+	var notFound *recordNotFoundError
+	return status.Code(err) != codes.InvalidArgument && !errors.As(err, &notFound)
+}
+
+// recordNotFoundError is the NOT_FOUND of a by_id query whose record does not
+// exist. Unlike a missing collection, it concerns that query alone.
+type recordNotFoundError struct {
+	st *status.Status
+}
+
+func (e *recordNotFoundError) Error() string {
+	return e.st.Err().Error()
+}
+
+// GRPCStatus lets status.FromError and the runtime read the NOT_FOUND status.
+func (e *recordNotFoundError) GRPCStatus() *status.Status {
+	return e.st
 }
 
 func (m *Meilisearch) query(ctx context.Context, client meilisearchgo.ServiceManager, req *vector.QueryRequest) (*vector.QueryResponse, error) {
@@ -647,6 +664,9 @@ func (m *Meilisearch) querySimilar(ctx context.Context, client meilisearchgo.Ser
 	}
 	var res meilisearchgo.SimilarDocumentResult
 	if err := client.Index(req.Collection).SearchSimilarDocumentsWithContext(ctx, param, &res); err != nil {
+		if commonmeilisearch.APIErrorCode(err) == "not_found_similar_id" {
+			return nil, &recordNotFoundError{st: status.Newf(codes.NotFound, "record %q not found in meilisearch collection %q", req.ByID, req.Collection)}
+		}
 		return nil, commonmeilisearch.StatusError(err, fmt.Sprintf("query meilisearch collection %q by id", req.Collection))
 	}
 	return queryResponseFromHits(res.Hits, req.IncludeValues, req.IncludePayload)

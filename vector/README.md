@@ -60,6 +60,8 @@ and `FailedItem` types (see `../search/indexing.go`).
 - A query vector with a NaN or infinite value or a zero norm is
   `INVALID_ARGUMENT`: cosine similarity is undefined for a zero vector, which
   Meilisearch would otherwise score as a perfect match.
+- A `ByID` query whose record does not exist is `NOT_FOUND`; in a
+  `BatchQuery` only that query fails.
 - Meilisearch's `_rankingScore` for a pure-semantic query is `(1 + cos) / 2`;
   the component reports `2 * rankingScore - 1` and translates a cosine
   threshold `t` to `rankingScoreThreshold = (1 + t) / 2`. A `ScoreThreshold`

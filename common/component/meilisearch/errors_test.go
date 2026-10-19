@@ -107,6 +107,7 @@ func TestStatusErrorClassifiesResponses(t *testing.T) {
 		body         string
 		wantCode     codes.Code
 		wantMessage  string
+		wantAPICode  string
 		wantRejected bool
 	}{
 		{
@@ -115,6 +116,7 @@ func TestStatusErrorClassifiesResponses(t *testing.T) {
 			body:         `{"message":"Index ` + "`books`" + ` not found.","code":"index_not_found","type":"invalid_request","link":""}`,
 			wantCode:     codes.NotFound,
 			wantMessage:  "add documents: Index `books` not found.",
+			wantAPICode:  "index_not_found",
 			wantRejected: true,
 		},
 		{
@@ -149,6 +151,7 @@ func TestStatusErrorClassifiesResponses(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Equal(t, tt.wantRejected, Rejected(err))
+			assert.Equal(t, tt.wantAPICode, APIErrorCode(err))
 			statusErr := StatusError(err, "add documents")
 			assert.Equal(t, tt.wantCode, status.Code(statusErr))
 			assert.Contains(t, status.Convert(statusErr).Message(), tt.wantMessage)

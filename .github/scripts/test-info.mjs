@@ -29,7 +29,9 @@ const components = {
     'binarystore.aws.s3': {
         conformance: true,
         requireAWSCredentials: true,
-        requiredSecrets: ['AWSS3Bucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.aws.s3-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.aws.s3-destroy.sh',
         sourcePkg: ['binarystore/aws/s3', 'common/aws'],
     },
     'binarystore.gcp.bucket': {

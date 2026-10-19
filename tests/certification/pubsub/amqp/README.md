@@ -54,6 +54,14 @@ default acceptor, so it is not configured with `anycastPrefix` and
 `multicastPrefix`, and nothing here checks that `queue:` reaches an ANYCAST
 address while a bare topic reaches a MULTICAST one. See the known gaps.
 
+### Publish metadata as message properties
+
+`TestAMQPApplicationProperties` publishes through a sidecar whose component
+sets `applicationPropertiesFromMetadata`, and reads the message back with a
+plain AMQP client. The `subject` key must arrive as the AMQP subject, another
+key as an application property, and `ttlInSeconds` and `cloudevent.*` keys
+must not be copied.
+
 ## Running the tests
 
 Start the broker and run the suite:

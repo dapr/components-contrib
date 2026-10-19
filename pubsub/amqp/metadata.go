@@ -45,6 +45,11 @@ type metadata struct {
 	// anycastPrefix and multicastPrefix of an ActiveMQ Artemis acceptor.
 	TopicAddressPrefix string
 	QueueAddressPrefix string
+
+	// ApplicationPropertiesFromMetadata copies the metadata of a publish
+	// request onto the message, see applyPublishMetadata, so that a broker-side
+	// filter such as an ActiveMQ Artemis selector can match on it.
+	ApplicationPropertiesFromMetadata bool
 }
 
 type tlsCfg struct {

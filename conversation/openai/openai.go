@@ -87,15 +87,16 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 	o.md = md
 
+	if md.UseResponsesAPI && strings.EqualFold(md.APIType, "azure") {
+		return errors.New("useResponsesAPI is not supported when apiType is set to 'azure'")
+	}
+
 	model, options, err := o.buildClientOptions(md)
 	if err != nil {
 		return err
 	}
 
 	if md.UseResponsesAPI {
-		if strings.EqualFold(md.APIType, "azure") {
-			return errors.New("useResponsesAPI is not supported when apiType is set to 'azure'")
-		}
 		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint)
 	} else {
 		o.Model, err = openai.New(options...)

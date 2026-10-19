@@ -224,6 +224,7 @@ func TestResponsesAPIToolChoice(t *testing.T) {
 		{choice: "required", want: "required"},
 		{choice: "any", want: "required"},
 		{choice: "none", want: "none"},
+		{choice: "", want: nil},
 		{choice: "get_weather", want: map[string]any{"type": "function", "name": "get_weather"}},
 	}
 

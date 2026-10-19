@@ -51,12 +51,15 @@ const (
 // Requests are sent with store set to false, so OpenAI keeps no conversation
 // state and every call carries its full history, as with Chat Completions.
 type responsesModel struct {
-	model   string
-	key     string
-	baseURL string
-	client  *http.Client
+	model        string
+	key          string
+	organization string
+	baseURL      string
+	client       *http.Client
 }
 
+// newResponsesModel falls back to the same environment variables langchaingo's
+// OpenAI client reads, so switching to the Responses API keeps the same setup.
 func newResponsesModel(model, key, endpoint string) (*responsesModel, error) {
 	if key == "" {
 		key = os.Getenv("OPENAI_API_KEY")
@@ -68,13 +71,17 @@ func newResponsesModel(model, key, endpoint string) (*responsesModel, error) {
 		endpoint = os.Getenv("OPENAI_BASE_URL")
 	}
 	if endpoint == "" {
+		endpoint = os.Getenv("OPENAI_API_BASE")
+	}
+	if endpoint == "" {
 		endpoint = defaultOpenAIBaseURL
 	}
 	return &responsesModel{
-		model:   model,
-		key:     key,
-		baseURL: strings.TrimSuffix(endpoint, "/"),
-		client:  conversation.BuildHTTPClient(),
+		model:        model,
+		key:          key,
+		organization: os.Getenv("OPENAI_ORGANIZATION"),
+		baseURL:      strings.TrimSuffix(endpoint, "/"),
+		client:       conversation.BuildHTTPClient(),
 	}, nil
 }
 
@@ -95,7 +102,8 @@ type responsesTool struct {
 	Type        string `json:"type"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	Parameters  any    `json:"parameters,omitempty"`
+	// Parameters is always sent: the Responses API requires the field, null included.
+	Parameters any `json:"parameters"`
 	// Strict is always sent: the Responses API treats an omitted strict as true,
 	// unlike Chat Completions, which would make optional parameters required.
 	Strict bool `json:"strict"`
@@ -164,6 +172,9 @@ func (m *responsesModel) GenerateContent(ctx context.Context, messages []llms.Me
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+m.key)
+	if m.organization != "" {
+		httpReq.Header.Set("OpenAI-Organization", m.organization)
+	}
 
 	httpRes, err := m.client.Do(httpReq)
 	if err != nil {
@@ -361,10 +372,13 @@ func toResponsesInput(msg llms.MessageContent) ([]any, error) {
 // through and anything else names a function.
 func toResponsesToolChoice(choice any) any {
 	name, ok := choice.(string)
-	if !ok || name == "" {
+	if !ok {
 		return choice
 	}
 	switch name {
+	case "":
+		// An interface holding "" survives omitempty and would be sent as tool_choice "".
+		return nil
 	case "auto", "none", "required":
 		return name
 	default:

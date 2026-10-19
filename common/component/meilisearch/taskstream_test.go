@@ -507,7 +507,7 @@ func TestWaitReconcilesWithTheTaskStatusAPI(t *testing.T) {
 	})
 }
 
-func TestEnsureStreamingReleasesTheStreamWhenClosedDuringTheDial(t *testing.T) {
+func TestEnsureStreamingIsCanceledByClose(t *testing.T) {
 	t.Parallel()
 
 	ts := newTaskServer(t, nil)
@@ -515,28 +515,99 @@ func TestEnsureStreamingReleasesTheStreamWhenClosedDuringTheDial(t *testing.T) {
 	t.Cleanup(release)
 	dispatcher := newTestDispatcher(t, ts)
 
-	started := make(chan error, 1)
-	go func() { started <- dispatcher.EnsureStreaming(t.Context()) }()
-
-	// Close lands while the dial is in flight and finds no stream to stop.
+	opening := make(chan error, 1)
+	go func() { opening <- dispatcher.EnsureStreaming(t.Context()) }()
 	require.Eventually(t, func() bool { return ts.dials.Load() == 1 }, 2*time.Second, time.Millisecond)
-	require.NoError(t, dispatcher.Close())
-	release()
+	waiting := make(chan error, 1)
+	go func() { waiting <- dispatcher.EnsureStreaming(t.Context()) }()
 
-	select {
-	case err := <-started:
-		require.Error(t, err)
-		assert.Equal(t, codes.FailedPrecondition, status.Code(err))
-	case <-time.After(3 * time.Second):
-		t.Fatal("EnsureStreaming did not return")
+	// The stalled dial is never answered: Close alone releases both requests.
+	require.NoError(t, dispatcher.Close())
+	for _, ch := range []chan error{opening, waiting} {
+		select {
+		case err := <-ch:
+			assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+		case <-time.After(time.Second):
+			t.Fatal("EnsureStreaming did not return after Close")
+		}
 	}
-	assert.Equal(t, int32(1), ts.connections.Load(), "the dial was answered after Close")
-	require.Eventually(t, func() bool { return ts.activeStreams.Load() == 0 }, 2*time.Second, 5*time.Millisecond,
-		"the connection opened by the interrupted dial must be released")
+	assert.Equal(t, int32(1), ts.dials.Load(), "the waiting request must not dial a closed dispatcher")
+	assert.Equal(t, int32(0), ts.connections.Load())
 
 	dispatcher.mu.Lock()
 	defer dispatcher.mu.Unlock()
 	assert.False(t, dispatcher.running, "a closed dispatcher must not start its stream loop")
+}
+
+func TestEnsureStreamingWaitersHonourTheirOwnContext(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	release := ts.holdStreamRequests()
+	t.Cleanup(release)
+	dispatcher := newTestDispatcher(t, ts)
+
+	opening := make(chan error, 1)
+	go func() { opening <- dispatcher.EnsureStreaming(t.Context()) }()
+	require.Eventually(t, func() bool { return ts.dials.Load() == 1 }, 2*time.Second, time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
+	defer cancel()
+	waiting := make(chan error, 1)
+	go func() { waiting <- dispatcher.EnsureStreaming(ctx) }()
+
+	select {
+	case err := <-waiting:
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+	case <-time.After(time.Second):
+		t.Fatal("a stalled dial held up another request beyond its deadline")
+	}
+	assert.Equal(t, int32(1), ts.dials.Load())
+
+	release()
+	require.NoError(t, <-opening)
+}
+
+func TestEnsureStreamingIsTakenOverWhenTheOpeningRequestEnds(t *testing.T) {
+	t.Parallel()
+
+	ts := newTaskServer(t, nil)
+	release := ts.holdStreamRequests()
+	t.Cleanup(release)
+	dispatcher := newTestDispatcher(t, ts)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	opening := make(chan error, 1)
+	go func() { opening <- dispatcher.EnsureStreaming(ctx) }()
+	require.Eventually(t, func() bool { return ts.dials.Load() == 1 }, 2*time.Second, time.Millisecond)
+	waiting := make(chan error, 1)
+	go func() { waiting <- dispatcher.EnsureStreaming(t.Context()) }()
+
+	cancel()
+	assert.Equal(t, codes.Canceled, status.Code(<-opening))
+	require.Eventually(t, func() bool { return ts.dials.Load() == 2 }, 2*time.Second, time.Millisecond,
+		"the waiting request opens the stream itself")
+
+	release()
+	require.NoError(t, <-waiting)
+	assert.Equal(t, int32(1), ts.connections.Load())
+	assert.False(t, dispatcher.PollingOnly())
+}
+
+func TestNewTaskDispatcherKeepsTheDefaultTransportSettings(t *testing.T) {
+	t.Parallel()
+
+	timeout := 5 * time.Second
+	dispatcher := NewTaskDispatcher(MeilisearchMetadata{Host: "http://localhost:7700", Timeout: &timeout}, nil, nil)
+	transport, ok := dispatcher.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+
+	defaults := http.DefaultTransport.(*http.Transport)
+	assert.Equal(t, timeout, transport.ResponseHeaderTimeout)
+	assert.NotNil(t, transport.Proxy, "the stream must honour the proxy settings like every other request")
+	assert.NotNil(t, transport.DialContext)
+	assert.Equal(t, defaults.TLSHandshakeTimeout, transport.TLSHandshakeTimeout)
 }
 
 func TestEnsureStreamingStopsWhenTheRequestEndsDuringTheDial(t *testing.T) {
@@ -1113,10 +1184,14 @@ func TestEnqueueWrite(t *testing.T) {
 	t.Parallel()
 
 	waitOpts := search.IndexingOptions{Mode: search.IndexingModeWaitForCompletion, WaitTimeout: 5 * time.Second, OnWaitTimeout: search.IndexingWaitTimeoutActionFailRequest}
-	rejected := &meilisearchgo.Error{StatusCode: http.StatusNotFound}
+	rejected := &meilisearchgo.Error{StatusCode: http.StatusNotFound, ErrCode: meilisearchgo.MeilisearchApiError}
 	rejected.MeilisearchApiError.Code = "index_not_found"
 	rejected.MeilisearchApiError.Message = "index books not found"
 	rejected.MeilisearchApiError.Type = "invalid_request"
+	// The task was accepted, but its description could not be decoded.
+	undecodable := &meilisearchgo.Error{StatusCode: http.StatusAccepted, ErrCode: meilisearchgo.ErrCodeResponseUnmarshalBody, OriginError: errors.New("unexpected end of JSON input")}
+	// A gateway in front of Meilisearch answered, not Meilisearch.
+	gateway := &meilisearchgo.Error{StatusCode: http.StatusGatewayTimeout, ErrCode: meilisearchgo.MeilisearchApiErrorWithoutMessage}
 
 	tests := []struct {
 		name          string
@@ -1166,11 +1241,36 @@ func TestEnqueueWrite(t *testing.T) {
 			wantEnqueued: true,
 		},
 		{
-			name:         "a canceled enqueue keeps the context cancellation code",
+			name:         "a canceled enqueue keeps the context cancellation code and has an unknown outcome",
 			opts:         search.IndexingOptions{},
 			enqueueErr:   context.Canceled,
 			canceled:     true,
 			wantCode:     codes.Canceled,
+			wantReason:   search.ReasonIndexingOutcomeUnknown,
+			wantEnqueued: true,
+		},
+		{
+			name:         "a rejection is reported even when the context has ended",
+			opts:         search.IndexingOptions{},
+			enqueueErr:   rejected,
+			canceled:     true,
+			wantCode:     codes.NotFound,
+			wantEnqueued: true,
+		},
+		{
+			name:         "an accepted enqueue whose response cannot be decoded has an unknown outcome",
+			opts:         search.IndexingOptions{},
+			enqueueErr:   undecodable,
+			wantCode:     codes.Internal,
+			wantReason:   search.ReasonIndexingOutcomeUnknown,
+			wantEnqueued: true,
+		},
+		{
+			name:         "an error from a gateway has an unknown outcome",
+			opts:         search.IndexingOptions{},
+			enqueueErr:   gateway,
+			wantCode:     codes.Unavailable,
+			wantReason:   search.ReasonIndexingOutcomeUnknown,
 			wantEnqueued: true,
 		},
 		{

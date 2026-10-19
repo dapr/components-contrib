@@ -112,11 +112,19 @@ func StatusError(err error, msg string) error {
 
 	var msErr *meilisearchgo.Error
 	if errors.As(err, &msErr) {
+		if msErr.ErrCode == meilisearchgo.ErrCodeResponseUnmarshalBody {
+			return status.Errorf(codes.Internal, "%s: decode the meilisearch response (HTTP %d): %v", msg, msErr.StatusCode, msErr.OriginError)
+		}
 		if msErr.StatusCode > 0 {
-			apiErr := APIError{
-				Message: msErr.MeilisearchApiError.Message,
-				Code:    msErr.MeilisearchApiError.Code,
-				Type:    msErr.MeilisearchApiError.Type,
+			var apiErr APIError
+			// Without an error code the body was not a Meilisearch error, and
+			// the message is the client's placeholder.
+			if msErr.ErrCode == meilisearchgo.MeilisearchApiError {
+				apiErr = APIError{
+					Message: msErr.MeilisearchApiError.Message,
+					Code:    msErr.MeilisearchApiError.Code,
+					Type:    msErr.MeilisearchApiError.Type,
+				}
 			}
 			code := CodeFromAPIError(apiErr)
 			if code == codes.Unknown {
@@ -142,15 +150,14 @@ func StatusError(err error, msg string) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-// ResponseReceived reports whether the provider answered the request with an
-// HTTP status. A request that failed without a response has an indeterminate
-// outcome and callers report it with the INDEXING_OUTCOME_UNKNOWN reason.
-func ResponseReceived(err error) bool {
+// Rejected reports whether Meilisearch answered the request with one of its
+// errors, so nothing was applied. Any other failure, including an accepted
+// request whose response could not be decoded or an error from a proxy in
+// front of Meilisearch, has an indeterminate outcome and callers report it
+// with the INDEXING_OUTCOME_UNKNOWN reason.
+func Rejected(err error) bool {
 	var msErr *meilisearchgo.Error
-	if errors.As(err, &msErr) {
-		return msErr.StatusCode > 0
-	}
-	return false
+	return errors.As(err, &msErr) && msErr.ErrCode == meilisearchgo.MeilisearchApiError
 }
 
 // TaskError converts the error of a failed Meilisearch task into a gRPC status

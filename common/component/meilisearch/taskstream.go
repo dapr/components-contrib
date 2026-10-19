@@ -173,7 +173,9 @@ type TaskDispatcher struct {
 	PollInitialInterval time.Duration
 	PollMaxInterval     time.Duration
 
-	startMu sync.Mutex
+	// startCh is a one-slot lock held while the stream is opened. Unlike a
+	// mutex, a request waiting for it still honours its context and Close.
+	startCh chan struct{}
 
 	mu      sync.Mutex
 	waiters map[int64]map[*waiter]struct{}
@@ -190,9 +192,12 @@ type TaskDispatcher struct {
 	pollOnly   bool
 	pollOnlyCh chan struct{}
 
-	cancel context.CancelFunc
-	done   chan struct{}
-	body   io.Closer
+	// dialCancel cancels the stream dial in flight, so that Close is not
+	// held up by a stalled connection.
+	dialCancel context.CancelFunc
+	cancel     context.CancelFunc
+	done       chan struct{}
+	body       io.Closer
 }
 
 // NewTaskDispatcher creates the task dispatcher of a component. The dispatcher
@@ -202,7 +207,10 @@ func NewTaskDispatcher(md MeilisearchMetadata, tasks meilisearchgo.TaskReader, l
 	client := &http.Client{}
 	if md.Timeout != nil {
 		// The stream is long-lived, so only the connection setup is bounded.
-		client.Transport = &http.Transport{ResponseHeaderTimeout: *md.Timeout}
+		// The default transport keeps the proxy settings and dial timeouts.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.ResponseHeaderTimeout = *md.Timeout
+		client.Transport = transport
 	}
 	return &TaskDispatcher{
 		host:                strings.TrimRight(md.Host, "/"),
@@ -219,6 +227,7 @@ func NewTaskDispatcher(md MeilisearchMetadata, tasks meilisearchgo.TaskReader, l
 		PollMaxInterval:     defaultPollMaxInterval,
 		waiters:             map[int64]map[*waiter]struct{}{},
 		cache:               map[int64]cachedChange{},
+		startCh:             make(chan struct{}, 1),
 		reconnected:         make(chan struct{}),
 		closedCh:            make(chan struct{}),
 		pollOnlyCh:          make(chan struct{}),
@@ -240,25 +249,34 @@ func (d *TaskDispatcher) PollingOnly() bool {
 // experimental feature or missing route) is not an error: the dispatcher
 // remembers it and serves that and every later wait by polling.
 func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
-	d.startMu.Lock()
-	defer d.startMu.Unlock()
-
-	d.mu.Lock()
-	closed := d.closed
-	settled := d.running || d.pollOnly
-	d.mu.Unlock()
-	if closed {
+	// Only one request opens the stream. The others wait for it to settle,
+	// and take over if the request opening it ends first.
+	select {
+	case d.startCh <- struct{}{}:
+	case <-ctx.Done():
+		return ContextStatusError(ctx)
+	case <-d.closedCh:
 		return errDispatcherClosed
 	}
-	if settled {
+	defer func() { <-d.startCh }()
+
+	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
+		return errDispatcherClosed
+	}
+	if d.running || d.pollOnly {
+		d.mu.Unlock()
 		return nil
 	}
-
 	// The stream outlives the request that opens it, so the connection is
 	// bound to the dispatcher's own context: a response body is tied to the
 	// context of its request for as long as it is read. The request context
-	// only bounds the dial.
+	// and Close only bound the dial.
 	streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	d.dialCancel = cancel
+	d.mu.Unlock()
+
 	stopDialBound := context.AfterFunc(ctx, cancel)
 	resp, err := d.dial(streamCtx)
 	if !stopDialBound() && err == nil {
@@ -267,37 +285,42 @@ func (d *TaskDispatcher) EnsureStreaming(ctx context.Context) error {
 		_ = resp.Body.Close()
 		err = ContextStatusError(ctx)
 	}
-	if err != nil {
-		cancel()
-		if ctx.Err() != nil {
-			return ContextStatusError(ctx)
-		}
-		var unavailable *streamUnavailableError
-		if errors.As(err, &unavailable) {
-			d.switchToPolling(unavailable.reason)
-			return nil
-		}
-		return err
-	}
 
 	d.mu.Lock()
-	if d.closed {
-		// Close ran while the dial was in flight and found no stream to stop,
-		// so the connection is released here instead of being started.
+	d.dialCancel = nil
+	closed := d.closed
+	if err == nil && !closed {
+		d.running = true
+		d.cancel = cancel
+		d.body = resp.Body
+		d.done = make(chan struct{})
+		done := d.done
 		d.mu.Unlock()
-		cancel()
-		_ = resp.Body.Close()
-		return errDispatcherClosed
+
+		go d.run(streamCtx, resp, done)
+		return nil
 	}
-	d.running = true
-	d.cancel = cancel
-	d.body = resp.Body
-	d.done = make(chan struct{})
-	done := d.done
 	d.mu.Unlock()
 
-	go d.run(streamCtx, resp, done)
-	return nil
+	cancel()
+	switch {
+	case err == nil:
+		// Close ran as the stream was opened and found no stream to stop, so
+		// the connection is released here instead of being started.
+		_ = resp.Body.Close()
+		return errDispatcherClosed
+	case ctx.Err() != nil:
+		return ContextStatusError(ctx)
+	case closed:
+		// Close canceled the dial.
+		return errDispatcherClosed
+	}
+	var unavailable *streamUnavailableError
+	if errors.As(err, &unavailable) {
+		d.switchToPolling(unavailable.reason)
+		return nil
+	}
+	return err
 }
 
 // Close stops the shared stream, releases its connection and fails the
@@ -310,11 +333,15 @@ func (d *TaskDispatcher) Close() error {
 	}
 	d.closed = true
 	close(d.closedCh)
+	dialCancel := d.dialCancel
 	cancel := d.cancel
 	body := d.body
 	done := d.done
 	d.mu.Unlock()
 
+	if dialCancel != nil {
+		dialCancel()
+	}
 	if cancel != nil {
 		cancel()
 	}
@@ -550,8 +577,9 @@ func EnqueueWrite(ctx context.Context, dispatcher *TaskDispatcher, opts search.I
 	}
 	task, err := enqueue(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
-			return search.IndexAckUnspecified, ContextStatusError(ctx)
+		if ctx.Err() != nil && !Rejected(err) {
+			// The request may have reached Meilisearch before it ended.
+			err = ContextStatusError(ctx)
 		}
 		return search.IndexAckUnspecified, EnqueueError(err, msg)
 	}
@@ -564,13 +592,12 @@ func EnqueueWrite(ctx context.Context, dispatcher *TaskDispatcher, opts search.I
 	return WaitForWrite(ctx, dispatcher, task.TaskUID, opts)
 }
 
-// EnqueueError reports a failed write enqueue. A request that received an HTTP
-// response from Meilisearch was rejected without writing anything; a request
-// that failed without a response has an indeterminate outcome and carries the
-// INDEXING_OUTCOME_UNKNOWN reason.
+// EnqueueError reports a failed write enqueue. A request that Meilisearch
+// rejected wrote nothing; any other failure has an indeterminate outcome and
+// carries the INDEXING_OUTCOME_UNKNOWN reason.
 func EnqueueError(err error, msg string) error {
 	statusErr := StatusError(err, msg)
-	if ResponseReceived(err) {
+	if Rejected(err) {
 		return statusErr
 	}
 	st, _ := status.FromError(statusErr)

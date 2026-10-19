@@ -316,6 +316,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=key.go", "--exclude=pubkey_cache.go"}
 	case "middleware":
 		excludeFiles = []string{"--exclude=mock*"}
+	case "search":
+		excludeFiles = []string{"--exclude=indexing.go"}
 	default:
 		excludeFiles = []string{}
 	}
@@ -340,7 +342,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		} else {
 			searchPattern = fmt.Sprintf("../dapr/cmd/daprd/components/%s_*.go", componentType)
 		}
-		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" %s`, searchPattern))
+		// -H keeps the file name when the pattern matches a single file.
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -rH "RegisterComponent" %s`, searchPattern))
 		registeredOutput, err = registeredCmd.Output()
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)

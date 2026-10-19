@@ -104,8 +104,11 @@ func TestResponsesAPIToolCall(t *testing.T) {
 	res, err := o.Converse(t.Context(), &conversation.Request{
 		Message: &[]llms.MessageContent{
 			llms.TextParts(llms.ChatMessageTypeSystem, "You are helpful."),
+			llms.TextParts(llms.ChatMessageTypeHuman, "Hi"),
+			llms.TextParts(llms.ChatMessageTypeAI, "Hello! "),
 			llms.TextParts(llms.ChatMessageTypeHuman, "Weather in Paris and Madrid?"),
 			{Role: llms.ChatMessageTypeAI, Parts: []llms.ContentPart{
+				llms.TextContent{Text: "Checking."},
 				llms.ToolCall{ID: "call_1", Type: "function", FunctionCall: &llms.FunctionCall{Name: "get_weather", Arguments: `{"city":"Paris"}`}},
 			}},
 			{Role: llms.ChatMessageTypeTool, Parts: []llms.ContentPart{
@@ -127,7 +130,10 @@ func TestResponsesAPIToolCall(t *testing.T) {
 
 		want := []any{
 			map[string]any{"type": "message", "role": "system", "content": []any{map[string]any{"type": "input_text", "text": "You are helpful."}}},
+			map[string]any{"type": "message", "role": "user", "content": []any{map[string]any{"type": "input_text", "text": "Hi"}}},
+			map[string]any{"type": "message", "role": "assistant", "content": "Hello! "},
 			map[string]any{"type": "message", "role": "user", "content": []any{map[string]any{"type": "input_text", "text": "Weather in Paris and Madrid?"}}},
+			map[string]any{"type": "message", "role": "assistant", "content": "Checking."},
 			map[string]any{"type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": `{"city":"Paris"}`},
 			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "sunny"},
 		}

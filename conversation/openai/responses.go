@@ -50,6 +50,9 @@ const (
 //
 // Requests are sent with store set to false, so OpenAI keeps no conversation
 // state and every call carries its full history, as with Chat Completions.
+// Reasoning items are not carried between calls: the conversation API has no
+// field to return them to the caller, so they could not come back on the next
+// request. Each request reasons afresh from the visible history.
 type responsesModel struct {
 	model        string
 	key          string
@@ -319,18 +322,15 @@ func toResponsesInput(msg llms.MessageContent) ([]any, error) {
 		return nil, fmt.Errorf("role %v not supported", msg.Role)
 	}
 
-	// Assistant text is output_text; everything else the model reads is input_text.
-	textType := "input_text"
 	if role == "assistant" {
-		textType = "output_text"
+		return toResponsesAssistantInput(msg)
 	}
 
 	var content []map[string]any
-	var calls []any
 	for _, part := range msg.Parts {
 		switch p := part.(type) {
 		case llms.TextContent:
-			content = append(content, map[string]any{"type": textType, "text": p.Text})
+			content = append(content, map[string]any{"type": "input_text", "text": p.Text})
 		case llms.ImageURLContent:
 			image := map[string]any{"type": "input_image", "image_url": p.URL}
 			if p.Detail != "" {
@@ -345,6 +345,27 @@ func toResponsesInput(msg llms.MessageContent) ([]any, error) {
 				"type":      "input_image",
 				"image_url": "data:" + p.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(p.Data),
 			})
+		default:
+			return nil, fmt.Errorf("unsupported content part %T for role %v", part, msg.Role)
+		}
+	}
+	if len(content) == 0 {
+		return nil, nil
+	}
+	return []any{map[string]any{"type": "message", "role": role, "content": content}}, nil
+}
+
+// toResponsesAssistantInput converts an earlier assistant turn: its text becomes
+// one message item and each tool call a function_call item. The text is sent as
+// a plain string, which the API accepts for any role; an output_text part would
+// also need the annotations the original response carried.
+func toResponsesAssistantInput(msg llms.MessageContent) ([]any, error) {
+	var text strings.Builder
+	var calls []any
+	for _, part := range msg.Parts {
+		switch p := part.(type) {
+		case llms.TextContent:
+			text.WriteString(p.Text)
 		case llms.ToolCall:
 			if p.FunctionCall == nil {
 				return nil, fmt.Errorf("tool call %q has no function call", p.ID)
@@ -361,8 +382,8 @@ func toResponsesInput(msg llms.MessageContent) ([]any, error) {
 	}
 
 	items := make([]any, 0, 1+len(calls))
-	if len(content) > 0 {
-		items = append(items, map[string]any{"type": "message", "role": role, "content": content})
+	if text.Len() > 0 {
+		items = append(items, map[string]any{"type": "message", "role": "assistant", "content": text.String()})
 	}
 	return append(items, calls...), nil
 }

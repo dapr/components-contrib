@@ -33,3 +33,10 @@ Upsert in Multi function, using 3 keys with updating values and TTL for 2 of the
 
 ## enableTLS set to true & enableTLS not integer:
 Testing by creating component with ignoreErrors: true and then trying to use it, by trying to save, which should error out as state store never got configured successfully. 
+
+## Entra ID authentication (`useEntraID`):
+The test serves a fake Azure App Service managed identity endpoint (`IDENTITY_ENDPOINT` and `IDENTITY_HEADER`), so the Azure SDK credential chain runs end to end without Azure. The endpoint issues JWTs whose `oid` claim is the Redis ACL username, and the ACL requires the issued token as the password:
+1. CRUD operations succeed authenticated as the object ID with the initial token.
+2. The endpoint rotates to a second token and the background refresh fetches it.
+3. The initial token is revoked and the component's connections are killed; CRUD operations still succeed, proving new connections authenticate with the refreshed token (dapr/components-contrib#3554).
+4. The component's connections are authenticated as the object ID, and the token was requested for the `https://redis.azure.com` resource.

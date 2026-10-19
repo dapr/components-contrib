@@ -14,6 +14,7 @@ limitations under the License.
 package redis
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -123,6 +124,23 @@ type Settings struct {
 	// EntraID / AzureAD Authentication based on the shared code which essentially uses the DefaultAzureCredential
 	// from the official Azure Identity SDK for Go
 	UseEntraID bool `mapstructure:"useEntraID" mapstructurealiases:"useAzureAD"`
+
+	// fetchToken returns a current auth token and its expiry. It is set when
+	// useEntraID is enabled, so that every new connection authenticates with a
+	// fresh token rather than one snapshotted at init.
+	fetchToken func(ctx context.Context) (string, time.Time, error) `mapstructure:"-"`
+}
+
+// credentialsProvider returns the username and a fresh token for each new
+// connection, or nil when token authentication is not enabled.
+func (s *Settings) credentialsProvider() func(ctx context.Context) (string, string, error) {
+	if s.fetchToken == nil {
+		return nil
+	}
+	return func(ctx context.Context) (string, string, error) {
+		token, _, err := s.fetchToken(ctx)
+		return s.Username, token, err
+	}
 }
 
 func (s *Settings) Decode(in interface{}) error {

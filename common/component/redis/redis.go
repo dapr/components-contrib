@@ -90,7 +90,6 @@ type RedisClient interface {
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
-	AuthACL(ctx context.Context, username, password string) error
 }
 
 type ConfigurationSubscribeArgs struct {
@@ -165,12 +164,21 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
 		}
 	}
-	var tokenExpires *time.Time
-	var tokenCredential *azcore.TokenCredential
+	var entraIDTokenExpiry time.Time
 	if settings.UseEntraID {
-		tokenExpires, tokenCredential, err = settings.GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx, &properties)
+		entraIDTokenExpiry, err = settings.InitEntraID(ctx, &properties)
 		if err != nil {
 			return nil, nil, err
+		}
+		if settings.Failover {
+			// go-redis v8 and v9.6 have no per-connection credentials provider for
+			// failover and copy OnConnect onto Sentinel connections, so failover keeps
+			// the initial token as the password and relies on the refresh loop
+			// re-authenticating the live pool.
+			settings.Password, _, err = settings.fetchToken(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+			}
 		}
 	}
 
@@ -214,125 +222,168 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	// start the token refresh goroutine
 
 	if settings.UseEntraID {
-		StartEntraIDTokenRefreshBackgroundRoutine(c, settings.Username, *tokenExpires, tokenCredential, logger)
+		go runTokenRefreshLoop(c, settings.Username, entraIDTokenExpiry, logger, "entraID", settings.fetchToken)
 	}
 	return c, &settings, nil
 }
 
-func StartEntraIDTokenRefreshBackgroundRoutine(client RedisClient, username string, nextExpiration time.Time, cred *azcore.TokenCredential, logger *kitlogger.Logger) {
-	go func(cred *azcore.TokenCredential, username string, logger *kitlogger.Logger) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		backoffConfig := kitretry.DefaultConfig()
-		backoffConfig.MaxRetries = 3
-		backoffConfig.Policy = kitretry.PolicyExponential
-
-		var backoffManager backoff.BackOff
-		const refreshGracePeriod = 5 * time.Minute
-		tokenRefreshDuration := time.Until(nextExpiration.Add(-refreshGracePeriod))
-
-		(*logger).Debugf("redis client: starting entraID token refresh loop")
-
-		for {
-			(*logger).Debugf("redis client: next entraID token refresh: %v", tokenRefreshDuration)
-			select {
-			case <-ctx.Done():
-				(*logger).Infof("redis client: entraID token refresh stopped due to context cancellation")
-				return
-			case <-time.After(tokenRefreshDuration):
-				(*logger).Debug("redis client: refreshing entraID token")
-				// Get a new access token
-				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
-				var token azcore.AccessToken
-				tokenErr := kitretry.NotifyRecover(
-					func() error {
-						var innerTokenErr error
-						token, innerTokenErr = (*cred).GetToken(ctx, policy.TokenRequestOptions{
-							Scopes: []string{"https://redis.azure.com/.default"},
-						})
-						return innerTokenErr
-					},
-					backoffManager,
-					func(err error, _ time.Duration) {
-						(*logger).Debugf("redis client: entraID token acquisition failed with error: %v. Retrying...", err)
-					},
-					func() {
-						(*logger).Debug("redis client: entraID token acquisition succeeded after error")
-					},
-				)
-				if tokenErr != nil {
-					_ = client.Close()
-					(*logger).Fatalf("redis client: entraID token acquisition failed: %v", tokenErr)
-					return
-				}
-
-				// Use the new access token via the Redis AUTH command
-				backoffManager = backoffConfig.NewBackOffWithContext(ctx)
-				authErr := kitretry.NotifyRecover(
-					func() error {
-						var innerAuthErr error
-						innerAuthErr = client.AuthACL(ctx, username, token.Token)
-						return innerAuthErr
-					},
-					backoffManager,
-					func(err error, _ time.Duration) {
-						(*logger).Debugf("redis client: entraID auth failed with error: %v. Retrying...", err)
-					},
-					func() {
-						(*logger).Debug("redis client: entraID auth succeeded after error")
-					},
-				)
-				if authErr != nil {
-					_ = client.Close()
-					(*logger).Fatalf("redis client: entraID auth failed: %v", authErr)
-					return
-				}
-				// Since the entraID auth succeeded we are setting the duration to wait for the next iteration of the refresh loop
-
-				(*logger).Debugf("redis client: entraID auth token successfully refreshed with the server")
-
-				tokenRefreshDuration = time.Until(token.ExpiresOn.Add(-refreshGracePeriod))
-			}
-		}
-	}(cred, username, logger)
+func entraTokenFetch(cred azcore.TokenCredential) func(ctx context.Context) (string, time.Time, error) {
+	return func(ctx context.Context) (string, time.Time, error) {
+		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: []string{"https://redis.azure.com/.default"},
+		})
+		return token.Token, token.ExpiresOn, err
+	}
 }
 
-func (s *Settings) GetEntraIDCredentialAndSetInitialTokenAsPassword(ctx context.Context, properties *map[string]string) (*time.Time, *azcore.TokenCredential, error) {
+// InitEntraID validates the Entra ID settings, uses the initial token's object ID
+// as the ACL username, and sets fetchToken so that each new connection
+// authenticates with a fresh token. It returns the initial token's expiry so a
+// refresh routine can be scheduled.
+func (s *Settings) InitEntraID(ctx context.Context, properties *map[string]string) (time.Time, error) {
 	if len(s.Password) > 0 || len(s.Username) > 0 {
-		return nil, nil, errors.New(
-			"redis client configuration error: username or password must not be specified when using Entra ID authentication")
+		return time.Time{}, errors.New(
+			"redis client configuration error: username or password must not be specified when using Entra ID authentication",
+		)
 	}
 	envSettings, err := azure.NewEnvironmentSettings(*properties)
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
 	}
 	cred, err := envSettings.GetTokenCredential()
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://redis.azure.com/.default"},
-	})
+	s.fetchToken = entraTokenFetch(cred)
+	token, expiry, err := s.fetchToken(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
 	}
-
-	s.Password = token.Token
 
 	// This token has already been validated by EntraID. We use insecure parsing to get the object ID.
-	parsedToken, err := jwt.ParseString(token.Token, jwt.WithVerify(false), jwt.WithValidate(false))
+	parsedToken, err := jwt.ParseString(token, jwt.WithVerify(false), jwt.WithValidate(false))
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+		return time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
 	}
-	objectID, found := parsedToken.Get("oid")
+	objectID, _ := parsedToken.Get("oid")
+	oid, _ := objectID.(string)
+	if oid == "" {
+		return time.Time{}, errors.New("redis client configuration error: could not parse object ID from Auth token")
+	}
+	s.Username = oid
+	return expiry, nil
+}
 
-	if found {
-		s.Username = objectID.(string)
-	} else {
-		return nil, nil, errors.New("redis client configuration error: could not parse object ID from Auth token")
+const (
+	// maxRefreshGracePeriod is the longest a refresh is brought forward ahead of
+	// token expiry. Long-lived tokens refresh exactly this far in advance.
+	maxRefreshGracePeriod = 5 * time.Minute
+	// minTokenRefreshInterval floors the wait between refreshes so a token that
+	// is already expired, or so short-lived that even a halved grace period
+	// leaves no room, cannot drive the loop into a tight refresh+AUTH spin
+	// against the IdP and Redis.
+	minTokenRefreshInterval = 5 * time.Second
+)
+
+// nextTokenRefreshInterval returns how long to wait before refreshing a token
+// with the given remaining lifetime.
+//
+// The grace period scales with the lifetime rather than being fixed: a token is
+// refreshed maxRefreshGracePeriod early, but never earlier than its own
+// midpoint. A fixed grace period would collapse to the floor for every IdP
+// issuing tokens at or under that period -- a 5 minute token would refresh
+// every minTokenRefreshInterval forever, hammering the token endpoint.
+func nextTokenRefreshInterval(lifetime time.Duration) time.Duration {
+	grace := maxRefreshGracePeriod
+	if half := lifetime / 2; half < grace {
+		grace = half
 	}
-	return &token.ExpiresOn, &cred, nil
+	if d := lifetime - grace; d > minTokenRefreshInterval {
+		return d
+	}
+	return minTokenRefreshInterval
+}
+
+// runTokenRefreshLoop periodically refreshes an authentication token before it
+// expires and re-authenticates the existing Redis connection pool via the AUTH
+// command. fetch must return a fresh token and its expiry. On definitive failure
+// (after retries) the client is closed and the process is terminated.
+func runTokenRefreshLoop(client RedisClient, username string, nextExpiration time.Time, logger *kitlogger.Logger, label string, fetch func(ctx context.Context) (string, time.Time, error)) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backoffConfig := kitretry.DefaultConfig()
+	backoffConfig.MaxRetries = 3
+	backoffConfig.Policy = kitretry.PolicyExponential
+
+	var backoffManager backoff.BackOff
+	tokenRefreshDuration := nextTokenRefreshInterval(time.Until(nextExpiration))
+
+	(*logger).Debugf("redis client: starting %s token refresh loop", label)
+
+	for {
+		(*logger).Debugf("redis client: next %s token refresh: %v", label, tokenRefreshDuration)
+		select {
+		case <-ctx.Done():
+			(*logger).Infof("redis client: %s token refresh stopped due to context cancellation", label)
+			return
+		case <-time.After(tokenRefreshDuration):
+			(*logger).Debugf("redis client: refreshing %s token", label)
+			// Get a new access token
+			var newToken string
+			var newExpiry time.Time
+			backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+			tokenErr := kitretry.NotifyRecover(
+				func() error {
+					var innerTokenErr error
+					newToken, newExpiry, innerTokenErr = fetch(ctx)
+					return innerTokenErr
+				},
+				backoffManager,
+				func(err error, _ time.Duration) {
+					(*logger).Debugf("redis client: %s token acquisition failed with error: %v. Retrying...", label, err)
+				},
+				func() {
+					(*logger).Debugf("redis client: %s token acquisition succeeded after error", label)
+				},
+			)
+			if tokenErr != nil {
+				_ = client.Close()
+				(*logger).Fatalf("redis client: %s token acquisition failed: %v", label, tokenErr)
+				return
+			}
+
+			// Re-authenticate the connection with the new token via the Redis AUTH
+			// command. With no username we send the 1-argument AUTH <token> form;
+			// with one we send AUTH <username> <token>.
+			backoffManager = backoffConfig.NewBackOffWithContext(ctx)
+			authErr := kitretry.NotifyRecover(
+				func() error {
+					if username == "" {
+						return client.DoWrite(ctx, "AUTH", newToken)
+					}
+					return client.DoWrite(ctx, "AUTH", username, newToken)
+				},
+				backoffManager,
+				func(err error, _ time.Duration) {
+					(*logger).Debugf("redis client: %s auth failed with error: %v. Retrying...", label, err)
+				},
+				func() {
+					(*logger).Debugf("redis client: %s auth succeeded after error", label)
+				},
+			)
+			if authErr != nil {
+				_ = client.Close()
+				(*logger).Fatalf("redis client: %s auth failed: %v", label, authErr)
+				return
+			}
+
+			(*logger).Debugf("redis client: %s auth token successfully refreshed with the server", label)
+
+			// Schedule the next refresh based on the new token's expiry
+			tokenRefreshDuration = nextTokenRefreshInterval(time.Until(newExpiry))
+		}
+	}
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {

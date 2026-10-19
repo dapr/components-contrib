@@ -92,12 +92,18 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	llm, err := openai.New(options...)
+	if md.UseResponsesAPI {
+		if strings.EqualFold(md.APIType, "azure") {
+			return errors.New("useResponsesAPI is not supported when apiType is set to 'azure'")
+		}
+		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint)
+	} else {
+		o.Model, err = openai.New(options...)
+	}
 	if err != nil {
 		return err
 	}
 
-	o.Model = llm
 	o.SetModel(model)
 	o.SetDefaultMaxTokens(md.MaxTokens)
 	if md.UseLegacyMaxTokensField {

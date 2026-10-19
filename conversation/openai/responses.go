@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -95,7 +96,9 @@ type responsesTool struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Parameters  any    `json:"parameters,omitempty"`
-	Strict      bool   `json:"strict,omitempty"`
+	// Strict is always sent: the Responses API treats an omitted strict as true,
+	// unlike Chat Completions, which would make optional parameters required.
+	Strict bool `json:"strict"`
 }
 
 type responsesText struct {
@@ -103,12 +106,17 @@ type responsesText struct {
 }
 
 type responsesResponse struct {
-	Status            string `json:"status"`
+	Status string `json:"status"`
+	Error  *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
 	IncompleteDetails *struct {
 		Reason string `json:"reason"`
 	} `json:"incomplete_details"`
 	Output []struct {
 		Type    string `json:"type"`
+		Status  string `json:"status"`
 		Content []struct {
 			Type    string `json:"type"`
 			Text    string `json:"text"`
@@ -175,6 +183,12 @@ func (m *responsesModel) GenerateContent(ctx context.Context, messages []llms.Me
 	if err = json.Unmarshal(resBody, &res); err != nil {
 		return nil, fmt.Errorf("failed to decode responses response: %w", err)
 	}
+	if res.Status == "failed" {
+		if res.Error != nil {
+			return nil, fmt.Errorf("response failed: %s: %s", res.Error.Code, res.Error.Message)
+		}
+		return nil, errors.New("response failed")
+	}
 	return toContentResponse(&res), nil
 }
 
@@ -232,7 +246,11 @@ func (m *responsesModel) buildRequest(messages []llms.MessageContent, opts llms.
 	for k, v := range opts.Metadata {
 		switch {
 		case k == promptCacheRetentionKey:
-			req.PromptCacheRetention = v
+			retention, err := toResponsesCacheRetention(v)
+			if err != nil {
+				return nil, err
+			}
+			req.PromptCacheRetention = retention
 		case k == "thinking_config" || strings.HasPrefix(k, "openai:"):
 			// Internal options for langchaingo's own client; never sent to the API.
 		default:
@@ -243,6 +261,21 @@ func (m *responsesModel) buildRequest(messages []llms.MessageContent, opts llms.
 		}
 	}
 	return req, nil
+}
+
+// toResponsesCacheRetention converts the retention langchaingokit sends, a
+// time.Duration string such as "24h0m0s", into the value the Responses API
+// accepts. The API only takes "24h" for extended retention.
+func toResponsesCacheRetention(v any) (string, error) {
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid prompt cache retention %v", v)
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d != 24*time.Hour {
+		return "", fmt.Errorf("unsupported prompt cache retention %q, the Responses API only supports 24h", s)
+	}
+	return "24h", nil
 }
 
 // toResponsesInput converts one message into Responses API input items. An
@@ -382,6 +415,11 @@ func toContentResponse(res *responsesResponse) *llms.ContentResponse {
 				}
 			}
 		case "function_call":
+			// A call cut off by the token limit has partial arguments and must
+			// not reach the caller as a call to run.
+			if item.Status == "incomplete" {
+				continue
+			}
 			choice.ToolCalls = append(choice.ToolCalls, llms.ToolCall{
 				ID:   item.CallID,
 				Type: "function",
@@ -398,12 +436,12 @@ func toContentResponse(res *responsesResponse) *llms.ContentResponse {
 	}
 
 	switch {
-	case len(choice.ToolCalls) > 0:
-		choice.StopReason = "tool_calls"
 	case res.Status == "incomplete" && res.IncompleteDetails != nil && res.IncompleteDetails.Reason == "max_output_tokens":
 		choice.StopReason = "length"
 	case res.Status == "incomplete" && res.IncompleteDetails != nil && res.IncompleteDetails.Reason == "content_filter":
 		choice.StopReason = "content_filter"
+	case len(choice.ToolCalls) > 0:
+		choice.StopReason = "tool_calls"
 	default:
 		choice.StopReason = "stop"
 	}

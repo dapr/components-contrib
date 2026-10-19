@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,7 @@ func TestResponsesAPIToolCall(t *testing.T) {
 		assert.Equal(t, "function", tool["type"])
 		assert.Equal(t, "get_weather", tool["name"])
 		assert.Equal(t, "Get the weather for a city", tool["description"])
+		assert.Equal(t, false, tool["strict"])
 	})
 
 	t.Run("response", func(t *testing.T) {
@@ -180,6 +182,12 @@ func TestResponsesAPIText(t *testing.T) {
 			name:       "cut off by max tokens",
 			reply:      `{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hel"}]}]}`,
 			wantText:   "Hel",
+			wantReason: "length",
+		},
+		{
+			name:       "tool call cut off by max tokens",
+			reply:      `{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"function_call","status":"incomplete","call_id":"call_1","name":"get_weather","arguments":"{\"ci"}]}`,
+			wantText:   "",
 			wantReason: "length",
 		},
 		{
@@ -271,6 +279,44 @@ func TestResponsesAPIError(t *testing.T) {
 		Message: &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
 	})
 	require.EqualError(t, err, "API returned unexpected status code: 400: Invalid value for 'model'.")
+}
+
+func TestResponsesAPIFailedResponse(t *testing.T) {
+	_, url := newFakeOpenAI(t, http.StatusOK, `{"status":"failed","error":{"code":"server_error","message":"The model failed."},"output":[]}`)
+	o := initOpenAI(t, map[string]string{"key": "test-key", "endpoint": url, "useResponsesAPI": "true"})
+
+	_, err := o.Converse(t.Context(), &conversation.Request{
+		Message: &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
+	})
+	require.EqualError(t, err, "response failed: server_error: The model failed.")
+}
+
+func TestResponsesAPIPromptCacheRetention(t *testing.T) {
+	t.Run("24h", func(t *testing.T) {
+		fake, url := newFakeOpenAI(t, http.StatusOK, `{"status":"completed","output":[]}`)
+		o := initOpenAI(t, map[string]string{"key": "test-key", "endpoint": url, "useResponsesAPI": "true"})
+
+		retention := 24 * time.Hour
+		_, err := o.Converse(t.Context(), &conversation.Request{
+			Message:              &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
+			PromptCacheRetention: &retention,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "24h", fake.body["prompt_cache_retention"])
+		assert.NotContains(t, fake.body, "metadata")
+	})
+
+	t.Run("unsupported", func(t *testing.T) {
+		_, url := newFakeOpenAI(t, http.StatusOK, `{"status":"completed","output":[]}`)
+		o := initOpenAI(t, map[string]string{"key": "test-key", "endpoint": url, "useResponsesAPI": "true"})
+
+		retention := time.Hour
+		_, err := o.Converse(t.Context(), &conversation.Request{
+			Message:              &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
+			PromptCacheRetention: &retention,
+		})
+		require.ErrorContains(t, err, `unsupported prompt cache retention "1h0m0s"`)
+	})
 }
 
 func TestResponsesAPIRejectsAzure(t *testing.T) {

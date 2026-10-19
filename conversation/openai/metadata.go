@@ -27,4 +27,6 @@ type OpenAILangchainMetadata struct {
 	// UseLegacyMaxTokensField sends the cap as max_tokens instead of
 	// max_completion_tokens, for OpenAI-compatible endpoints that predate it.
 	UseLegacyMaxTokensField bool `json:"useLegacyMaxTokensField" mapstructure:"useLegacyMaxTokensField"`
+	// ReasoningEffort, when set, is sent as reasoning_effort on every chat completions request.
+	ReasoningEffort string `json:"reasoningEffort" mapstructure:"reasoningEffort"`
 }

@@ -75,3 +75,14 @@ metadata:
     type: bool
     example: "true"
     default: 'false'
+  - name: reasoningEffort
+    required: false
+    description: |
+      Reasoning effort sent as reasoning_effort on every request, for example
+      "none", "low", "medium" or "high". Set it to "none" to use function tools
+      with an OpenAI reasoning model, which rejects tools on the chat completions
+      API at any other effort. When unset, the field is not sent and the model's
+      own default applies.
+    type: string
+    example: "none"
+    default: ''

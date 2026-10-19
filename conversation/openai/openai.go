@@ -55,6 +55,13 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) (string, []opena
 		model = conversation.GetOpenAIModel(md.Model)
 	}
 	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
+	if md.ReasoningEffort != "" {
+		// Appended after BuildOpenAIClientOptions, so it replaces the client set there.
+		options = append(options, openai.WithHTTPClient(&reasoningEffortDoer{
+			next:   conversation.BuildHTTPClient(),
+			effort: md.ReasoningEffort,
+		}))
+	}
 
 	// apply options specifically for azure openai
 	// TODO: in future, there is also an openai.APITypeAzureAD that we can add.

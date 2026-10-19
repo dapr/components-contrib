@@ -35,15 +35,20 @@ const (
 )
 
 // applyPublishMetadata copies the metadata of a publish request onto an AMQP
-// message. The subject key sets the subject. Every other key becomes an
-// application property with a string value, which is what a broker-side filter
-// such as an ActiveMQ Artemis selector matches on.
+// message, if the component sets applicationPropertiesFromMetadata. The subject
+// key sets the subject. Every other key becomes an application property with a
+// string value, which is what a broker-side filter such as an ActiveMQ Artemis
+// selector matches on.
 //
 // Keys that control the publish itself are not copied, and neither are
 // cloudevent.* keys: they override fields of the CloudEvent envelope, which is
 // in the message body already. Empty values are skipped.
-func applyPublishMetadata(m *amqp.Message, md map[string]string) {
-	for key, value := range md {
+func applyPublishMetadata(md *metadata, m *amqp.Message, reqMetadata map[string]string) {
+	if !md.ApplicationPropertiesFromMetadata {
+		return
+	}
+
+	for key, value := range reqMetadata {
 		if value == "" || !copiedToMessage(key) {
 			continue
 		}
@@ -59,7 +64,7 @@ func applyPublishMetadata(m *amqp.Message, md map[string]string) {
 		}
 
 		if m.ApplicationProperties == nil {
-			m.ApplicationProperties = make(map[string]any, len(md))
+			m.ApplicationProperties = make(map[string]any, len(reqMetadata))
 		}
 		m.ApplicationProperties[key] = value
 	}

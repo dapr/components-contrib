@@ -81,7 +81,7 @@ func TestApplyPublishMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := amqp.NewMessage([]byte("hello"))
-			applyPublishMetadata(m, tt.md)
+			applyPublishMetadata(&metadata{ApplicationPropertiesFromMetadata: true}, m, tt.md)
 
 			assert.Equal(t, tt.wantProps, m.ApplicationProperties)
 
@@ -97,6 +97,16 @@ func TestApplyPublishMetadata(t *testing.T) {
 			assert.Equal(t, tt.wantSubject, *m.Properties.Subject)
 		})
 	}
+}
+
+// TestApplyPublishMetadataIsOptIn verifies that a component that does not set
+// applicationPropertiesFromMetadata publishes the message unchanged.
+func TestApplyPublishMetadataIsOptIn(t *testing.T) {
+	m := amqp.NewMessage([]byte("hello"))
+	applyPublishMetadata(&metadata{}, m, map[string]string{"eventType": "invoice", "subject": "invoice"})
+
+	assert.Nil(t, m.ApplicationProperties)
+	assert.Nil(t, m.Properties)
 }
 
 func TestParseMetadataApplicationPropertiesFromMetadata(t *testing.T) {

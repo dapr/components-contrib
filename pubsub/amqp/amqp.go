@@ -336,9 +336,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 		m.Header = &amqp.MessageHeader{TTL: ttl}
 	}
 
-	if md.ApplicationPropertiesFromMetadata {
-		applyPublishMetadata(m, req.Metadata)
-	}
+	applyPublishMetadata(md, m, req.Metadata)
 
 	// Publish the message, retrying a bounded number of times before giving up.
 	// Every attempt opens its own link. Once a link is done, go-amqp returns

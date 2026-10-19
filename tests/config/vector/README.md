@@ -22,6 +22,27 @@ docker compose -f .github/infrastructure/docker-compose-meilisearch.yml -p meili
 MEILISEARCH_HOST=http://localhost:7700 MEILISEARCH_API_KEY=masterKey go test -tags conftests -run TestVectorConformance ./tests/conformance/...
 ```
 
+## AWS OpenSearch through Floci
+
+Use the [shared OpenSearch/Floci setup](../search/README.md#aws-opensearch-through-floci)
+to run both search and vector conformance against a real, pinned OpenSearch
+domain managed by Floci. Setup verifies the k-NN plugin and actual vector/text
+queries, saves `OPENSEARCH_ENDPOINT` to this directory's `.env`, and exports it
+through `$GITHUB_ENV` in CI. No real AWS credentials are required.
+
+```sh
+.github/scripts/components-scripts/opensearch-floci-setup.sh
+set -a; source tests/config/vector/.env; set +a
+go test -tags conftests -count=1 -run TestVectorConformance -timeout 20m ./tests/conformance
+(cd tests/certification && go test -tags certtests,unit -count=1 -timeout 20m ./vector/aws/opensearch)
+.github/scripts/components-scripts/opensearch-floci-destroy.sh
+```
+
+OpenSearch declares cosine, dot-product, and Euclidean metrics, filters,
+query-by-ID, and score thresholds. It does not declare queued acknowledgements.
+The [vector certification suite](../../certification/vector/aws/opensearch/README.md)
+additionally checks OpenSearch-specific scoring, persistence and bulk behavior.
+
 ## Declaring component capabilities
 
 `tests.yml` drives the suite. Each component lists the optional capabilities it

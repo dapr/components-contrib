@@ -1,0 +1,30 @@
+# Floci owns the OpenSearch backend containers; the destroy wrapper deletes the
+# domain before taking this project down.
+services:
+  floci:
+    image: floci/floci:2.1.0-compat@sha256:bb98b11f837bdacdda21ce6635a0773509e50aa471c35be9332a9efef502127c
+    # The compatibility image defaults to a non-root user without socket access.
+    user: "0:0"
+    environment:
+      FLOCI_STORAGE_MODE: memory
+      FLOCI_DEFAULT_REGION: us-east-1
+      FLOCI_DEFAULT_ACCOUNT_ID: "000000000000"
+      FLOCI_SERVICES_DOCKER_NETWORK: "${OPENSEARCH_FLOCI_PROJECT:-dapr-opensearch-floci}"
+      FLOCI_SERVICES_OPENSEARCH_ENABLED: "true"
+      FLOCI_SERVICES_OPENSEARCH_MOCK: "false"
+      FLOCI_SERVICES_OPENSEARCH_PROXY_BASE_PORT: "${OPENSEARCH_FLOCI_PROXY_BASE_PORT:-9400}"
+      FLOCI_SERVICES_OPENSEARCH_PROXY_MAX_PORT: "${OPENSEARCH_FLOCI_PROXY_MAX_PORT:-9499}"
+      FLOCI_SERVICES_OPENSEARCH_DEFAULT_IMAGE: opensearchproject/opensearch:2.19.5@sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    ports:
+      - "127.0.0.1:${OPENSEARCH_FLOCI_PORT:-4567}:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - opensearch
+networks:
+  opensearch:
+    name: "${OPENSEARCH_FLOCI_PROJECT:-dapr-opensearch-floci}"

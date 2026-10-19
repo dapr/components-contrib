@@ -586,6 +586,26 @@ const components = {
         // longer follows from the component name.
         sourcePkg: ['pubsub/amqp'],
     },
+    'search.aws.opensearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'opensearch-floci-setup.sh',
+        conformanceLogs: 'opensearch-floci-logs.sh',
+        conformanceDestroy: 'opensearch-floci-destroy.sh',
+        certificationSetup: 'opensearch-floci-setup.sh',
+        certificationDestroy: 'opensearch-floci-destroy.sh',
+        sourcePkg: ['search/aws/opensearch', 'search', 'common/component/aws/opensearch'],
+    },
+    'vector.aws.opensearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'opensearch-floci-setup.sh',
+        conformanceLogs: 'opensearch-floci-logs.sh',
+        conformanceDestroy: 'opensearch-floci-destroy.sh',
+        certificationSetup: 'opensearch-floci-setup.sh',
+        certificationDestroy: 'opensearch-floci-destroy.sh',
+        sourcePkg: ['vector/aws/opensearch', 'vector', 'common/component/aws/opensearch'],
+    },
     'search.meilisearch': {
         conformance: true,
         certification: true,

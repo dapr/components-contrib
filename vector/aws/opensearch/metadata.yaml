@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: vector
+name: aws.opensearch
+version: v1
+status: alpha
+title: "AWS OpenSearch"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-vector/aws-opensearch/
+  - title: OpenSearch scoring scripts
+    url: https://docs.opensearch.org/latest/vector-search/vector-search-techniques/knn-score-script/
+capabilities:
+  - vectorSearch
+  - denseVectors
+  - cosineMetric
+  - dotProductMetric
+  - euclideanMetric
+  - queryById
+  - scoreThreshold
+  - filtering
+  - waitForCompletion
+  - batchQuery
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: endpoint
+    required: true
+    description: |
+      OpenSearch domain endpoint. Requests are signed with AWS SigV4.
+      Collections use exact, server-side prefiltered scoring queries, not
+      approximate nearest-neighbor (ANN) indexing. Every vector matching
+      the filter is scored, so query cost grows with the matching record
+      count; selective metadata filters improve scalability.
+      Cosine similarity is the default metric; dot product and Euclidean
+      distance are also supported, including query-time metric overrides.
+      Writes wait for refresh and acknowledge completion, not queued work.
+    example: "https://search-example.us-east-1.es.amazonaws.com"
+    type: string
+  - name: timeout
+    required: false
+    description: |
+      HTTP request timeout as a Go duration.
+    example: "30s"
+    type: string

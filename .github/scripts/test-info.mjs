@@ -47,8 +47,9 @@ const components = {
         requiredSecrets: [
             'OCIConfigFile',
             'OCICompartmentOCID',
-            'OCIBucketName',
         ],
+        conformanceSetup: 'conformance-binarystore.oci.objectstorage-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.oci.objectstorage-destroy.sh',
         sourcePkg: ['binarystore/oci/objectstorage'],
     },
     // requireDocker excludes cloud-scheduled runs.

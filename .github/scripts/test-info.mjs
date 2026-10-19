@@ -37,7 +37,9 @@ const components = {
     'binarystore.gcp.bucket': {
         conformance: true,
         requireGCPCredentials: true,
-        requiredSecrets: ['GCPBucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.gcp.bucket-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.gcp.bucket-destroy.sh',
         sourcePkg: ['binarystore/gcp/bucket'],
     },
     'binarystore.oci.objectstorage': {

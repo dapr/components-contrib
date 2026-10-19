@@ -15,16 +15,21 @@ package amqp
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	amqp "github.com/Azure/go-amqp"
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 func TestParseSubscriptionOptions(t *testing.T) {
@@ -146,7 +151,7 @@ func TestSubscriptionOptionsValidate(t *testing.T) {
 			opts:    subscriptionOptions{SubscriptionName: "billing"},
 			md:      &metadata{},
 			topic:   "orders",
-			wantErr: "needs a containerID or a consumerID",
+			wantErr: "needs a container ID",
 		},
 	}
 
@@ -325,4 +330,186 @@ func TestSubscribeReleasesTheNameWhenAttachFails(t *testing.T) {
 	}, nil)
 	require.Error(t, err)
 	assert.Empty(t, a.names)
+}
+
+func TestCheckSelector(t *testing.T) {
+	require.NoError(t, checkSelector(subscriptionOptions{}, nil, "orders"), "no selector, nothing to check")
+	require.NoError(t, checkSelector(subscriptionOptions{Selector: "a = 1"}, "a = 1", "orders"))
+
+	err := checkSelector(subscriptionOptions{Selector: "a = 1"}, nil, "orders")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "without the selector")
+}
+
+func TestReattachDelay(t *testing.T) {
+	refused := &backoff.ExponentialBackOff{
+		InitialInterval:     2 * time.Second,
+		Multiplier:          2,
+		MaxInterval:         time.Minute,
+		RandomizationFactor: 0,
+		Clock:               backoff.SystemClock,
+	}
+	refused.Reset()
+
+	assert.Equal(t, reattachFloor, reattachDelay(false, false, refused), "a link of the shared connection keeps the floor")
+
+	// A named subscription that keeps failing before it delivers backs off.
+	assert.Equal(t, 2*time.Second, reattachDelay(true, false, refused))
+	assert.Equal(t, 4*time.Second, reattachDelay(true, false, refused))
+	assert.Equal(t, 8*time.Second, reattachDelay(true, false, refused))
+
+	// One delivered message resets it.
+	assert.Equal(t, reattachFloor, reattachDelay(true, true, refused))
+	assert.Equal(t, 2*time.Second, reattachDelay(true, false, refused))
+
+	// A backoff shorter than the floor still waits for the floor.
+	assert.Equal(t, reattachFloor, reattachDelay(true, false, backoff.NewConstantBackOff(time.Millisecond)))
+}
+
+func TestAttacher(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	md := &metadata{ConsumerID: "orders-service"}
+
+	t.Run("an unnamed subscription claims nothing", func(t *testing.T) {
+		attach, release, err := a.attacher(md, "orders", subscriptionOptions{Selector: "a = 1"})
+		require.NoError(t, err)
+		require.NotNil(t, attach)
+		release()
+		assert.Empty(t, a.names)
+	})
+
+	t.Run("a named subscription claims its name until released", func(t *testing.T) {
+		sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true}
+
+		_, release, err := a.attacher(md, "orders", sub)
+		require.NoError(t, err)
+
+		_, _, err = a.attacher(md, "orders", sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already in use")
+
+		release()
+		_, release, err = a.attacher(md, "orders", sub)
+		require.NoError(t, err)
+		release()
+	})
+}
+
+// fakeReceiver hands out queued messages, then returns err, or blocks until
+// the context ends when err is nil.
+type fakeReceiver struct {
+	mu       sync.Mutex
+	messages []*amqp.Message
+	err      error
+	accepted []string
+	modified []string
+}
+
+func (f *fakeReceiver) Receive(ctx context.Context, _ *amqp.ReceiveOptions) (*amqp.Message, error) {
+	f.mu.Lock()
+	if len(f.messages) > 0 {
+		msg := f.messages[0]
+		f.messages = f.messages[1:]
+		f.mu.Unlock()
+
+		return msg, nil
+	}
+	err := f.err
+	f.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+
+	<-ctx.Done()
+
+	return nil, ctx.Err()
+}
+
+func (f *fakeReceiver) AcceptMessage(_ context.Context, msg *amqp.Message) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.accepted = append(f.accepted, string(msg.GetData()))
+
+	return nil
+}
+
+func (f *fakeReceiver) ModifyMessage(_ context.Context, msg *amqp.Message, opts *amqp.ModifyMessageOptions) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if opts == nil || !opts.DeliveryFailed {
+		return errors.New("a failed message must be returned with DeliveryFailed")
+	}
+	f.modified = append(f.modified, string(msg.GetData()))
+
+	return nil
+}
+
+func TestDeliver(t *testing.T) {
+	handler := func(_ context.Context, msg *pubsub.NewMessage) error {
+		if string(msg.Data) == "bad" {
+			return errors.New("handler failed")
+		}
+
+		return nil
+	}
+
+	t.Run("accepts handled messages and returns failed ones for redelivery", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		receiver := &fakeReceiver{
+			messages: []*amqp.Message{amqp.NewMessage([]byte("one")), amqp.NewMessage([]byte("bad")), amqp.NewMessage([]byte("two"))},
+			err:      errors.New("link detached"),
+		}
+		var released atomic.Bool
+		link := &subscriptionLink{receiver: receiver, release: func() { released.Store(true) }}
+
+		received := a.deliver(t.Context(), link, handler, "orders", "orders")
+
+		assert.True(t, received)
+		assert.True(t, released.Load(), "the link is released when delivery ends")
+		assert.Equal(t, []string{"one", "two"}, receiver.accepted)
+		assert.Equal(t, []string{"bad"}, receiver.modified)
+	})
+
+	t.Run("reports a link that failed before it delivered anything", func(t *testing.T) {
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		receiver := &fakeReceiver{err: &amqp.Error{Condition: "amqp:illegal-state"}}
+		link := &subscriptionLink{receiver: receiver, release: func() {}}
+
+		assert.False(t, a.deliver(t.Context(), link, handler, "orders", "orders"))
+	})
+}
+
+// TestRunSubscriptionReleasesWhatItClaimed verifies that a subscription that
+// ends frees its link and its name, so that the runtime can subscribe with the
+// name again, for example after a hot reload.
+func TestRunSubscriptionReleasesWhatItClaimed(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.backOffConfig = retry.DefaultConfig()
+
+	sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true}
+	_, releaseName, err := a.attacher(&metadata{ConsumerID: "orders-service"}, "orders", sub)
+	require.NoError(t, err)
+
+	var released atomic.Bool
+	link := &subscriptionLink{receiver: &fakeReceiver{}, release: func() { released.Store(true) }, named: true}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.runSubscription(ctx, cancel, link, nil, releaseName, nil, "orders", "orders")
+	}()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the subscription did not end")
+	}
+
+	assert.True(t, released.Load())
+	require.NoError(t, a.claimSubscriptionName("billing"), "the name is free again")
 }

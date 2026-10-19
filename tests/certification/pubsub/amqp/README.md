@@ -68,6 +68,9 @@ application property, because a Dapr publish sets none.
   replicas as consumers. The test reads this from the broker management API.
 - Each event reaches exactly one replica, and only the subscription whose
   selector matches it. An event type that no selector matches reaches no app.
+- Restarting one replica at a time while events are published loses no event.
+  An event in flight on a stopping replica is delivered again, so this step
+  allows duplicates.
 - With both sidecars stopped, the queues stay, and they keep what is published
   meanwhile, also across a broker restart. The backlog arrives, once each,
   when the sidecars start again.

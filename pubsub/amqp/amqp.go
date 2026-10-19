@@ -565,22 +565,9 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return fmt.Errorf("subscription to %q: %w", req.Topic, err)
 	}
 
-	attach := func(ctx context.Context) (*subscriptionLink, error) {
-		return a.attachShared(ctx, address, sub.receiverOptions())
-	}
-
-	// releaseName frees the subscription name once the subscription ends.
-	releaseName := func() {}
-
-	if sub.named() {
-		if err = a.claimSubscriptionName(sub.SubscriptionName); err != nil {
-			return err
-		}
-
-		releaseName = func() { a.releaseSubscriptionName(sub.SubscriptionName) }
-		attach = func(ctx context.Context) (*subscriptionLink, error) {
-			return a.attachNamed(ctx, md, address, sub)
-		}
+	attach, releaseName, err := a.attacher(md, address, sub)
+	if err != nil {
+		return err
 	}
 
 	// Attach once here, so that an unreachable broker or an address the broker
@@ -623,18 +610,22 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}()
 	go func() {
 		defer a.wg.Done()
-		defer releaseName()
-		// Cancel on the way out. A subscription can end on its own, when
-		// re-attaching the receiver gives up, and without this the goroutine
-		// above stays blocked on subCtx until the component closes.
-		//
-		// Not unit tested: reaching it needs a live receiver link, and a
-		// hand-built amqp.Session panics inside go-amqp.
-		defer cancel()
-		a.subscribeForever(subCtx, link, attach, handler, req.Topic, address)
+		a.runSubscription(subCtx, cancel, link, attach, releaseName, handler, req.Topic, address)
 	}()
 
 	return nil
+}
+
+// runSubscription runs one subscription until it ends, then frees what it
+// claimed.
+func (a *amqpPubSub) runSubscription(ctx context.Context, cancel context.CancelFunc, link *subscriptionLink, attach func(context.Context) (*subscriptionLink, error), releaseName func(), handler pubsub.Handler, topic, address string) {
+	defer releaseName()
+	// Cancel on the way out. A subscription can end on its own, when
+	// re-attaching the receiver gives up, and without this the goroutine that
+	// waits on the context stays blocked until the component closes.
+	defer cancel()
+
+	a.subscribeForever(ctx, link, attach, handler, topic, address)
 }
 
 // subscribeForever delivers messages for the lifetime of the subscription. If
@@ -644,6 +635,11 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 // AMQP address the receiver link is attached to.
 func (a *amqpPubSub) subscribeForever(ctx context.Context, link *subscriptionLink, attach func(context.Context) (*subscriptionLink, error), handler pubsub.Handler, topic string, address string) {
 	b := a.reconnectBackOff(ctx)
+
+	// refused paces a named subscription that the broker keeps refusing, see
+	// reattachDelay. It is separate from b, because reattach resets b each
+	// time it runs.
+	refused := a.reconnectBackOff(ctx)
 
 	for {
 		received := a.deliver(ctx, link, handler, topic, address)
@@ -655,19 +651,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, link *subscriptionLin
 		// Wait before re-attaching. A link that attaches and then fails
 		// immediately would otherwise spin against the broker, because the
 		// retry helper runs its first attempt with no delay.
-		//
-		// A link that failed before it delivered anything waits for the next
-		// backoff interval instead. A broker such as ActiveMQ Artemis accepts
-		// the attach and refuses the subscription right after, for example
-		// when a second consumer joins a durable subscription that is not
-		// shared. The re-attach then succeeds every time and only the first
-		// Receive fails, so the backoff in reattach never applies.
-		delay := reattachFloor
-		if !received {
-			delay = max(delay, b.NextBackOff())
-		}
-
-		if !a.wait(ctx, delay) {
+		if !a.wait(ctx, reattachDelay(link.named, received, refused)) {
 			return
 		}
 
@@ -818,8 +802,8 @@ func newPubsubMessage(topic string, msg *amqp.Message) *pubsub.NewMessage {
 // connect dials the broker and opens a session on the connection. It returns
 // both, because closing only the session leaves the socket open.
 func (a *amqpPubSub) connect(ctx context.Context, md *metadata) (*amqp.Conn, *amqp.Session, error) {
-	// The shared connection keeps a container ID that go-amqp generates, so
-	// it is unchanged for every user that sets no named subscription.
+	// The shared connection lets go-amqp generate its container ID. Only
+	// named subscriptions need a fixed one, see attachNamed.
 	return a.connectAs(ctx, md, "")
 }
 

@@ -17,7 +17,9 @@ description: |
   A subscription can set these keys in its own metadata: `subscriptionName` (link name, so the
   broker subscription has a known name), `durable` (the subscription and its messages stay while
   no consumer is attached), `shared` (replicas that use one subscription name share its messages)
-  and `selector` (a JMS selector the broker applies to the subscription).
+  and `selector` (a JMS selector the broker applies to the subscription). To change the selector
+  of a durable subscription, use a new `subscriptionName`: the broker drops the messages it holds
+  when the selector changes.
 authenticationProfiles:
   - title: "Username and password"
     description: "Authenticate with broker credentials"
@@ -100,8 +102,8 @@ metadata:
       AMQP container ID of the connections that carry named subscriptions, which are subscriptions
       that set `subscriptionName`. A broker such as Apache ActiveMQ Artemis names the subscription
       queue `<containerID>.<subscriptionName>`, so every replica of the app must use the same value,
-      and it must not change between restarts. Defaults to the consumer ID, which is the app ID
-      unless `consumerID` is set.
+      and it must not change between restarts. Defaults to the consumer ID that Dapr gives every
+      pub/sub component: the app ID, or the `consumerID` metadata if the component sets it.
     example: '"orders-service"'
     type: string
   - name: durableMessages

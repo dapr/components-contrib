@@ -18,8 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	amqp "github.com/Azure/go-amqp"
+	backoff "github.com/cenkalti/backoff/v4"
 
 	kitmd "github.com/dapr/kit/metadata"
 )
@@ -100,14 +102,14 @@ func (o subscriptionOptions) validate(md *metadata, topic string) error {
 		return fmt.Errorf("subscriptionName %q must not contain %q", o.SubscriptionName, linkNameSeparator)
 	}
 
-	// A subscription is a copy of a topic. A queue is consumed directly, so a
-	// subscription name on it has nothing to name.
+	// A queue is consumed directly, not through a subscription, so a
+	// subscription name has nothing to name there.
 	if strings.HasPrefix(topic, queueScheme) || hasPrefix(topic, md.QueueAddressPrefix) {
 		return fmt.Errorf("subscriptionName cannot be used with the queue %q", topic)
 	}
 
 	if md.containerID() == "" {
-		return errors.New("a named subscription needs a containerID or a consumerID")
+		return errors.New("a named subscription needs a container ID: set containerID or consumerID on the component")
 	}
 
 	return nil
@@ -147,17 +149,55 @@ func (o subscriptionOptions) receiverOptions() *amqp.ReceiverOptions {
 	return opts
 }
 
+// messageReceiver is the part of *amqp.Receiver that delivery uses. It lets the
+// delivery loop run in a test without a broker.
+type messageReceiver interface {
+	Receive(ctx context.Context, opts *amqp.ReceiveOptions) (*amqp.Message, error)
+	AcceptMessage(ctx context.Context, msg *amqp.Message) error
+	ModifyMessage(ctx context.Context, msg *amqp.Message, opts *amqp.ModifyMessageOptions) error
+}
+
 // subscriptionLink is one attached receiver, and the way to let go of it.
 type subscriptionLink struct {
-	receiver *amqp.Receiver
+	receiver messageReceiver
 	release  func()
+
+	// named is set for a named subscription, see attachNamed.
+	named bool
+}
+
+// attacher returns how a subscription attaches its receiver link, and the
+// function that frees what attaching it claimed. A named subscription claims
+// its name here, so the caller must call release once the subscription ends.
+func (a *amqpPubSub) attacher(md *metadata, address string, sub subscriptionOptions) (attach func(context.Context) (*subscriptionLink, error), release func(), err error) {
+	if !sub.named() {
+		return func(ctx context.Context) (*subscriptionLink, error) {
+			return a.attachShared(ctx, address, sub)
+		}, func() {}, nil
+	}
+
+	if err = a.claimSubscriptionName(sub.SubscriptionName); err != nil {
+		return nil, nil, err
+	}
+
+	return func(ctx context.Context) (*subscriptionLink, error) {
+			return a.attachNamed(ctx, md, address, sub)
+		}, func() {
+			a.releaseSubscriptionName(sub.SubscriptionName)
+		}, nil
 }
 
 // attachShared attaches a receiver on the shared connection. Releasing it
 // detaches the link.
-func (a *amqpPubSub) attachShared(ctx context.Context, address string, opts *amqp.ReceiverOptions) (*subscriptionLink, error) {
-	receiver, err := a.newReceiver(ctx, address, opts)
+func (a *amqpPubSub) attachShared(ctx context.Context, address string, sub subscriptionOptions) (*subscriptionLink, error) {
+	receiver, err := a.newReceiver(ctx, address, sub.receiverOptions())
 	if err != nil {
+		return nil, err
+	}
+
+	if err = checkSelector(sub, receiver.LinkSourceFilterValue(selectorFilterName), address); err != nil {
+		a.closeReceiver(receiver, address)
+
 		return nil, err
 	}
 
@@ -191,20 +231,52 @@ func (a *amqpPubSub) attachNamed(ctx context.Context, md *metadata, address stri
 		return nil, err
 	}
 
-	// A broker that does not support selectors may attach without the filter
-	// and deliver every message. Artemis echoes the filter it applied, even
-	// when it then refuses the link, so this catches a dropped filter but not
-	// a refused one. A refusal arrives as the first Receive error instead.
-	if sub.Selector != "" && receiver.LinkSourceFilterValue(selectorFilterName) == nil {
+	if err = checkSelector(sub, receiver.LinkSourceFilterValue(selectorFilterName), address); err != nil {
 		a.closeClient(client)
 
-		return nil, fmt.Errorf("the broker attached the subscription %q to %s without its selector", sub.SubscriptionName, address)
+		return nil, err
 	}
 
 	return &subscriptionLink{
 		receiver: receiver,
 		release:  func() { a.closeClient(client) },
+		named:    true,
 	}, nil
+}
+
+// checkSelector fails a subscription whose selector the broker did not echo
+// back on attach. A broker that does not support selectors may attach without
+// the filter and deliver every message.
+//
+// Artemis echoes the filter it was asked for, even when it then refuses the
+// link, so this catches a dropped filter but not a refused one. A refusal
+// arrives as the first Receive error instead.
+func checkSelector(sub subscriptionOptions, echoed any, address string) error {
+	if sub.Selector == "" || echoed != nil {
+		return nil
+	}
+
+	return fmt.Errorf("the broker attached to %s without the selector %q", address, sub.Selector)
+}
+
+// reattachDelay returns how long to wait before re-attaching a link that
+// failed.
+//
+// A broker such as ActiveMQ Artemis accepts some attaches and refuses the
+// subscription right after, for example when a second consumer joins a durable
+// subscription that is not shared, or when another selector is in use. The
+// re-attach then succeeds every time and only the first Receive fails. A named
+// subscription whose link failed before it delivered anything therefore waits
+// for refused, which grows across such failures and resets once a message
+// arrives. Every other link waits reattachFloor.
+func reattachDelay(named, received bool, refused backoff.BackOff) time.Duration {
+	if !named || received {
+		refused.Reset()
+
+		return reattachFloor
+	}
+
+	return max(reattachFloor, refused.NextBackOff())
 }
 
 // claimSubscriptionName reserves a subscription name for one subscription of

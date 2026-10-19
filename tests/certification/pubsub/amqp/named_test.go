@@ -152,20 +152,37 @@ func TestAMQPNamedSubscriptions(t *testing.T) {
 		// whose selector matches it.
 		Step("publish and verify", func(ctx flow.Context) error {
 			events := newEvents("live", 30)
-			require.NoError(ctx, publishEvents(ctx, events))
+			require.NoError(ctx, publishEvents(ctx, events, 0))
 			for _, sub := range namedSubscriptions {
 				tallies[sub.pubsub].expectExactlyOnce(ctx, eventsOfType(events, sub.eventType), time.Minute)
 			}
 
 			return nil
 		}).
-		Step("reset", func(flow.Context) error {
-			for _, tl := range tallies {
-				tl.reset()
+		Step("reset", resetTallies(tallies)).
+		//
+		// Restart one replica at a time while events are published. The other
+		// replica keeps consuming, so no event may be lost. An event that was
+		// in flight on a stopping replica is delivered again, so this step
+		// allows duplicates.
+		Step("publish during a rolling restart", func(ctx flow.Context) error {
+			events := newEvents("rolling", 80)
+			published := make(chan error, 1)
+			go func() { published <- publishEvents(ctx, events, 250*time.Millisecond) }()
+
+			require.NoError(ctx, sidecar.Stop(replicaSidecar1)(ctx))
+			require.NoError(ctx, sidecar.Start(replicaSidecar1, replicaOptions(0)...)(ctx))
+			require.NoError(ctx, sidecar.Stop(replicaSidecar2)(ctx))
+			require.NoError(ctx, sidecar.Start(replicaSidecar2, replicaOptions(1)...)(ctx))
+			require.NoError(ctx, <-published)
+
+			for _, sub := range namedSubscriptions {
+				tallies[sub.pubsub].expectAtLeastOnce(ctx, eventsOfType(events, sub.eventType), 2*time.Minute)
 			}
 
 			return nil
 		}).
+		Step("reset", resetTallies(tallies)).
 		//
 		// A durable subscription outlives its consumers. Stopping the sidecars
 		// must not delete it, and it keeps what is published meanwhile, also
@@ -175,7 +192,7 @@ func TestAMQPNamedSubscriptions(t *testing.T) {
 		Step("the subscriptions outlive their consumers", assertNamedQueues(0, 0)).
 		Step("publish while no replica runs", func(ctx flow.Context) error {
 			backlog = newEvents("backlog", 15)
-			return publishEvents(ctx, backlog)
+			return publishEvents(ctx, backlog, 0)
 		}).
 		Step("stop the broker",
 			dockercompose.Stop(clusterName, dockerComposeYAML, brokerService)).
@@ -233,8 +250,8 @@ func eventsOfType(events []event, eventType string) []string {
 // non-Dapr publisher would. The selectors match on the eventType application
 // property, which a Dapr publish does not set. Each body is a CloudEvent, so
 // the subscribers need no rawPayload, and each message is durable, so it
-// survives a broker restart.
-func publishEvents(ctx context.Context, events []event) error {
+// survives a broker restart. interval spaces the events out.
+func publishEvents(ctx context.Context, events []event, interval time.Duration) error {
 	conn, err := amqp.Dial(ctx, brokerURL, &amqp.ConnOptions{SASLType: amqp.SASLTypePlain(brokerUser, brokerPassword)})
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -271,6 +288,8 @@ func publishEvents(ctx context.Context, events []event) error {
 		if err = sender.Send(ctx, msg, nil); err != nil {
 			return fmt.Errorf("send %s: %w", e.data, err)
 		}
+
+		time.Sleep(interval)
 	}
 
 	return nil
@@ -301,10 +320,31 @@ func (t *tally) reset() {
 	t.seen = map[string]int{}
 }
 
+func resetTallies(tallies map[string]*tally) flow.Runnable {
+	return func(flow.Context) error {
+		for _, tl := range tallies {
+			tl.reset()
+		}
+
+		return nil
+	}
+}
+
 // expectExactlyOnce waits until every message in want arrived. It then waits a
 // little longer, so that a duplicate or a message that does not belong has time
 // to arrive, and checks that each message arrived once and nothing else did.
 func (t *tally) expectExactlyOnce(ctx flow.Context, want []string, timeout time.Duration) {
+	t.expect(ctx, want, timeout, true)
+}
+
+// expectAtLeastOnce is expectExactlyOnce for a step that redelivers, such as a
+// rolling restart. A message may arrive more than once, but none may be
+// missing and none may reach a subscription whose selector does not match it.
+func (t *tally) expectAtLeastOnce(ctx flow.Context, want []string, timeout time.Duration) {
+	t.expect(ctx, want, timeout, false)
+}
+
+func (t *tally) expect(ctx flow.Context, want []string, timeout time.Duration, once bool) {
 	require.Eventually(ctx, func() bool {
 		t.mu.Lock()
 		defer t.mu.Unlock()
@@ -326,7 +366,9 @@ func (t *tally) expectExactlyOnce(ctx flow.Context, want []string, timeout time.
 	expected := make(map[string]bool, len(want))
 	for _, w := range want {
 		expected[w] = true
-		require.Equalf(ctx, 1, t.seen[w], "message %q was delivered %d times", w, t.seen[w])
+		if once {
+			require.Equalf(ctx, 1, t.seen[w], "message %q was delivered %d times", w, t.seen[w])
+		}
 	}
 
 	for data := range t.seen {
@@ -338,24 +380,51 @@ func (t *tally) expectExactlyOnce(ctx flow.Context, want []string, timeout time.
 // subscription is one durable queue, named after the container ID and the
 // subscription name, filtered by its selector, with the given number of
 // consumers and messages.
+//
+// The broker drops the consumers of a stopped sidecar, and starts answering
+// its management API, a moment after the event, so this polls for up to a
+// minute.
 func assertNamedQueues(consumers, messages int) flow.Runnable {
 	return func(ctx flow.Context) error {
-		queues, err := listBrokerQueues()
-		require.NoError(ctx, err)
+		deadline := time.Now().Add(time.Minute)
+		for {
+			mismatch := namedQueuesMismatch(consumers, messages)
+			if mismatch == "" {
+				return nil
+			}
 
-		for _, sub := range namedSubscriptions {
-			name := namedContainerID + "." + sub.pubsub
-			q, ok := queues[name]
-			require.Truef(ctx, ok, "the broker has no queue %q", name)
-			require.Equal(ctx, namedTopic, q.Address)
-			require.Equal(ctx, "true", q.Durable)
-			require.Equal(ctx, sub.selector, q.Filter)
-			require.Equal(ctx, strconv.Itoa(consumers), q.ConsumerCount, "consumers on %q", name)
-			require.Equal(ctx, strconv.Itoa(messages), q.MessageCount, "messages in %q", name)
+			if time.Now().After(deadline) {
+				require.FailNow(ctx, mismatch)
+			}
+
+			time.Sleep(time.Second)
 		}
-
-		return nil
 	}
+}
+
+// namedQueuesMismatch describes the first way the broker queues differ from
+// what assertNamedQueues expects, or returns an empty string.
+func namedQueuesMismatch(consumers, messages int) string {
+	queues, err := listBrokerQueues()
+	if err != nil {
+		return fmt.Sprintf("cannot list the broker queues: %v", err)
+	}
+
+	for _, sub := range namedSubscriptions {
+		name := namedContainerID + "." + sub.pubsub
+		q, ok := queues[name]
+
+		switch {
+		case !ok:
+			return fmt.Sprintf("the broker has no queue %q", name)
+		case q.Address != namedTopic, q.Durable != "true", q.Filter != sub.selector:
+			return fmt.Sprintf("queue %q has address %q, durable %s and filter %q", name, q.Address, q.Durable, q.Filter)
+		case q.ConsumerCount != strconv.Itoa(consumers), q.MessageCount != strconv.Itoa(messages):
+			return fmt.Sprintf("queue %q has %s consumers and %s messages, want %d and %d", name, q.ConsumerCount, q.MessageCount, consumers, messages)
+		}
+	}
+
+	return ""
 }
 
 // brokerQueue is the part of an Artemis listQueues row this test reads. Artemis

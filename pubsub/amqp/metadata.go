@@ -45,6 +45,32 @@ type metadata struct {
 	// anycastPrefix and multicastPrefix of an ActiveMQ Artemis acceptor.
 	TopicAddressPrefix string
 	QueueAddressPrefix string
+
+	// ContainerID is the AMQP container ID of the connections that carry named
+	// subscriptions. A broker such as ActiveMQ Artemis names a subscription
+	// queue after the container ID and the link name, so the ID has to stay the
+	// same across restarts and be shared by every replica of the app. It
+	// defaults to ConsumerID.
+	ContainerID string
+
+	// ConsumerID is set by the runtime, to the app ID unless the component
+	// configures it. It is only read as the default of ContainerID.
+	ConsumerID string `mdignore:"true"`
+
+	// DurableMessages marks every published message durable, so that the
+	// broker keeps it across a broker restart. AMQP 1.0 messages are not
+	// durable unless the header says so.
+	DurableMessages bool
+}
+
+// containerID returns the container ID named subscriptions connect with, or an
+// empty string if none is configured.
+func (m *metadata) containerID() string {
+	if m.ContainerID != "" {
+		return m.ContainerID
+	}
+
+	return m.ConsumerID
 }
 
 type tlsCfg struct {

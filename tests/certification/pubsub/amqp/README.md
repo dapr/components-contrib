@@ -54,6 +54,24 @@ default acceptor, so it is not configured with `anycastPrefix` and
 `multicastPrefix`, and nothing here checks that `queue:` reaches an ANYCAST
 address while a bare topic reaches a MULTICAST one. See the known gaps.
 
+### Named, durable, shared and filtered subscriptions
+
+`TestAMQPNamedSubscriptions` runs two replicas of one app. Each replica holds
+two named subscriptions on one multicast address, `billing` and `audit`, each
+with its own selector, and both set `durable` and `shared`. The two components
+in `components/named` set one `containerID`, as replicas of one app ID would by
+default. A plain AMQP client publishes the events with an `eventType`
+application property, because a Dapr publish sets none.
+
+- Each subscription is one durable broker queue named
+  `<containerID>.<subscriptionName>`, with the selector as its filter and both
+  replicas as consumers. The test reads this from the broker management API.
+- Each event reaches exactly one replica, and only the subscription whose
+  selector matches it. An event type that no selector matches reaches no app.
+- With both sidecars stopped, the queues stay, and they keep what is published
+  meanwhile, also across a broker restart. The backlog arrives, once each,
+  when the sidecars start again.
+
 ## Running the tests
 
 Start the broker and run the suite:

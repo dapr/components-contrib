@@ -14,6 +14,10 @@ description: |
   Publish and subscribe over AMQP 1.0. Verified against Apache ActiveMQ Artemis and Solace PubSub+.
   Note that this is AMQP 1.0, which is a different protocol from the AMQP 0-9-1 spoken by
   `pubsub.rabbitmq`.
+  A subscription can set these keys in its own metadata: `subscriptionName` (link name, so the
+  broker subscription has a known name), `durable` (the subscription and its messages stay while
+  no consumer is attached), `shared` (replicas that use one subscription name share its messages)
+  and `selector` (a JMS selector the broker applies to the subscription).
 authenticationProfiles:
   - title: "Username and password"
     description: "Authenticate with broker credentials"
@@ -90,6 +94,25 @@ metadata:
     default: '""'
     example: '"anycast://"'
     type: string
+  - name: containerID
+    required: false
+    description: |
+      AMQP container ID of the connections that carry named subscriptions, which are subscriptions
+      that set `subscriptionName`. A broker such as Apache ActiveMQ Artemis names the subscription
+      queue `<containerID>.<subscriptionName>`, so every replica of the app must use the same value,
+      and it must not change between restarts. Defaults to the consumer ID, which is the app ID
+      unless `consumerID` is set.
+    example: '"orders-service"'
+    type: string
+  - name: durableMessages
+    required: false
+    description: |
+      Mark every published message as durable, so that the broker keeps it across a broker
+      restart. AMQP 1.0 messages are not durable unless the publisher says so. Set it when you use
+      durable subscriptions.
+    default: '"false"'
+    example: '"true"'
+    type: bool
   - name: backOffPolicy
     required: false
     description: |

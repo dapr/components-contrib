@@ -20,10 +20,9 @@ const components = {
     },
     'binarystore.azure.datalake': {
         conformance: true,
-        requiredSecrets: [
-            'AzureBlobStorageAccount',
-            'AzureBlobStorageAccessKey',
-        ],
+        requiredSecrets: ['AzureResourceGroupName'],
+        conformanceSetup: 'conformance-binarystore.azure.datalake-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.azure.datalake-destroy.sh',
         sourcePkg: ['binarystore/azure/datalake', 'common/component/azure/datalake'],
     },
     'binarystore.aws.s3': {

@@ -28,6 +28,17 @@ componentType: vector
 # Metrics that are not listed must be rejected with INVALID_ARGUMENT both on
 # CreateCollection and on Query. The alpha contract is dense-vector only.
 components:
+  - component: in-memory
+    operations:
+      - queued-ack
+      - score-threshold
+      - filter
+      - query-by-id
+      - metric-cosine
+      - metric-dot-product
+      - metric-euclidean
+    config:
+      dimensions: 4
   - component: meilisearch
     operations:
       - queued-ack

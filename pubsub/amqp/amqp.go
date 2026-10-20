@@ -639,7 +639,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, link *subscriptionLin
 	// refused paces a named subscription that the broker keeps refusing, see
 	// reattachDelay. It is separate from b, because reattach resets b each
 	// time it runs.
-	refused := a.reconnectBackOff(ctx)
+	refused := a.refusedBackOff(ctx)
 
 	for {
 		received := a.deliver(ctx, link, handler, topic, address)
@@ -679,6 +679,17 @@ func (a *amqpPubSub) reconnectBackOff(ctx context.Context) backoff.BackOff {
 	cfg.MaxElapsedTime = 0
 
 	return cfg.NewBackOffWithContext(ctx)
+}
+
+// refusedBackOff returns the backoff that paces a named subscription the broker
+// keeps refusing, see reattachDelay. The retry helper builds an exponential
+// backoff before it sets the configured initial interval, so the backoff
+// starts from the library default until it is reset.
+func (a *amqpPubSub) refusedBackOff(ctx context.Context) backoff.BackOff {
+	b := a.reconnectBackOff(ctx)
+	b.Reset()
+
+	return b
 }
 
 // wait sleeps for d, reporting false if the subscription ended first.
@@ -810,13 +821,10 @@ func (a *amqpPubSub) connect(ctx context.Context, md *metadata) (*amqp.Conn, *am
 // connectAs is connect with a fixed AMQP container ID. An empty containerID lets
 // go-amqp generate one.
 func (a *amqpPubSub) connectAs(ctx context.Context, md *metadata, containerID string) (*amqp.Conn, *amqp.Session, error) {
-	uri, err := url.Parse(md.URL)
+	clientOpts, err := a.connOptions(md, containerID)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	clientOpts := a.createClientOptions(uri, md)
-	clientOpts.ContainerID = containerID
 
 	a.logger.Infof("Attempting to connect to %s", md.URL)
 	client, err := amqp.Dial(ctx, md.URL, &clientOpts)
@@ -833,6 +841,22 @@ func (a *amqpPubSub) connectAs(ctx context.Context, md *metadata, containerID st
 	}
 
 	return client, session, nil
+}
+
+// connOptions returns the options of a connection with the given container ID.
+// The shared connection and the connection of each named subscription take
+// their TLS and SASL settings from here, so a named subscription connects the
+// same way, mutual TLS included.
+func (a *amqpPubSub) connOptions(md *metadata, containerID string) (amqp.ConnOptions, error) {
+	uri, err := url.Parse(md.URL)
+	if err != nil {
+		return amqp.ConnOptions{}, err
+	}
+
+	opts := a.createClientOptions(uri, md)
+	opts.ContainerID = containerID
+
+	return opts, nil
 }
 
 func (a *amqpPubSub) newTLSConfig(md *metadata) *tls.Config {

@@ -14,8 +14,21 @@ limitations under the License.
 package amqp
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/binary"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"io"
+	"math/big"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -512,4 +525,247 @@ func TestRunSubscriptionReleasesWhatItClaimed(t *testing.T) {
 
 	assert.True(t, released.Load())
 	require.NoError(t, a.claimSubscriptionName("billing"), "the name is free again")
+}
+
+// TestRefusedBackOffStartsAtTheConfiguredInterval verifies that the backoff for
+// a refused subscription starts from backOffInitialInterval, not from the
+// default the retry helper builds the exponential backoff with.
+func TestRefusedBackOffStartsAtTheConfiguredInterval(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.backOffConfig = retry.Config{
+		Policy:          retry.PolicyExponential,
+		InitialInterval: 30 * time.Second,
+		Multiplier:      2,
+		MaxInterval:     5 * time.Minute,
+		MaxRetries:      -1,
+	}
+
+	b := a.refusedBackOff(t.Context())
+	assert.Equal(t, 30*time.Second, b.NextBackOff())
+	assert.Equal(t, 60*time.Second, b.NextBackOff())
+}
+
+// TestConnOptions verifies that a named subscription connects with the same
+// TLS and SASL settings as the shared connection, mutual TLS with anonymous
+// SASL included.
+func TestConnOptions(t *testing.T) {
+	caPEM, certPEM, keyPEM := testTLSMaterial(t)
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+
+	t.Run("mutual TLS with anonymous SASL", func(t *testing.T) {
+		md := &metadata{
+			URL:       "amqps://broker:5671",
+			Anonymous: true,
+			tlsCfg:    tlsCfg{CaCert: caPEM, ClientCert: certPEM, ClientKey: keyPEM},
+		}
+
+		opts, err := a.connOptions(md, "orders-service")
+		require.NoError(t, err)
+		assert.Equal(t, "orders-service", opts.ContainerID)
+		require.NotNil(t, opts.TLSConfig)
+		assert.Len(t, opts.TLSConfig.Certificates, 1)
+		assert.NotNil(t, opts.TLSConfig.RootCAs)
+		assert.NotNil(t, opts.SASLType)
+	})
+
+	t.Run("username and password over plain AMQP", func(t *testing.T) {
+		md := &metadata{URL: "amqp://broker:5672", Username: "user", Password: "secret"}
+
+		opts, err := a.connOptions(md, "orders-service")
+		require.NoError(t, err)
+		assert.Nil(t, opts.TLSConfig)
+		assert.NotNil(t, opts.SASLType)
+	})
+
+	t.Run("the shared connection lets go-amqp generate the container ID", func(t *testing.T) {
+		opts, err := a.connOptions(&metadata{URL: "amqp://broker:5672", Anonymous: true}, "")
+		require.NoError(t, err)
+		assert.Empty(t, opts.ContainerID)
+	})
+}
+
+// TestNamedConnectionUsesMutualTLSAndAnonymousSASL dials the connection of a
+// named subscription against a local TLS server that requires a client
+// certificate and offers the ANONYMOUS and PLAIN SASL mechanisms. The
+// connection must present the client certificate and pick ANONYMOUS, as a
+// broker that only accepts mutual TLS expects.
+func TestNamedConnectionUsesMutualTLSAndAnonymousSASL(t *testing.T) {
+	ca, caKey, caPEM := testCA(t)
+	certPEM, keyPEM := testLeaf(t, ca, caKey, "test-client", x509.ExtKeyUsageClientAuth)
+	serverCertPEM, serverKeyPEM := testLeaf(t, ca, caKey, "127.0.0.1", x509.ExtKeyUsageServerAuth)
+
+	serverCert, err := tls.X509KeyPair([]byte(serverCertPEM), []byte(serverKeyPEM))
+	require.NoError(t, err)
+	clientCAs := x509.NewCertPool()
+	clientCAs.AddCert(ca)
+
+	listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    clientCAs,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+	})
+	require.NoError(t, err)
+	defer listener.Close()
+
+	type handshake struct {
+		clientCN  string
+		mechanism string
+		err       error
+	}
+	result := make(chan handshake, 1)
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			result <- handshake{err: err}
+			return
+		}
+		defer conn.Close()
+
+		tlsConn := conn.(*tls.Conn)
+		if err = tlsConn.Handshake(); err != nil {
+			result <- handshake{err: err}
+			return
+		}
+
+		var got handshake
+		got.clientCN = tlsConn.ConnectionState().PeerCertificates[0].Subject.CommonName
+		got.mechanism, got.err = serveSASLMechanisms(conn)
+		result <- got
+	}()
+
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	md := &metadata{
+		URL:       "amqps://" + listener.Addr().String(),
+		Anonymous: true,
+		tlsCfg:    tlsCfg{CaCert: caPEM, ClientCert: certPEM, ClientKey: keyPEM},
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	// The fake server stops after the client picks a mechanism, so the dial
+	// itself fails. Only what the client sent matters.
+	go a.connectAs(ctx, md, "orders-service") //nolint:errcheck
+
+	select {
+	case got := <-result:
+		require.NoError(t, got.err)
+		assert.Equal(t, "test-client", got.clientCN)
+		assert.Equal(t, "ANONYMOUS", got.mechanism)
+	case <-ctx.Done():
+		t.Fatal("the client never completed the TLS handshake and SASL init")
+	}
+}
+
+// serveSASLMechanisms plays the broker side of an AMQP SASL negotiation up to
+// the client's choice: it answers the SASL protocol header, offers ANONYMOUS
+// and PLAIN, and returns the mechanism named in the client's sasl-init frame.
+func serveSASLMechanisms(conn net.Conn) (string, error) {
+	saslHeader := []byte{'A', 'M', 'Q', 'P', 3, 1, 0, 0}
+
+	header := make([]byte, len(saslHeader))
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return "", err
+	}
+	if !bytes.Equal(header, saslHeader) {
+		return "", fmt.Errorf("the client sent %v, not the SASL protocol header", header)
+	}
+
+	// A sasl-mechanisms frame that offers ANONYMOUS and PLAIN.
+	frame := []byte{
+		0, 0, 0, 34, 2, 1, 0, 0, // size, data offset, SASL frame type, channel 0
+		0x00, 0x53, 0x40, // described type sasl-mechanisms
+		0xc0, 21, 1, // list8 of one field
+		0xe0, 18, 2, 0xa3, // array8 of two sym8
+		9, 'A', 'N', 'O', 'N', 'Y', 'M', 'O', 'U', 'S',
+		5, 'P', 'L', 'A', 'I', 'N',
+	}
+
+	if _, err := conn.Write(append(saslHeader, frame...)); err != nil {
+		return "", err
+	}
+
+	// The sasl-init frame names the chosen mechanism as a symbol.
+	sizeBytes := make([]byte, 4)
+	if _, err := io.ReadFull(conn, sizeBytes); err != nil {
+		return "", err
+	}
+	rest := make([]byte, binary.BigEndian.Uint32(sizeBytes)-4)
+	if _, err := io.ReadFull(conn, rest); err != nil {
+		return "", err
+	}
+
+	for _, mechanism := range []string{"ANONYMOUS", "PLAIN"} {
+		if bytes.Contains(rest, []byte(mechanism)) {
+			return mechanism, nil
+		}
+	}
+
+	return "", fmt.Errorf("the sasl-init frame names no known mechanism: %x", rest)
+}
+
+// testTLSMaterial returns a CA certificate, and a client certificate and key it
+// signed, all PEM encoded.
+func testTLSMaterial(t *testing.T) (caPEM, certPEM, keyPEM string) {
+	t.Helper()
+
+	ca, caKey, caPEM := testCA(t)
+	certPEM, keyPEM = testLeaf(t, ca, caKey, "test-client", x509.ExtKeyUsageClientAuth)
+
+	return caPEM, certPEM, keyPEM
+}
+
+// testCA returns a self-signed CA certificate, its key, and the certificate
+// PEM encoded.
+func testCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	ca, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+
+	return ca, key, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
+// testLeaf returns a certificate for name, signed by ca, and its key, both PEM
+// encoded. An IP address name is also set as an IP SAN.
+func testLeaf(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, name string, usage x509.ExtKeyUsage) (certPEM, keyPEM string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: name},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		ExtKeyUsage:  []x509.ExtKeyUsage{usage},
+	}
+	if ip := net.ParseIP(name); ip != nil {
+		template.IPAddresses = []net.IP{ip}
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, ca, &key.PublicKey, caKey)
+	require.NoError(t, err)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
+		string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}))
 }

@@ -57,16 +57,20 @@ type document struct {
 	fields map[string]any
 }
 
+type index struct {
+	docs map[string]document
+}
+
 type store struct {
 	lock    sync.RWMutex
-	indexes map[string]map[string]document
+	indexes map[string]*index
 	md      Metadata
 }
 
 // NewInMemorySearch returns a search store that keeps every index in process
 // memory. It is meant for development and tests.
 func NewInMemorySearch(logger.Logger) search.Search {
-	return &store{indexes: make(map[string]map[string]document)}
+	return &store{indexes: make(map[string]*index)}
 }
 
 func (s *store) Init(_ context.Context, meta search.Metadata) error {
@@ -86,7 +90,7 @@ func (s *store) Close() error {
 }
 
 // index returns the named index. The caller holds the lock.
-func (s *store) index(ctx context.Context, name string) (map[string]document, error) {
+func (s *store) index(ctx context.Context, name string) (*index, error) {
 	if err := indexing.CtxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -98,13 +102,6 @@ func (s *store) index(ctx context.Context, name string) (map[string]document, er
 		return nil, status.Errorf(codes.NotFound, "index %q not found", name)
 	}
 	return idx, nil
-}
-
-func (s *store) requireIndex(ctx context.Context, name string) error {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	_, err := s.index(ctx, name)
-	return err
 }
 
 func (s *store) CreateIndex(ctx context.Context, req *search.CreateIndexRequest) error {
@@ -119,7 +116,7 @@ func (s *store) CreateIndex(ctx context.Context, req *search.CreateIndexRequest)
 	if _, ok := s.indexes[req.Index]; ok {
 		return status.Errorf(codes.AlreadyExists, "index %q already exists", req.Index)
 	}
-	s.indexes[req.Index] = make(map[string]document)
+	s.indexes[req.Index] = &index{docs: make(map[string]document)}
 	return nil
 }
 
@@ -130,7 +127,7 @@ func (s *store) GetIndex(ctx context.Context, req *search.GetIndexRequest) (*sea
 	if err != nil {
 		return nil, err
 	}
-	return &search.GetIndexResponse{Index: req.Index, DocumentCount: uint64(len(idx))}, nil
+	return &search.GetIndexResponse{Index: req.Index, DocumentCount: uint64(len(idx.docs))}, nil
 }
 
 func (s *store) ListIndexes(ctx context.Context, _ *search.ListIndexesRequest) (*search.ListIndexesResponse, error) {
@@ -139,6 +136,9 @@ func (s *store) ListIndexes(ctx context.Context, _ *search.ListIndexesRequest) (
 	}
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+	if s.indexes == nil {
+		return nil, errClosed
+	}
 	return &search.ListIndexesResponse{Indexes: slices.Sorted(maps.Keys(s.indexes))}, nil
 }
 
@@ -160,7 +160,10 @@ func (s *store) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRe
 	if err := search.ValidateWriteIDs(ids); err != nil {
 		return nil, err
 	}
-	if err := s.requireIndex(ctx, req.Index); err != nil {
+	s.lock.RLock()
+	idx, err := s.index(ctx, req.Index)
+	s.lock.RUnlock()
+	if err != nil {
 		return nil, err
 	}
 
@@ -168,8 +171,12 @@ func (s *store) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRe
 	docs := make([]document, 0, len(req.Documents))
 	for _, doc := range req.Documents {
 		var fields map[string]any
-		if json.Unmarshal(doc.Content, &fields) != nil || fields == nil {
-			failed = append(failed, search.FailedItem{ID: doc.ID, Error: status.New(codes.InvalidArgument, "content must be a JSON object")})
+		if vErr := search.ValidateDocumentContent(doc.Content); vErr != nil {
+			failed = append(failed, search.FailedItem{ID: doc.ID, Error: status.Convert(vErr)})
+			continue
+		}
+		if vErr := json.Unmarshal(doc.Content, &fields); vErr != nil {
+			failed = append(failed, search.FailedItem{ID: doc.ID, Error: status.New(codes.InvalidArgument, vErr.Error())})
 			continue
 		}
 		docs = append(docs, document{Document: doc, fields: fields})
@@ -178,9 +185,10 @@ func (s *store) IndexDocuments(ctx context.Context, req *search.IndexDocumentsRe
 	ack, err := indexing.Apply(ctx, req.Options, s.md.IndexingDelay, func() {
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		if idx := s.indexes[req.Index]; idx != nil {
+		// The index may have been replaced while the write was queued.
+		if s.indexes[req.Index] == idx {
 			for _, doc := range docs {
-				idx[doc.ID] = doc
+				idx.docs[doc.ID] = doc
 			}
 		}
 	})
@@ -199,7 +207,7 @@ func (s *store) GetDocuments(ctx context.Context, req *search.GetDocumentsReques
 	}
 	docs := make([]search.Document, 0, len(req.IDs))
 	for _, id := range req.IDs {
-		if doc, ok := idx[id]; ok {
+		if doc, ok := idx.docs[id]; ok {
 			docs = append(docs, doc.view(req.IncludeContent, nil))
 		}
 	}
@@ -207,15 +215,19 @@ func (s *store) GetDocuments(ctx context.Context, req *search.GetDocumentsReques
 }
 
 func (s *store) DeleteDocuments(ctx context.Context, req *search.DeleteDocumentsRequest) (*search.DeleteDocumentsResponse, error) {
-	if err := s.requireIndex(ctx, req.Index); err != nil {
+	s.lock.RLock()
+	idx, err := s.index(ctx, req.Index)
+	s.lock.RUnlock()
+	if err != nil {
 		return nil, err
 	}
 	ack, err := indexing.Apply(ctx, req.Options, s.md.IndexingDelay, func() {
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		idx := s.indexes[req.Index]
-		for _, id := range req.IDs {
-			delete(idx, id)
+		if s.indexes[req.Index] == idx {
+			for _, id := range req.IDs {
+				delete(idx.docs, id)
+			}
 		}
 	})
 	if err != nil {
@@ -258,8 +270,8 @@ func (s *store) Search(ctx context.Context, req *search.SearchRequest) (*search.
 		document
 		score float64
 	}
-	hits := make([]hit, 0, len(idx))
-	for _, doc := range idx {
+	hits := make([]hit, 0, len(idx.docs))
+	for _, doc := range idx.docs {
 		if !match(doc.fields) {
 			continue
 		}
@@ -269,9 +281,7 @@ func (s *store) Search(ctx context.Context, req *search.SearchRequest) (*search.
 	}
 	slices.SortFunc(hits, func(a, b hit) int {
 		for _, clause := range req.Sort {
-			x, _ := indexing.Lookup(a.fields, clause.Field)
-			y, _ := indexing.Lookup(b.fields, clause.Field)
-			c, _ := indexing.Compare(x, y)
+			c := compareField(a.fields, b.fields, clause.Field)
 			if clause.Order == search.SortOrderDesc {
 				c = -c
 			}
@@ -299,6 +309,37 @@ func (s *store) Search(ctx context.Context, req *search.SearchRequest) (*search.
 	return resp, nil
 }
 
+// compareField orders two documents on one sort field. Values of the same
+// type compare by value; otherwise the documents order by sortRank, so that
+// the order is total and pages are disjoint.
+func compareField(a, b map[string]any, path string) int {
+	x, foundX := indexing.Lookup(a, path)
+	y, foundY := indexing.Lookup(b, path)
+	if c, ok := indexing.Compare(x, y); ok {
+		return c
+	}
+	return cmp.Compare(sortRank(x, foundX), sortRank(y, foundY))
+}
+
+// sortRank groups the values that cannot be compared with each other:
+// numbers, then strings, then booleans, then nulls and nested values, then
+// missing fields.
+func sortRank(v any, found bool) int {
+	if !found {
+		return 4
+	}
+	switch v.(type) {
+	case string:
+		return 1
+	case bool:
+		return 2
+	}
+	if _, ok := indexing.Compare(v, 0.0); ok {
+		return 0
+	}
+	return 3
+}
+
 // view returns the document as a caller sees it: content only when asked for,
 // projected onto returnFields when any are given.
 func (d document) view(includeContent bool, returnFields []string) search.Document {
@@ -312,6 +353,9 @@ func (d document) view(includeContent bool, returnFields []string) search.Docume
 	}
 	projected := make(map[string]any, len(returnFields))
 	for _, path := range returnFields {
+		if coveredByPrefix(path, returnFields) {
+			continue
+		}
 		v, ok := indexing.Lookup(d.fields, path)
 		if !ok {
 			continue
@@ -330,6 +374,17 @@ func (d document) view(includeContent bool, returnFields []string) search.Docume
 	}
 	out.Content, _ = json.Marshal(projected)
 	return out
+}
+
+// coveredByPrefix reports whether another requested path is a strict prefix
+// of path, in which case that path already projects the whole object.
+func coveredByPrefix(path string, paths []string) bool {
+	for _, other := range paths {
+		if len(other) < len(path) && strings.HasPrefix(path, other+".") {
+			return true
+		}
+	}
+	return false
 }
 
 // queryShape fingerprints everything in a query but its continuation token,
@@ -355,9 +410,11 @@ func parseToken(token, shape string) (int, error) {
 	return n, nil
 }
 
-// textScore counts the occurrences of the query terms in the searchable string
+// textScore counts the occurrences of the query terms in the searchable
 // fields. A document matches only when every term occurs; no terms match
 // every document.
+//
+// ponytail: every query re-tokenizes every document, O(documents * words). Count words per field at index time if a development index ever grows large enough to notice.
 func textScore(fields map[string]any, terms, searchFields []string) (float64, bool) {
 	if len(terms) == 0 {
 		return 0, true
@@ -389,6 +446,10 @@ func collectWords(v any, words *[]string) {
 	switch x := v.(type) {
 	case string:
 		*words = append(*words, tokenize(x)...)
+	case float64:
+		*words = append(*words, tokenize(strconv.FormatFloat(x, 'f', -1, 64))...)
+	case bool:
+		*words = append(*words, strconv.FormatBool(x))
 	case map[string]any:
 		for _, e := range x {
 			collectWords(e, words)

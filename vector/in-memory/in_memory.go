@@ -143,6 +143,9 @@ func (s *store) ListCollections(ctx context.Context, _ *vector.ListCollectionsRe
 	}
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+	if s.collections == nil {
+		return nil, errClosed
+	}
 	return &vector.ListCollectionsResponse{Collections: slices.Sorted(maps.Keys(s.collections))}, nil
 }
 
@@ -167,20 +170,17 @@ func (s *store) Upsert(ctx context.Context, req *vector.UpsertRequest) (*vector.
 
 	s.lock.RLock()
 	c, err := s.collection(ctx, req.Collection)
-	var dimensions int
-	if err == nil {
-		dimensions = int(c.dimensions)
-	}
 	s.lock.RUnlock()
 	if err != nil {
 		return nil, err
 	}
+	dimensions, metric := int(c.dimensions), c.metric
 
 	var failed []search.FailedItem
 	records := make([]vector.Record, 0, len(req.Records))
 	for _, r := range req.Records {
-		if len(r.Values) != dimensions {
-			failed = append(failed, search.FailedItem{ID: r.ID, Error: status.Newf(codes.InvalidArgument, "the record has %d dimensions, the collection has %d", len(r.Values), dimensions)})
+		if vErr := validValues(r.Values, dimensions, metric); vErr != nil {
+			failed = append(failed, search.FailedItem{ID: r.ID, Error: status.Convert(vErr)})
 			continue
 		}
 		records = append(records, r)
@@ -189,7 +189,8 @@ func (s *store) Upsert(ctx context.Context, req *vector.UpsertRequest) (*vector.
 	ack, err := indexing.Apply(ctx, req.Options, s.md.IndexingDelay, func() {
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		if c := s.collections[req.Collection]; c != nil {
+		// The collection may have been replaced while the write was queued.
+		if s.collections[req.Collection] == c {
 			for _, r := range records {
 				c.records[r.ID] = r
 			}
@@ -219,7 +220,7 @@ func (s *store) Get(ctx context.Context, req *vector.GetRequest) (*vector.GetRes
 
 func (s *store) Delete(ctx context.Context, req *vector.DeleteRequest) (*vector.DeleteResponse, error) {
 	s.lock.RLock()
-	_, err := s.collection(ctx, req.Collection)
+	c, err := s.collection(ctx, req.Collection)
 	s.lock.RUnlock()
 	if err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func (s *store) Delete(ctx context.Context, req *vector.DeleteRequest) (*vector.
 	ack, err := indexing.Apply(ctx, req.Options, s.md.IndexingDelay, func() {
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		if c := s.collections[req.Collection]; c != nil {
+		if s.collections[req.Collection] == c {
 			for _, id := range req.IDs {
 				delete(c.records, id)
 			}
@@ -287,8 +288,8 @@ func (c *collection) query(req *vector.QueryRequest) (*vector.QueryResponse, err
 	} else {
 		values = req.Vector.Values
 	}
-	if len(values) != int(c.dimensions) {
-		return nil, status.Errorf(codes.InvalidArgument, "the query vector has %d dimensions, the collection has %d", len(values), c.dimensions)
+	if err := validValues(values, int(c.dimensions), metric); err != nil {
+		return nil, err
 	}
 
 	matches := make([]vector.Match, 0, len(c.records))
@@ -322,6 +323,26 @@ func view(r vector.Record, includeValues, includePayload bool) vector.Record {
 		out.Payload = r.Payload
 	}
 	return out
+}
+
+// validValues checks a vector against the collection: the right number of
+// dimensions, finite values and, for cosine similarity, a non-zero norm.
+func validValues(values []float32, dimensions int, metric vector.DistanceMetric) error {
+	if len(values) != dimensions {
+		return status.Errorf(codes.InvalidArgument, "the vector has %d dimensions, the collection has %d", len(values), dimensions)
+	}
+	var norm float64
+	for _, v := range values {
+		f := float64(v)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return status.Error(codes.InvalidArgument, "the vector has a value that is NaN or infinite")
+		}
+		norm += f * f
+	}
+	if norm == 0 && metric == vector.DistanceMetricCosine {
+		return status.Error(codes.InvalidArgument, "the vector has a zero norm, for which cosine similarity is undefined")
+	}
+	return nil
 }
 
 func validMetric(metric vector.DistanceMetric) error {

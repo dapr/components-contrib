@@ -37,6 +37,8 @@ func TestCompileFilter(t *testing.T) {
 		"price":     25.0,
 		"inStock":   false,
 		"publisher": map[string]any{"city": "london"},
+		"tags":      []any{"sale", "new"},
+		"nothing":   nil,
 	}
 
 	tests := []struct {
@@ -55,6 +57,14 @@ func TestCompileFilter(t *testing.T) {
 		{name: "$exists false", filter: map[string]any{"notes": map[string]any{"$exists": false}}, want: true},
 		{name: "bare bool", filter: map[string]any{"inStock": true}, want: false},
 		{name: "nested path", filter: map[string]any{"publisher.city": "london"}, want: true},
+		{name: "array matches when any element matches", filter: map[string]any{"tags": "new"}, want: true},
+		{name: "array $in", filter: map[string]any{"tags": map[string]any{"$in": []any{"new", "used"}}}, want: true},
+		{name: "array $ne matches when no element matches", filter: map[string]any{"tags": map[string]any{"$ne": "new"}}, want: false},
+		{name: "array $nin", filter: map[string]any{"tags": map[string]any{"$nin": []any{"used"}}}, want: true},
+		{name: "null equals null", filter: map[string]any{"nothing": nil}, want: true},
+		{name: "null $ne null", filter: map[string]any{"nothing": map[string]any{"$ne": nil}}, want: false},
+		{name: "value $eq null", filter: map[string]any{"category": map[string]any{"$eq": nil}}, want: false},
+		{name: "value $ne null", filter: map[string]any{"category": map[string]any{"$ne": nil}}, want: true},
 		{name: "$or $and $not", filter: map[string]any{"$or": []any{
 			map[string]any{"category": "suv"},
 			map[string]any{"$and": []any{map[string]any{"price": 25.0}, map[string]any{"$not": map[string]any{"inStock": true}}}},

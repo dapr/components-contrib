@@ -187,7 +187,7 @@ func compileField(path string, value any) (Predicate, error) {
 		default:
 			return nil, fmt.Errorf("unsupported filter operator %q for field %q", op, path)
 		}
-		tests = append(tests, test)
+		tests = append(tests, anyElement(test, op == "$ne" || op == "$nin"))
 	}
 
 	return func(fields map[string]any) bool {
@@ -199,6 +199,23 @@ func compileField(path string, value any) (Predicate, error) {
 		}
 		return true
 	}, nil
+}
+
+// anyElement lifts a scalar test over array-valued fields: an array matches
+// when any of its elements does, so a negated test matches when none does.
+func anyElement(test func(v any, found bool) bool, negated bool) func(v any, found bool) bool {
+	return func(v any, found bool) bool {
+		items, ok := v.([]any)
+		if !ok {
+			return test(v, found)
+		}
+		for _, item := range items {
+			if test(item, true) != negated {
+				return !negated
+			}
+		}
+		return negated
+	}
 }
 
 func ordered(op string, operand any) func(v any, found bool) bool {
@@ -244,9 +261,13 @@ func Lookup(fields map[string]any, path string) (any, bool) {
 }
 
 // Compare orders two values of the same JSON type: numbers numerically,
-// strings lexically and booleans false before true. ok is false when the
-// values are of different types or not comparable.
+// strings lexically and booleans false before true. An explicit null equals
+// only null. ok is false when the values are of different types or not
+// comparable.
 func Compare(a, b any) (c int, ok bool) {
+	if a == nil || b == nil {
+		return 0, a == nil && b == nil
+	}
 	if x, isNum := toFloat(a); isNum {
 		y, isNum := toFloat(b)
 		return cmp.Compare(x, y), isNum

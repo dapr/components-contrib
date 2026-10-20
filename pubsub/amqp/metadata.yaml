@@ -97,7 +97,8 @@ metadata:
       for example an Apache ActiveMQ Artemis selector, can match on it. The `subject` key sets the
       AMQP subject, which Artemis selectors read as `JMSType`. Every other key becomes an
       application property with a string value. `ttlInSeconds`, `rawPayload` and `cloudevent.*`
-      keys are not copied.
+      keys are not copied. To compare a property with a number in an Artemis selector, prefix the
+      selector with `convert_string_expressions:`.
     default: '"false"'
     example: '"true"'
     type: bool

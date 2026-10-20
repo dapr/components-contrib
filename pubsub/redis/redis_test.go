@@ -452,10 +452,6 @@ func (s *stubRedisClient) TTLResult(context.Context, string) (time.Duration, err
 	return 0, nil
 }
 
-func (s *stubRedisClient) AuthACL(context.Context, string, string) error {
-	return nil
-}
-
 type stubRedisPipeliner struct{}
 
 func (p *stubRedisPipeliner) Exec(context.Context) error {

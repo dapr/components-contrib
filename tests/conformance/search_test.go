@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/search"
+	searchinmemory "github.com/dapr/components-contrib/search/in-memory"
 	searchmeilisearch "github.com/dapr/components-contrib/search/meilisearch"
 	confsearch "github.com/dapr/components-contrib/tests/conformance/search"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
@@ -71,6 +72,8 @@ func searchShouldSkipComponent(t *testing.T, componentName string) bool {
 
 func loadSearchComponent(name string) search.Search {
 	switch name {
+	case "in-memory":
+		return searchinmemory.NewInMemorySearch(testLogger)
 	case "meilisearch":
 		return searchmeilisearch.NewMeilisearch(testLogger)
 	default:

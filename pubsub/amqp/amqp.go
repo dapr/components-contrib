@@ -360,6 +360,8 @@ func (a *amqpPubSub) newMessage(md *metadata, req *pubsub.PublishRequest, addres
 		m.Header.TTL = ttl
 	}
 
+	applyPublishMetadata(md, m, req.Metadata)
+
 	return m
 }
 

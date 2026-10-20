@@ -61,7 +61,8 @@ two named subscriptions on one multicast address, `billing` and `audit`, each
 with its own selector, and both set `durable` and `shared`. The two components
 in `components/named` set one `containerID`, as replicas of one app ID would by
 default. A plain AMQP client publishes the events with an `eventType`
-application property, because a Dapr publish sets none.
+application property, so the test does not depend on
+`applicationPropertiesFromMetadata`.
 
 - Each subscription is one durable broker queue named
   `<containerID>.<subscriptionName>`, with the selector as its filter and both
@@ -74,6 +75,14 @@ application property, because a Dapr publish sets none.
 - With both sidecars stopped, the queues stay, and they keep what is published
   meanwhile, also across a broker restart. The backlog arrives, once each,
   when the sidecars start again.
+
+### Publish metadata as message properties
+
+`TestAMQPApplicationProperties` publishes through a sidecar whose component
+sets `applicationPropertiesFromMetadata`, and reads the message back with a
+plain AMQP client. The `subject` key must arrive as the AMQP subject, another
+key as an application property, and `ttlInSeconds` and `cloudevent.*` keys
+must not be copied.
 
 ## Running the tests
 

@@ -61,6 +61,11 @@ type metadata struct {
 	// broker keeps it across a broker restart. AMQP 1.0 messages are not
 	// durable unless the header says so.
 	DurableMessages bool
+
+	// ApplicationPropertiesFromMetadata copies the metadata of a publish
+	// request onto the message, see applyPublishMetadata, so that a broker-side
+	// filter such as an ActiveMQ Artemis selector can match on it.
+	ApplicationPropertiesFromMetadata bool
 }
 
 // containerID returns the container ID named subscriptions connect with, or an

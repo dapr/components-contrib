@@ -36,11 +36,21 @@ func TestSortWithMissingFieldsPagesEveryDocumentOnce(t *testing.T) {
 	require.NoError(t, s.Init(ctx, search.Metadata{}))
 	require.NoError(t, s.CreateIndex(ctx, &search.CreateIndexRequest{Index: "idx"}))
 
-	const total = 30
+	// The sort field is missing, null, an object, an array or a number, so
+	// that every rank of value shares the index.
+	const total = 40
 	docs := make([]search.Document, total)
 	for i := range docs {
 		content := map[string]any{"title": fmt.Sprintf("doc %02d", i)}
-		if i%3 != 0 {
+		switch i % 5 {
+		case 0:
+		case 1:
+			content["price"] = nil
+		case 2:
+			content["price"] = map[string]any{"amount": i}
+		case 3:
+			content["price"] = []any{float64(i)}
+		default:
 			content["price"] = float64(i % 4)
 		}
 		b, err := json.Marshal(content)

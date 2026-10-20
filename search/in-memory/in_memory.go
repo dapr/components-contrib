@@ -309,16 +309,17 @@ func (s *store) Search(ctx context.Context, req *search.SearchRequest) (*search.
 	return resp, nil
 }
 
-// compareField orders two documents on one sort field. Values of the same
-// type compare by value; otherwise the documents order by sortRank, so that
-// the order is total and pages are disjoint.
+// compareField orders two documents on one sort field: by sortRank first,
+// then by value within a rank, so that the order is total and pages are
+// disjoint.
 func compareField(a, b map[string]any, path string) int {
 	x, foundX := indexing.Lookup(a, path)
 	y, foundY := indexing.Lookup(b, path)
-	if c, ok := indexing.Compare(x, y); ok {
+	if c := cmp.Compare(sortRank(x, foundX), sortRank(y, foundY)); c != 0 {
 		return c
 	}
-	return cmp.Compare(sortRank(x, foundX), sortRank(y, foundY))
+	c, _ := indexing.Compare(x, y)
+	return c
 }
 
 // sortRank groups the values that cannot be compared with each other:

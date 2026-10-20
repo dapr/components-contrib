@@ -187,7 +187,10 @@ func compileField(path string, value any) (Predicate, error) {
 		default:
 			return nil, fmt.Errorf("unsupported filter operator %q for field %q", op, path)
 		}
-		tests = append(tests, anyElement(test, op == "$ne" || op == "$nin"))
+		if op != "$exists" {
+			test = anyElement(test, op == "$ne" || op == "$nin")
+		}
+		tests = append(tests, test)
 	}
 
 	return func(fields map[string]any) bool {

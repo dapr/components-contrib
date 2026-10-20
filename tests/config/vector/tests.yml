@@ -1,0 +1,49 @@
+# Copyright 2026 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+componentType: vector
+# `operations` declares the optional capabilities a component supports. A
+# capability that is not listed must be reported as UNIMPLEMENTED (or
+# INVALID_ARGUMENT where the contract says so) rather than silently ignored:
+#   queued-ack           native durable queued acknowledgement for every
+#                        write, including Delete
+#   score-threshold      inclusive score_threshold
+#   filter               portable filters over structured record metadata
+#                        (typed: string, number and bool operands, $in/$nin,
+#                        $exists and the $and/$or/$not logical operators)
+#   query-by-id          by_id queries
+#   metric-cosine        DISTANCE_METRIC_COSINE
+#   metric-dot-product   DISTANCE_METRIC_DOT_PRODUCT
+#   metric-euclidean     DISTANCE_METRIC_EUCLIDEAN
+# Metrics that are not listed must be rejected with INVALID_ARGUMENT both on
+# CreateCollection and on Query. The alpha contract is dense-vector only.
+components:
+  - component: meilisearch
+    operations:
+      - queued-ack
+      - score-threshold
+      - filter
+      - query-by-id
+      # Meilisearch only supports cosine similarity.
+      - metric-cosine
+    config:
+      # Component-specific collection settings are passed through verbatim.
+      # Record metadata is stored under the reserved `daprMetadata` attribute,
+      # which must be filterable for the portable filter DSL to apply to it.
+      createCollectionMetadata:
+        filterableAttributes: "daprMetadata"
+      # Dimensions is passed as the typed CreateCollectionRequest.Dimensions
+      # and drives the generated test vectors; the collection is created with
+      # DISTANCE_METRIC_UNSPECIFIED so the component's default metric applies.
+      dimensions: 4
+      waitTimeout: 20s

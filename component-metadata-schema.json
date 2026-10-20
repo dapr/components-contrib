@@ -215,6 +215,8 @@
         "crypto",
         "nameresolution",
         "conversation",
+        "search",
+        "vector",
         "binarystore"
       ],
       "description": "Component type, of one of the allowed values."

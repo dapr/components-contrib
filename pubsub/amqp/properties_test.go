@@ -122,3 +122,21 @@ func TestParseMetadataApplicationPropertiesFromMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, m.ApplicationPropertiesFromMetadata)
 }
+
+// TestNewMessageAppliesPublishMetadata verifies that Publish builds its message
+// with the publish metadata applied, next to the header settings.
+func TestNewMessageAppliesPublishMetadata(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	req := &pubsub.PublishRequest{
+		Data:     []byte("hello"),
+		Metadata: map[string]string{"eventType": "invoice", "ttlInSeconds": "30"},
+	}
+
+	m := a.newMessage(&metadata{ApplicationPropertiesFromMetadata: true, DurableMessages: true}, req, "orders")
+	assert.Equal(t, map[string]any{"eventType": "invoice"}, m.ApplicationProperties)
+	require.NotNil(t, m.Header)
+	assert.True(t, m.Header.Durable)
+
+	m = a.newMessage(&metadata{}, req, "orders")
+	assert.Nil(t, m.ApplicationProperties, "off unless the component sets it")
+}

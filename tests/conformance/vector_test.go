@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	confvector "github.com/dapr/components-contrib/tests/conformance/vector"
 	"github.com/dapr/components-contrib/vector"
+	vectoropensearch "github.com/dapr/components-contrib/vector/aws/opensearch"
 	vectormeilisearch "github.com/dapr/components-contrib/vector/meilisearch"
 )
 
@@ -60,6 +61,11 @@ func TestVectorConformance(t *testing.T) {
 
 func vectorShouldSkipComponent(t *testing.T, componentName string) bool {
 	switch componentName {
+	case "aws.opensearch":
+		if os.Getenv("OPENSEARCH_ENDPOINT") == "" {
+			t.Skip("Skipping OpenSearch vector conformance test: OPENSEARCH_ENDPOINT environment variable not set")
+			return true
+		}
 	case "meilisearch":
 		if os.Getenv("MEILISEARCH_HOST") == "" {
 			t.Skip("Skipping Meilisearch vector conformance test: MEILISEARCH_HOST environment variable not set")
@@ -71,6 +77,8 @@ func vectorShouldSkipComponent(t *testing.T, componentName string) bool {
 
 func loadVectorComponent(name string) vector.Vector {
 	switch name {
+	case "aws.opensearch":
+		return vectoropensearch.NewOpenSearch(testLogger)
 	case "meilisearch":
 		return vectormeilisearch.NewMeilisearch(testLogger)
 	default:

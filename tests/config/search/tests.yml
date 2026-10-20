@@ -29,6 +29,23 @@ componentType: search
 #   return-fields       return_fields projection
 #   search-fields       search_fields restriction
 components:
+  - component: aws.opensearch
+    operations:
+      - total-hits
+      - continuation-token
+      - highlights
+      - native-query
+      - filter
+      - sort
+      - return-fields
+      - search-fields
+    config:
+      waitTimeout: 20s
+      nativeQuery:
+        query:
+          multi_match:
+            query: hyundai
+            fields: ["content.title", "content.body"]
   - component: meilisearch
     operations:
       - queued-ack

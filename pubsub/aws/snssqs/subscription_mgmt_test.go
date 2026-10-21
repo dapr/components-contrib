@@ -77,6 +77,20 @@ func newTestHandler(topic string) *SubscriptionTopicHandler {
 	}
 }
 
+// newCancelableTestHandler is like newTestHandler but with a context the caller can cancel, for
+// exercising the real ctx.Done() -> unsubscribe wiring in createUnsubscribeListener. There is no
+// competing event for this handler's topic in these tests, so waiting for the resulting removal
+// is a deterministic single transition, not a race between two goroutines.
+func newCancelableTestHandler(topic string) (*SubscriptionTopicHandler, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &SubscriptionTopicHandler{
+		topic:        topic,
+		requestTopic: topic,
+		handler:      func(context.Context, *pubsub.NewMessage) error { return nil },
+		ctx:          ctx,
+	}, cancel
+}
+
 func waitForHandler(t *testing.T, sm *SubscriptionManager, topic string, want *SubscriptionTopicHandler) {
 	t.Helper()
 	require.Eventually(t, func() bool {
@@ -241,4 +255,19 @@ func Test_Unsubscribe_LastHandlerRemoved_StopsPoller(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return pollerCtx.Err() != nil
 	}, 2*time.Second, time.Millisecond, "poller must stop once the last handler is removed")
+}
+
+// Canceling a subscription's own context (as daprd does on unsubscribe) must still trigger its
+// removal through createUnsubscribeListener, exactly as a direct unsubscribe call does. This has
+// no competing event to race against, so the wait below is for a single deterministic transition.
+func Test_Unsubscribe_ContextCancellationTriggersRemoval(t *testing.T) {
+	t.Parallel()
+	sm, _ := newTestSubscriptionManager(t)
+
+	h1, cancel := newCancelableTestHandler("T")
+	sm.Subscribe(h1)
+	waitForHandler(t, sm, "T", h1)
+
+	cancel()
+	waitForHandlerAbsent(t, sm, "T")
 }

@@ -48,7 +48,7 @@ updates:
         update-types: ["minor", "patch"]
   # gomod middleware (one entry per directory so each gets its own grouped PR)
   - package-ecosystem: "gomod"
-    directory: "/middleware/http/was/example"
+    directory: "/middleware/http/wasm/example"
     schedule:
       interval: "weekly"
     cooldown:

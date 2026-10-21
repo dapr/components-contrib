@@ -35,6 +35,7 @@ type SubscriptionManager struct {
 	logger            logger.Logger
 	consumeCancelFunc context.CancelFunc
 	closeCh           chan struct{}
+	controllerDoneCh  chan struct{}
 	topicsChangeCh    chan changeSubscriptionTopicHandler
 	topicsHandlers    *xsync.MapOf[string, *SubscriptionTopicHandler]
 	lock              sync.Mutex
@@ -54,6 +55,7 @@ func NewSubscriptionMgmt(log logger.Logger) SubscriptionManagement {
 		logger:            log,
 		consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
 		closeCh:           make(chan struct{}),
+		controllerDoneCh:  make(chan struct{}),
 		topicsChangeCh:    make(chan changeSubscriptionTopicHandler),
 		topicsHandlers:    xsync.NewMapOf[string, *SubscriptionTopicHandler](),
 	}
@@ -81,6 +83,8 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 // it is also responsible for managing the lifecycle of the subscription handlers.
 func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(context.Context)) {
 	ctx := context.Background()
+	// signals pending unsubscribe senders that no one will receive their events anymore
+	defer close(sm.controllerDoneCh)
 
 	for {
 		select {
@@ -187,7 +191,12 @@ func (sm *SubscriptionManager) createUnsubscribeListener(topicHandler *Subscript
 func (sm *SubscriptionManager) unsubscribe(topicHandler *SubscriptionTopicHandler) {
 	sm.logger.Debug("Unsubscribing from topic: ", topicHandler.topic)
 
-	sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topicHandler}
+	// the controller only exits once the handlers map is empty, so any event still pending at that point is
+	// for a handler that was already replaced or removed. abort the send instead of blocking forever.
+	select {
+	case sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topicHandler}:
+	case <-sm.controllerDoneCh:
+	}
 }
 
 func (sm *SubscriptionManager) Close() {

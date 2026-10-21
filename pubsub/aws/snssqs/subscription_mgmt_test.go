@@ -271,3 +271,42 @@ func Test_Unsubscribe_ContextCancellationTriggersRemoval(t *testing.T) {
 	cancel()
 	waitForHandlerAbsent(t, sm, "T")
 }
+
+// H2 replaces H1, H2 is removed, and Close lets the controller exit with an empty handler map before
+// H1's stale unsubscribe is sent. That send must not block forever on the unbuffered change channel.
+func Test_Unsubscribe_StaleHandlerAfterControllerExit_DoesNotBlock(t *testing.T) {
+	t.Parallel()
+	// built manually instead of via newTestSubscriptionManager, as this test calls Close itself
+	sm := NewSubscriptionMgmt(logger.NewLogger("test")).(*SubscriptionManager)
+	stub := &consumerStub{}
+	sm.Init(nil, nil, stub.run)
+
+	h1 := newTestHandler("T")
+	sm.Subscribe(h1)
+	waitForHandler(t, sm, "T", h1)
+
+	h2 := newTestHandler("T")
+	sm.Subscribe(h2)
+	waitForHandler(t, sm, "T", h2)
+
+	sm.unsubscribe(h2)
+	waitForHandlerAbsent(t, sm, "T")
+
+	sm.Close()
+	select {
+	case <-sm.controllerDoneCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("controller did not exit after Close with an empty handler map")
+	}
+
+	sent := make(chan struct{})
+	go func() {
+		sm.unsubscribe(h1)
+		close(sent)
+	}()
+	select {
+	case <-sent:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stale unsubscribe blocked forever after the controller exited")
+	}
+}

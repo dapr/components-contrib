@@ -196,6 +196,7 @@ func (sm *SubscriptionManager) unsubscribe(topicHandler *SubscriptionTopicHandle
 	select {
 	case sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topicHandler}:
 	case <-sm.controllerDoneCh:
+	    sm.logger.Debugf("Skipping unsubscribe for topic %s: controller stopped", topicHandler.topic)
 	}
 }
 

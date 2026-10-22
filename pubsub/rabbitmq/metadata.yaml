@@ -189,6 +189,19 @@ metadata:
       - "declare"
       - "passive"
     example: '"declare","passive"'
+  - name: queueType
+    type: string
+    description: |
+      Default queue type for all queues declared by the component, including
+      dead letter queues. A `queueType` set on subscription metadata takes
+      precedence for that subscription's queue. Quorum queues require
+      `durable` to be "true" and `deletedWhenUnused` to be "false".
+      Ignored when `queueDeclareMode` is "passive".
+    default: '"classic"'
+    allowedValues:
+      - "classic"
+      - "quorum"
+    example: '"classic", "quorum"'
   - name: deliveryMode
     type: number
     description: |

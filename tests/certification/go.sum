@@ -409,8 +409,8 @@ github.com/creasty/defaults v1.5.2 h1:/VfB6uxpyp6h0fr7SPp7n8WJBoV8jfxQXPCnkVSjyl
 github.com/creasty/defaults v1.5.2/go.mod h1:FPZ+Y0WNrbqOVw+c6av63eyHUAl6pMHZwqLPvXUZGfY=
 github.com/cyphar/filepath-securejoin v0.6.1 h1:5CeZ1jPXEiYt3+Z6zqprSAgSWiggmpVyciv8syjIpVE=
 github.com/cyphar/filepath-securejoin v0.6.1/go.mod h1:A8hd4EnAeyujCJRrICiOWqjS1AX0a9kM5XL+NwKoYSc=
-github.com/dapr/dapr v1.19.0-rc.7 h1:c2udQC9bbtbK0izX0pyjHzp6exldOtrvLJBmTnvtj9c=
-github.com/dapr/dapr v1.19.0-rc.7/go.mod h1:arJWxIZi+l7yBj6RT/sZAXVlJiVGUY7y2vgwz+D18Cw=
+github.com/dapr/dapr v1.19.0 h1:dmw8wTxNC+IhfRwtVMyeB/dECLzbfQtZvA7kNWqA770=
+github.com/dapr/dapr v1.19.0/go.mod h1:MWq4GpsuEIydrgizhTHLfp6BqdjJv7T/m1EIpMG7W5k=
 github.com/dapr/durabletask-go v0.15.1 h1:yKQCfT49PEpWoJkUpGR0Y+lrqujbRYjJhzsmpYlpEIg=
 github.com/dapr/durabletask-go v0.15.1/go.mod h1:+8ABEQn9JvRPRvPr1QNVxdkdLPgJgpJwcpie5ZDt7nk=
 github.com/dapr/go-sdk v1.14.0-rc.2 h1:SoXSirvHjg98sYGOLq/k5mflj5g18Sp9tICQkozfNu0=

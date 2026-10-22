@@ -8,9 +8,11 @@ for the Conformance and Certification Tests.
 The Authn/Authz is handled by 2 resources already deployed in the GCP Project:
 
 - Workload Identity Pool & Workload Identity Provider Configured **specifically** for this GitHub repository -  **(Authentication)**
-- A GCP IAM Service Account (SA) used to impersonate this GitHub Actions workflow within the GCP Project **(Authorization)**. This SA has been assigned the roles **`roles/pubsub.admin`** and **`roles/datastore.owner`** which will be used for the `GCP PusbSub` and `GCP Firestore` Certification Tests.
+- A GCP IAM Service Account (SA) used to impersonate this GitHub Actions workflow within the GCP Project **(Authorization)**. This SA requires **`roles/pubsub.admin`**, **`roles/datastore.owner`**, and **`roles/storage.admin`** for the GCP Pub/Sub, Firestore, and binary-store bucket tests. Storage Admin allows the bucket conformance job to provision a bucket, read and write test objects, and delete the bucket during teardown.
 
  **Note:** Changes to the roles for the SA should be made in the `roles` local variable in the file `service_account.tf`
+
+After changing these roles, apply this infrastructure module before running the affected tests; the conformance workflow does not update its own IAM permissions.
 
 The Terraform scripts follow steps similar to the suggested in the [Google GitHub Actions Auth](https://github.com/google-github-actions/auth#setting-up-workload-identity-federation)
 
@@ -38,6 +40,7 @@ Before this module can be used on a project, you must ensure that the following 
     "cloudresourcemanager.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
+    "storage.googleapis.com",
     ```
 
 1. The GCP Account or Service Account used to deploy this module has the following roles

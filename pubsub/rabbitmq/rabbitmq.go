@@ -289,14 +289,23 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	// confirm will be nil if are not requesting publish confirmations
 	if confirm != nil {
 		// Blocks until the server confirms
-		ok := confirm.Wait()
-		if !ok {
-			err = errors.New("did not receive confirmation of publishing")
+		if err = confirmationError(confirm); err != nil {
 			r.logger.Errorf("%s publishing to %s failed: %v", logMessagePrefix, req.Topic, err)
+
+			return r.channel, r.connectionCount, err
 		}
 	}
 
 	return r.channel, r.connectionCount, nil
+}
+
+// confirmationError waits for the broker's confirmation and returns an error if the broker did not ack the message.
+func confirmationError(confirm interface{ Wait() bool }) error {
+	if !confirm.Wait() {
+		return errors.New("did not receive confirmation of publishing")
+	}
+
+	return nil
 }
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {

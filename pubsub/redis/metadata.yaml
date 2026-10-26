@@ -196,6 +196,17 @@ metadata:
     description: Client key for Redis host. No Default. Can be secretKeyRef to use a secret reference
     example: ""
     type: string
+  - name: caCert
+    required: false
+    description: |
+      PEM-encoded CA certificate(s) used to verify the Redis server's TLS certificate, in addition to the
+      system roots. Use it when Redis serves a certificate issued by a private CA. Requires "enableTLS".
+      Can be secretKeyRef to use a secret reference.
+    example: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    type: string
   - name: redeliverInterval
     required: false
     description: |

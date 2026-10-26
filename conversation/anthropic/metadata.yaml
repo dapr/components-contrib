@@ -25,11 +25,11 @@ metadata:
     required: false
     description: |
       The Anthropic LLM to use. When apiType is 'foundry', this is the Foundry deployment name
-      (defaults to the Claude model ID, e.g. 'claude-opus-4-7'). Configurable via ANTHROPIC_MODEL
+      (defaults to the Claude model ID, e.g. 'claude-sonnet-4-6'). Configurable via ANTHROPIC_MODEL
       environment variable.
     type: string
-    example: 'claude-sonnet-4-20250514'
-    default: 'claude-sonnet-4-20250514'
+    example: 'claude-sonnet-4-6'
+    default: 'claude-sonnet-4-6'
   - name: endpoint
     required: false
     description: |
@@ -55,3 +55,12 @@ metadata:
       A time-to-live value for a prompt cache to expire. Uses Golang durations
     type: string
     example: '10m'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+      When unset, no cap is sent and the provider's own default applies.
+    type: number
+    example: "2048"
+    default: ''

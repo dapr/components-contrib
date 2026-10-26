@@ -1,0 +1,113 @@
+# AMQP 1.0 pub/sub certification testing
+
+The certification test for the `pubsub.amqp` component. It runs against Apache
+ActiveMQ Artemis, which containerises cheaply and speaks plain AMQP 1.0.
+
+## Test plan
+
+### Delivery
+
+- Publish messages through one sidecar and verify that two independent
+  subscribers each receive all of them.
+- Fail one message in every 100 from the first subscriber, to confirm that a
+  message the handler rejects is delivered again.
+
+  This case found a real defect. The component answered a handler error with
+  the AMQP `rejected` outcome, which tells the broker the message is invalid,
+  so it was dead-lettered and never came back. A handler error in Dapr means
+  "deliver this again". The component now answers with `modified` and
+  `delivery-failed`, which asks for redelivery and increments the broker's
+  delivery count, so redelivery-delay and max-delivery-attempts apply and a
+  message that always fails eventually dead-letters instead of spinning.
+
+  The conformance suite does return a handler error, but it removes the message
+  from its expected set before doing so, so it never asserts redelivery and
+  could not detect the outcome being wrong.
+
+### Recovery from a broker restart
+
+Stop the broker container under a live subscription, start it again, and verify
+that publishing and subscribing both resume with no sidecar restart.
+
+This is the regression guard for reconnect. The component holds one connection
+opened at `Init`. Before reconnect existed, a detached link made `Receive`
+return the same error immediately and forever, so the subscription never
+recovered.
+
+### Recovery from a network interruption
+
+Drop the broker port with no clean shutdown, then verify that delivery resumes.
+This covers the path where the peer never sends a detach frame.
+
+### Addressing with prefixes
+
+Run a component configured with `topicAddressPrefix` and `queueAddressPrefix`,
+and verify that publisher and subscriber still meet on the prefixed address.
+
+What this proves is that the component applies the configured prefix
+consistently on both the publish and the subscribe path, against a real broker.
+Artemis auto-creates an address under whatever literal name it is given, so the
+round trip succeeds without the broker being configured for those prefixes.
+
+What it does **not** prove is routing-type separation. The broker here runs a
+default acceptor, so it is not configured with `anycastPrefix` and
+`multicastPrefix`, and nothing here checks that `queue:` reaches an ANYCAST
+address while a bare topic reaches a MULTICAST one. See the known gaps.
+
+### Named, durable, shared and filtered subscriptions
+
+`TestAMQPNamedSubscriptions` runs two replicas of one app. Each replica holds
+two named subscriptions on one multicast address, `billing` and `audit`, each
+with its own selector, and both set `durable` and `shared`. The two components
+in `components/named` set one `containerID`, as replicas of one app ID would by
+default. A plain AMQP client publishes the events with an `eventType`
+application property, so the test does not depend on
+`applicationPropertiesFromMetadata`.
+
+- Each subscription is one durable broker queue named
+  `<containerID>.<subscriptionName>`, with the selector as its filter and both
+  replicas as consumers. The test reads this from the broker management API.
+- Each event reaches exactly one replica, and only the subscription whose
+  selector matches it. An event type that no selector matches reaches no app.
+- Restarting one replica at a time while events are published loses no event.
+  An event in flight on a stopping replica is delivered again, so this step
+  allows duplicates.
+- With both sidecars stopped, the queues stay, and they keep what is published
+  meanwhile, also across a broker restart. The backlog arrives, once each,
+  when the sidecars start again.
+
+### Publish metadata as message properties
+
+`TestAMQPApplicationProperties` publishes through a sidecar whose component
+sets `applicationPropertiesFromMetadata`, and reads the message back with a
+plain AMQP client. The `subject` key must arrive as the AMQP subject, another
+key as an application property, and `ttlInSeconds` and `cloudevent.*` keys
+must not be copied.
+
+## Running the tests
+
+Start the broker and run the suite:
+
+```bash
+cd tests/certification/pubsub/amqp
+go test -v -timeout 15m .
+```
+
+The suite manages the broker container itself through `docker-compose.yml`.
+
+## Requirements
+
+The network interruption step programs the host packet filter, so it needs
+root. On macOS it fails with `Could not enable firewall using: sudo pfctl -E`.
+It runs unattended on the Linux CI runner, which is where the mqtt3 and
+rabbitmq suites use the same helper.
+
+## Known gaps
+
+- Routing-type separation is not covered. Proving it needs a broker whose
+  acceptor is configured with `anycastPrefix` and `multicastPrefix`, which
+  means a custom `broker.xml` mounted into the container.
+- Message TTL is declared by the component but is not covered here or by the
+  conformance suite.
+- Wildcard subscriptions are not covered. The component does not declare
+  `SUBSCRIBE_WILDCARDS`, because the syntax differs between brokers.

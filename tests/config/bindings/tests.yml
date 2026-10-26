@@ -99,3 +99,9 @@ components:
       output:
         key: $((uuid))
       outputData: '{"data": {"maxResults": 10}}'
+  - component: aws-floci.s3
+    operations: ["create", "operations", "get", "list"]
+    config:
+      output:
+        key: $((uuid))
+      outputData: '{"data": {"maxResults": 10}}'

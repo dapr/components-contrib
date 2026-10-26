@@ -45,7 +45,7 @@ linters:
           - gosec
       # G704 in components/middleware whose purpose is making outbound HTTP
       # requests to user-specified endpoints
-      - path: bindings/alicloud/dingtalk/|bindings/http/|bindings/twilio/|bindings/apns/|bindings/azure/signalr/|bindings/cloudflare/|common/authentication/azure/|common/wasm/|common/component/cloudflare/|common/component/kafka/sasl_oauthbearer|middleware/http/|secretstores/hashicorp/vault/|state/cloudflare/
+      - path: bindings/alicloud/dingtalk/|bindings/http/|bindings/twilio/|bindings/apns/|bindings/azure/signalr/|bindings/cloudflare/|common/authentication/azure/|common/wasm/|common/component/cloudflare/|common/component/kafka/sasl_oauthbearer|conversation/openai/|middleware/http/|secretstores/hashicorp/vault/|state/cloudflare/
         text: "G704"
         linters:
           - gosec

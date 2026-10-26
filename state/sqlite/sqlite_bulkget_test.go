@@ -17,6 +17,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -140,6 +141,73 @@ func TestBulkGetChunksError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res, len(keys))
 	assert.Equal(t, 3, fq.queries)
+}
+
+// clockQuerier waits before the query with the number waitAt until the
+// database time is at or after the time until, and counts queries.
+type clockQuerier struct {
+	querier
+	waitAt  int
+	until   string
+	queries int
+}
+
+func (c *clockQuerier) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	c.queries++
+	for c.queries == c.waitAt {
+		var passed bool
+		if err := c.querier.QueryRowContext(ctx, "SELECT CURRENT_TIMESTAMP >= ?", c.until).Scan(&passed); err != nil {
+			return nil, err
+		}
+		if passed {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	return c.querier.QueryContext(ctx, query, args...)
+}
+
+// TestBulkGetChunksExpiration checks that all chunks use one expiration time.
+// All keys expire at the same time, and the database time passes that time
+// after the first chunk and before the second chunk. All keys must have a
+// response, as with one query.
+func TestBulkGetChunksExpiration(t *testing.T) {
+	s := newBulkGetStore(t)
+	dba := s.GetDBAccess()
+
+	keys := make([]string, 2*bulkGetMaxKeysPerQuery)
+	for i := range keys {
+		keys[i] = "k" + strconv.Itoa(i)
+	}
+	require.NoError(t, setBulkGetValues(t.Context(), s, keys, "v"))
+
+	// CURRENT_TIMESTAMP has a resolution of one second. With two seconds, the
+	// expiration time is after the time that bulkGetChunks reads.
+	var expiration string
+	require.NoError(t, dba.db.QueryRowContext(t.Context(), "SELECT DATETIME(CURRENT_TIMESTAMP, '+2 seconds')").Scan(&expiration))
+	stmt := fmt.Sprintf("UPDATE %s SET expiration_time = ?", dba.metadata.TableName) //nolint:gosec // table name from the test metadata
+	_, err := dba.db.ExecContext(t.Context(), stmt, expiration)
+	require.NoError(t, err)
+
+	cq := &clockQuerier{querier: dba.db, waitAt: 2, until: expiration}
+	res, err := dba.bulkGetChunks(t.Context(), cq, keys)
+	require.NoError(t, err)
+	assert.Equal(t, 2, cq.queries)
+	require.Len(t, res, len(keys))
+	for _, r := range res {
+		assert.Empty(t, r.Error, r.Key)
+		assert.Equal(t, "v", string(r.Data), r.Key)
+		assert.NotEmpty(t, r.Metadata[state.GetRespMetaKeyTTLExpireTime], r.Key)
+	}
+
+	// The keys are expired now.
+	res, err = dba.bulkGetChunks(t.Context(), dba.db, keys)
+	require.NoError(t, err)
+	assert.Empty(t, res)
 }
 
 // TestBulkGetCanceledContext checks that a request in chunks with a canceled

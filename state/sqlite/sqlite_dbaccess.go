@@ -220,7 +220,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 
 	res := make([]state.BulkGetResponse, 0, len(req))
 	if len(keys) <= bulkGetMaxKeysPerQuery {
-		rows, err := a.bulkGetRows(ctx, a.db, keys)
+		rows, err := a.bulkGetRows(ctx, a.db, keys, "")
 		if err != nil {
 			return nil, err
 		}
@@ -268,10 +268,20 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 // It returns the first error of a query, and no responses. The keys must be
 // unique.
 func (a *sqliteDBAccess) bulkGetChunks(ctx context.Context, db querier, keys []string) ([]state.BulkGetResponse, error) {
+	// CURRENT_TIMESTAMP has one value in a statement, but each statement reads
+	// the clock again. All chunks use the time that this statement reads, so a
+	// key that expires while the chunks run gives the same result as with one
+	// query.
+	var now string
+	err := db.QueryRowContext(ctx, "SELECT CURRENT_TIMESTAMP").Scan(&now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the current time: %w", err)
+	}
+
 	res := make([]state.BulkGetResponse, 0, len(keys))
 	for start := 0; start < len(keys); start += bulkGetMaxKeysPerQuery {
 		end := min(start+bulkGetMaxKeysPerQuery, len(keys))
-		rows, err := a.bulkGetRows(ctx, db, keys[start:end])
+		rows, err := a.bulkGetRows(ctx, db, keys[start:end], now)
 		if err != nil {
 			return nil, err
 		}
@@ -281,22 +291,28 @@ func (a *sqliteDBAccess) bulkGetChunks(ctx context.Context, db querier, keys []s
 }
 
 // bulkGetRows reads keys with one query. It returns one response for each key
-// that exists and is not expired. The keys must be unique, and there must not
-// be more than bulkGetMaxKeysPerQuery keys.
-func (a *sqliteDBAccess) bulkGetRows(ctx context.Context, db querier, keys []string) ([]state.BulkGetResponse, error) {
+// that exists and is not expired at the time now. now has the format of
+// CURRENT_TIMESTAMP. If now is empty, the query uses CURRENT_TIMESTAMP. The keys
+// must be unique, and there must not be more than bulkGetMaxKeysPerQuery keys.
+func (a *sqliteDBAccess) bulkGetRows(ctx context.Context, db querier, keys []string, now string) ([]state.BulkGetResponse, error) {
 	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
 	inClause := strings.Repeat("?,", len(keys))
 	inClause = inClause[:(len(inClause) - 1)]
-	params := make([]any, len(keys))
+	params := make([]any, len(keys), len(keys)+1)
 	for i, k := range keys {
 		params[i] = k
+	}
+	cutoff := "CURRENT_TIMESTAMP"
+	if now != "" {
+		cutoff = "?"
+		params = append(params, now)
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)
-			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
+			AND (expiration_time IS NULL OR expiration_time > ` + cutoff + `)`
 	rows, err := db.QueryContext(ctx, stmt, params...)
 	if err != nil {
 		return nil, err

@@ -36,6 +36,10 @@ const (
 	//nolint:dupword
 	multiQuery = `
 local pend = {}
+local function num(s)
+  if not string.match(s, "^%-?%d+$") or #s > 15 then return nil end
+  return tonumber(s)
+end
 local function keytype(key)
   local t = redis.call("TYPE", key)
   if type(t) == "table" then t = t["ok"] end
@@ -69,7 +73,7 @@ for i = 1, n do
   local target = "hash"
   if js == "1" then target = "ReJSON-RL" end
   if etag ~= "" then
-    if not p.exists or p.vs == "" or tonumber(p.vs) ~= tonumber(etag) then
+    if not p.exists or num(p.vs) ~= tonumber(etag) then
       return redis.error_reply("` + etagMismatchReply + ` " .. key)
     end
   elseif kind == "s" and p.fwr and p.kind == target and p.vs ~= "" then
@@ -80,12 +84,16 @@ for i = 1, n do
   else
     local nv = 1
     if p.kind == target and p.vs ~= "" then
-      if not string.match(p.vs, "^%-?%d+$") then
+      local v = num(p.vs)
+      if v == nil then
         return redis.error_reply("ERR non numeric version for key " .. key)
       end
-      nv = tonumber(p.vs) + 1
+      if v >= 99999999999999 then
+        return redis.error_reply("ERR version too large for key " .. key)
+      end
+      nv = v + 1
     end
-    pend[key] = {exists=true, vs=tostring(nv), kind=target, fwr=(target == "hash" and p.kind == "hash" and p.fwr)}
+    pend[key] = {exists=true, vs=string.format("%d", nv), kind=target, fwr=(target == "hash" and p.kind == "hash" and p.fwr)}
   end
 end
 for i = 1, n do
@@ -215,11 +223,8 @@ func (r *StateStore) execMulti(ctx context.Context, ops []multiOp) error {
 	}
 
 	batches := [][]multiOp{ops}
-	if r.isCluster() && !sameSlot(ops) {
-		batches = make([][]multiOp, len(ops))
-		for i := range ops {
-			batches[i] = ops[i : i+1]
-		}
+	if r.isCluster() {
+		batches = groupBySlot(ops)
 	}
 
 	for _, batch := range batches {
@@ -241,14 +246,20 @@ func (r *StateStore) execMulti(ctx context.Context, ops []multiOp) error {
 	return nil
 }
 
-func sameSlot(ops []multiOp) bool {
-	slot := keySlot(ops[0].key)
-	for _, op := range ops[1:] {
-		if keySlot(op.key) != slot {
-			return false
+func groupBySlot(ops []multiOp) [][]multiOp {
+	idx := make(map[uint16]int)
+	var batches [][]multiOp
+	for _, op := range ops {
+		slot := keySlot(op.key)
+		i, ok := idx[slot]
+		if !ok {
+			i = len(batches)
+			idx[slot] = i
+			batches = append(batches, nil)
 		}
+		batches[i] = append(batches[i], op)
 	}
-	return true
+	return batches
 }
 
 func keySlot(key string) uint16 {

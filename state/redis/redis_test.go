@@ -755,6 +755,51 @@ func TestMultiETags(t *testing.T) {
 		requireKind(t, err, state.ETagMismatch)
 		assert.Nil(t, get(t, ss, "{x}a").Data, "same slot runs as one script")
 	})
+
+	t.Run("cluster cross slot groups ops by slot", func(t *testing.T) {
+		ss := newStore(t)
+		ss.clientSettings.RedisType = rediscomponent.ClusterType
+		require.Equal(t, keySlot("a"), keySlot("{a}x"))
+		require.NotEqual(t, keySlot("a"), keySlot("b"))
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: "b1"},
+			state.SetRequest{Key: "{a}x", Value: "x1", ETag: ptr.Of("5")},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.Nil(t, get(t, ss, "a").Data)
+		assert.Nil(t, get(t, ss, "b").Data)
+
+		require.NoError(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: "b1"},
+			state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("1")},
+		))
+		res := get(t, ss, "a")
+		assert.JSONEq(t, `"a2"`, string(res.Data))
+		assert.Equal(t, "2", *res.ETag)
+	})
+
+	t.Run("version too large applies nothing", func(t *testing.T) {
+		for _, v := range []string{"99999999999999", "9223372036854775807"} {
+			ss := newStore(t)
+			require.NoError(t, ss.client.DoWrite(t.Context(), "HSET", "b", "data", `"b1"`, "version", v))
+			require.Error(t, multi(ss,
+				state.SetRequest{Key: "a", Value: "a1"},
+				state.SetRequest{Key: "b", Value: "b2"},
+			))
+			require.Error(t, multi(ss,
+				state.SetRequest{Key: "a", Value: "a1"},
+				state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of(v)},
+			))
+			assert.Nil(t, get(t, ss, "a").Data)
+		}
+	})
+}
+
+func TestGroupBySlot(t *testing.T) {
+	ops := []multiOp{{key: "a"}, {key: "b"}, {key: "{a}x"}, {key: "a"}}
+	assert.Equal(t, [][]multiOp{{{key: "a"}, {key: "{a}x"}, {key: "a"}}, {{key: "b"}}}, groupBySlot(ops))
 }
 
 func TestKeySlot(t *testing.T) {

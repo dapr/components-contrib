@@ -113,6 +113,20 @@ func TestDecodeCACert(t *testing.T) {
 	assert.Equal(t, ca.pem, m.CACert)
 }
 
+// caCert without enableTLS would be ignored and the component would connect in plain text, so it is refused.
+func TestDecodeCACertWithoutTLS(t *testing.T) {
+	ca := newTestCA(t, "private CA")
+	props := getFakeProperties()
+	props["caCert"] = ca.pem
+	props["enableTLS"] = "false"
+	err := (&Settings{}).Decode(props)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enableTLS")
+
+	delete(props, "caCert")
+	require.NoError(t, (&Settings{}).Decode(props), "enableTLS false without caCert stays valid")
+}
+
 // Every client the component can build applies caCert to the TLS config it connects with: v8 and v9, node, cluster and
 // failover. None of them dials on construction.
 func TestClientsApplyCACert(t *testing.T) {

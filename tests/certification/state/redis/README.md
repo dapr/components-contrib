@@ -49,3 +49,9 @@ The test serves a fake Azure App Service managed identity endpoint (`IDENTITY_EN
 2. The endpoint rotates to a second token and the background refresh fetches it.
 3. The initial token is revoked and the component's connections are killed; CRUD operations still succeed, proving new connections authenticate with the refreshed token (dapr/components-contrib#3554).
 4. The component's connections are authenticated as the object ID, and the token was requested for the `https://redis.azure.com` resource.
+
+## Private CA (`caCert`):
+Redis serves TLS only (`docker-compose-tls.yml`), with a server certificate issued by a CA the test generates. A client that trusts only the system roots is refused, so each case tests the CA alone:
+1. With `enableTLS` and `caCert` set to that CA, save, get and delete succeed.
+2. With `enableTLS` but without `caCert`, the server certificate fails verification and the state store is not configured.
+3. With `caCert` but without `enableTLS`, the component refuses the configuration and the state store is not configured.

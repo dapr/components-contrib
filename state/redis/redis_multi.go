@@ -30,9 +30,9 @@ import (
 
 const (
 	etagMismatchReply = "ETAGMISMATCH"
-	multiArgsPerOp    = 5
+	multiArgsPerOp    = 6
 
-	// Checks every guard before the first write. ARGV per key: kind, etag, json, data, ttl.
+	// Checks every guard before the first write. ARGV per key: kind, etag, json, data, ttl, first-write.
 	//nolint:dupword
 	multiQuery = `
 local pend = {}
@@ -67,8 +67,8 @@ end
 local n = #KEYS
 for i = 1, n do
   local key = KEYS[i]
-  local b = (i - 1) * 5
-  local kind, etag, js = ARGV[b+1], ARGV[b+2], ARGV[b+3]
+  local b = (i - 1) * 6
+  local kind, etag, js, fw = ARGV[b+1], ARGV[b+2], ARGV[b+3], ARGV[b+6]
   local p = cur(key)
   local target = "hash"
   if js == "1" then target = "ReJSON-RL" end
@@ -93,13 +93,13 @@ for i = 1, n do
       end
       nv = v + 1
     end
-    pend[key] = {exists=true, vs=string.format("%d", nv), kind=target, fwr=(target == "hash" and p.kind == "hash" and p.fwr)}
+    pend[key] = {exists=true, vs=string.format("%d", nv), kind=target, fwr=(fw == "1" or (target == "hash" and p.kind == "hash" and p.fwr))}
   end
 end
 for i = 1, n do
   local key = KEYS[i]
-  local b = (i - 1) * 5
-  local kind, js, data, ttl = ARGV[b+1], ARGV[b+3], ARGV[b+4], ARGV[b+5]
+  local b = (i - 1) * 6
+  local kind, js, data, ttl, fw = ARGV[b+1], ARGV[b+3], ARGV[b+4], ARGV[b+5], ARGV[b+6]
   if kind == "d" then
     redis.call("DEL", key)
   else
@@ -114,12 +114,18 @@ for i = 1, n do
       end
       redis.call("JSON.SET", key, "$", data)
       redis.call("JSON.SET", key, ".version", prev + 1)
+      if fw == "1" then
+        redis.call("JSON.SET", key, ".first-write", 0)
+      end
     else
       if t ~= "hash" and t ~= "none" then
         redis.call("DEL", key)
       end
       redis.call("HSET", key, "data", data)
       redis.call("HINCRBY", key, "version", 1)
+      if fw == "1" then
+        redis.call("HSET", key, "first-write", 0)
+      end
     end
     if ttl ~= "" then
       if tonumber(ttl) > 0 then
@@ -175,7 +181,7 @@ func (r *StateStore) buildMultiOps(request *state.TransactionalStateRequest) ([]
 				}
 				etag = strconv.FormatInt(v, 10)
 			}
-			ops = append(ops, multiOp{key: req.Key, args: [multiArgsPerOp]any{"d", etag, "0", "", ""}})
+			ops = append(ops, multiOp{key: req.Key, args: [multiArgsPerOp]any{"d", etag, "0", "", "", "0"}})
 		}
 	}
 	return ops, nil
@@ -209,11 +215,18 @@ func (r *StateStore) setOp(req *state.SetRequest, isJSON bool) (multiOp, error) 
 	jsonArg := "0"
 	if isJSON {
 		jsonArg = "1"
-		bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
+		bt, err = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
 	} else {
-		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
+		bt, err = utils.Marshal(req.Value, r.json.Marshal)
 	}
-	return multiOp{key: req.Key, args: [multiArgsPerOp]any{"s", etag, jsonArg, bt, ttlArg}}, nil
+	if err != nil {
+		return multiOp{}, fmt.Errorf("failed to marshal value for key %s: %w", req.Key, err)
+	}
+	firstWrite := "0"
+	if req.Options.Concurrency == state.FirstWrite {
+		firstWrite = "1"
+	}
+	return multiOp{key: req.Key, args: [multiArgsPerOp]any{"s", etag, jsonArg, bt, ttlArg, firstWrite}}, nil
 }
 
 // Redis Cluster rejects a multi-key script across hash slots.

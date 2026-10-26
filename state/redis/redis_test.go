@@ -720,6 +720,39 @@ func TestMultiETags(t *testing.T) {
 		assert.Nil(t, get(t, ss, "a").Data)
 	})
 
+	t.Run("first-write in multi blocks later unguarded writes", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, multi(ss, state.SetRequest{Key: "a", Value: "a1", Options: firstWrite}))
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a2"}), state.ETagMismatch)
+		require.Error(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a2"}))
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
+
+		require.NoError(t, multi(ss, state.SetRequest{Key: "a", Value: "a3", ETag: ptr.Of("1")}))
+		assert.JSONEq(t, `"a3"`, string(get(t, ss, "a").Data))
+	})
+
+	t.Run("first-write then unguarded write on the same key applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a1", Options: firstWrite},
+			state.SetRequest{Key: "b", Value: "b1"},
+			state.SetRequest{Key: "a", Value: "a2"},
+		)
+		requireKind(t, err, state.ETagMismatch)
+		assert.Nil(t, get(t, ss, "a").Data)
+		assert.Nil(t, get(t, ss, "b").Data)
+	})
+
+	t.Run("marshal error applies nothing", func(t *testing.T) {
+		ss := newStore(t)
+		err := multi(ss,
+			state.SetRequest{Key: "a", Value: "a1"},
+			state.SetRequest{Key: "b", Value: make(chan int)},
+		)
+		require.ErrorContains(t, err, "failed to marshal value for key b")
+		assert.Nil(t, get(t, ss, "a").Data)
+	})
+
 	t.Run("ttl too large applies nothing", func(t *testing.T) {
 		if strconv.IntSize < 64 {
 			t.Skip("an int ttl can't exceed maxTTLSeconds on 32-bit")

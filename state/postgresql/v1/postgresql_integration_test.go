@@ -16,9 +16,15 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -474,6 +480,61 @@ func testInitConfiguration(t *testing.T) {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
+	}
+}
+
+// TestPostgreSQLConcurrentInit starts many stores at once against a metadata
+// table that does not exist yet, as sidecars do on a new database: every Init
+// must succeed although their CREATE TABLE IF NOT EXISTS statements race.
+func TestPostgreSQLConcurrentInit(t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("PostgreSQL state integration tests skipped. To enable define the connection string using environment variable '%s'", connectionStringEnvKey)
+	}
+
+	const (
+		rounds = 30
+		stores = 32
+	)
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
+	tables := make([]string, 0, 2*rounds)
+	t.Cleanup(func() {
+		if len(tables) == 0 {
+			return
+		}
+		ctx := context.Background()
+		db, err := pgx.Connect(ctx, connectionString)
+		require.NoError(t, err)
+		defer db.Close(ctx)
+		_, err = db.Exec(ctx, "DROP TABLE IF EXISTS "+strings.Join(tables, ", "))
+		require.NoError(t, err)
+	})
+
+	for r := range rounds {
+		props := map[string]string{
+			"connectionString":  connectionString,
+			"tableName":         fmt.Sprintf("state_concinit_%s_%d", suffix, r),
+			"metadataTableName": fmt.Sprintf("meta_concinit_%s_%d", suffix, r),
+		}
+		tables = append(tables, props["tableName"], props["metadataTableName"])
+		errs := make(chan error, stores)
+		var wg sync.WaitGroup
+		for range stores {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				p := NewPostgreSQLStateStore(logger.NewLogger("test"))
+				if c, ok := p.(io.Closer); ok {
+					defer c.Close()
+				}
+				errs <- p.Init(t.Context(), state.Metadata{Base: metadata.Base{Properties: props}})
+			}()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			require.NoError(t, err, "round %d", r)
+		}
 	}
 }
 

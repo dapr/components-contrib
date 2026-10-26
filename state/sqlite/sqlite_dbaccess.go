@@ -493,7 +493,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 			req.Key)
 	} else {
 		// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
-		result, err = db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key = ? AND etag = ?",
+		result, err = db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key = ? AND etag = ? AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)",
 			req.Key, *req.ETag)
 	}
 

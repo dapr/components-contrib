@@ -27,4 +27,6 @@ type OpenAILangchainMetadata struct {
 	// UseLegacyMaxTokensField sends the cap as max_tokens instead of
 	// max_completion_tokens, for OpenAI-compatible endpoints that predate it.
 	UseLegacyMaxTokensField bool `json:"useLegacyMaxTokensField" mapstructure:"useLegacyMaxTokensField"`
+	// UseResponsesAPI sends requests to the Responses API (/v1/responses) instead of Chat Completions.
+	UseResponsesAPI bool `json:"useResponsesAPI" mapstructure:"useResponsesAPI"`
 }

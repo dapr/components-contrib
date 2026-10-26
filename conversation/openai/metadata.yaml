@@ -75,3 +75,12 @@ metadata:
     type: bool
     example: "true"
     default: 'false'
+  - name: useResponsesAPI
+    required: false
+    description: |
+      Send requests to OpenAI's Responses API (/v1/responses) instead of the
+      Chat Completions API. Set this to use function tools with reasoning models
+      that reject tools on Chat Completions. Not supported when apiType is azure.
+    type: bool
+    example: "true"
+    default: 'false'

@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -183,6 +184,12 @@ func (s *Settings) credentialsProvider() func(ctx context.Context) (string, stri
 func (s *Settings) Decode(in interface{}) error {
 	if err := config.Decode(in, s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
+	}
+
+	// caCert only applies to a TLS connection. Without enableTLS it would be ignored and the component would connect in
+	// plain text, so refuse the misconfiguration instead.
+	if s.CACert != "" && !s.EnableTLS {
+		return errors.New("caCert is set but enableTLS is false: set enableTLS to true to verify the server with caCert")
 	}
 
 	resolved, err := resolveHost(s.Host, s.Port)

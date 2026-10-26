@@ -503,7 +503,8 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 			req.Key)
 	} else {
 		result, err = querier.ExecContext(execCtx,
-			`DELETE FROM `+m.tableName+` WHERE id = ? AND eTag = ?`,
+			`DELETE FROM `+m.tableName+` WHERE id = ? AND eTag = ?
+				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
 			req.Key, *req.ETag)
 	}
 

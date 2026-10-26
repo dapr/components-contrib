@@ -452,7 +452,7 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQueri
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn+" AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)", req.Key, uint32(etag64))
 	}
 	if err != nil {
 		return err

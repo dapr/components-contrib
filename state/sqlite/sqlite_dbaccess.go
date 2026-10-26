@@ -237,14 +237,11 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 		defer tx.Rollback() //nolint:errcheck
 
-		for start := 0; start < len(keys); start += bulkGetMaxKeysPerQuery {
-			end := min(start+bulkGetMaxKeysPerQuery, len(keys))
-			rows, err := a.bulkGetRows(ctx, tx, keys[start:end])
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, rows...)
+		rows, err := a.bulkGetChunks(ctx, tx, keys)
+		if err != nil {
+			return nil, err
 		}
+		res = append(res, rows...)
 	}
 
 	// Populate missing keys with empty values
@@ -264,6 +261,22 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 	}
 
+	return res, nil
+}
+
+// bulkGetChunks reads keys with one query for each bulkGetMaxKeysPerQuery keys.
+// It returns the first error of a query, and no responses. The keys must be
+// unique.
+func (a *sqliteDBAccess) bulkGetChunks(ctx context.Context, db querier, keys []string) ([]state.BulkGetResponse, error) {
+	res := make([]state.BulkGetResponse, 0, len(keys))
+	for start := 0; start < len(keys); start += bulkGetMaxKeysPerQuery {
+		end := min(start+bulkGetMaxKeysPerQuery, len(keys))
+		rows, err := a.bulkGetRows(ctx, db, keys[start:end])
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, rows...)
+	}
 	return res, nil
 }
 
